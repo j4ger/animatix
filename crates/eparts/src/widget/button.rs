@@ -4,6 +4,7 @@ use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
+use crate::widget::tooltip::text_tooltip;
 use crate::widget::traits::{Sizable, Size};
 use crate::{density, spatial};
 
@@ -160,6 +161,16 @@ fn effective_label(label: Option<&str>) -> Option<&str> {
     label.filter(|l| !l.trim().is_empty())
 }
 
+/// Apply the default arrow cursor and, when a tooltip is set, render it with
+/// the grace-period eparts `Tooltip` instead of egui's immediate hover text.
+fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
+    let response = response.on_hover_cursor(egui::CursorIcon::Default);
+    if !tooltip.is_empty() {
+        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
+    }
+    response
+}
+
 impl egui::Widget for Button {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
         let d = density(ui);
@@ -248,11 +259,7 @@ impl egui::Widget for Button {
                 }
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
-                if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-                } else {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                }
+                finish_response(ui, response, self.tooltip)
             },
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
@@ -353,11 +360,7 @@ impl egui::Widget for Button {
                 }
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
-                if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-                } else {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                }
+                finish_response(ui, response, self.tooltip)
             },
             ButtonVariant::Primary | ButtonVariant::Danger => {
                 let slot_group = match self.variant {
@@ -457,11 +460,7 @@ impl egui::Widget for Button {
                 }
 
                 // Principle 3: override egui's default PointingHand with Default arrow.
-                if !self.tooltip.is_empty() {
-                    response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-                } else {
-                    response.on_hover_cursor(egui::CursorIcon::Default)
-                }
+                finish_response(ui, response, self.tooltip)
             },
         };
         if response.hovered() {

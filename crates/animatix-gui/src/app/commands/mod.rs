@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
+use std::sync::mpsc;
 
 use crate::app::document::timeline_diff::KeyframeId;
 
@@ -504,6 +505,11 @@ impl From<ViewCommand> for ShellAction {
         ShellAction::Command(c.into())
     }
 }
+impl From<Command> for ShellAction {
+    fn from(c: Command) -> Self {
+        ShellAction::Command(c)
+    }
+}
 
 // =========================================================================
 // ── Property edit types ─────────────────────────────────────────────────
@@ -607,3 +613,140 @@ pub struct UndoEntry {
 
 /// Per-frame action queue consumed by the shell.
 pub type ActionQueue = VecDeque<ShellAction>;
+
+// =========================================================================
+// ── External command queue ──────────────────────────────────────────────
+// =========================================================================
+
+/// App-owned queue for commands submitted outside a frame's UI callbacks.
+///
+/// The shell drains this into `ActionQueue` at the start of each frame, so
+/// integration tests and future remote-control channels can enqueue the same
+/// `Command` values the GUI already executes without touching egui or the
+/// display.
+#[derive(Debug)]
+pub struct CommandQueue {
+    sender: mpsc::Sender<ShellAction>,
+    receiver: mpsc::Receiver<ShellAction>,
+}
+
+impl Default for CommandQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CommandQueue {
+    /// Create an empty command queue.
+    pub fn new() -> Self {
+        let (sender, receiver) = mpsc::channel();
+        Self { sender, receiver }
+    }
+
+    /// Return a cloneable sender for this queue.
+    pub fn sender(&self) -> CommandSender {
+        CommandSender {
+            sender: self.sender.clone(),
+        }
+    }
+
+    /// Enqueue a shell action from the GUI's own code.
+    #[allow(dead_code)] // Reserved for GUI-owned callers; external senders use CommandSender.
+    pub fn push(&mut self, action: impl Into<ShellAction>) {
+        let _ = self.sender.send(action.into());
+    }
+
+    /// Append all currently queued actions to the per-frame action queue.
+    pub fn drain_into(&mut self, out: &mut ActionQueue) {
+        out.extend(self.receiver.try_iter());
+    }
+
+    /// Execute each currently queued action through the provided handler.
+    ///
+    /// This is primarily useful for headless tests and for callers that want to
+    /// consume commands without coupling to the shell's frame action queue.
+    #[allow(dead_code)] // Used by headless tests and reserved for queue-only consumers.
+    pub fn drain_with(&mut self, mut handle: impl FnMut(ShellAction)) {
+        for action in self.receiver.try_iter() {
+            handle(action);
+        }
+    }
+}
+
+/// Cloneable sender that enqueues commands into an owned [`CommandQueue`].
+#[derive(Debug, Clone)]
+pub struct CommandSender {
+    sender: mpsc::Sender<ShellAction>,
+}
+
+impl CommandSender {
+    /// Enqueue a domain command for the next shell frame.
+    #[allow(dead_code)] // External sender is exercised by headless tests and reserved for remote control.
+    pub fn send_command(&self, command: Command) -> Result<(), CommandQueueError> {
+        self.sender
+            .send(ShellAction::Command(command))
+            .map_err(|_| CommandQueueError::Closed)
+    }
+
+    /// Enqueue any shell action for the next shell frame.
+    #[allow(dead_code)] // External sender is exercised by headless tests and reserved for remote control.
+    pub fn send_action(&self, action: ShellAction) -> Result<(), CommandQueueError> {
+        self.sender.send(action).map_err(|_| CommandQueueError::Closed)
+    }
+}
+
+/// Error returned when a command sender's queue has been dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommandQueueError {
+    /// The owning shell no longer exists.
+    Closed,
+}
+
+impl std::fmt::Display for CommandQueueError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Closed => f.write_str("command queue is closed"),
+        }
+    }
+}
+
+impl std::error::Error for CommandQueueError {}
+
+#[cfg(test)]
+mod command_queue_tests {
+    use super::*;
+
+    #[test]
+    fn command_sender_enqueues_and_drains_commands() {
+        let mut queue = CommandQueue::new();
+        let sender = queue.sender();
+        sender.send_command(Command::Rebuild).expect("queue should be open");
+        sender.send_command(Command::ZoomToAll).expect("queue should be open");
+
+        let mut executed = Vec::new();
+        queue.drain_with(|action| executed.push(action));
+
+        assert_eq!(executed.len(), 2);
+        assert!(matches!(executed[0], ShellAction::Command(Command::Rebuild)));
+        assert!(matches!(executed[1], ShellAction::Command(Command::ZoomToAll)));
+
+        let mut remaining = Vec::new();
+        queue.drain_with(|action| remaining.push(action));
+        assert!(remaining.is_empty(), "drain should consume every queued command");
+    }
+
+    #[test]
+    fn command_queue_drain_appends_to_per_frame_queue() {
+        let mut queue = CommandQueue::new();
+        queue.push(Command::Rebuild);
+
+        let mut frame_actions = ActionQueue::default();
+        queue.drain_into(&mut frame_actions);
+        assert_eq!(frame_actions.len(), 1);
+        assert!(matches!(frame_actions[0], ShellAction::Command(Command::Rebuild)));
+
+        let mut remaining = Vec::new();
+        queue.drain_with(|action| remaining.push(action));
+        assert!(remaining.is_empty(), "drain_into should consume every queued command");
+    }
+}

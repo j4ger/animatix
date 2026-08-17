@@ -1,18 +1,19 @@
 //!
 //! # Non-Interpolatable Property Transitions (Side-Channel Pattern)
 //!
-//! The `func` property on `PlotCurve` cannot use standard `PropertyTrack<T>`
+//! The `func` property on plot actors cannot use standard `PropertyTrack<T>`
 //! animation because closures (function bodies like `(x) => sin(x * freq)`)
 //! cannot implement the [`Interpolate`](crate::easing::Interpolate) trait.
 //! There is no meaningful way to "lerp" two closure ASTs.
 //!
 //! Instead, `func` transitions use a **side-channel** pattern:
 //!
-//! - [`FuncTransition`] records a time range, easing, and the `from`/`to` [`FuncSource`] closures
-//!   in a parallel `Vec` on `AnimationTrack`.
-//! - At frame time, [`sample_procedural_plot_at`] checks for active transitions and blends the
-//!   *outputs* of the two sources at each sample point, rather than interpolating the sources
-//!   themselves.
+//! - [`FuncTransition`] records a time range, easing, blend mode, and the
+//!   `from`/`to` [`FuncSource`] closures in a parallel `Vec` on `AnimationTrack`.
+//! - At frame time, [`sample_procedural_plot_at`] checks for active transitions.
+//!   Output blending evaluates both sources and lerps their outputs at each
+//!   sample point; opacity blending renders the two generated path sets at
+//!   partial opacity.
 //! - [`FuncSource::Blend`] captures a mid-flight snap when the transition is frozen mid-progress
 //!   (used for combined transitions).
 //!
@@ -147,10 +148,21 @@ impl FuncSource {
     }
 }
 
+/// How a [`FuncTransition`] combines its two function sources.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum FuncBlendMode {
+    /// Blend evaluated function outputs at every sample point (default).
+    #[default]
+    Output,
+    /// Render the `from` and `to` visual outputs as separate opacity layers.
+    Opacity,
+}
+
 /// One keyframe-driven transition between two [`FuncSource`] values.
 ///
 /// This is the core unit of the **side-channel pattern** for the `func`
-/// property on `PlotCurve`. Because closures cannot implement
+/// property on plot actors. Because closures cannot implement
 /// [`Interpolate`](crate::easing::Interpolate), `func` transitions are stored
 /// in a parallel `Vec<FuncTransition>` on `AnimationTrack` (the
 /// `func_transitions` field in `dispatch.rs`) rather than in a standard
@@ -159,11 +171,11 @@ impl FuncSource {
 /// ## Lifecycle
 ///
 /// 1. The build stage appends a new `FuncTransition` whenever it encounters a `func = <expr>
-///    [easing, duration]` keyframe on a `PlotCurve`.
+///    [easing, duration]` keyframe on a supported plot actor.
 /// 2. At frame evaluation time, `sample_procedural_plot_at` iterates `func_transitions` and calls
 ///    [`active_at`] to find the transition covering the current time.
-/// 3. If one is active, both `from` and `to` are evaluated at each sample point and the outputs are
-///    lerped by the eased progress value.
+/// 3. If one is active, both `from` and `to` are evaluated at each sample point and combined by
+///    [`FuncBlendMode`].
 /// 4. [`is_complete_at`] identifies the last completed transition so its `to` source serves as the
 ///    static baseline between transitions.
 #[derive(Clone, Debug)]
@@ -174,6 +186,9 @@ pub struct FuncTransition {
     pub easing: Easing,
     pub from: FuncSource,
     pub to: FuncSource,
+    /// How `from` and `to` are combined while this transition is active.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub blend_mode: FuncBlendMode,
 }
 
 impl FuncTransition {
@@ -212,7 +227,7 @@ pub fn resolve_func_source(
         FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
-            captures.merge_into(&mut local_env);
+            captures.merge_missing_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_compiled_expr(body, &local_env).map(|v| v.as_num())
         },
@@ -240,7 +255,7 @@ pub fn resolve_func_source_vec2(
         FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);
             let mut local_env = env.clone();
-            captures.merge_into(&mut local_env);
+            captures.merge_missing_into(&mut local_env);
             local_env.set_binding(name, Value::Num(arg_val));
             evaluate_compiled_expr(body, &local_env).map(|v| match v {
                 Value::Vec2(arr) => arr,
@@ -294,10 +309,13 @@ pub(crate) fn eval_source_scalar(
             let key = x.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
                 // Inject captured variables on first evaluation for this x
-                captures.merge_into(env);
+                let inserted = captures.merge_missing_into(env);
                 env.set_binding(name, Value::Num(x));
                 let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN));
                 env.clear_bindings();
+                for key in inserted {
+                    env.overrides.remove(&key);
+                }
                 cache.insert(key, result.clone());
                 result
             });
@@ -329,11 +347,14 @@ fn eval_source_vec2(
             let key = t.to_bits();
             let val = cache.get(&key).cloned().unwrap_or_else(|| {
                 // Inject captured variables on first evaluation for this t
-                captures.merge_into(env);
+                let inserted = captures.merge_missing_into(env);
                 env.set_binding(name, Value::Num(t));
                 let result =
                     evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
                 env.clear_bindings();
+                for key in inserted {
+                    env.overrides.remove(&key);
+                }
                 cache.insert(key, result.clone());
                 result
             });
@@ -836,17 +857,21 @@ pub(crate) fn eval_implicit_source(
     match source {
         FuncSource::Compiled(args, body, captures) => {
             // Merge captured variables into the environment
-            captures.merge_into(env);
+            let inserted = captures.merge_missing_into(env);
             // Bind both arguments
             if args.len() >= 2 {
                 env.set(&args[0], Value::Num(x));
                 env.set(&args[1], Value::Num(y));
             }
             // Evaluate and return scalar
-            match evaluate_compiled_expr(body, env) {
+            let result = match evaluate_compiled_expr(body, env) {
                 Ok(Value::Num(n)) => n,
                 _ => f64::NAN,
+            };
+            for key in inserted {
+                env.overrides.remove(&key);
             }
+            result
         },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
@@ -1035,10 +1060,35 @@ use crate::renderer::types::VelloPath;
 // ProceduralPlot struct + helpers
 // ─────────────────────────────────────────────────────────────
 
+/// Discriminant for the procedural plot generator represented by
+/// [`ProceduralPlot`]. Existing `PlotCurve` kinds remain on the curve variant
+/// so sampling can reuse the adaptive curve code unchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ProceduralPlotKind {
+    /// `PlotCurve` with its existing sampling strategy.
+    Curve(PlotCurveKind),
+    /// Grid-sampled vector field.
+    VectorField,
+    /// Scalar field rendered as colored cells.
+    Heatmap,
+    /// Multiple level-set curves for a scalar field.
+    ContourSet,
+}
+
+impl Default for ProceduralPlotKind {
+    fn default() -> Self {
+        Self::Curve(PlotCurveKind::Cartesian)
+    }
+}
+
 /// All parameters needed to re-sample a plot curve at frame time.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProceduralPlot {
+    /// Which procedural renderer this plot uses.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub plot_type: ProceduralPlotKind,
     pub kind: PlotCurveKind,
     pub func_args: Vec<String>,
     pub func_body: CompiledExpr,
@@ -1055,8 +1105,15 @@ pub struct ProceduralPlot {
     pub tolerance: f64,
     pub max_depth: usize,
     pub resolution: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub density: usize,
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub levels: Vec<f64>,
     pub stroke_width: f32,
     pub stroke_color: [f32; 4],
+    /// Fill/heat color for plots that render filled cells.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub fill_color: [f32; 4],
     /// Custom numeric parameters that can be referenced by the func closure.
     /// Populated from declaration props like `freq: 2`, `amplitude: 1.5`.
     pub params: Vec<(String, f64)>,
@@ -1086,7 +1143,8 @@ pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> V
 /// Re-sample a procedural plot at frame time, blending between function sources
 /// driven by `transitions` at `time_ms`.
 ///
-/// - If a transition is active at `time_ms`, evaluates both endpoints and lerps.
+/// - If a transition is active at `time_ms`, evaluates both endpoints and combines them by the
+///   transition's [`FuncBlendMode`].
 /// - If all transitions are complete, uses the last completed transition's `to`.
 /// - Otherwise uses the declaration function from `plot.func_body`.
 pub fn sample_procedural_plot_at(
@@ -1095,8 +1153,6 @@ pub fn sample_procedural_plot_at(
     time_ms: u64,
     transitions: &[FuncTransition],
 ) -> Vec<VelloPath> {
-    let mut vello_paths = vec![];
-
     // Inject custom plot parameters as fallback defaults: only set the build-time
     // static value when the frame environment does not already carry an override
     // for the same name (e.g. from `always { freq = ... }` or a keyframe `let`).
@@ -1106,19 +1162,49 @@ pub fn sample_procedural_plot_at(
         }
     }
 
-    let arg_name = if !plot.func_args.is_empty() {
-        plot.func_args[0].clone()
-    } else {
-        "x".to_string()
-    };
-
-    // Resolve the active function reference for this frame.
     let decl_source = FuncSource::Compiled(
         plot.func_args.clone(),
         Box::new(plot.func_body.clone()),
         plot.extra_captures.clone(),
     );
-    let active = transitions.iter().find_map(|t| t.active_at(time_ms));
+    let active_transition = transitions.iter().find(|t| t.active_at(time_ms).is_some());
+    let active = active_transition.and_then(|t| t.active_at(time_ms));
+
+    if let Some((progress, from, to, _)) = active {
+        let transition = active_transition.expect("active transition must exist");
+        if transition.blend_mode == FuncBlendMode::Opacity {
+            let quality_factor = opacity_quality_factor(from, to);
+            let (actual_max_depth, actual_tolerance, actual_resolution) =
+                scaled_plot_quality(plot, quality_factor);
+            let from_paths = sample_plot_source(
+                plot,
+                env,
+                from,
+                actual_max_depth,
+                actual_tolerance,
+                actual_resolution,
+            );
+            let to_paths = sample_plot_source(
+                plot,
+                env,
+                to,
+                actual_max_depth,
+                actual_tolerance,
+                actual_resolution,
+            );
+            return crate::timeline::morph::interpolate_vello_paths(
+                &from_paths,
+                &to_paths,
+                progress as f32,
+                crate::timeline::morph::MorphOptions {
+                    strategy: crate::timeline::morph::MorphStrategy::Fade,
+                    ..Default::default()
+                },
+            );
+        }
+    }
+
+    // Resolve the active function reference for this frame.
     let func_ref: PlotFuncRef<'_> = if let Some((progress, from, to, _)) = active {
         PlotFuncRef::Blended { from, to, progress }
     } else {
@@ -1134,15 +1220,116 @@ pub fn sample_procedural_plot_at(
     // Reduces sampling quality exponentially with nested blend depth to maintain
     // frame rate during cascading transitions.
     let quality_factor = if let PlotFuncRef::Blended { from, to, .. } = &func_ref {
-        let depth = blend_depth(from).max(blend_depth(to)) + 1;
-        // depth 1: 0.75, depth 2: 0.5, depth 3: 0.375, etc.
-        0.75_f64.powi(depth as i32 - 1)
+        opacity_quality_factor(from, to)
     } else {
         1.0
     };
-    let actual_max_depth = (plot.max_depth as f64 * quality_factor).max(2.0) as usize;
-    let actual_tolerance = plot.tolerance / quality_factor;
-    let actual_resolution = (plot.resolution as f64 * quality_factor).max(8.0) as usize;
+    let (actual_max_depth, actual_tolerance, actual_resolution) =
+        scaled_plot_quality(plot, quality_factor);
+
+    let source = match func_ref {
+        PlotFuncRef::Single(src) => src.clone(),
+        PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
+            from: Box::new(from.clone()),
+            to: Box::new(to.clone()),
+            frozen_progress: progress,
+        },
+    };
+
+    sample_plot_source(plot, env, &source, actual_max_depth, actual_tolerance, actual_resolution)
+}
+
+fn opacity_quality_factor(from: &FuncSource, to: &FuncSource) -> f64 {
+    let depth = blend_depth(from).max(blend_depth(to)) + 1;
+    // depth 1: 1.0, depth 2: 0.75, depth 3: 0.5, etc.
+    0.75_f64.powi(depth as i32 - 1)
+}
+
+fn scaled_plot_quality(plot: &ProceduralPlot, quality_factor: f64) -> (usize, f64, usize) {
+    (
+        (plot.max_depth as f64 * quality_factor).max(2.0) as usize,
+        plot.tolerance / quality_factor,
+        (plot.resolution as f64 * quality_factor).max(8.0) as usize,
+    )
+}
+
+/// Re-sample one concrete [`FuncSource`] with the procedural renderer described
+/// by `plot`. Output-mode blending passes a [`FuncSource::Blend`] here;
+/// opacity-mode blending calls this separately for each endpoint.
+pub(crate) fn sample_plot_source(
+    plot: &ProceduralPlot,
+    env: &mut Environment,
+    source: &FuncSource,
+    actual_max_depth: usize,
+    actual_tolerance: f64,
+    actual_resolution: usize,
+) -> Vec<VelloPath> {
+    match plot.plot_type {
+        ProceduralPlotKind::Curve(_) => sample_curve_plot_source(
+            plot,
+            env,
+            source,
+            actual_max_depth,
+            actual_tolerance,
+            actual_resolution,
+        ),
+        ProceduralPlotKind::VectorField => {
+            let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
+            super::build::plot::build_vector_field_paths(
+                env,
+                source,
+                plot.p_x_domain,
+                plot.p_y_domain,
+                full_size,
+                plot.density.max(4),
+                plot.stroke_color,
+                plot.stroke_width,
+            )
+        },
+        ProceduralPlotKind::Heatmap => {
+            let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
+            super::build::plot::build_heatmap_paths(
+                env,
+                source,
+                plot.p_x_domain,
+                plot.p_y_domain,
+                full_size,
+                actual_resolution.max(4),
+                plot.fill_color,
+            )
+        },
+        ProceduralPlotKind::ContourSet => {
+            let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
+            super::build::plot::build_contour_set_paths(
+                env,
+                source,
+                &plot.levels,
+                plot.p_x_domain,
+                plot.p_y_domain,
+                full_size,
+                actual_resolution.max(8),
+                plot.stroke_color,
+                plot.stroke_width,
+            )
+        },
+    }
+}
+
+fn sample_curve_plot_source(
+    plot: &ProceduralPlot,
+    env: &mut Environment,
+    source: &FuncSource,
+    actual_max_depth: usize,
+    actual_tolerance: f64,
+    actual_resolution: usize,
+) -> Vec<VelloPath> {
+    let mut vello_paths = vec![];
+    let arg_name = if !plot.func_args.is_empty() {
+        plot.func_args[0].clone()
+    } else {
+        "x".to_string()
+    };
+    let func_ref = PlotFuncRef::Single(source);
 
     let (min_t, max_t) = if plot.kind == PlotCurveKind::Cartesian {
         (plot.p_x_domain[0], plot.p_x_domain[1])
@@ -1153,19 +1340,9 @@ pub fn sample_procedural_plot_at(
     };
 
     if plot.kind == PlotCurveKind::Implicit {
-        // Construct a FuncSource from the resolved func_ref, supporting
-        // blended transitions for implicit plots.
-        let implicit_source = match func_ref {
-            PlotFuncRef::Single(src) => src.clone(),
-            PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
-                from: Box::new(from.clone()),
-                to: Box::new(to.clone()),
-                frozen_progress: progress,
-            },
-        };
         let path = build_implicit_plot_path_from_source(
             env,
-            &implicit_source,
+            source,
             &plot.p_x_domain,
             &plot.p_y_domain,
             &plot.p_size,
@@ -1191,150 +1368,149 @@ pub fn sample_procedural_plot_at(
             line_cap: 0,
             line_join: 0,
         });
-    } else {
-        // Shared caches for from/to sources across start, end, and recursive evals.
-        let mut from_cache = HashMap::<u64, Value>::new();
-        let mut to_cache = HashMap::<u64, Value>::new();
-
-        let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
-            let y = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
-            (min_t, y)
-        } else if plot.kind == PlotCurveKind::Parametric {
-            let [x, y] =
-                eval_vec2(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
-            (x, y)
-        } else {
-            let r = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
-            (r * min_t.cos(), r * min_t.sin())
-        };
-        let (start_screen_x, start_screen_y) = math_to_screen_padded(
-            start_math_x,
-            start_math_y,
-            &plot.p_x_domain,
-            &plot.p_y_domain,
-            &plot.p_size,
-            &plot.padding,
-        );
-
-        let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
-            let y = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
-            (max_t, y)
-        } else if plot.kind == PlotCurveKind::Parametric {
-            let [x, y] =
-                eval_vec2(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
-            (x, y)
-        } else {
-            let r = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
-            (r * max_t.cos(), r * max_t.sin())
-        };
-        let (end_screen_x, end_screen_y) = math_to_screen_padded(
-            end_math_x,
-            end_math_y,
-            &plot.p_x_domain,
-            &plot.p_y_domain,
-            &plot.p_size,
-            &plot.padding,
-        );
-
-        let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
-        let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
-
-        let mut pts = vec![p0];
-
-        if plot.kind == PlotCurveKind::Cartesian {
-            sample_recursive_cartesian(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                actual_max_depth,
-                actual_tolerance,
-                env,
-                &arg_name,
-                &func_ref,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &plot.padding,
-                &mut from_cache,
-                &mut to_cache,
-                &mut pts,
-            );
-        } else if plot.kind == PlotCurveKind::Polar {
-            sample_recursive_polar(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                actual_max_depth,
-                actual_tolerance,
-                env,
-                &arg_name,
-                &func_ref,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &plot.padding,
-                &mut from_cache,
-                &mut to_cache,
-                &mut pts,
-            );
-        } else {
-            sample_recursive_parametric(
-                min_t,
-                max_t,
-                p0,
-                p1,
-                0,
-                actual_max_depth,
-                actual_tolerance,
-                env,
-                &arg_name,
-                &func_ref,
-                &plot.p_x_domain,
-                &plot.p_y_domain,
-                &plot.p_size,
-                &plot.padding,
-                &mut from_cache,
-                &mut to_cache,
-                &mut pts,
-            );
-        }
-
-        let mut path = kurbo::BezPath::new();
-        let mut first = true;
-        for pt in pts {
-            if pt.x.is_nan() || pt.y.is_nan() {
-                first = true;
-            } else if first {
-                path.move_to((pt.x, pt.y));
-                first = false;
-            } else {
-                path.line_to((pt.x, pt.y));
-            }
-        }
-        vello_paths.push(VelloPath {
-            path,
-            fill: None,
-            stroke: if plot.stroke_width > 0.0 {
-                Some((
-                    vello::peniko::Color::from_rgba8(
-                        (plot.stroke_color[0] * 255.0) as u8,
-                        (plot.stroke_color[1] * 255.0) as u8,
-                        (plot.stroke_color[2] * 255.0) as u8,
-                        (plot.stroke_color[3] * 255.0) as u8,
-                    ),
-                    plot.stroke_width,
-                ))
-            } else {
-                None
-            },
-            line_cap: 0,
-            line_join: 0,
-        });
+        return vello_paths;
     }
+
+    // Shared caches for from/to sources across start, end, and recursive evals.
+    let mut from_cache = HashMap::<u64, Value>::new();
+    let mut to_cache = HashMap::<u64, Value>::new();
+
+    let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
+        let y = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+        (min_t, y)
+    } else if plot.kind == PlotCurveKind::Parametric {
+        let [x, y] = eval_vec2(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+        (x, y)
+    } else {
+        let r = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);
+        (r * min_t.cos(), r * min_t.sin())
+    };
+    let (start_screen_x, start_screen_y) = math_to_screen_padded(
+        start_math_x,
+        start_math_y,
+        &plot.p_x_domain,
+        &plot.p_y_domain,
+        &plot.p_size,
+        &plot.padding,
+    );
+
+    let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
+        let y = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+        (max_t, y)
+    } else if plot.kind == PlotCurveKind::Parametric {
+        let [x, y] = eval_vec2(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+        (x, y)
+    } else {
+        let r = eval_scalar(&func_ref, env, &arg_name, max_t, &mut from_cache, &mut to_cache);
+        (r * max_t.cos(), r * max_t.sin())
+    };
+    let (end_screen_x, end_screen_y) = math_to_screen_padded(
+        end_math_x,
+        end_math_y,
+        &plot.p_x_domain,
+        &plot.p_y_domain,
+        &plot.p_size,
+        &plot.padding,
+    );
+
+    let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
+    let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
+
+    let mut pts = vec![p0];
+
+    if plot.kind == PlotCurveKind::Cartesian {
+        sample_recursive_cartesian(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            actual_max_depth,
+            actual_tolerance,
+            env,
+            &arg_name,
+            &func_ref,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
+            &mut from_cache,
+            &mut to_cache,
+            &mut pts,
+        );
+    } else if plot.kind == PlotCurveKind::Polar {
+        sample_recursive_polar(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            actual_max_depth,
+            actual_tolerance,
+            env,
+            &arg_name,
+            &func_ref,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
+            &mut from_cache,
+            &mut to_cache,
+            &mut pts,
+        );
+    } else {
+        sample_recursive_parametric(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            actual_max_depth,
+            actual_tolerance,
+            env,
+            &arg_name,
+            &func_ref,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
+            &mut from_cache,
+            &mut to_cache,
+            &mut pts,
+        );
+    }
+
+    let mut path = kurbo::BezPath::new();
+    let mut first = true;
+    for pt in pts {
+        if pt.x.is_nan() || pt.y.is_nan() {
+            first = true;
+        } else if first {
+            path.move_to((pt.x, pt.y));
+            first = false;
+        } else {
+            path.line_to((pt.x, pt.y));
+        }
+    }
+    vello_paths.push(VelloPath {
+        path,
+        fill: None,
+        stroke: if plot.stroke_width > 0.0 {
+            Some((
+                vello::peniko::Color::from_rgba8(
+                    (plot.stroke_color[0] * 255.0) as u8,
+                    (plot.stroke_color[1] * 255.0) as u8,
+                    (plot.stroke_color[2] * 255.0) as u8,
+                    (plot.stroke_color[3] * 255.0) as u8,
+                ),
+                plot.stroke_width,
+            ))
+        } else {
+            None
+        },
+        line_cap: 0,
+        line_join: 0,
+    });
 
     vello_paths
 }

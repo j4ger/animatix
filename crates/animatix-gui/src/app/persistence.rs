@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use egui_tiles::{Linear, LinearDir, Tiles, Tree};
 
@@ -105,6 +106,12 @@ pub(crate) struct SettingsPersistence {
     /// Density preference: "default" or "compact". Defaults to "default".
     #[serde(default = "default_density")]
     pub density: String,
+    /// Optional directory containing eparts JSON theme files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_dir: Option<PathBuf>,
+    /// Selected theme name inside `theme_dir`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_name: Option<String>,
     /// Persisted shortcut overrides keyed by stable binding name.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub shortcuts: BTreeMap<String, SavedShortcut>,

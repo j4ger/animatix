@@ -23,12 +23,12 @@ use std::time::Duration;
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
-use eparts::widget::{UiExt, text_tooltip};
+use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
 use crate::app::components::button::{self, Button, toolbar_separator};
-use crate::app::components::layout;
+use crate::app::components::{layout, text_tooltip};
 use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
@@ -380,16 +380,14 @@ fn render_transport_strip(
 
             // Zoom controls
             let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
-            if ui
-                .button(
-                    egui::RichText::new(zoom_text)
-                        .monospace()
-                        .size(TextRole::BodyS.size())
-                        .color(theme.text.secondary),
-                )
-                .on_hover_text("Reset zoom")
-                .clicked()
-            {
+            let zoom_btn = ui.button(
+                egui::RichText::new(zoom_text)
+                    .monospace()
+                    .size(TextRole::BodyS.size())
+                    .color(theme.text.secondary),
+            );
+            text_tooltip(ui, zoom_btn.id.with("reset_zoom_tip"), &zoom_btn, "Reset zoom");
+            if zoom_btn.clicked() {
                 preview.timeline_zoom = 1.0;
                 preview.timeline_scroll_offset = 0.0;
             }
@@ -1547,11 +1545,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             Stroke::NONE,
                         ));
 
-                        let dresp = if dresp.hovered() && !is_drag {
-                            dresp.on_hover_text(format!("{prop} @ {:.2}s", kf_s))
-                        } else {
-                            dresp
-                        };
+                        if dresp.hovered() && !is_drag {
+                            text_tooltip(
+                                ui,
+                                dresp.id.with("tooltip"),
+                                &dresp,
+                                &format!("{prop} @ {:.2}s", kf_s),
+                            );
+                        }
 
                         dresp.context_menu(|ui| {
                             ui.set_min_width(140.0);
@@ -1889,9 +1890,12 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 ));
 
                                 if !is_drag {
-                                    dresp
-                                        .clone()
-                                        .on_hover_text(format!("{} @ {:.2}s", prop_name, kf_s));
+                                    text_tooltip(
+                                        ui,
+                                        dresp.id.with("tooltip"),
+                                        &dresp,
+                                        &format!("{} @ {:.2}s", prop_name, kf_s),
+                                    );
                                 }
 
                                 // Support dragging for per-property diamonds

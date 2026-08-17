@@ -4,7 +4,8 @@ use eparts::widget::UiExt;
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
 use crate::app::components::button::Button;
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::app::components::{Tag, text_tooltip};
+use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::typography::TextRole;
 
 // TOOLBAR_HEIGHT imported via design_tokens::*
@@ -65,65 +66,35 @@ impl GuiShell {
 
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
-                        let response = egui::Frame::new()
-                            .fill(t.status.diagnostic_error)
-                            .corner_radius(RADIUS_M)
-                            .inner_margin(egui::Margin::symmetric(4, 1))
-                            .show(ui, |ui| {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new("last good")
-                                            .size(TextRole::Micro.size())
-                                            .color(t.surface.base),
-                                    )
-                                    .selectable(false),
-                                );
-                            });
-                        response.response.on_hover_text(
+                        let response = ui.add(Tag::new("last good").color(t.status.error));
+                        text_tooltip(
+                            ui,
+                            response.id.with("last_good_tooltip"),
+                            &response,
                             "Build failed — preview shows the last successful build",
                         );
                     } else if self.document_store.snapshot_is_stale() {
-                        let response = egui::Frame::new()
-                            .fill(t.status.warning)
-                            .corner_radius(RADIUS_M)
-                            .inner_margin(egui::Margin::symmetric(4, 1))
-                            .show(ui, |ui| {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new("stale")
-                                            .size(TextRole::Micro.size())
-                                            .color(t.surface.base),
-                                    )
-                                    .selectable(false),
-                                );
-                            });
-                        response.response.on_hover_text("Source edited — rebuild pending");
+                        let response = ui.add(Tag::new("stale").color(t.status.warning));
+                        text_tooltip(
+                            ui,
+                            response.id.with("stale_tooltip"),
+                            &response,
+                            "Source edited — rebuild pending",
+                        );
                     }
 
-                    // Building indicator (pulsing)
+                    // Building indicator
                     if self.preview_store.rebuild_in_progress {
-                        let anim_t = ui.ctx().animate_value_with_time(
-                            ui.id().with("build_spinner"),
-                            0.0,
-                            0.8,
+                        let response = ui.add(
+                            Tag::new(egui_phosphor::regular::ARROW_CLOCKWISE)
+                                .color(t.accent.primary),
                         );
-                        let pulse =
-                            ((anim_t as f64 * std::f64::consts::TAU).sin() * 0.3 + 0.7) as f32;
-                        let response = egui::Frame::new()
-                            .fill(t.accent.primary.linear_multiply(pulse))
-                            .corner_radius(RADIUS_M)
-                            .inner_margin(egui::Margin::symmetric(4, 1))
-                            .show(ui, |ui| {
-                                ui.add(
-                                    egui::Label::new(
-                                        RichText::new(egui_phosphor::regular::ARROW_CLOCKWISE)
-                                            .size(TextRole::Micro.size())
-                                            .color(t.surface.base),
-                                    )
-                                    .selectable(false),
-                                );
-                            });
-                        response.response.on_hover_text("Building timeline…");
+                        text_tooltip(
+                            ui,
+                            response.id.with("building_tooltip"),
+                            &response,
+                            "Building timeline…",
+                        );
                     }
 
                     // Filename dropdown
@@ -149,54 +120,66 @@ impl GuiShell {
                         ui.ctx(),
                     );
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
-                        if ui
-                            .button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK))
-                            .on_hover_text(&save_tip)
-                            .clicked()
-                        {
+                        let save_btn =
+                            ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
+                        text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, &save_tip);
+                        if save_btn.clicked() {
                             commands.push_back(DocumentCommand::Save.into());
                             ui.close();
                         }
-                        if ui
-                            .button(format!("{} Export…", egui_phosphor::regular::EXPORT))
-                            .on_hover_text("Export image, video or GIF")
-                            .clicked()
-                        {
+                        let export_btn =
+                            ui.button(format!("{} Export…", egui_phosphor::regular::EXPORT));
+                        text_tooltip(
+                            ui,
+                            export_btn.id.with("export_tip"),
+                            &export_btn,
+                            "Export image, video or GIF",
+                        );
+                        if export_btn.clicked() {
                             commands.push_back(ShellAction::View(ViewAction::OpenExportDialog));
                             ui.close();
                         }
                         ui.separator();
-                        if ui
-                            .button(format!(
-                                "{} Reload from disk",
-                                egui_phosphor::regular::ARROW_CLOCKWISE
-                            ))
-                            .on_hover_text(&reload_tip)
-                            .clicked()
-                        {
+                        let reload_btn = ui.button(format!(
+                            "{} Reload from disk",
+                            egui_phosphor::regular::ARROW_CLOCKWISE
+                        ));
+                        text_tooltip(
+                            ui,
+                            reload_btn.id.with("reload_tip"),
+                            &reload_btn,
+                            &reload_tip,
+                        );
+                        if reload_btn.clicked() {
                             commands.push_back(DocumentCommand::Reload.into());
                             ui.close();
                         }
-                        if ui
-                            .button(format!(
-                                "{} Rebuild timeline",
-                                egui_phosphor::regular::HARD_DRIVES
-                            ))
-                            .on_hover_text(&rebuild_tip)
-                            .clicked()
-                        {
+                        let rebuild_btn = ui.button(format!(
+                            "{} Rebuild timeline",
+                            egui_phosphor::regular::HARD_DRIVES
+                        ));
+                        text_tooltip(
+                            ui,
+                            rebuild_btn.id.with("rebuild_tip"),
+                            &rebuild_btn,
+                            &rebuild_tip,
+                        );
+                        if rebuild_btn.clicked() {
                             commands.push_back(DocumentCommand::Rebuild.into());
                             ui.close();
                         }
                         ui.separator();
-                        if ui
-                            .button(format!(
-                                "{} Switch workspace…",
-                                egui_phosphor::regular::FOLDER_NOTCH
-                            ))
-                            .on_hover_text("Change workspace directory")
-                            .clicked()
-                        {
+                        let workspace_btn = ui.button(format!(
+                            "{} Switch workspace…",
+                            egui_phosphor::regular::FOLDER_NOTCH
+                        ));
+                        text_tooltip(
+                            ui,
+                            workspace_btn.id.with("workspace_tip"),
+                            &workspace_btn,
+                            "Change workspace directory",
+                        );
+                        if workspace_btn.clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
                                 commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
                             }
@@ -235,11 +218,14 @@ impl GuiShell {
                                     let btn = egui::Button::new(label)
                                         .frame(false)
                                         .sense(egui::Sense::click());
-                                    if ui
-                                        .add(btn)
-                                        .on_hover_text(format!("Switch to scene '{}'", name))
-                                        .clicked()
-                                    {
+                                    let scene_btn = ui.add(btn);
+                                    text_tooltip(
+                                        ui,
+                                        scene_btn.id.with(("scene_tip", name.as_str())),
+                                        &scene_btn,
+                                        &format!("Switch to scene '{}'", name),
+                                    );
+                                    if scene_btn.clicked() {
                                         commands.push_back(
                                             SceneCommand::SelectScene(name.clone()).into(),
                                         );
@@ -256,31 +242,35 @@ impl GuiShell {
 
                         // Grid toggle
                         let grid = self.preview_store.preview.overlay.show_grid;
-                        if ui
-                            .stable_selectable_label(grid, "Grid")
-                            .on_hover_text("Toggle grid")
-                            .clicked()
-                        {
+                        let grid_btn = ui.stable_selectable_label(grid, "Grid");
+                        text_tooltip(ui, grid_btn.id.with("grid_tip"), &grid_btn, "Toggle grid");
+                        if grid_btn.clicked() {
                             self.preview_store.preview.overlay.show_grid = !grid;
                         }
 
                         // Guides toggle
                         let guides = self.preview_store.preview.overlay.show_guides;
-                        if ui
-                            .stable_selectable_label(guides, "Guides")
-                            .on_hover_text("Toggle guides")
-                            .clicked()
-                        {
+                        let guides_btn = ui.stable_selectable_label(guides, "Guides");
+                        text_tooltip(
+                            ui,
+                            guides_btn.id.with("guides_tip"),
+                            &guides_btn,
+                            "Toggle guides",
+                        );
+                        if guides_btn.clicked() {
                             self.preview_store.preview.overlay.show_guides = !guides;
                         }
 
                         // Labels toggle
                         let labels = self.preview_store.preview.overlay.show_actor_labels;
-                        if ui
-                            .stable_selectable_label(labels, "Labels")
-                            .on_hover_text("Toggle actor labels")
-                            .clicked()
-                        {
+                        let labels_btn = ui.stable_selectable_label(labels, "Labels");
+                        text_tooltip(
+                            ui,
+                            labels_btn.id.with("labels_tip"),
+                            &labels_btn,
+                            "Toggle actor labels",
+                        );
+                        if labels_btn.clicked() {
                             self.preview_store.preview.overlay.show_actor_labels = !labels;
                         }
 

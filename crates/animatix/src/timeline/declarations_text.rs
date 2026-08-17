@@ -93,6 +93,7 @@ impl Timeline {
             delay_ms,
             easing,
             morph_options,
+            ..
         } = parse_timing_modifiers(modifiers, kind.modifier_host(), Some(&label_str), diagnostics);
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;

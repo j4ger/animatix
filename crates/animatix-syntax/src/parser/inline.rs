@@ -55,7 +55,7 @@ pub(crate) fn parser<'src>(
                 .map(|c| c.unwrap_or_default());
 
             let for_inline_index =
-                comma().ignore_then(common::ident_occ(OccurrenceKind::Variable)).or_not();
+                comma().ignore_then(common::ident_decl_occ(OccurrenceKind::Variable)).or_not();
 
             let flat_item = choice((
                 at().ignore_then(common::ident())
@@ -63,19 +63,23 @@ pub(crate) fn parser<'src>(
                     .map(|(name, items)| FlatItem::SlotFill(name, items)),
                 at_slot().to(FlatItem::SlotMarker),
                 {
-                    let loop_var_pat = common::ident_occ(OccurrenceKind::Variable)
+                    let loop_var_pat = common::ident_decl_occ(OccurrenceKind::Variable)
                         .map(LoopPattern::Single)
-                        .or(common::ident_occ(OccurrenceKind::Variable)
+                        .or(common::ident_decl_occ(OccurrenceKind::Variable)
                             .separated_by(comma())
                             .collect::<Vec<_>>()
                             .delimited_by(lparen(), rparen())
                             .map(LoopPattern::Tuple));
                     keyword("for")
-                        .ignore_then(loop_var_pat)
-                        .then(for_inline_index)
-                        .then_ignore(keyword("in"))
-                        .then(expr.clone())
-                        .then(inline_items.clone().delimited_by(lbrace(), rbrace()))
+                        .ignore_then(common::scoped(
+                            loop_var_pat
+                                .then(for_inline_index)
+                                .then_ignore(keyword("in"))
+                                .then(expr.clone())
+                                .then(common::scoped(
+                                    inline_items.clone().delimited_by(lbrace(), rbrace()),
+                                )),
+                        ))
                         .map(|(((var, index_var), iterable), body)| {
                             FlatItem::ForLoop(var, index_var, iterable, body)
                         })

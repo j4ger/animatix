@@ -85,6 +85,18 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 | Dogfood structural container lint | Done 2026-08-13. Built-in containers with children are exempt from `unused-label`, matching their structural use; empty containers and non-container actors still report unused labels. |
 | Dogfood sorting visualizer componentization | Done 2026-08-13. Steps and Result scenes use a reusable `Bars` component; component expansion now recurses into scene bodies and callout targets accept namespaced indexed references. |
 | Dogfood group entrance A/B | Done 2026-08-14. `fade-in cards [500ms]` on a generated container renders identically to enumerating `card[0..4]`; the group-target form was accepted as idiomatic. |
+| Open backlog docs/BarChart pass | Done. BarChart docs now use brace-list `data`/`bar_colors` and document scheme tokens; `graph.map`/`map_inverse` and `_animating_*` docs match implementation; eparts Button theme-slot/variant docs match shipped variants. |
+| Open backlog BarChart runtime pass | Done. `bar_colors` registry is build-time-only, `show_labels` renders child Text labels, and `bar_width`/`gap`/`max_value` reject non-numeric values with diagnostics. |
+| `always` bare variable assignment | Done. `always { freq = ... }` lowers to a frame-local variable write; plot sampling lets frame values shadow build-time closure captures without leaking captures between plot actors. |
+| Open backlog build target | Done by formal decision. Bare `cargo check -p animatix --no-default-features` is intentionally unsupported; README, AGENTS, Cargo.toml, and CI now document `--no-default-features --features render,text,svg` as the supported no-video combination. |
+| Gradient-descent example consistency | Done. Descent and learning-rate trails now follow constant-angle radial paths, matching the `x² + y²` loss surface and its radial gradient. |
+| Review static/discovery tooling | Done. `scripts/review-report.sh` generates a self-contained HTML questionnaire/arena from a review run and accepts `.proposed`/`.amx.proposed` source-only variants; `scripts/review-discover.sh` emits an agent worklist from all local runs. |
+| GUI/theme/commands/assets/callout pass | Done. eparts ColorPicker/TabBar/Alert/Badge/Tag/GroupBox/Tooltip are adopted at natural call sites; GUI gets an external command queue, asset cache preservation/invalidation, and callout guide/edge snapping. |
+| Language intelligence/syntax pass | Done. Parser occurrences now include assignment/reactive targets, properties, calls/methods/constructors, and closure parameters with lexical scope ids; analyzer `find_references_at` resolves shadowing, and GUI/LSP semantic tokens consume parser occurrences. |
+| Plot/Text transition pass | Done. VectorField/Heatmap/ContourSet support func transitions, `[blend: opacity]` adds opacity cross-fades, and timed Text/Typst content assignments cross-fade glyph paths. |
+| Export presets | Done. Named `ExportPreset` values are shared by CLI and GUI; `config { export_preset: "1080p30" }` is honored by CLI video/GIF export. |
+| Speaker-notes metadata | Closed by design for now. No concrete presentation/export consumer exists; per the roadmap's metadata policy, first-class notes should be added when that user story appears. |
+| AI review evaluator | Design retained in `docs/ai_agent_animation_quality.md`. Implementation would be a new review crate/rule engine/agent loop and remains unscheduled until a product milestone pulls it forward. |
 
 ### eparts Framework Expansion (closed)
 
@@ -122,41 +134,9 @@ concrete second-app need exists.
 
 ## Open Backlog
 
-Consolidated from former planning documents. Items are not sequenced and remain
-unscheduled until a concrete user story or milestone pulls them forward.
-
-| Area | Item |
-|------|------|
-| GUI | Adopt eparts `ColorPicker` for actor/style color properties. |
-| GUI | Adopt stateful eparts `TabBar` at natural call sites. |
-| GUI | Replace inline status banners with eparts `Alert`. |
-| GUI | Replace ad-hoc counts/labels with eparts `Badge`/`Tag`. |
-| GUI | Group inspector sections with eparts `Collapsible`/`GroupBox`. |
-| GUI | Replace raw hover text with grace-period eparts `Tooltip`. |
-| GUI/theme | Wire GUI to eparts `theme-json` and add theme directory/name selection. |
-| GUI/commands | Add an external command queue or test-only sender for integration tests and future remote control. |
-| GUI/assets | Preserve `Arc<AssetCache>` across rebuilds and invalidate only changed asset paths. |
-| Language | Add first-class speaker-notes metadata (scene/actor `notes`) for GUI and presentation/export. |
-| Language/export | Add config-level export presets (resolution/fps/codec) shared by CLI and GUI. |
-| Callout | Snap callout tip, label, and standoff drags to guides/edges like actor moves. |
-| Review | Add a static HTML questionnaire/arena frontend for external reviewers. |
-| Review | Support review runs with proposed-syntax variants the grammar cannot parse. |
-| Review | Add agent-driven run discovery and hypothesis generation. |
-| Review | Implement deterministic scene-facts evaluator and AI review loop (design: `docs/ai_agent_animation_quality.md`). |
-| Docs | Refresh eparts Button theme-slot docs and variant count to match shipped variants. |
-| Docs | Fix BarChart `data`/`bar_colors` examples to brace-list syntax and document scheme tokens. |
-| Docs | Document `graph.map`/`graph.map_inverse` semantics in `docs/spec.md`. |
-| Docs | Sync `_animating_*` docs to interpolation-segment semantics. |
-| Plot | Support animated `func` transitions on VectorField, Heatmap, and ContourSet. |
-| Plot | Add opacity cross-fade blend mode as an alternative to output blending for func transitions. |
-| Text | Cross-fade `Text.text`/`Typst.content` swaps instead of midpoint hard cut. |
-| BarChart | Correct `bar_colors` registry type and implement `show_labels`; guard numeric props. |
-| Examples | Make the gradient-descent example trajectory consistent with its loss surface. |
-| Build | Make bare `cargo check -p animatix --no-default-features` pass or formally drop that target. |
-| Language intelligence | Add scope/shadow resolution to `find_references` by assigning `scope_id` to occurrences for blocks/for/closure/component scopes. |
-| Syntax | Record assignment/reactive target and property reference occurrences. |
-| Syntax | Record call/method/construct and closure-parameter occurrences in expressions. |
-| Language intelligence | Switch GUI highlighting and LSP semantic tokens to consume parser occurrences instead of the shared classifier. |
+No open backlog items are currently scheduled. Completed items are recorded in
+[Audit History](#audit-history); design-deferred items are archived below until
+a concrete user story pulls them forward.
 
 ---
 
@@ -179,4 +159,6 @@ superseded by later implementation.
 | **Auto-sorted property registry** | Keep manually sorted with `registry_is_sorted` guard; proc-macro adds more maintenance surface than it removes. Unchanged. |
 | **Interactive step control (presentational mode)** | Manim-style `wait()` / `next_slide()`. Architecturally incompatible with Animatix's declarative deterministic playback model. GUI scrubbing covers most use cases. Unchanged. |
 | **Auto-arrow routing / smart connector layout** | Actor anchor-point endpoint refs (`from: n0.right`, `to: n1.left`) cover manual auto-tracking. Remaining value is automatic edge routing/relayout, still niche. |
+| **Speaker-notes metadata** | No presentation/export consumer yet; add `notes` when a concrete user story exists. |
+| **AI review evaluator/loop** | Full design is in `docs/ai_agent_animation_quality.md`; implementation is a new review crate/rule engine/agent loop, not a single backlog task. |
 | **Per-actor exit before scene transition** | Animate individual actors out before `play SceneName [fade, ...]`. Workaround: `fade-out` actions timed at scene end. Transition blending is already uniform. Unchanged. |

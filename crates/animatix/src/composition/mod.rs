@@ -134,25 +134,44 @@ impl BuildTarget {
         source_path: Option<&std::path::Path>,
         build_quality: crate::timeline::BuildQuality,
     ) -> BuildReport<Self> {
+        Self::from_ast_with_quality_and_asset_cache(
+            statements,
+            namespaces,
+            source_path,
+            build_quality,
+            None,
+        )
+    }
+
+    /// Build from AST with explicit build quality and an existing asset cache.
+    pub fn from_ast_with_quality_and_asset_cache(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         let mut report = if has_scenes {
-            let report = Composition::build_with_font_context(
+            let report = Composition::build_with_font_context_and_asset_cache(
                 statements,
                 namespaces,
                 font_context,
                 build_quality,
+                asset_cache,
             );
             BuildReport {
                 output: BuildTarget::MultiScene(report.output),
                 diagnostics: report.diagnostics,
             }
         } else {
-            let report = Timeline::build_with_diagnostics_and_font_context(
+            let report = Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
                 statements,
                 namespaces,
                 font_context,
                 build_quality,
+                asset_cache,
             );
             // Warn about persistent actors in a truly single-scene file (no successor).
             let mut diags = report.diagnostics;
@@ -211,6 +230,24 @@ impl Composition {
             namespaces,
             std::sync::Arc::new(crate::renderer::text::FontContext::new()),
             crate::timeline::BuildQuality::Production,
+        )
+    }
+
+    /// Build a composition from AST statements with a shared `FontContext` and
+    /// an existing asset cache carried from a previous build.
+    pub fn build_with_font_context_and_asset_cache(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
+        Self::build_with_font_context_impl(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            asset_cache,
         )
     }
 

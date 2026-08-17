@@ -399,6 +399,8 @@ circle: Ellipse, at: (100, 100) [2s]
 ```
 `strategy: fade` cross-fades between overlapping states by rendering both source and target path sets at partial opacity.
 
+Timed `Text.text` and `Typst.content` assignments cross-fade both endpoint glyph sets by default, so the swap does not hard-cut at the midpoint string snapshot.
+
 **Instant Change:** Zero duration or property assignment.
 ```animatix
 title: Text, text: "New" [0s]
@@ -851,30 +853,28 @@ always {
 
 For every INJECTABLE property, a boolean flag `{label}._animating_{property}` is
 injected into the `always` evaluation environment. The flag is `1` when the
-property is **currently interpolating between two keyframes** (the next keyframe
-strictly after the current time has a non-Linear easing, indicating a real
-animation target rather than a build-time snapshot). It is `0` when the property
-is at rest (between animation segments, before the first keyframe, or after the
-last).
+current time is strictly inside an interpolation segment: there is both a
+previous keyframe at `time <= current` and a next keyframe at
+`time > current`. It is `0` at exact keyframe times, before the first keyframe,
+and after the last keyframe.
 
-This lets reactive blocks detect when a property is being driven by keyframes
-and defer to interpolation:
+This lets reactive blocks detect when a property is between two keyframes and
+defer to interpolation:
 
 ```animatix
 always {
-  // Only override opacity when no keyframe is animating it
+  // Only override opacity when no keyframe segment contains the current time
   if circle._animating_opacity == 0 {
     circle.opacity = 0.5
   }
 }
 ```
 
-> **Why not just check for keyframe existence?** The build pipeline inserts
-> snapshot keyframes (with `Easing::Linear`) as scaffolding for duration-based
-> animations. A property that has keyframes may still be at rest between
-> animation segments. The `_animating_*` flag distinguishes active
-> interpolation (snapshot → target with user-specified easing) from rest
-> (target → next snapshot, both with the same value).
+> **Why is the flag based on interpolation segments?** `is_currently_animating`
+> checks the raw keyframe map: `prev(time <= t)` and `next(time > t)`, without
+> inspecting easing. That means a flag can be `1` even when both endpoint values
+> are equal or the easing is `Linear`; it is a "between two keyframes" test, not
+> a "visibly changing right now" test.
 
 Available flags follow the property name: `_animating_at`, `_animating_position`,
 `_animating_size`, `_animating_rotation`, `_animating_scale`,
@@ -1331,6 +1331,22 @@ When strict mode is enabled:
 graph: Graph, x_domain: (-5, 5), y_domain: (-10, 30), size: (400, 400)
 ```
 
+Every `Graph` registers two frame-time methods:
+- `graph.map(math_x, math_y)` returns `(screen_x, screen_y)` in scene screen
+  coordinates. It uses the graph's `x_domain`/`y_domain` and scale, its
+  `padding`, and the runtime `size`/`at` values, so animated graph geometry
+  is reflected immediately.
+- `graph.map_inverse(screen_x, screen_y)` returns `(math_x, math_y)`, the
+  inverse mapping. Coordinates outside the padded plot area are extrapolated
+  rather than clamped.
+
+```animatix
+always {
+  marker.at = graph.map(0, 5)
+  let origin = graph.map_inverse(marker.at.x, marker.at.y)
+}
+```
+
 **`PlotCurve`**: Single-stroke curve plot. Supports `stroke_progress` animation
 for incremental trace reveals. Set `stroke_progress: 0` at declaration, then
 animate to `1`:
@@ -1378,7 +1394,7 @@ parabola: PlotCurve, kind: "cartesian", func: (x) => x^2 + 3, color: red
 spiral: PlotCurve, kind: "polar", func: (t) => t, color: blue
 ```
 
-**Function transitions:** PlotCurve supports animated transitions between functions using output blending. The curve smoothly morphs from one function to another by interpolating their output values:
+**Function transitions:** Plot actors support animated transitions between functions using output blending. The plot smoothly changes by interpolating function outputs at every sample point:
 
 ```animatix
 #0s
@@ -1389,7 +1405,16 @@ curve: PlotCurve, kind: "cartesian", func: (x) => sin(x),
 curve.func = (x) => cos(x) [1s, ease: ease-in-out]
 ```
 
-At any point during the transition, the rendered curve is `y = lerp(from_func(x), to_func(x), progress)`. This works for cartesian, polar, and parametric plots. Implicit plots, VectorField, Heatmap, and ContourSet do not support transitions.
+At any point during the transition, the rendered curve is `y = lerp(from_func(x), to_func(x), progress)`. This works for cartesian, polar, parametric, and implicit `PlotCurve`, and for `VectorField`, `Heatmap`, and `ContourSet`, whose scalar/vector fields are blended per sample.
+
+As an alternative, `blend: opacity` renders the source and target plot outputs as separate opacity layers instead of blending function values:
+
+```animatix
+#2s
+field.func = (x, y) => (-y, x) [1s, blend: opacity]
+```
+
+`blend: output` is the default and may be written explicitly.
 
 **Overlapping transitions:** If a new transition starts before the previous one completes, the system uses record-and-chain: it freezes the current blend state and uses it as the starting point for the new transition.
 
@@ -1641,6 +1666,11 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 | `--hold` | 1.0 | Trailing hold in seconds; ignored when `--duration` is set |
 | `--fps` | 30 (video), 15 (GIF) | Output framerate |
 | `--width` / `--height` | 1280x720 (video), 640x360 (GIF) | Output resolution |
+| `--export-preset` | *none* | Named preset: `720p30`, `1080p30`, `1080p60`, `4k30`; overrides resolution/fps/codec/preset |
+
+**Export presets:** CLI and GUI share the named `ExportPreset` set. A document can
+also declare `config { export_preset: "1080p30" }`; CLI video/GIF export uses it
+when no explicit `--export-preset` flag is provided.
 
 **Auto-duration:** If `--duration` is omitted, the CLI builds the timeline, reads `Timeline::duration_seconds()` (the time of the last keyframe across all tracks, background, and child-order animations), and adds a trailing hold (configurable via `--hold`, default **1.0s**). This prevents the export from cutting off bluntly at the last animation's end frame.
 

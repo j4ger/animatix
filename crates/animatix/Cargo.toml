@@ -5,6 +5,9 @@ edition = "2024"
 rust-version = "1.85"
 
 [features]
+# `--no-default-features` is intentionally not a supported animatix target.
+# The core runtime assumes render/text/svg; CI builds and tests with
+# `--no-default-features --features render,text,svg` to verify that combination.
 default = ["render", "text", "svg"]
 render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["render", "dep:rsmpeg"]

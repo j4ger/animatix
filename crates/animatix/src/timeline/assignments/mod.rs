@@ -1,6 +1,6 @@
 use super::{
-    AnimationTrack, CapturedEnv, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing,
-    Environment, ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
+    ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
     VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
     build_shape_vello_path, build_vector_shape_vello_path, default_stroke_width, evaluate_expr,
     evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
@@ -88,6 +88,7 @@ impl Timeline {
             duration_ms,
             delay_ms,
             easing: modifier_easing,
+            func_blend_mode,
             ..
         } = parse_timing_modifiers(
             modifiers,
@@ -274,34 +275,16 @@ impl Timeline {
             }
         }
 
-        // ── Func assignment on PlotCurve (special case) ──
+        // ── Func assignment on supported plot actors (special case) ──
         // `func` is a build-time-only AST node, not a registry property.
         // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
         // FuncTransition that blends function outputs at frame time.
         if property == "func" {
-            // Reject unsupported plot types before processing.
             match track.kind {
-                ActorKindId::VectorField | ActorKindId::Heatmap | ActorKindId::ContourSet => {
-                    let type_name = match track.kind {
-                        ActorKindId::VectorField => "VectorField",
-                        ActorKindId::Heatmap => "Heatmap",
-                        ActorKindId::ContourSet => "ContourSet",
-                        _ => unreachable!(),
-                    };
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "func transitions are not yet supported for {} (only PlotCurve is supported)",
-                                type_name,
-                            ),
-                        )
-                        .with_subject(&assignment_subject),
-                    );
-                    return;
-                },
-                ActorKindId::PlotCurve => {
+                ActorKindId::VectorField
+                | ActorKindId::Heatmap
+                | ActorKindId::ContourSet
+                | ActorKindId::PlotCurve => {
                     // Evaluate RHS to a closure.
                     let closure_val = match evaluate_expr(value, &eval_env) {
                         Ok(v) => v,
@@ -320,20 +303,20 @@ impl Timeline {
                             return;
                         },
                     };
-                    let (to_args, to_body) = match closure_val {
-                        Value::Closure(args, body, _) => (args, *body),
+                    let (to_args, to_body, to_captures) = match closure_val {
+                        Value::Closure(args, body, captures) => (args, *body, captures),
                         _ => {
                             diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::InvalidPlotFunc,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "func assignment on '{}' must be a closure (e.g. `(x) => expr`)",
-                                target_key
-                            ),
-                        )
-                        .with_subject(&assignment_subject),
-                    );
+                                Diagnostic::error(
+                                    DiagnosticCode::InvalidPlotFunc,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "func assignment on '{}' must be a closure (e.g. `(x) => expr`)",
+                                        target_key
+                                    ),
+                                )
+                                .with_subject(&assignment_subject),
+                            );
                             return;
                         },
                     };
@@ -369,16 +352,16 @@ impl Timeline {
                         )
                     } else {
                         diagnostics.push(
-                    Diagnostic::error(
-                        DiagnosticCode::InvalidPlotFunc,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "Cannot assign func on '{}': no func declared on this PlotCurve",
-                            target_key
-                        ),
-                    )
-                    .with_subject(&assignment_subject),
-                );
+                            Diagnostic::error(
+                                DiagnosticCode::InvalidPlotFunc,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Cannot assign func on '{}': no func declared on this plot actor",
+                                    target_key
+                                ),
+                            )
+                            .with_subject(&assignment_subject),
+                        );
                         return;
                     };
 
@@ -404,11 +387,8 @@ impl Timeline {
                         end_ms: t_end_ms,
                         easing,
                         from: from_source,
-                        to: FuncSource::Compiled(
-                            to_args,
-                            Box::new(to_body),
-                            CapturedEnv::default(),
-                        ),
+                        to: FuncSource::Compiled(to_args, Box::new(to_body), to_captures),
+                        blend_mode: func_blend_mode,
                     });
                     return; // func is not a registry property; do not fall through
                 },
@@ -724,6 +704,23 @@ pub(crate) fn recompile_text_at_assignment(
         preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
         preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+    }
+
+    // Content swaps cross-fade the source and target glyph sets instead of
+    // morphing arbitrary strings through a midpoint string snapshot.
+    if duration_ms > 0.0 {
+        track
+            .style
+            .morph_options
+            .ensure(crate::timeline::MorphOptions::default())
+            .add_keyframe(
+                t_end_ms,
+                crate::timeline::MorphOptions {
+                    strategy: crate::timeline::MorphStrategy::Fade,
+                    ..Default::default()
+                },
+                easing,
+            );
     }
 
     // Compute font metrics for baseline alignment

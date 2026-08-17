@@ -21,7 +21,15 @@ pub(crate) fn parser<'src>(
     fn type_keyword<'src>(
         name: &'static str,
     ) -> impl Parser<'src, StrInput<'src>, (), ParserExtra<'src>> + Clone {
-        common::ident().filter(move |s: &String| s == name).to(())
+        common::ident()
+            .map_with(|s, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                (s, extra.span())
+            })
+            .filter(move |(s, _): &(String, ByteSpan)| s == name)
+            .map_with(|(s, span), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                crate::occurrence::record(OccurrenceKind::Type, s, span);
+                ()
+            })
     }
 
     recursive(|_stmt| {
@@ -36,8 +44,10 @@ pub(crate) fn parser<'src>(
             .delimited_by(lbrace(), rbrace());
 
         let always_body = _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
+        let scoped_always_body = common::scoped(always_body.clone());
 
         let for_loop_body = _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace());
+        let scoped_for_loop_body = common::scoped(for_loop_body.clone());
 
         let type_annotation = recursive(|type_annotation| {
             let simple = choice((
@@ -57,10 +67,10 @@ pub(crate) fn parser<'src>(
                 .ignore_then(type_annotation.clone())
                 .then_ignore(gt())
                 .map(|inner| TypeAnnotation::List(Box::new(inner)));
-            let alias_middle = common::ident().filter(|s: &String| {
+            let alias_middle = common::ident_occ(OccurrenceKind::Type).filter(|s: &String| {
                 s.chars().next().is_some_and(|c| c.is_lowercase() || c == '_')
             });
-            let canonical_alias = common::ident()
+            let canonical_alias = common::ident_occ(OccurrenceKind::Type)
                 .then(
                     colon_colon()
                         .ignore_then(alias_middle.clone())
@@ -75,7 +85,7 @@ pub(crate) fn parser<'src>(
                     parts.push(last);
                     TypeAnnotation::Alias(parts.join("::"))
                 });
-            let legacy_alias = common::ident()
+            let legacy_alias = common::ident_occ(OccurrenceKind::Type)
                 .then(dot().ignore_then(alias_middle).repeated().collect::<Vec<_>>())
                 .then_ignore(dot())
                 .then(common::type_ident())
@@ -139,7 +149,7 @@ pub(crate) fn parser<'src>(
             union.or(atom)
         });
 
-        let param_def = common::ident_occ(OccurrenceKind::Parameter)
+        let param_def = common::ident_decl_occ(OccurrenceKind::Parameter)
             .clone()
             .then_ignore(colon())
             .then(
@@ -159,7 +169,7 @@ pub(crate) fn parser<'src>(
             .or_not()
             .then(
                 keyword("let")
-                    .ignore_then(common::ident_occ(OccurrenceKind::Variable).clone())
+                    .ignore_then(common::ident_decl_occ(OccurrenceKind::Variable).clone())
                     .then_ignore(assign())
                     .then(expr.clone()),
             )
@@ -176,7 +186,7 @@ pub(crate) fn parser<'src>(
             .or_not()
             .then(
                 keyword("type")
-                    .ignore_then(common::ident_occ(OccurrenceKind::TypeAlias).clone())
+                    .ignore_then(common::ident_decl_occ(OccurrenceKind::TypeAlias).clone())
                     .then_ignore(assign())
                     .then(type_annotation.clone()),
             )
@@ -193,7 +203,7 @@ pub(crate) fn parser<'src>(
             .ignore_then(string())
             .then(
                 keyword("as")
-                    .ignore_then(common::ident_occ(OccurrenceKind::ImportAlias).clone())
+                    .ignore_then(common::ident_decl_occ(OccurrenceKind::ImportAlias).clone())
                     .or_not(),
             )
             .map(|(path, alias)| Stmt::Import { path, alias, span: None })
@@ -481,24 +491,28 @@ pub(crate) fn parser<'src>(
             );
 
         let sequence_stmt = keyword("sequence")
-            .ignore_then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
+            .ignore_then(common::scoped(
+                _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()),
+            ))
             .map(|body| Stmt::Sequence { body, span: None });
 
         let stagger_stmt = keyword("stagger")
             .ignore_then(modifiers.clone())
-            .then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
+            .then(common::scoped(
+                _stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()),
+            ))
             .map(|(modifiers, body)| Stmt::Stagger { modifiers, body, span: None });
 
         let always_stmt = keyword("always")
-            .ignore_then(always_body.clone())
+            .ignore_then(scoped_always_body.clone())
             .map(|body| Stmt::Always { body, span: None })
             .labelled("always block")
             .as_context();
 
         let conditional_stmt = keyword("if")
             .ignore_then(expr.clone())
-            .then(always_body.clone())
-            .then(keyword("else").ignore_then(always_body.clone()).or_not())
+            .then(scoped_always_body.clone())
+            .then(keyword("else").ignore_then(scoped_always_body.clone()).or_not())
             .map(|((condition, then_branch), else_branch)| Stmt::Conditional {
                 condition,
                 then_branch,
@@ -546,7 +560,8 @@ pub(crate) fn parser<'src>(
         let match_stmt = keyword("match")
             .ignore_then(expr.clone())
             .then({
-                let match_arm = match_pat.clone().then_ignore(arrow()).then(always_body.clone());
+                let match_arm =
+                    match_pat.clone().then_ignore(arrow()).then(scoped_always_body.clone());
                 match_arm
                     .clone()
                     .then(comma().or_not())
@@ -569,10 +584,10 @@ pub(crate) fn parser<'src>(
             .labelled("match statement")
             .as_context();
 
-        let loop_var_pat = common::ident_occ(OccurrenceKind::Variable)
+        let loop_var_pat = common::ident_decl_occ(OccurrenceKind::Variable)
             .clone()
             .map(LoopPattern::Single)
-            .or(common::ident_occ(OccurrenceKind::Variable)
+            .or(common::ident_decl_occ(OccurrenceKind::Variable)
                 .clone()
                 .separated_by(comma())
                 .collect::<Vec<_>>()
@@ -580,15 +595,20 @@ pub(crate) fn parser<'src>(
                 .map(LoopPattern::Tuple));
 
         let for_stmt = keyword("for")
-            .ignore_then(loop_var_pat.clone())
-            .then(
-                comma()
-                    .ignore_then(common::ident_occ(OccurrenceKind::Variable).clone())
-                    .or_not(),
-            )
-            .then_ignore(keyword("in"))
-            .then(expr.clone())
-            .then(for_loop_body)
+            .ignore_then(common::scoped(
+                loop_var_pat
+                    .clone()
+                    .then(
+                        comma()
+                            .ignore_then(
+                                common::ident_decl_occ(OccurrenceKind::Variable).clone(),
+                            )
+                            .or_not(),
+                    )
+                    .then_ignore(keyword("in"))
+                    .then(expr.clone())
+                    .then(scoped_for_loop_body),
+            ))
             .map(|(((var, index_var), iterable), body)| Stmt::ForLoop {
                 var,
                 index_var,
@@ -600,18 +620,24 @@ pub(crate) fn parser<'src>(
             .as_context();
 
         let component_action_stmt = keyword("action")
-            .ignore_then(common::ident_occ(OccurrenceKind::Action).clone())
-            .then(
+            .ignore_then(common::ident_decl_occ(OccurrenceKind::Action).clone())
+            .then(common::scoped(
                 param_def
                     .clone()
                     .separated_by(comma())
                     .collect::<Vec<_>>()
                     .delimited_by(lparen(), rparen())
                     .or_not()
-                    .map(|p| p.unwrap_or_default()),
-            )
-            .then(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()))
-            .map(|((name, params), body)| Stmt::ComponentAction {
+                    .map(|p| p.unwrap_or_default())
+                    .then(
+                        _stmt
+                            .clone()
+                            .repeated()
+                            .collect::<Vec<_>>()
+                            .delimited_by(lbrace(), rbrace()),
+                    ),
+            ))
+            .map(|(name, (params, body))| Stmt::ComponentAction {
                 name,
                 params,
                 body,
@@ -622,34 +648,34 @@ pub(crate) fn parser<'src>(
             .or_not()
             .map(|p| p.is_some())
             .then_ignore(keyword("component"))
-            .then(common::ident_occ(OccurrenceKind::Component).clone())
-            .then(
+            .then(common::ident_decl_occ(OccurrenceKind::Component).clone())
+            .then(common::scoped(
                 param_def
                     .separated_by(comma())
                     .collect::<Vec<_>>()
                     .delimited_by(lparen(), rparen())
                     .or_not()
-                    .map(|p| p.unwrap_or_default()),
-            )
-            .then(
-                _stmt
-                    .clone()
-                    .repeated()
-                    .collect::<Vec<_>>()
-                    .delimited_by(lbrace(), rbrace())
-                    .try_map(|body: Vec<Stmt>, span| {
-                        for stmt in &body {
-                            if matches!(stmt, Stmt::Import { .. }) {
-                                return Err(Rich::custom(
-                                    span,
-                                    "import statements are not allowed inside component bodies",
-                                ));
-                            }
-                        }
-                        Ok(body)
-                    }),
-            )
-            .map(|(((is_pub, name), params), body)| {
+                    .map(|p| p.unwrap_or_default())
+                    .then(
+                        _stmt
+                            .clone()
+                            .repeated()
+                            .collect::<Vec<_>>()
+                            .delimited_by(lbrace(), rbrace())
+                            .try_map(|body: Vec<Stmt>, span| {
+                                for stmt in &body {
+                                    if matches!(stmt, Stmt::Import { .. }) {
+                                        return Err(Rich::custom(
+                                            span,
+                                            "import statements are not allowed inside component bodies",
+                                        ));
+                                    }
+                                }
+                                Ok(body)
+                            }),
+                    ),
+            ))
+            .map(|((is_pub, name), (params, body))| {
                 Stmt::ComponentDef(ComponentDef { is_pub, name, params, body }, None)
             })
             .labelled("component definition")

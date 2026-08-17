@@ -31,7 +31,7 @@ mod container;
 mod entry;
 mod keyframe_utils;
 mod node;
-mod plot;
+pub(crate) mod plot;
 mod process;
 mod property;
 mod shape;

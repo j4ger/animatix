@@ -560,6 +560,7 @@ mod tests {
                 )),
                 CapturedEnv::default(),
             ),
+            blend_mode: crate::timeline::plot::FuncBlendMode::Output,
         });
         let snapshot = snapshot_track_at(&track, 0);
         assert!(snapshot.func_transitions.is_empty());
@@ -570,6 +571,9 @@ mod tests {
         use crate::ast::Expr;
         let mut track = AnimationTrack::new("test".to_string());
         track.procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
+            plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
+                crate::timeline::plot::PlotCurveKind::Cartesian,
+            ),
             kind: crate::timeline::plot::PlotCurveKind::Cartesian,
             func_args: vec!["x".to_string()],
             func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
@@ -586,8 +590,11 @@ mod tests {
             tolerance: 0.1,
             max_depth: 8,
             resolution: 64,
+            density: 16,
+            levels: vec![],
             stroke_width: 2.0,
             stroke_color: [1.0, 1.0, 1.0, 1.0],
+            fill_color: [1.0, 1.0, 1.0, 1.0],
             params: vec![],
             extra_captures: CapturedEnv::default(),
         });
@@ -785,6 +792,7 @@ mod tests {
         let mut actor = AnimationTrack::new("curve".to_string());
         actor.kind = crate::timeline::ActorKindId::PlotCurve;
         actor.procedural_plot = Some(ProceduralPlot {
+            plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
             kind: PlotCurveKind::Cartesian,
             func_args: vec!["x".to_string()],
             func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
@@ -801,8 +809,11 @@ mod tests {
             tolerance: 0.1,
             max_depth: 8,
             resolution: 64,
+            density: 16,
+            levels: vec![],
             stroke_width: 2.0,
             stroke_color: [1.0, 1.0, 1.0, 1.0],
+            fill_color: [1.0, 1.0, 1.0, 1.0],
             params: vec![],
             extra_captures: CapturedEnv::default(),
         });

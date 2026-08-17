@@ -120,8 +120,24 @@ impl Timeline {
         )
     }
 
+    /// Build a `Timeline` from an AST with the default font context and an
+    /// existing asset cache carried from a previous build.
+    pub fn build_with_diagnostics_and_asset_cache(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
+        Self::build_with_diagnostics_and_font_context_and_asset_cache(
+            ast,
+            namespaces,
+            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+            super::BuildQuality::Production,
+            asset_cache,
+        )
+    }
+
     /// Build a `Timeline` from an AST with full control over diagnostics,
-    /// font context, and build quality.
+    /// font context, build quality, and the asset cache carried into the build.
     #[instrument(skip(ast, namespaces, font_context), fields(ast_statements = ast.len()))]
     pub fn build_with_diagnostics_and_font_context(
         ast: &[Stmt],
@@ -129,7 +145,26 @@ impl Timeline {
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
         build_quality: super::BuildQuality,
     ) -> BuildReport<Self> {
-        Self::build_impl(ast, namespaces, font_context, build_quality, None)
+        Self::build_with_diagnostics_and_font_context_and_asset_cache(
+            ast,
+            namespaces,
+            font_context,
+            build_quality,
+            None,
+        )
+    }
+
+    /// Build a `Timeline` from an AST with full control over diagnostics,
+    /// font context, build quality, and an existing asset cache.
+    #[instrument(skip(ast, namespaces, font_context, asset_cache), fields(ast_statements = ast.len()))]
+    pub fn build_with_diagnostics_and_font_context_and_asset_cache(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: super::BuildQuality,
+        asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
+        Self::build_impl(ast, namespaces, font_context, build_quality, None, asset_cache)
     }
 
     /// Build a `Timeline` with a pre-seeded carry bag injected before
@@ -157,24 +192,55 @@ impl Timeline {
         source_duration_ms: u64,
         dims: [f64; 2],
     ) -> BuildReport<Self> {
+        Self::build_with_carry_and_asset_cache(
+            ast,
+            namespaces,
+            font_context,
+            build_quality,
+            carry,
+            source_timeline,
+            source_duration_ms,
+            dims,
+            None,
+        )
+    }
+
+    /// Carry-aware scene build that also accepts an existing asset cache.
+    pub fn build_with_carry_and_asset_cache(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: super::BuildQuality,
+        carry: Option<&crate::timeline::persistence::CarryBag>,
+        source_timeline: Option<&Timeline>,
+        source_duration_ms: u64,
+        dims: [f64; 2],
+        asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
         let carry_params =
             carry.zip(source_timeline).map(|(c, s)| (c, s, source_duration_ms, dims));
-        Self::build_impl(ast, namespaces, font_context, build_quality, carry_params)
+        Self::build_impl(ast, namespaces, font_context, build_quality, carry_params, asset_cache)
     }
 
     /// Internal build implementation shared by all public build entry points.
+    #[allow(clippy::too_many_arguments)]
     fn build_impl(
         ast: &[Stmt],
         namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
         build_quality: super::BuildQuality,
         carry: Option<(&crate::timeline::persistence::CarryBag, &Timeline, u64, [f64; 2])>,
+        asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
     ) -> BuildReport<Self> {
         // Clear expression evaluation cache at the start of each build.
         crate::timeline::utils::clear_eval_cache();
 
         let mut timeline = Self::new_with_font_context(font_context);
         timeline.build_quality = build_quality;
+        if let Some(cache) = asset_cache {
+            timeline.asset_cache = cache;
+            std::sync::Arc::make_mut(&mut timeline.asset_cache).invalidate_changed_assets();
+        }
         load_standard_library(&mut timeline.env);
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         // Seed build-time environment with scene dimensions so `let` declarations
@@ -356,6 +422,11 @@ impl Timeline {
                 }
             }
         }
+
+        // Drop cached payloads that are no longer referenced by this build.
+        let referenced: std::collections::HashSet<String> =
+            timeline.asset_cache.asset_usage().map(|(path, _)| path.clone()).collect();
+        std::sync::Arc::make_mut(&mut timeline.asset_cache).prune_unreferenced(&referenced);
 
         BuildReport::new(timeline, diagnostics)
     }

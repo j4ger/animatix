@@ -12,6 +12,7 @@ use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim::{animate_bool_eased, animate_lerp};
+use crate::widget::tooltip::text_tooltip;
 
 // ── Side ────────────────────────────────────────────────────────────
 
@@ -30,6 +31,16 @@ fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
         Some(l) if !l.trim().is_empty() => l.to_string(),
         _ => fallback.to_owned(),
     }
+}
+
+/// Apply the default arrow cursor and render tooltips with the grace-period
+/// eparts `Tooltip` instead of egui's immediate hover text.
+fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
+    let response = response.on_hover_cursor(egui::CursorIcon::Default);
+    if !tooltip.is_empty() {
+        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
+    }
+    response
 }
 
 // ── Checkbox ────────────────────────────────────────────────────────
@@ -185,11 +196,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let accessible_label = non_empty_or(self.label, "Checkbox");
 
         // Tooltip + principle 3 cursor
-        let response = if !self.tooltip.is_empty() {
-            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-        } else {
-            response.on_hover_cursor(egui::CursorIcon::Default)
-        };
+        let response = finish_response(ui, response, self.tooltip);
         response.widget_info(|| {
             WidgetInfo::selected(
                 WidgetType::Checkbox,
@@ -343,11 +350,7 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let accessible_label = non_empty_or(self.label, "Radio");
 
         // Tooltip + principle 3 cursor
-        let response = if !self.tooltip.is_empty() {
-            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-        } else {
-            response.on_hover_cursor(egui::CursorIcon::Default)
-        };
+        let response = finish_response(ui, response, self.tooltip);
         response.widget_info(|| {
             WidgetInfo::selected(
                 WidgetType::RadioButton,
@@ -505,11 +508,7 @@ impl<'a> egui::Widget for Switch<'a> {
         let accessible_label = non_empty_or(self.label, "Switch");
 
         // Tooltip + principle 3 cursor
-        let response = if !self.tooltip.is_empty() {
-            response.on_hover_cursor(egui::CursorIcon::Default).on_hover_text(self.tooltip)
-        } else {
-            response.on_hover_cursor(egui::CursorIcon::Default)
-        };
+        let response = finish_response(ui, response, self.tooltip);
         response.widget_info(|| {
             WidgetInfo::selected(
                 WidgetType::Checkbox,

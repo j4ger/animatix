@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use egui_tiles::Tree;
 
@@ -105,6 +106,16 @@ pub struct ViewStore {
     pub timeline_scroll_offset: f32,
     /// IDE appearance preference (Auto follows the OS light/dark setting).
     pub app_theme: eparts::AppThemeChoice,
+    /// Optional JSON theme directory loaded through eparts `theme-json`.
+    pub theme_dir: Option<PathBuf>,
+    /// Selected theme name inside [`Self::theme_dir`].
+    pub theme_name: Option<String>,
+    /// Names available in the loaded JSON theme registry.
+    #[cfg(feature = "theme-json")]
+    pub theme_names: Vec<String>,
+    /// Last JSON theme load/watch error, if any.
+    #[cfg(feature = "theme-json")]
+    pub theme_error: Option<String>,
     /// True when the timeline panel or any of its children received pointer interaction this
     /// frame.
     pub timeline_focused: bool,
@@ -135,6 +146,12 @@ impl ViewStore {
             active_scene: None,
             timeline_scroll_offset: 0.0,
             app_theme: eparts::AppThemeChoice::default(),
+            theme_dir: None,
+            theme_name: None,
+            #[cfg(feature = "theme-json")]
+            theme_names: Vec::new(),
+            #[cfg(feature = "theme-json")]
+            theme_error: None,
             timeline_focused: false,
             reduce_motion: false,
             density: eparts::Density::Default,

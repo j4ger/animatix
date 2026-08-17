@@ -187,6 +187,15 @@ impl DocumentSession {
     }
 
     pub fn rebuild(&mut self) -> Result<(), GuiError> {
+        let asset_cache = self.asset_cache();
+        self.rebuild_with_asset_cache(asset_cache)
+    }
+
+    /// Rebuild using an asset cache carried from a previous build.
+    pub fn rebuild_with_asset_cache(
+        &mut self,
+        asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
+    ) -> Result<(), GuiError> {
         // Skip rebuild if source text hasn't changed since last successful build.
         // A failure marker forces a retry even when the timeline survived, so
         // last-known-good state never suppresses the next rebuild.
@@ -230,11 +239,12 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&result.raw_statements);
 
-        let report = BuildTarget::from_ast_with_quality(
+        let report = BuildTarget::from_ast_with_quality_and_asset_cache(
             &result.expanded_statements,
             &result.namespaces,
             Some(&self.file_path),
             animatix::timeline::BuildQuality::Draft,
+            asset_cache,
         );
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);
@@ -485,6 +495,15 @@ impl DocumentSession {
 
     pub fn raw_program_statements(&self) -> Option<&[Stmt]> {
         self.raw_statements.as_deref()
+    }
+
+    /// Returns the asset cache carried by the current timeline or composition.
+    pub fn asset_cache(&self) -> Option<std::sync::Arc<animatix::timeline::assets::AssetCache>> {
+        self.timeline.as_ref().map(|timeline| timeline.asset_cache_arc()).or_else(|| {
+            self.composition.as_ref().and_then(|composition| {
+                composition.scenes.values().next().map(|scene| scene.timeline.asset_cache_arc())
+            })
+        })
     }
 
     /// Collect all audio segments from the timeline or composition, resolving

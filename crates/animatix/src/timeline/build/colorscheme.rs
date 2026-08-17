@@ -169,6 +169,15 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "export_preset" {
+                self.export_preset =
+                    config_string_value(&setting.value).or_else(|| match &setting.value {
+                        Expr::Ident(name) => Some(name.clone()),
+                        _ => None,
+                    });
+                continue;
+            }
+
             if setting.name != "colorscheme" {
                 continue;
             }

@@ -3,8 +3,8 @@ use crate::ast::Expr;
 use crate::easing::Easing;
 use crate::timeline::modifier_runtime::ir::compile_expr;
 use crate::timeline::plot::{
-    FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, blend_depth, flatten_blend,
-    resolve_func_source, sample_procedural_plot_at,
+    FuncBlendMode, FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, ProceduralPlotKind,
+    blend_depth, flatten_blend, resolve_func_source, sample_procedural_plot_at,
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -107,6 +107,7 @@ fn basic_func_transition_cartesian() {
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000 (2s)");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000 (2s + 1s)");
     assert_eq!(t.easing, Easing::Linear, "default easing should be Linear");
+    assert_eq!(t.blend_mode, FuncBlendMode::Output, "default blend should be Output");
 
     // from and to should both have arity 1.
     assert_eq!(t.from.arity(), 1, "from arity should be 1");
@@ -172,6 +173,7 @@ fn blend_at_half_progress() {
     // Exercise `sample_procedural_plot_at` at time_ms = 2500 (50 % through
     // a 2 s → 3 s transition) and verify that output paths are non-empty.
     let plot = ProceduralPlot {
+        plot_type: ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
         kind: PlotCurveKind::Cartesian,
         func_args: vec!["x".to_string()],
         func_body: compiled_body(sin_x_expr()),
@@ -185,8 +187,11 @@ fn blend_at_half_progress() {
         tolerance: 4.0,
         max_depth: 5,
         resolution: 16,
+        density: 16,
+        levels: vec![],
         stroke_width: 2.0,
         stroke_color: [1.0, 1.0, 1.0, 1.0],
+        fill_color: [1.0, 1.0, 1.0, 1.0],
         params: vec![],
         extra_captures: CapturedEnv::default(),
     };
@@ -197,6 +202,7 @@ fn blend_at_half_progress() {
         easing: Easing::Linear,
         from: FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default()),
         to: FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
+        blend_mode: FuncBlendMode::Output,
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
@@ -535,7 +541,75 @@ fn static_plot_no_transitions() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Test 9: for_loop_closure_captures_loop_variable
+// Test 9: always_bare_variable_assignment_updates_plot_closure
+// ─────────────────────────────────────────────────────────────
+
+/// Regression test for `always { freq = ... }`: the bare assignment must write
+/// the frame variable, and plot sampling must let that frame value shadow the
+/// build-time closure capture instead of re-merging the captured value on top.
+#[test]
+fn always_bare_variable_assignment_updates_plot_closure() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        #0s
+        let freq = 2
+        curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
+          stroke: accent.primary, stroke_width: 3
+
+        always {
+          freq = 2 + 3 * sin(t * 0.5)
+        }
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let time_ms = 1000;
+    let mut overrides = std::collections::HashMap::new();
+    let mut env = timeline.build_frame_env(time_ms, SceneDimensions::default(), &overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(
+                program,
+                time_ms,
+                SceneDimensions::default(),
+                &mut env,
+                &mut overrides,
+            )
+            .expect("modifier IR execution should succeed");
+    }
+
+    let expected_freq = 2.0 + 3.0 * (0.5f64).sin();
+    let Some(Value::Num(frame_freq)) = env.get("freq") else {
+        panic!("expected bare freq frame variable, got {:?}", env.get("freq"));
+    };
+    assert!(
+        (frame_freq - expected_freq).abs() < 1e-9,
+        "expected freq={expected_freq}, got {frame_freq}"
+    );
+
+    let track = timeline.get_track("curve").expect("curve track should exist");
+    let plot = track.procedural_plot.as_ref().expect("curve should have a procedural plot");
+    let source = FuncSource::Compiled(
+        plot.func_args.clone(),
+        Box::new(plot.func_body.clone()),
+        plot.extra_captures.clone(),
+    );
+    let result =
+        resolve_func_source(&source, &env, "x", 1.0).expect("plot closure should evaluate");
+    assert!(
+        (result - expected_freq.sin()).abs() < 1e-6,
+        "plot closure should use frame freq {expected_freq}, got {result}"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 10: for_loop_closure_captures_loop_variable
 // ─────────────────────────────────────────────────────────────
 
 /// Regression test for Batch 3 Task 6: closures inside `for` loops must
@@ -1300,6 +1374,157 @@ fn eval_implicit_source_nested_blend() {
     assert!((result - 1.58).abs() < 1e-9, "At (1,1): expected 1.58, got {}", result);
 }
 
+// ─────────────────────────────────────────────────────────────
+// Test 23: vector_field_func_transition
+// ─────────────────────────────────────────────────────────────
+
+/// Verify that VectorField accepts `func` transitions, keeps a procedural
+/// plot, and samples both endpoints through the existing side-channel.
+#[test]
+fn vector_field_func_transition() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        field: VectorField, func: (x, y) => (y, -x), density: 6,
+          x_domain: (-3, 3), y_domain: (-3, 3), size: (160, 160)
+
+        #1s
+        field.func = (x, y) => (-y, x) [1s]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.get_track("field").expect("field track should exist");
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition for VectorField");
+    assert_eq!(track.func_transitions[0].blend_mode, FuncBlendMode::Output);
+
+    let plot = track.procedural_plot.as_ref().expect("VectorField should have procedural_plot");
+    assert_eq!(plot.plot_type, ProceduralPlotKind::VectorField);
+
+    let mut env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    assert!(!paths.is_empty(), "Expected output paths during VectorField transition");
+    assert!(
+        !paths[0].path.elements().is_empty(),
+        "Expected non-empty VectorField path at mid-transition"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 24: heatmap_func_transition
+// ─────────────────────────────────────────────────────────────
+
+/// Verify that Heatmap records and samples `func` transitions.
+#[test]
+fn heatmap_func_transition() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 8,
+          color: red, x_domain: (-3, 3), y_domain: (-3, 3), size: (160, 160)
+
+        #1s
+        heat.func = (x, y) => x + y [1s]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.get_track("heat").expect("heat track should exist");
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition for Heatmap");
+
+    let plot = track.procedural_plot.as_ref().expect("Heatmap should have procedural_plot");
+    assert_eq!(plot.plot_type, ProceduralPlotKind::Heatmap);
+
+    let mut env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    assert!(!paths.is_empty(), "Expected output paths during Heatmap transition");
+    assert!(paths.iter().any(|p| p.fill.is_some()), "Expected filled heat cells");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 25: contour_set_func_transition
+// ─────────────────────────────────────────────────────────────
+
+/// Verify that ContourSet records and samples `func` transitions.
+#[test]
+fn contour_set_func_transition() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        cont: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 2},
+          resolution: 16, x_domain: (-3, 3), y_domain: (-3, 3), size: (160, 160)
+
+        #1s
+        cont.func = (x, y) => x * y [1s]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.get_track("cont").expect("cont track should exist");
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition for ContourSet");
+
+    let plot = track.procedural_plot.as_ref().expect("ContourSet should have procedural_plot");
+    assert_eq!(plot.plot_type, ProceduralPlotKind::ContourSet);
+
+    let mut env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    assert!(!paths.is_empty(), "Expected output paths during ContourSet transition");
+}
+
+// ─────────────────────────────────────────────────────────────
+// Test 26: opacity_crossfade_blend_mode
+// ─────────────────────────────────────────────────────────────
+
+/// `blend: opacity` records a `FuncBlendMode::Opacity` transition and
+/// `sample_procedural_plot_at` renders both endpoint paths at partial opacity.
+#[test]
+fn opacity_crossfade_blend_mode() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        g: Graph, x_domain: (-10, 10), y_domain: (-10, 10), size: (400, 400), at: (640, 360) {
+          curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
+        }
+
+        #1s
+        curve.func = (x) => cos(x) [1s, blend: opacity]
+    "#;
+    let report = build_from_source(source);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.get_track("curve").expect("curve track should exist");
+    assert_eq!(track.func_transitions.len(), 1, "Expected 1 FuncTransition");
+    assert_eq!(track.func_transitions[0].blend_mode, FuncBlendMode::Opacity);
+
+    let plot = track
+        .procedural_plot
+        .as_ref()
+        .expect("curve should have a procedural_plot")
+        .clone();
+    let mut env = stdlib_env();
+    let paths = sample_procedural_plot_at(&plot, &mut env, 1500, &track.func_transitions);
+    assert_eq!(paths.len(), 2, "Opacity cross-fade should render both endpoint paths");
+    for path in &paths {
+        let (color, _) = path.stroke.expect("curves should be stroked");
+        assert!(color.to_rgba8().a > 0 && color.to_rgba8().a < 255, "Expected partial alpha");
+    }
+}
 // ─────────────────────────────────────────────────────────────
 // Test 22: depth_4_nested_blend_parity
 // ─────────────────────────────────────────────────────────────

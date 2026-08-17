@@ -15,7 +15,7 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::context_menu::{MenuEntry, render_menu};
-use crate::app::components::{anim, layout, row};
+use crate::app::components::{anim, layout, row, text_tooltip};
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::icons::actor_icon_str;
@@ -1065,18 +1065,16 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(t.text.secondary)
                 .right(|ui| {
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
-                                    .size(TextRole::Micro.size())
-                                    .color(t.text.muted),
-                            )
-                            .frame(false),
+                    let jump_btn = ui.add(
+                        egui::Button::new(
+                            egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
+                                .size(TextRole::Micro.size())
+                                .color(t.text.muted),
                         )
-                        .on_hover_text("Jump to definition")
-                        .clicked()
-                    {
+                        .frame(false),
+                    );
+                    text_tooltip(ui, jump_btn.id.with("jump_tip"), &jump_btn, "Jump to definition");
+                    if jump_btn.clicked() {
                         let patterns = [
                             format!("pub component {}", name),
                             format!("component {}", name),

@@ -25,13 +25,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+use crate::app::components::{Alert, AlertLevel, text_tooltip};
 use animatix::timeline::SceneDimensions;
 use animatix_syntax::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
 };
 use directories::ProjectDirs;
 use egui::{Color32, Stroke, Vec2};
-use eparts::widget::{Alert, AlertLevel, text_tooltip};
 use file_tree::{build_file_tree, workspace_root_for};
 use persistence::{
     SettingsPersistence, WorkspacePersistence, default_tree, load_workspace_persistence,
@@ -41,7 +41,9 @@ use persistence::{
 use preview::fit_preview;
 use serde::{Deserialize, Serialize};
 
-use crate::app::commands::{ActionQueue, DocumentCommand, Effect, UndoLabel, ViewCommand};
+use crate::app::commands::{
+    ActionQueue, CommandQueue, CommandSender, DocumentCommand, Effect, UndoLabel, ViewCommand,
+};
 use crate::app::components::button::Button;
 use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
@@ -382,6 +384,7 @@ struct GuiShell {
     ui_store: UiStore,
     export_store: ExportStore,
     rebuild_worker: RebuildWorker,
+    external_commands: CommandQueue,
     insertion_palette: InsertionPalette,
     shortcut_registry: ShortcutRegistry,
     pub(crate) window_size: [f32; 2],
@@ -503,6 +506,8 @@ impl GuiShell {
                 "compact" => eparts::Density::Compact,
                 _ => eparts::Density::Default,
             };
+            ui_store.view.theme_dir = s.theme_dir.clone();
+            ui_store.view.theme_name = s.theme_name.clone();
             ui_store.shortcut_overrides = s.shortcuts.clone();
         }
 
@@ -532,6 +537,7 @@ impl GuiShell {
             ui_store,
             export_store: ExportStore::new(),
             rebuild_worker: RebuildWorker::start(),
+            external_commands: CommandQueue::new(),
             insertion_palette: InsertionPalette::default(),
             shortcut_registry,
             window_size,
@@ -649,6 +655,7 @@ impl GuiShell {
         let theme = eparts::theme(ui);
         let mut commands: ActionQueue = ActionQueue::default();
         commands.append(&mut self.ui_store.pending_actions);
+        self.external_commands.drain_into(&mut commands);
 
         // Global keyboard shortcuts are now handled via ShortcutRegistry
         // in runtime.rs::handle_keyboard_shortcuts. Only shell-local
@@ -682,14 +689,29 @@ impl GuiShell {
                             ),
                             AlertLevel::Success,
                         ));
-                    } else if let Some(target) = components::diagnostics::diagnostics_list(
-                        ui,
-                        &diagnostics,
-                        &mut self.ui_store.view.diagnostics_panel_visible,
-                    ) {
-                        self.ui_store.pending_actions.push_back(
-                            ViewCommand::ScrollToLine(target.line, target.column).into(),
-                        );
+                    } else {
+                        let has_error = diagnostics.iter().any(|d| d.is_error());
+                        if let Some(message) = diagnostics_banner_message(&diagnostics) {
+                            ui.add_space(SPACE_2);
+                            ui.add(Alert::new(
+                                message,
+                                if has_error {
+                                    AlertLevel::Error
+                                } else {
+                                    AlertLevel::Warning
+                                },
+                            ));
+                            ui.add_space(SPACE_2);
+                        }
+                        if let Some(target) = components::diagnostics::diagnostics_list(
+                            ui,
+                            &diagnostics,
+                            &mut self.ui_store.view.diagnostics_panel_visible,
+                        ) {
+                            self.ui_store.pending_actions.push_back(
+                                ViewCommand::ScrollToLine(target.line, target.column).into(),
+                            );
+                        }
                     }
                 });
         }
@@ -974,6 +996,15 @@ impl GuiShell {
         tree.ui(&mut behavior, ui);
     }
 
+    /// Return a cloneable sender for commands submitted outside egui callbacks.
+    ///
+    /// Reserved for integration tests and future remote control; the queue is
+    /// owned by the shell and drained every frame.
+    #[allow(dead_code)] // Exposed for integration tests and future remote-control wiring.
+    pub(crate) fn external_command_sender(&self) -> CommandSender {
+        self.external_commands.sender()
+    }
+
     fn handle_actions(&mut self, actions: ActionQueue) {
         for action in actions {
             let effects = self.handle_action(action);
@@ -1052,6 +1083,8 @@ impl GuiShell {
                     eparts::Density::Default => "default",
                 }
                 .to_string(),
+                theme_dir: self.ui_store.view.theme_dir.clone(),
+                theme_name: self.ui_store.view.theme_name.clone(),
                 shortcuts: self.ui_store.shortcut_overrides.clone(),
             }),
         };

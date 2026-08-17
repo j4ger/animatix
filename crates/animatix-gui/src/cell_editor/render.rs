@@ -1,6 +1,7 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::components::anim;
+use crate::app::components::text_tooltip;
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::spatial::ROW_S;
 use crate::app::design_tokens::typography::TextRole;
@@ -188,7 +189,7 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
 
     let clicked = response.clicked();
     if !tooltip.is_empty() {
-        return response.on_hover_text(tooltip).clicked();
+        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
     }
     clicked
 }

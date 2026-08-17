@@ -50,6 +50,23 @@ pub fn classify_token(
     import_aliases: &HashSet<String>,
 ) -> &'static str {
     match &token.kind {
+        TokenKind::Ident(name) => classify_ident(
+            name,
+            idx,
+            tokens,
+            symbols,
+            label_names,
+            property_names,
+            param_names,
+            import_aliases,
+        ),
+        _ => lexical_role(token),
+    }
+}
+
+/// Classify a non-identifier token using the shared tokenizer role vocabulary.
+pub fn lexical_role(token: &Token) -> &'static str {
+    match &token.kind {
         TokenKind::Keyword(_) => "keyword",
         TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => "number",
         TokenKind::Bool(_) => "boolean",
@@ -90,16 +107,7 @@ pub fn classify_token(
         | TokenKind::At
         | TokenKind::AtSlot => "punctuation",
         TokenKind::Underscore => "wildcard",
-        TokenKind::Ident(name) => classify_ident(
-            name,
-            idx,
-            tokens,
-            symbols,
-            label_names,
-            property_names,
-            param_names,
-            import_aliases,
-        ),
+        TokenKind::Ident(_) => "variable",
     }
 }
 

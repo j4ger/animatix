@@ -12,16 +12,19 @@ use crate::ast::{InlineItem, Property};
 use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
 use crate::timeline::plot::{
     FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot, build_implicit_plot_path_from_source,
+    flatten_blend,
 };
 use crate::timeline::vello_path::VelloPath;
 
-/// Data for tick labels: screen positions and math values.
+/// Data for tick/bar labels: positions and display text.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TickLabelData {
     /// (screen_x, screen_y, math_value) for each x-axis tick
     pub x_labels: Vec<(f64, f64, f64)>,
     /// (screen_x, screen_y, math_value) for each y-axis tick
     pub y_labels: Vec<(f64, f64, f64)>,
+    /// (local_x, local_y, label text) for each BarChart bar
+    pub bar_labels: Vec<(f64, f64, String)>,
 }
 
 /// Parse the `tick_labels` string property into a flags-like value indicating
@@ -904,17 +907,23 @@ impl Timeline {
             }
         }
 
-        // Validate plot func signature if present (skip for multi-arg plot types).
+        // Validate plot func signature if present (BarChart does not take func).
         let is_vector_field = ty == "VectorField";
         let is_heatmap = ty == "Heatmap";
         let is_contour_set = ty == "ContourSet";
         let is_bar_chart = ty == "BarChart";
         if let Some((ref args, ref body, _)) = func {
-            if !is_vector_field && !is_heatmap && !is_contour_set && !is_bar_chart {
-                let (expected_arity, expected_ty) = match kind {
-                    PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
-                    PlotCurveKind::Parametric => (1, "vec2"),
-                    PlotCurveKind::Implicit => (2, "number"),
+            if !is_bar_chart {
+                let (expected_arity, expected_ty) = if is_vector_field {
+                    (2, "vec2")
+                } else if is_heatmap || is_contour_set {
+                    (2, "number")
+                } else {
+                    match kind {
+                        PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
+                        PlotCurveKind::Parametric => (1, "vec2"),
+                        PlotCurveKind::Implicit => (2, "number"),
+                    }
                 };
                 if args.len() != expected_arity {
                     diagnostics.push(
@@ -969,8 +978,8 @@ impl Timeline {
                         );
                     }
                 }
-            } // end inner if (graph host/plot_curve only validation)
-        } // end func validation guard for plot_curve types only
+            } // end func validation guard (BarChart only)
+        } // end func validation guard
 
         if primitive.is_graph_host() {
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
@@ -1023,6 +1032,36 @@ impl Timeline {
         let mut vello_paths = vec![];
         let mut procedural_plot = None;
         let mut tick_label_data = TickLabelData::default();
+
+        // Collect custom numeric params from declaration props. Done for every
+        // func-backed plot so keyframeable params get a procedural_plot even
+        // when the body does not reference `t`.
+        let mut plot_params: Vec<(String, f64)> = Vec::new();
+        if func.is_some() {
+            for prop in props {
+                // Skip known plot properties
+                match prop.name.as_str() {
+                    "kind" | "func" | "x_domain" | "y_domain" | "t_domain" | "tolerance"
+                    | "max_depth" | "resolution" | "density" | "levels" | "grid" | "ticks"
+                    | "tick_labels" | "x_range" | "y_range" | "size" | "at" | "position"
+                    | "color" | "opacity" | "stroke" | "stroke_color" | "stroke_width"
+                    | "stroke_progress" | "fill_opacity" | "radius" | "radius_x" | "radius_y"
+                    | "from" | "to" | "head_size" | "text" | "content" | "code" | "font_size"
+                    | "font_family" | "url" | "source" | "volume" | "anchor" | "offset"
+                    | "rotation" | "scale" | "transform" | "blur" | "brightness" | "contrast"
+                    | "saturate" | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
+                    | "cols" | "data" | "bar_width" | "bar_colors" | "direction" | "max_value"
+                    | "show_axis" | "show_labels" => {},
+                    _ => {
+                        // Treat unknown numeric props as plot parameters
+                        let eval_env = self.build_eval_env(time_ms as u64);
+                        if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
+                            plot_params.push((prop.name.clone(), n));
+                        }
+                    },
+                }
+            }
+        }
 
         if primitive.is_graph_host() {
             let label_x = tick_labels_has_axis(&tick_labels, 'x');
@@ -1102,7 +1141,7 @@ impl Timeline {
             }
         } else if is_vector_field {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body, _captures)) = func.as_ref() {
+            if let Some((args, body, captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_density = density as usize;
                 let mut _max_depth = 0usize;
@@ -1112,10 +1151,14 @@ impl Timeline {
                     &mut _max_depth,
                     &mut scaled_density,
                 );
+                let source = FuncSource::Compiled(
+                    args.clone(),
+                    Box::new((**body).clone()),
+                    captures.clone(),
+                );
                 vello_paths = build_vector_field_paths(
                     &mut eval_env,
-                    args,
-                    body,
+                    &source,
                     x_domain,
                     y_domain,
                     full_size,
@@ -1126,7 +1169,7 @@ impl Timeline {
             }
         } else if is_heatmap {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body, _captures)) = func.as_ref() {
+            if let Some((args, body, captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(2.0).round() as usize;
                 let mut _max_depth = 0usize;
@@ -1136,10 +1179,14 @@ impl Timeline {
                     &mut _max_depth,
                     &mut scaled_res,
                 );
+                let source = FuncSource::Compiled(
+                    args.clone(),
+                    Box::new((**body).clone()),
+                    captures.clone(),
+                );
                 vello_paths = build_heatmap_paths(
                     &mut eval_env,
-                    args,
-                    body,
+                    &source,
                     x_domain,
                     y_domain,
                     full_size,
@@ -1149,7 +1196,7 @@ impl Timeline {
             }
         } else if is_contour_set {
             let mut eval_env = self.build_eval_env(time_ms as u64);
-            if let Some((args, body, _captures)) = func.as_ref() {
+            if let Some((args, body, captures)) = func.as_ref() {
                 let full_size = [size[0] as f64 * 2.0, size[1] as f64 * 2.0];
                 let mut scaled_res = resolution.max(8.0) as usize;
                 let mut _max_depth = 0usize;
@@ -1159,10 +1206,14 @@ impl Timeline {
                     &mut _max_depth,
                     &mut scaled_res,
                 );
+                let source = FuncSource::Compiled(
+                    args.clone(),
+                    Box::new((**body).clone()),
+                    captures.clone(),
+                );
                 vello_paths = build_contour_set_paths(
                     &mut eval_env,
-                    args,
-                    body,
+                    &source,
                     &levels,
                     x_domain,
                     y_domain,
@@ -1197,7 +1248,7 @@ impl Timeline {
                     y_domain
                 };
 
-            vello_paths = build_bar_chart_paths(
+            let (paths, bar_labels) = build_bar_chart_paths(
                 props,
                 size,
                 color,
@@ -1210,6 +1261,8 @@ impl Timeline {
                 diagnostics,
                 label,
             );
+            vello_paths = paths;
+            tick_label_data.bar_labels = bar_labels;
         } else if primitive.is_plot_curve() {
             let p_label = parent_label.unwrap_or("").to_string();
             let mut p_x_domain = [-10.0, 10.0];
@@ -1306,37 +1359,6 @@ impl Timeline {
                 vello_paths = build_plot_curve_paths(&curve_params);
             }
 
-            // Collect custom numeric params from declaration props.
-            // Done unconditionally so that plots with keyframeable params
-            // (even without `t` in the func body) get a procedural_plot.
-            let mut plot_params: Vec<(String, f64)> = Vec::new();
-            if let Some((_, _, _)) = func.as_ref() {
-                for prop in props {
-                    // Skip known plot properties
-                    match prop.name.as_str() {
-                        "kind" | "func" | "x_domain" | "y_domain" | "t_domain" | "tolerance"
-                        | "max_depth" | "resolution" | "density" | "levels" | "grid" | "ticks"
-                        | "tick_labels" | "x_range" | "y_range" | "size" | "at" | "position"
-                        | "color" | "opacity" | "stroke" | "stroke_color" | "stroke_width"
-                        | "stroke_progress" | "fill_opacity" | "radius" | "radius_x"
-                        | "radius_y" | "from" | "to" | "head_size" | "text" | "content"
-                        | "code" | "font_size" | "font_family" | "url" | "source" | "volume"
-                        | "anchor" | "offset" | "rotation" | "scale" | "transform" | "blur"
-                        | "brightness" | "contrast" | "saturate" | "hue_rotate" | "sepia"
-                        | "gap" | "padding" | "align" | "cols" | "data" | "bar_width"
-                        | "bar_colors" | "direction" | "max_value" | "show_axis"
-                        | "show_labels" => {},
-                        _ => {
-                            // Treat unknown numeric props as plot parameters
-                            let eval_env = self.build_eval_env(time_ms as u64);
-                            if let Ok(Value::Num(n)) = evaluate_expr(&prop.value, &eval_env) {
-                                plot_params.push((prop.name.clone(), n));
-                            }
-                        },
-                    }
-                }
-            }
-
             // Always create a procedural_plot for PlotCurve actors so that
             // func transitions can be added later via assignment. Static plots
             // (no `t`, no params, no transitions) are still guarded at frame
@@ -1346,6 +1368,7 @@ impl Timeline {
                 let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 
                 procedural_plot = Some(ProceduralPlot {
+                    plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(kind),
                     kind,
                     func_args: args.clone(),
                     func_body: (**body).clone(),
@@ -1359,8 +1382,48 @@ impl Timeline {
                     tolerance,
                     max_depth: max_depth as usize,
                     resolution: resolution as usize,
+                    density: density as usize,
+                    levels: levels.clone(),
                     stroke_width,
                     stroke_color,
+                    fill_color: color,
+                    params: plot_params.clone(),
+                    extra_captures: captures.clone(),
+                });
+            }
+        }
+
+        if is_vector_field || is_heatmap || is_contour_set {
+            if let Some((args, body, captures)) = func.as_ref() {
+                let plot_type = if is_vector_field {
+                    crate::timeline::plot::ProceduralPlotKind::VectorField
+                } else if is_heatmap {
+                    crate::timeline::plot::ProceduralPlotKind::Heatmap
+                } else {
+                    crate::timeline::plot::ProceduralPlotKind::ContourSet
+                };
+                let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
+
+                procedural_plot = Some(ProceduralPlot {
+                    plot_type,
+                    kind,
+                    func_args: args.clone(),
+                    func_body: (**body).clone(),
+                    actor_label: label.to_string(),
+                    param_names,
+                    p_x_domain: x_domain,
+                    p_y_domain: y_domain,
+                    p_size: [size[0] as f64, size[1] as f64],
+                    padding: [0.0; 4],
+                    t_domain,
+                    tolerance,
+                    max_depth: max_depth as usize,
+                    resolution: resolution as usize,
+                    density: density as usize,
+                    levels: levels.clone(),
+                    stroke_width,
+                    stroke_color,
+                    fill_color: color,
                     params: plot_params,
                     extra_captures: captures.clone(),
                 });
@@ -1380,8 +1443,10 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
-            tick_label_data: if primitive.is_graph_host()
-                && (!tick_label_data.x_labels.is_empty() || !tick_label_data.y_labels.is_empty())
+            tick_label_data: if (primitive.is_graph_host() || ty == "BarChart")
+                && (!tick_label_data.x_labels.is_empty()
+                    || !tick_label_data.y_labels.is_empty()
+                    || !tick_label_data.bar_labels.is_empty())
             {
                 Some(tick_label_data)
             } else {
@@ -1555,49 +1620,105 @@ fn math_to_screen(
     (sx, sy)
 }
 
-/// Evaluate a scalar field func at (x,y).
-fn evaluate_scalar_field(
-    env: &mut Environment,
-    arg_names: &[String],
-    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
-    x: f64,
-    y: f64,
-) -> f64 {
-    let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
-    let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    env.set_binding(x_name, Value::Num(x));
-    env.set_binding(y_name, Value::Num(y));
-    evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN)).as_num()
+/// Evaluate a scalar field [`FuncSource`] at (x,y).
+fn eval_scalar_field_source(source: &FuncSource, env: &mut Environment, x: f64, y: f64) -> f64 {
+    match source {
+        FuncSource::Compiled(args, body, captures) => {
+            let x_name = args.first().map(String::as_str).unwrap_or("x");
+            let y_name = args.get(1).map(String::as_str).unwrap_or("y");
+            let inserted = captures.merge_missing_into(env);
+            env.set_binding(x_name, Value::Num(x));
+            env.set_binding(y_name, Value::Num(y));
+            let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN)).as_num();
+            env.clear_bindings();
+            for key in inserted {
+                env.overrides.remove(&key);
+            }
+            result
+        },
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum = 0.0;
+            for (weight, src) in flat {
+                sum += weight * eval_scalar_field_source(src, env, x, y);
+            }
+            sum
+        },
+    }
 }
 
-/// Evaluate a vector field func at (x,y), returning (dx, dy).
-fn evaluate_vec2_field(
-    env: &mut Environment,
-    arg_names: &[String],
-    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
-    x: f64,
-    y: f64,
-) -> [f64; 2] {
-    let x_name = arg_names.first().map(String::as_str).unwrap_or("x");
-    let y_name = arg_names.get(1).map(String::as_str).unwrap_or("y");
-    env.set_binding(x_name, Value::Num(x));
-    env.set_binding(y_name, Value::Num(y));
-    match evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0])) {
-        Value::Vec2(v) => v,
-        Value::Num(n) => [n, 0.0],
-        _ => [0.0, 0.0],
+/// Evaluate a vector field [`FuncSource`] at (x,y), returning (dx, dy).
+fn eval_vec2_field_source(source: &FuncSource, env: &mut Environment, x: f64, y: f64) -> [f64; 2] {
+    match source {
+        FuncSource::Compiled(args, body, captures) => {
+            let x_name = args.first().map(String::as_str).unwrap_or("x");
+            let y_name = args.get(1).map(String::as_str).unwrap_or("y");
+            let inserted = captures.merge_missing_into(env);
+            env.set_binding(x_name, Value::Num(x));
+            env.set_binding(y_name, Value::Num(y));
+            let result = match evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([0.0, 0.0]))
+            {
+                Value::Vec2(v) => v,
+                Value::Num(n) => [n, 0.0],
+                _ => [0.0, 0.0],
+            };
+            env.clear_bindings();
+            for key in inserted {
+                env.overrides.remove(&key);
+            }
+            result
+        },
+        FuncSource::Blend { .. } => {
+            let flat = flatten_blend(source);
+            let mut sum_x = 0.0;
+            let mut sum_y = 0.0;
+            for (weight, src) in flat {
+                let [vx, vy] = eval_vec2_field_source(src, env, x, y);
+                sum_x += weight * vx;
+                sum_y += weight * vy;
+            }
+            [sum_x, sum_y]
+        },
+    }
+}
+
+/// Shift a scalar field source by `-level` so an implicit zero-contour solver
+/// traces the requested level set. Nested blends are shifted recursively so
+/// output blending stays equivalent to evaluating the blended field minus the
+/// level.
+fn shift_contour_source(source: &FuncSource, level: f64) -> FuncSource {
+    match source {
+        FuncSource::Compiled(args, body, captures) => FuncSource::Compiled(
+            args.clone(),
+            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Binary(
+                Box::new((**body).clone()),
+                crate::ast::BinaryOp::Sub,
+                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                    crate::timeline::Value::Num(level),
+                )),
+            )),
+            captures.clone(),
+        ),
+        FuncSource::Blend {
+            from,
+            to,
+            frozen_progress,
+        } => FuncSource::Blend {
+            from: Box::new(shift_contour_source(from, level)),
+            to: Box::new(shift_contour_source(to, level)),
+            frozen_progress: *frozen_progress,
+        },
     }
 }
 
 /// Build VelloPaths for a VectorField.
 ///
-/// Samples `func` on a `density × density` grid within x_domain/y_domain,
+/// Samples `source` on a `density × density` grid within x_domain/y_domain,
 /// evaluates each sample to get (dx, dy), and draws arrows with a scale
 /// that prevents overlap.
-fn build_vector_field_paths(
+pub(crate) fn build_vector_field_paths(
     env: &mut Environment,
-    arg_names: &[String],
-    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
+    source: &FuncSource,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     full_size: [f64; 2],
@@ -1620,7 +1741,7 @@ fn build_vector_field_paths(
             let math_x = x_domain[0] + x_frac * dx_domain;
             let math_y = y_domain[0] + y_frac * dy_domain;
 
-            let [dx, dy] = evaluate_vec2_field(env, arg_names, body, math_x, math_y);
+            let [dx, dy] = eval_vec2_field_source(source, env, math_x, math_y);
 
             let (sx, sy) = math_to_screen(math_x, math_y, x_domain, y_domain, full_size);
 
@@ -1659,13 +1780,12 @@ fn build_vector_field_paths(
 
 /// Build VelloPaths for a Heatmap.
 ///
-/// Samples `func` on a `resolution × resolution` grid, normalizes each
+/// Samples `source` on a `resolution × resolution` grid, normalizes each
 /// sample to [0,1] across the min/max range, and draws filled rectangles
 /// at varying alpha using the actor's `color`.
-fn build_heatmap_paths(
+pub(crate) fn build_heatmap_paths(
     env: &mut Environment,
-    arg_names: &[String],
-    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
+    source: &FuncSource,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     full_size: [f64; 2],
@@ -1687,7 +1807,7 @@ fn build_heatmap_paths(
             let math_x = x_domain[0] + (xi as f64 + 0.5) * x_step;
             let math_y = y_domain[0] + (yi as f64 + 0.5) * y_step;
 
-            *val = evaluate_scalar_field(env, arg_names, body, math_x, math_y);
+            *val = eval_scalar_field_source(source, env, math_x, math_y);
             if val.is_finite() {
                 min_val = min_val.min(*val);
                 max_val = max_val.max(*val);
@@ -1715,7 +1835,6 @@ fn build_heatmap_paths(
             let sy0 = (full_size[1] / 2.0) - full_size[1] * (yi as f64 + 1.0) / res as f64;
             let sy1 = (full_size[1] / 2.0) - full_size[1] * yi as f64 / res as f64;
 
-            // Compute cell screen coordinates
             let mut bp = kurbo::BezPath::new();
             bp.move_to(kurbo::Point::new(sx0, sy0));
             bp.line_to(kurbo::Point::new(sx1, sy0));
@@ -1738,13 +1857,11 @@ fn build_heatmap_paths(
 
 /// Build VelloPaths for a ContourSet.
 ///
-/// For each level value, constructs `func(x,y) - level` and delegates to
-/// `build_implicit_plot_path` to trace the zero-contour.  Each level
-/// produces one stroked path.
-fn build_contour_set_paths(
+/// For each level value, shifts `source` so `func(x,y) - level` is traced by
+/// the implicit solver. Each level produces one stroked path.
+pub(crate) fn build_contour_set_paths(
     env: &mut Environment,
-    arg_names: &[String],
-    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
+    source: &FuncSource,
     levels: &[f64],
     x_domain: [f64; 2],
     y_domain: [f64; 2],
@@ -1762,22 +1879,15 @@ fn build_contour_set_paths(
     let mut paths = Vec::new();
 
     for &level in levels {
-        // Build `func(x,y) - level` expression for the implicit solver
-        let modified_body = crate::timeline::modifier_runtime::ir::CompiledExpr::Binary(
-            Box::new(body.clone()),
-            crate::ast::BinaryOp::Sub,
-            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
-                crate::timeline::Value::Num(level),
-            )),
-        );
-
-        let source = FuncSource::Compiled(
-            arg_names.to_vec(),
-            Box::new(modified_body),
-            CapturedEnv::default(),
-        );
+        let level_source = shift_contour_source(source, level);
         let bez_path = build_implicit_plot_path_from_source(
-            env, &source, &x_domain, &y_domain, &full_size, resolution, &[0.0; 4],
+            env,
+            &level_source,
+            &x_domain,
+            &y_domain,
+            &full_size,
+            resolution,
+            &[0.0; 4],
         );
 
         if !bez_path.elements().is_empty() {
@@ -1920,10 +2030,10 @@ pub(crate) fn build_bar_chart_paths(
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     label: &str,
-) -> Vec<VelloPath> {
+) -> (Vec<VelloPath>, Vec<(f64, f64, String)>) {
     let data = parse_bar_chart_data(props, diagnostics, label);
     if data.is_empty() {
-        return vec![];
+        return (vec![], vec![]);
     }
 
     // Parse properties
@@ -1934,6 +2044,8 @@ pub(crate) fn build_bar_chart_paths(
     let mut bar_colors_auto = true;
     let mut bar_colors: Vec<[f32; 4]> = vec![];
     let mut show_axis = true;
+    let mut show_labels = true;
+    let mut bar_labels = Vec::new();
     let _direction = "vertical"; // Reserved for horizontal bar support
     let mut max_value_auto = true;
     let mut max_value_val = 0.0f32;
@@ -1942,19 +2054,55 @@ pub(crate) fn build_bar_chart_paths(
         let subject = format!("{}.{}", label, prop.name);
         match prop.name.as_str() {
             "bar_width" => {
-                if let Some(v) =
+                let is_auto = matches!(&prop.value, Expr::Ident(s) | Expr::Str(s) if s == "auto");
+                if is_auto {
+                    // keep default auto distribution
+                } else if let Some(v) =
                     evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
                 {
-                    bar_width_val = v.as_num() as f32;
-                    bar_width_auto = false;
+                    match v {
+                        Value::Num(n) => {
+                            bar_width_val = n as f32;
+                            bar_width_auto = false;
+                        },
+                        other => diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "BarChart '{label}' bar_width expects a number or \"auto\", got {:?}",
+                                    other
+                                ),
+                            )
+                            .with_subject(&subject),
+                        ),
+                    }
                 }
             },
             "gap" => {
-                if let Some(v) =
+                let is_auto = matches!(&prop.value, Expr::Ident(s) | Expr::Str(s) if s == "auto");
+                if is_auto {
+                    // keep default auto spacing
+                } else if let Some(v) =
                     evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
                 {
-                    gap_val = v.as_num() as f32;
-                    gap_auto = false;
+                    match v {
+                        Value::Num(n) => {
+                            gap_val = n as f32;
+                            gap_auto = false;
+                        },
+                        other => diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "BarChart '{label}' gap expects a number or \"auto\", got {:?}",
+                                    other
+                                ),
+                            )
+                            .with_subject(&subject),
+                        ),
+                    }
                 }
             },
             "bar_colors" => {
@@ -2046,17 +2194,56 @@ pub(crate) fn build_bar_chart_paths(
                     };
                 }
             },
+            "show_labels" => {
+                if let Some(v) =
+                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
+                {
+                    show_labels = match v {
+                        Value::Bool(b) => b,
+                        Value::Str(s) => s == "true" || s == "1",
+                        _ => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("BarChart '{label}' show_labels expects a boolean"),
+                                )
+                                .with_subject(&subject),
+                            );
+                            true
+                        },
+                    };
+                }
+            },
             "direction" => {
                 // Parsed but not yet used; reserved for horizontal bar support
             },
             "max_value" => {
-                if let Some(v) =
+                let is_auto = matches!(&prop.value, Expr::Ident(s) | Expr::Str(s) if s == "auto");
+                if is_auto {
+                    // keep default auto scale
+                } else if let Some(v) =
                     evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject)
                 {
-                    let n = v.as_num() as f32;
-                    max_value_val = n;
-                    if n > 0.0 {
-                        max_value_auto = false;
+                    match v {
+                        Value::Num(n) => {
+                            let n = n as f32;
+                            max_value_val = n;
+                            if n > 0.0 {
+                                max_value_auto = false;
+                            }
+                        },
+                        other => diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "BarChart '{label}' max_value expects a positive number or \"auto\", got {:?}",
+                                    other
+                                ),
+                            )
+                            .with_subject(&subject),
+                        ),
                     }
                 }
             },
@@ -2178,12 +2365,13 @@ pub(crate) fn build_bar_chart_paths(
     }
 
     // Per-bar paths
-    for (i, (_label_text, value)) in data.iter().enumerate() {
+    for (i, (label_text, value)) in data.iter().enumerate() {
         let i_f = i as f64;
 
         // Bar position: evenly spaced from left to right
         let bar_x_start = -(plot_w / 2.0) + gap + i_f * (bw + gap);
         let bar_x_end = bar_x_start + bw;
+        let bar_center_x = bar_x_start + bw / 2.0;
 
         // Bar height in screen coords
         let val_norm = if max_val > 0.0 {
@@ -2232,9 +2420,13 @@ pub(crate) fn build_bar_chart_paths(
             line_cap: 0,
             line_join: 0,
         });
+
+        if show_labels {
+            bar_labels.push((bar_center_x, baseline_y + 16.0, label_text.clone()));
+        }
     }
 
-    paths
+    (paths, bar_labels)
 }
 
 /// Create a `Value::NativeFn` for `{label}.map_inverse(screen_x, screen_y)` → math coords.

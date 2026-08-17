@@ -67,6 +67,130 @@ pub(crate) struct SnapResult {
     pub ny: f32,
 }
 
+/// Which guide/edge axes a point snapped to.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct PointSnap {
+    pub nx: f32,
+    pub ny: f32,
+    pub guide_h: bool,
+    pub guide_v: bool,
+    pub edge_h: bool,
+    pub edge_v: bool,
+}
+
+/// Snap a single scene-space point to guide lines and actor/container edges.
+///
+/// This is the point-oriented counterpart to [`resolve_snap`]: callout handles
+/// move a point (tip, label, or standoff origin) rather than a sized actor, so
+/// the candidate point is compared directly with guide and edge coordinates.
+pub(crate) fn snap_point_to_guides_and_edges(
+    nx: f32,
+    ny: f32,
+    threshold: f32,
+    horizontal_guides: &[f32],
+    vertical_guides: &[f32],
+    x_edges: &[f32],
+    y_edges: &[f32],
+) -> PointSnap {
+    let mut nx = nx;
+    let mut ny = ny;
+    let mut guide_h = false;
+    let mut guide_v = false;
+    let mut edge_h = false;
+    let mut edge_v = false;
+
+    for &guide_y in horizontal_guides {
+        if (ny - guide_y).abs() < threshold {
+            ny = guide_y;
+            guide_h = true;
+        }
+    }
+    for &guide_x in vertical_guides {
+        if (nx - guide_x).abs() < threshold {
+            nx = guide_x;
+            guide_v = true;
+        }
+    }
+    for &edge_x in x_edges {
+        if (nx - edge_x).abs() < threshold {
+            nx = edge_x;
+            edge_v = true;
+        }
+    }
+    for &edge_y in y_edges {
+        if (ny - edge_y).abs() < threshold {
+            ny = edge_y;
+            edge_h = true;
+        }
+    }
+
+    PointSnap {
+        nx,
+        ny,
+        guide_h,
+        guide_v,
+        edge_h,
+        edge_v,
+    }
+}
+
+/// Snap a candidate point to guides and the edges of all known actor bounds,
+/// updating snap overlay state when a snap occurs.
+pub(crate) fn resolve_point_snap(
+    nx: f32,
+    ny: f32,
+    threshold: f32,
+    ctx: &mut PreviewContext<'_>,
+) -> SnapResult {
+    let horizontal_guides = ctx.preview.guides.horizontal_guides.clone();
+    let vertical_guides = ctx.preview.guides.vertical_guides.clone();
+    let mut x_edges = Vec::new();
+    let mut y_edges = Vec::new();
+    for (_, bounds) in ctx.hit_regions.iter() {
+        x_edges.push(bounds.x0 as f32);
+        x_edges.push(((bounds.x0 + bounds.x1) as f32) / 2.0);
+        x_edges.push(bounds.x1 as f32);
+        y_edges.push(bounds.y0 as f32);
+        y_edges.push(((bounds.y0 + bounds.y1) as f32) / 2.0);
+        y_edges.push(bounds.y1 as f32);
+    }
+
+    let snap = snap_point_to_guides_and_edges(
+        nx,
+        ny,
+        threshold,
+        &horizontal_guides,
+        &vertical_guides,
+        &x_edges,
+        &y_edges,
+    );
+    let snapped = snap.guide_h || snap.guide_v || snap.edge_h || snap.edge_v;
+    if snapped {
+        if snap.guide_h || snap.edge_h {
+            ctx.preview.snap.snap_lines_h.push(snap.ny);
+        }
+        if snap.guide_v || snap.edge_v {
+            ctx.preview.snap.snap_lines_v.push(snap.nx);
+        }
+        let theme = ctx.current_theme();
+        ctx.preview.snap.snap_line_color = Some(if snap.guide_h || snap.guide_v {
+            theme.status.warning
+        } else {
+            theme.status.success
+        });
+        ctx.preview.snap.snap_hud_label = Some(if snap.guide_h || snap.guide_v {
+            "Guide snap".into()
+        } else {
+            "Edge snap".into()
+        });
+    }
+
+    SnapResult {
+        nx: snap.nx,
+        ny: snap.ny,
+    }
+}
+
 /// Snap a candidate position (`nx`, `ny`) to guides, actor edges, container edges,
 /// and keyframe positions.
 ///
@@ -417,4 +541,63 @@ pub(crate) fn capture_start_positions(
         actors.push((sel.clone(), pos));
     }
     actors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn point_snap_hits_guides_and_edges() {
+        let snap = snap_point_to_guides_and_edges(
+            103.0,
+            98.0,
+            10.0,
+            &[100.0],
+            &[100.0],
+            &[200.0],
+            &[200.0],
+        );
+        assert_eq!(snap.nx, 100.0);
+        assert_eq!(snap.ny, 100.0);
+        assert!(snap.guide_h);
+        assert!(snap.guide_v);
+        assert!(!snap.edge_h);
+        assert!(!snap.edge_v);
+    }
+
+    #[test]
+    fn point_snap_prefers_nearby_edge_over_distant_guide() {
+        let snap = snap_point_to_guides_and_edges(
+            150.0,
+            51.0,
+            10.0,
+            &[100.0],
+            &[100.0],
+            &[150.0],
+            &[50.0],
+        );
+        assert_eq!(snap.nx, 150.0);
+        assert_eq!(snap.ny, 50.0);
+        assert!(snap.edge_h);
+        assert!(snap.edge_v);
+        assert!(!snap.guide_h);
+        assert!(!snap.guide_v);
+    }
+
+    #[test]
+    fn point_snap_leaves_far_points_unchanged() {
+        let snap = snap_point_to_guides_and_edges(
+            200.0,
+            200.0,
+            10.0,
+            &[100.0],
+            &[100.0],
+            &[150.0],
+            &[150.0],
+        );
+        assert_eq!(snap.nx, 200.0);
+        assert_eq!(snap.ny, 200.0);
+        assert!(!snap.guide_h && !snap.guide_v && !snap.edge_h && !snap.edge_v);
+    }
 }

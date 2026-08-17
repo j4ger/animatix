@@ -1,4 +1,5 @@
 use super::morph::{MorphOptions, MorphStrategy};
+use super::plot::FuncBlendMode;
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::*;
@@ -82,6 +83,7 @@ pub(crate) struct ParsedTimingModifiers {
     pub delay_ms: f64,
     pub easing: Easing,
     pub morph_options: MorphOptions,
+    pub func_blend_mode: FuncBlendMode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -289,6 +291,7 @@ pub(crate) fn parse_timing_modifiers(
         delay_ms: 0.0,
         easing: Easing::Linear,
         morph_options: MorphOptions::default(),
+        func_blend_mode: FuncBlendMode::Output,
     };
     let mut saw_duration = false;
     let mut saw_delay = false;
@@ -296,6 +299,7 @@ pub(crate) fn parse_timing_modifiers(
     let mut saw_strategy = false;
     let mut saw_path_arc = false;
     let mut saw_stretch = false;
+    let mut saw_func_blend = false;
 
     for modifier in modifiers {
         match modifier.name.as_deref() {
@@ -517,6 +521,37 @@ pub(crate) fn parse_timing_modifiers(
                         subject,
                     ),
                 }
+            },
+            Some("blend") if host == ModifierHost::Assignment => match &modifier.value {
+                Expr::Ident(raw) => {
+                    if saw_func_blend {
+                        push_conflicting_modifier_diagnostic(diagnostics, "blend", host, subject);
+                    }
+                    match raw.as_str() {
+                        "output" => parsed.func_blend_mode = FuncBlendMode::Output,
+                        "opacity" => parsed.func_blend_mode = FuncBlendMode::Opacity,
+                        other => push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported blend value '{other}' on {}; supported values are output and opacity.",
+                                host.display_name()
+                            ),
+                            subject,
+                        ),
+                    }
+                    saw_func_blend = true;
+                },
+                other => push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported blend modifier value {:?} on {}; expected output or opacity.",
+                        other,
+                        host.display_name()
+                    ),
+                    subject,
+                ),
             },
             // Action-specific effect modifiers handled directly by action execute functions.
             // These are declared in ActionSignature.modifiers and consumed by the action itself;

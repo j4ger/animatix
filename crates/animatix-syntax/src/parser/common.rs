@@ -43,11 +43,49 @@ pub(crate) fn ident<'src>() -> IdentParser<'src> {
 
 /// Parse an identifier and record its occurrence with the given role.
 pub(crate) fn ident_occ<'src>(kind: crate::occurrence::OccurrenceKind) -> IdentParser<'src> {
+    ident_occ_with(kind, false)
+}
+
+/// Parse an identifier and record it as a declaration occurrence.
+pub(crate) fn ident_decl_occ<'src>(kind: crate::occurrence::OccurrenceKind) -> IdentParser<'src> {
+    ident_occ_with(kind, true)
+}
+
+fn ident_occ_with<'src>(
+    kind: crate::occurrence::OccurrenceKind,
+    declaration: bool,
+) -> IdentParser<'src> {
     token_parser::ident()
         .map_with(move |name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-            crate::occurrence::record(kind, name.clone(), extra.span());
+            if declaration {
+                crate::occurrence::record_declaration(kind, name.clone(), extra.span());
+            } else {
+                crate::occurrence::record(kind, name.clone(), extra.span());
+            }
             name
         })
+        .boxed()
+}
+
+/// Run `parser` inside a new lexical scope.
+///
+/// The scope is entered before the first token of `parser` and left after it
+/// succeeds. Callers only use this after a construct has committed to its
+/// syntax, so failed alternatives do not corrupt valid parses.
+pub(crate) fn scoped<'src, T: 'src>(
+    parser: impl Parser<'src, StrInput<'src>, T, ParserExtra<'src>> + Clone + 'src,
+) -> Boxed<'src, 'src, StrInput<'src>, T, ParserExtra<'src>> {
+    empty::<StrInput<'src>, ParserExtra<'src>>()
+        .map_with(|(), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            crate::occurrence::push_scope();
+        })
+        .then(parser)
+        .then(empty::<StrInput<'src>, ParserExtra<'src>>().map_with(
+            |(), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                crate::occurrence::pop_scope();
+            },
+        ))
+        .map(|(((), value), ())| value)
         .boxed()
 }
 
@@ -55,10 +93,11 @@ pub(crate) fn ident_occ<'src>(kind: crate::occurrence::OccurrenceKind) -> IdentP
 // Dotted identifier parser
 // ---------------------------------------------------------------------------
 
-/// Parse a dotted path (e.g. `scene.background`, `container.child.prop`).
-pub(crate) fn dotted_ident<'src>()
--> impl Parser<'src, StrInput<'src>, Vec<String>, ParserExtra<'src>> + Clone {
-    ident()
+/// Parse a dotted identifier path and record every segment with `kind`.
+pub(crate) fn dotted_ident_occ<'src>(
+    kind: crate::occurrence::OccurrenceKind,
+) -> impl Parser<'src, StrInput<'src>, Vec<String>, ParserExtra<'src>> + Clone {
+    ident_occ(kind)
         .separated_by(token_parser::punct(crate::token::TokenKind::Dot))
         .at_least(1)
         .collect()
@@ -96,27 +135,49 @@ pub(crate) fn indexed_dotted_ident_with_expr<'src>(
     expr: ExprParser<'src>,
 ) -> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {
     let segment = ident()
+        .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            (name, extra.span())
+        })
         .then(
             token_parser::punct(crate::token::TokenKind::LBracket)
                 .ignore_then(expr)
                 .then_ignore(token_parser::punct(crate::token::TokenKind::RBracket))
                 .or_not(),
         )
-        .map(|(name, idx)| match idx {
-            Some(Expr::Num(n)) if n.trunc() == n && n >= 0.0 => {
-                TargetSegment::Static(format!("{}__{}", name, n as usize))
-            },
-            Some(e) => TargetSegment::Indexed {
-                base: name,
-                index: Box::new(e),
-            },
-            None => TargetSegment::Static(name),
-        });
+        .map(|((name, span), idx)| (name, span, idx));
 
     segment
         .separated_by(token_parser::punct(crate::token::TokenKind::Dot))
         .at_least(1)
-        .collect()
+        .collect::<Vec<_>>()
+        .map(|segments| {
+            let count = segments.len();
+            segments
+                .into_iter()
+                .enumerate()
+                .map(|(idx, (name, span, index))| {
+                    // A single-segment assignment (`scale = 1`) targets a
+                    // property; dotted targets start with a label and finish
+                    // with the property being assigned.
+                    let kind = if count == 1 || idx > 0 {
+                        crate::occurrence::OccurrenceKind::Property
+                    } else {
+                        crate::occurrence::OccurrenceKind::Label
+                    };
+                    crate::occurrence::record(kind, name.clone(), span);
+                    match index {
+                        Some(Expr::Num(n)) if n.trunc() == n && n >= 0.0 => {
+                            TargetSegment::Static(format!("{}__{}", name, n as usize))
+                        },
+                        Some(e) => TargetSegment::Indexed {
+                            base: name,
+                            index: Box::new(e),
+                        },
+                        None => TargetSegment::Static(name),
+                    }
+                })
+                .collect()
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +186,17 @@ pub(crate) fn indexed_dotted_ident_with_expr<'src>(
 
 /// Parse a type identifier: an identifier starting with an uppercase letter.
 pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
-    ident_occ(crate::occurrence::OccurrenceKind::Type)
-        .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
+    token_parser::ident()
+        .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            (name, extra.span())
+        })
+        .filter(|(name, _): &(String, ByteSpan)| {
+            name.chars().next().is_some_and(|c| c.is_uppercase())
+        })
+        .map_with(|(name, span), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            crate::occurrence::record(crate::occurrence::OccurrenceKind::Type, name.clone(), span);
+            name
+        })
         .boxed()
 }
 
@@ -138,7 +208,7 @@ pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
 pub(crate) fn label_expr<'src>(
     expr: impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone + 'src,
 ) -> Boxed<'src, 'src, StrInput<'src>, (String, Option<Expr>), ParserExtra<'src>> {
-    ident_occ(crate::occurrence::OccurrenceKind::Label)
+    ident_decl_occ(crate::occurrence::OccurrenceKind::Label)
         .then(
             expr.clone()
                 .delimited_by(
@@ -191,7 +261,8 @@ pub(crate) fn expr_with_span<'src>(
 pub(crate) fn property<'src>(
     expr: impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone + 'src,
 ) -> PropertyParser<'src> {
-    let property_name = dotted_ident().map(|parts: Vec<String>| parts.join(".")).or(ident());
+    let property_name = dotted_ident_occ(crate::occurrence::OccurrenceKind::Property)
+        .map(|parts: Vec<String>| parts.join("."));
 
     property_name
         .then_ignore(token_parser::colon())
@@ -216,7 +287,7 @@ pub(crate) fn modifier<'src>(
     time: impl Parser<'src, StrInput<'src>, Time, ParserExtra<'src>> + Clone + 'src,
 ) -> ModifierParser<'src> {
     choice((
-        ident()
+        ident_occ(crate::occurrence::OccurrenceKind::Property)
             .then_ignore(token_parser::colon())
             .then(choice((
                 time.clone().map(|t| match t {

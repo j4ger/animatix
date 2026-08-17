@@ -9,6 +9,7 @@ use crate::app::commands::{
     ViewAction,
 };
 use crate::app::components::button::Button;
+use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::{ActorProps, PreviewTransform};
@@ -311,7 +312,7 @@ fn popup_property_row(
         } else {
             format!("Click to add keyframe at {:.2}s", current_time_s)
         };
-        diamond_resp.clone().on_hover_text(tooltip);
+        text_tooltip(ui, diamond_resp.id.with("tooltip"), &diamond_resp, &tooltip);
     }
     // Label
     let label_x = row_rect.min.x + 22.0;
@@ -418,7 +419,7 @@ fn popup_property_row(
     }
     // Drag tooltip
     if value_resp.hovered() && !value_resp.dragged() {
-        value_resp.clone().on_hover_text("Drag to change value");
+        text_tooltip(ui, value_resp.id.with("tooltip"), &value_resp, "Drag to change value");
     }
     // Row tooltip on hover (when not on value area)
     if response.hovered() && !value_resp.hovered() && !diamond_resp.hovered() {
@@ -427,7 +428,7 @@ fn popup_property_row(
         } else {
             format!("{label}: {value_str}\nNo keyframe at {current_time_s:.2}s")
         };
-        response.clone().on_hover_text(tooltip);
+        text_tooltip(ui, response.id.with("tooltip"), &response, &tooltip);
     }
     ui.allocate_rect(row_rect, Sense::hover());
 }

@@ -21,6 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use super::runtime::{detect_system_dark, install_theme};
 use super::*;
+use crate::app::components::text_tooltip;
 use crate::document::DocumentSession;
 use crate::preview_surface::PreviewSurface;
 use source_viewer::SourceViewer;
@@ -649,14 +650,17 @@ impl eframe::App for ReviewApp {
                                 index == self.current_variant,
                                 &variant.label,
                             );
-                            if response
-                                .on_hover_text(format!(
+                            text_tooltip(
+                                ui,
+                                response.id.with(("variant_tip", index)),
+                                &response,
+                                &format!(
                                     "Comment target: {} (key {})",
                                     variant.label,
                                     variant.id.to_uppercase()
-                                ))
-                                .clicked()
-                            {
+                                ),
+                            );
+                            if response.clicked() {
                                 new_variant = Some(index);
                             }
                         }
@@ -666,14 +670,17 @@ impl eframe::App for ReviewApp {
 
                     for mode in [ReviewMode::Single, ReviewMode::Compare] {
                         let response = ui.stable_selectable_label(self.mode == mode, mode.label());
-                        if response
-                            .on_hover_text(if mode == ReviewMode::Compare {
+                        text_tooltip(
+                            ui,
+                            response.id.with(("mode_tip", mode.label())),
+                            &response,
+                            if mode == ReviewMode::Compare {
                                 "Show all variants side by side (M)"
                             } else {
                                 "Show only the focused variant (M)"
-                            })
-                            .clicked()
-                        {
+                            },
+                        );
+                        if response.clicked() {
                             mode_requested = Some(mode);
                         }
                     }
@@ -685,27 +692,24 @@ impl eframe::App for ReviewApp {
                     } else {
                         PLAY
                     };
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new(play_label).size(16.0)))
-                        .on_hover_text("Play/Pause (Space)")
-                        .clicked()
-                    {
+                    let play_btn =
+                        ui.add(egui::Button::new(egui::RichText::new(play_label).size(16.0)));
+                    text_tooltip(ui, play_btn.id.with("play_tip"), &play_btn, "Play/Pause (Space)");
+                    if play_btn.clicked() {
                         self.playback.toggle_playback();
                         self.preview_dirty = true;
                     }
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new(ARROW_LEFT).size(16.0)))
-                        .on_hover_text("Previous frame")
-                        .clicked()
-                    {
+                    let prev_btn =
+                        ui.add(egui::Button::new(egui::RichText::new(ARROW_LEFT).size(16.0)));
+                    text_tooltip(ui, prev_btn.id.with("prev_tip"), &prev_btn, "Previous frame");
+                    if prev_btn.clicked() {
                         self.playback.step_frame(-1.0 / REVIEW_FPS as f64);
                         self.preview_dirty = true;
                     }
-                    if ui
-                        .add(egui::Button::new(egui::RichText::new(ARROW_RIGHT).size(16.0)))
-                        .on_hover_text("Next frame")
-                        .clicked()
-                    {
+                    let next_btn =
+                        ui.add(egui::Button::new(egui::RichText::new(ARROW_RIGHT).size(16.0)));
+                    text_tooltip(ui, next_btn.id.with("next_tip"), &next_btn, "Next frame");
+                    if next_btn.clicked() {
                         self.playback.step_frame(1.0 / REVIEW_FPS as f64);
                         self.preview_dirty = true;
                     }
@@ -741,15 +745,20 @@ impl eframe::App for ReviewApp {
                             egui::RichText::new(format!("{} Review marked done", CHECK_CIRCLE))
                                 .color(CommentSeverity::Minor.color()),
                         );
-                    } else if ui
-                        .add(
+                    } else {
+                        let done_btn = ui.add(
                             egui::Button::new(egui::RichText::new(CHECK_CIRCLE).size(16.0))
                                 .fill(egui::Color32::from_rgb(152, 195, 121)),
-                        )
-                        .on_hover_text("Mark this review as done for the agent and close (D)")
-                        .clicked()
-                    {
-                        finish_review = true;
+                        );
+                        text_tooltip(
+                            ui,
+                            done_btn.id.with("done_tip"),
+                            &done_btn,
+                            "Mark this review as done for the agent and close (D)",
+                        );
+                        if done_btn.clicked() {
+                            finish_review = true;
+                        }
                     }
                 });
 
@@ -768,19 +777,24 @@ impl eframe::App for ReviewApp {
                                 self.comment_ui.open = false;
                                 self.comment_ui.note.clear();
                             }
-                        } else if ui
-                            .add(
+                        } else {
+                            let comment_btn = ui.add(
                                 egui::Button::new(
                                     egui::RichText::new(format!("{CHAT_CIRCLE_TEXT} New comment"))
                                         .size(14.0),
                                 )
                                 .fill(egui::Color32::from_rgb(97, 175, 239)),
-                            )
-                            .on_hover_text("Open the comment form (C)")
-                            .clicked()
-                        {
-                            self.comment_ui.open = true;
-                            self.comment_ui.focus_requested = true;
+                            );
+                            text_tooltip(
+                                ui,
+                                comment_btn.id.with("comment_tip"),
+                                &comment_btn,
+                                "Open the comment form (C)",
+                            );
+                            if comment_btn.clicked() {
+                                self.comment_ui.open = true;
+                                self.comment_ui.focus_requested = true;
+                            }
                         }
                     });
                 });
@@ -788,11 +802,16 @@ impl eframe::App for ReviewApp {
                 if self.comment_ui.open {
                     ui.add_space(4.0);
                     ui.horizontal_wrapped(|ui| {
-                        ui.checkbox(
+                        let capture_btn = ui.checkbox(
                             &mut self.comment_ui.capture_time,
                             format!("Capture time {:.2}s", self.playback.current_time_s()),
-                        )
-                        .on_hover_text("Anchors this comment to the current playback time");
+                        );
+                        text_tooltip(
+                            ui,
+                            capture_btn.id.with("capture_tip"),
+                            &capture_btn,
+                            "Anchors this comment to the current playback time",
+                        );
                     });
                     ui.horizontal(|ui| {
                         let response = ui.add(
@@ -828,30 +847,37 @@ impl eframe::App for ReviewApp {
                                     "{} @ {} | {}",
                                     variant_label, time_label, comment.note
                                 );
-                                let response = ui
-                                    .add(
-                                        egui::Label::new(
-                                            egui::RichText::new(label)
-                                                .color(comment.severity.color()),
-                                        )
-                                        .selectable(true),
+                                let response = ui.add(
+                                    egui::Label::new(
+                                        egui::RichText::new(label).color(comment.severity.color()),
                                     )
-                                    .on_hover_text(if comment.time_ms.is_some() {
+                                    .selectable(true),
+                                );
+                                text_tooltip(
+                                    ui,
+                                    response.id.with("comment_jump_tip"),
+                                    &response,
+                                    if comment.time_ms.is_some() {
                                         "Jump to this comment"
                                     } else {
                                         "No time anchor"
-                                    });
+                                    },
+                                );
                                 if response.clicked() {
                                     jump_comment = Some(index);
                                 }
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
-                                        if ui
-                                            .small_button(egui::RichText::new(TRASH).size(12.0))
-                                            .on_hover_text("Delete comment")
-                                            .clicked()
-                                        {
+                                        let delete_btn =
+                                            ui.small_button(egui::RichText::new(TRASH).size(12.0));
+                                        text_tooltip(
+                                            ui,
+                                            delete_btn.id.with("delete_tip"),
+                                            &delete_btn,
+                                            "Delete comment",
+                                        );
+                                        if delete_btn.clicked() {
                                             delete_comment = Some(index);
                                         }
                                     },
@@ -1039,14 +1065,17 @@ impl eframe::App for ReviewApp {
                                 {
                                     let column = &mut columns[index];
                                     let active = variant_index == self.current_variant;
-                                    if column
-                                        .stable_selectable_label(
-                                            active,
-                                            egui::RichText::new(label).strong(),
-                                        )
-                                        .on_hover_text("Set this variant as the comment target")
-                                        .clicked()
-                                    {
+                                    let variant_btn = column.stable_selectable_label(
+                                        active,
+                                        egui::RichText::new(label).strong(),
+                                    );
+                                    text_tooltip(
+                                        column,
+                                        variant_btn.id.with("variant_target_tip"),
+                                        &variant_btn,
+                                        "Set this variant as the comment target",
+                                    );
+                                    if variant_btn.clicked() {
                                         new_variant = Some(variant_index);
                                     }
 

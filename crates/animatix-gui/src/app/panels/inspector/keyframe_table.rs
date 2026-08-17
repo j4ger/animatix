@@ -4,10 +4,11 @@ use animatix::timeline::{
     property_keyframe_times, read_property_value,
 };
 use animatix_syntax::easing::Easing;
-use egui::Vec2;
-use eparts::widget::{Tooltip, UiExt};
+use egui::{Rect, Vec2};
+use eparts::widget::UiExt;
 
 use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
+use crate::app::components::{Badge, Tooltip};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -144,14 +145,11 @@ fn render_compact_track_row(
 
     // Keyframe count badge (right-aligned)
     let count = track.keyframes.len();
-    let count_label = format!("{} {}", egui_phosphor::regular::DIAMOND, count);
-    ui.painter().text(
+    let count_rect = Rect::from_center_size(
         egui::pos2(row_rect.max.x - sp.base.space_2, baseline_y),
-        egui::Align2::RIGHT_CENTER,
-        count_label,
-        TextRole::Micro.font_id(),
-        theme.text.muted,
+        Vec2::new(40.0, row_height),
     );
+    ui.put(count_rect, Badge::new(format!("{} {}", egui_phosphor::regular::DIAMOND, count)));
 
     // Mini timeline strip (subtle, behind everything)
     let strip_left = cursor_x + 70.0_f32.min(available * 0.3);

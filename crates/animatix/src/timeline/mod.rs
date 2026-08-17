@@ -501,6 +501,7 @@ pub struct Timeline {
     pub modifier_programs: Vec<ModifierIrProgram>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
+    pub(crate) export_preset: Option<String>,
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
@@ -609,6 +610,7 @@ impl Timeline {
             modifier_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
+            export_preset: None,
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
@@ -935,6 +937,11 @@ impl Timeline {
         &self.asset_cache
     }
 
+    /// Returns a cloneable handle to the asset cache for carrying into rebuilds.
+    pub fn asset_cache_arc(&self) -> std::sync::Arc<assets::AssetCache> {
+        self.asset_cache.clone()
+    }
+
     /// Iterate over asset path → actor labels that reference it.
     pub fn asset_usage(&self) -> impl Iterator<Item = (&String, &BTreeSet<String>)> {
         self.asset_cache.asset_usage()
@@ -1028,6 +1035,11 @@ impl Timeline {
     /// Returns the name of the currently active colorscheme.
     pub fn colorscheme_name(&self) -> &str {
         &self.colorscheme.name
+    }
+
+    /// Returns the configured named export preset, if any.
+    pub fn export_preset(&self) -> Option<&str> {
+        self.export_preset.as_deref()
     }
 
     /// Returns the appropriate default color for a primitive type and property,

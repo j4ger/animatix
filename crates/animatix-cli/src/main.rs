@@ -123,6 +123,10 @@ enum Commands {
         /// veryslow
         #[arg(long, default_value = "medium")]
         preset: renderer::H264Preset,
+
+        /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps/codec/preset.
+        #[arg(long)]
+        export_preset: Option<String>,
     },
     /// Render a scene to an animated GIF file
     #[cfg(feature = "video")]
@@ -162,6 +166,10 @@ enum Commands {
         /// Maximum render threads (auto or a number)
         #[arg(short = 'j', long, default_value = "auto")]
         threads: renderer::MaxRenderThreads,
+
+        /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps.
+        #[arg(long)]
+        export_preset: Option<String>,
     },
     /// Parse an .amx file and print build diagnostics
     Check {
@@ -358,9 +366,39 @@ fn main() {
             output,
             debug_bounds,
             threads,
+            export_preset,
         } => {
             info!("Rendering Animatix GIF: {}", input.display());
+            let (mut width, mut height, mut fps) = (width, height, fps);
+            if let Some(name) = export_preset.as_deref() {
+                let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                    error!("Unknown export preset '{name}'");
+                    std::process::exit(2);
+                };
+                width = preset_values.width;
+                height = preset_values.height;
+                fps = preset_values.fps;
+            }
             let (target, _) = load_and_build(&input);
+            if export_preset.is_none() {
+                let configured = match &target {
+                    BuildTarget::SingleScene(timeline) => timeline.export_preset(),
+                    BuildTarget::MultiScene(composition) => composition
+                        .scenes
+                        .values()
+                        .next()
+                        .and_then(|scene| scene.timeline.export_preset()),
+                };
+                if let Some(name) = configured {
+                    let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                        error!("Unknown export preset '{name}' from config");
+                        std::process::exit(2);
+                    };
+                    width = preset_values.width;
+                    height = preset_values.height;
+                    fps = preset_values.fps;
+                }
+            }
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("gif"));
             info!(
@@ -426,9 +464,44 @@ fn main() {
             threads,
             codec,
             preset,
+            export_preset,
         } => {
             info!("Rendering Animatix video: {}", input.display());
+            let (mut width, mut height, mut fps, mut codec, mut preset) =
+                (width, height, fps, codec, preset);
+            if let Some(name) = export_preset.as_deref() {
+                let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                    error!("Unknown export preset '{name}'");
+                    std::process::exit(2);
+                };
+                width = preset_values.width;
+                height = preset_values.height;
+                fps = preset_values.fps;
+                codec = preset_values.video_codec;
+                preset = preset_values.h264_preset;
+            }
             let (target, _) = load_and_build(&input);
+            if export_preset.is_none() {
+                let configured = match &target {
+                    BuildTarget::SingleScene(timeline) => timeline.export_preset(),
+                    BuildTarget::MultiScene(composition) => composition
+                        .scenes
+                        .values()
+                        .next()
+                        .and_then(|scene| scene.timeline.export_preset()),
+                };
+                if let Some(name) = configured {
+                    let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                        error!("Unknown export preset '{name}' from config");
+                        std::process::exit(2);
+                    };
+                    width = preset_values.width;
+                    height = preset_values.height;
+                    fps = preset_values.fps;
+                    codec = preset_values.video_codec;
+                    preset = preset_values.h264_preset;
+                }
+            }
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
             info!(

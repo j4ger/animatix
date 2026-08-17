@@ -122,11 +122,11 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `func` | BuildTimeOnly | — | Transitions | PlotCurve, VectorField, Heatmap, ContourSet |
 | `data` | BuildTimeOnly | — | — | BarChart |
 | `bar_width` | F32 | — | — | BarChart |
-| `bar_colors` | String | — | — | BarChart |
+| `bar_colors` | BuildTimeOnly | — | — | BarChart |
 | `direction` | String | — | — | BarChart |
 | `max_value` | F32 | — | — | BarChart |
-| `show_axis` | String | — | — | BarChart |
-| `show_labels` | String | — | — | BarChart |
+| `show_axis` | Bool/String | — | — | BarChart |
+| `show_labels` | Bool/String | — | — | BarChart |
 | `x_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
 | `y_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
 | `x_range` | Vec2 | — | — | NumberPlane |
@@ -137,6 +137,9 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `density` | F32 | — | — | VectorField |
 | `levels` | Vec2 | — | — | ContourSet |
 | `tolerance` | F32 | — | — | PlotCurve |
+
+`func` transitions use assignment modifiers, e.g. `[1s]` for output blending or
+`[1s, blend: opacity]` for cross-fading the two generated plot outputs.
 | `max_depth` | F32 | — | — | PlotCurve, ContourSet |
 | `grid` | String | — | — | Graph |
 | `ticks` | String | — | — | Graph |

@@ -21,6 +21,8 @@ Quick reference for all Animatix primitives. For the full language specification
 title: Text { text: "Hello World", font_size: 24, at: (640, 120) }
 ```
 
+Timed `text` assignments cross-fade the source and target glyph sets instead of snapping at the midpoint; `Typst.content` follows the same behavior.
+
 ## Typst
 
 Replaces the deprecated `Math` primitive.
@@ -256,7 +258,7 @@ Single-stroke curve plot. The `kind` property selects the sampling strategy.
 
 **Function Transitions**
 
-PlotCurve supports animated transitions between functions for cartesian, polar, and parametric kinds. Use assignment syntax with duration:
+All plot primitives support animated transitions between functions using timed `func` assignments:
 
 ```animatix
 curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: accent.primary
@@ -265,11 +267,15 @@ curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke: accent.primary
 curve.func = (x) => cos(x) [1s, ease: ease-in-out]
 ```
 
-The curve morphs smoothly by blending output values: `y = lerp(from(x), to(x), progress)`.
+The default transition blends evaluated outputs at each sample point: `y = lerp(from(x), to(x), progress)`. This works for cartesian, polar, parametric, and implicit `PlotCurve`, plus `VectorField`, `Heatmap`, and `ContourSet` (their scalar/vector fields are blended per sample).
 
-**Supported kinds:** `cartesian`, `polar`, `parametric`
+To cross-fade the two rendered plot outputs instead of blending function values, add `blend: opacity` to the assignment:
 
-**Unsupported:** `implicit` plots, VectorField, Heatmap, ContourSet (these have different evaluation models)
+```animatix
+curve.func = (x) => cos(x) [1s, blend: opacity]
+```
+
+`blend: output` is the default and can be written explicitly.
 
 **Overlapping transitions:** If a new transition starts before the previous completes, the system freezes the current blend state and chains to the new target:
 
@@ -369,14 +375,14 @@ axis. Supports standalone (pixel coordinates) and `Graph`-child (math coordinate
 modes.
 
 **Properties:**
-- `data`: Tuple of `(key, value)` tuples — the bar data
+- `data`: Brace list of `(key, value)` tuples — the bar data
 - `size`: Tuple `(width, height)` — chart visual bounds
 - `bar_width`: Number or `"auto"` — per-bar width (default auto-distributes)
 - `gap`: Number or `"auto"` — spacing between bars (default auto)
-- `bar_colors`: Tuple of RGBA tuples or `"auto"` — per-bar fill colors
-- `show_axis`: String `"true"` | `"false"` — show baseline axis (default `"true"`)
-- `show_labels`: String `"true"` | `"false"` — show bar labels (default `"true"`)
-- `direction`: `"vertical"` | `"horizontal"` — bar orientation (default `"vertical"`)
+- `bar_colors`: `"auto"`, one color, or a brace list of colors — per-bar fill colors; colors may be RGBA tuples or scheme tokens such as `accent.danger`, `accent.success`, and `accent.warning`
+- `show_axis`: Bool or string `"true"` | `"false"` — show baseline axis (default `"true"`)
+- `show_labels`: Bool or string `"true"` | `"false"` — show bar labels (default `"true"`)
+- `direction`: `"vertical"` | `"horizontal"` — bar orientation (default `"vertical"`, horizontal reserved)
 - `max_value`: Number or `"auto"` — y-axis scale cap (default auto)
 - `color`: Color — fallback bar fill color
 - `stroke` / `stroke_color`: Color — bar outline color
@@ -389,10 +395,11 @@ modes.
 **Standalone example:**
 ```animatix
 spectrum: BarChart,
-  data: (("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)),
+  data: {("2 Hz", 1.0), ("5 Hz", 0.55), ("9 Hz", 0.3)},
   size: (600, 260),
-  bar_colors: (accent.danger, accent.success, accent.warning),
+  bar_colors: {accent.danger, accent.success, accent.warning},
   show_axis: true,
+  show_labels: true,
   at: (640, 420)
 ```
 
@@ -400,10 +407,11 @@ spectrum: BarChart,
 ```animatix
 graph: Graph, x_domain: (0, 12), y_domain: (0, 1.1), size: (700, 300) {
   spectrum: BarChart,
-    data: ((2, 1.0), (5, 0.55), (9, 0.3)),
+    data: {(2, 1.0), (5, 0.55), (9, 0.3)},
     bar_width: 0.8,
     show_axis: false,
-    bar_colors: (accent.danger, accent.success, accent.warning)
+    show_labels: false,
+    bar_colors: {accent.danger, accent.success, accent.warning}
 
   envelope: PlotCurve,
     kind: "cartesian",

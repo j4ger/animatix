@@ -507,7 +507,7 @@ themselves.
 
 ### Example: `func` Transitions
 
-The `func` property on `PlotCurve` is the primary example of this pattern:
+The `func` property on plot actors is the primary example of this pattern:
 
 ```rust
 // On AnimationTrack (dispatch.rs):
@@ -522,13 +522,15 @@ pub struct FuncTransition {
     pub easing: Easing,
     pub from: FuncSource,
     pub to: FuncSource,
+    pub blend_mode: FuncBlendMode, // Output (default) or Opacity
 }
 ```
 
 At render time, [`sample_procedural_plot_at`](../crates/animatix/src/timeline/plot.rs):
 1. Finds the active transition via `active_at(time_ms)`.
-2. Constructs a `PlotFuncRef::Blended { from, to, progress }`.
+2. Constructs a `PlotFuncRef::Blended { from, to, progress }` for output blending.
 3. Evaluates both functions at each sample point and lerps: `from + (to - from) * progress`.
+4. For `blend: opacity`, builds the two endpoint path sets and cross-fades their alpha instead.
 
 ### When to Use This Pattern
 

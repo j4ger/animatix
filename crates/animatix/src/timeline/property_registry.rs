@@ -760,7 +760,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "bar_colors",
-        ValueType::String,
+        ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
         None,

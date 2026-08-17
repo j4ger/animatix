@@ -1,9 +1,9 @@
 //! Tokenizer-based syntax highlighting for the Animatix DSL.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 
-use animatix_analyzer::{Diagnostic, SymbolTable};
-use animatix_syntax::highlight::{classify_token, collect_label_names};
+use animatix_analyzer::Diagnostic;
+use animatix_syntax::highlight::lexical_role;
 use animatix_syntax::token::{LineIndex, tokenize};
 use egui::text::LayoutJob;
 use egui::{Color32, FontId, TextFormat};
@@ -110,34 +110,24 @@ pub fn highlight_source(
     let line_index = LineIndex::new(source);
 
     let tokens = tokenize(source);
-    let ast = animatix_syntax::parser::parse_source(source).0.unwrap_or_default();
-    let symbols = SymbolTable::build_from_ast(&ast);
-    let property_names: HashSet<String> =
-        symbols.properties.values().flat_map(|props| props.iter().cloned()).collect();
-    let param_names: HashSet<String> = symbols
-        .components
-        .values()
-        .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
-        .collect();
-    let label_names = collect_label_names(&ast);
-    let import_aliases = animatix_syntax::highlight::collect_import_alias_names(&ast);
+    let (_ast, _errors, occurrences) =
+        animatix_syntax::parser::parse_source_with_occurrences(source);
+    let occurrences_by_start: HashMap<usize, &animatix_syntax::occurrence::Occurrence> =
+        occurrences.iter().map(|o| (o.span.start, o)).collect();
 
     let mut highlight_spans: Vec<(usize, usize, Color32)> = Vec::new();
     let mut last_end = 0usize;
-    for (idx, token) in tokens.iter().enumerate() {
+    for token in &tokens {
         if token.span.start > last_end {
             highlight_spans.push((last_end, token.span.start, colors.default));
         }
-        let role = classify_token(
-            idx,
-            token,
-            &tokens,
-            &symbols,
-            &label_names,
-            &property_names,
-            &param_names,
-            &import_aliases,
-        );
+        let role = match &token.kind {
+            animatix_syntax::token::TokenKind::Ident(_) => occurrences_by_start
+                .get(&token.span.start)
+                .map(|o| o.kind.token_role())
+                .unwrap_or("variable"),
+            _ => lexical_role(token),
+        };
         highlight_spans.push((token.span.start, token.span.end, colors.color_for_highlight(role)));
         last_end = token.span.end;
     }

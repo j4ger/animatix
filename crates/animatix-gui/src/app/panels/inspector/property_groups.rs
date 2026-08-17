@@ -5,7 +5,7 @@ use animatix::timeline::{
     read_property_value_or_default,
 };
 use egui::{Color32, Stroke, Vec2};
-use eparts::widget::{Badge, Select, UiExt};
+use eparts::widget::{Select, UiExt, color_to_hex_rgba};
 use eparts::{NumberField, TextField};
 
 use crate::app::commands::{
@@ -14,6 +14,7 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::row;
+use crate::app::components::{Badge, ColorPicker};
 use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
@@ -868,7 +869,6 @@ pub(crate) fn render_property_row(
                 (rgba[2] * 255.0) as u8,
                 (rgba[3] * 255.0) as u8,
             );
-            let hex = format!("#{:02x}{:02x}{:02x}", color.r(), color.g(), color.b());
             ui.scope_builder(
                 egui::UiBuilder::new()
                     .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
@@ -878,17 +878,29 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-                            let btn = ui.color_edit_button_srgba(&mut color);
+                            let response =
+                                ColorPicker::new(ui.id().with(("color", entry.name)), &mut color)
+                                    .swatches(&[
+                                        theme.accent.primary,
+                                        theme.status.success,
+                                        theme.status.warning,
+                                        theme.status.error,
+                                        theme.text.primary,
+                                        theme.text.muted,
+                                        theme.surface.surface,
+                                        theme.surface.widget,
+                                    ])
+                                    .show(ui);
                             ui.add(
                                 egui::Label::new(
-                                    egui::RichText::new(&hex)
+                                    egui::RichText::new(color_to_hex_rgba(color))
                                         .monospace()
                                         .size(TextRole::Micro.size())
                                         .color(theme.text.muted),
                                 )
                                 .selectable(false),
                             );
-                            if btn.changed() {
+                            if response.changed {
                                 let [r, g, b, a] = color.to_array();
                                 commands.push_back(
                                     DocumentCommand::PropertyEdit(PropertyEdit {

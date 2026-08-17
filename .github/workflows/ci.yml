@@ -28,7 +28,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # Intentionally no FFmpeg system deps — verifies video is truly opt-in
+      # Intentionally no FFmpeg system deps — verifies video is truly opt-in.
+      # Bare `--no-default-features` is not a supported animatix target; this is
+      # the minimal supported no-video feature combination.
       - name: Build animatix crate without video
         run: cargo build -p animatix --no-default-features --features render,text,svg
       - name: Test animatix crate without video

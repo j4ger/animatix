@@ -42,8 +42,9 @@ impl Timeline {
             );
         }
 
-        // VectorField, Heatmap, ContourSet, NumberPlane are build-time only; no runtime
-        // re-evaluation.
+        // VectorField, Heatmap, ContourSet, and NumberPlane are handled by
+        // process_plot_actor. Vector/Heatmap/Contour plots are re-sampled at
+        // frame time when dynamic or transitioning.
         if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" || ty == "NumberPlane" {
             return vec![];
         }
@@ -336,6 +337,7 @@ impl Timeline {
             delay_ms,
             easing,
             morph_options,
+            ..
         } = parse_timing_modifiers(
             modifiers,
             ModifierHost::ActorDeclaration,
@@ -972,6 +974,7 @@ impl Timeline {
                 delay_ms,
                 easing,
                 morph_options: _,
+                ..
             } = parse_timing_modifiers(
                 modifiers,
                 ModifierHost::ActorDeclaration,
@@ -1072,6 +1075,27 @@ impl Timeline {
                     let child_label = format!("{}_tick_y_{}", label, i);
                     let tick_props = vec![
                         Property::new("text", Expr::Str(format!("{:.1}", val))),
+                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
+                        Property::new("font_size", Expr::Num(10.0)),
+                        Property::new("color", Expr::Str("#888888".to_string())),
+                    ];
+                    self.process_text_actor_decl(
+                        "Text",
+                        &child_label,
+                        &tick_props,
+                        &[], // no modifiers
+                        time_ms,
+                        Some(label),
+                        diagnostics,
+                    )
+                    .ok();
+                }
+
+                // Bar labels (positioned below each bar)
+                for (i, &(sx, sy, ref text)) in tick_data.bar_labels.iter().enumerate() {
+                    let child_label = format!("{}_bar_label_{}", label, i);
+                    let tick_props = vec![
+                        Property::new("text", Expr::Str(text.clone())),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new("color", Expr::Str("#888888".to_string())),

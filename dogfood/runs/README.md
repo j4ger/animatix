@@ -99,6 +99,34 @@ session:
 The script intentionally blocks until the GUI exits. Start it in the
 background when running from an agent workflow.
 
+## Static External Review Report
+
+For reviewers who should not open the GUI, generate a static HTML questionnaire
+from the same run directory:
+
+```bash
+bash scripts/review-report.sh <slug> [output.html]
+```
+
+The page shows all variants side by side with source, links any frames already
+in `frames/`, renders committed `review.json` comments, and keeps new
+preference/blocker/note answers in `localStorage`. The **Export JSON** button
+writes `review-external.json`, which can be copied back into the agent workflow.
+Files ending in `.proposed` or `.amx.proposed` are included as source-only
+variants, so proposed syntax that the current grammar cannot parse can still be
+reviewed externally.
+
+For an agent-facing index of all local runs and their hypotheses, generate the
+discovery worklist:
+
+```bash
+bash scripts/review-discover.sh [output.md]
+```
+
+The worklist includes each run's brief, `run.md` hypothesis, variants, review
+status, and committed comment count, so the next agent can decide what to
+start, resume, or promote without re-reading every run directory.
+
 ## Human Review Session
 
 Start from the repository root:

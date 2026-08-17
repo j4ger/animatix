@@ -465,11 +465,18 @@ impl LanguageServer for Backend {
             return Ok(None);
         };
 
-        // Search for references across all workspace files
+        // Search for references across all workspace files. The originating
+        // file uses cursor-based scope resolution; other files fall back to
+        // name lookup because they do not share the selected binding.
         let mut locations = Vec::new();
 
         for (file_uri, file_analyzer) in analyzers.iter() {
-            let refs = file_analyzer.find_references(&symbol_name);
+            let refs = if file_uri == &uri {
+                file_analyzer
+                    .find_references_at(position.line as usize, position.character as usize)
+            } else {
+                file_analyzer.find_references(&symbol_name)
+            };
             for (start_line, start_col, end_line, end_col) in refs {
                 if let Ok(uri) = Url::parse(file_uri) {
                     locations.push(Location {

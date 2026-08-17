@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
-use eparts::widget::{UiExt, text_tooltip};
+use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -10,6 +10,7 @@ use crate::app::commands::{
     PropertyValue as GuiPropertyValue, SceneCommand,
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
+use crate::app::components::{Badge, TabBar, text_tooltip};
 use crate::app::components::{easing_curve_editor, layout, timeline};
 use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
@@ -121,9 +122,7 @@ fn render_scene_inspector(
         ui.add_space(sp.base.space_3);
 
         // ── Scene Properties ──
-        layout::card(ui, |ui| {
-            layout::section_header(ui, egui_phosphor::regular::WRENCH, "Properties", None);
-
+        layout::group_box(ui, format!("{} Properties", egui_phosphor::regular::WRENCH), |ui| {
             // Duration (editable — explicit or inferred from timeline keyframes)
             layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                 let is_explicit = scene.explicit_duration_s.is_some();
@@ -225,180 +224,189 @@ fn render_scene_inspector(
 
         // ── Play Edge ──
         if let Some(edge) = composition.edges.get(active_scene) {
-            layout::card(ui, |ui| {
-                layout::section_header(ui, egui_phosphor::regular::ARROW_RIGHT, "Transition", None);
-
-                // Target scene dropdown
-                let other_scenes: Vec<&String> =
-                    composition.declaration_order.iter().filter(|s| *s != active_scene).collect();
-                layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
-                        .selected_text(&edge.to_scene)
-                        .width(ui.available_width())
-                        .show_ui(ui, |ui| {
-                            for scene_name in &other_scenes {
-                                if ui
-                                    .stable_selectable_label(
-                                        *scene_name == &edge.to_scene,
-                                        *scene_name,
-                                    )
-                                    .clicked()
-                                {
-                                    commands.push_back(
-                                        SceneCommand::SetPlayTarget {
-                                            from_scene: active_scene.to_string(),
-                                            target: Some((*scene_name).clone()),
-                                        }
-                                        .into(),
-                                    );
-                                }
-                            }
-                        });
-                });
-
-                // Transition type dropdown
-                let registry = animatix_syntax::transition_registry::REGISTRY;
-                layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
-                        .selected_text(animatix_syntax::transition_registry::display_name(
-                            &edge.transition.id,
-                        ))
-                        .width(ui.available_width())
-                        .show_ui(ui, |ui| {
-                            for def in registry {
-                                if ui
-                                    .stable_selectable_label(
-                                        def.id == edge.transition.id,
-                                        def.display_name,
-                                    )
-                                    .clicked()
-                                    && def.id != edge.transition.id
-                                {
-                                    commands.push_back(
-                                        SceneCommand::SetTransition {
-                                            from_scene: active_scene.to_string(),
-                                            transition: animatix_syntax::ast::Transition {
-                                                id: def.id.to_string(),
-                                                duration_ms: edge.transition.duration_ms,
-                                                easing: edge.transition.easing,
-                                            },
-                                        }
-                                        .into(),
-                                    );
-                                }
-                            }
-                        });
-                });
-
-                // Duration
-                let mut duration_ms = edge.transition.duration_ms as f64;
-                layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut duration_ms)
-                            .speed(10.0)
-                            .suffix(" ms")
-                            .max_decimals(0),
-                    );
-                });
-                let new_duration_ms = duration_ms.round() as u64;
-                if new_duration_ms != edge.transition.duration_ms {
-                    commands.push_back(
-                        SceneCommand::SetTransition {
-                            from_scene: active_scene.to_string(),
-                            transition: animatix_syntax::ast::Transition {
-                                id: edge.transition.id.clone(),
-                                duration_ms: new_duration_ms,
-                                easing: edge.transition.easing,
-                            },
-                        }
-                        .into(),
-                    );
-                }
-
-                // Easing dropdown
-                let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
-                layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                    let current_easing = edge.transition.easing;
-                    let current_name = animatix_syntax::easing::EASING_REGISTRY
+            layout::group_box(
+                ui,
+                format!("{} Transition", egui_phosphor::regular::ARROW_RIGHT),
+                |ui| {
+                    // Target scene dropdown
+                    let other_scenes: Vec<&String> = composition
+                        .declaration_order
                         .iter()
-                        .find(|(id, _)| {
-                            animatix_syntax::easing::parse_easing_name(id)
-                                .unwrap_or(animatix_syntax::easing::Easing::Linear)
-                                == current_easing
-                        })
-                        .map(|(_, name)| *name)
-                        .unwrap_or("Linear");
-                    egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
-                        .selected_text(current_name)
-                        .width(ui.available_width())
-                        .show_ui(ui, |ui| {
-                            for &(id_str, display_name) in animatix_syntax::easing::EASING_REGISTRY
-                            {
-                                let variant = animatix_syntax::easing::parse_easing_name(id_str)
-                                    .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                                if ui
-                                    .stable_selectable_label(
-                                        variant == current_easing,
-                                        display_name,
-                                    )
-                                    .clicked()
-                                    && variant != current_easing
-                                {
-                                    new_custom_easing = Some(variant);
+                        .filter(|s| *s != active_scene)
+                        .collect();
+                    layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
+                            .selected_text(&edge.to_scene)
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for scene_name in &other_scenes {
+                                    if ui
+                                        .stable_selectable_label(
+                                            *scene_name == &edge.to_scene,
+                                            *scene_name,
+                                        )
+                                        .clicked()
+                                    {
+                                        commands.push_back(
+                                            SceneCommand::SetPlayTarget {
+                                                from_scene: active_scene.to_string(),
+                                                target: Some((*scene_name).clone()),
+                                            }
+                                            .into(),
+                                        );
+                                    }
                                 }
-                            }
-                        });
-                });
-                if let Some(variant) = new_custom_easing {
-                    commands.push_back(
-                        SceneCommand::SetTransition {
-                            from_scene: active_scene.to_string(),
-                            transition: animatix_syntax::ast::Transition {
-                                id: edge.transition.id.clone(),
-                                duration_ms: edge.transition.duration_ms,
-                                easing: variant,
-                            },
-                        }
-                        .into(),
-                    );
-                }
+                            });
+                    });
 
-                // Custom easing curve editor
-                if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing {
-                    let state = EasingCurveState::from_array(cp);
-                    if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state) {
+                    // Transition type dropdown
+                    let registry = animatix_syntax::transition_registry::REGISTRY;
+                    layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
+                            .selected_text(animatix_syntax::transition_registry::display_name(
+                                &edge.transition.id,
+                            ))
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for def in registry {
+                                    if ui
+                                        .stable_selectable_label(
+                                            def.id == edge.transition.id,
+                                            def.display_name,
+                                        )
+                                        .clicked()
+                                        && def.id != edge.transition.id
+                                    {
+                                        commands.push_back(
+                                            SceneCommand::SetTransition {
+                                                from_scene: active_scene.to_string(),
+                                                transition: animatix_syntax::ast::Transition {
+                                                    id: def.id.to_string(),
+                                                    duration_ms: edge.transition.duration_ms,
+                                                    easing: edge.transition.easing,
+                                                },
+                                            }
+                                            .into(),
+                                        );
+                                    }
+                                }
+                            });
+                    });
+
+                    // Duration
+                    let mut duration_ms = edge.transition.duration_ms as f64;
+                    layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        ui.add(
+                            egui::DragValue::new(&mut duration_ms)
+                                .speed(10.0)
+                                .suffix(" ms")
+                                .max_decimals(0),
+                        );
+                    });
+                    let new_duration_ms = duration_ms.round() as u64;
+                    if new_duration_ms != edge.transition.duration_ms {
+                        commands.push_back(
+                            SceneCommand::SetTransition {
+                                from_scene: active_scene.to_string(),
+                                transition: animatix_syntax::ast::Transition {
+                                    id: edge.transition.id.clone(),
+                                    duration_ms: new_duration_ms,
+                                    easing: edge.transition.easing,
+                                },
+                            }
+                            .into(),
+                        );
+                    }
+
+                    // Easing dropdown
+                    let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
+                    layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                        let current_easing = edge.transition.easing;
+                        let current_name = animatix_syntax::easing::EASING_REGISTRY
+                            .iter()
+                            .find(|(id, _)| {
+                                animatix_syntax::easing::parse_easing_name(id)
+                                    .unwrap_or(animatix_syntax::easing::Easing::Linear)
+                                    == current_easing
+                            })
+                            .map(|(_, name)| *name)
+                            .unwrap_or("Linear");
+                        egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
+                            .selected_text(current_name)
+                            .width(ui.available_width())
+                            .show_ui(ui, |ui| {
+                                for &(id_str, display_name) in
+                                    animatix_syntax::easing::EASING_REGISTRY
+                                {
+                                    let variant =
+                                        animatix_syntax::easing::parse_easing_name(id_str)
+                                            .unwrap_or(animatix_syntax::easing::Easing::Linear);
+                                    if ui
+                                        .stable_selectable_label(
+                                            variant == current_easing,
+                                            display_name,
+                                        )
+                                        .clicked()
+                                        && variant != current_easing
+                                    {
+                                        new_custom_easing = Some(variant);
+                                    }
+                                }
+                            });
+                    });
+                    if let Some(variant) = new_custom_easing {
                         commands.push_back(
                             SceneCommand::SetTransition {
                                 from_scene: active_scene.to_string(),
                                 transition: animatix_syntax::ast::Transition {
                                     id: edge.transition.id.clone(),
                                     duration_ms: edge.transition.duration_ms,
-                                    easing: animatix_syntax::easing::Easing::CubicBezier(
-                                        new_state.to_array(),
-                                    ),
+                                    easing: variant,
                                 },
                             }
                             .into(),
                         );
                     }
-                }
 
-                // Click to jump to target scene
-                if ui
-                    .button(
-                        RichText::new(format!(
-                            "{} Go to {}",
-                            egui_phosphor::regular::ARROW_RIGHT,
-                            edge.to_scene
-                        ))
-                        .size(TextRole::BodyS.size())
-                        .color(theme.accent.primary),
-                    )
-                    .clicked()
-                {
-                    commands.push_back(SceneCommand::SelectScene(edge.to_scene.clone()).into());
-                }
-            });
+                    // Custom easing curve editor
+                    if let animatix_syntax::easing::Easing::CubicBezier(cp) = edge.transition.easing
+                    {
+                        let state = EasingCurveState::from_array(cp);
+                        if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state)
+                        {
+                            commands.push_back(
+                                SceneCommand::SetTransition {
+                                    from_scene: active_scene.to_string(),
+                                    transition: animatix_syntax::ast::Transition {
+                                        id: edge.transition.id.clone(),
+                                        duration_ms: edge.transition.duration_ms,
+                                        easing: animatix_syntax::easing::Easing::CubicBezier(
+                                            new_state.to_array(),
+                                        ),
+                                    },
+                                }
+                                .into(),
+                            );
+                        }
+                    }
+
+                    // Click to jump to target scene
+                    if ui
+                        .button(
+                            RichText::new(format!(
+                                "{} Go to {}",
+                                egui_phosphor::regular::ARROW_RIGHT,
+                                edge.to_scene
+                            ))
+                            .size(TextRole::BodyS.size())
+                            .color(theme.accent.primary),
+                        )
+                        .clicked()
+                    {
+                        commands.push_back(SceneCommand::SelectScene(edge.to_scene.clone()).into());
+                    }
+                },
+            );
         }
 
         ui.add_space(sp.base.space_3);
@@ -515,15 +523,18 @@ pub(super) fn inspector_ui(
                 .selectable(false),
             );
             ui.add_space(sp.base.space_4);
-            if ui
-                .button(
-                    RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                        .size(TextRole::Title.size())
-                        .color(theme.accent.primary),
-                )
-                .on_hover_text("Add a new actor to the scene")
-                .clicked()
-            {
+            let add_actor_btn = ui.button(
+                RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
+                    .size(TextRole::Title.size())
+                    .color(theme.accent.primary),
+            );
+            text_tooltip(
+                ui,
+                add_actor_btn.id.with("add_actor_tip"),
+                &add_actor_btn,
+                "Add a new actor to the scene",
+            );
+            if add_actor_btn.clicked() {
                 let label = "rect1".to_string();
                 let pos = [
                     scene_dimensions.width as f32 / 2.0,
@@ -645,7 +656,7 @@ pub(super) fn inspector_ui(
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
                         egui::pos2(right - sp.base.space_2 - total_w, row_top),
-                        egui::Vec2::new(total_w, sp.base.row_s),
+                        egui::Vec2::new(total_w, sp.base.component.pill_tab_height),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
@@ -653,18 +664,17 @@ pub(super) fn inspector_ui(
                             .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     );
                     let modes = [
-                        (PropertyViewMode::Semantic, egui_phosphor::regular::ROWS, "Grouped"),
-                        (PropertyViewMode::Spreadsheet, egui_phosphor::regular::TABLE, "Table"),
-                        (PropertyViewMode::Intensity, egui_phosphor::regular::FIRE, "Intensity"),
+                        PropertyViewMode::Semantic,
+                        PropertyViewMode::Spreadsheet,
+                        PropertyViewMode::Intensity,
                     ];
-                    for (mode, icon, label) in modes.iter() {
-                        let is_active = *mode == view_mode;
-                        let resp = seg_ui
-                            .stable_selectable_label(is_active, format!("{} {}", icon, label));
-                        if resp.clicked() && !is_active {
-                            *property_view_mode = *mode;
-                            break;
-                        }
+                    let labels = ["Grouped", "Table", "Intensity"];
+                    let mut selected =
+                        modes.iter().position(|mode| *mode == view_mode).unwrap_or(0);
+                    TabBar::new(seg_ui.id().with("property_view_tabs"), &mut selected, &labels)
+                        .show(&mut seg_ui);
+                    if let Some(mode) = modes.get(selected).copied() {
+                        *property_view_mode = mode;
                     }
                 }
 
@@ -722,28 +732,33 @@ pub(super) fn inspector_ui(
 
             // ── Pivot ──
             if multi_count == 1 {
-                layout::card(ui, |ui| {
-                    layout::section_header(ui, egui_phosphor::regular::CROSSHAIR, "Pivot", None);
-                    let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
-                    layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
-                    });
-                    layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
-                    });
-                    let reset_pivot = ui.button(
-                        RichText::new("Reset").size(TextRole::BodyS.size()).color(theme.text.muted),
-                    );
-                    text_tooltip(
-                        ui,
-                        ui.id().with(("reset_pivot_tooltip", sel)),
-                        &reset_pivot,
-                        "Reset pivot to center",
-                    );
-                    if reset_pivot.clicked() {
-                        *pivot = [0.0, 0.0];
-                    }
-                });
+                layout::group_box(
+                    ui,
+                    format!("{} Pivot", egui_phosphor::regular::CROSSHAIR),
+                    |ui| {
+                        let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
+                        layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                            ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
+                        });
+                        layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                            ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
+                        });
+                        let reset_pivot = ui.button(
+                            RichText::new("Reset")
+                                .size(TextRole::BodyS.size())
+                                .color(theme.text.muted),
+                        );
+                        text_tooltip(
+                            ui,
+                            ui.id().with(("reset_pivot_tooltip", sel)),
+                            &reset_pivot,
+                            "Reset pivot to center",
+                        );
+                        if reset_pivot.clicked() {
+                            *pivot = [0.0, 0.0];
+                        }
+                    },
+                );
                 ui.add_space(sp.base.space_3);
             }
 
@@ -764,8 +779,7 @@ pub(super) fn inspector_ui(
             }
 
             // ── Mini Timeline ──
-            layout::card(ui, |ui| {
-                layout::section_header(ui, egui_phosphor::regular::CLOCK, "Timeline", None);
+            layout::group_box(ui, format!("{} Timeline", egui_phosphor::regular::CLOCK), |ui| {
                 let duration_s = timeline.duration_seconds().max(0.1);
                 let all_kf = collect_all_keyframe_times(track);
                 let strip = timeline::TimelineStrip {
@@ -804,25 +818,20 @@ pub(super) fn inspector_ui(
                     let total_w = seg_count as f32 * seg_width;
                     let seg_rect = egui::Rect::from_min_size(
                         egui::pos2(right - sp.base.space_2 - total_w, row_top),
-                        egui::Vec2::new(total_w, sp.base.row_s),
+                        egui::Vec2::new(total_w, sp.base.component.pill_tab_height),
                     );
                     let mut seg_ui = ui.new_child(
                         egui::UiBuilder::new()
                             .max_rect(seg_rect)
                             .layout(egui::Layout::left_to_right(egui::Align::Center)),
                     );
-                    let modes = [
-                        (KeyframeViewMode::List, egui_phosphor::regular::LIST, "List"),
-                        (KeyframeViewMode::Curve, egui_phosphor::regular::CHART_LINE_UP, "Curve"),
-                    ];
-                    for (mode, icon, label) in modes.iter() {
-                        let is_active = *mode == kf_view;
-                        let resp = seg_ui
-                            .stable_selectable_label(is_active, format!("{} {}", icon, label));
-                        if resp.clicked() && !is_active {
-                            *keyframe_view_mode = *mode;
-                            break;
-                        }
+                    let modes = [KeyframeViewMode::List, KeyframeViewMode::Curve];
+                    let labels = ["List", "Curve"];
+                    let mut selected = modes.iter().position(|mode| *mode == kf_view).unwrap_or(0);
+                    TabBar::new(seg_ui.id().with("keyframe_view_tabs"), &mut selected, &labels)
+                        .show(&mut seg_ui);
+                    if let Some(mode) = modes.get(selected).copied() {
+                        *keyframe_view_mode = mode;
                     }
                 }
 
@@ -943,14 +952,13 @@ fn render_property_stream(
 
         // Keyframe count badge (right)
         if entry.keyframe_count > 0 {
-            let count_text =
-                format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count);
-            ui.painter().text(
+            let count_rect = egui::Rect::from_center_size(
                 egui::pos2(row_rect.max.x - sp.base.space_2, baseline_y),
-                egui::Align2::RIGHT_CENTER,
-                count_text,
-                TextRole::Micro.font_id(),
-                theme.text.muted,
+                Vec2::new(40.0, row_height),
+            );
+            ui.put(
+                count_rect,
+                Badge::new(format!("{} {}", egui_phosphor::regular::DIAMOND, entry.keyframe_count)),
             );
         }
 
@@ -1119,9 +1127,7 @@ fn render_parent_card(
         .find(|(_, track)| track.children.iter().any(|c| c == actor))
         .map(|(label, _)| label.clone());
 
-    layout::card(ui, |ui| {
-        layout::section_header(ui, egui_phosphor::regular::TREE_STRUCTURE, "Hierarchy", None);
-
+    layout::group_box(ui, format!("{} Hierarchy", egui_phosphor::regular::TREE_STRUCTURE), |ui| {
         layout::labeled_row(ui, "Parent", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
             let all_labels: Vec<String> =
                 timeline.tracks().keys().filter(|&label| label != actor).cloned().collect();
@@ -1192,15 +1198,11 @@ fn render_container_children(
         let mut cursor_x = row_rect.min.x + sp.base.space_3;
 
         // Index badge
-        let badge_text = format!("{}", i + 1);
-        crate::app::utils::draw_badge(
-            ui.painter(),
+        let badge_rect = egui::Rect::from_min_size(
             egui::pos2(cursor_x, baseline_y - 9.0),
-            &badge_text,
-            theme.surface.widget,
-            theme.text.muted,
-            None,
+            Vec2::new(sp.base.row_s, sp.base.row_s),
         );
+        ui.put(badge_rect, Badge::new((i + 1).to_string()));
         cursor_x += sp.base.row_s + sp.base.space_2;
 
         // Label
@@ -1219,9 +1221,8 @@ fn render_container_children(
 
         // Down button
         let down_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let down_resp = ui
-            .interact(down_rect, row_id.with("down"), egui::Sense::click())
-            .on_hover_text("Move down");
+        let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click());
+        text_tooltip(ui, down_resp.id.with("tooltip"), &down_resp, "Move down");
         let down_color = if i + 1 >= order.len() {
             theme.text.disabled
         } else if down_resp.hovered() {
@@ -1240,9 +1241,8 @@ fn render_container_children(
 
         // Up button
         let up_rect = egui::Rect::from_min_size(egui::pos2(btn_x, btn_y), btn_size);
-        let up_resp = ui
-            .interact(up_rect, row_id.with("up"), egui::Sense::click())
-            .on_hover_text("Move up");
+        let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click());
+        text_tooltip(ui, up_resp.id.with("tooltip"), &up_resp, "Move up");
         let up_color = if i == 0 {
             theme.text.disabled
         } else if up_resp.hovered() {

@@ -1,3 +1,6 @@
+#[cfg(feature = "theme-json")]
+use std::path::PathBuf;
+
 use egui::RichText;
 use eparts::widget::UiExt;
 
@@ -78,6 +81,68 @@ impl GuiShell {
                     Some(2) => eparts::AppThemeChoice::Dark,
                     _ => self.ui_store.view.app_theme,
                 };
+
+                #[cfg(feature = "theme-json")]
+                {
+                    let mut theme_dir_text = self
+                        .ui_store
+                        .view
+                        .theme_dir
+                        .as_ref()
+                        .map(|p| p.display().to_string())
+                        .unwrap_or_default();
+                    let mut theme_dir_changed = false;
+                    eparts::widget::Form::new("json_theme_dir_form")
+                        .label_width(SETTINGS_INPUT_WIDTH)
+                        .show(ui, |f| {
+                            f.field("Theme dir", |ui| {
+                                let response = eparts::TextField::new(&mut theme_dir_text)
+                                    .desired_width(SETTINGS_INPUT_WIDTH + 80.0)
+                                    .show(ui);
+                                if response.changed {
+                                    theme_dir_changed = true;
+                                }
+                            });
+                        });
+                    if theme_dir_changed {
+                        let trimmed = theme_dir_text.trim();
+                        if trimmed.is_empty() {
+                            self.ui_store.view.theme_dir = None;
+                            self.ui_store.view.theme_name = None;
+                        } else {
+                            self.ui_store.view.theme_dir = Some(PathBuf::from(trimmed));
+                        }
+                    }
+
+                    let names = self.ui_store.view.theme_names.clone();
+                    if !names.is_empty() {
+                        let mut selected = names
+                            .iter()
+                            .position(|name| self.ui_store.view.theme_name.as_deref() == Some(name))
+                            .or(Some(0));
+                        eparts::widget::Form::new("json_theme_name_form")
+                            .label_width(SETTINGS_INPUT_WIDTH)
+                            .show(ui, |f| {
+                                f.field("Theme", |ui| {
+                                    ui.add(
+                                        eparts::widget::Select::new(
+                                            "json_theme_select",
+                                            &mut selected,
+                                            &names,
+                                        )
+                                        .placeholder("Select JSON theme"),
+                                    );
+                                });
+                            });
+                        if let Some(index) = selected {
+                            self.ui_store.view.theme_name = Some(names[index].clone());
+                        }
+                    }
+                    if let Some(error) = &self.ui_store.view.theme_error {
+                        ui.colored_label(theme.status.error, error);
+                        ui.add_space(sp.base.space_2);
+                    }
+                }
 
                 ui.add_space(sp.base.space_2);
 

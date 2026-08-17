@@ -4,33 +4,11 @@ pub mod text;
 #[cfg(test)]
 use animatix_syntax::diagnostics::diagnostics_summary_by_phase;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use egui::{Color32, Vec2};
+#[cfg(test)]
+use egui::Color32;
 
 #[cfg(test)]
 use crate::app::design_tokens::semantic::status::{DIAGNOSTIC_ERROR, DIAGNOSTIC_WARNING};
-use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
-use crate::app::design_tokens::typography::TextRole;
-
-/// Draw a badge with background and optional stroke at a specific position.
-/// Returns the rectangle occupied by the badge.
-pub(super) fn draw_badge(
-    painter: &egui::Painter,
-    pos: egui::Pos2,
-    text: &str,
-    bg: Color32,
-    text_color: Color32,
-    stroke: Option<egui::Stroke>,
-) -> egui::Rect {
-    let galley = painter.layout_no_wrap(text.to_string(), TextRole::BodyS.font_id(), text_color);
-    let size = galley.size() + Vec2::new(SPACE_4 * 2.0, SPACE_2 * 2.0);
-    let rect = egui::Rect::from_min_size(pos, size);
-    painter.rect_filled(rect, RADIUS_S, bg);
-    if let Some(s) = stroke {
-        painter.rect_stroke(rect, RADIUS_S, s, egui::StrokeKind::Outside);
-    }
-    painter.galley(rect.min + Vec2::new(SPACE_4, SPACE_2), galley, text_color);
-    rect
-}
 
 #[cfg(test)]
 pub(super) fn diagnostics_summary_color(diagnostics: &[Diagnostic]) -> Color32 {
@@ -69,7 +47,6 @@ pub(super) fn primary_diagnostic_phase(diagnostics: &[Diagnostic]) -> Option<Dia
 /// 1. First error message (any phase) — actual diagnostic text, truncated.
 /// 2. First warning message (any phase) — actual diagnostic text, truncated.
 /// 3. Static phase description as a last resort.
-#[cfg(test)]
 pub(super) fn diagnostics_banner_message(diagnostics: &[Diagnostic]) -> Option<String> {
     if diagnostics.is_empty() {
         return None;

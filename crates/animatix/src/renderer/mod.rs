@@ -34,9 +34,9 @@ pub mod video;
 
 #[cfg(feature = "render")]
 pub use encode::{
-    ExportError, ExportSettings, H264Preset, MaxRenderThreads, VideoCodec, render_image,
-    render_image_composition, render_image_timeline, render_image_timeline_with_debug,
-    render_image_timeline_with_progress,
+    ExportError, ExportPreset, ExportSettings, H264Preset, MaxRenderThreads, VideoCodec,
+    render_image, render_image_composition, render_image_timeline,
+    render_image_timeline_with_debug, render_image_timeline_with_progress,
 };
 #[cfg(feature = "video")]
 pub use encode::{

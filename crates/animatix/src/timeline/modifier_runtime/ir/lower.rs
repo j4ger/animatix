@@ -54,6 +54,15 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             value,
             ..
         } => {
+            // Bare variable assignments (`freq = ...`) inside `always` are
+            // frame-local variable writes, not actor-property overrides.
+            if target.is_empty() {
+                return Ok(ModifierIrStmt::Let {
+                    name: property.clone(),
+                    value: compile_expr(value)?,
+                });
+            }
+
             // Check if any segment is Indexed — if so, emit AssignIndexed.
             // The last segment (property) is always Static; for runtime-indexed
             // targets like `bars[i].color` we extract the Indexed segment's base

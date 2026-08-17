@@ -30,11 +30,19 @@ cargo run --bin animatix -- image examples/data/07_plots.amx -o frame.png
 cargo run --features animatix/video --bin animatix -- video examples/animation/16_showcase.amx -o showcase.mp4 --fps 30
 cargo run --features animatix/video --bin animatix -- gif examples/composition/20_feature_reel.amx -o reel.gif --fps 15
 
+# Named export presets are shared by CLI and GUI and can be set in config:
+cargo run --features animatix/video --bin animatix -- video examples/animation/16_showcase.amx --export-preset 1080p30 -o showcase.mp4
+
 # GUI
 cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
 ```
 
 Nix users: `nix develop` sets up all dependencies.
+
+Feature targets: the default build includes `render`, `text`, and `svg`.
+Bare `cargo check -p animatix --no-default-features` is intentionally not
+supported; CI validates the supported combination with
+`--no-default-features --features render,text,svg`.
 
 ## What's Shipped
 

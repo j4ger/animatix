@@ -650,3 +650,40 @@ fn runtime_empty_text_override_clears_stale_glyphs() {
         "empty runtime text override should clear visible content"
     );
 }
+
+#[test]
+fn text_content_assignment_crossfades_paths_at_midpoint() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        label: Text, text: "Hello", font_size: 48
+
+        #1s
+        label.text = "World" [1s]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.get_track("label").expect("label track should exist");
+    let paths_mid = track.evaluate_text_paths(1500);
+
+    // The default path-track morph would return one set of glyphs at the
+    // midpoint. The content-assignment path stores a Fade morph so both
+    // endpoint glyph sets are returned at partial opacity.
+    assert!(
+        paths_mid.len() > 5,
+        "Expected source+target glyph sets at midpoint, got {} paths",
+        paths_mid.len()
+    );
+    assert!(
+        paths_mid.iter().all(|p| p.opacity > 0.0 && p.opacity < 1.0),
+        "Expected cross-fade opacities strictly inside (0, 1)"
+    );
+}

@@ -19,7 +19,7 @@ use super::PropertyViewMode;
 use crate::app::commands::{
     ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
 };
-use crate::app::components::layout;
+use crate::app::components::{layout, text_tooltip};
 use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
 
@@ -66,7 +66,14 @@ pub(crate) fn render_property_spreadsheet(
                 .color(theme.text.secondary),
         )
         .min_size(Vec2::new(0.0, sp.base.row_s));
-        if ui.add(btn).on_hover_text("Switch to semantic property view").clicked() {
+        let btn_resp = ui.add(btn);
+        text_tooltip(
+            ui,
+            btn_resp.id.with("semantic_tip"),
+            &btn_resp,
+            "Switch to semantic property view",
+        );
+        if btn_resp.clicked() {
             *property_view_mode = PropertyViewMode::Semantic;
             return;
         }
@@ -102,15 +109,13 @@ pub(crate) fn render_property_spreadsheet(
     };
 
     // Add Actor button
-    if ui
-        .button(
-            RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
-                .size(TextRole::Micro.size())
-                .color(theme.accent.primary),
-        )
-        .on_hover_text("Add a new actor")
-        .clicked()
-    {
+    let add_btn = ui.button(
+        RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
+            .size(TextRole::Micro.size())
+            .color(theme.accent.primary),
+    );
+    text_tooltip(ui, add_btn.id.with("add_actor_tip"), &add_btn, "Add a new actor");
+    if add_btn.clicked() {
         commands.push_back(
             ActorCommand::CreateActor {
                 ty: crate::app::panels::default_actor_type().into(),
@@ -302,11 +307,17 @@ pub(crate) fn render_property_spreadsheet(
                             ui.set_min_width(160.0);
                             ui.strong(format!("{} / {}", actor_label, prop_name));
                             ui.separator();
-                            if ui
-                                .button(format!("{} Add keyframe", egui_phosphor::regular::DIAMOND))
-                                .on_hover_text("Add a keyframe at current time with current value")
-                                .clicked()
-                            {
+                            let kf_btn = ui.button(format!(
+                                "{} Add keyframe",
+                                egui_phosphor::regular::DIAMOND
+                            ));
+                            text_tooltip(
+                                ui,
+                                kf_btn.id.with("kf_tip"),
+                                &kf_btn,
+                                "Add a keyframe at current time with current value",
+                            );
+                            if kf_btn.clicked() {
                                 if let Some(gui_val) =
                                     get_property_gui_value(track, prop_name, time_ms)
                                 {

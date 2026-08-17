@@ -26,6 +26,9 @@ pub struct RebuildRequest {
     pub source_hash: SourceHash,
     pub file_path: PathBuf,
     pub source_text: String,
+    /// Asset cache carried from the previous successful build. `None` on the
+    /// first build or when the previous build had no renderable timeline.
+    pub asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
     pub cancellation: CancellationToken,
 }
 
@@ -136,6 +139,7 @@ impl RebuildWorker {
             source_hash: SourceHash(hash),
             file_path: source.file_path().to_path_buf(),
             source_text: source.text().to_string(),
+            asset_cache: source.document.asset_cache(),
             cancellation: self.cancel_source.token(),
         };
 
@@ -199,7 +203,8 @@ impl RebuildWorker {
                 continue;
             }
 
-            let rebuild_result = session.rebuild();
+            let asset_cache = request.asset_cache.clone();
+            let rebuild_result = session.rebuild_with_asset_cache(asset_cache);
 
             // Check cancellation after rebuild (don't send stale data)
             if request.cancellation.is_cancelled() {
@@ -327,6 +332,7 @@ mod tests {
                 source_hash: SourceHash(99),
                 file_path: std::path::PathBuf::from("test.amx"),
                 source_text: "#0s\n".to_string(),
+                asset_cache: None,
                 cancellation: token,
             })
             .expect("send request");

@@ -5,18 +5,20 @@
 //! strings, booleans, null) and the recursive expression parser with operator
 //! precedence, tuple/array literals, calls, constructors, closures, and conditionals.
 
+use chumsky::input::MapExtra;
 use chumsky::prelude::*;
 
-use super::common::{self, ExprParser};
+use super::common::{self, ExprParser, ParserExtra, StrInput};
 use super::token_parser::*;
 use crate::ast::*;
+use crate::occurrence::OccurrenceKind;
 
 /// Build the expression parser.
 ///
 /// Returns a boxed parser that parses any expression in the `.amx` DSL.
 pub(crate) fn parser<'src>() -> ExprParser<'src> {
     let ident = common::ident();
-    let dotted_ident = common::dotted_ident();
+    let variable_ident = common::ident_occ(OccurrenceKind::Variable);
     let str_val = common::string_literal();
 
     let num = number().map(Expr::Num);
@@ -49,8 +51,10 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             .map(Expr::List)
             .boxed();
 
-        let call = ident
-            .clone()
+        let call = common::ident()
+            .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                (name, extra.span())
+            })
             .then(
                 expr.clone()
                     .separated_by(comma())
@@ -58,15 +62,27 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                     .collect::<Vec<_>>()
                     .delimited_by(lparen(), rparen()),
             )
-            .map(|(name, args)| Expr::Call(name, args))
+            .map(|((name, span), args)| {
+                crate::occurrence::record(OccurrenceKind::Function, name.clone(), span);
+                Expr::Call(name, args)
+            })
             .boxed();
 
-        let construct = ident
-            .clone()
-            .filter(|s: &String| s.chars().next().is_some_and(|c| c.is_uppercase()))
+        let construct = common::ident()
+            .map_with(|name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                (name, extra.span())
+            })
+            .filter(|(name, _): &(String, ByteSpan)| {
+                name.chars().next().is_some_and(|c| c.is_uppercase())
+            })
+            .map_with(
+                |(name, span), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    crate::occurrence::record(OccurrenceKind::Type, name.clone(), span);
+                    name
+                },
+            )
             .then(
-                dotted_ident
-                    .clone()
+                common::dotted_ident_occ(OccurrenceKind::Property)
                     .then_ignore(colon())
                     .then(expr.clone())
                     .map(|(parts, value)| Property {
@@ -97,7 +113,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             tuple,
             array,
             construct,
-            ident.clone().map(Expr::Ident),
+            variable_ident.clone().map(Expr::Ident),
         ));
 
         let atom = prefix_op.repeated().collect::<Vec<_>>().then(base_atom).map(|(ops, expr)| {
@@ -109,9 +125,14 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             Field(String, Option<Vec<Expr>>),
             Index(Expr),
         }
+        let field_segment = ident.clone().map_with(
+            |seg, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                (seg, extra.span())
+            },
+        );
         let postfix_step = choice((
             dot()
-                .ignore_then(ident.clone())
+                .ignore_then(field_segment)
                 .then(
                     atom.clone()
                         .separated_by(comma())
@@ -120,7 +141,18 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                         .delimited_by(lparen(), rparen())
                         .or_not(),
                 )
-                .map(|(seg, args)| PostfixStep::Field(seg, args)),
+                .map(|((seg, span), args)| {
+                    crate::occurrence::record(
+                        if args.is_some() {
+                            OccurrenceKind::Function
+                        } else {
+                            OccurrenceKind::Property
+                        },
+                        seg.clone(),
+                        span,
+                    );
+                    PostfixStep::Field(seg, args)
+                }),
             lbracket()
                 .ignore_then(expr.clone())
                 .then_ignore(rbracket())
@@ -206,18 +238,44 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             })
             .boxed();
 
+        let spanned_ident = ident.clone().map_with(
+            |name, extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                (name, extra.span())
+            },
+        );
         let closure = choice((
-            ident
+            spanned_ident
                 .clone()
                 .separated_by(comma())
                 .allow_trailing()
                 .collect::<Vec<_>>()
                 .delimited_by(lparen(), rparen()),
-            ident.clone().map(|i| vec![i]),
+            spanned_ident.clone().map(|i| vec![i]),
         ))
         .then_ignore(arrow())
-        .then(expr.clone())
-        .map(|(args, body)| Expr::Closure(args, Box::new(body)))
+        .map_with(|params, _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+            crate::occurrence::push_scope();
+            for (name, span) in &params {
+                crate::occurrence::record_declaration(
+                    OccurrenceKind::Parameter,
+                    name.clone(),
+                    *span,
+                );
+            }
+            params
+        })
+        .then(
+            expr.clone()
+                .then(empty::<StrInput<'src>, ParserExtra<'src>>().map_with(
+                    |(), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                        crate::occurrence::pop_scope();
+                    },
+                ))
+                .map(|(body, ())| body),
+        )
+        .map(|(params, body)| {
+            Expr::Closure(params.into_iter().map(|(name, _)| name).collect(), Box::new(body))
+        })
         .boxed();
 
         let match_pat = recursive(|match_pat| {

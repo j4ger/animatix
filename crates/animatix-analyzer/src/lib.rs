@@ -24,7 +24,6 @@ mod types;
 mod workspace;
 
 // chumsky::Parser trait is not needed directly; parser functions are called via module API.
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use animatix_syntax::ast::{Span, Stmt};
@@ -195,6 +194,9 @@ impl Analyzer {
         use animatix_syntax::occurrence::OccurrenceKind;
 
         for occ in occurrences {
+            if !occ.declaration {
+                continue;
+            }
             let span = Span::from_byte_span(source, occ.span);
             match occ.kind {
                 OccurrenceKind::Label | OccurrenceKind::Variable => {
@@ -317,10 +319,18 @@ impl Analyzer {
         )
     }
 
-    /// Find all references to a symbol name in this file.
-    /// Returns a list of (start_line, start_col, end_line, end_col) ranges.
+    /// Find all references to the first declaration of `symbol_name` in this
+    /// file. Returns a list of (start_line, start_col, end_line, end_col) ranges.
     pub fn find_references(&self, symbol_name: &str) -> Vec<(usize, usize, usize, usize)> {
-        references::find_references(&self.tokens, &self.source, symbol_name)
+        references::find_references(&self.occurrences, &self.source, symbol_name)
+    }
+
+    /// Find all references to the binding at a cursor position.
+    ///
+    /// Lexical scopes are resolved from parser-recorded occurrence scopes, so
+    /// shadowed declarations do not leak references from unrelated scopes.
+    pub fn find_references_at(&self, line: usize, col: usize) -> Vec<(usize, usize, usize, usize)> {
+        references::find_references_at(&self.occurrences, &self.source, line, col)
     }
 
     /// Document symbols (outline view).
@@ -342,39 +352,23 @@ impl Analyzer {
 
     /// Return `(start_byte, end_byte, role)` for every token in the source.
     ///
-    /// Roles are the shared `animatix_syntax::highlight` role names and are used
-    /// by the LSP semantic-token provider.
+    /// Identifier roles come from parser-recorded occurrences; lexical tokens
+    /// use the tokenizer's shared role vocabulary.
     pub fn token_roles(&self) -> Vec<(usize, usize, &'static str)> {
-        let ast = self.ast.as_deref().unwrap_or(&[]);
-        let label_names = animatix_syntax::highlight::collect_label_names(ast);
-        let property_names: HashSet<String> = self
-            .symbols
-            .properties
-            .values()
-            .flat_map(|props| props.iter().cloned())
-            .collect();
-        let param_names: HashSet<String> = self
-            .symbols
-            .components
-            .values()
-            .flat_map(|c| c.params.iter().map(|p| p.name.clone()))
-            .collect();
-        let import_aliases = animatix_syntax::highlight::collect_import_alias_names(ast);
-
+        let occurrences_by_start: std::collections::HashMap<
+            usize,
+            &animatix_syntax::occurrence::Occurrence,
+        > = self.occurrences.iter().map(|o| (o.span.start, o)).collect();
         self.tokens
             .iter()
-            .enumerate()
-            .map(|(idx, token)| {
-                let role = animatix_syntax::highlight::classify_token(
-                    idx,
-                    token,
-                    &self.tokens,
-                    &self.symbols,
-                    &label_names,
-                    &property_names,
-                    &param_names,
-                    &import_aliases,
-                );
+            .map(|token| {
+                let role = match &token.kind {
+                    TokenKind::Ident(_) => occurrences_by_start
+                        .get(&token.span.start)
+                        .map(|o| o.kind.token_role())
+                        .unwrap_or("variable"),
+                    _ => animatix_syntax::highlight::lexical_role(token),
+                };
                 (token.span.start, token.span.end, role)
             })
             .collect()
@@ -789,6 +783,57 @@ title: Text {
         let analyzer = Analyzer::new("");
         let refs = analyzer.find_references("anything");
         assert!(refs.is_empty());
+    }
+
+    #[test]
+    fn find_references_resolves_block_for_and_closure_shadowing() {
+        let source = r#"let shared = 1
+always {
+    let shared = 2
+    inner = shared
+}
+for shared in items {
+    loop_ref = shared
+}
+let mapper = (shared) => shared
+outer = shared
+"#;
+        let analyzer = Analyzer::new(source);
+
+        let inner_block_refs = analyzer.find_references_at(3, 12);
+        assert_eq!(
+            inner_block_refs.len(),
+            2,
+            "inner block binding should include its declaration and reference: {inner_block_refs:?}"
+        );
+        assert_eq!(inner_block_refs[0].0, 2, "inner declaration line");
+        assert_eq!(inner_block_refs[1].0, 3, "inner reference line");
+
+        let for_refs = analyzer.find_references_at(6, 15);
+        assert_eq!(
+            for_refs.len(),
+            2,
+            "for binding should include its variable and body reference: {for_refs:?}"
+        );
+        assert_eq!(for_refs[0].0, 5, "for variable line");
+        assert_eq!(for_refs[1].0, 6, "for body reference line");
+
+        let closure_refs = analyzer.find_references_at(8, 15);
+        assert_eq!(
+            closure_refs.len(),
+            2,
+            "closure binding should include its parameter and body reference: {closure_refs:?}"
+        );
+        assert_eq!(closure_refs[0].0, 8, "closure parameter line");
+
+        let outer_refs = analyzer.find_references_at(9, 8);
+        assert_eq!(
+            outer_refs.len(),
+            2,
+            "outer binding should include its declaration and final reference: {outer_refs:?}"
+        );
+        assert_eq!(outer_refs[0].0, 0, "outer declaration line");
+        assert_eq!(outer_refs[1].0, 9, "outer reference line");
     }
 
     // ── Document symbols tests ──

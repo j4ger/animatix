@@ -4,7 +4,7 @@ use std::sync::Arc;
 use egui::{Color32, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::components::layout;
+use crate::app::components::{TabBar, Tag, layout};
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
@@ -41,6 +41,10 @@ pub(crate) struct ExportDialogState {
     pub(crate) output_path: String,
     /// Export scope: ActiveScene or WholeComposition.
     pub(crate) export_scope: ExportScope,
+    /// Video encoder selection, shared with CLI export presets.
+    pub(crate) video_codec: animatix::renderer::VideoCodec,
+    /// libx264 speed preset, shared with CLI export presets.
+    pub(crate) h264_preset: animatix::renderer::H264Preset,
 }
 
 impl Default for ExportDialogState {
@@ -56,6 +60,8 @@ impl Default for ExportDialogState {
             hold_s: 1.0,
             output_path: String::new(),
             export_scope: ExportScope::ActiveScene,
+            video_codec: animatix::renderer::VideoCodec::Auto,
+            h264_preset: animatix::renderer::H264Preset::Medium,
         }
     }
 }
@@ -178,29 +184,46 @@ impl GuiShell {
             cursor_y += sp.base.space_4;
 
             // ── Format tabs ──
-            let tabs = [
-                (ExportFormat::Image, egui_phosphor::regular::IMAGE, "Image"),
-                (ExportFormat::Video, egui_phosphor::regular::FILM_STRIP, "Video"),
-                (ExportFormat::Gif, egui_phosphor::regular::GIF, "GIF"),
-                (ExportFormat::WebM, egui_phosphor::regular::FILM_STRIP, "WebM"),
-                (ExportFormat::Mov, egui_phosphor::regular::FILM_STRIP, "MOV"),
-                (ExportFormat::WebP, egui_phosphor::regular::IMAGE, "WebP"),
+            let formats = [
+                ExportFormat::Image,
+                ExportFormat::Video,
+                ExportFormat::Gif,
+                ExportFormat::WebM,
+                ExportFormat::Mov,
+                ExportFormat::WebP,
             ];
+            let labels: Vec<&str> = formats
+                .iter()
+                .map(|format| match format {
+                    ExportFormat::Image => "Image",
+                    ExportFormat::Video => "Video",
+                    ExportFormat::Gif => "GIF",
+                    ExportFormat::WebM => "WebM",
+                    ExportFormat::Mov => "MOV",
+                    ExportFormat::WebP => "WebP",
+                })
+                .collect();
+            let mut selected = formats
+                .iter()
+                .position(|format| *format == self.export_store.export_state.format)
+                .unwrap_or(0);
             let tab_rect = egui::Rect::from_min_size(
                 egui::pos2(content_rect.left(), cursor_y),
-                Vec2::new(content_rect.width(), sp.base.row_m),
+                Vec2::new(content_rect.width(), sp.base.component.pill_tab_height),
             );
             ui.scope_builder(egui::UiBuilder::new().max_rect(tab_rect), |ui| {
-                if let Some(new_fmt) =
-                    layout::pill_tab_bar(ui, self.export_store.export_state.format, &tabs)
-                {
-                    self.export_store.export_state.format = new_fmt;
-                    if self.export_store.export_state.output_path.is_empty() {
-                        self.update_default_export_filename();
-                    }
-                }
+                TabBar::new("export_format_tabs", &mut selected, &labels).show(ui);
             });
-            cursor_y += sp.base.row_m + sp.base.space_3;
+            let previous_format = self.export_store.export_state.format;
+            if let Some(new_fmt) = formats.get(selected).copied() {
+                self.export_store.export_state.format = new_fmt;
+                if self.export_store.export_state.output_path.is_empty()
+                    && previous_format != new_fmt
+                {
+                    self.update_default_export_filename();
+                }
+            }
+            cursor_y += sp.base.component.pill_tab_height + sp.base.space_3;
 
             // ── Settings content ──
             let settings_rect = egui::Rect::from_min_size(
@@ -407,6 +430,8 @@ impl GuiShell {
             let hold_s = &mut self.export_store.export_state.hold_s;
             let duration_s = &mut self.export_store.export_state.duration_s;
             let output_path = &mut self.export_store.export_state.output_path;
+            let video_codec = &mut self.export_store.export_state.video_codec;
+            let h264_preset = &mut self.export_store.export_state.h264_preset;
 
             // ── Resolution row ──
             Self::settings_row(ui, "Resolution", |ui| {
@@ -454,18 +479,12 @@ impl GuiShell {
 
             ui.add_space(sp.base.space_1);
 
-            // ── Quality presets ──
+            // ── Shared export presets ──
             Self::settings_row(ui, "Presets", |ui| {
-                let presets = [
-                    ("720p / 30", 1280, 720, 30),
-                    ("1080p / 30", 1920, 1080, 30),
-                    ("1080p / 60", 1920, 1080, 60),
-                    ("4K / 60", 3840, 2160, 60),
-                ];
-                for (label, w, h, f) in presets {
+                for preset in animatix::renderer::ExportPreset::ALL {
                     let resp = ui.add(
                         egui::Button::new(
-                            RichText::new(label)
+                            RichText::new(preset.name)
                                 .size(TextRole::Micro.size())
                                 .color(theme.text.secondary),
                         )
@@ -475,9 +494,11 @@ impl GuiShell {
                         .small(),
                     );
                     if resp.clicked() {
-                        *width = w;
-                        *height = h;
-                        *fps = f;
+                        *width = preset.width;
+                        *height = preset.height;
+                        *fps = preset.fps;
+                        *video_codec = preset.video_codec;
+                        *h264_preset = preset.h264_preset;
                     }
                 }
             });
@@ -707,32 +728,22 @@ impl GuiShell {
                     let path_str = path.display().to_string();
                     let label = truncate_middle(&path_str, 15, 15);
                     let resp = ui.add(
-                        egui::Label::new(
-                            RichText::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
-                                .size(TextRole::BodyS.size())
-                                .color(theme.status.success),
-                        )
-                        .selectable(false),
+                        Tag::new(format!("{} {}", egui_phosphor::regular::CHECK, label))
+                            .color(theme.status.success)
+                            .removable(true),
                     );
-                    if resp.interact(egui::Sense::click()).clicked() {
+                    if resp.clicked() {
                         self.export_store.export_status = ExportStatus::Idle;
                     }
                 },
                 ExportStatus::Failed(err) => {
                     let truncated = truncate_chars(err, 37);
                     let resp = ui.add(
-                        egui::Label::new(
-                            RichText::new(format!(
-                                "{} {}",
-                                egui_phosphor::regular::WARNING,
-                                truncated
-                            ))
-                            .size(TextRole::BodyS.size())
-                            .color(theme.status.error),
-                        )
-                        .selectable(false),
+                        Tag::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
+                            .color(theme.status.error)
+                            .removable(true),
                     );
-                    if resp.interact(egui::Sense::click()).clicked() {
+                    if resp.clicked() {
                         self.export_store.export_status = ExportStatus::Idle;
                     }
                 },
@@ -998,7 +1009,11 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings::default(),
+                                animatix::renderer::ExportSettings {
+                                    video_codec: state.video_codec,
+                                    h264_preset: state.h264_preset,
+                                    ..Default::default()
+                                },
                                 progress_ref,
                                 cancel_ref,
                             ),
@@ -1021,7 +1036,11 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings::default(),
+                                    animatix::renderer::ExportSettings {
+                                        video_codec: state.video_codec,
+                                        h264_preset: state.h264_preset,
+                                        ..Default::default()
+                                    },
                                     progress_ref,
                                     cancel_ref,
                                 )
@@ -1114,7 +1133,11 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings::default(),
+                                animatix::renderer::ExportSettings {
+                                    video_codec: state.video_codec,
+                                    h264_preset: state.h264_preset,
+                                    ..Default::default()
+                                },
                                 progress_ref,
                                 cancel_ref,
                             ),
@@ -1137,7 +1160,11 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings::default(),
+                                    animatix::renderer::ExportSettings {
+                                        video_codec: state.video_codec,
+                                        h264_preset: state.h264_preset,
+                                        ..Default::default()
+                                    },
                                     progress_ref,
                                     cancel_ref,
                                 )
@@ -1169,7 +1196,11 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings::default(),
+                                animatix::renderer::ExportSettings {
+                                    video_codec: state.video_codec,
+                                    h264_preset: state.h264_preset,
+                                    ..Default::default()
+                                },
                                 progress_ref,
                                 cancel_ref,
                             ),
@@ -1192,7 +1223,11 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings::default(),
+                                    animatix::renderer::ExportSettings {
+                                        video_codec: state.video_codec,
+                                        h264_preset: state.h264_preset,
+                                        ..Default::default()
+                                    },
                                     progress_ref,
                                     cancel_ref,
                                 )

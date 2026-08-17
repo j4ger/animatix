@@ -67,6 +67,10 @@ To build just the crate without video:
 cargo build -p animatix
 ```
 
+Bare `cargo check -p animatix --no-default-features` is intentionally not a
+supported target. The supported no-video feature combination is
+`--no-default-features --features render,text,svg` (used by CI).
+
 Without FFmpeg, the default build includes rendering, text, SVG support, and single-frame raster export (PNG/WebP), but not video/GIF export. Only the FFmpeg-dependent formats (MP4/WebM/MOV/GIF) require the `video` feature.
 
 The GUI crate (`animatix-gui`) does **not** include `video` by default, so `cargo test -p animatix-gui` runs without FFmpeg. To opt into video export:

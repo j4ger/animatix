@@ -89,6 +89,22 @@ impl CapturedEnv {
             env.set(k, v.clone());
         }
     }
+
+    /// Merge captured variables only when the target env does not already
+    /// define them, returning the keys that were inserted. Plot sampling uses
+    /// this so frame-time values written by `always { freq = ... }` can shadow
+    /// build-time closure captures, then removes only the newly inserted keys
+    /// so captures do not leak between plot actors sharing one env.
+    pub fn merge_missing_into(&self, env: &mut Environment) -> Vec<String> {
+        let mut inserted = Vec::new();
+        for (k, v) in &self.0 {
+            if env.get(k).is_none() {
+                env.set(k, v.clone());
+                inserted.push(k.clone());
+            }
+        }
+        inserted
+    }
 }
 
 impl std::fmt::Debug for CapturedEnv {

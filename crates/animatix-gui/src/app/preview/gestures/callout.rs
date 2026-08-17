@@ -17,6 +17,7 @@ use crate::app::commands::{
 };
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::DragState;
+use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 
 pub(crate) struct CalloutGesture;
@@ -173,8 +174,11 @@ impl GestureHandler for CalloutGesture {
                 GestureResult::Ignored
             },
 
-            Gesture::DragMove { pos, .. } => {
+            Gesture::DragMove { pos, modifiers, .. } => {
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
+                let snap_enabled = ctx.preview.snap.snap_enabled && !modifiers.alt;
+                let snap_threshold = ctx.preview.snap.snap_threshold;
+                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
 
                 match ctx.drag_state.clone() {
                     DragState::CalloutLabel {
@@ -184,7 +188,30 @@ impl GestureHandler for CalloutGesture {
                     } => {
                         let dx = (scene.x - start_scene.x) as f32;
                         let dy = (scene.y - start_scene.y) as f32;
-                        let new_label_at = [start_label_at[0] + dx, start_label_at[1] + dy];
+                        let mut new_label_at = [start_label_at[0] + dx, start_label_at[1] + dy];
+
+                        // Snap the absolute label point to guides/edges, then
+                        // convert the snapped point back to a label offset.
+                        if snap_enabled {
+                            if let (Some(timeline), Some(track)) =
+                                (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
+                            {
+                                let geo = derive_callout_geometry(
+                                    track,
+                                    time_ms,
+                                    Some(timeline),
+                                    ctx.scene_dimensions,
+                                );
+                                let snapped = drag_utils::resolve_point_snap(
+                                    geo.to[0] + new_label_at[0],
+                                    geo.to[1] + new_label_at[1],
+                                    snap_threshold,
+                                    ctx,
+                                );
+                                new_label_at = [snapped.nx - geo.to[0], snapped.ny - geo.to[1]];
+                            }
+                        }
+
                         ctx.commands.push_back(
                             DocumentCommand::PropertyEdit(PropertyEdit {
                                 time_s: None,
@@ -205,7 +232,46 @@ impl GestureHandler for CalloutGesture {
                     } => {
                         let dx = (scene.x - start_scene.x) as f32;
                         let dy = (scene.y - start_scene.y) as f32;
-                        let new_value = [start_value[0] + dx, start_value[1] + dy];
+                        let mut new_value = [start_value[0] + dx, start_value[1] + dy];
+
+                        // For targeted callouts the authored value is an offset,
+                        // so snap the derived world-space tip and convert back.
+                        if snap_enabled {
+                            if let (Some(timeline), Some(track)) =
+                                (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
+                            {
+                                let geo = derive_callout_geometry(
+                                    track,
+                                    time_ms,
+                                    Some(timeline),
+                                    ctx.scene_dimensions,
+                                );
+                                if geo.is_targeted {
+                                    let current_offset =
+                                        track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+                                    let attach = [
+                                        geo.to[0] - current_offset[0],
+                                        geo.to[1] - current_offset[1],
+                                    ];
+                                    let snapped = drag_utils::resolve_point_snap(
+                                        attach[0] + new_value[0],
+                                        attach[1] + new_value[1],
+                                        snap_threshold,
+                                        ctx,
+                                    );
+                                    new_value = [snapped.nx - attach[0], snapped.ny - attach[1]];
+                                } else {
+                                    let snapped = drag_utils::resolve_point_snap(
+                                        new_value[0],
+                                        new_value[1],
+                                        snap_threshold,
+                                        ctx,
+                                    );
+                                    new_value = [snapped.nx, snapped.ny];
+                                }
+                            }
+                        }
+
                         let property = if is_targeted { "to_offset" } else { "to" };
                         ctx.commands.push_back(
                             DocumentCommand::PropertyEdit(PropertyEdit {
@@ -235,7 +301,30 @@ impl GestureHandler for CalloutGesture {
                         let dir_y = start_scene.y as f32 - tip_scene[1];
                         let dir_len = (dir_x * dir_x + dir_y * dir_y).sqrt().max(1.0);
                         let delta = (dx * dir_x + dy * dir_y) / dir_len;
-                        let new_standoff = (start_standoff + delta).max(0.0);
+                        let mut new_standoff = (start_standoff + delta).max(0.0);
+
+                        // Snap the standoff handle's world-space position to
+                        // guides/edges, then project the snapped point back
+                        // onto the drag direction to preserve the scalar edit.
+                        if snap_enabled {
+                            let unit_x = dir_x / dir_len;
+                            let unit_y = dir_y / dir_len;
+                            let mut handle_point = [
+                                tip_scene[0] + unit_x * new_standoff,
+                                tip_scene[1] + unit_y * new_standoff,
+                            ];
+                            let snapped = drag_utils::resolve_point_snap(
+                                handle_point[0],
+                                handle_point[1],
+                                snap_threshold,
+                                ctx,
+                            );
+                            handle_point = [snapped.nx, snapped.ny];
+                            new_standoff = ((handle_point[0] - tip_scene[0]) * unit_x
+                                + (handle_point[1] - tip_scene[1]) * unit_y)
+                                .max(0.0);
+                        }
+
                         ctx.commands.push_back(
                             DocumentCommand::PropertyEdit(PropertyEdit {
                                 time_s: None,

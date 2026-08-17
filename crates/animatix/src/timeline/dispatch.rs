@@ -110,7 +110,7 @@ pub struct AnimationTrack {
     pub tagged_tracks: HashMap<String, Option<PropertyTrack<PropertyValue>>>,
 
     // ── Func transition tracks (side-channel) ──
-    /// Parallel transition storage for `func` property on `PlotCurve`.
+    /// Parallel transition storage for the `func` property on plot actors.
     ///
     /// ## Why a side-channel?
     ///
@@ -123,10 +123,10 @@ pub struct AnimationTrack {
     /// Instead of forcing closures into the `Interpolate` model, we store
     /// function transitions as a **parallel side-channel** alongside the
     /// normal property tracks. Each [`FuncTransition`] records a start time,
-    /// end time, easing, and the `from` / `to` [`FuncSource`] closures. At
-    /// frame evaluation time, [`sample_procedural_plot_at`] checks for active
-    /// transitions and blends the *outputs* of the two sources by the eased
-    /// progress value.
+    /// end time, easing, blend mode, and the `from` / `to` [`FuncSource`]
+    /// closures. At frame evaluation time,
+    /// [`sample_procedural_plot_at`] checks for active
+    /// transitions and combines the two sources by the eased progress value.
     ///
     /// ## How it works
     ///

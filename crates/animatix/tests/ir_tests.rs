@@ -76,6 +76,47 @@ fn ir_lowering_lowers_always_assignment_subset() {
 }
 
 #[test]
+fn ir_lowering_bare_always_assignment_writes_frame_variable() {
+    let program = vec![Stmt::Always {
+        body: vec![Stmt::Assignment {
+            target: vec![],
+            property: "freq".to_string(),
+            value: Expr::Binary(
+                Box::new(Expr::Ident("t".to_string())),
+                BinaryOp::Mul,
+                Box::new(Expr::Num(2.0)),
+            ),
+            modifiers: vec![],
+            easing: None,
+            value_span: None,
+            span: None,
+        }],
+        span: None,
+    }];
+
+    let ir = lower_modifier_ir(&program).expect("lowering should succeed");
+    assert_eq!(
+        ir.statements,
+        vec![ModifierIrStmt::Let {
+            name: "freq".to_string(),
+            value: compile_expr(&Expr::Binary(
+                Box::new(Expr::Ident("t".to_string())),
+                BinaryOp::Mul,
+                Box::new(Expr::Num(2.0)),
+            ))
+            .expect("expression should compile"),
+        }]
+    );
+
+    let mut env = Environment::new();
+    env.set("t", Value::Num(0.5));
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(env.get("freq"), Some(Value::Num(1.0)));
+    assert!(overrides.is_empty(), "bare variable writes are not actor overrides");
+}
+
+#[test]
 fn ir_lowering_supports_conditionals_and_lets() {
     let program = vec![Stmt::Always {
         body: vec![

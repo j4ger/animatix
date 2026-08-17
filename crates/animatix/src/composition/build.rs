@@ -89,6 +89,22 @@ impl Composition {
         font_context: std::sync::Arc<crate::renderer::text::FontContext>,
         build_quality: crate::timeline::BuildQuality,
     ) -> BuildReport<Self> {
+        Self::build_with_font_context_impl(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            None,
+        )
+    }
+
+    pub(crate) fn build_with_font_context_impl(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+    ) -> BuildReport<Self> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut scenes: BTreeMap<String, CompositionScene> = BTreeMap::new();
         let mut declaration_order: Vec<String> = Vec::new();
@@ -140,12 +156,14 @@ impl Composition {
                     merged_body.extend(body.clone());
                     merged_bodies.insert(name.clone(), merged_body.clone());
 
-                    let build_report = Timeline::build_with_diagnostics_and_font_context(
-                        &merged_body,
-                        namespaces,
-                        font_context.clone(),
-                        build_quality,
-                    );
+                    let build_report =
+                        Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
+                            &merged_body,
+                            namespaces,
+                            font_context.clone(),
+                            build_quality,
+                            asset_cache.clone(),
+                        );
                     diagnostics.extend(
                         build_report
                             .diagnostics
@@ -248,12 +266,14 @@ impl Composition {
                 });
                 merged.extend(scene_data.body.clone());
                 merged_bodies.insert(target.clone(), merged.clone());
-                let build_report = Timeline::build_with_diagnostics_and_font_context(
-                    &merged,
-                    namespaces,
-                    font_context.clone(),
-                    build_quality,
-                );
+                let build_report =
+                    Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
+                        &merged,
+                        namespaces,
+                        font_context.clone(),
+                        build_quality,
+                        asset_cache.clone(),
+                    );
                 diagnostics.extend(
                     build_report
                         .diagnostics
@@ -379,7 +399,7 @@ impl Composition {
                     .retain(|d| d.location.subject.as_deref() != Some(scene_subject.as_str()));
 
                 // Rebuild with carry injection.
-                let build_report = crate::timeline::Timeline::build_with_carry(
+                let build_report = crate::timeline::Timeline::build_with_carry_and_asset_cache(
                     &merged_body,
                     namespaces,
                     font_context.clone(),
@@ -388,6 +408,7 @@ impl Composition {
                     Some(&pred_timeline_clone),
                     pred_duration_ms,
                     default_dims,
+                    asset_cache.clone(),
                 );
 
                 diagnostics.extend(

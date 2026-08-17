@@ -124,6 +124,67 @@ pub fn evaluate_text_paths(
     // An explicit empty-string override means "no visible content", not "keep
     // the cached build-time glyphs". This makes `always { box.text = "" }`
     // deterministic instead of silently falling back to stale paths.
+    if content_override.is_none() {
+        // Keyframed content swaps are cross-faded by compiling both endpoint
+        // strings and rendering them at partial opacity. Without this, the
+        // String track snaps at the midpoint before the compiler runs.
+        if let Some((source_text, target_text, progress)) = ctx
+            .track
+            .text
+            .text_content
+            .as_ref()
+            .and_then(|track| track.interpolation_segment(ctx.time_ms))
+            .map(|(_, prev, found, raw_progress, easing)| {
+                let eased = crate::easing::apply_easing(raw_progress, *easing);
+                (prev.clone(), found.clone(), eased)
+            })
+        {
+            if source_text != target_text {
+                let source_paths = text_ctx.text_compiler.compile(
+                    &source_text,
+                    &font_family,
+                    font_size,
+                    font_weight,
+                    &font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    color,
+                    kind,
+                    text_ctx.font_context,
+                    max_width,
+                    &text_align,
+                    &overflow,
+                )?;
+                let target_paths = text_ctx.text_compiler.compile(
+                    &target_text,
+                    &font_family,
+                    font_size,
+                    font_weight,
+                    &font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    color,
+                    kind,
+                    text_ctx.font_context,
+                    max_width,
+                    &text_align,
+                    &overflow,
+                )?;
+                let crossfaded = crate::timeline::interpolate_text_paths(
+                    &source_paths.to_vec(),
+                    &target_paths.to_vec(),
+                    progress,
+                    crate::timeline::MorphOptions {
+                        strategy: crate::timeline::MorphStrategy::Fade,
+                        ..Default::default()
+                    },
+                );
+                return Ok(std::sync::Arc::from(crossfaded));
+            }
+        }
+    }
     if content_override.is_some() || !content.is_empty() {
         text_ctx.text_compiler.compile(
             &content,
@@ -906,5 +967,49 @@ mod tests {
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }
+    }
+
+    #[test]
+    fn runtime_text_content_crossfade_compiles_both_endpoints() {
+        use crate::easing::Easing;
+        use crate::renderer::text::{FontContext, TextCompiler, TextKind};
+        use crate::timeline::{AnimationTrack, SceneDimensions, property_track::PropertyTrack};
+
+        let mut track = AnimationTrack::new("label".to_string());
+        track.kind = ActorKindId::Text;
+        let mut content = PropertyTrack::new("Hello".to_string());
+        content.add_keyframe(0, "Hello".to_string(), Easing::Linear);
+        content.add_keyframe(1000, "Hello".to_string(), Easing::Linear);
+        content.add_keyframe(2000, "World".to_string(), Easing::Linear);
+        track.text.text_content = Some(content);
+        track.text.font_size = Some(PropertyTrack::new(48.0));
+
+        let font_ctx = FontContext::new();
+        let mut text_compiler = TextCompiler::new();
+        let ctx = EvaluateCtx {
+            track: &track,
+            time_ms: 1500,
+            local_transform: kurbo::Affine::IDENTITY,
+            opacity: 1.0,
+            scene_dimensions: SceneDimensions {
+                width: 640,
+                height: 480,
+            },
+            background_color: [0.0; 4],
+            overrides: None,
+            vector_paths: &[],
+            target_resolver: None,
+        };
+        let mut text_ctx = TextCompileCtx {
+            text_compiler: &mut text_compiler,
+            font_context: &font_ctx,
+        };
+        let paths =
+            evaluate_text_paths(&ctx, &mut text_ctx, TextKind::Text, 48.0).expect("compile text");
+        assert!(paths.len() > 5, "Expected both endpoint glyph sets, got {}", paths.len());
+        assert!(
+            paths.iter().all(|p| p.opacity > 0.0 && p.opacity < 1.0),
+            "Expected midpoint cross-fade opacities"
+        );
     }
 }

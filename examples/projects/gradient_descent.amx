@@ -140,12 +140,13 @@ contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
   resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
 
-// Graph with the parametric descent trail
+// Graph with the parametric descent trail. For f(x, y) = x² + y² the
+// gradient is radial, so steepest descent stays on a constant-angle ray.
 descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
   size: (560, 560), at: (400, 380) {
   trail: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676 + 2.6 * s),
-                  3.84 * exp(-0.55 * s) * sin(0.676 + 2.6 * s)),
+    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
+                  3.84 * exp(-0.55 * s) * sin(0.676)),
     t_domain: (0, 4.5), color: accent.warning, stroke_width: 3,
     stroke_progress: 0
 }
@@ -203,20 +204,22 @@ contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
   resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
 
-// Graph with three parametric curves showing different decay rates
+// Graph with three parametric curves showing different decay rates.
+// All stay on the same radial ray; only the rate toward/away from the
+// minimum changes, matching the radial gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
   size: (560, 560), at: (400, 380) {
   too_small: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.12 * s) * cos(0.676 + 2.6 * s),
-                  3.84 * exp(-0.12 * s) * sin(0.676 + 2.6 * s)),
+    func: (s) => (3.84 * exp(-0.12 * s) * cos(0.676),
+                  3.84 * exp(-0.12 * s) * sin(0.676)),
     t_domain: (0, 4.5), color: text.muted, stroke_width: 2, opacity: 0.0
   just_right: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676 + 2.6 * s),
-                  3.84 * exp(-0.55 * s) * sin(0.676 + 2.6 * s)),
+    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
+                  3.84 * exp(-0.55 * s) * sin(0.676)),
     t_domain: (0, 4.5), color: accent.success, stroke_width: 3, opacity: 0.0
   too_big: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(0.15 * s) * cos(0.676 + 2.6 * s),
-                  3.84 * exp(0.15 * s) * sin(0.676 + 2.6 * s)),
+    func: (s) => (3.84 * exp(0.15 * s) * cos(0.676),
+                  3.84 * exp(0.15 * s) * sin(0.676)),
     t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0.0
 }
 

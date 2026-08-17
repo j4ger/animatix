@@ -4,9 +4,10 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
+use crate::app::components::{TabBar, text_tooltip};
 use crate::app::design_tokens::semantic::category;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{RADIUS_S, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::insertion::{InsertionContext, InsertionRequest};
 
@@ -320,7 +321,9 @@ impl GuiShell {
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(egui_phosphor::regular::X).on_hover_text("Close (Esc)").clicked() {
+                let close_btn = ui.button(egui_phosphor::regular::X);
+                text_tooltip(ui, close_btn.id.with("close_tip"), &close_btn, "Close (Esc)");
+                if close_btn.clicked() {
                     self.insertion_palette.close();
                 }
             });
@@ -528,45 +531,23 @@ impl GuiShell {
         content.add_space(sp.base.space_3);
 
         // Mode tabs
-        content.horizontal(|ui| {
-            let modes = [
-                (PaletteMode::Universal, "All"),
-                (PaletteMode::Primitives, "Primitives"),
-                (PaletteMode::Actions, "Actions"),
-                (PaletteMode::Snippets, "Snippets"),
-                (PaletteMode::Components, "Components"),
-            ];
-            for (mode, label) in modes {
-                let selected = self.insertion_palette.mode == mode;
-                let btn = ui.add(
-                    egui::Button::new(RichText::new(label).size(TextRole::BodyS.size()).color(
-                        if selected {
-                            theme.text.primary
-                        } else {
-                            theme.text.secondary
-                        },
-                    ))
-                    .fill(if selected {
-                        theme.surface.widget
-                    } else {
-                        theme.surface.base
-                    })
-                    .corner_radius(RADIUS_M)
-                    .stroke(Stroke::new(
-                        STROKE_WIDTH,
-                        if selected {
-                            theme.border.strong
-                        } else {
-                            theme.border.default
-                        },
-                    )),
-                );
-                if btn.clicked() {
-                    self.insertion_palette.mode = mode;
-                    self.insertion_palette.rebuild_filter();
-                }
+        let modes = [
+            PaletteMode::Universal,
+            PaletteMode::Primitives,
+            PaletteMode::Actions,
+            PaletteMode::Snippets,
+            PaletteMode::Components,
+        ];
+        let labels = ["All", "Primitives", "Actions", "Snippets", "Components"];
+        let mut selected =
+            modes.iter().position(|&mode| mode == self.insertion_palette.mode).unwrap_or(0);
+        TabBar::new("insertion_mode_tabs", &mut selected, &labels).show(&mut content);
+        if let Some(mode) = modes.get(selected).copied() {
+            if mode != self.insertion_palette.mode {
+                self.insertion_palette.mode = mode;
+                self.insertion_palette.rebuild_filter();
             }
-        });
+        }
         content.add_space(sp.base.space_3);
 
         // Keyboard navigation

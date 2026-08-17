@@ -10,6 +10,8 @@ use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
 };
+#[cfg(feature = "theme-json")]
+use eparts::{ThemeRegistry, ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 
 pub fn run_gui(path: Option<PathBuf>) {
     let (initial_path, show_welcome) = match path {
@@ -69,6 +71,15 @@ struct AnimatixApp {
     applied_motion_preference: Option<bool>,
     /// The density applied on the previous frame, to avoid redundant work.
     applied_density: Option<eparts::Density>,
+    /// Loaded JSON theme registry when `theme-json` is enabled.
+    #[cfg(feature = "theme-json")]
+    theme_registry: Option<ThemeRegistry>,
+    /// Live watcher for the configured JSON theme directory.
+    #[cfg(feature = "theme-json")]
+    theme_registry_watcher: Option<ThemeRegistryWatcher>,
+    /// Last theme registry error, surfaced in Settings.
+    #[cfg(feature = "theme-json")]
+    theme_error: Option<String>,
 }
 
 /// Probe the OS light/dark appearance via the `dark-light` crate.
@@ -116,6 +127,20 @@ impl AnimatixApp {
         let reduce_motion = shell.ui_store.view.reduce_motion;
         let initial_density = shell.ui_store.view.density;
 
+        #[cfg(feature = "theme-json")]
+        let (theme_registry, theme_registry_watcher, theme_error) =
+            if let Some(dir) = shell.ui_store.view.theme_dir.clone() {
+                let registry = ThemeRegistry::from_directory(&dir);
+                let watcher = ThemeRegistryWatcher::new(&dir);
+                (
+                    registry.as_ref().ok().cloned(),
+                    watcher.ok(),
+                    registry.err().map(|e| e.to_string()),
+                )
+            } else {
+                (None, None, None)
+            };
+
         let audio_engine = match AudioEngine::new() {
             Ok(engine) => Some(engine),
             Err(e) => {
@@ -134,7 +159,79 @@ impl AnimatixApp {
             applied_theme_signature: Some((choice, system_is_dark)),
             applied_motion_preference: Some(reduce_motion),
             applied_density: Some(initial_density),
+            #[cfg(feature = "theme-json")]
+            theme_registry,
+            #[cfg(feature = "theme-json")]
+            theme_registry_watcher,
+            #[cfg(feature = "theme-json")]
+            theme_error,
         })
+    }
+
+    #[cfg(feature = "theme-json")]
+    fn update_json_theme(&mut self, ctx: &egui::Context) {
+        let desired = self.shell.ui_store.view.theme_dir.clone();
+        let current_dir =
+            self.theme_registry_watcher.as_ref().map(|watcher| watcher.directory().clone());
+        if current_dir != desired {
+            self.theme_registry = None;
+            self.theme_registry_watcher = None;
+            self.theme_error = None;
+            self.shell.ui_store.view.theme_names.clear();
+            self.shell.ui_store.view.theme_error = None;
+            if let Some(dir) = desired {
+                match ThemeRegistry::from_directory(&dir) {
+                    Ok(registry) => {
+                        self.theme_registry = Some(registry);
+                        self.shell.ui_store.view.theme_names = self
+                            .theme_registry
+                            .as_ref()
+                            .map(ThemeRegistry::names)
+                            .unwrap_or_default();
+                    },
+                    Err(error) => {
+                        self.theme_error = Some(error.to_string());
+                        self.shell.ui_store.view.theme_error = self.theme_error.clone();
+                    },
+                }
+                match ThemeRegistryWatcher::new(&dir) {
+                    Ok(watcher) => self.theme_registry_watcher = Some(watcher),
+                    Err(error) => {
+                        self.theme_error = Some(error);
+                        self.shell.ui_store.view.theme_error = self.theme_error.clone();
+                    },
+                }
+            }
+        }
+
+        if let Some(watcher) = &mut self.theme_registry_watcher {
+            match watcher.update(std::time::Instant::now()) {
+                ThemeRegistryWatcherEvent::Reloaded(registry) => {
+                    let names = registry.names();
+                    self.theme_registry = Some(registry);
+                    self.theme_error = None;
+                    self.shell.ui_store.view.theme_names = names;
+                    self.shell.ui_store.view.theme_error = None;
+                },
+                ThemeRegistryWatcherEvent::Error(error) => {
+                    self.theme_error = Some(error.clone());
+                    self.shell.ui_store.view.theme_error = Some(error);
+                },
+                ThemeRegistryWatcherEvent::NoChange => {},
+            }
+        }
+
+        if let (Some(registry), Some(name)) =
+            (&self.theme_registry, &self.shell.ui_store.view.theme_name)
+        {
+            let dark = self.shell.ui_store.view.app_theme.is_dark(self.system_is_dark);
+            if registry.install(ctx, name, dark) {
+                let theme = eparts::theme_from_ctx(ctx);
+                install_theme(ctx, &theme, dark);
+                self.applied_theme_signature =
+                    Some((self.shell.ui_store.view.app_theme, self.system_is_dark));
+            }
+        }
     }
 
     fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
@@ -627,6 +724,9 @@ impl eframe::App for AnimatixApp {
         // amortized: every ~2s) so `Auto` follows runtime OS light/dark changes;
         // reapply only when the effective theme actually changes.
         {
+            #[cfg(feature = "theme-json")]
+            self.update_json_theme(ui.ctx());
+
             let now = std::time::Instant::now();
             let due = self
                 .last_theme_probe

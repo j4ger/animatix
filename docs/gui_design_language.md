@@ -471,7 +471,7 @@ The `Button` widget provides a lean, builder-based API. Per eparts principle 6
 have call sites are pre-built; additional variants/sizes are added when a call
 site needs them, not speculatively.
 
-**Variants** (3):
+**Variants** (4):
 
 ```
 ButtonVariant::Primary   filled accent background — primary actions
@@ -603,7 +603,7 @@ theme.button
   .secondary — ButtonStateSlots  (seeded; no ButtonVariant::Secondary yet)
   .ghost     — ButtonStateSlots
   .icon      — ButtonStateSlots
-  .danger    — ButtonStateSlots  (seeded from status::error*; no ButtonVariant::Danger yet — T2.10)
+  .danger    — ButtonStateSlots  (backed by `ButtonVariant::Danger` / `Button::danger`)
 
 theme.list
   .even      — Fill { bg, fg }   zebra even row

@@ -10,6 +10,8 @@ default = []
 # Enables the bounded widget-screenshot binary. Never enable in shipped binaries.
 dev-screenshots = ["dep:image"]
 video = ["animatix/video"]
+# Enables eparts JSON theme loading, registries, and live directory watching.
+theme-json = ["eparts/theme-json"]
 
 [dependencies]
 animatix = { path = "../animatix" }

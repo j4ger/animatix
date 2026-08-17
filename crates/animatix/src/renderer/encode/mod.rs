@@ -159,6 +159,66 @@ impl Default for ExportSettings {
     }
 }
 
+/// A named resolution/fps/codec preset shared by CLI and GUI export paths.
+#[derive(Debug, Clone, Copy)]
+pub struct ExportPreset {
+    /// Stable lowercase preset name, e.g. `"720p30"`.
+    pub name: &'static str,
+    /// Output width in pixels.
+    pub width: u32,
+    /// Output height in pixels.
+    pub height: u32,
+    /// Output framerate.
+    pub fps: u32,
+    /// Encoder selection.
+    pub video_codec: VideoCodec,
+    /// libx264 speed preset.
+    pub h264_preset: H264Preset,
+}
+
+impl ExportPreset {
+    /// All named presets available to CLI and GUI.
+    pub const ALL: &'static [ExportPreset] = &[
+        ExportPreset {
+            name: "720p30",
+            width: 1280,
+            height: 720,
+            fps: 30,
+            video_codec: VideoCodec::Auto,
+            h264_preset: H264Preset::Medium,
+        },
+        ExportPreset {
+            name: "1080p30",
+            width: 1920,
+            height: 1080,
+            fps: 30,
+            video_codec: VideoCodec::Auto,
+            h264_preset: H264Preset::Medium,
+        },
+        ExportPreset {
+            name: "1080p60",
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            video_codec: VideoCodec::Auto,
+            h264_preset: H264Preset::Fast,
+        },
+        ExportPreset {
+            name: "4k30",
+            width: 3840,
+            height: 2160,
+            fps: 30,
+            video_codec: VideoCodec::Auto,
+            h264_preset: H264Preset::Slow,
+        },
+    ];
+
+    /// Look up a named export preset.
+    pub fn by_name(name: &str) -> Option<&'static ExportPreset> {
+        Self::ALL.iter().find(|preset| preset.name == name)
+    }
+}
+
 /// Render thread limit for exports.
 #[derive(Debug, Clone, Copy)]
 pub enum MaxRenderThreads {
@@ -406,4 +466,19 @@ pub fn mux_audio_segments(
 
     tracing::info!("Audio muxed {} segment(s) into {}", segments.len(), output_path.display());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn export_presets_are_named_and_resolvable() {
+        assert_eq!(ExportPreset::ALL.len(), 4);
+        let preset = ExportPreset::by_name("1080p30").expect("1080p30 should exist");
+        assert_eq!(preset.width, 1920);
+        assert_eq!(preset.height, 1080);
+        assert_eq!(preset.fps, 30);
+        assert!(ExportPreset::by_name("missing").is_none());
+    }
 }

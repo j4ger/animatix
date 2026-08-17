@@ -55,7 +55,7 @@ pub(crate) fn parser<'src>(
         .labelled("play statement");
 
     let scene_decl = hash()
-        .ignore_then(common::ident_occ(OccurrenceKind::Scene).clone())
+        .ignore_then(common::ident_decl_occ(OccurrenceKind::Scene).clone())
         .map(|name| Stmt::Scene {
             name,
             config: vec![],
@@ -68,7 +68,7 @@ pub(crate) fn parser<'src>(
     let keyframe = hash()
         .ignore_then(plus().or_not())
         .then(time)
-        .then(stmt.clone().repeated().collect::<Vec<_>>())
+        .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
         .map(|((is_relative, t), body)| {
             if is_relative.is_some() {
                 Stmt::RelativeKeyframe {
