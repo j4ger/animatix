@@ -66,6 +66,7 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 | Item | Resolution |
 |------|------------|
 | Semantic AST single source | Done. `parse_canonical` is the Chumsky semantic source; analyzer uses the lossless token stream plus AST for positions/completions. |
+| Semantic index single source | Done for declarations. `animatix-syntax::builtins` is the single registry; parser records declaration/action-target/play-scene occurrences; `Analyzer` uses them for positions; LSP emits UTF-16 semantic-token columns; `_` and import aliases have roles. Remaining scope-resolution and reference-occurrence items are in Open Backlog. |
 | Module/Workspace resolver unification | Done. `Workspace` is now a thin facade over `ModuleGraph` in `SourcesOnly` mode; parsing, symbols, import identity, and namespace resolution are single-source. LSP continues to use per-document `Analyzer` for CST/positions while workspace symbols come from the shared graph. |
 | Semantic diagnostics single emitter | Done. `animatix-syntax::semantic_diagnostics` is the canonical emitter; analyzer and LSP convert DTOs instead of re-implementing checks. |
 | Path/source-map model | Done. `animatix-syntax::module::source_map` owns normalized path identity, import resolution, and in-memory source overrides. |
@@ -141,6 +142,7 @@ unscheduled until a concrete user story or milestone pulls them forward.
 | Review | Add a static HTML questionnaire/arena frontend for external reviewers. |
 | Review | Support review runs with proposed-syntax variants the grammar cannot parse. |
 | Review | Add agent-driven run discovery and hypothesis generation. |
+| Review | Implement deterministic scene-facts evaluator and AI review loop (design: `docs/ai_agent_animation_quality.md`). |
 | Docs | Refresh eparts Button theme-slot docs and variant count to match shipped variants. |
 | Docs | Fix BarChart `data`/`bar_colors` examples to brace-list syntax and document scheme tokens. |
 | Docs | Document `graph.map`/`graph.map_inverse` semantics in `docs/spec.md`. |
@@ -151,6 +153,10 @@ unscheduled until a concrete user story or milestone pulls them forward.
 | BarChart | Correct `bar_colors` registry type and implement `show_labels`; guard numeric props. |
 | Examples | Make the gradient-descent example trajectory consistent with its loss surface. |
 | Build | Make bare `cargo check -p animatix --no-default-features` pass or formally drop that target. |
+| Language intelligence | Add scope/shadow resolution to `find_references` by assigning `scope_id` to occurrences for blocks/for/closure/component scopes. |
+| Syntax | Record assignment/reactive target and property reference occurrences. |
+| Syntax | Record call/method/construct and closure-parameter occurrences in expressions. |
+| Language intelligence | Switch GUI highlighting and LSP semantic tokens to consume parser occurrences instead of the shared classifier. |
 
 ---
 

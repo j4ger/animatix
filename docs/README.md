@@ -8,6 +8,7 @@
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
 | [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
 | [`roadmap.md`](roadmap.md) | Both | Canonical planned work, known gaps, migration plans |
+| [`ai_agent_animation_quality.md`](ai_agent_animation_quality.md) | Contributors | AI agent review/evaluation architecture and bring-up plan |
 | [`../dogfood/README.md`](../dogfood/README.md) | Both | In-progress real-content projects and grammar probes |
 | [`gui_design_language.md`](gui_design_language.md) | Contributors | GUI visual design language, token system, component taxonomy, interaction model |
 
