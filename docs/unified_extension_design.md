@@ -19,7 +19,7 @@ helpers:
 | Property metadata | `schema::PropertySpec` + runtime `PROPERTY_REGISTRY` | `PropertyRegistry` descriptors/bindings |
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
 | Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
-| Tooling metadata | `schema::builtin_primitive_specs()` | analyzer/LSP `ExtensionManifest` |
+| Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
 | Native plugins | n/a | C ABI v2 primitive/action/service registration |
 
 The remaining parallel paths are tooling-level: analyzer/LSP still consume
@@ -142,10 +142,11 @@ completions, and native ABI compatibility.
   primitives, actions, and services; the native host wraps them in
   `Primitive`/`BuiltinAction` adapters and the demo plugin registers all five
   capability kinds through the same install path.
-- Phase F partial: GUI inspector/keyframe table now read extension properties
-  through unified `PropertyDescriptor`s from `Timeline`.
-- Remaining: analyzer/LSP descriptor conversion, tooling cleanup, and full
-  commit gates.
+- Phase F implemented: GUI inspector/keyframe table read extension properties
+  through unified `PropertyDescriptor`s from `Timeline`, and analyzer/LSP
+  manifests parse into shared `PrimitiveDescriptor`/`PropertyDescriptor`
+  objects used by completions and hover.
+- Remaining: full commit gates and final docs/bench verification.
 
 ## Phases
 

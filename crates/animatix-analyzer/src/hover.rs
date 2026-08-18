@@ -2,6 +2,7 @@
 
 use animatix_syntax::token::{Token, TokenKind, byte_to_line_col, line_col_to_byte, token_at_byte};
 
+use crate::extension_manifest::ExtensionManifest;
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::types::HoverInfo;
 
@@ -12,6 +13,7 @@ pub fn hover_at(
     source: &str,
     line: usize,
     col: usize,
+    manifest: &ExtensionManifest,
 ) -> Option<HoverInfo> {
     let byte = line_col_to_byte(source, line, col);
     let token = token_at_byte(tokens, byte)?;
@@ -57,6 +59,19 @@ pub fn hover_at(
         });
     }
     if symbols.types.contains(text) {
+        if let Some(primitive) =
+            manifest.primitives.iter().find(|primitive| primitive.type_name == text)
+        {
+            return Some(HoverInfo {
+                contents: format!(
+                    "**Type** `{}`\n\n{} ({})",
+                    text,
+                    primitive.display_name,
+                    primitive.category.label()
+                ),
+                range,
+            });
+        }
         let doc = animatix_syntax::builtins::type_documentation(text);
         let doc = if doc == "Unknown type." {
             animatix_syntax::schema::builtin_primitive_specs()
@@ -112,6 +127,16 @@ pub fn hover_at(
     // Property names are identifiers followed by `:` in a property list or
     // preceded by `.` in an access path.
     if is_property_position(tokens, token) {
+        if let Some(property) = manifest.properties.iter().find(|property| property.name == text) {
+            let actor_types = property.actor_types.join(", ");
+            return Some(HoverInfo {
+                contents: format!(
+                    "**Property** `{}`\n\nType: {:?}\nExtensions: {}",
+                    text, property.ty, actor_types
+                ),
+                range,
+            });
+        }
         if let Some(doc) = crate::completer::property_documentation(text) {
             return Some(HoverInfo {
                 contents: format!("**Property** `{}`\n\n{}", text, doc),

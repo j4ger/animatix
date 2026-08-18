@@ -2,6 +2,7 @@
 
 use animatix_syntax::token::{Token, TokenKind, line_col_to_byte};
 
+use crate::extension_manifest::ExtensionManifest;
 use crate::symbol_table::{LabelKind, SymbolTable};
 
 /// A completion item to suggest to the user.
@@ -45,6 +46,7 @@ pub fn completions_at(
     source: &str,
     line: usize,
     col: usize,
+    manifest: &ExtensionManifest,
 ) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
@@ -60,21 +62,21 @@ pub fn completions_at(
             items.extend(snippet_completions());
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols));
+            items.extend(type_completions(symbols, manifest));
             items.extend(action_completions(symbols));
         },
         Some(CompletionContext::TopLevel) => {
             items.extend(snippet_completions());
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols));
+            items.extend(type_completions(symbols, manifest));
             items.extend(action_completions(symbols));
         },
         Some(CompletionContext::TypePosition) => {
-            items.extend(type_completions(symbols));
+            items.extend(type_completions(symbols, manifest));
         },
         Some(CompletionContext::PropertyBlock { actor_type }) => {
-            items.extend(property_completions(symbols, actor_type.as_deref()));
+            items.extend(property_completions(symbols, actor_type.as_deref(), manifest));
             items.extend(value_completions());
         },
         Some(CompletionContext::ActionTarget) => {
@@ -92,7 +94,7 @@ pub fn completions_at(
         Some(CompletionContext::Unknown) => {
             items.extend(keyword_completions(symbols));
             items.extend(label_completions(symbols));
-            items.extend(type_completions(symbols));
+            items.extend(type_completions(symbols, manifest));
         },
     }
 
@@ -279,17 +281,32 @@ fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
 }
 
 /// Type completions with documentation.
-fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
+fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<CompletionItem> {
     let mut items = symbols
         .types
         .iter()
         .map(|ty| {
-            let doc = animatix_syntax::builtins::type_documentation(ty);
+            let (detail, doc) = manifest
+                .primitives
+                .iter()
+                .find(|primitive| primitive.type_name == *ty)
+                .map(|primitive| {
+                    (
+                        primitive.category.label().to_string(),
+                        format!("{} ({})", primitive.display_name, primitive.category.label()),
+                    )
+                })
+                .unwrap_or_else(|| {
+                    (
+                        "Type".to_string(),
+                        animatix_syntax::builtins::type_documentation(ty).to_string(),
+                    )
+                });
             CompletionItem {
                 label: ty.clone(),
                 kind: CompletionKind::Type,
-                detail: Some("Type".to_string()),
-                documentation: Some(doc.to_string()),
+                detail: Some(detail),
+                documentation: Some(doc),
                 insert_text: None,
             }
         })
@@ -334,18 +351,40 @@ fn label_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
 }
 
 /// Property completions for a given actor type.
-fn property_completions(symbols: &SymbolTable, actor_type: Option<&str>) -> Vec<CompletionItem> {
+fn property_completions(
+    symbols: &SymbolTable,
+    actor_type: Option<&str>,
+    manifest: &ExtensionManifest,
+) -> Vec<CompletionItem> {
     let mut items = Vec::new();
 
     if let Some(ty) = actor_type {
         if let Some(props) = symbols.properties.get(ty) {
             for prop in props {
-                let doc = property_documentation(prop);
+                let extension = manifest
+                    .properties
+                    .iter()
+                    .find(|property| {
+                        property.name == *prop && property.actor_types.iter().any(|a| a == ty)
+                    })
+                    .map(|property| {
+                        (
+                            format!("Extension property of {}", ty),
+                            format!("Extension type: {:?}", property.ty),
+                        )
+                    });
+                let (detail, doc) =
+                    extension.map(|(detail, doc)| (detail, Some(doc))).unwrap_or_else(|| {
+                        (
+                            format!("Property of {}", ty),
+                            property_documentation(prop).map(str::to_string),
+                        )
+                    });
                 items.push(CompletionItem {
                     label: prop.clone(),
                     kind: CompletionKind::Property,
-                    detail: Some(format!("Property of {}", ty)),
-                    documentation: doc.map(|s| s.to_string()),
+                    detail: Some(detail),
+                    documentation: doc,
                     insert_text: Some(format!("{}: ", prop)),
                 });
             }
@@ -723,7 +762,7 @@ mod tests {
     fn top_level_completions_include_keywords() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, &[], source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
         let keywords: Vec<_> = items
             .iter()
@@ -740,7 +779,7 @@ mod tests {
     fn type_completions_include_builtins() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, &[], source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
         let types: Vec<_> = items
             .iter()
@@ -757,7 +796,7 @@ mod tests {
     fn snippet_completions_at_top_level() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, &[], source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
         let snippets: Vec<_> = items
             .iter()
@@ -774,7 +813,7 @@ mod tests {
     fn action_completions_include_builtins() {
         let source = "";
         let symbols = SymbolTable::build_from_ast(&[]);
-        let items = completions_at(&symbols, &[], source, 0, 0);
+        let items = completions_at(&symbols, &[], source, 0, 0, &ExtensionManifest::default());
 
         let actions: Vec<_> = items
             .iter()

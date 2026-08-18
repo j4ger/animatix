@@ -1,58 +1,79 @@
 //! Extension manifests for analyzer-only language intelligence.
 //!
 //! These manifests describe external primitives and properties without loading
-//! native runtime plugins. The LSP and GUI can consume them without depending
-//! on the runtime crate.
+//! native runtime plugins. Parsed manifests are converted into the shared
+//! `animatix-syntax::schema` descriptors, so analyzer/LSP and runtime-facing
+//! tooling speak the same in-memory shape. The LSP and GUI can consume them
+//! without depending on the runtime crate.
 
+use animatix_syntax::schema::{
+    ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveDescriptor,
+    PropertyDescriptor, PropertyId, PropertyValueKind,
+};
 use animatix_syntax::typing::Type;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::symbol_table::SymbolTable;
 
-/// A primitive declared by an extension manifest.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
-pub struct ManifestPrimitive {
-    /// Source text type name, e.g. `Gauge`.
-    pub type_name: String,
-    /// Optional display name for hover/palette metadata.
-    #[serde(default)]
-    pub display_name: Option<String>,
-    /// Optional UI category label.
-    #[serde(default)]
-    pub category: Option<String>,
-    /// Optional opaque icon id.
-    #[serde(default)]
-    pub icon_id: Option<String>,
-    /// Whether the primitive should be shown in an advanced menu.
-    #[serde(default)]
-    pub advanced: bool,
-}
-
-/// A property declared by an extension manifest.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct ManifestProperty {
-    /// Actor type that owns this property.
-    pub actor_type: String,
-    /// Canonical source property name.
-    pub name: String,
-    /// Type annotation used by the type checker, e.g. `Num`, `Str`, `Color`.
-    #[serde(rename = "type")]
-    pub ty: String,
-}
+/// Manifest primitive metadata exposed as the shared schema descriptor.
+pub type ManifestPrimitive = PrimitiveDescriptor;
+/// Manifest property metadata exposed as the shared schema descriptor.
+pub type ManifestProperty = PropertyDescriptor;
 
 /// Collection of analyzer-only extension metadata.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ExtensionManifest {
     /// Optional native library path, resolved relative to the manifest file by
     /// CLI consumers. Analyzer and LSP ignore this field.
-    #[serde(default)]
     pub library: Option<String>,
     /// Primitive declarations.
-    #[serde(default)]
-    pub primitives: Vec<ManifestPrimitive>,
+    pub primitives: Vec<PrimitiveDescriptor>,
     /// Property declarations.
+    pub properties: Vec<PropertyDescriptor>,
+}
+
+#[derive(Deserialize)]
+struct RawManifest {
     #[serde(default)]
-    pub properties: Vec<ManifestProperty>,
+    library: Option<String>,
+    #[serde(default)]
+    primitives: Vec<RawPrimitive>,
+    #[serde(default)]
+    properties: Vec<RawProperty>,
+}
+
+#[derive(Deserialize)]
+struct RawPrimitive {
+    type_name: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
+    #[serde(default)]
+    icon_id: Option<String>,
+    #[serde(default)]
+    advanced: bool,
+    #[serde(default)]
+    child_processing: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawProperty {
+    actor_type: String,
+    name: String,
+    #[serde(rename = "type")]
+    ty: String,
+    #[serde(default)]
+    injectable: bool,
+}
+
+impl<'de> Deserialize<'de> for ExtensionManifest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Self::from_raw(RawManifest::deserialize(deserializer)?))
+    }
 }
 
 impl ExtensionManifest {
@@ -80,15 +101,106 @@ impl ExtensionManifest {
             table.types.insert(primitive.type_name.clone());
         }
         for property in &self.properties {
-            let property_type = parse_manifest_type(&property.ty);
-            let properties = table.properties.entry(property.actor_type.clone()).or_default();
-            if !properties.iter().any(|existing| existing == &property.name) {
-                properties.push(property.name.clone());
+            for actor_type in &property.actor_types {
+                let properties = table.properties.entry(actor_type.clone()).or_default();
+                if !properties.iter().any(|existing| existing == &property.name) {
+                    properties.push(property.name.clone());
+                }
+                table
+                    .property_types
+                    .insert((actor_type.clone(), property.name.clone()), property.ty.clone());
             }
-            table
-                .property_types
-                .insert((property.actor_type.clone(), property.name.clone()), property_type);
         }
+    }
+
+    fn from_raw(raw: RawManifest) -> Self {
+        let properties = raw
+            .properties
+            .into_iter()
+            .enumerate()
+            .map(|(index, property)| PropertyDescriptor {
+                id: PropertyId(1_000_000 + index as u32),
+                name: property.name,
+                actor_types: vec![property.actor_type],
+                ty: parse_manifest_type(&property.ty),
+                value_kind: manifest_value_kind(&property.ty),
+                injectable: property.injectable,
+            })
+            .collect::<Vec<_>>();
+
+        let primitives = raw
+            .primitives
+            .into_iter()
+            .map(|primitive| {
+                let type_name = primitive.type_name;
+                let display_name = primitive.display_name.unwrap_or_else(|| type_name.clone());
+                let category = primitive
+                    .category
+                    .as_deref()
+                    .and_then(parse_primitive_category)
+                    .unwrap_or(PrimitiveCategory::Shape);
+                let property_ids = properties
+                    .iter()
+                    .filter(|property| {
+                        property.actor_types.iter().any(|actor_type| actor_type == &type_name)
+                    })
+                    .map(|property| property.id)
+                    .collect();
+                PrimitiveDescriptor {
+                    type_name,
+                    display_name,
+                    category,
+                    icon_id: primitive.icon_id.unwrap_or_default(),
+                    advanced: primitive.advanced,
+                    capabilities: PrimitiveCapabilities::default(),
+                    child_processing: primitive
+                        .child_processing
+                        .as_deref()
+                        .and_then(parse_child_processing)
+                        .unwrap_or_default(),
+                    properties: property_ids,
+                }
+            })
+            .collect();
+
+        Self {
+            library: raw.library,
+            primitives,
+            properties,
+        }
+    }
+}
+
+fn parse_primitive_category(value: &str) -> Option<PrimitiveCategory> {
+    match value.trim() {
+        "Shape" | "Shapes" => Some(PrimitiveCategory::Shape),
+        "Text" => Some(PrimitiveCategory::Text),
+        "Media" => Some(PrimitiveCategory::Media),
+        "Plot" | "Plots" => Some(PrimitiveCategory::Plot),
+        "Container" | "Containers" => Some(PrimitiveCategory::Container),
+        "Annotation" | "Annotations" => Some(PrimitiveCategory::Annotation),
+        _ => None,
+    }
+}
+
+fn parse_child_processing(value: &str) -> Option<ChildProcessingKind> {
+    match value.trim() {
+        "Generic" => Some(ChildProcessingKind::Generic),
+        "Filter" => Some(ChildProcessingKind::Filter),
+        "Mask" => Some(ChildProcessingKind::Mask),
+        "Equation" => Some(ChildProcessingKind::Equation),
+        _ => None,
+    }
+}
+
+fn manifest_value_kind(ty: &str) -> PropertyValueKind {
+    match ty.trim() {
+        "Num" => PropertyValueKind::F32,
+        "Str" | "String" => PropertyValueKind::String,
+        "Vec2" => PropertyValueKind::Vec2,
+        "Vec4" | "Color" => PropertyValueKind::Vec4,
+        "List<Vec2>" => PropertyValueKind::PointList,
+        _ => PropertyValueKind::Generic,
     }
 }
 
@@ -134,6 +246,43 @@ type = "Num"
             table.property_types.get(&("Gauge".to_string(), "level".to_string())),
             Some(&Type::Num)
         );
+    }
+
+    #[test]
+    fn manifest_uses_shared_primitive_and_property_descriptors() {
+        let manifest = ExtensionManifest::from_toml(
+            r#"
+[[primitives]]
+type_name = "Gauge"
+display_name = "Gauge Dial"
+category = "Plot"
+icon_id = "gauge"
+advanced = true
+child_processing = "Filter"
+
+[[properties]]
+actor_type = "Gauge"
+name = "level"
+type = "Num"
+injectable = true
+"#,
+        )
+        .expect("parse manifest");
+
+        let primitive = &manifest.primitives[0];
+        assert_eq!(primitive.type_name, "Gauge");
+        assert_eq!(primitive.display_name, "Gauge Dial");
+        assert_eq!(primitive.category, PrimitiveCategory::Plot);
+        assert_eq!(primitive.icon_id, "gauge");
+        assert!(primitive.advanced);
+        assert_eq!(primitive.child_processing, ChildProcessingKind::Filter);
+        assert_eq!(primitive.properties, vec![manifest.properties[0].id]);
+
+        let property = &manifest.properties[0];
+        assert_eq!(property.actor_types, vec!["Gauge".to_string()]);
+        assert_eq!(property.ty, Type::Num);
+        assert_eq!(property.value_kind, PropertyValueKind::F32);
+        assert!(property.injectable);
     }
 
     #[test]

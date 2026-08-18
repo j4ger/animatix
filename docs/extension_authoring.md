@@ -148,8 +148,11 @@ animatix check demo.amx --plugin target/debug/libanimatix_plugin_demo.so
 ```
 
 A manifest passed to `--plugin` also feeds the analyzer, so unknown extension
-types/properties are suppressed during `check` and `lint`. If the manifest has
-a `library` field, the CLI loads that native library relative to the manifest.
+types/properties are suppressed during `check` and `lint`. Manifest entries are
+parsed into the shared `PrimitiveDescriptor`/`PropertyDescriptor` schema, so
+completions and hover metadata use the same shapes as runtime tooling. If the
+manifest has a `library` field, the CLI loads that native library relative to
+the manifest.
 
 ```toml
 library = "../../target/debug/libanimatix_plugin_demo.so"

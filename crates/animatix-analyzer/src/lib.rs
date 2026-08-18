@@ -292,7 +292,14 @@ impl Analyzer {
 
     /// Completions at cursor position.
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem> {
-        completer::completions_at(&self.symbols, &self.tokens, &self.source, line, col)
+        completer::completions_at(
+            &self.symbols,
+            &self.tokens,
+            &self.source,
+            line,
+            col,
+            &self.extension_manifest,
+        )
     }
 
     /// All diagnostics (parse errors + semantic checks).
@@ -316,7 +323,14 @@ impl Analyzer {
 
     /// Hover information at cursor position.
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
-        hover::hover_at(&self.symbols, &self.tokens, &self.source, line, col)
+        hover::hover_at(
+            &self.symbols,
+            &self.tokens,
+            &self.source,
+            line,
+            col,
+            &self.extension_manifest,
+        )
     }
 
     /// Go-to-definition at cursor position.
@@ -467,6 +481,39 @@ type = "Num"
             !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-property")),
             "manifest property should suppress unknown-property"
         );
+    }
+
+    #[test]
+    fn extension_manifest_powers_hover_and_completions() {
+        let source = "g: Gauge, level: 42";
+        let manifest = ExtensionManifest::from_toml(
+            r#"
+[[primitives]]
+type_name = "Gauge"
+display_name = "Gauge Dial"
+category = "Plot"
+
+[[properties]]
+actor_type = "Gauge"
+name = "level"
+type = "Num"
+"#,
+        )
+        .expect("parse manifest");
+        let analyzer = Analyzer::new(source).with_extension_manifest(manifest);
+
+        let type_hover = analyzer.hover_at(0, 3).expect("hover on Gauge");
+        assert!(type_hover.contents.contains("Gauge Dial (Plots)"));
+
+        let property_hover = analyzer.hover_at(0, 10).expect("hover on level");
+        assert!(property_hover.contents.contains("Type: Num"));
+        assert!(property_hover.contents.contains("Extensions: Gauge"));
+
+        let completions = analyzer.completions_at(0, 3);
+        let gauge =
+            completions.iter().find(|item| item.label == "Gauge").expect("Gauge completion");
+        assert_eq!(gauge.detail.as_deref(), Some("Plots"));
+        assert_eq!(gauge.documentation.as_deref(), Some("Gauge Dial (Plots)"));
     }
 
     #[test]
