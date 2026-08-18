@@ -134,6 +134,9 @@ completions, and native ABI compatibility.
 - Phase C implemented: `PropertyRegistry` now owns built-in
   `PropertyEntry`/`PropertyBinding` rows plus extension specs, and
   `Timeline::property_descriptors()` reads from that unified registry.
+- Phase D implemented: `find_primitive()` is backed by a global built-in
+  `PrimitiveRegistry`, and timeline build/eval paths use
+  `Timeline::primitive_registry` directly.
 - Phases 3-6 remain planned; they involve property binding migration,
   capability dispatch migration, native ABI v2, and tooling cleanup.
 

@@ -996,9 +996,17 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
 
 // ── Dispatch helpers ────────────────────────────────────────────────────
 
-/// Look up a primitive by its type name.
+/// Look up a built-in primitive by type name.
+///
+/// This compatibility helper is backed by the same [`PrimitiveRegistry`] used
+/// by timeline builds, not by a separate static lookup.
 pub fn find_primitive(ty: &str) -> Option<&'static dyn Primitive> {
-    PRIMITIVES.iter().find(|p| p.type_name() == ty).copied()
+    builtin_primitive_registry().find(ty)
+}
+
+fn builtin_primitive_registry() -> &'static PrimitiveRegistry {
+    static REGISTRY: OnceLock<PrimitiveRegistry> = OnceLock::new();
+    REGISTRY.get_or_init(PrimitiveRegistry::new)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────

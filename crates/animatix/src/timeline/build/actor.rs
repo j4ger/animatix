@@ -350,7 +350,8 @@ impl Timeline {
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
         let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
 
-        let vector_shape = crate::primitives::find_primitive(ty).filter(|p| p.is_shape());
+        let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
+        let vector_shape = primitive_registry.find(ty).filter(|p| p.is_shape());
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let mut vector_shape_state = self.build_vector_shape_state(
             ty,
@@ -398,7 +399,7 @@ impl Timeline {
         let has_explicit_color = props.iter().any(|p| p.name == "color");
         let has_explicit_stroke =
             props.iter().any(|p| p.name == "stroke" || p.name == "stroke_color");
-        let scheme_primitive = crate::primitives::find_primitive(ty);
+        let scheme_primitive = self.primitive_registry.find(ty);
         if !has_explicit_color {
             if let Some(primitive) = scheme_primitive {
                 if let Some(scheme_color) = self.get_default_color(primitive, "color") {
@@ -915,7 +916,8 @@ impl Timeline {
 
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 
-        if let Some(p) = crate::primitives::find_primitive(ty) {
+        let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
+        if let Some(p) = primitive_registry.find(ty) {
             let mut ctx = crate::primitives::BuildCtx {
                 timeline: self,
                 time_ms,

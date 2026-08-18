@@ -297,7 +297,7 @@ impl Timeline {
                 TextDeclarationKind::Code => "Code",
                 TextDeclarationKind::Typst => "Typst",
             };
-            if let Some(primitive) = crate::primitives::find_primitive(primitive_type) {
+            if let Some(primitive) = self.primitive_registry.find(primitive_type) {
                 if let Some(scheme_color) = self.get_default_color(primitive, "color") {
                     initial_track_color = Some(scheme_color);
                     color = typst::visualize::Color::from_u8(

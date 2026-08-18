@@ -533,7 +533,7 @@ impl Timeline {
                     .actor_type
                     .as_deref()
                     .and_then(|ty| self.primitive_registry.find(ty))
-                    .or_else(|| meta.and_then(|m| crate::primitives::find_primitive(m.type_name)));
+                    .or_else(|| meta.and_then(|m| self.primitive_registry.find(m.type_name)));
                 if let Some(primitive) = primitive {
                     let ctx = crate::primitives::EvaluateCtx {
                         track,
