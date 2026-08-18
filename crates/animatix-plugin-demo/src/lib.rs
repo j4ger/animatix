@@ -6,8 +6,9 @@
 use std::ffi::{c_char, c_void};
 
 use animatix_plugin_api::{
-    NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativePluginApiV1, NativeValueV1,
+    NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PROPERTY_F32,
+    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM, NativePluginApiV1,
+    NativePluginApiV2, NativePrimitiveV2, NativeValueV1,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -22,7 +23,7 @@ pub extern "C" fn animatix_plugin_name() -> *const c_char {
     c"demo".as_ptr()
 }
 
-/// Install plugin capabilities through the host API table.
+/// Install plugin capabilities through the v1 host API table.
 ///
 /// # Safety
 ///
@@ -41,6 +42,54 @@ pub unsafe extern "C" fn animatix_plugin_install_v1(
         return property_status;
     }
     unsafe { (api.register_function)(host, c"double".as_ptr(), double) }
+}
+
+/// Install plugin capabilities through the unified v2 host API table.
+///
+/// # Safety
+///
+/// `api` and `host` must be the values passed by the Animatix loader to the
+/// install entry point. `host` must remain valid for the duration of the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn animatix_plugin_install_v2(
+    api: *const NativePluginApiV2,
+    host: *mut c_void,
+) -> i32 {
+    let api = unsafe { &*api };
+    let property_status = unsafe {
+        (api.register_property)(host, c"Rect".as_ptr(), c"glow".as_ptr(), NATIVE_PROPERTY_F32, true)
+    };
+    if property_status != NATIVE_STATUS_OK {
+        return property_status;
+    }
+
+    let function_status = unsafe { (api.register_function)(host, c"double".as_ptr(), double) };
+    if function_status != NATIVE_STATUS_OK {
+        return function_status;
+    }
+
+    let primitive = NativePrimitiveV2 {
+        type_name: c"Pulse".as_ptr(),
+        display_name: c"Pulse".as_ptr(),
+        icon_id: c"extension:pulse".as_ptr(),
+        category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+        advanced: false,
+        child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+        evaluate: Some(pulse_evaluate),
+    };
+    let primitive_status = unsafe { (api.register_primitive)(host, primitive) };
+    if primitive_status != NATIVE_STATUS_OK {
+        return primitive_status;
+    }
+
+    let action_status = unsafe { (api.register_action)(host, c"pulse".as_ptr(), pulse_action) };
+    if action_status != NATIVE_STATUS_OK {
+        return action_status;
+    }
+
+    unsafe {
+        (api.provide_service)(host, c"demo.pulse".as_ptr(), pulse_action as *const () as usize)
+    }
 }
 
 unsafe extern "C" fn double(
@@ -64,5 +113,23 @@ unsafe extern "C" fn double(
     unsafe {
         *out = result;
     }
+    NATIVE_STATUS_OK
+}
+
+/// Frame-time evaluate callback for the `Pulse` demo primitive.
+///
+/// # Safety
+///
+/// `host` must be the opaque callback context passed by the Animatix host.
+unsafe extern "C" fn pulse_evaluate(_host: *mut c_void) -> i32 {
+    NATIVE_STATUS_OK
+}
+
+/// Execute callback for the `pulse` demo action.
+///
+/// # Safety
+///
+/// `host` must be the opaque callback context passed by the Animatix host.
+unsafe extern "C" fn pulse_action(_host: *mut c_void) -> i32 {
     NATIVE_STATUS_OK
 }

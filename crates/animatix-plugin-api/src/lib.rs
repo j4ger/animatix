@@ -102,3 +102,75 @@ pub struct NativePluginApiV1 {
 
 /// Native plugin install entry point.
 pub type NativeInstallFn = unsafe extern "C" fn(*const NativePluginApiV1, *mut c_void) -> i32;
+
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_SHAPE: u32 = 0;
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_TEXT: u32 = 1;
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_MEDIA: u32 = 2;
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_PLOT: u32 = 3;
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_CONTAINER: u32 = 4;
+/// Primitive UI category for ABI v2.
+pub const NATIVE_PRIMITIVE_CATEGORY_ANNOTATION: u32 = 5;
+
+/// Child-processing strategy for ABI v2.
+pub const NATIVE_PRIMITIVE_CHILD_GENERIC: u32 = 0;
+/// Child-processing strategy for ABI v2.
+pub const NATIVE_PRIMITIVE_CHILD_FILTER: u32 = 1;
+/// Child-processing strategy for ABI v2.
+pub const NATIVE_PRIMITIVE_CHILD_MASK: u32 = 2;
+/// Child-processing strategy for ABI v2.
+pub const NATIVE_PRIMITIVE_CHILD_EQUATION: u32 = 3;
+
+/// Native primitive evaluate callback.
+pub type NativePrimitiveEvaluateV2 = unsafe extern "C" fn(*mut c_void) -> i32;
+
+/// Native action execute callback.
+pub type NativeActionExecuteV2 = unsafe extern "C" fn(*mut c_void) -> i32;
+
+/// Descriptor passed from a native plugin to register a primitive.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativePrimitiveV2 {
+    /// Source text type name.
+    pub type_name: *const c_char,
+    /// Display name for GUI palettes.
+    pub display_name: *const c_char,
+    /// Opaque icon id.
+    pub icon_id: *const c_char,
+    /// `NATIVE_PRIMITIVE_CATEGORY_*` value.
+    pub category: u32,
+    /// Whether the primitive is hidden in the advanced menu.
+    pub advanced: bool,
+    /// `NATIVE_PRIMITIVE_CHILD_*` value.
+    pub child_processing: u32,
+    /// Optional frame-time evaluate callback.
+    pub evaluate: Option<NativePrimitiveEvaluateV2>,
+}
+
+/// Host callbacks available to a native plugin during ABI v2 install.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativePluginApiV2 {
+    /// `size_of::<NativePluginApiV2>()` so future ABI revisions can grow.
+    pub size: usize,
+    /// Register an external property for an actor type.
+    pub register_property:
+        unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32, bool) -> i32,
+    /// Register a native expression function.
+    pub register_function:
+        unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunctionV1) -> i32,
+    /// Register a native primitive.
+    pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitiveV2) -> i32,
+    /// Register a native action.
+    pub register_action:
+        unsafe extern "C" fn(*mut c_void, *const c_char, NativeActionExecuteV2) -> i32,
+    /// Provide a native service value.
+    pub provide_service: unsafe extern "C" fn(*mut c_void, *const c_char, usize) -> i32,
+}
+
+/// Native plugin ABI v2 install entry point.
+pub type NativeInstallFnV2 = unsafe extern "C" fn(*const NativePluginApiV2, *mut c_void) -> i32;

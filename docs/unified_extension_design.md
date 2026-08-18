@@ -1,6 +1,6 @@
 # Unified Extension Architecture
 
-Status: proposed
+Status: implementation in progress
 
 This document refines the extension abstraction plan into one concrete target:
 a single descriptor/registry path for built-ins, in-process extensions, and
@@ -9,21 +9,22 @@ execution order.
 
 ## Current State
 
-The workspace still has several parallel sources of truth:
+Most registration and dispatch now goes through one registry shape, with the
+remaining cleanup work concentrated in tooling consumers and compatibility
+helpers:
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
-| Primitive metadata/dispatch | static `PRIMITIVES` + `Primitive` trait | `PrimitiveRegistry` custom entries |
-| Property metadata | `schema::PropertySpec` + runtime `PROPERTY_REGISTRY` | `ExtensionContext::ExtensionPropertySpec` |
+| Primitive metadata/dispatch | `PrimitiveRegistry` + `Primitive` trait | same `PrimitiveRegistry` custom entries |
+| Property metadata | `schema::PropertySpec` + runtime `PROPERTY_REGISTRY` | `PropertyRegistry` descriptors/bindings |
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
-| Runtime lookup | `find_primitive()` / `PrimitiveDescriptor::for_actor_type()` | `Timeline::primitive_registry` |
+| Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
 | Tooling metadata | `schema::builtin_primitive_specs()` | analyzer/LSP `ExtensionManifest` |
-| Native plugins | n/a | C ABI v1 property/function registration |
+| Native plugins | n/a | C ABI v2 primitive/action/service registration |
 
-The main consequence is that adding an external primitive still needs the
-runtime `Primitive` trait and the extension registry, while adding a built-in
-primitive needs the static list and descriptor helpers. Native plugins cannot
-currently register primitives/actions/services at all.
+The remaining parallel paths are tooling-level: analyzer/LSP still consume
+manifest/schema descriptors, and a few runtime compatibility helpers wrap the
+unified registries.
 
 ## Target Model
 
@@ -137,10 +138,14 @@ completions, and native ABI compatibility.
 - Phase D implemented: `find_primitive()` is backed by a global built-in
   `PrimitiveRegistry`, and timeline build/eval paths use
   `Timeline::primitive_registry` directly.
+- Phase E implemented: `animatix-plugin-api` grew a v2 callback table for
+  primitives, actions, and services; the native host wraps them in
+  `Primitive`/`BuiltinAction` adapters and the demo plugin registers all five
+  capability kinds through the same install path.
 - Phase F partial: GUI inspector/keyframe table now read extension properties
   through unified `PropertyDescriptor`s from `Timeline`.
-- Phases 3-6 remain planned; they involve property binding migration,
-  capability dispatch migration, native ABI v2, and tooling cleanup.
+- Remaining: analyzer/LSP descriptor conversion, tooling cleanup, and full
+  commit gates.
 
 ## Phases
 

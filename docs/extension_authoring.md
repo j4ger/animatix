@@ -131,12 +131,15 @@ A plugin exports:
 
 - `animatix_plugin_abi_version() -> u32`
 - `animatix_plugin_name() -> *const c_char`
-- `animatix_plugin_install_v1(api, host) -> i32`
+- `animatix_plugin_install_v1(api, host) -> i32` and/or
+  `animatix_plugin_install_v2(api, host) -> i32`
 
-The install entry point receives a host API table. ABI v1 can register external
-properties and native expression functions. Expression callbacks exchange
-`NativeValueV1` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
-Strings, lists, closures, and other runtime values return a type error.
+ABI v1 can register external properties and native expression functions. ABI v2
+adds `NativePrimitiveV2`, action callbacks, and opaque service values, so one
+native install path can register the same capability kinds as an in-process
+`ExtensionPlugin`. Expression callbacks exchange `NativeValueV1` values: `Num`,
+`Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`. Strings, lists, closures, and other
+runtime values return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo
@@ -160,10 +163,9 @@ name = "glow"
 type = "Num"
 ```
 
-Primitives, actions, and typed services still use the compiled-in
-`ExtensionPlugin` API. Native ABI v1 focuses on the cross-library boundary for
-properties and expression functions; later ABI revisions can add callbacks for
-primitive build/evaluate and action dispatch.
+Primitives, actions, and services now share one native ABI v2 path with
+properties and functions. The host keeps each loaded `Library` alive through the
+registered callbacks and the disposer returned by install.
 
 ## Current Limits
 
@@ -175,7 +177,7 @@ primitive build/evaluate and action dispatch.
   the timeline's primitive registry, and the inspector/keyframe table show
   extension properties from the actor plan. LSP does not load runtime extension
   contexts.
-- CLI accepts `--plugin` manifests and native libraries. Native ABI v1
-  registers external properties and expression functions; primitives, actions,
-  and typed services from a dynamic library still require the compiled-in
-  `ExtensionPlugin` path.
+- CLI accepts `--plugin` manifests and native libraries. Native ABI v2
+  registers properties, expression functions, primitives, actions, and services
+  from a dynamic library; analyzer/LSP still derive most static metadata from
+  the manifest.
