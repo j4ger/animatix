@@ -499,7 +499,7 @@ pub struct Timeline {
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Optional extension context used during build.
-    extensions: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
+    extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,

@@ -9,6 +9,7 @@ pub(crate) use animatix_syntax::{ast, diagnostics, easing, icon_glyphs, module};
 pub mod composition;
 /// Extension context for registering capabilities per build.
 pub mod extension_context;
+pub use extension_context::ExtensionRegistry;
 /// Plugin loader for extension contexts.
 pub mod extension_plugin;
 /// Intermediate representation module.

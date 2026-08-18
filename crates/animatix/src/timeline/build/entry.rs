@@ -359,7 +359,7 @@ impl Timeline {
         carry: Option<(&crate::timeline::persistence::CarryBag, &Timeline, u64, [f64; 2])>,
         asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
         primitive_registry: Option<std::sync::Arc<crate::primitives::PrimitiveRegistry>>,
-        extensions: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
+        extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
     ) -> BuildReport<Self> {
         // Clear expression evaluation cache at the start of each build.
         crate::timeline::utils::clear_eval_cache();

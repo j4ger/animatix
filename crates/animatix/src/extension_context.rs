@@ -55,9 +55,13 @@ impl std::fmt::Display for PropertyRegistrationError {
 
 impl std::error::Error for PropertyRegistrationError {}
 
-/// A per-build container of capabilities provided by extensions.
+/// Per-build container of capabilities provided by extensions.
+///
+/// This is the single registry for primitives, properties, actions, functions,
+/// and services. `ExtensionContext` is a compatibility alias for existing API
+/// users.
 #[derive(Default)]
-pub struct ExtensionContext {
+pub struct ExtensionRegistry {
     primitives: Arc<PrimitiveRegistry>,
     properties: Vec<ExtensionPropertySpec>,
     next_property_id: u32,
@@ -66,7 +70,10 @@ pub struct ExtensionContext {
     services: HashMap<String, Arc<dyn Any + Send + Sync>>,
 }
 
-impl ExtensionContext {
+/// Compatibility alias for the unified extension registry.
+pub type ExtensionContext = ExtensionRegistry;
+
+impl ExtensionRegistry {
     /// Create a context initialized with the built-in primitive registry.
     pub fn new() -> Self {
         Self {

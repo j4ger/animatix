@@ -128,6 +128,9 @@ completions, and native ABI compatibility.
 - Phase A implemented: `PropertyDescriptor` now lives in
   `animatix-syntax::schema`; shared `PrimitiveDescriptor` and
   `ChildProcessingKind` were added; runtime keeps re-exports/helpers.
+- Phase B implemented: the per-build capability container is now
+  `ExtensionRegistry`; `ExtensionContext` remains as a compatibility alias,
+  and `Timeline` stores `Arc<ExtensionRegistry>`.
 - Phases 3-6 remain planned; they involve property binding migration,
   capability dispatch migration, native ABI v2, and tooling cleanup.
 
