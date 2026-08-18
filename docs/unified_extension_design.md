@@ -137,6 +137,8 @@ completions, and native ABI compatibility.
 - Phase D implemented: `find_primitive()` is backed by a global built-in
   `PrimitiveRegistry`, and timeline build/eval paths use
   `Timeline::primitive_registry` directly.
+- Phase F partial: GUI inspector/keyframe table now read extension properties
+  through unified `PropertyDescriptor`s from `Timeline`.
 - Phases 3-6 remain planned; they involve property binding migration,
   capability dispatch migration, native ABI v2, and tooling cleanup.
 

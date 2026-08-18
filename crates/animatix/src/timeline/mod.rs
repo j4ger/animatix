@@ -656,6 +656,16 @@ impl Timeline {
             .unwrap_or_default()
     }
 
+    /// Unified descriptors for extension-only properties.
+    pub fn extension_property_descriptors(
+        &self,
+    ) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        self.extensions
+            .as_ref()
+            .map(|ctx| ctx.extension_property_descriptors())
+            .unwrap_or_default()
+    }
+
     /// Unified property descriptor view for built-in and extension properties.
     ///
     /// This is the tooling-facing migration point: consumers that need one

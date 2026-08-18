@@ -201,6 +201,11 @@ impl PropertyRegistry {
         descriptors.extend(self.extensions.iter().map(crate::property_descriptor::from_extension));
         descriptors
     }
+
+    /// Return extension-only descriptors in registration order.
+    pub fn extension_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        self.extensions.iter().map(crate::property_descriptor::from_extension).collect()
+    }
 }
 
 /// Per-build container of capabilities provided by extensions.
@@ -284,6 +289,13 @@ impl ExtensionRegistry {
     /// Return all built-in and extension property descriptors.
     pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
         self.properties.descriptors()
+    }
+
+    /// Return extension-only property descriptors.
+    pub fn extension_property_descriptors(
+        &self,
+    ) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        self.properties.extension_descriptors()
     }
 
     /// Register or replace a custom action handler.

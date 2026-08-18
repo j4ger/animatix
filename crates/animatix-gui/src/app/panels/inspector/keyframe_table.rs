@@ -405,28 +405,28 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
 
     let actor_type = track.actor_type.as_deref();
     let mut extensions = Vec::new();
-    for spec in timeline.extension_property_specs() {
-        if Some(spec.actor_type.as_str()) != actor_type {
+    for descriptor in timeline.extension_property_descriptors() {
+        if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
             continue;
         }
-        if track.property_plan.keyframe_count(spec.id) == 0 {
+        if track.property_plan.keyframe_count(descriptor.id) == 0 {
             continue;
         }
         let mut keyframes = Vec::new();
-        for time_ms in track.property_plan.keyframe_times(spec.id) {
-            if let Some(value) = read_property_plan_slot(track, spec.id, time_ms) {
+        for time_ms in track.property_plan.keyframe_times(descriptor.id) {
+            if let Some(value) = read_property_plan_slot(track, descriptor.id, time_ms) {
                 let easing = track
                     .property_plan
-                    .keyframe_easing(spec.id, time_ms)
+                    .keyframe_easing(descriptor.id, time_ms)
                     .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                keyframes.push((time_ms, format_value(&value, &spec.name), easing));
+                keyframes.push((time_ms, format_value(&value, &descriptor.name), easing));
             }
         }
         if keyframes.is_empty() {
             continue;
         }
         extensions.push(PropertyTrackInfo {
-            name: spec.name.clone(),
+            name: descriptor.name.clone(),
             keyframes,
         });
     }

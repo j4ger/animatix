@@ -229,20 +229,23 @@ pub(crate) fn build_property_groups(
 
     let mut extension_props = Vec::new();
     let actor_type = track.actor_type.as_deref();
-    for spec in timeline.extension_property_specs() {
-        if Some(spec.actor_type.as_str()) != actor_type {
+    for descriptor in timeline.extension_property_descriptors() {
+        if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
             continue;
         }
-        let Some(value) = animatix::timeline::read_property_plan_slot(track, spec.id, time_ms)
+        let Some(value) =
+            animatix::timeline::read_property_plan_slot(track, descriptor.id, time_ms)
         else {
             continue;
         };
         extension_props.push(PropertyEntry {
-            name: spec.name.clone(),
+            name: descriptor.name.clone(),
             kind: extension_value_to_kind(value),
-            has_keyframes: track.property_plan.keyframe_count(spec.id) > 0,
-            has_keyframe_at_current_time: track.property_plan.has_keyframe_at(spec.id, time_ms),
-            keyframe_count: track.property_plan.keyframe_count(spec.id),
+            has_keyframes: track.property_plan.keyframe_count(descriptor.id) > 0,
+            has_keyframe_at_current_time: track
+                .property_plan
+                .has_keyframe_at(descriptor.id, time_ms),
+            keyframe_count: track.property_plan.keyframe_count(descriptor.id),
         });
     }
     if !extension_props.is_empty() {
