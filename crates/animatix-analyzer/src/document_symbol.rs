@@ -40,6 +40,6 @@ pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
         });
     }
 
-    result.sort_by(|a, b| a.line.cmp(&b.line));
+    result.sort_by_key(|symbol| symbol.line);
     result
 }
