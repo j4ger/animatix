@@ -140,13 +140,16 @@ primitives have optional `build`, `evaluate`, `handle_assignment`, and
 `finalize_container_build` callbacks. The host builds children through the same
 timeline path as built-ins and then calls finalize, so native containers no
 longer need to fake their way through a built-in `ActorKindId`. Evaluate
-callbacks receive a host context with `get_property`, `append_path`,
-`append_text`, `append_image`, and `append_highlight`; the demo primitive reads
-its keyframed `glow` property and emits paths, text, and a highlight layer that
-render through the normal scene-evaluation path. Expression callbacks exchange
-`NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`, `Color`,
-`String`, and `List`. Objects, closures, and native function values return a
-type error.
+callbacks receive a host context with `get_property`, `get_service`,
+`append_path`, `append_text`, `append_image`, and `append_highlight`; the demo
+primitive reads its keyframed `glow` property and emits paths, text, and a
+highlight layer that render through the normal scene-evaluation path. Native
+actions register full signatures and execute with targets, args, modifiers,
+time, and a host `write_keyframe` API. Native functions receive a host context
+that can read frame-environment values and services. Expression callbacks
+exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`,
+`Color`, `String`, and `List`. Objects, closures, and native function values
+return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo

@@ -19,8 +19,9 @@ use animatix_plugin_api::{
     NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
     NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
     NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
-    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeActionExecuteFn, NativeAssignmentContext,
-    NativeAssignmentFn, NativeChild, NativeFinalizeContext, NativeFinalizeFn, NativeFunction,
+    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction, NativeActionContext, NativeActionExecuteFn,
+    NativeActionParam, NativeAssignmentContext, NativeAssignmentFn, NativeChild,
+    NativeFinalizeContext, NativeFinalizeFn, NativeFunction, NativeFunctionContext,
     NativeHighlightCommand, NativeImageCommand, NativeInstallFn, NativeModifierValue,
     NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveBuildCtx,
     NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn,
@@ -32,7 +33,7 @@ use libloading::Library;
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::extension_context::ExtensionContext;
 use crate::primitives::{AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
-use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
+use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, Value};
@@ -127,6 +128,7 @@ impl ExtensionPlugin for NativePlugin {
                 properties: Vec::new(),
                 property_ids: HashMap::new(),
                 property_kinds: HashMap::new(),
+                service_values: HashMap::new(),
                 functions: Vec::new(),
                 primitives: Vec::new(),
                 actions: Vec::new(),
@@ -170,10 +172,62 @@ struct NativeHost<'a> {
     properties: Vec<(String, String)>,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
     property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    service_values: HashMap<String, usize>,
     functions: Vec<String>,
     primitives: Vec<String>,
     actions: Vec<String>,
     services: Vec<String>,
+}
+
+struct NativeFunctionHost<'a> {
+    env: &'a Environment,
+    service_values: &'a HashMap<String, usize>,
+    arena: NativeValueArena,
+}
+
+unsafe extern "C" fn native_function_get_env(
+    host: *mut c_void,
+    name: *const c_char,
+    out: *mut NativeValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeFunctionHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.env.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Ok(native) = value_to_native(&value, &mut host.arena) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = native };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_function_get_service(
+    host: *mut c_void,
+    name: *const c_char,
+    out: *mut usize,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeFunctionHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.service_values.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = *value };
+    NATIVE_STATUS_OK
 }
 
 unsafe extern "C" fn native_register_property(
@@ -230,6 +284,7 @@ unsafe extern "C" fn native_register_function(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let library = host.library.clone();
+    let service_values = host.service_values.clone();
     let function_name = name.clone();
     host.ctx.register_function(name.clone(), move |args, env| unsafe {
         let _keep_alive = &library;
@@ -239,14 +294,25 @@ unsafe extern "C" fn native_register_function(
             .map(|value| value_to_native(value, &mut arena))
             .collect::<Result<Vec<_>, _>>()?;
         let mut out = NativeValue::default();
+        let mut function_host = NativeFunctionHost {
+            env,
+            service_values: &service_values,
+            arena,
+        };
+        let mut native_ctx = NativeFunctionContext {
+            size: std::mem::size_of::<NativeFunctionContext>(),
+            host: (&mut function_host as *mut NativeFunctionHost).cast(),
+            get_env: native_function_get_env,
+            get_service: native_function_get_service,
+        };
         let status = callback(
+            &mut native_ctx,
             if native_args.is_empty() {
                 std::ptr::null()
             } else {
                 native_args.as_ptr()
             },
             native_args.len(),
-            env as *const Environment as *const c_void,
             &mut out,
         );
         match status {
@@ -281,6 +347,7 @@ unsafe extern "C" fn native_register_primitive(
         library,
         host.property_ids.clone(),
         host.property_kinds.clone(),
+        host.service_values.clone(),
     ) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
@@ -292,23 +359,54 @@ unsafe extern "C" fn native_register_primitive(
     NATIVE_STATUS_OK
 }
 
-unsafe extern "C" fn native_register_action(
-    host: *mut c_void,
-    name: *const c_char,
-    callback: NativeActionExecuteFn,
-) -> i32 {
+unsafe fn read_native_action_params(
+    params: *const NativeActionParam,
+    len: usize,
+) -> Vec<ActionParam> {
+    if params.is_null() || len == 0 {
+        return Vec::new();
+    }
+    let params = unsafe { std::slice::from_raw_parts(params, len) };
+    params
+        .iter()
+        .map(|param| ActionParam {
+            name: (unsafe { read_c_string(param.name) }).unwrap_or_default(),
+            description: (unsafe { read_c_string(param.description) }).unwrap_or_default(),
+            type_info: (unsafe { read_c_string(param.type_info) }).unwrap_or_default(),
+        })
+        .collect()
+}
+
+unsafe extern "C" fn native_register_action(host: *mut c_void, action: NativeAction) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
+    let Some(name) = (unsafe { read_c_string(action.name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    let Some(category) = (unsafe { read_c_string(action.category) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(description) = (unsafe { read_c_string(action.description) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let params = unsafe { read_native_action_params(action.params, action.param_len) };
+    let modifiers = unsafe { read_native_action_params(action.modifiers, action.modifier_len) };
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     host.ctx.register_action(Box::new(NativeActionAdapter {
-        name: name.clone(),
-        callback,
+        signature: ActionSignature {
+            name: name.clone(),
+            category,
+            description,
+            params,
+            modifiers,
+        },
+        callback: action.execute,
+        property_ids: host.property_ids.clone(),
+        property_kinds: host.property_kinds.clone(),
+        service_values: host.service_values.clone(),
         _library: library,
     }));
     host.actions.push(name);
@@ -347,6 +445,7 @@ unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeSe
             _library: library,
         },
     );
+    host.service_values.insert(name.clone(), service.value);
     host.services.push(name);
     NATIVE_STATUS_OK
 }
@@ -363,6 +462,7 @@ struct NativePrimitiveAdapter {
     child_processing: ChildProcessing,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
     property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    service_values: HashMap<String, usize>,
     build: Option<NativePrimitiveBuildFn>,
     evaluate: Option<NativePrimitiveEvaluateFn>,
     handle_assignment: Option<NativeAssignmentFn>,
@@ -376,6 +476,7 @@ impl NativePrimitiveAdapter {
         library: Arc<dyn Any + Send + Sync>,
         property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
         property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+        service_values: HashMap<String, usize>,
     ) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
         let display_name =
@@ -395,6 +496,7 @@ impl NativePrimitiveAdapter {
                 .unwrap_or_default(),
             property_ids,
             property_kinds,
+            service_values,
             build: primitive.build,
             evaluate: primitive.evaluate,
             handle_assignment: primitive.handle_assignment,
@@ -616,6 +718,7 @@ impl Primitive for NativePrimitiveAdapter {
         let mut host = NativePrimitiveEvaluateHost {
             ctx,
             property_ids: &self.property_ids,
+            service_values: &self.service_values,
             text_compiler,
             font_context,
             commands: Vec::new(),
@@ -626,6 +729,7 @@ impl Primitive for NativePrimitiveAdapter {
             time_ms: ctx.time_ms as f64,
             host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
             get_property: Some(native_get_property),
+            get_service: Some(native_get_service),
             append_path: Some(native_append_path),
             append_text: Some(native_append_text),
             append_image: Some(native_append_image),
@@ -645,6 +749,7 @@ impl Primitive for NativePrimitiveAdapter {
 struct NativePrimitiveEvaluateHost<'a> {
     ctx: &'a EvaluateCtx<'a>,
     property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
+    service_values: &'a HashMap<String, usize>,
     text_compiler: Option<&'a mut crate::renderer::text::TextCompiler>,
     font_context: Option<&'a crate::renderer::text::FontContext>,
     commands: Vec<crate::primitives::RenderCommand>,
@@ -685,6 +790,27 @@ unsafe extern "C" fn native_get_property(
         return NATIVE_STATUS_TYPE_ERROR;
     }
     unsafe { *out = native };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_get_service(
+    host: *mut c_void,
+    name: *const c_char,
+    out: *mut usize,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.service_values.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = *value };
     NATIVE_STATUS_OK
 }
 
@@ -1253,30 +1379,226 @@ fn native_color([r, g, b, a]: [f64; 4]) -> vello::peniko::Color {
 
 /// Host-side adapter that turns a native action callback into a runtime action.
 struct NativeActionAdapter {
-    name: String,
+    signature: ActionSignature,
     callback: NativeActionExecuteFn,
+    property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
+    property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    service_values: HashMap<String, usize>,
     _library: Arc<dyn Any + Send + Sync>,
+}
+
+struct NativeActionHost<'a> {
+    timeline: &'a mut crate::timeline::Timeline,
+    targets: Vec<*const c_char>,
+    args: Vec<NativeValue>,
+    modifiers: Vec<NativeModifierValue>,
+    property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
+    property_kinds: &'a HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    service_values: &'a HashMap<String, usize>,
+}
+
+unsafe extern "C" fn native_action_get_target_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return 0;
+    };
+    host.targets.len()
+}
+
+unsafe extern "C" fn native_action_get_target(
+    host: *mut c_void,
+    index: usize,
+    out: *mut *const c_char,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(target) = host.targets.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *target };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_action_get_arg_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return 0;
+    };
+    host.args.len()
+}
+
+unsafe extern "C" fn native_action_get_arg(
+    host: *mut c_void,
+    index: usize,
+    out: *mut NativeValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(arg) = host.args.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *arg };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_action_get_modifier_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return 0;
+    };
+    host.modifiers.len()
+}
+
+unsafe extern "C" fn native_action_get_modifier(
+    host: *mut c_void,
+    index: usize,
+    out: *mut NativeModifierValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(modifier) = host.modifiers.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *modifier };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_action_write_keyframe(
+    host: *mut c_void,
+    target: *const c_char,
+    name: *const c_char,
+    value: NativeValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: u32,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(target) = (unsafe { read_c_string(target) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(track) = host.timeline.tracks.get_mut(&target) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(id) = host.property_ids.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(kind) = host.property_kinds.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(property_value) = native_to_property_value(value, *kind) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    crate::timeline::property_engine::write_property_plan_slot(
+        track,
+        *id,
+        crate::timeline::PropertyKind::from(*kind),
+        property_value,
+        t_start_ms,
+        t_end_ms,
+        native_easing(easing),
+    );
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_action_get_service(
+    host: *mut c_void,
+    name: *const c_char,
+    out: *mut usize,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.service_values.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = *value };
+    NATIVE_STATUS_OK
 }
 
 impl BuiltinAction for NativeActionAdapter {
     fn signature(&self) -> ActionSignature {
-        ActionSignature {
-            name: self.name.clone(),
-            category: "Native".to_string(),
-            description: "Native plugin action".to_string(),
-            params: vec![],
-            modifiers: vec![],
-        }
+        self.signature.clone()
     }
 
     fn execute(
         &self,
-        _action: &crate::ast::Action,
-        _time_ms: f64,
-        _timeline: &mut crate::timeline::Timeline,
-        _diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+        action: &crate::ast::Action,
+        time_ms: f64,
+        timeline: &mut crate::timeline::Timeline,
+        diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
     ) {
-        let _status = unsafe { (self.callback)(std::ptr::null_mut()) };
+        let mut arena = NativeValueArena::default();
+        let args = action
+            .args
+            .iter()
+            .map(|arg| {
+                crate::timeline::utils::evaluate_expr(arg, &timeline.env)
+                    .ok()
+                    .and_then(|value| value_to_native(&value, &mut arena).ok())
+                    .unwrap_or_default()
+            })
+            .collect();
+        let modifiers = action
+            .modifiers
+            .iter()
+            .map(|modifier| {
+                let name_ptr = modifier
+                    .name
+                    .as_deref()
+                    .map(|name| arena.string(name).0)
+                    .unwrap_or(std::ptr::null());
+                let value = crate::timeline::utils::evaluate_expr(&modifier.value, &timeline.env)
+                    .ok()
+                    .and_then(|value| value_to_native(&value, &mut arena).ok())
+                    .unwrap_or_default();
+                NativeModifierValue {
+                    name: name_ptr,
+                    value,
+                }
+            })
+            .collect();
+        let targets = action.targets.iter().map(|target| arena.string(target).0).collect();
+        let mut host = NativeActionHost {
+            timeline,
+            targets,
+            args,
+            modifiers,
+            property_ids: &self.property_ids,
+            property_kinds: &self.property_kinds,
+            service_values: &self.service_values,
+        };
+        let mut native_ctx = NativeActionContext {
+            size: std::mem::size_of::<NativeActionContext>(),
+            host: (&mut host as *mut NativeActionHost).cast(),
+            time_ms,
+            get_target_count: native_action_get_target_count,
+            get_target: native_action_get_target,
+            get_arg_count: native_action_get_arg_count,
+            get_arg: native_action_get_arg,
+            get_modifier_count: native_action_get_modifier_count,
+            get_modifier: native_action_get_modifier,
+            write_keyframe: native_action_write_keyframe,
+            get_service: native_action_get_service,
+        };
+        let status = unsafe { (self.callback)(&mut native_ctx) };
+        if status != NATIVE_STATUS_OK {
+            diagnostics.push(crate::diagnostics::Diagnostic::error(
+                crate::diagnostics::DiagnosticCode::UnknownAction,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!("native action '{}' failed with status {status}", self.signature.name),
+            ));
+        }
     }
 }
 
@@ -1597,6 +1919,23 @@ mod tests {
     static BUILD_CHILD_COUNT: std::sync::atomic::AtomicUsize =
         std::sync::atomic::AtomicUsize::new(0);
 
+    unsafe extern "C" fn action_write_test(ctx: *mut NativeActionContext) -> i32 {
+        let ctx = unsafe { &*ctx };
+        if unsafe { (ctx.get_target_count)(ctx.host) } != 1 {
+            return NATIVE_STATUS_TYPE_ERROR;
+        }
+        let mut target = std::ptr::null();
+        if unsafe { (ctx.get_target)(ctx.host, 0, &mut target) } != NATIVE_STATUS_OK {
+            return NATIVE_STATUS_TYPE_ERROR;
+        }
+        let value = NativeValue {
+            tag: NATIVE_VALUE_NUM,
+            num: 7.0,
+            ..NativeValue::default()
+        };
+        unsafe { (ctx.write_keyframe)(ctx.host, target, c"glow".as_ptr(), value, 0, 1000, 0) }
+    }
+
     unsafe extern "C" fn record_build_children(ctx: *mut NativePrimitiveBuildCtx) -> i32 {
         let ctx = unsafe { &*ctx };
         BUILD_CHILD_COUNT
@@ -1644,6 +1983,91 @@ mod tests {
     }
 
     #[test]
+    fn native_function_context_reads_env_and_service() {
+        let mut env = Environment::new();
+        env.set("answer", Value::Num(42.0));
+        let service_values = HashMap::from([("demo.pulse".to_string(), 7usize)]);
+        let mut host = NativeFunctionHost {
+            env: &env,
+            service_values: &service_values,
+            arena: NativeValueArena::default(),
+        };
+        let mut out = NativeValue::default();
+        assert_eq!(
+            unsafe {
+                native_function_get_env(
+                    (&mut host as *mut NativeFunctionHost).cast::<c_void>(),
+                    c"answer".as_ptr(),
+                    &mut out,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(out.tag, NATIVE_VALUE_NUM);
+        assert_eq!(out.num, 42.0);
+
+        let mut service = 0;
+        assert_eq!(
+            unsafe {
+                native_function_get_service(
+                    (&mut host as *mut NativeFunctionHost).cast::<c_void>(),
+                    c"demo.pulse".as_ptr(),
+                    &mut service,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(service, 7);
+    }
+
+    #[test]
+    fn native_action_context_writes_extension_keyframe() {
+        use animatix_syntax::schema::PropertyValueKind;
+
+        let mut ctx = ExtensionContext::new();
+        let id = ctx
+            .register_property("Pulse", "glow", PropertyValueKind::F32, true)
+            .expect("register property");
+        let mut timeline = crate::timeline::Timeline::new();
+        let mut track = crate::timeline::AnimationTrack::new("p".to_string());
+        track.actor_type = Some("Pulse".to_string());
+        timeline.tracks.insert("p".to_string(), track);
+
+        let adapter = NativeActionAdapter {
+            signature: ActionSignature {
+                name: "pulse".to_string(),
+                category: "Native".to_string(),
+                description: "Test action".to_string(),
+                params: vec![],
+                modifiers: vec![],
+            },
+            callback: action_write_test,
+            property_ids: HashMap::from([("glow".to_string(), id)]),
+            property_kinds: HashMap::from([("glow".to_string(), PropertyValueKind::F32)]),
+            service_values: HashMap::new(),
+            _library: Arc::new(()) as Arc<dyn Any + Send + Sync>,
+        };
+        let action = crate::ast::Action {
+            verb: "pulse".to_string(),
+            targets: vec!["p".to_string()],
+            args: vec![],
+            modifiers: vec![],
+            byte_span: None,
+        };
+        let mut diagnostics = Vec::new();
+        adapter.execute(&action, 0.0, &mut timeline, &mut diagnostics);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+        assert_eq!(
+            crate::timeline::property_engine::read_property_plan_slot(
+                timeline.tracks.get("p").expect("track"),
+                id,
+                500,
+            ),
+            Some(crate::timeline::PropertyValue::F32(7.0))
+        );
+    }
+
+    #[test]
     fn property_kind_codes_cover_dynamic_track_kinds() {
         for kind in [
             PropertyKind::F32,
@@ -1672,9 +2096,9 @@ mod tests {
     }
 
     unsafe extern "C" fn double(
+        _ctx: *mut NativeFunctionContext,
         args: *const NativeValue,
         arg_len: usize,
-        _env: *const c_void,
         out: *mut NativeValue,
     ) -> i32 {
         if arg_len != 1 {
@@ -1695,7 +2119,7 @@ mod tests {
         NATIVE_STATUS_OK
     }
 
-    unsafe extern "C" fn pulse_action(_host: *mut c_void) -> i32 {
+    unsafe extern "C" fn pulse_action(_ctx: *mut NativeActionContext) -> i32 {
         NATIVE_STATUS_OK
     }
 
@@ -1748,6 +2172,7 @@ mod tests {
             properties: Vec::new(),
             property_ids: HashMap::new(),
             property_kinds: HashMap::new(),
+            service_values: HashMap::new(),
             functions: Vec::new(),
             primitives: Vec::new(),
             actions: Vec::new(),
@@ -1808,8 +2233,16 @@ mod tests {
             unsafe {
                 native_register_action(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    c"pulse".as_ptr(),
-                    pulse_action,
+                    NativeAction {
+                        name: c"pulse".as_ptr(),
+                        category: c"Native".as_ptr(),
+                        description: c"Demo native pulse action".as_ptr(),
+                        params: std::ptr::null(),
+                        param_len: 0,
+                        modifiers: std::ptr::null(),
+                        modifier_len: 0,
+                        execute: pulse_action,
+                    },
                 )
             },
             NATIVE_STATUS_OK
@@ -1873,9 +2306,11 @@ mod tests {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let eval_ctx = sample_evaluate_ctx(&track);
         let property_ids = HashMap::new();
+        let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            service_values: &service_values,
             text_compiler: None,
             font_context: None,
             commands: Vec::new(),
@@ -1919,6 +2354,7 @@ mod tests {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let eval_ctx = sample_evaluate_ctx(&track);
         let property_ids = HashMap::new();
+        let service_values = HashMap::new();
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let mut text_compiler = crate::renderer::text::TextCompiler::new();
         let text_ctx = crate::primitives::TextCompileCtx {
@@ -1930,6 +2366,7 @@ mod tests {
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            service_values: &service_values,
             text_compiler,
             font_context,
             commands: Vec::new(),
@@ -1970,9 +2407,11 @@ mod tests {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let eval_ctx = sample_evaluate_ctx(&track);
         let property_ids = HashMap::new();
+        let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            service_values: &service_values,
             text_compiler: None,
             font_context: None,
             commands: Vec::new(),
@@ -2019,9 +2458,11 @@ mod tests {
             .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
         let eval_ctx = sample_evaluate_ctx(&track);
         let property_ids = HashMap::new();
+        let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            service_values: &service_values,
             text_compiler: None,
             font_context: None,
             commands: Vec::new(),
@@ -2118,9 +2559,11 @@ mod tests {
         );
         let eval_ctx = sample_evaluate_ctx(&track);
         let property_ids = HashMap::from([("glow".to_string(), id)]);
+        let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            service_values: &service_values,
             text_compiler: None,
             font_context: None,
             commands: Vec::new(),
@@ -2321,6 +2764,7 @@ mod tests {
             Arc::new(()) as Arc<dyn Any + Send + Sync>,
             HashMap::new(),
             HashMap::new(),
+            HashMap::new(),
         )
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
@@ -2363,6 +2807,7 @@ mod tests {
         let adapter = NativePrimitiveAdapter::new(
             primitive,
             Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
             HashMap::new(),
             HashMap::new(),
         )

@@ -8,9 +8,9 @@ use std::ffi::{c_char, c_void};
 use animatix_plugin_api::{
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
     NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativeHighlightCommand, NativePathCommand, NativePluginApi, NativePrimitive,
-    NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService, NativeTextCommand,
-    NativeValue,
+    NativeAction, NativeActionContext, NativeFunctionContext, NativeHighlightCommand,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
+    NativePropertyDescriptor, NativeService, NativeTextCommand, NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -85,7 +85,17 @@ pub unsafe extern "C" fn animatix_plugin_install(
         return primitive_status;
     }
 
-    let action_status = unsafe { (api.register_action)(host, c"pulse".as_ptr(), pulse_action) };
+    let action = NativeAction {
+        name: c"pulse".as_ptr(),
+        category: c"Native".as_ptr(),
+        description: c"Demo native pulse action".as_ptr(),
+        params: std::ptr::null(),
+        param_len: 0,
+        modifiers: std::ptr::null(),
+        modifier_len: 0,
+        execute: pulse_action,
+    };
+    let action_status = unsafe { (api.register_action)(host, action) };
     if action_status != NATIVE_STATUS_OK {
         return action_status;
     }
@@ -99,9 +109,9 @@ pub unsafe extern "C" fn animatix_plugin_install(
 }
 
 unsafe extern "C" fn double(
+    _ctx: *mut NativeFunctionContext,
     args: *const NativeValue,
     arg_len: usize,
-    _env: *const c_void,
     out: *mut NativeValue,
 ) -> i32 {
     if arg_len != 1 {
@@ -209,8 +219,8 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
 ///
 /// # Safety
 ///
-/// `host` must be the opaque callback context passed by the Animatix host.
-unsafe extern "C" fn pulse_action(_host: *mut c_void) -> i32 {
+/// `ctx` must be the callback context passed by the Animatix host.
+unsafe extern "C" fn pulse_action(_ctx: *mut NativeActionContext) -> i32 {
     NATIVE_STATUS_OK
 }
 

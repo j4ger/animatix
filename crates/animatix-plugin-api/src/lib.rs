@@ -256,11 +256,24 @@ pub type NativeFinalizeFn = unsafe extern "C" fn(*mut NativeFinalizeContext) -> 
 /// Returns [`NATIVE_STATUS_OK`] on success or one of the `NATIVE_STATUS_*`
 /// error codes. The output value is written into `out`.
 pub type NativeFunction = unsafe extern "C" fn(
+    *mut NativeFunctionContext,
     args: *const NativeValue,
     arg_len: usize,
-    env: *const c_void,
     out: *mut NativeValue,
 ) -> i32;
+
+/// Context passed to a native expression function callback.
+#[repr(C)]
+pub struct NativeFunctionContext {
+    /// `size_of::<NativeFunctionContext>()`.
+    pub size: usize,
+    /// Opaque host handle passed back to host callbacks.
+    pub host: *mut c_void,
+    /// Read a frame-environment value by name.
+    pub get_env: unsafe extern "C" fn(*mut c_void, *const c_char, *mut NativeValue) -> i32,
+    /// Read a native service value by name.
+    pub get_service: unsafe extern "C" fn(*mut c_void, *const c_char, *mut usize) -> i32,
+}
 
 /// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_SHAPE: u32 = 0;
@@ -425,6 +438,8 @@ pub struct NativePrimitiveEvaluateCtx {
     /// Read a sampled actor property by name into `out`.
     pub get_property:
         Option<unsafe extern "C" fn(*mut c_void, *const c_char, *mut NativeValue) -> i32>,
+    /// Read a native service value by name.
+    pub get_service: Option<unsafe extern "C" fn(*mut c_void, *const c_char, *mut usize) -> i32>,
     /// Append one vector path command to the current frame.
     pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommand) -> i32>,
     /// Append compiled text glyphs to the current frame.
@@ -438,8 +453,77 @@ pub struct NativePrimitiveEvaluateCtx {
 /// Native primitive evaluate callback.
 pub type NativePrimitiveEvaluateFn = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtx) -> i32;
 
+/// One action parameter or modifier descriptor.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeActionParam {
+    /// Parameter name as used in source.
+    pub name: *const c_char,
+    /// Human-readable description.
+    pub description: *const c_char,
+    /// Expected type string.
+    pub type_info: *const c_char,
+}
+
+/// Descriptor passed from a native plugin to register an action.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeAction {
+    /// Action verb as written in source.
+    pub name: *const c_char,
+    /// High-level grouping for UI.
+    pub category: *const c_char,
+    /// One-line description.
+    pub description: *const c_char,
+    /// Positional parameter descriptors.
+    pub params: *const NativeActionParam,
+    /// Number of positional parameters.
+    pub param_len: usize,
+    /// Named modifier descriptors.
+    pub modifiers: *const NativeActionParam,
+    /// Number of named modifiers.
+    pub modifier_len: usize,
+    /// Execute callback.
+    pub execute: NativeActionExecuteFn,
+}
+
+/// Context passed to a native action execute callback.
+#[repr(C)]
+pub struct NativeActionContext {
+    /// `size_of::<NativeActionContext>()`.
+    pub size: usize,
+    /// Opaque host handle passed back to host callbacks.
+    pub host: *mut c_void,
+    /// Current action time in milliseconds.
+    pub time_ms: f64,
+    /// Number of action targets.
+    pub get_target_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one action target.
+    pub get_target: unsafe extern "C" fn(*mut c_void, usize, *mut *const c_char) -> i32,
+    /// Number of positional action arguments.
+    pub get_arg_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one positional action argument.
+    pub get_arg: unsafe extern "C" fn(*mut c_void, usize, *mut NativeValue) -> i32,
+    /// Number of action modifiers.
+    pub get_modifier_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one action modifier.
+    pub get_modifier: unsafe extern "C" fn(*mut c_void, usize, *mut NativeModifierValue) -> i32,
+    /// Write an extension property keyframe on an actor.
+    pub write_keyframe: unsafe extern "C" fn(
+        *mut c_void,
+        *const c_char,
+        *const c_char,
+        NativeValue,
+        u64,
+        u64,
+        u32,
+    ) -> i32,
+    /// Read a native service value by name.
+    pub get_service: unsafe extern "C" fn(*mut c_void, *const c_char, *mut usize) -> i32,
+}
+
 /// Native action execute callback.
-pub type NativeActionExecuteFn = unsafe extern "C" fn(*mut c_void) -> i32;
+pub type NativeActionExecuteFn = unsafe extern "C" fn(*mut NativeActionContext) -> i32;
 
 /// Service value provided by a native plugin.
 #[repr(C)]
@@ -495,8 +579,7 @@ pub struct NativePluginApi {
     /// Register a native primitive.
     pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitive) -> i32,
     /// Register a native action.
-    pub register_action:
-        unsafe extern "C" fn(*mut c_void, *const c_char, NativeActionExecuteFn) -> i32,
+    pub register_action: unsafe extern "C" fn(*mut c_void, NativeAction) -> i32,
     /// Provide a native service value with an optional destructor.
     pub provide_service: unsafe extern "C" fn(*mut c_void, NativeService) -> i32,
 }
