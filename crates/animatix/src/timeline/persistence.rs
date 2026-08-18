@@ -328,7 +328,25 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     // not static snapshot state.
     snapshot.func_transitions.clear();
 
+    // Collapse registry-driven extension slots to the same snapshot semantics
+    // as built-in property tracks.
+    for slot in snapshot.property_plan.iter_mut() {
+        collapse_dyn_track(&mut slot.track, time_ms);
+    }
+
     snapshot
+}
+
+fn collapse_dyn_track(track: &mut crate::timeline::DynTrack, time_ms: u64) {
+    match track {
+        crate::timeline::DynTrack::F32(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::U32(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::Vec2(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::Vec4(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::String(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::PointList(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::Generic(t) => collapse_optional_track(t, time_ms),
+    }
 }
 
 // ---------------------------------------------------------------------------

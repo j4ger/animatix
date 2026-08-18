@@ -757,6 +757,41 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "serde")]
+    #[test]
+    fn extension_property_survives_carry_bag_serde() {
+        use animatix_syntax::schema::PropertyValueKind;
+
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source("g: Gauge, level: 42\n#1s\n g.level = 80");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let mut ctx = ExtensionContext::new();
+        ctx.register_primitive(Arc::new(Gauge)).expect("register Gauge");
+        ctx.register_property("Gauge", "level", PropertyValueKind::F32, true)
+            .expect("register level");
+
+        let mut timeline =
+            Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx))
+                .output;
+        timeline.persistence_flags.insert("g".to_string(), true);
+        let bag = timeline.compute_carry_bag(500, true);
+
+        let json = serde_json::to_string(&bag).expect("serialize carry bag");
+        let restored: crate::timeline::persistence::CarryBag =
+            serde_json::from_str(&json).expect("deserialize carry bag");
+        let entry = restored.entries.get("g").expect("carried gauge");
+        assert_eq!(
+            entry
+                .track
+                .property_plan
+                .get(animatix_syntax::schema::PropertyId(1_000_000))
+                .and_then(|slot| slot.track.sample(0)),
+            Some(crate::timeline::PropertyValue::F32(61.0))
+        );
+    }
+
     #[test]
     fn build_with_context_dispatches_custom_actions() {
         let (ast, errors) =

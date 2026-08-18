@@ -64,7 +64,6 @@ pub struct AnimationTrack {
     ///
     /// Built after the actor kind is known; frame-time extension paths can use
     /// this instead of string lookups.
-    #[cfg_attr(feature = "serde", serde(skip))]
     pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,

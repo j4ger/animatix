@@ -7,13 +7,17 @@
 
 use animatix_syntax::schema::{PropertyId, PropertyValueKind};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::easing::Easing;
-use crate::timeline::property_registry::{PROPERTY_REGISTRY, ValueType, allowed_property_indices};
+use crate::timeline::property_registry::{PROPERTY_REGISTRY, ValueType};
 use crate::timeline::property_track::PropertyTrack;
 use crate::timeline::{ActorKindId, PropertyValue};
 
 /// Finite value kinds understood by dynamic property tracks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PropertyKind {
     /// 32-bit float.
     F32,
@@ -47,6 +51,7 @@ impl From<PropertyValueKind> for PropertyKind {
 
 /// A property slot in an actor plan.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PropertySlot {
     /// Stable property id.
     pub id: PropertyId,
@@ -58,6 +63,7 @@ pub struct PropertySlot {
 
 /// A compact per-actor property plan built once at compile time.
 #[derive(Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PropertyPlan {
     slots: Vec<PropertySlot>,
 }
@@ -97,16 +103,17 @@ impl PropertyPlan {
     /// replace it with per-primitive descriptors while keeping the same
     /// `PropertyId`/slot access model.
     pub fn for_actor_kind(kind: ActorKindId) -> Self {
-        let slots = allowed_property_indices(kind)
-            .into_iter()
-            .map(|index| {
-                let schema = &PROPERTY_REGISTRY[index];
+        let slots = PROPERTY_REGISTRY
+            .iter()
+            .filter(|schema| schema.applicable.includes(kind))
+            .filter_map(|schema| {
+                let id = crate::timeline::property_id(schema.name)?;
                 let kind = property_kind_from_value_type(schema.value_type);
-                PropertySlot {
-                    id: PropertyId(index as u32),
+                Some(PropertySlot {
+                    id,
                     kind,
                     track: DynTrack::empty(kind),
-                }
+                })
             })
             .collect();
         Self::new(slots)
@@ -152,6 +159,11 @@ impl PropertyPlan {
     /// Iterate slots in id order.
     pub fn iter(&self) -> impl Iterator<Item = &PropertySlot> {
         self.slots.iter()
+    }
+
+    /// Mutably iterate slots in id order.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut PropertySlot> {
+        self.slots.iter_mut()
     }
 
     /// Keyframe metadata for a slot, if present.
@@ -200,6 +212,7 @@ fn property_kind_from_value_type(value_type: ValueType) -> PropertyKind {
 
 /// Type-erased animated track for one dynamic property.
 #[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DynTrack {
     /// Float track.
     F32(Option<PropertyTrack<f32>>),
@@ -446,6 +459,22 @@ mod tests {
         assert!(slot.track.add_keyframe(0, PropertyValue::String("ext".to_string())).is_some());
         assert_eq!(
             plan.get(id).and_then(|slot| slot.track.sample(0)),
+            Some(PropertyValue::String("ext".to_string()))
+        );
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn property_plan_serde_round_trip() {
+        let mut plan = PropertyPlan::default();
+        let id = animatix_syntax::schema::PropertyId(999_999);
+        let slot = plan.ensure_slot(id, PropertyKind::String);
+        assert!(slot.track.add_keyframe(0, PropertyValue::String("ext".to_string())).is_some());
+
+        let json = serde_json::to_string(&plan).expect("serialize property plan");
+        let decoded: PropertyPlan = serde_json::from_str(&json).expect("deserialize property plan");
+        assert_eq!(
+            decoded.get(id).and_then(|slot| slot.track.sample(0)),
             Some(PropertyValue::String("ext".to_string()))
         );
     }
