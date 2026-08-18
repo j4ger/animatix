@@ -359,14 +359,12 @@ impl SymbolTable {
             },
 
             Stmt::TypeAlias {
-                is_pub,
+                is_pub: true,
                 name,
                 annotation,
                 ..
             } => {
-                if *is_pub {
-                    self.type_aliases.insert(name.clone(), annotation.clone());
-                }
+                self.type_aliases.insert(name.clone(), annotation.clone());
             },
 
             // Actions, assignments, etc. — no symbols to extract
@@ -383,12 +381,10 @@ impl SymbolTable {
 
     fn collect_refs_from_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::ActorDecl { ty, props, .. } => {
-                if ty == "Callout" {
-                    for prop in props {
-                        if prop.name == "target" {
-                            self.collect_callout_target_ref(&prop.value);
-                        }
+            Stmt::ActorDecl { ty, props, .. } if ty == "Callout" => {
+                for prop in props {
+                    if prop.name == "target" {
+                        self.collect_callout_target_ref(&prop.value);
                     }
                 }
             },

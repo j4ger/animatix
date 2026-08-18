@@ -59,7 +59,7 @@ fn env_hash(env: &Environment) -> u64 {
     // Hash override entries (skip NativeFn which can't be hashed)
     let mut entries: Vec<(&String, &Value)> =
         env.overrides.iter().filter(|(_, v)| !matches!(v, Value::NativeFn(_))).collect();
-    entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+    entries.sort_by_key(|(name, _)| *name);
     for (key, value) in entries {
         key.hash(&mut hasher);
         hash_value(value, &mut hasher);

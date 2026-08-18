@@ -510,8 +510,8 @@ impl Timeline {
                     .unwrap_or(Value::Num(0.0));
                     fill_opacity = v.as_num() as f32;
                 },
-                _ if vector_shape.is_some() => {
-                    if apply_vector_shape_property(
+                _ if vector_shape.is_some()
+                    && apply_vector_shape_property(
                         ty,
                         &prop.name,
                         &prop.value,
@@ -519,10 +519,10 @@ impl Timeline {
                         diagnostics,
                         &prop_subject,
                         &mut vector_shape_state,
-                    ) {
-                        (size, line_from, line_to, arc_angles) =
-                            extract_shape_state_values(&vector_shape_state);
-                    }
+                    ) =>
+                {
+                    (size, line_from, line_to, arc_angles) =
+                        extract_shape_state_values(&vector_shape_state);
                 },
                 _ => {},
             }

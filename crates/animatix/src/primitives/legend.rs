@@ -195,13 +195,9 @@ impl Primitive for LegendPrimitive {
                         text_max_width = parsed.max(0.0);
                     }
                 },
-                "label_color" => {
-                    if !matches!(&prop.value, Expr::Ident(name) if name == "auto") {
-                        label_color = Some(crate::timeline::parse_color_in_env(
-                            &prop.value,
-                            &ctx.timeline.env,
-                        ));
-                    }
+                "label_color" if !matches!(&prop.value, Expr::Ident(name) if name == "auto") => {
+                    label_color =
+                        Some(crate::timeline::parse_color_in_env(&prop.value, &ctx.timeline.env));
                 },
                 "at" => {
                     if let Some(parsed) = parse_vec2(&prop.value) {

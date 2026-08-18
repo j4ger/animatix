@@ -109,38 +109,29 @@ impl<'a> List<'a> {
                         key: egui::Key::ArrowDown,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx =
-                                Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowUp,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
                     },
                     egui::Event::Key {
                         key: egui::Key::Home,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx = Some(0);
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(0);
                     },
                     egui::Event::Key {
                         key: egui::Key::End,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx = Some(num_items - 1);
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(num_items - 1);
                     },
                     egui::Event::Key {
                         key: egui::Key::Enter,

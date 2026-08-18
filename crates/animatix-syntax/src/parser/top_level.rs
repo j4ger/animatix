@@ -180,10 +180,10 @@ pub(crate) fn parse_transition_from_modifiers(
 
     for m in modifiers {
         match (&m.name, &m.value) {
-            (None, Expr::Ident(name)) if transition_id.is_none() => {
-                if crate::transition_registry::find(name).is_some() {
-                    transition_id = Some(name.clone());
-                }
+            (None, Expr::Ident(name))
+                if transition_id.is_none() && crate::transition_registry::find(name).is_some() =>
+            {
+                transition_id = Some(name.clone());
             },
             (None, Expr::Ident(name)) if name.ends_with("ms") => {
                 if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {

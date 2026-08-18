@@ -84,7 +84,7 @@ impl TimelineIndex {
             time_to_lines.entry(time_ms).or_default().push(line_idx);
         }
 
-        keyframes.sort_by(|a, b| a.0.cmp(&b.0));
+        keyframes.sort_by_key(|(time_ms, _)| *time_ms);
 
         Self {
             line_to_time,

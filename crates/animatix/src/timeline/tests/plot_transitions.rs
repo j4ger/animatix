@@ -1087,7 +1087,7 @@ fn flatten_blend_single_level() {
 
     // Sort by pointer to have deterministic order
     let mut flat_sorted = flat.clone();
-    flat_sorted.sort_by(|a, b| (a.1 as *const _ as usize).cmp(&(b.1 as *const _ as usize)));
+    flat_sorted.sort_by_key(|(_, ptr)| *ptr as *const _ as usize);
 
     // Weights should be (1-0.4)=0.6 for from and 0.4 for to
     for (w, _) in &flat {

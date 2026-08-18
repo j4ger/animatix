@@ -185,43 +185,35 @@ impl<'a> Tree<'a> {
                         key: egui::Key::ArrowDown,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            let next = sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0);
-                            sel_idx = Some(next);
-                            selected_id = Some(self.items[next].id.clone());
-                        }
+                    } if num_items > 0 => {
+                        let next = sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0);
+                        sel_idx = Some(next);
+                        selected_id = Some(self.items[next].id.clone());
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowUp,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            let prev = sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0);
-                            sel_idx = Some(prev);
-                            selected_id = Some(self.items[prev].id.clone());
-                        }
+                    } if num_items > 0 => {
+                        let prev = sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0);
+                        sel_idx = Some(prev);
+                        selected_id = Some(self.items[prev].id.clone());
                     },
                     egui::Event::Key {
                         key: egui::Key::Home,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx = Some(0);
-                            selected_id = Some(self.items[0].id.clone());
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(0);
+                        selected_id = Some(self.items[0].id.clone());
                     },
                     egui::Event::Key {
                         key: egui::Key::End,
                         pressed: true,
                         ..
-                    } => {
-                        if num_items > 0 {
-                            sel_idx = Some(num_items - 1);
-                            selected_id = Some(self.items[num_items - 1].id.clone());
-                        }
+                    } if num_items > 0 => {
+                        sel_idx = Some(num_items - 1);
+                        selected_id = Some(self.items[num_items - 1].id.clone());
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowLeft,

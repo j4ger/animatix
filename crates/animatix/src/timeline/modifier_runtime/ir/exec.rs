@@ -170,7 +170,7 @@ fn bind_loop_var(frame_env: &mut Environment, pattern: &LoopPattern, value: Valu
         },
         LoopPattern::Tuple(names) => match value {
             Value::List(items) => {
-                for (name, item) in names.iter().zip(items.into_iter()) {
+                for (name, item) in names.iter().zip(items) {
                     frame_env.set(name, item);
                 }
             },

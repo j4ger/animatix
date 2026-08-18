@@ -221,14 +221,12 @@ fn collect_pub_lets_inner(statements: &[Stmt], result: &mut HashMap<String, Expr
     for stmt in statements {
         match stmt {
             Stmt::LetDecl {
-                is_pub,
+                is_pub: true,
                 name,
                 value,
                 ..
             } => {
-                if *is_pub {
-                    result.insert(name.clone(), value.clone());
-                }
+                result.insert(name.clone(), value.clone());
             },
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
