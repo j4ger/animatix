@@ -1,17 +1,17 @@
 //! Unified primitive system for Animatix.
 //!
 //! Every actor type (shape, text, media, plot, container) is a `Primitive`.
-//! The single `PRIMITIVES` array is the source of truth for metadata,
-//! build logic, and render logic.
+//! `PRIMITIVES` is the bootstrap list; `PrimitiveRegistry` seeds built-ins
+//! through the same registration path used by extensions.
 //!
 //! ## Architecture
 //!
 //! ```text
-//! PRIMITIVES array (static)
+//! PRIMITIVES array (bootstrap)
 //!        │
+//!        ├──► PrimitiveRegistry (single storage for built-ins + extensions)
 //!        ├──► ActorKindMeta registry (auto-generated via OnceLock)
-//!        ├──► find_primitive() — by type name
-//!        ├──► PrimitiveDescriptor::for_actor_type()
+//!        ├──► find_primitive() — compatibility lookup for static built-ins
 //!        └──► ActorKind dispatch (via PrimitiveActorKind wrapper)
 //! ```
 //!
@@ -864,9 +864,10 @@ pub trait Primitive: Send + Sync {
 
 // ── The one static array ────────────────────────────────────────────────
 
-/// Canonical registry of all primitives.
+/// Bootstrap list of all built-in primitives.
 ///
-/// **This is the only place you add a new primitive.**
+/// `PrimitiveRegistry::new()` registers these through the same `register`
+/// path used by extension primitives.
 pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Shapes
     &RECT,

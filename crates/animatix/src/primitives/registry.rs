@@ -2,25 +2,36 @@
 
 use std::sync::Arc;
 
-use super::{PRIMITIVES, Primitive};
+use super::{
+    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, PRIMITIVES,
+    Primitive, RenderCommand, RenderCtx, TextCompileCtx, VectorShapeState, VelloPath,
+};
+use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::diagnostics::Diagnostic;
+use crate::renderer::error::RenderError;
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions};
 
-/// A registry that layers extension primitives over the built-in static set.
+/// A registry that stores built-in and extension primitives in one list.
 #[derive(Clone, Default)]
 pub struct PrimitiveRegistry {
-    builtins: Vec<&'static dyn Primitive>,
-    custom: Vec<Arc<dyn Primitive>>,
+    primitives: Vec<Arc<dyn Primitive>>,
+    builtin_count: usize,
 }
 
 impl PrimitiveRegistry {
-    /// Create a registry initialized with all built-in primitives.
+    /// Create a registry seeded with all built-in primitives.
     pub fn new() -> Self {
-        Self {
-            builtins: PRIMITIVES.to_vec(),
-            custom: Vec::new(),
+        let mut registry = Self::default();
+        for primitive in PRIMITIVES {
+            registry
+                .register(Arc::new(BuiltinPrimitive(*primitive)))
+                .expect("built-in primitive names are unique");
         }
+        registry.builtin_count = registry.primitives.len();
+        registry
     }
 
-    /// Register an extension primitive.
+    /// Register a primitive through the same path used by extensions.
     pub fn register(
         &mut self,
         primitive: Arc<dyn Primitive>,
@@ -29,48 +40,43 @@ impl PrimitiveRegistry {
         if self.find(name).is_some() {
             return Err(PrimitiveRegistrationError::Duplicate(name.to_string()));
         }
-        self.custom.push(primitive);
+        self.primitives.push(primitive);
         Ok(())
     }
 
-    /// Remove a custom primitive by type name. Built-ins cannot be removed.
+    /// Remove a non-built-in registered primitive by type name.
     pub fn remove(&mut self, name: &str) -> bool {
-        let before = self.custom.len();
-        self.custom.retain(|primitive| primitive.type_name() != name);
-        self.custom.len() != before
+        let Some(index) = self.primitives.iter().position(|p| p.type_name() == name) else {
+            return false;
+        };
+        if index < self.builtin_count {
+            return false;
+        }
+        self.primitives.remove(index);
+        true
     }
 
     /// Look up a primitive by type name.
     pub fn find(&self, name: &str) -> Option<&dyn Primitive> {
-        self.builtins
+        self.primitives
             .iter()
             .find(|primitive| primitive.type_name() == name)
-            .copied()
-            .or_else(|| {
-                self.custom
-                    .iter()
-                    .find(|primitive| primitive.type_name() == name)
-                    .map(|primitive| primitive.as_ref())
-            })
+            .map(|primitive| primitive.as_ref())
     }
 
     /// Iterate all primitives in registration order.
     pub fn iter(&self) -> impl Iterator<Item = &dyn Primitive> {
-        self.builtins
-            .iter()
-            .copied()
-            .map(|primitive| primitive as &dyn Primitive)
-            .chain(self.custom.iter().map(|primitive| primitive.as_ref()))
+        self.primitives.iter().map(|primitive| primitive.as_ref())
     }
 
     /// Number of registered primitives.
     pub fn len(&self) -> usize {
-        self.builtins.len() + self.custom.len()
+        self.primitives.len()
     }
 
     /// Returns `true` when no primitives are registered.
     pub fn is_empty(&self) -> bool {
-        self.len() == 0
+        self.primitives.is_empty()
     }
 
     /// Convert the registry to shared schema specs.
@@ -117,6 +123,141 @@ impl PrimitiveRegistry {
                 }
             })
             .collect()
+    }
+}
+
+/// Adapter that lets static built-ins live in the same `Arc<dyn Primitive>`
+/// storage as extension primitives.
+struct BuiltinPrimitive(&'static dyn Primitive);
+
+impl Primitive for BuiltinPrimitive {
+    fn type_name(&self) -> &'static str {
+        self.0.type_name()
+    }
+
+    fn display_name(&self) -> &'static str {
+        self.0.display_name()
+    }
+
+    fn category(&self) -> ActorCategory {
+        self.0.category()
+    }
+
+    fn icon_id(&self) -> &'static str {
+        self.0.icon_id()
+    }
+
+    fn is_advanced(&self) -> bool {
+        self.0.is_advanced()
+    }
+
+    fn is_container(&self) -> bool {
+        self.0.is_container()
+    }
+
+    fn is_shape(&self) -> bool {
+        self.0.is_shape()
+    }
+
+    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+        self.0.capabilities()
+    }
+
+    fn child_processing(&self) -> ChildProcessing {
+        self.0.child_processing()
+    }
+
+    fn kind_id(&self) -> ActorKindId {
+        self.0.kind_id()
+    }
+
+    fn build(
+        &self,
+        ctx: &mut BuildCtx,
+        label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.0.build(ctx, label, props, modifiers, children)
+    }
+
+    fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        self.0.render(ctx)
+    }
+
+    fn apply_defaults(&self, state: &mut VectorShapeState) {
+        self.0.apply_defaults(state);
+    }
+
+    fn apply_property(
+        &self,
+        name: &str,
+        value: &Expr,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        self.0.apply_property(name, value, env, diagnostics, subject, state)
+    }
+
+    fn finalize_state(&self, state: &mut VectorShapeState) {
+        self.0.finalize_state(state);
+    }
+
+    fn uses_custom_path(&self) -> bool {
+        self.0.uses_custom_path()
+    }
+
+    fn exposes_tip_size(&self) -> bool {
+        self.0.exposes_tip_size()
+    }
+
+    fn supports_fill(&self) -> bool {
+        self.0.supports_fill()
+    }
+
+    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+        self.0.default_color_key(property)
+    }
+
+    fn resize_mode(&self) -> crate::timeline::ResizeMode {
+        self.0.resize_mode()
+    }
+
+    fn default_props(&self, scene_dimensions: &SceneDimensions) -> Vec<Property> {
+        self.0.default_props(scene_dimensions)
+    }
+
+    fn handle_assignment(
+        &self,
+        track: &mut AnimationTrack,
+        property: &str,
+        value: &Expr,
+        ctx: &mut AssignmentCtx,
+        env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        self.0.handle_assignment(track, property, value, ctx, env, diagnostics, subject)
+    }
+
+    fn finalize_container_build(
+        &self,
+        ctx: &mut BuildCtx,
+        label: &str,
+        props: &[Property],
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.0.finalize_container_build(ctx, label, props)
+    }
+
+    fn evaluate(
+        &self,
+        ctx: &EvaluateCtx,
+        text_ctx: Option<&mut TextCompileCtx>,
+    ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
+        self.0.evaluate(ctx, text_ctx)
     }
 }
 
@@ -211,6 +352,17 @@ mod tests {
         let specs = registry.specs();
         assert!(specs.iter().any(|spec| spec.type_name == "Rect"));
         assert!(specs.iter().any(|spec| spec.type_name == "Gauge"));
+    }
+
+    #[test]
+    fn builtins_and_extensions_share_one_registration_storage() {
+        let mut registry = PrimitiveRegistry::new();
+        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
+        assert!(!registry.remove("Rect"), "built-ins must stay registered");
+        assert!(registry.register(Arc::new(Gauge)).is_ok());
+        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len() + 1);
+        assert!(registry.remove("Gauge"));
+        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
     }
 
     #[test]
