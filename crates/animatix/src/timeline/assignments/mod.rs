@@ -11,7 +11,7 @@ use super::{
 };
 use crate::ast::TargetSegment;
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
-use crate::primitives::{AssignmentCtx, find_primitive};
+use crate::primitives::AssignmentCtx;
 use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
 use crate::timeline::actor_kind::ActorKindId;
@@ -249,8 +249,11 @@ impl Timeline {
         }
 
         // ── Primitive dispatch: let each primitive handle its own special cases ──
-        let type_name = super::actor_kind_meta(track.kind).map(|m| m.type_name);
-        let primitive = type_name.and_then(find_primitive);
+        let type_name = track
+            .actor_type
+            .as_deref()
+            .or_else(|| super::actor_kind_meta(track.kind).map(|m| m.type_name));
+        let primitive = type_name.and_then(|ty| self.primitive_registry.find(ty));
         if let Some(primitive) = primitive {
             let mut ctx = AssignmentCtx {
                 t_start_ms,

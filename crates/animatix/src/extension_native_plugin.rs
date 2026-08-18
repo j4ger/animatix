@@ -18,15 +18,19 @@ use animatix_plugin_api::{
     NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
     NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
     NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
-    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeActionExecuteFn, NativeFunction, NativeInstallFn,
-    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
-    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativeService, NativeValue,
+    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeActionExecuteFn, NativeAssignmentContext,
+    NativeAssignmentFn, NativeChild, NativeFinalizeContext, NativeFinalizeFn, NativeFunction,
+    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
+    NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
+    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
+    NativeValue,
 };
 use kurbo::Shape;
 use libloading::Library;
 
+use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::extension_context::ExtensionContext;
-use crate::primitives::{BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
+use crate::primitives::{AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
 use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, Value};
@@ -120,6 +124,7 @@ impl ExtensionPlugin for NativePlugin {
                 library: Some(Arc::clone(&self.library) as Arc<dyn Any + Send + Sync>),
                 properties: Vec::new(),
                 property_ids: HashMap::new(),
+                property_kinds: HashMap::new(),
                 functions: Vec::new(),
                 primitives: Vec::new(),
                 actions: Vec::new(),
@@ -162,6 +167,7 @@ struct NativeHost<'a> {
     library: Option<Arc<dyn Any + Send + Sync>>,
     properties: Vec<(String, String)>,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
+    property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
     functions: Vec<String>,
     primitives: Vec<String>,
     actions: Vec<String>,
@@ -205,7 +211,8 @@ unsafe extern "C" fn native_register_property(
     }
     unsafe { *out_id = id.0 };
     host.properties.push((actor_type, name.clone()));
-    host.property_ids.insert(name, id);
+    host.property_ids.insert(name.clone(), id);
+    host.property_kinds.insert(name, kind);
     NATIVE_STATUS_OK
 }
 
@@ -267,8 +274,12 @@ unsafe extern "C" fn native_register_primitive(
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(adapter) = NativePrimitiveAdapter::new(primitive, library, host.property_ids.clone())
-    else {
+    let Some(adapter) = NativePrimitiveAdapter::new(
+        primitive,
+        library,
+        host.property_ids.clone(),
+        host.property_kinds.clone(),
+    ) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let name = adapter.type_name.to_string();
@@ -349,7 +360,11 @@ struct NativePrimitiveAdapter {
     advanced: bool,
     child_processing: ChildProcessing,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
+    property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    build: Option<NativePrimitiveBuildFn>,
     evaluate: Option<NativePrimitiveEvaluateFn>,
+    handle_assignment: Option<NativeAssignmentFn>,
+    finalize_container_build: Option<NativeFinalizeFn>,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
@@ -358,6 +373,7 @@ impl NativePrimitiveAdapter {
         primitive: NativePrimitive,
         library: Arc<dyn Any + Send + Sync>,
         property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
+        property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
     ) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
         let display_name =
@@ -376,7 +392,11 @@ impl NativePrimitiveAdapter {
             child_processing: native_child_processing(primitive.child_processing)
                 .unwrap_or_default(),
             property_ids,
+            property_kinds,
+            build: primitive.build,
             evaluate: primitive.evaluate,
+            handle_assignment: primitive.handle_assignment,
+            finalize_container_build: primitive.finalize_container_build,
             _library: library,
         })
     }
@@ -419,18 +439,162 @@ impl Primitive for NativePrimitiveAdapter {
         &self,
         ctx: &mut BuildCtx,
         label: &str,
-        _props: &[crate::ast::Property],
-        _modifiers: &[crate::ast::Modifier],
-        _children: &[crate::ast::InlineItem],
+        props: &[crate::ast::Property],
+        modifiers: &[crate::ast::Modifier],
+        children: &[crate::ast::InlineItem],
     ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
-        let track = ctx
-            .timeline
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
-        track.kind = self.kind;
-        track.actor_type = Some(self.type_name.clone());
-        track.rebuild_property_plan();
+        let BuildCtx {
+            timeline,
+            time_ms,
+            parent_label,
+            diagnostics,
+        } = ctx;
+        let time_ms = *time_ms;
+        let parent_label = *parent_label;
+        {
+            let track = timeline
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            track.kind = self.kind;
+            track.actor_type = Some(self.type_name.clone());
+            track.rebuild_property_plan();
+        }
+        let Some(build) = self.build else {
+            return Ok(());
+        };
+        let status = {
+            let mut host = NativePrimitiveBuildHost::new(
+                timeline,
+                time_ms,
+                parent_label,
+                label,
+                props,
+                modifiers,
+                children,
+                diagnostics,
+            );
+            let parent_label_ptr = match parent_label {
+                Some(parent_label) => host.arena.string(parent_label).0,
+                None => std::ptr::null(),
+            };
+            let mut native_ctx = NativePrimitiveBuildCtx {
+                size: std::mem::size_of::<NativePrimitiveBuildCtx>(),
+                time_ms,
+                host: (&mut host as *mut NativePrimitiveBuildHost).cast(),
+                parent_label: parent_label_ptr,
+                get_property_count: native_build_get_property_count,
+                get_property: native_build_get_property,
+                get_modifier_count: native_build_get_modifier_count,
+                get_modifier: native_build_get_modifier,
+                get_child_count: native_build_get_child_count,
+                get_child: native_build_get_child,
+                report_diagnostic: native_build_report_diagnostic,
+            };
+            unsafe { build(&mut native_ctx) }
+        };
+        if status != NATIVE_STATUS_OK {
+            diagnostics.push(crate::diagnostics::Diagnostic::error(
+                crate::diagnostics::DiagnosticCode::InvalidModifierValue,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!("native primitive '{}' build failed with status {status}", self.type_name),
+            ));
+        }
+        Ok(())
+    }
+
+    fn handle_assignment(
+        &self,
+        track: &mut crate::timeline::AnimationTrack,
+        property: &str,
+        value: &Expr,
+        ctx: &mut AssignmentCtx,
+        env: &Environment,
+        diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        let Some(callback) = self.handle_assignment else {
+            return false;
+        };
+        let Some(value) = crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
+            value,
+            env,
+            diagnostics,
+            subject,
+        ) else {
+            return false;
+        };
+        let mut arena = NativeValueArena::default();
+        let Ok(native_value) = value_to_native(&value, &mut arena) else {
+            return false;
+        };
+        let property_ptr = arena.string(property).0;
+        let status = {
+            let mut host = NativeAssignmentHost {
+                track,
+                property_ids: &self.property_ids,
+                property_kinds: &self.property_kinds,
+                value: native_value,
+            };
+            let mut native_ctx = NativeAssignmentContext {
+                size: std::mem::size_of::<NativeAssignmentContext>(),
+                host: (&mut host as *mut NativeAssignmentHost).cast(),
+                property: property_ptr,
+                t_start_ms: ctx.t_start_ms,
+                t_end_ms: ctx.t_end_ms,
+                easing: easing_code(ctx.easing),
+                get_value: native_assignment_get_value,
+                write_keyframe: native_assignment_write_keyframe,
+            };
+            unsafe { callback(&mut native_ctx) }
+        };
+        match status {
+            NATIVE_STATUS_OK => true,
+            NATIVE_STATUS_UNSUPPORTED => false,
+            _ => {
+                diagnostics.push(crate::diagnostics::Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::InvalidAssignmentTarget,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!(
+                        "native primitive '{}' failed assignment {property} with status {status}",
+                        self.type_name
+                    ),
+                ));
+                true
+            },
+        }
+    }
+
+    fn finalize_container_build(
+        &self,
+        ctx: &mut BuildCtx,
+        label: &str,
+        _props: &[Property],
+    ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
+        let Some(callback) = self.finalize_container_build else {
+            return Ok(());
+        };
+        let child_count =
+            ctx.timeline.tracks.get(label).map(|track| track.children.len()).unwrap_or(0);
+        let label_c = std::ffi::CString::new(label).expect("actor label has no nul");
+        let mut host = NativeFinalizeHost;
+        let mut native_ctx = NativeFinalizeContext {
+            size: std::mem::size_of::<NativeFinalizeContext>(),
+            host: (&mut host as *mut NativeFinalizeHost).cast(),
+            label: label_c.as_ptr(),
+            child_count,
+        };
+        let status = unsafe { callback(&mut native_ctx) };
+        if status != NATIVE_STATUS_OK {
+            ctx.diagnostics.push(crate::diagnostics::Diagnostic::error(
+                crate::diagnostics::DiagnosticCode::InvalidModifierValue,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!(
+                    "native primitive '{}' finalize failed with status {status}",
+                    self.type_name
+                ),
+            ));
+        }
         Ok(())
     }
 
@@ -510,6 +674,367 @@ unsafe extern "C" fn native_get_property(
     unsafe { *out = native };
     NATIVE_STATUS_OK
 }
+
+struct NativePrimitiveBuildHost<'a> {
+    props: Vec<NativePropertyValue>,
+    modifiers: Vec<NativeModifierValue>,
+    children: Vec<NativeChild>,
+    _child_props: Vec<Vec<NativePropertyValue>>,
+    diagnostics: &'a mut Vec<crate::diagnostics::Diagnostic>,
+    arena: NativeValueArena,
+}
+
+fn native_build_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    subject: &str,
+    arena: &mut NativeValueArena,
+) -> NativeValue {
+    let value = crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
+        expr,
+        env,
+        diagnostics,
+        subject,
+    )
+    .unwrap_or(Value::Num(0.0));
+    value_to_native(&value, arena).unwrap_or_default()
+}
+
+fn native_build_property(
+    name: &str,
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    arena: &mut NativeValueArena,
+) -> NativePropertyValue {
+    let (name_ptr, _) = arena.string(name);
+    NativePropertyValue {
+        name: name_ptr,
+        value: native_build_value(expr, env, diagnostics, name, arena),
+    }
+}
+
+fn native_build_modifier(
+    modifier: &Modifier,
+    env: &Environment,
+    diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    arena: &mut NativeValueArena,
+) -> NativeModifierValue {
+    let name_ptr = modifier
+        .name
+        .as_deref()
+        .map(|name| arena.string(name).0)
+        .unwrap_or(std::ptr::null());
+    NativeModifierValue {
+        name: name_ptr,
+        value: native_build_value(&modifier.value, env, diagnostics, "modifier", arena),
+    }
+}
+
+fn native_build_child(
+    item: &InlineItem,
+    env: &Environment,
+    diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    arena: &mut NativeValueArena,
+    child_props: &mut Vec<Vec<NativePropertyValue>>,
+) -> NativeChild {
+    let empty_props: Vec<Property> = Vec::new();
+    let (label, type_name, props) = match item {
+        InlineItem::Anonymous { ty, props, .. } => ("", ty.as_str(), props),
+        InlineItem::Labeled {
+            label, ty, props, ..
+        } => (label.as_str(), ty.as_str(), props),
+        InlineItem::ForLoop { .. } => ("for", "ForLoop", &empty_props),
+        InlineItem::SlotMarker => ("@slot", "Slot", &empty_props),
+        InlineItem::SlotFill { slot, .. } => (slot.as_str(), "SlotFill", &empty_props),
+    };
+    let (label_ptr, _) = arena.string(label);
+    let (type_ptr, _) = arena.string(type_name);
+    let native_props = props
+        .iter()
+        .map(|prop| native_build_property(&prop.name, &prop.value, env, diagnostics, arena))
+        .collect::<Vec<_>>();
+    let properties = if native_props.is_empty() {
+        std::ptr::null()
+    } else {
+        native_props.as_ptr()
+    };
+    let property_len = native_props.len();
+    child_props.push(native_props);
+    NativeChild {
+        label: label_ptr,
+        type_name: type_ptr,
+        properties,
+        property_len,
+    }
+}
+
+impl<'a> NativePrimitiveBuildHost<'a> {
+    fn new(
+        timeline: &mut crate::timeline::Timeline,
+        _time_ms: f64,
+        _parent_label: Option<&'a str>,
+        _label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+        diagnostics: &'a mut Vec<crate::diagnostics::Diagnostic>,
+    ) -> Self {
+        let mut arena = NativeValueArena::default();
+        let native_props = props
+            .iter()
+            .map(|prop| {
+                native_build_property(
+                    &prop.name,
+                    &prop.value,
+                    &timeline.env,
+                    diagnostics,
+                    &mut arena,
+                )
+            })
+            .collect();
+        let native_modifiers = modifiers
+            .iter()
+            .map(|modifier| native_build_modifier(modifier, &timeline.env, diagnostics, &mut arena))
+            .collect();
+        let mut child_props = Vec::new();
+        let native_children = children
+            .iter()
+            .map(|item| {
+                native_build_child(item, &timeline.env, diagnostics, &mut arena, &mut child_props)
+            })
+            .collect();
+        Self {
+            props: native_props,
+            modifiers: native_modifiers,
+            children: native_children,
+            _child_props: child_props,
+            diagnostics,
+            arena,
+        }
+    }
+}
+
+unsafe extern "C" fn native_build_get_property_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return 0;
+    };
+    host.props.len()
+}
+
+unsafe extern "C" fn native_build_get_property(
+    host: *mut c_void,
+    index: usize,
+    out: *mut NativePropertyValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.props.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *value };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_build_get_modifier_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return 0;
+    };
+    host.modifiers.len()
+}
+
+unsafe extern "C" fn native_build_get_modifier(
+    host: *mut c_void,
+    index: usize,
+    out: *mut NativeModifierValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.modifiers.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *value };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_build_get_child_count(host: *mut c_void) -> usize {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return 0;
+    };
+    host.children.len()
+}
+
+unsafe extern "C" fn native_build_get_child(
+    host: *mut c_void,
+    index: usize,
+    out: *mut NativeChild,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = host.children.get(index) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    unsafe { *out = *value };
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_build_report_diagnostic(
+    host: *mut c_void,
+    _code: *const c_char,
+    level: u32,
+    message: *const c_char,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveBuildHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(message) = (unsafe { read_c_string(message) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+    let diagnostic = if level == 0 {
+        Diagnostic::error(DiagnosticCode::InvalidModifierValue, DiagnosticPhase::Build, message)
+    } else {
+        Diagnostic::warning(DiagnosticCode::InvalidModifierValue, DiagnosticPhase::Build, message)
+    };
+    host.diagnostics.push(diagnostic);
+    NATIVE_STATUS_OK
+}
+
+struct NativeAssignmentHost<'a> {
+    track: &'a mut crate::timeline::AnimationTrack,
+    property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
+    property_kinds: &'a HashMap<String, animatix_syntax::schema::PropertyValueKind>,
+    value: NativeValue,
+}
+
+unsafe extern "C" fn native_assignment_get_value(host: *mut c_void, out: *mut NativeValue) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeAssignmentHost).as_ref() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = host.value };
+    NATIVE_STATUS_OK
+}
+
+fn native_to_property_value(
+    native: NativeValue,
+    kind: animatix_syntax::schema::PropertyValueKind,
+) -> Option<PropertyValue> {
+    use animatix_syntax::schema::PropertyValueKind;
+    match kind {
+        PropertyValueKind::F32 => {
+            (native.tag == NATIVE_VALUE_NUM).then_some(PropertyValue::F32(native.num as f32))
+        },
+        PropertyValueKind::U32 => (native.tag == NATIVE_VALUE_NUM
+            || native.tag == NATIVE_VALUE_U32)
+            .then_some(PropertyValue::U32(native.num.max(0.0) as u32)),
+        PropertyValueKind::Vec2 => (native.tag == NATIVE_VALUE_VEC2)
+            .then_some(PropertyValue::Vec2([native.vec[0] as f32, native.vec[1] as f32])),
+        PropertyValueKind::Vec4 => (native.tag == NATIVE_VALUE_VEC4
+            || native.tag == NATIVE_VALUE_COLOR)
+            .then_some(PropertyValue::Vec4([
+                native.vec[0] as f32,
+                native.vec[1] as f32,
+                native.vec[2] as f32,
+                native.vec[3] as f32,
+            ])),
+        PropertyValueKind::String => read_native_string(&native).ok().map(PropertyValue::String),
+        PropertyValueKind::PointList => {
+            if native.tag != NATIVE_VALUE_POINT_LIST || native.list.is_null() {
+                return None;
+            }
+            let values = unsafe { std::slice::from_raw_parts(native.list, native.list_len) };
+            let points = values
+                .iter()
+                .filter(|value| value.tag == NATIVE_VALUE_VEC2)
+                .map(|value| [value.vec[0] as f32, value.vec[1] as f32])
+                .collect();
+            Some(PropertyValue::PointList(points))
+        },
+        PropertyValueKind::Generic => match native.tag {
+            NATIVE_VALUE_NUM => Some(PropertyValue::F32(native.num as f32)),
+            NATIVE_VALUE_BOOL => Some(PropertyValue::Bool(native.boolean)),
+            NATIVE_VALUE_VEC2 => {
+                Some(PropertyValue::Vec2([native.vec[0] as f32, native.vec[1] as f32]))
+            },
+            NATIVE_VALUE_VEC4 => Some(PropertyValue::Vec4([
+                native.vec[0] as f32,
+                native.vec[1] as f32,
+                native.vec[2] as f32,
+                native.vec[3] as f32,
+            ])),
+            NATIVE_VALUE_COLOR => Some(PropertyValue::Color([
+                native.vec[0] as f32,
+                native.vec[1] as f32,
+                native.vec[2] as f32,
+                native.vec[3] as f32,
+            ])),
+            NATIVE_VALUE_STRING => read_native_string(&native).ok().map(PropertyValue::String),
+            _ => None,
+        },
+    }
+}
+
+fn native_easing(code: u32) -> crate::easing::Easing {
+    match code {
+        1 => crate::easing::Easing::EaseIn,
+        2 => crate::easing::Easing::EaseOut,
+        3 => crate::easing::Easing::EaseInOut,
+        _ => crate::easing::Easing::Linear,
+    }
+}
+
+fn easing_code(easing: crate::easing::Easing) -> u32 {
+    match easing {
+        crate::easing::Easing::EaseIn => 1,
+        crate::easing::Easing::EaseOut => 2,
+        crate::easing::Easing::EaseInOut => 3,
+        _ => 0,
+    }
+}
+
+unsafe extern "C" fn native_assignment_write_keyframe(
+    host: *mut c_void,
+    name: *const c_char,
+    value: NativeValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: u32,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeAssignmentHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(id) = host.property_ids.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(kind) = host.property_kinds.get(&name) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(property_value) = native_to_property_value(value, *kind) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    crate::timeline::property_engine::write_property_plan_slot(
+        host.track,
+        *id,
+        crate::timeline::PropertyKind::from(*kind),
+        property_value,
+        t_start_ms,
+        t_end_ms,
+        native_easing(easing),
+    );
+    NATIVE_STATUS_OK
+}
+
+struct NativeFinalizeHost;
 
 unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCommand) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
@@ -680,8 +1205,9 @@ struct NativeValueArena {
 
 impl NativeValueArena {
     fn string(&mut self, text: &str) -> (*const c_char, usize) {
-        let bytes = text.as_bytes().to_vec();
-        let len = bytes.len();
+        let len = text.len();
+        let mut bytes = text.as_bytes().to_vec();
+        bytes.push(0);
         let ptr = bytes.as_ptr().cast::<c_char>();
         self.strings.push(bytes);
         (ptr, len)
@@ -913,6 +1439,16 @@ mod tests {
     use crate::timeline::{Environment, PropertyKind, Value};
     use std::ffi::c_void;
 
+    static BUILD_CHILD_COUNT: std::sync::atomic::AtomicUsize =
+        std::sync::atomic::AtomicUsize::new(0);
+
+    unsafe extern "C" fn record_build_children(ctx: *mut NativePrimitiveBuildCtx) -> i32 {
+        let ctx = unsafe { &*ctx };
+        BUILD_CHILD_COUNT
+            .store(unsafe { (ctx.get_child_count)(ctx.host) }, std::sync::atomic::Ordering::SeqCst);
+        NATIVE_STATUS_OK
+    }
+
     fn sample_evaluate_ctx(track: &crate::timeline::AnimationTrack) -> EvaluateCtx<'_> {
         EvaluateCtx {
             track,
@@ -1053,6 +1589,7 @@ mod tests {
             library: Some(Arc::new(()) as Arc<dyn Any + Send + Sync>),
             properties: Vec::new(),
             property_ids: HashMap::new(),
+            property_kinds: HashMap::new(),
             functions: Vec::new(),
             primitives: Vec::new(),
             actions: Vec::new(),
@@ -1095,7 +1632,10 @@ mod tests {
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            build: None,
             evaluate: Some(pulse_evaluate),
+            handle_assignment: None,
+            finalize_container_build: None,
         };
         assert_eq!(
             unsafe {
@@ -1254,6 +1794,209 @@ mod tests {
     }
 
     #[test]
+    fn native_build_exposes_props_modifiers_and_children() {
+        let mut timeline = crate::timeline::Timeline::new();
+        let mut diagnostics = Vec::new();
+        let props = vec![Property::new("level", Expr::Num(42.0))];
+        let modifiers = vec![Modifier {
+            name: Some("ease".to_string()),
+            value: Expr::Ident("bounce".to_string()),
+        }];
+        let children = vec![InlineItem::Labeled {
+            label: "kid".to_string(),
+            array_index: None,
+            ty: "Rect".to_string(),
+            props: vec![Property::new(
+                "size",
+                Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(10.0)]),
+            )],
+            modifiers: Vec::new(),
+            children: Vec::new(),
+        }];
+        let mut host = NativePrimitiveBuildHost::new(
+            &mut timeline,
+            0.0,
+            None,
+            "pulse",
+            &props,
+            &modifiers,
+            &children,
+            &mut diagnostics,
+        );
+        assert_eq!(
+            unsafe {
+                native_build_get_property_count(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                )
+            },
+            1
+        );
+        let mut property = NativePropertyValue {
+            name: std::ptr::null(),
+            value: NativeValue::default(),
+        };
+        assert_eq!(
+            unsafe {
+                native_build_get_property(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                    0,
+                    &mut property,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(unsafe { read_c_string(property.name) }.as_deref(), Some("level"));
+        assert_eq!(property.value.tag, NATIVE_VALUE_NUM);
+
+        assert_eq!(
+            unsafe {
+                native_build_get_modifier_count(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                )
+            },
+            1
+        );
+        let mut modifier = NativeModifierValue {
+            name: std::ptr::null(),
+            value: NativeValue::default(),
+        };
+        assert_eq!(
+            unsafe {
+                native_build_get_modifier(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                    0,
+                    &mut modifier,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(unsafe { read_c_string(modifier.name) }.as_deref(), Some("ease"));
+
+        assert_eq!(
+            unsafe {
+                native_build_get_child_count(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                )
+            },
+            1
+        );
+        let mut child = NativeChild {
+            label: std::ptr::null(),
+            type_name: std::ptr::null(),
+            properties: std::ptr::null(),
+            property_len: 0,
+        };
+        assert_eq!(
+            unsafe {
+                native_build_get_child(
+                    (&mut host as *mut NativePrimitiveBuildHost).cast::<c_void>(),
+                    0,
+                    &mut child,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(unsafe { read_c_string(child.label) }.as_deref(), Some("kid"));
+        assert_eq!(unsafe { read_c_string(child.type_name) }.as_deref(), Some("Rect"));
+    }
+
+    #[test]
+    fn native_assignment_write_keyframe_writes_extension_slot() {
+        let mut ctx = ExtensionContext::new();
+        let id = ctx
+            .register_property(
+                "Pulse",
+                "glow",
+                animatix_syntax::schema::PropertyValueKind::F32,
+                true,
+            )
+            .expect("register property");
+        let property_ids = HashMap::from([("glow".to_string(), id)]);
+        let property_kinds =
+            HashMap::from([("glow".to_string(), animatix_syntax::schema::PropertyValueKind::F32)]);
+        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let mut host = NativeAssignmentHost {
+            track: &mut track,
+            property_ids: &property_ids,
+            property_kinds: &property_kinds,
+            value: NativeValue {
+                tag: NATIVE_VALUE_NUM,
+                num: 0.5,
+                ..NativeValue::default()
+            },
+        };
+        assert_eq!(
+            unsafe {
+                native_assignment_write_keyframe(
+                    (&mut host as *mut NativeAssignmentHost).cast::<c_void>(),
+                    c"glow".as_ptr(),
+                    NativeValue {
+                        tag: NATIVE_VALUE_NUM,
+                        num: 0.75,
+                        ..NativeValue::default()
+                    },
+                    0,
+                    1000,
+                    0,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(
+            crate::timeline::property_engine::read_property_plan_slot(&track, id, 500),
+            Some(crate::timeline::PropertyValue::F32(0.75))
+        );
+    }
+
+    #[test]
+    fn native_build_through_timeline_processes_children() {
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_CONTAINER, NATIVE_PRIMITIVE_CHILD_GENERIC,
+        };
+
+        let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse { kid: Rect }");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_CONTAINER,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            build: Some(record_build_children),
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+        };
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+            HashMap::new(),
+        )
+        .expect("adapter");
+        let mut ctx = ExtensionContext::new();
+        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+        BUILD_CHILD_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
+
+        let report = crate::timeline::Timeline::build_with_context(
+            &ast,
+            &std::collections::HashMap::new(),
+            Arc::new(ctx),
+        );
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let track = report.output.tracks.get("p").expect("pulse track");
+        assert_eq!(track.children, vec!["kid".to_string()]);
+        assert_eq!(BUILD_CHILD_COUNT.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
     fn native_primitive_evaluate_emits_render_commands() {
         use animatix_plugin_api::{
             NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
@@ -1266,11 +2009,15 @@ mod tests {
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            build: None,
             evaluate: Some(pulse_evaluate),
+            handle_assignment: None,
+            finalize_container_build: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
             Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
             HashMap::new(),
         )
         .expect("adapter");

@@ -136,12 +136,16 @@ A plugin exports:
 The current ABI is version 3 and has exactly one install entry. It can register
 external properties with full tooling metadata, native expression functions,
 primitives, actions, and service values with optional destructors. Native
-evaluate callbacks receive a host context with `get_property` and `append_path`;
-the demo primitive reads its keyframed `glow` property and emits vector paths
-that render through the normal scene-evaluation path. Expression callbacks
-exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`,
-`Color`, `String`, and `List`. Objects, closures, and native function values
-return a type error.
+primitives have optional `build`, `evaluate`, `handle_assignment`, and
+`finalize_container_build` callbacks. The host builds children through the same
+timeline path as built-ins and then calls finalize, so native containers no
+longer need to fake their way through a built-in `ActorKindId`. Evaluate
+callbacks receive a host context with `get_property` and `append_path`; the demo
+primitive reads its keyframed `glow` property and emits vector paths that render
+through the normal scene-evaluation path. Expression callbacks exchange
+`NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`, `Color`,
+`String`, and `List`. Objects, closures, and native function values return a
+type error.
 
 ```bash
 cargo build -p animatix-plugin-demo

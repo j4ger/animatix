@@ -66,6 +66,15 @@ pub const NATIVE_STATUS_TYPE_ERROR: i32 = 1;
 /// Unsupported construct or operation.
 pub const NATIVE_STATUS_UNSUPPORTED: i32 = 2;
 
+/// Easing code: linear.
+pub const NATIVE_EASING_LINEAR: u32 = 0;
+/// Easing code: ease in.
+pub const NATIVE_EASING_IN: u32 = 1;
+/// Easing code: ease out.
+pub const NATIVE_EASING_OUT: u32 = 2;
+/// Easing code: ease in-out.
+pub const NATIVE_EASING_IN_OUT: u32 = 3;
+
 /// A finite runtime value exchanged with native extension callbacks.
 ///
 /// String/list pointers are only valid for the duration of the callback that
@@ -135,6 +144,112 @@ pub struct NativePropertyDescriptor {
     /// Help text for tooltips and documentation.
     pub help: *const c_char,
 }
+
+/// A build-time property value passed to a native primitive.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativePropertyValue {
+    /// Canonical property name.
+    pub name: *const c_char,
+    /// Evaluated property value.
+    pub value: NativeValue,
+}
+
+/// A build-time modifier value passed to a native primitive.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeModifierValue {
+    /// Optional modifier name; null for positional modifiers.
+    pub name: *const c_char,
+    /// Evaluated modifier value.
+    pub value: NativeValue,
+}
+
+/// A child declaration exposed to a native primitive build callback.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeChild {
+    /// Child actor label; empty for anonymous inline items.
+    pub label: *const c_char,
+    /// Child actor type name.
+    pub type_name: *const c_char,
+    /// Evaluated child properties.
+    pub properties: *const NativePropertyValue,
+    /// Number of child properties.
+    pub property_len: usize,
+}
+
+/// Context passed to a native primitive build callback.
+#[repr(C)]
+pub struct NativePrimitiveBuildCtx {
+    /// `size_of::<NativePrimitiveBuildCtx>()`.
+    pub size: usize,
+    /// Current build time in milliseconds.
+    pub time_ms: f64,
+    /// Opaque host handle passed back to host callbacks.
+    pub host: *mut c_void,
+    /// Optional parent actor label.
+    pub parent_label: *const c_char,
+    /// Number of actor properties.
+    pub get_property_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one actor property by index.
+    pub get_property: unsafe extern "C" fn(*mut c_void, usize, *mut NativePropertyValue) -> i32,
+    /// Number of actor modifiers.
+    pub get_modifier_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one actor modifier by index.
+    pub get_modifier: unsafe extern "C" fn(*mut c_void, usize, *mut NativeModifierValue) -> i32,
+    /// Number of child declarations.
+    pub get_child_count: unsafe extern "C" fn(*mut c_void) -> usize,
+    /// Read one child declaration by index.
+    pub get_child: unsafe extern "C" fn(*mut c_void, usize, *mut NativeChild) -> i32,
+    /// Report a build diagnostic.
+    pub report_diagnostic:
+        unsafe extern "C" fn(*mut c_void, *const c_char, u32, *const c_char) -> i32,
+}
+
+/// Native primitive build callback.
+pub type NativePrimitiveBuildFn = unsafe extern "C" fn(*mut NativePrimitiveBuildCtx) -> i32;
+
+/// Context passed to a native primitive assignment callback.
+#[repr(C)]
+pub struct NativeAssignmentContext {
+    /// `size_of::<NativeAssignmentContext>()`.
+    pub size: usize,
+    /// Opaque host handle passed back to host callbacks.
+    pub host: *mut c_void,
+    /// Property name being assigned.
+    pub property: *const c_char,
+    /// Animation start time in milliseconds.
+    pub t_start_ms: u64,
+    /// Animation end time in milliseconds.
+    pub t_end_ms: u64,
+    /// Easing code (0=Linear, 1=EaseIn, 2=EaseOut, 3=EaseInOut).
+    pub easing: u32,
+    /// Read the assigned value.
+    pub get_value: unsafe extern "C" fn(*mut c_void, *mut NativeValue) -> i32,
+    /// Write one extension property keyframe.
+    pub write_keyframe:
+        unsafe extern "C" fn(*mut c_void, *const c_char, NativeValue, u64, u64, u32) -> i32,
+}
+
+/// Native primitive assignment callback.
+pub type NativeAssignmentFn = unsafe extern "C" fn(*mut NativeAssignmentContext) -> i32;
+
+/// Context passed to a native primitive finalize callback.
+#[repr(C)]
+pub struct NativeFinalizeContext {
+    /// `size_of::<NativeFinalizeContext>()`.
+    pub size: usize,
+    /// Opaque host handle passed back to host callbacks.
+    pub host: *mut c_void,
+    /// Actor label.
+    pub label: *const c_char,
+    /// Number of children already built into the timeline.
+    pub child_count: usize,
+}
+
+/// Native primitive finalize callback.
+pub type NativeFinalizeFn = unsafe extern "C" fn(*mut NativeFinalizeContext) -> i32;
 
 /// Native expression function callback.
 ///
@@ -275,8 +390,14 @@ pub struct NativePrimitive {
     pub advanced: bool,
     /// `NATIVE_PRIMITIVE_CHILD_*` value.
     pub child_processing: u32,
+    /// Optional build callback.
+    pub build: Option<NativePrimitiveBuildFn>,
     /// Optional frame-time evaluate callback.
     pub evaluate: Option<NativePrimitiveEvaluateFn>,
+    /// Optional assignment callback.
+    pub handle_assignment: Option<NativeAssignmentFn>,
+    /// Optional post-children finalize callback.
+    pub finalize_container_build: Option<NativeFinalizeFn>,
 }
 
 /// Host callbacks available to a native plugin during install.

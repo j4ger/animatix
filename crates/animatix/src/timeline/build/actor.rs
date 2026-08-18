@@ -247,6 +247,7 @@ impl Timeline {
                 if let Some(track) = self.tracks.get_mut(label) {
                     track.actor_type = Some(ty.to_string());
                 }
+                self.process_inline_items(time_ms, children, label, diagnostics);
                 self.write_extension_properties_for_decl(
                     label,
                     ty,
@@ -255,6 +256,15 @@ impl Timeline {
                     time_ms,
                     diagnostics,
                 );
+                let mut ctx = crate::primitives::BuildCtx {
+                    timeline: self,
+                    time_ms,
+                    parent_label,
+                    diagnostics,
+                };
+                if let Err(mut diags) = primitive.finalize_container_build(&mut ctx, label, props) {
+                    diagnostics.append(&mut diags);
+                }
                 return;
             }
         }

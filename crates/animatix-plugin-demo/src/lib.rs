@@ -74,7 +74,10 @@ pub unsafe extern "C" fn animatix_plugin_install(
         category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
         advanced: false,
         child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+        build: None,
         evaluate: Some(pulse_evaluate),
+        handle_assignment: None,
+        finalize_container_build: None,
     };
     let primitive_status = unsafe { (api.register_primitive)(host, primitive) };
     if primitive_status != NATIVE_STATUS_OK {
