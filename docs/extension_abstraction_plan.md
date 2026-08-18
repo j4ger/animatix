@@ -1,6 +1,6 @@
 # Extension Abstraction Plan
 
-Status: active
+Status: superseded by `docs/unified_extension_design.md`
 
 This plan replaces the previous open-ended "make primitives/properties
 dynamic" discussion with a concrete, benchmark-gated migration. The target is

@@ -9,9 +9,11 @@ execution order.
 
 ## Current State
 
-Most registration and dispatch now goes through one registry shape, with the
-remaining cleanup work concentrated in tooling consumers and compatibility
-helpers:
+Registration and dispatch go through one registry shape. A later hardening pass
+closed the remaining runtime seams: native primitives render through ABI v2
+path commands, manifest descriptors no longer guess runtime property ids,
+custom primitives dispatch through the active registry, primitive metadata is
+borrowed instead of leaked, and native services carry destructors.
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
@@ -22,9 +24,9 @@ helpers:
 | Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
 | Native plugins | n/a | C ABI v2 primitive/action/service registration |
 
-The remaining parallel paths are tooling-level: analyzer/LSP still consume
-manifest/schema descriptors, and a few runtime compatibility helpers wrap the
-unified registries.
+`PROPERTY_REGISTRY` remains the runtime binding table (typed field, read
+source, flags, defaults) while shared schema owns descriptors (name, actor
+types, type, id); drift guards require both directions to stay aligned.
 
 ## Target Model
 
@@ -56,8 +58,10 @@ API. After installation, the engine cannot tell the source apart.
 
 ### Property Layer
 
-- `PropertyDescriptor` is the shared schema object: stable id, owned name,
-  actor types, type annotation, value kind, and injection flag.
+- `PropertyDescriptor` is the shared schema object: optional runtime id, owned
+  name, actor types, type annotation, value kind, and injection flag. Runtime
+  registries always set the id; manifests leave it `None` because ids are
+  allocated by `ExtensionRegistry`, never guessed by a manifest.
 - Runtime keeps a `PropertyBinding` for built-ins that maps the descriptor to
   `ActorField`, read source, group, flags, and default. Extensions use
   `PropertyPlan` slots. The engine still has a fast path for built-ins, but
@@ -86,6 +90,9 @@ struct AnimatixPluginApiV2 {
 ```
 
 Host-side adapter types turn those callbacks into `PrimitiveImpl` entries.
+Native evaluate callbacks receive a host context with an `append_path` command
+table, so they can emit real vector render commands. Service values carry an
+optional destructor and keep the plugin library alive until disposal.
 Manifests provide the same descriptors to analyzer/LSP/GUI without loading the
 library.
 
@@ -148,6 +155,11 @@ completions, and native ABI compatibility.
   objects used by completions and hover.
 - Phase G passed: fmt, clippy, workspace tests, no-video build/test, rustdoc,
   docs/example/bench gates, and eparts feature checks are all green.
+- Hardening pass: native primitives emit vector commands through the host
+  evaluate context; manifest property ids are `None` instead of guessed;
+  custom primitive routing uses the active registry's built-in prefix;
+  primitive metadata no longer uses `Box::leak`; services own destructors and
+  library lifetime.
 
 ## Phases
 

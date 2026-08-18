@@ -135,11 +135,13 @@ A plugin exports:
   `animatix_plugin_install_v2(api, host) -> i32`
 
 ABI v1 can register external properties and native expression functions. ABI v2
-adds `NativePrimitiveV2`, action callbacks, and opaque service values, so one
-native install path can register the same capability kinds as an in-process
-`ExtensionPlugin`. Expression callbacks exchange `NativeValueV1` values: `Num`,
-`Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`. Strings, lists, closures, and other
-runtime values return a type error.
+adds `NativePrimitiveV2`, action callbacks, and service values with optional
+destructors, so one native install path can register the same capability kinds
+as an in-process `ExtensionPlugin`. Native evaluate callbacks receive a host
+context with `append_path`; the demo primitive emits vector paths that render
+through the normal scene-evaluation path. Expression callbacks exchange
+`NativeValueV1` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
+Strings, lists, closures, and other runtime values return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo
@@ -150,7 +152,9 @@ animatix check demo.amx --plugin target/debug/libanimatix_plugin_demo.so
 A manifest passed to `--plugin` also feeds the analyzer, so unknown extension
 types/properties are suppressed during `check` and `lint`. Manifest entries are
 parsed into the shared `PrimitiveDescriptor`/`PropertyDescriptor` schema, so
-completions and hover metadata use the same shapes as runtime tooling. If the
+completions and hover metadata use the same shapes as runtime tooling. Manifest
+property descriptors keep `id: None`; runtime ids are allocated only when the
+plugin or in-process extension registers into `ExtensionRegistry`. If the
 manifest has a `library` field, the CLI loads that native library relative to
 the manifest.
 
@@ -172,10 +176,11 @@ registered callbacks and the disposer returned by install.
 
 ## Current Limits
 
-- Extension properties are descriptor-driven. Built-in property metadata is
-  still split between the runtime `PROPERTY_REGISTRY` and
-  `animatix-syntax::schema`, so a new built-in property currently needs both
-  tables.
+- Built-in property metadata is descriptor-driven in
+  `animatix-syntax::schema`, while `PROPERTY_REGISTRY` is the typed runtime
+  binding table (field, read source, flags, defaults). The two sources are
+  intentionally split and protected by bidirectional drift guards, so a new
+  binding must still be registered in both descriptor and binding layers.
 - GUI builds use a per-document extension context. The insertion palette reads
   the timeline's primitive registry, and the inspector/keyframe table show
   extension properties from the actor plan. LSP does not load runtime extension
