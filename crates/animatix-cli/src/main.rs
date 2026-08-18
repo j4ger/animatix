@@ -1086,7 +1086,8 @@ mod tests {
         )
         .expect("write manifest");
 
-        let extensions = load_cli_extensions(&[manifest_path.clone()]).expect("load manifest");
+        let extensions =
+            load_cli_extensions(std::slice::from_ref(&manifest_path)).expect("load manifest");
         assert_eq!(extensions.manifests.len(), 1);
         assert_eq!(extensions.manifests[0].primitives[0].type_name, "Gauge");
         assert_eq!(

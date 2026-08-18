@@ -283,7 +283,7 @@ mod tests {
     use super::*;
     use crate::extension_context::ExtensionContext;
     use crate::timeline::{Environment, PropertyKind, Value};
-    use std::ffi::{c_char, c_void};
+    use std::ffi::c_void;
 
     #[test]
     fn native_values_round_trip_finite_runtime_values() {
@@ -344,9 +344,11 @@ mod tests {
         if arg.tag != NATIVE_VALUE_NUM {
             return NATIVE_STATUS_TYPE_ERROR;
         }
-        let mut result = NativeValueV1::default();
-        result.tag = NATIVE_VALUE_NUM;
-        result.num = arg.num * 2.0;
+        let result = NativeValueV1 {
+            tag: NATIVE_VALUE_NUM,
+            num: arg.num * 2.0,
+            ..NativeValueV1::default()
+        };
         unsafe {
             *out = result;
         }

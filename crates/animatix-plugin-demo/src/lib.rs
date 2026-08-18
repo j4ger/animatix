@@ -23,8 +23,13 @@ pub extern "C" fn animatix_plugin_name() -> *const c_char {
 }
 
 /// Install plugin capabilities through the host API table.
+///
+/// # Safety
+///
+/// `api` and `host` must be the values passed by the Animatix loader to the
+/// install entry point. `host` must remain valid for the duration of the call.
 #[unsafe(no_mangle)]
-pub extern "C" fn animatix_plugin_install_v1(
+pub unsafe extern "C" fn animatix_plugin_install_v1(
     api: *const NativePluginApiV1,
     host: *mut c_void,
 ) -> i32 {
@@ -51,9 +56,11 @@ unsafe extern "C" fn double(
     if arg.tag != NATIVE_VALUE_NUM {
         return NATIVE_STATUS_TYPE_ERROR;
     }
-    let mut result = NativeValueV1::default();
-    result.tag = NATIVE_VALUE_NUM;
-    result.num = arg.num * 2.0;
+    let result = NativeValueV1 {
+        tag: NATIVE_VALUE_NUM,
+        num: arg.num * 2.0,
+        ..NativeValueV1::default()
+    };
     unsafe {
         *out = result;
     }
