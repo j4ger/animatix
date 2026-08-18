@@ -596,6 +596,20 @@ impl RenderCommand {
     }
 }
 
+/// Child-rendering strategy selected by a primitive.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ChildProcessing {
+    /// Render children through the normal scene graph recursion.
+    #[default]
+    Generic,
+    /// Render children through the offscreen filter pipeline.
+    Filter,
+    /// Render children inside a clip mask.
+    Mask,
+    /// Render children as one aggregated equation document.
+    Equation,
+}
+
 /// Every actor type in Animatix implements this trait.
 ///
 /// Metadata, build logic, and (optionally) render logic live in one place.
@@ -688,6 +702,14 @@ pub trait Primitive: Send + Sync {
                 ..animatix_syntax::schema::PrimitiveCapabilities::default()
             },
         }
+    }
+
+    /// Child-processing capability used by the scene subtree renderer.
+    ///
+    /// Container primitives override this when `scene_eval` must aggregate or
+    /// transform children before drawing them.
+    fn child_processing(&self) -> ChildProcessing {
+        ChildProcessing::Generic
     }
 
     /// Returns the corresponding `ActorKindId` variant.
@@ -1008,6 +1030,26 @@ mod tests {
             assert!(found.is_some(), "find_primitive({:?}) returned None", p.type_name());
             assert_eq!(found.unwrap().type_name(), p.type_name());
         }
+    }
+
+    #[test]
+    fn child_processing_capabilities_cover_special_containers() {
+        assert_eq!(
+            find_primitive("Filter").expect("Filter built-in").child_processing(),
+            ChildProcessing::Filter
+        );
+        assert_eq!(
+            find_primitive("Mask").expect("Mask built-in").child_processing(),
+            ChildProcessing::Mask
+        );
+        assert_eq!(
+            find_primitive("Equation").expect("Equation built-in").child_processing(),
+            ChildProcessing::Equation
+        );
+        assert_eq!(
+            find_primitive("Row").expect("Row built-in").child_processing(),
+            ChildProcessing::Generic
+        );
     }
 
     #[test]

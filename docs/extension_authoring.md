@@ -42,7 +42,9 @@ let report = Timeline::build_with_primitive_registry(&ast, &namespaces, Arc::new
 
 A custom primitive implements the existing `Primitive` trait. The `actor_type`
 stored on `AnimationTrack` lets `scene_eval` resolve it back through the
-registry instead of a core `ActorKindId` variant.
+registry instead of a core `ActorKindId` variant. Container primitives can
+override `child_processing()` when their subtree renderer needs a dedicated
+strategy (`Generic`, `Filter`, `Mask`, or `Equation`).
 
 ## Extension Properties
 
@@ -165,9 +167,6 @@ primitive build/evaluate and action dispatch.
 
 ## Current Limits
 
-- Custom primitives can build and evaluate through the registry. A few child
-  processing paths (`Filter`, `Mask`, `Equation`) still special-case built-in
-  containers instead of using a generic capability hook.
 - Extension properties are descriptor-driven. Built-in property metadata is
   still split between the runtime `PROPERTY_REGISTRY` and
   `animatix-syntax::schema`, so a new built-in property currently needs both

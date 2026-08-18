@@ -303,6 +303,10 @@ Acceptance:
 - Phase 3: `Primitive` now exposes shared schema capabilities;
   `PrimitiveDescriptor` and schema specs derive from it instead of string
   matching in the descriptor.
+- Phase 3: `Primitive` gained a `child_processing()` capability hook.
+  `Filter`, `Mask`, and `Equation` declare their subtree strategy, and
+  `scene_eval::render_node_children` dispatches through that hook instead of
+  matching `ActorKindId` variants.
 - Phase 6: runtime `PrimitiveRegistry::specs()` and
   `animatix-syntax::schema::builtin_primitive_specs()` are aligned and covered
   by a drift guard test (display names, icons, categories, advanced flags, and

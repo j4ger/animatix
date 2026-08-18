@@ -631,7 +631,29 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Recursively render child nodes, with special handling for mask containers.
+    /// Resolve the child-rendering strategy for a track.
+    ///
+    /// The primitive registry is the source of truth. The `ActorKindId` match
+    /// below is only a fallback for hand-built test tracks without an actor
+    /// type name.
+    fn primitive_child_processing(
+        &self,
+        track: &AnimationTrack,
+    ) -> crate::primitives::ChildProcessing {
+        if let Some(type_name) = track.actor_type.as_deref() {
+            if let Some(primitive) = self.primitive_registry.find(type_name) {
+                return primitive.child_processing();
+            }
+        }
+        match track.kind {
+            ActorKindId::Filter => crate::primitives::ChildProcessing::Filter,
+            ActorKindId::Mask => crate::primitives::ChildProcessing::Mask,
+            ActorKindId::Equation => crate::primitives::ChildProcessing::Equation,
+            _ => crate::primitives::ChildProcessing::Generic,
+        }
+    }
+
+    /// Recursively render child nodes using the primitive capability hook.
     fn render_node_children(
         &self,
         node_label: &str,
@@ -658,7 +680,7 @@ impl Timeline {
             std::collections::BTreeMap::new()
         };
 
-        if track.kind == ActorKindId::Filter {
+        if self.primitive_child_processing(track) == crate::primitives::ChildProcessing::Filter {
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             if children.is_empty() {
                 return;
@@ -808,7 +830,8 @@ impl Timeline {
                     },
                 }
             }
-        } else if track.kind == ActorKindId::Mask {
+        } else if self.primitive_child_processing(track) == crate::primitives::ChildProcessing::Mask
+        {
             let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
             // Build a rectangle clip path from -half_size to +half_size
@@ -848,7 +871,9 @@ impl Timeline {
 
             // Pop clip layer
             scene.pop_layer();
-        } else if track.kind == ActorKindId::Equation {
+        } else if self.primitive_child_processing(track)
+            == crate::primitives::ChildProcessing::Equation
+        {
             // ── Equation: compile all child Fragments as one Typst document ──
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
 
