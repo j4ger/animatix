@@ -1,7 +1,7 @@
 //! Stable C ABI shared by the Animatix host and native extension plugins.
 //!
 //! Plugins are `cdylib` files that export [`ABI_VERSION`],
-//! [`animatix_plugin_name`]-equivalent symbols, and the install entry point.
+//! `animatix_plugin_name`-equivalent symbols, and the install entry point.
 //! The host and plugin never pass Rust trait objects across the library
 //! boundary; they exchange only `repr(C)` structs and function pointers.
 
