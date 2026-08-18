@@ -4,10 +4,10 @@
 //! to external editors like VS Code and Neovim via the Language Server Protocol.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use animatix_analyzer::{Analyzer, Workspace};
+use animatix_analyzer::{Analyzer, ExtensionManifest, Workspace};
 use animatix_syntax::token::LineIndex;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
@@ -43,6 +43,8 @@ struct Backend {
     /// Cached workspace for cross-file analysis.
     /// Rebuilt when files are opened, changed, or closed.
     cached_workspace: Mutex<Option<Arc<Workspace>>>,
+    /// Analyzer-only extension manifests loaded from the document workspace.
+    manifests: Mutex<Vec<ExtensionManifest>>,
 }
 
 impl Backend {
@@ -51,20 +53,31 @@ impl Backend {
             client,
             analyzers: Mutex::new(HashMap::new()),
             cached_workspace: Mutex::new(None),
+            manifests: Mutex::new(Vec::new()),
         }
+    }
+
+    /// Reload `*.amx-plugin.toml` manifests from the document's directory.
+    async fn refresh_manifests(&self, path: Option<&Path>) {
+        let manifests = path.and_then(Path::parent).map(load_manifests).unwrap_or_default();
+        *self.manifests.lock().await = manifests;
     }
 
     /// Update the analyzer for a document. Rebuilds workspace if needed.
     async fn update_analyzer(&self, uri: String, text: String) {
         let path = uri_to_path(&uri);
+        self.refresh_manifests(path.as_deref()).await;
+        let manifest = ExtensionManifest::merge(&self.manifests.lock().await);
         let is_new;
         {
             let mut analyzers = self.analyzers.lock().await;
             is_new = !analyzers.contains_key(&uri);
-            let analyzer = analyzers
-                .entry(uri.clone())
-                .or_insert_with(|| Analyzer::new_with_path(&text, path.clone()));
+            let analyzer = analyzers.entry(uri.clone()).or_insert_with(|| {
+                Analyzer::new_with_path(&text, path.clone())
+                    .with_extension_manifest(manifest.clone())
+            });
             analyzer.update(&text);
+            analyzer.set_extension_manifest(manifest);
         }
 
         if is_new {
@@ -575,6 +588,29 @@ fn role_index(role: &str) -> u32 {
         .unwrap_or(6) // fall back to variable for unknown roles
 }
 
+/// Load analyzer-only extension manifests from a directory.
+fn load_manifests(dir: &Path) -> Vec<ExtensionManifest> {
+    let mut manifests = Vec::new();
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return manifests;
+    };
+    for entry in entries.flatten() {
+        let file_name = entry.file_name();
+        let Some(name) = file_name.to_str() else {
+            continue;
+        };
+        if !name.ends_with(".amx-plugin.toml") {
+            continue;
+        }
+        if let Ok(source) = std::fs::read_to_string(entry.path()) {
+            if let Ok(manifest) = ExtensionManifest::from_toml(&source) {
+                manifests.push(manifest);
+            }
+        }
+    }
+    manifests
+}
+
 /// Convert a file:// URI to a PathBuf.
 fn uri_to_path(uri: &str) -> Option<PathBuf> {
     let url = url::Url::parse(uri).ok()?;
@@ -614,5 +650,27 @@ mod tests {
     #[test]
     fn uri_to_path_handles_empty_string() {
         assert_eq!(uri_to_path(""), None);
+    }
+
+    #[test]
+    fn loads_amx_plugin_manifests_from_directory() {
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-lsp-manifest-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        std::fs::write(dir.join("demo.amx-plugin.toml"), "[[primitives]]\ntype_name = \"Gauge\"\n")
+            .expect("write manifest");
+        std::fs::write(dir.join("ignored.toml"), "").expect("write ignored file");
+
+        let manifests = load_manifests(&dir);
+        assert_eq!(manifests.len(), 1);
+        assert_eq!(manifests[0].primitives[0].type_name, "Gauge");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

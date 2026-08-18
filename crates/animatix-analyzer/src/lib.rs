@@ -17,6 +17,7 @@ mod completer;
 mod definition;
 mod diagnostics;
 mod document_symbol;
+mod extension_manifest;
 mod hover;
 mod references;
 mod symbol_table;
@@ -34,6 +35,7 @@ pub use diagnostics::{
     Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
     collect_diagnostics_with_config,
 };
+pub use extension_manifest::{ExtensionManifest, ManifestPrimitive, ManifestProperty};
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
 };
@@ -54,6 +56,7 @@ pub struct Analyzer {
     symbols: SymbolTable,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
+    extension_manifest: ExtensionManifest,
 }
 
 impl Analyzer {
@@ -74,9 +77,23 @@ impl Analyzer {
             symbols: SymbolTable::default(),
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
+            extension_manifest: ExtensionManifest::default(),
         };
         analyzer.update(source);
         analyzer
+    }
+
+    /// Set extension metadata used by completions and diagnostics.
+    pub fn with_extension_manifest(mut self, manifest: ExtensionManifest) -> Self {
+        self.extension_manifest = manifest;
+        self.rebuild_symbols();
+        self
+    }
+
+    /// Replace extension metadata without re-parsing source.
+    pub fn set_extension_manifest(&mut self, manifest: ExtensionManifest) {
+        self.extension_manifest = manifest;
+        self.rebuild_symbols();
     }
 
     /// Update the source text. Re-parses if changed.
@@ -125,6 +142,9 @@ impl Analyzer {
         } else {
             Vec::new()
         };
+
+        let mut table = table;
+        self.extension_manifest.apply_to(&mut table);
 
         self.symbols = table;
     }
@@ -416,6 +436,36 @@ a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primar
         assert!(
             unknown_properties.is_empty(),
             "transform should be a known actor property: {unknown_properties:?}"
+        );
+    }
+
+    #[test]
+    fn extension_manifest_suppresses_unknown_extension_symbols() {
+        let source = "g: Gauge, level: 42";
+        let manifest = ExtensionManifest::from_toml(
+            r#"
+[[primitives]]
+type_name = "Gauge"
+
+[[properties]]
+actor_type = "Gauge"
+name = "level"
+type = "Num"
+"#,
+        )
+        .expect("parse manifest");
+        let analyzer = Analyzer::new(source).with_extension_manifest(manifest);
+
+        assert!(analyzer.symbols().types.contains("Gauge"));
+        assert_eq!(analyzer.symbols().properties.get("Gauge"), Some(&vec!["level".to_string()]));
+        let diagnostics = analyzer.diagnostics();
+        assert!(
+            !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-type")),
+            "manifest primitive should suppress unknown-type"
+        );
+        assert!(
+            !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-property")),
+            "manifest property should suppress unknown-property"
         );
     }
 
