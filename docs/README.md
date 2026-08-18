@@ -9,6 +9,7 @@
 | [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
 | [`roadmap.md`](roadmap.md) | Both | Canonical planned work, known gaps, migration plans |
 | [`extension_abstraction_plan.md`](extension_abstraction_plan.md) | Contributors | Large refactor plan for dynamic primitives/properties |
+| [`unified_extension_design.md`](unified_extension_design.md) | Contributors | Single descriptor/registry target and phased migration |
 | [`extension_abstraction_inventory.md`](extension_abstraction_inventory.md) | Contributors | Generated inventory of enum/string match sites |
 | [`extension_authoring.md`](extension_authoring.md) | Contributors | How to register primitives, actions, functions, services, and plugins |
 | [`ai_agent_animation_quality.md`](ai_agent_animation_quality.md) | Contributors | AI agent review/evaluation architecture and bring-up plan |
