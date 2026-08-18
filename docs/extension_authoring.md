@@ -166,6 +166,20 @@ plugin or in-process extension registers into `ExtensionRegistry`. If the
 manifest has a `library` field, the CLI loads that native library relative to
 the manifest.
 
+Manifests can be regenerated from a native library instead of hand-maintained.
+`plugin describe` installs the library into a scratch `ExtensionContext`, reads
+its runtime primitive/property descriptors, and serializes them through the same
+manifest schema:
+
+```bash
+cargo build -p animatix-plugin-demo
+animatix plugin describe target/debug/libanimatix_plugin_demo.so \
+  --output crates/animatix-plugin-demo/demo.amx-plugin.toml
+```
+
+When `--output` is used, the recorded `library` field is made relative to the
+manifest file; without it the manifest is printed to stdout.
+
 ```toml
 library = "../../target/debug/libanimatix_plugin_demo.so"
 

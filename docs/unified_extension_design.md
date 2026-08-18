@@ -13,7 +13,8 @@ Registration and dispatch go through one registry shape. A later hardening pass
 closed the remaining runtime seams: native primitives render through ABI v3
 path commands, manifest descriptors no longer guess runtime property ids,
 custom primitives dispatch through the active registry, primitive metadata is
-borrowed instead of leaked, and native services carry destructors.
+borrowed instead of leaked, native services carry destructors, and the CLI can
+regenerate analyzer manifests from loaded runtime descriptors.
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
@@ -160,6 +161,10 @@ completions, and native ABI compatibility.
   custom primitive routing uses the active registry's built-in prefix;
   primitive metadata no longer uses `Box::leak`; services own destructors and
   library lifetime.
+- Manifest generation pass: `animatix plugin describe <library>` installs the
+  plugin into a scratch `ExtensionContext`, filters to extension
+  primitive/property descriptors, and serializes the analyzer manifest with
+  the same TOML schema consumed by `--plugin`.
 
 ## Phases
 

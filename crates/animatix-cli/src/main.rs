@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
-use animatix::extension_plugin::{NativePlugin, PluginDisposer, PluginLoader};
+use animatix::extension_plugin::{ExtensionPlugin, NativePlugin, PluginDisposer, PluginLoader};
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
 use animatix_analyzer::ExtensionManifest;
@@ -55,6 +55,12 @@ enum Commands {
         /// Print AST even if parsing errors occurred
         #[arg(short, long)]
         force: bool,
+    },
+
+    /// Inspect extension libraries and generated analyzer metadata
+    Plugin {
+        #[command(subcommand)]
+        command: PluginCommands,
     },
 
     /// Render a specific frame to an image file (PNG/WebP)
@@ -224,6 +230,19 @@ enum Commands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum PluginCommands {
+    /// Load a native plugin and print its runtime descriptors as TOML
+    Describe {
+        /// Native plugin library to inspect
+        library: PathBuf,
+
+        /// Write the manifest to this path instead of stdout
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+    },
+}
+
 // ----------------------------------------------------------------------------
 // Shared helpers
 // ----------------------------------------------------------------------------
@@ -280,6 +299,75 @@ fn load_cli_extensions(paths: &[PathBuf]) -> Result<CliExtensions, String> {
         }
     }
     Ok(extensions)
+}
+
+/// Load a native plugin, collect its runtime descriptors, and emit a manifest.
+fn run_plugin_describe(library: &Path, output: Option<&Path>) -> Result<(), String> {
+    let plugin = NativePlugin::load(library).map_err(|err| err.to_string())?;
+    let mut ctx = animatix::extension_context::ExtensionContext::new();
+    let disposer = plugin.install(&mut ctx).map_err(|err| err.to_string())?;
+
+    let registry = ctx.primitive_registry();
+    let primitives = registry
+        .specs()
+        .into_iter()
+        .filter(|spec| !registry.is_builtin(&spec.type_name))
+        .collect::<Vec<_>>();
+    let properties = ctx.extension_property_descriptors();
+
+    let manifest_library = output
+        .map(|output| {
+            let parent = output
+                .parent()
+                .filter(|path| !path.as_os_str().is_empty())
+                .unwrap_or(Path::new("."));
+            relative_path(parent, library)
+                .unwrap_or_else(|| library.to_path_buf())
+                .to_string_lossy()
+                .into_owned()
+        })
+        .unwrap_or_else(|| library.to_string_lossy().into_owned());
+
+    let manifest =
+        ExtensionManifest::from_runtime(Some(manifest_library), &primitives, &properties);
+    let toml = manifest.to_toml()?;
+    let result = match output {
+        Some(path) => {
+            std::fs::write(path, &toml)
+                .map_err(|err| format!("Cannot write {}: {err}", path.display()))?;
+            info!("Wrote plugin manifest: {}", path.display());
+            Ok(())
+        },
+        None => {
+            print!("{toml}");
+            Ok(())
+        },
+    };
+    disposer(&mut ctx);
+    result
+}
+
+/// Compute a `target` path relative to `from_dir`.
+fn relative_path(from_dir: &Path, target: &Path) -> Option<PathBuf> {
+    let from = std::fs::canonicalize(from_dir).ok()?;
+    let target = std::fs::canonicalize(target).ok()?;
+    let mut from_components = from.components().peekable();
+    let mut target_components = target.components().peekable();
+    while from_components.peek() == target_components.peek() {
+        from_components.next();
+        target_components.next();
+    }
+    let mut result = PathBuf::new();
+    for component in from_components {
+        if matches!(component, std::path::Component::Prefix(_)) {
+            return None;
+        }
+        result.push("..");
+    }
+    for component in target_components {
+        result.push(component.as_os_str());
+    }
+    Some(result)
 }
 
 fn is_manifest_path(path: &Path) -> bool {
@@ -647,6 +735,15 @@ fn main() {
                 error!("Error: {e}");
                 std::process::exit(1);
             }
+        },
+
+        Commands::Plugin { command } => match command {
+            PluginCommands::Describe { library, output } => {
+                if let Err(e) = run_plugin_describe(&library, output.as_deref()) {
+                    error!("{e}");
+                    std::process::exit(2);
+                }
+            },
         },
 
         Commands::Ast {
@@ -1066,6 +1163,28 @@ mod tests {
         assert!(is_native_library_path(Path::new("libdemo.dylib")));
         assert!(is_native_library_path(Path::new("demo.dll")));
         assert!(!is_native_library_path(Path::new("demo.txt")));
+    }
+
+    #[test]
+    fn relative_path_uses_common_ancestor() {
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-cli-relative-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let from = dir.join("nested");
+        let target = dir.join("libs").join("libdemo.so");
+        std::fs::create_dir_all(&from).expect("create from dir");
+        std::fs::create_dir_all(target.parent().expect("target parent"))
+            .expect("create target dir");
+        std::fs::write(&target, b"demo").expect("write target");
+
+        assert_eq!(relative_path(&from, &target), Some(PathBuf::from("../libs/libdemo.so")));
+
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]

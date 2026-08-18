@@ -291,6 +291,10 @@ Acceptance:
 - Phase 5: CLI `--plugin` accepts `*.amx-plugin.toml` manifests and native
   library paths, installs loaded plugins into per-build contexts, and feeds
   merged manifests to analyzer diagnostics.
+- Phase 5: CLI `plugin describe <library>` regenerates a TOML
+  `ExtensionManifest` from runtime primitive/property descriptors, so analyzer
+  metadata and the demo manifest stay derived from the plugin instead of being
+  hand-maintained.
 - Phase 5: `crates/animatix-plugin-demo` is a workspace `cdylib` sample that
   registers an external property and a native expression function through the
   stable ABI.

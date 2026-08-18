@@ -7,10 +7,10 @@
 
 use animatix_syntax::schema::{
     ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveDescriptor,
-    PropertyDescriptor, PropertyValueKind,
+    PrimitiveSpec, PropertyDescriptor, PropertyValueKind,
 };
 use animatix_syntax::typing::Type;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::symbol_table::SymbolTable;
 
@@ -54,6 +54,24 @@ struct RawPrimitive {
     advanced: bool,
     #[serde(default)]
     child_processing: Option<String>,
+    #[serde(default)]
+    text_paths: bool,
+    #[serde(default)]
+    vector_paths: bool,
+    #[serde(default)]
+    image_payload: bool,
+    #[serde(default)]
+    layout_container: bool,
+    #[serde(default)]
+    morphable_paths: bool,
+    #[serde(default)]
+    vector_reveal_target: bool,
+    #[serde(default)]
+    plot_geometry: bool,
+    #[serde(default)]
+    is_container: bool,
+    #[serde(default)]
+    is_shape: bool,
 }
 
 #[derive(Deserialize)]
@@ -70,6 +88,65 @@ struct RawProperty {
     group: Option<String>,
     #[serde(default)]
     help: Option<String>,
+}
+
+#[derive(Serialize)]
+struct OutputManifest<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    library: Option<&'a str>,
+    primitives: Vec<OutputPrimitive<'a>>,
+    properties: Vec<OutputProperty<'a>>,
+}
+
+#[derive(Serialize)]
+struct OutputPrimitive<'a> {
+    type_name: &'a str,
+    display_name: &'a str,
+    category: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    icon_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "is_false")]
+    advanced: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    text_paths: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    vector_paths: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    image_payload: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    layout_container: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    morphable_paths: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    vector_reveal_target: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    plot_geometry: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    is_container: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    is_shape: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    child_processing: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+struct OutputProperty<'a> {
+    actor_type: &'a str,
+    name: &'a str,
+    #[serde(rename = "type")]
+    ty: &'static str,
+    #[serde(skip_serializing_if = "is_false")]
+    injectable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    help: Option<&'a str>,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 impl<'de> Deserialize<'de> for ExtensionManifest {
@@ -98,6 +175,91 @@ impl ExtensionManifest {
             merged.properties.extend(manifest.properties.iter().cloned());
         }
         merged
+    }
+
+    /// Build a manifest from runtime descriptors, stripping runtime property ids.
+    ///
+    /// This is the single-source path for generating analyzer metadata from a
+    /// loaded native plugin or in-process extension context.
+    pub fn from_runtime(
+        library: Option<String>,
+        primitives: &[PrimitiveSpec],
+        properties: &[PropertyDescriptor],
+    ) -> Self {
+        Self {
+            library,
+            primitives: primitives
+                .iter()
+                .map(|spec| PrimitiveDescriptor {
+                    type_name: spec.type_name.clone(),
+                    display_name: spec.display_name.clone(),
+                    category: spec.category,
+                    icon_id: spec.icon_id.clone(),
+                    advanced: spec.advanced,
+                    capabilities: spec.capabilities,
+                    child_processing: spec.child_processing,
+                    properties: Vec::new(),
+                })
+                .collect(),
+            properties: properties
+                .iter()
+                .map(|property| PropertyDescriptor {
+                    id: None,
+                    name: property.name.clone(),
+                    actor_types: property.actor_types.clone(),
+                    ty: property.ty.clone(),
+                    value_kind: property.value_kind,
+                    injectable: property.injectable,
+                    display_name: property.display_name.clone(),
+                    group: property.group.clone(),
+                    help: property.help.clone(),
+                })
+                .collect(),
+        }
+    }
+
+    /// Serialize this manifest as canonical TOML.
+    pub fn to_toml(&self) -> Result<String, String> {
+        let output = OutputManifest {
+            library: self.library.as_deref(),
+            primitives: self
+                .primitives
+                .iter()
+                .map(|primitive| OutputPrimitive {
+                    type_name: &primitive.type_name,
+                    display_name: &primitive.display_name,
+                    category: primitive.category.label(),
+                    icon_id: (!primitive.icon_id.is_empty()).then_some(primitive.icon_id.as_str()),
+                    advanced: primitive.advanced,
+                    text_paths: primitive.capabilities.text_paths,
+                    vector_paths: primitive.capabilities.vector_paths,
+                    image_payload: primitive.capabilities.image_payload,
+                    layout_container: primitive.capabilities.layout_container,
+                    morphable_paths: primitive.capabilities.morphable_paths,
+                    vector_reveal_target: primitive.capabilities.vector_reveal_target,
+                    plot_geometry: primitive.capabilities.plot_geometry,
+                    is_container: primitive.capabilities.is_container,
+                    is_shape: primitive.capabilities.is_shape,
+                    child_processing: output_child_processing(primitive.child_processing),
+                })
+                .collect(),
+            properties: self
+                .properties
+                .iter()
+                .flat_map(|property| {
+                    property.actor_types.iter().map(move |actor_type| OutputProperty {
+                        actor_type,
+                        name: &property.name,
+                        ty: output_property_type(property.value_kind),
+                        injectable: property.injectable,
+                        display_name: property.display_name.as_deref(),
+                        group: property.group.as_deref(),
+                        help: property.help.as_deref(),
+                    })
+                })
+                .collect(),
+        };
+        toml::to_string(&output).map_err(|err| err.to_string())
     }
 
     /// Apply this manifest to a symbol table so completions and diagnostics see it.
@@ -152,7 +314,17 @@ impl ExtensionManifest {
                     category,
                     icon_id: primitive.icon_id.unwrap_or_default(),
                     advanced: primitive.advanced,
-                    capabilities: PrimitiveCapabilities::default(),
+                    capabilities: PrimitiveCapabilities {
+                        text_paths: primitive.text_paths,
+                        vector_paths: primitive.vector_paths,
+                        image_payload: primitive.image_payload,
+                        layout_container: primitive.layout_container,
+                        morphable_paths: primitive.morphable_paths,
+                        vector_reveal_target: primitive.vector_reveal_target,
+                        plot_geometry: primitive.plot_geometry,
+                        is_container: primitive.is_container,
+                        is_shape: primitive.is_shape,
+                    },
                     child_processing: primitive
                         .child_processing
                         .as_deref()
@@ -196,6 +368,7 @@ fn parse_child_processing(value: &str) -> Option<ChildProcessingKind> {
 fn manifest_value_kind(ty: &str) -> PropertyValueKind {
     match ty.trim() {
         "Num" => PropertyValueKind::F32,
+        "U32" => PropertyValueKind::U32,
         "Str" | "String" => PropertyValueKind::String,
         "Vec2" => PropertyValueKind::Vec2,
         "Vec4" | "Color" => PropertyValueKind::Vec4,
@@ -206,7 +379,7 @@ fn manifest_value_kind(ty: &str) -> PropertyValueKind {
 
 fn parse_manifest_type(ty: &str) -> Type {
     match ty.trim() {
-        "Num" => Type::Num,
+        "Num" | "U32" => Type::Num,
         "Str" | "String" => Type::Str,
         "Bool" => Type::Bool,
         "Vec2" => Type::Vec2,
@@ -216,6 +389,27 @@ fn parse_manifest_type(ty: &str) -> Type {
         "Any" => Type::Any,
         "List<Vec2>" => Type::List(Box::new(Type::Vec2)),
         _ => Type::Any,
+    }
+}
+
+fn output_property_type(kind: PropertyValueKind) -> &'static str {
+    match kind {
+        PropertyValueKind::F32 => "Num",
+        PropertyValueKind::U32 => "U32",
+        PropertyValueKind::Vec2 => "Vec2",
+        PropertyValueKind::Vec4 => "Vec4",
+        PropertyValueKind::String => "Str",
+        PropertyValueKind::PointList => "List<Vec2>",
+        PropertyValueKind::Generic => "Any",
+    }
+}
+
+fn output_child_processing(kind: ChildProcessingKind) -> Option<&'static str> {
+    match kind {
+        ChildProcessingKind::Generic => None,
+        ChildProcessingKind::Filter => Some("Filter"),
+        ChildProcessingKind::Mask => Some("Mask"),
+        ChildProcessingKind::Equation => Some("Equation"),
     }
 }
 
@@ -294,5 +488,47 @@ injectable = true
         assert_eq!(merged.primitives.len(), 2);
         assert_eq!(merged.primitives[0].type_name, "Gauge");
         assert_eq!(merged.primitives[1].type_name, "Dial");
+    }
+
+    #[test]
+    fn runtime_manifest_roundtrips_through_toml() {
+        let primitive = PrimitiveSpec {
+            type_name: "Pulse".to_string(),
+            display_name: "Pulse".to_string(),
+            category: PrimitiveCategory::Shape,
+            icon_id: "extension:pulse".to_string(),
+            advanced: false,
+            capabilities: PrimitiveCapabilities {
+                vector_paths: true,
+                is_shape: true,
+                ..PrimitiveCapabilities::default()
+            },
+            child_processing: ChildProcessingKind::Filter,
+        };
+        let property = PropertyDescriptor {
+            id: Some(animatix_syntax::schema::PropertyId(1_000_000)),
+            name: "glow".to_string(),
+            actor_types: vec!["Pulse".to_string()],
+            ty: Type::Num,
+            value_kind: PropertyValueKind::U32,
+            injectable: true,
+            display_name: Some("Glow".to_string()),
+            group: Some("Pulse".to_string()),
+            help: Some("Pulse radius glow amount".to_string()),
+        };
+
+        let manifest = ExtensionManifest::from_runtime(
+            Some("libdemo.so".to_string()),
+            &[primitive],
+            &[property],
+        );
+        let toml = manifest.to_toml().expect("serialize manifest");
+        assert!(toml.contains("icon_id = \"extension:pulse\""));
+        assert!(toml.contains("type = \"U32\""));
+        assert!(toml.contains("child_processing = \"Filter\""));
+
+        let parsed = ExtensionManifest::from_toml(&toml).expect("parse manifest");
+        assert_eq!(parsed, manifest);
+        assert_eq!(parsed.properties[0].id, None);
     }
 }

@@ -1,18 +1,19 @@
-# Analyzer metadata for the demo native plugin.
-# The library path is resolved relative to this file; adjust the suffix for
-# your platform (libanimatix_plugin_demo.dylib on macOS, animatix_plugin_demo.dll
-# on Windows).
 library = "../../target/debug/libanimatix_plugin_demo.so"
 
 [[primitives]]
 type_name = "Pulse"
 display_name = "Pulse"
 category = "Shapes"
+icon_id = "extension:pulse"
+vector_paths = true
+morphable_paths = true
+vector_reveal_target = true
 
 [[properties]]
 actor_type = "Pulse"
 name = "glow"
 type = "Num"
+injectable = true
 display_name = "Glow"
 group = "Pulse"
 help = "Pulse radius glow amount"
