@@ -5,6 +5,7 @@
 //! keeps the loaded `Library` alive for the lifetime of registered callbacks.
 
 use std::any::Any;
+use std::collections::HashMap;
 use std::ffi::{CStr, c_char, c_void};
 use std::path::Path;
 use std::sync::Arc;
@@ -14,10 +15,12 @@ use animatix_plugin_api::{
     NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
     NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
-    NATIVE_VALUE_COLOR, NATIVE_VALUE_NUM, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4,
-    NativeActionExecuteFn, NativeFunction, NativeInstallFn, NativePathCommand, NativePluginApi,
-    NativePrimitive, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn, NativeService,
-    NativeValue,
+    NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
+    NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
+    NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
+    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeActionExecuteFn, NativeFunction, NativeInstallFn,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
+    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativeService, NativeValue,
 };
 use kurbo::Shape;
 use libloading::Library;
@@ -25,7 +28,8 @@ use libloading::Library;
 use crate::extension_context::ExtensionContext;
 use crate::primitives::{BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
 use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
-use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, Value};
+use crate::timeline::property_registry::lookup_property;
+use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, Value};
 
 use super::{ExtensionPlugin, PluginDisposer, PluginError};
 
@@ -115,6 +119,7 @@ impl ExtensionPlugin for NativePlugin {
                 ctx,
                 library: Some(Arc::clone(&self.library) as Arc<dyn Any + Send + Sync>),
                 properties: Vec::new(),
+                property_ids: HashMap::new(),
                 functions: Vec::new(),
                 primitives: Vec::new(),
                 actions: Vec::new(),
@@ -156,6 +161,7 @@ struct NativeHost<'a> {
     ctx: &'a mut ExtensionContext,
     library: Option<Arc<dyn Any + Send + Sync>>,
     properties: Vec<(String, String)>,
+    property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
     functions: Vec<String>,
     primitives: Vec<String>,
     actions: Vec<String>,
@@ -164,31 +170,42 @@ struct NativeHost<'a> {
 
 unsafe extern "C" fn native_register_property(
     host: *mut c_void,
-    actor_type: *const c_char,
-    name: *const c_char,
-    kind: u32,
-    injectable: bool,
+    descriptor: NativePropertyDescriptor,
+    out_id: *mut u32,
 ) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(actor_type) = (unsafe { read_c_string(actor_type) }) else {
+    let Some(actor_type) = (unsafe { read_c_string(descriptor.actor_type) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
+    let Some(name) = (unsafe { read_c_string(descriptor.name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(kind) = native_property_kind(kind) else {
+    let Some(kind) = native_property_kind(descriptor.kind) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    if host
-        .ctx
-        .register_property(actor_type.clone(), name.clone(), kind, injectable)
-        .is_err()
-    {
+    let display_name = unsafe { read_c_string(descriptor.display_name) };
+    let group = unsafe { read_c_string(descriptor.group) };
+    let help = unsafe { read_c_string(descriptor.help) };
+    let id = match host.ctx.register_property_full(
+        actor_type.clone(),
+        name.clone(),
+        kind,
+        descriptor.injectable,
+        display_name,
+        group,
+        help,
+    ) {
+        Ok(id) => id,
+        Err(_) => return NATIVE_STATUS_TYPE_ERROR,
+    };
+    if out_id.is_null() {
         return NATIVE_STATUS_TYPE_ERROR;
     }
-    host.properties.push((actor_type, name));
+    unsafe { *out_id = id.0 };
+    host.properties.push((actor_type, name.clone()));
+    host.property_ids.insert(name, id);
     NATIVE_STATUS_OK
 }
 
@@ -207,7 +224,11 @@ unsafe extern "C" fn native_register_function(
     let function_name = name.clone();
     host.ctx.register_function(name.clone(), move |args, env| unsafe {
         let _keep_alive = &library;
-        let native_args = args.iter().map(value_to_native).collect::<Result<Vec<_>, _>>()?;
+        let mut arena = NativeValueArena::default();
+        let native_args = args
+            .iter()
+            .map(|value| value_to_native(value, &mut arena))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut out = NativeValue::default();
         let status = callback(
             if native_args.is_empty() {
@@ -246,7 +267,8 @@ unsafe extern "C" fn native_register_primitive(
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(adapter) = NativePrimitiveAdapter::new(primitive, library) else {
+    let Some(adapter) = NativePrimitiveAdapter::new(primitive, library, host.property_ids.clone())
+    else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let name = adapter.type_name.to_string();
@@ -326,12 +348,17 @@ struct NativePrimitiveAdapter {
     kind: ActorKindId,
     advanced: bool,
     child_processing: ChildProcessing,
+    property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
     evaluate: Option<NativePrimitiveEvaluateFn>,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
 impl NativePrimitiveAdapter {
-    fn new(primitive: NativePrimitive, library: Arc<dyn Any + Send + Sync>) -> Option<Self> {
+    fn new(
+        primitive: NativePrimitive,
+        library: Arc<dyn Any + Send + Sync>,
+        property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
+    ) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
         let display_name =
             unsafe { read_c_string(primitive.display_name) }.unwrap_or_else(|| type_name.clone());
@@ -348,6 +375,7 @@ impl NativePrimitiveAdapter {
             advanced: primitive.advanced,
             child_processing: native_child_processing(primitive.child_processing)
                 .unwrap_or_default(),
+            property_ids,
             evaluate: primitive.evaluate,
             _library: library,
         })
@@ -416,12 +444,16 @@ impl Primitive for NativePrimitiveAdapter {
             return Ok(None);
         };
         let mut host = NativePrimitiveEvaluateHost {
+            ctx,
+            property_ids: &self.property_ids,
             commands: Vec::new(),
+            arena: NativeValueArena::default(),
         };
         let mut native_ctx = NativePrimitiveEvaluateCtx {
             size: std::mem::size_of::<NativePrimitiveEvaluateCtx>(),
             time_ms: ctx.time_ms as f64,
             host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
+            get_property: Some(native_get_property),
             append_path: Some(native_append_path),
         };
         let status = unsafe { evaluate(&mut native_ctx) };
@@ -435,8 +467,48 @@ impl Primitive for NativePrimitiveAdapter {
     }
 }
 
-struct NativePrimitiveEvaluateHost {
+struct NativePrimitiveEvaluateHost<'a> {
+    ctx: &'a EvaluateCtx<'a>,
+    property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
     commands: Vec<crate::primitives::RenderCommand>,
+    arena: NativeValueArena,
+}
+
+unsafe extern "C" fn native_get_property(
+    host: *mut c_void,
+    name: *const c_char,
+    out: *mut NativeValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let value = if let Some(id) = host.property_ids.get(&name) {
+        crate::timeline::property_engine::read_property_plan_slot(
+            host.ctx.track,
+            *id,
+            host.ctx.time_ms,
+        )
+    } else if let Some(schema) = lookup_property(&name) {
+        crate::timeline::dispatch::read_property_value(
+            host.ctx.track,
+            schema.field,
+            host.ctx.time_ms,
+        )
+    } else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(value) = value else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let native = property_value_to_native(&value, &mut host.arena);
+    if out.is_null() {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+    unsafe { *out = native };
+    NATIVE_STATUS_OK
 }
 
 unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCommand) -> i32 {
@@ -599,13 +671,53 @@ fn native_property_kind(kind: u32) -> Option<animatix_syntax::schema::PropertyVa
     }
 }
 
-fn value_to_native(value: &Value) -> Result<NativeValue, EvalError> {
+#[derive(Default)]
+struct NativeValueArena {
+    strings: Vec<Vec<u8>>,
+    lists: Vec<Vec<NativeValue>>,
+    values: Vec<Vec<NativeValue>>,
+}
+
+impl NativeValueArena {
+    fn string(&mut self, text: &str) -> (*const c_char, usize) {
+        let bytes = text.as_bytes().to_vec();
+        let len = bytes.len();
+        let ptr = bytes.as_ptr().cast::<c_char>();
+        self.strings.push(bytes);
+        (ptr, len)
+    }
+
+    fn list(&mut self, values: Vec<NativeValue>) -> (*const NativeValue, usize) {
+        let ptr = values.as_ptr();
+        let len = values.len();
+        self.lists.push(values);
+        (ptr, len)
+    }
+
+    fn value(&mut self, value: NativeValue) -> *const NativeValue {
+        self.values.push(vec![value]);
+        self.values.last().expect("payload just pushed").as_ptr()
+    }
+}
+
+fn native_string(tag: u32, text: &str, arena: &mut NativeValueArena) -> NativeValue {
+    let (string, string_len) = arena.string(text);
+    NativeValue {
+        tag,
+        string,
+        string_len,
+        ..NativeValue::default()
+    }
+}
+
+fn value_to_native(value: &Value, arena: &mut NativeValueArena) -> Result<NativeValue, EvalError> {
     let mut native = NativeValue::default();
     match value {
         Value::Num(num) => {
             native.tag = NATIVE_VALUE_NUM;
             native.num = *num;
         },
+        Value::Str(text) => return Ok(native_string(NATIVE_VALUE_STRING, text, arena)),
         Value::Bool(boolean) => {
             native.tag = NATIVE_VALUE_BOOL;
             native.boolean = *boolean;
@@ -626,6 +738,16 @@ fn value_to_native(value: &Value) -> Result<NativeValue, EvalError> {
             native.tag = NATIVE_VALUE_COLOR;
             native.vec = *color;
         },
+        Value::List(items) => {
+            let values = items
+                .iter()
+                .map(|item| value_to_native(item, arena))
+                .collect::<Result<Vec<_>, _>>()?;
+            let (list, list_len) = arena.list(values);
+            native.tag = NATIVE_VALUE_LIST;
+            native.list = list;
+            native.list_len = list_len;
+        },
         other => {
             return Err(EvalError::TypeMismatch(format!(
                 "native plugin functions do not support {:?}",
@@ -636,14 +758,148 @@ fn value_to_native(value: &Value) -> Result<NativeValue, EvalError> {
     Ok(native)
 }
 
+fn property_value_to_native(value: &PropertyValue, arena: &mut NativeValueArena) -> NativeValue {
+    match value {
+        PropertyValue::F32(value) => NativeValue {
+            tag: NATIVE_VALUE_NUM,
+            num: *value as f64,
+            ..NativeValue::default()
+        },
+        PropertyValue::Bool(value) => NativeValue {
+            tag: NATIVE_VALUE_BOOL,
+            boolean: *value,
+            ..NativeValue::default()
+        },
+        PropertyValue::U32(value) => NativeValue {
+            tag: NATIVE_VALUE_U32,
+            num: *value as f64,
+            ..NativeValue::default()
+        },
+        PropertyValue::Vec2(value) => NativeValue {
+            tag: NATIVE_VALUE_VEC2,
+            vec: [value[0] as f64, value[1] as f64, 0.0, 0.0],
+            ..NativeValue::default()
+        },
+        PropertyValue::Vec4(value) => NativeValue {
+            tag: NATIVE_VALUE_VEC4,
+            vec: [
+                value[0] as f64,
+                value[1] as f64,
+                value[2] as f64,
+                value[3] as f64,
+            ],
+            ..NativeValue::default()
+        },
+        PropertyValue::Color(value) => NativeValue {
+            tag: NATIVE_VALUE_COLOR,
+            vec: [
+                value[0] as f64,
+                value[1] as f64,
+                value[2] as f64,
+                value[3] as f64,
+            ],
+            ..NativeValue::default()
+        },
+        PropertyValue::String(value) => native_string(NATIVE_VALUE_STRING, value, arena),
+        PropertyValue::PointList(points) => {
+            let values = points
+                .iter()
+                .map(|point| NativeValue {
+                    tag: NATIVE_VALUE_VEC2,
+                    vec: [point[0] as f64, point[1] as f64, 0.0, 0.0],
+                    ..NativeValue::default()
+                })
+                .collect();
+            let (list, list_len) = arena.list(values);
+            NativeValue {
+                tag: NATIVE_VALUE_POINT_LIST,
+                list,
+                list_len,
+                ..NativeValue::default()
+            }
+        },
+        PropertyValue::CommandList(value) => native_string(NATIVE_VALUE_COMMAND_LIST, value, arena),
+        PropertyValue::StringList(values) => {
+            let natives = values
+                .iter()
+                .map(|value| native_string(NATIVE_VALUE_STRING, value, arena))
+                .collect();
+            let (list, list_len) = arena.list(natives);
+            NativeValue {
+                tag: NATIVE_VALUE_STRING_LIST,
+                list,
+                list_len,
+                ..NativeValue::default()
+            }
+        },
+        PropertyValue::Transform(value) => NativeValue {
+            tag: NATIVE_VALUE_TRANSFORM,
+            transform: [
+                value[0] as f64,
+                value[1] as f64,
+                value[2] as f64,
+                value[3] as f64,
+                value[4] as f64,
+                value[5] as f64,
+            ],
+            ..NativeValue::default()
+        },
+        PropertyValue::Enum(value) => native_string(NATIVE_VALUE_ENUM, value, arena),
+        PropertyValue::Variant { name, value } => {
+            let (variant, variant_len) = arena.string(name);
+            let payload = property_value_to_native(value, arena);
+            let payload = arena.value(payload);
+            NativeValue {
+                tag: NATIVE_VALUE_VARIANT,
+                string: variant,
+                string_len: variant_len,
+                payload,
+                ..NativeValue::default()
+            }
+        },
+    }
+}
+
+fn read_native_string(native: &NativeValue) -> Result<String, EvalError> {
+    if native.string.is_null() {
+        return Ok(String::new());
+    }
+    let bytes =
+        unsafe { std::slice::from_raw_parts(native.string.cast::<u8>(), native.string_len) };
+    String::from_utf8(bytes.to_vec()).map_err(|err| {
+        EvalError::TypeMismatch(format!("native plugin returned invalid UTF-8 string: {err}"))
+    })
+}
+
+fn read_native_list(native: &NativeValue) -> Result<Vec<Value>, EvalError> {
+    if native.list.is_null() {
+        return Ok(Vec::new());
+    }
+    let values = unsafe { std::slice::from_raw_parts(native.list, native.list_len) };
+    values.iter().map(|value| native_to_value(*value)).collect()
+}
+
 fn native_to_value(native: NativeValue) -> Result<Value, EvalError> {
     match native.tag {
         NATIVE_VALUE_NUM => Ok(Value::Num(native.num)),
         NATIVE_VALUE_BOOL => Ok(Value::Bool(native.boolean)),
+        NATIVE_VALUE_U32 => Ok(Value::Num(native.num)),
         NATIVE_VALUE_VEC2 => Ok(Value::Vec2([native.vec[0], native.vec[1]])),
         NATIVE_VALUE_VEC3 => Ok(Value::Vec3([native.vec[0], native.vec[1], native.vec[2]])),
         NATIVE_VALUE_VEC4 => Ok(Value::Vec4(native.vec)),
         NATIVE_VALUE_COLOR => Ok(Value::Color(native.vec)),
+        NATIVE_VALUE_STRING | NATIVE_VALUE_COMMAND_LIST | NATIVE_VALUE_ENUM => {
+            Ok(Value::Str(read_native_string(&native)?))
+        },
+        NATIVE_VALUE_LIST | NATIVE_VALUE_POINT_LIST | NATIVE_VALUE_STRING_LIST => {
+            Ok(Value::List(read_native_list(&native)?))
+        },
+        NATIVE_VALUE_TRANSFORM => {
+            Ok(Value::List(native.transform.iter().map(|value| Value::Num(*value)).collect()))
+        },
+        NATIVE_VALUE_VARIANT => Err(EvalError::TypeMismatch(
+            "native plugin returned a variant value to an expression function".to_string(),
+        )),
         tag => Err(EvalError::TypeMismatch(format!(
             "native plugin returned unknown value tag {tag}"
         ))),
@@ -657,6 +913,23 @@ mod tests {
     use crate::timeline::{Environment, PropertyKind, Value};
     use std::ffi::c_void;
 
+    fn sample_evaluate_ctx(track: &crate::timeline::AnimationTrack) -> EvaluateCtx<'_> {
+        EvaluateCtx {
+            track,
+            time_ms: 0,
+            local_transform: kurbo::Affine::IDENTITY,
+            opacity: 1.0,
+            scene_dimensions: crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            background_color: [0.0; 4],
+            overrides: None,
+            vector_paths: &[],
+            target_resolver: None,
+        }
+    }
+
     #[test]
     fn native_values_round_trip_finite_runtime_values() {
         let cases = [
@@ -666,10 +939,14 @@ mod tests {
             Value::Vec3([1.0, 2.0, 3.0]),
             Value::Vec4([1.0, 2.0, 3.0, 4.0]),
             Value::Color([0.1, 0.2, 0.3, 0.4]),
+            Value::Str("hello".to_string()),
+            Value::List(vec![Value::Num(1.0), Value::Str("two".to_string())]),
         ];
         for value in cases {
+            let mut arena = NativeValueArena::default();
             assert_eq!(
-                native_to_value(value_to_native(&value).expect("convert")).expect("restore"),
+                native_to_value(value_to_native(&value, &mut arena).expect("convert"))
+                    .expect("restore"),
                 value
             );
         }
@@ -775,23 +1052,32 @@ mod tests {
             ctx: &mut ctx,
             library: Some(Arc::new(()) as Arc<dyn Any + Send + Sync>),
             properties: Vec::new(),
+            property_ids: HashMap::new(),
             functions: Vec::new(),
             primitives: Vec::new(),
             actions: Vec::new(),
             services: Vec::new(),
         };
+        let mut property_id = 0;
         assert_eq!(
             unsafe {
                 native_register_property(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    c"Rect".as_ptr(),
-                    c"glow".as_ptr(),
-                    NATIVE_PROPERTY_F32,
-                    true,
+                    NativePropertyDescriptor {
+                        actor_type: c"Rect".as_ptr(),
+                        name: c"glow".as_ptr(),
+                        display_name: std::ptr::null(),
+                        kind: NATIVE_PROPERTY_F32,
+                        injectable: true,
+                        group: std::ptr::null(),
+                        help: std::ptr::null(),
+                    },
+                    &mut property_id,
                 )
             },
             NATIVE_STATUS_OK
         );
+        assert_ne!(property_id, 0);
         assert_eq!(
             unsafe {
                 native_register_function(
@@ -886,8 +1172,14 @@ mod tests {
 
     #[test]
     fn native_path_commands_become_render_commands() {
+        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let eval_ctx = sample_evaluate_ctx(&track);
+        let property_ids = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
             commands: Vec::new(),
+            arena: NativeValueArena::default(),
         };
         let command = NativePathCommand {
             kind: NATIVE_PATH_RECT,
@@ -920,6 +1212,48 @@ mod tests {
     }
 
     #[test]
+    fn native_get_property_reads_extension_slot() {
+        let mut ctx = ExtensionContext::new();
+        let id = ctx
+            .register_property(
+                "Pulse",
+                "glow",
+                animatix_syntax::schema::PropertyValueKind::F32,
+                true,
+            )
+            .expect("register property");
+        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        crate::timeline::property_engine::write_property_plan_slot(
+            &mut track,
+            id,
+            PropertyKind::F32,
+            crate::timeline::PropertyValue::F32(0.75),
+            0,
+            0,
+            crate::easing::Easing::Linear,
+        );
+        let eval_ctx = sample_evaluate_ctx(&track);
+        let property_ids = HashMap::from([("glow".to_string(), id)]);
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let mut out = NativeValue::default();
+        let status = unsafe {
+            native_get_property(
+                (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                c"glow".as_ptr(),
+                &mut out,
+            )
+        };
+        assert_eq!(status, NATIVE_STATUS_OK);
+        assert_eq!(out.tag, NATIVE_VALUE_NUM);
+        assert!((out.num - 0.75).abs() < 1e-9);
+    }
+
+    #[test]
     fn native_primitive_evaluate_emits_render_commands() {
         use animatix_plugin_api::{
             NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
@@ -934,24 +1268,14 @@ mod tests {
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
             evaluate: Some(pulse_evaluate),
         };
-        let adapter =
-            NativePrimitiveAdapter::new(primitive, Arc::new(()) as Arc<dyn Any + Send + Sync>)
-                .expect("adapter");
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+        )
+        .expect("adapter");
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
-        let ctx = EvaluateCtx {
-            track: &track,
-            time_ms: 0,
-            local_transform: kurbo::Affine::IDENTITY,
-            opacity: 1.0,
-            scene_dimensions: crate::timeline::SceneDimensions {
-                width: 640,
-                height: 360,
-            },
-            background_color: [0.0; 4],
-            overrides: None,
-            vector_paths: &[],
-            target_resolver: None,
-        };
+        let ctx = sample_evaluate_ctx(&track);
         let commands =
             adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
         assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));

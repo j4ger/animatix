@@ -75,6 +75,12 @@ pub struct PropertyDescriptor {
     pub value_kind: PropertyValueKind,
     /// Whether the property is injected into frame environments.
     pub injectable: bool,
+    /// Human-readable name for GUI labels, when it differs from `name`.
+    pub display_name: Option<String>,
+    /// Inspector grouping key.
+    pub group: Option<String>,
+    /// Help text for tooltips and documentation.
+    pub help: Option<String>,
 }
 
 impl PropertyDescriptor {
@@ -87,6 +93,9 @@ impl PropertyDescriptor {
             ty: spec.ty.clone(),
             value_kind: spec.value_kind,
             injectable,
+            display_name: None,
+            group: None,
+            help: None,
         }
     }
 }
@@ -195,8 +204,8 @@ pub struct PrimitiveDescriptor {
     pub capabilities: PrimitiveCapabilities,
     /// Child-rendering strategy used by the scene subtree renderer.
     pub child_processing: ChildProcessingKind,
-    /// Stable ids of properties declared by this primitive.
-    pub properties: Vec<PropertyId>,
+    /// Names of properties declared by this primitive.
+    pub properties: Vec<String>,
 }
 
 /// Built-in primitive metadata shared by runtime, GUI, and LSP tooling.

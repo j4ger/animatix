@@ -20,6 +20,9 @@ pub fn from_extension(spec: &ExtensionPropertySpec) -> PropertyDescriptor {
         ty: type_for_value_kind(spec.kind),
         value_kind: spec.kind,
         injectable: spec.injectable,
+        display_name: spec.display_name.clone(),
+        group: spec.group.clone(),
+        help: spec.help.clone(),
     }
 }
 
@@ -74,10 +77,16 @@ mod tests {
             name: "level".to_string(),
             kind: PropertyValueKind::F32,
             injectable: true,
+            display_name: Some("Level".to_string()),
+            group: Some("Value".to_string()),
+            help: Some("Current level".to_string()),
         };
         let descriptor = from_extension(&spec);
         assert_eq!(descriptor.name, "level");
         assert_eq!(descriptor.ty, Type::Num);
         assert_eq!(descriptor.value_kind, PropertyValueKind::F32);
+        assert_eq!(descriptor.display_name.as_deref(), Some("Level"));
+        assert_eq!(descriptor.group.as_deref(), Some("Value"));
+        assert_eq!(descriptor.help.as_deref(), Some("Current level"));
     }
 }

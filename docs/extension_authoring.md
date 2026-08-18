@@ -134,12 +134,14 @@ A plugin exports:
 - `animatix_plugin_install(api, host) -> i32`
 
 The current ABI is version 3 and has exactly one install entry. It can register
-external properties, native expression functions, primitives, actions, and
-service values with optional destructors. Native evaluate callbacks receive a
-host context with `append_path`; the demo primitive emits vector paths that
-render through the normal scene-evaluation path. Expression callbacks exchange
-`NativeValue` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
-Strings, lists, closures, and other runtime values return a type error.
+external properties with full tooling metadata, native expression functions,
+primitives, actions, and service values with optional destructors. Native
+evaluate callbacks receive a host context with `get_property` and `append_path`;
+the demo primitive reads its keyframed `glow` property and emits vector paths
+that render through the normal scene-evaluation path. Expression callbacks
+exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`,
+`Color`, `String`, and `List`. Objects, closures, and native function values
+return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo

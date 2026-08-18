@@ -36,6 +36,12 @@ pub struct ExtensionPropertySpec {
     pub kind: PropertyValueKind,
     /// Whether the property is injected into frame environments.
     pub injectable: bool,
+    /// Human-readable name for GUI labels, when it differs from `name`.
+    pub display_name: Option<String>,
+    /// Inspector grouping key.
+    pub group: Option<String>,
+    /// Help text for tooltips and documentation.
+    pub help: Option<String>,
 }
 
 /// Error returned when an external property cannot be registered.
@@ -154,6 +160,20 @@ impl PropertyRegistry {
         kind: PropertyValueKind,
         injectable: bool,
     ) -> Result<PropertyId, PropertyRegistrationError> {
+        self.register_full(actor_type, name, kind, injectable, None, None, None)
+    }
+
+    /// Register an external property with full tooling metadata.
+    pub fn register_full(
+        &mut self,
+        actor_type: &str,
+        name: &str,
+        kind: PropertyValueKind,
+        injectable: bool,
+        display_name: Option<String>,
+        group: Option<String>,
+        help: Option<String>,
+    ) -> Result<PropertyId, PropertyRegistrationError> {
         if crate::timeline::property_registry::property_id(name).is_some()
             || self
                 .extensions
@@ -170,6 +190,9 @@ impl PropertyRegistry {
             name: name.to_string(),
             kind,
             injectable,
+            display_name,
+            group,
+            help,
         });
         Ok(id)
     }
@@ -269,6 +292,28 @@ impl ExtensionRegistry {
         injectable: bool,
     ) -> Result<PropertyId, PropertyRegistrationError> {
         self.properties.register(&actor_type.into(), &name.into(), kind, injectable)
+    }
+
+    /// Register an external property with full tooling metadata.
+    pub fn register_property_full(
+        &mut self,
+        actor_type: impl Into<String>,
+        name: impl Into<String>,
+        kind: PropertyValueKind,
+        injectable: bool,
+        display_name: Option<String>,
+        group: Option<String>,
+        help: Option<String>,
+    ) -> Result<PropertyId, PropertyRegistrationError> {
+        self.properties.register_full(
+            &actor_type.into(),
+            &name.into(),
+            kind,
+            injectable,
+            display_name,
+            group,
+            help,
+        )
     }
 
     /// Remove an external property by actor type and name.

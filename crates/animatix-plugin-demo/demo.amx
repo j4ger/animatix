@@ -1,3 +1,4 @@
-r: Rect, glow: 0.25, size: (200, 200)
+p: Pulse, glow: 0.25
+
 #1s
-r.glow = 0.75
+p.glow = 0.75

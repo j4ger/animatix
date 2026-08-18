@@ -8,8 +8,8 @@ use std::ffi::{c_char, c_void};
 use animatix_plugin_api::{
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
     NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx, NativeService,
-    NativeValue,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
+    NativePropertyDescriptor, NativeService, NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -42,11 +42,24 @@ pub unsafe extern "C" fn animatix_plugin_install(
         return NATIVE_STATUS_TYPE_ERROR;
     }
 
+    let mut glow_id = 0;
     let property_status = unsafe {
-        (api.register_property)(host, c"Rect".as_ptr(), c"glow".as_ptr(), NATIVE_PROPERTY_F32, true)
+        (api.register_property)(
+            host,
+            NativePropertyDescriptor {
+                actor_type: c"Pulse".as_ptr(),
+                name: c"glow".as_ptr(),
+                display_name: c"Glow".as_ptr(),
+                kind: NATIVE_PROPERTY_F32,
+                injectable: true,
+                group: c"Pulse".as_ptr(),
+                help: c"Pulse radius glow amount".as_ptr(),
+            },
+            &mut glow_id,
+        )
     };
-    if property_status != NATIVE_STATUS_OK {
-        return property_status;
+    if property_status != NATIVE_STATUS_OK || glow_id == 0 {
+        return NATIVE_STATUS_TYPE_ERROR;
     }
 
     let function_status = unsafe { (api.register_function)(host, c"double".as_ptr(), double) };
@@ -116,12 +129,22 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
     let Some(append_path) = ctx.append_path else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    let mut glow = 0.25;
+    if let Some(get_property) = ctx.get_property {
+        let mut native = NativeValue::default();
+        if unsafe { (get_property)(ctx.host, c"glow".as_ptr(), &mut native) } == NATIVE_STATUS_OK
+            && native.tag == NATIVE_VALUE_NUM
+        {
+            glow = native.num.clamp(0.0, 1.0);
+        }
+    }
+    let radius = 30.0 + 30.0 * glow;
     let command = NativePathCommand {
         kind: NATIVE_PATH_ELLIPSE,
         x: 0.0,
         y: 0.0,
-        width: 60.0,
-        height: 60.0,
+        width: radius,
+        height: radius,
         x1: 0.0,
         y1: 0.0,
         x2: 0.0,

@@ -64,6 +64,12 @@ struct RawProperty {
     ty: String,
     #[serde(default)]
     injectable: bool,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    group: Option<String>,
+    #[serde(default)]
+    help: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for ExtensionManifest {
@@ -123,6 +129,9 @@ impl ExtensionManifest {
                 ty: parse_manifest_type(&property.ty),
                 value_kind: manifest_value_kind(&property.ty),
                 injectable: property.injectable,
+                display_name: property.display_name,
+                group: property.group,
+                help: property.help,
             })
             .collect::<Vec<_>>();
 

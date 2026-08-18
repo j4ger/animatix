@@ -25,6 +25,24 @@ pub const NATIVE_VALUE_VEC3: u32 = 3;
 pub const NATIVE_VALUE_VEC4: u32 = 4;
 /// RGBA color runtime value tag.
 pub const NATIVE_VALUE_COLOR: u32 = 5;
+/// UTF-8 string runtime value tag.
+pub const NATIVE_VALUE_STRING: u32 = 6;
+/// Ordered list runtime value tag.
+pub const NATIVE_VALUE_LIST: u32 = 7;
+/// Unsigned integer runtime value tag.
+pub const NATIVE_VALUE_U32: u32 = 8;
+/// Point-list runtime value tag.
+pub const NATIVE_VALUE_POINT_LIST: u32 = 9;
+/// SVG command string runtime value tag.
+pub const NATIVE_VALUE_COMMAND_LIST: u32 = 10;
+/// String-list runtime value tag.
+pub const NATIVE_VALUE_STRING_LIST: u32 = 11;
+/// Affine transform runtime value tag.
+pub const NATIVE_VALUE_TRANSFORM: u32 = 12;
+/// Named enum runtime value tag.
+pub const NATIVE_VALUE_ENUM: u32 = 13;
+/// Named variant with a payload runtime value tag.
+pub const NATIVE_VALUE_VARIANT: u32 = 14;
 
 /// 32-bit float property kind.
 pub const NATIVE_PROPERTY_F32: u32 = 0;
@@ -48,11 +66,11 @@ pub const NATIVE_STATUS_TYPE_ERROR: i32 = 1;
 /// Unsupported construct or operation.
 pub const NATIVE_STATUS_UNSUPPORTED: i32 = 2;
 
-/// A finite runtime value exchanged with native expression functions.
+/// A finite runtime value exchanged with native extension callbacks.
 ///
-/// Strings, lists, and closures are intentionally not part of this ABI yet.
-/// Plugins that need richer values should return a type error or use a
-/// registered property track instead.
+/// String/list pointers are only valid for the duration of the callback that
+/// delivered them. The host always copies string/list contents before the
+/// callback returns; plugins must never retain these pointers.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 pub struct NativeValue {
@@ -64,6 +82,20 @@ pub struct NativeValue {
     pub boolean: bool,
     /// Vector/color payload for vector and color tags.
     pub vec: [f64; 4],
+    /// UTF-8 string pointer and length for string-like tags.
+    pub string: *const c_char,
+    /// Byte length of `string`.
+    pub string_len: usize,
+    /// Element payload for list-like tags.
+    pub list: *const NativeValue,
+    /// Number of elements in `list`.
+    pub list_len: usize,
+    /// Transform payload for `NATIVE_VALUE_TRANSFORM`.
+    pub transform: [f64; 6],
+    /// Variant name for `NATIVE_VALUE_VARIANT`.
+    pub variant: *const c_char,
+    /// Variant payload for `NATIVE_VALUE_VARIANT`.
+    pub payload: *const NativeValue,
 }
 
 impl Default for NativeValue {
@@ -73,8 +105,35 @@ impl Default for NativeValue {
             num: 0.0,
             boolean: false,
             vec: [0.0; 4],
+            string: std::ptr::null(),
+            string_len: 0,
+            list: std::ptr::null(),
+            list_len: 0,
+            transform: [0.0; 6],
+            variant: std::ptr::null(),
+            payload: std::ptr::null(),
         }
     }
+}
+
+/// Descriptor passed from a native plugin to register an external property.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativePropertyDescriptor {
+    /// Actor source type that owns this property.
+    pub actor_type: *const c_char,
+    /// Canonical source property name.
+    pub name: *const c_char,
+    /// Human-readable name for GUI labels.
+    pub display_name: *const c_char,
+    /// `NATIVE_PROPERTY_*` value kind.
+    pub kind: u32,
+    /// Whether the property is injected into frame environments.
+    pub injectable: bool,
+    /// Inspector grouping key.
+    pub group: *const c_char,
+    /// Help text for tooltips and documentation.
+    pub help: *const c_char,
 }
 
 /// Native expression function callback.
@@ -174,8 +233,11 @@ pub struct NativePrimitiveEvaluateCtx {
     pub size: usize,
     /// Current evaluation time in milliseconds.
     pub time_ms: f64,
-    /// Opaque host handle passed back to `append_path`.
+    /// Opaque host handle passed back to host callbacks.
     pub host: *mut c_void,
+    /// Read a sampled actor property by name into `out`.
+    pub get_property:
+        Option<unsafe extern "C" fn(*mut c_void, *const c_char, *mut NativeValue) -> i32>,
     /// Append one vector path command to the current frame.
     pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommand) -> i32>,
 }
@@ -225,9 +287,10 @@ pub struct NativePluginApi {
     pub size: usize,
     /// Current `ABI_VERSION`.
     pub version: u32,
-    /// Register an external property for an actor type.
+    /// Register an external property for an actor type and write its runtime
+    /// `PropertyId` into `out_id`.
     pub register_property:
-        unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32, bool) -> i32,
+        unsafe extern "C" fn(*mut c_void, NativePropertyDescriptor, *mut u32) -> i32,
     /// Register a native expression function.
     pub register_function: unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunction) -> i32,
     /// Register a native primitive.

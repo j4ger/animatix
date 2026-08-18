@@ -5,11 +5,14 @@
 library = "../../target/debug/libanimatix_plugin_demo.so"
 
 [[primitives]]
-type_name = "Gauge"
-display_name = "Gauge"
-category = "Plots"
+type_name = "Pulse"
+display_name = "Pulse"
+category = "Shapes"
 
 [[properties]]
-actor_type = "Rect"
+actor_type = "Pulse"
 name = "glow"
 type = "Num"
+display_name = "Glow"
+group = "Pulse"
+help = "Pulse radius glow amount"
