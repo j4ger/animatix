@@ -1,8 +1,10 @@
 use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
+use animatix::extension_plugin::{NativePlugin, PluginDisposer, PluginLoader};
 use animatix::renderer;
 use animatix::timeline::DebugRenderOptions;
+use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticPhase, format_diagnostic, format_diagnostic_with_source,
 };
@@ -21,6 +23,10 @@ struct Args {
     /// Suppress ANSI color codes in output
     #[arg(long)]
     no_color: bool,
+
+    /// Load an extension manifest or native plugin library (repeatable)
+    #[arg(long, global = true, value_name = "PLUGIN", action = clap::ArgAction::Append)]
+    plugin: Vec<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
@@ -222,10 +228,77 @@ enum Commands {
 // Shared helpers
 // ----------------------------------------------------------------------------
 
+/// Extensions loaded from CLI `--plugin` arguments.
+struct CliExtensions {
+    loader: PluginLoader,
+    manifests: Vec<ExtensionManifest>,
+}
+
+impl CliExtensions {
+    fn new() -> Self {
+        Self {
+            loader: PluginLoader::new(),
+            manifests: Vec::new(),
+        }
+    }
+
+    fn install_into(
+        &self,
+        ctx: &mut animatix::extension_context::ExtensionContext,
+    ) -> Result<Vec<PluginDisposer>, String> {
+        self.loader.install_all(ctx).map_err(|err| err.to_string())
+    }
+
+    fn merged_manifest(&self) -> ExtensionManifest {
+        ExtensionManifest::merge(&self.manifests)
+    }
+}
+
+/// Load manifests and native plugin libraries named on the command line.
+fn load_cli_extensions(paths: &[PathBuf]) -> Result<CliExtensions, String> {
+    let mut extensions = CliExtensions::new();
+    for path in paths {
+        if is_manifest_path(path) {
+            let source = std::fs::read_to_string(path)
+                .map_err(|err| format!("Cannot read {}: {err}", path.display()))?;
+            let manifest = ExtensionManifest::from_toml(&source)
+                .map_err(|err| format!("Invalid manifest {}: {err}", path.display()))?;
+            if let Some(library) = manifest.library.as_deref() {
+                let library_path = path.parent().unwrap_or_else(|| Path::new(".")).join(library);
+                let plugin = NativePlugin::load(&library_path).map_err(|err| err.to_string())?;
+                extensions.loader.register(Box::new(plugin));
+            }
+            extensions.manifests.push(manifest);
+        } else if is_native_library_path(path) {
+            let plugin = NativePlugin::load(path).map_err(|err| err.to_string())?;
+            extensions.loader.register(Box::new(plugin));
+        } else {
+            return Err(format!(
+                "Unsupported plugin path '{}': expected a .amx-plugin.toml manifest or native library",
+                path.display()
+            ));
+        }
+    }
+    Ok(extensions)
+}
+
+fn is_manifest_path(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".amx-plugin.toml"))
+}
+
+fn is_native_library_path(path: &Path) -> bool {
+    matches!(path.extension().and_then(|ext| ext.to_str()), Some("so" | "dylib" | "dll"))
+}
+
 /// Loads an Animatix program from disk, expands components, and builds the
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
-fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostics::Diagnostic>) {
+fn load_and_build(
+    input: &Path,
+    extensions: &CliExtensions,
+) -> (BuildTarget, Vec<animatix_syntax::diagnostics::Diagnostic>) {
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
         Ok(mut program) => {
             let diagnostics = program.typecheck();
@@ -237,11 +310,20 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostic
         },
     };
 
-    let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+    let mut ctx = animatix::extension_context::ExtensionContext::new();
+    let disposers = match extensions.install_into(&mut ctx) {
+        Ok(disposers) => disposers,
+        Err(e) => {
+            error!("Plugin install failed: {e}");
+            std::process::exit(1);
+        },
+    };
+    let context = std::sync::Arc::new(ctx);
     let report = BuildTarget::from_ast_with_context(&ast, &namespaces, Some(input), context);
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);
     print_build_diagnostics(&all_diagnostics);
+    let _disposers = disposers;
     (report.output, all_diagnostics)
 }
 
@@ -355,6 +437,14 @@ fn main() {
         .with_ansi(!args.no_color)
         .init();
 
+    let extensions = match load_cli_extensions(&args.plugin) {
+        Ok(extensions) => extensions,
+        Err(e) => {
+            error!("{e}");
+            std::process::exit(2);
+        },
+    };
+
     match args.command {
         #[cfg(feature = "video")]
         Commands::Gif {
@@ -380,7 +470,7 @@ fn main() {
                 height = preset_values.height;
                 fps = preset_values.fps;
             }
-            let (target, _) = load_and_build(&input);
+            let (target, _) = load_and_build(&input, &extensions);
             if export_preset.is_none() {
                 let configured = match &target {
                     BuildTarget::SingleScene(timeline) => timeline.export_preset(),
@@ -481,7 +571,7 @@ fn main() {
                 codec = preset_values.video_codec;
                 preset = preset_values.h264_preset;
             }
-            let (target, _) = load_and_build(&input);
+            let (target, _) = load_and_build(&input, &extensions);
             if export_preset.is_none() {
                 let configured = match &target {
                     BuildTarget::SingleScene(timeline) => timeline.export_preset(),
@@ -593,7 +683,7 @@ fn main() {
             let output_file =
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
             info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
-            let (target, _) = load_and_build(&input);
+            let (target, _) = load_and_build(&input, &extensions);
             let result = match &target {
                 BuildTarget::MultiScene(comp) => {
                     renderer::render_image_composition(comp, width, height, time, &output_file)
@@ -654,7 +744,15 @@ fn main() {
                     std::process::exit(1);
                 },
             };
-            let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+            let mut ctx = animatix::extension_context::ExtensionContext::new();
+            let disposers = match extensions.install_into(&mut ctx) {
+                Ok(disposers) => disposers,
+                Err(e) => {
+                    error!("Plugin install failed: {e}");
+                    std::process::exit(1);
+                },
+            };
+            let context = std::sync::Arc::new(ctx);
             let report = BuildTarget::from_ast_with_context(
                 &ast,
                 &namespaces,
@@ -665,6 +763,7 @@ fn main() {
                 },
                 context,
             );
+            let _disposers = disposers;
             let mut diagnostics = type_diagnostics;
             diagnostics.extend(report.diagnostics);
 
@@ -686,7 +785,8 @@ fn main() {
                 } else {
                     Some(std::path::PathBuf::from(&file_label))
                 },
-            );
+            )
+            .with_extension_manifest(extensions.merged_manifest());
             let lint_config = animatix_analyzer::LintConfig::from_source(&source);
             let semantic = analyzer.diagnostics_with_config(&lint_config);
 
@@ -817,7 +917,8 @@ fn main() {
                     };
 
                     let analyzer =
-                        animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()));
+                        animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()))
+                            .with_extension_manifest(extensions.merged_manifest());
                     // Merge inline config with file config
                     let mut config = animatix_analyzer::LintConfig::from_source(&source);
                     config.merge(&file_config);
@@ -950,5 +1051,50 @@ fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
         } else {
             warn!("{}", formatted);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_paths_are_classified() {
+        assert!(is_manifest_path(Path::new("demo.amx-plugin.toml")));
+        assert!(!is_manifest_path(Path::new("demo.toml")));
+        assert!(is_native_library_path(Path::new("libdemo.so")));
+        assert!(is_native_library_path(Path::new("libdemo.dylib")));
+        assert!(is_native_library_path(Path::new("demo.dll")));
+        assert!(!is_native_library_path(Path::new("demo.txt")));
+    }
+
+    #[test]
+    fn load_cli_extensions_reads_manifest_without_native_library() {
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-cli-plugin-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let manifest_path = dir.join("demo.amx-plugin.toml");
+        std::fs::write(
+            &manifest_path,
+            "[[primitives]]\ntype_name = \"Gauge\"\n\n[[properties]]\nactor_type = \"Gauge\"\nname = \"level\"\ntype = \"Num\"\n",
+        )
+        .expect("write manifest");
+
+        let extensions = load_cli_extensions(&[manifest_path.clone()]).expect("load manifest");
+        assert_eq!(extensions.manifests.len(), 1);
+        assert_eq!(extensions.manifests[0].primitives[0].type_name, "Gauge");
+        assert_eq!(
+            extensions.merged_manifest().properties[0].name,
+            "level",
+            "manifest should be usable by the analyzer"
+        );
+
+        std::fs::remove_dir_all(dir).ok();
     }
 }

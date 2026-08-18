@@ -1,0 +1,15 @@
+# Analyzer metadata for the demo native plugin.
+# The library path is resolved relative to this file; adjust the suffix for
+# your platform (libanimatix_plugin_demo.dylib on macOS, animatix_plugin_demo.dll
+# on Windows).
+library = "../../target/debug/libanimatix_plugin_demo.so"
+
+[[primitives]]
+type_name = "Gauge"
+display_name = "Gauge"
+category = "Plots"
+
+[[properties]]
+actor_type = "Rect"
+name = "glow"
+type = "Num"

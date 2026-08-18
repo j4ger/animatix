@@ -1,0 +1,3 @@
+r: Rect, glow: 0.25, size: (200, 200)
+#1s
+r.glow = 0.75

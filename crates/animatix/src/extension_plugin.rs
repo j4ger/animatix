@@ -1,5 +1,11 @@
 //! Plugin loader for extension contexts.
 
+#[cfg(feature = "plugin-loading")]
+#[path = "extension_native_plugin.rs"]
+mod extension_native_plugin;
+#[cfg(feature = "plugin-loading")]
+pub use extension_native_plugin::NativePlugin;
+
 use crate::extension_context::ExtensionContext;
 
 /// Disposer returned by a plugin install.
@@ -13,7 +19,7 @@ pub struct PluginError(pub String);
 /// A composable extension plugin.
 pub trait ExtensionPlugin: Send + Sync {
     /// Stable plugin name.
-    fn name(&self) -> &'static str;
+    fn name(&self) -> &str;
 
     /// Install capabilities into a context and return a disposer.
     fn install(&self, ctx: &mut ExtensionContext) -> Result<PluginDisposer, PluginError>;
@@ -61,7 +67,7 @@ mod tests {
     struct DoublePlugin;
 
     impl ExtensionPlugin for DoublePlugin {
-        fn name(&self) -> &'static str {
+        fn name(&self) -> &str {
             "double"
         }
 

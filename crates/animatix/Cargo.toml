@@ -14,10 +14,13 @@ video = ["render", "dep:rsmpeg"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
 svg = ["dep:usvg", "dep:roxmltree"]
 serde = ["dep:serde", "animatix-syntax/serde"]
+plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 
 [dependencies]
+animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
+libloading = { version = "0.8", optional = true }
 serde = { workspace = true, optional = true }
 fastrand = "2.4"
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }

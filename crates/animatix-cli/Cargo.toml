@@ -6,7 +6,8 @@ rust-version = "1.85"
 description = "Animatix command-line renderer and scene checker"
 
 [features]
-default = []
+default = ["plugin-loading"]
+plugin-loading = ["animatix/plugin-loading"]
 video = ["animatix/video"]
 
 [dependencies]

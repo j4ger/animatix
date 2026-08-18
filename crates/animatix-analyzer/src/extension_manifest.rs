@@ -43,6 +43,10 @@ pub struct ManifestProperty {
 /// Collection of analyzer-only extension metadata.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq)]
 pub struct ExtensionManifest {
+    /// Optional native library path, resolved relative to the manifest file by
+    /// CLI consumers. Analyzer and LSP ignore this field.
+    #[serde(default)]
+    pub library: Option<String>,
     /// Primitive declarations.
     #[serde(default)]
     pub primitives: Vec<ManifestPrimitive>,
@@ -61,6 +65,9 @@ impl ExtensionManifest {
     pub fn merge(manifests: &[Self]) -> Self {
         let mut merged = Self::default();
         for manifest in manifests {
+            if merged.library.is_none() {
+                merged.library.clone_from(&manifest.library);
+            }
             merged.primitives.extend(manifest.primitives.iter().cloned());
             merged.properties.extend(manifest.properties.iter().cloned());
         }

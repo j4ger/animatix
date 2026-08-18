@@ -1,0 +1,13 @@
+[package]
+name = "animatix-plugin-demo"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Example native Animatix extension plugin"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+animatix-plugin-api = { path = "../animatix-plugin-api" }

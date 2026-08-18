@@ -286,6 +286,14 @@ Acceptance:
   and carry-aware context builds added.
 - Phase 5: CLI render/check paths now build through `ExtensionContext` and
   `BuildTarget::from_ast_with_context`; plugin CLI arguments still pending.
+- Phase 5: stable native plugin ABI added in `crates/animatix-plugin-api`; the
+  `plugin-loading` feature adds `NativePlugin` loading via `libloading`.
+- Phase 5: CLI `--plugin` accepts `*.amx-plugin.toml` manifests and native
+  library paths, installs loaded plugins into per-build contexts, and feeds
+  merged manifests to analyzer diagnostics.
+- Phase 5: `crates/animatix-plugin-demo` is a workspace `cdylib` sample that
+  registers an external property and a native expression function through the
+  stable ABI.
 - Phase 6: extension authoring guide added at
   `docs/extension_authoring.md`.
 - Phase 6: `scripts/extension-bench.sh` added to run property interpolation and

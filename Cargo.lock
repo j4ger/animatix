@@ -114,6 +114,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "animatix"
 version = "0.1.0"
 dependencies = [
+ "animatix-plugin-api",
  "animatix-syntax",
  "bytemuck",
  "chumsky",
@@ -122,6 +123,7 @@ dependencies = [
  "fontdb",
  "image",
  "kurbo 0.13.0",
+ "libloading",
  "pollster",
  "roxmltree 0.20.0",
  "rsmpeg",
@@ -205,6 +207,17 @@ dependencies = [
  "tokio",
  "tower-lsp",
  "url",
+]
+
+[[package]]
+name = "animatix-plugin-api"
+version = "0.1.0"
+
+[[package]]
+name = "animatix-plugin-demo"
+version = "0.1.0"
+dependencies = [
+ "animatix-plugin-api",
 ]
 
 [[package]]

@@ -118,6 +118,51 @@ Scoped registration is also available:
 }
 ```
 
+## Native Plugins
+
+The `plugin-loading` feature in `animatix` adds a native `cdylib` loader. The
+stable ABI lives in `crates/animatix-plugin-api`; host and plugin exchange only
+`repr(C)` structs and function pointers, so plugins do not share Rust trait
+objects or internal runtime types with the host.
+
+A plugin exports:
+
+- `animatix_plugin_abi_version() -> u32`
+- `animatix_plugin_name() -> *const c_char`
+- `animatix_plugin_install_v1(api, host) -> i32`
+
+The install entry point receives a host API table. ABI v1 can register external
+properties and native expression functions. Expression callbacks exchange
+`NativeValueV1` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
+Strings, lists, closures, and other runtime values return a type error.
+
+```bash
+cargo build -p animatix-plugin-demo
+animatix check demo.amx --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml
+animatix check demo.amx --plugin target/debug/libanimatix_plugin_demo.so
+```
+
+A manifest passed to `--plugin` also feeds the analyzer, so unknown extension
+types/properties are suppressed during `check` and `lint`. If the manifest has
+a `library` field, the CLI loads that native library relative to the manifest.
+
+```toml
+library = "../../target/debug/libanimatix_plugin_demo.so"
+
+[[primitives]]
+type_name = "Gauge"
+
+[[properties]]
+actor_type = "Rect"
+name = "glow"
+type = "Num"
+```
+
+Primitives, actions, and typed services still use the compiled-in
+`ExtensionPlugin` API. Native ABI v1 focuses on the cross-library boundary for
+properties and expression functions; later ABI revisions can add callbacks for
+primitive build/evaluate and action dispatch.
+
 ## Current Limits
 
 - Custom primitives can build and evaluate through the registry. A few child
@@ -131,6 +176,7 @@ Scoped registration is also available:
   the timeline's primitive registry, and the inspector/keyframe table show
   extension properties from the actor plan. LSP does not load runtime extension
   contexts.
-- CLI builds through `ExtensionContext`, but there is no dynamic plugin file
-  loader yet; plugins must be compiled in and installed through
-  `PluginLoader`.
+- CLI accepts `--plugin` manifests and native libraries. Native ABI v1
+  registers external properties and expression functions; primitives, actions,
+  and typed services from a dynamic library still require the compiled-in
+  `ExtensionPlugin` path.
