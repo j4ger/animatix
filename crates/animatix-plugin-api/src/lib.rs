@@ -292,6 +292,14 @@ pub const NATIVE_PATH_ELLIPSE: u32 = 1;
 pub const NATIVE_PATH_LINE: u32 = 2;
 /// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_POLYGON: u32 = 3;
+/// Primitive path command kind for evaluation.
+pub const NATIVE_PATH_CUBIC: u32 = 4;
+/// Primitive path command kind for evaluation.
+pub const NATIVE_PATH_QUADRATIC: u32 = 5;
+/// Primitive path command kind for evaluation.
+pub const NATIVE_PATH_ARC: u32 = 6;
+/// Primitive path command kind for evaluation.
+pub const NATIVE_PATH_ROUNDED_RECT: u32 = 7;
 
 /// A 2D point used by polygon path commands.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -329,6 +337,12 @@ pub struct NativePathCommand {
     pub points: *const NativePoint,
     /// Number of polygon points.
     pub point_len: usize,
+    /// Corner radius for rounded rectangles / arc radius.
+    pub radius: f64,
+    /// Arc start angle in radians.
+    pub start_angle: f64,
+    /// Arc sweep angle in radians.
+    pub sweep_angle: f64,
     /// RGBA fill color in 0..=1 ranges.
     pub fill: [f64; 4],
     /// RGBA stroke color in 0..=1 ranges.
@@ -339,6 +353,64 @@ pub struct NativePathCommand {
     pub line_cap: u32,
     /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
     pub line_join: u32,
+}
+
+/// Text command emitted by a native primitive during evaluation.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeTextCommand {
+    /// UTF-8 text content pointer and byte length.
+    pub content: *const c_char,
+    /// Byte length of `content`.
+    pub content_len: usize,
+    /// Font family name.
+    pub font_family: *const c_char,
+    /// Font size in scene units.
+    pub font_size: f64,
+    /// Font weight.
+    pub font_weight: f64,
+    /// Font style.
+    pub font_style: *const c_char,
+    /// Line height multiplier.
+    pub line_height: f64,
+    /// Letter spacing.
+    pub letter_spacing: f64,
+    /// Word spacing.
+    pub word_spacing: f64,
+    /// Text color.
+    pub color: [f64; 4],
+    /// Maximum text width in scene units; zero disables wrapping.
+    pub max_width: f64,
+    /// Text alignment.
+    pub text_align: *const c_char,
+    /// Overflow behavior.
+    pub overflow: *const c_char,
+}
+
+/// Image command emitted by a native primitive during evaluation.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeImageCommand {
+    /// Image URL; if null, the actor's currently loaded image is used.
+    pub url: *const c_char,
+    /// Natural display width and height in scene units.
+    pub natural_size: [f64; 2],
+}
+
+/// Highlight command emitted by a native primitive during evaluation.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeHighlightCommand {
+    /// Rectangle as `[x0, y0, x1, y1]`.
+    pub rect: [f64; 4],
+    /// RGBA fill color.
+    pub color: [f64; 4],
+    /// Layer alpha.
+    pub alpha: f64,
+    /// Corner radius.
+    pub corner_radius: f64,
+    /// Blend mode code (0=Normal, 1=Multiply, 2=Difference, 3=Screen).
+    pub blend: u32,
 }
 
 /// Context passed to a native primitive evaluate callback.
@@ -355,6 +427,12 @@ pub struct NativePrimitiveEvaluateCtx {
         Option<unsafe extern "C" fn(*mut c_void, *const c_char, *mut NativeValue) -> i32>,
     /// Append one vector path command to the current frame.
     pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommand) -> i32>,
+    /// Append compiled text glyphs to the current frame.
+    pub append_text: Option<unsafe extern "C" fn(*mut c_void, NativeTextCommand) -> i32>,
+    /// Append an image to the current frame.
+    pub append_image: Option<unsafe extern "C" fn(*mut c_void, NativeImageCommand) -> i32>,
+    /// Append a highlight layer to the current frame.
+    pub append_highlight: Option<unsafe extern "C" fn(*mut c_void, NativeHighlightCommand) -> i32>,
 }
 
 /// Native primitive evaluate callback.

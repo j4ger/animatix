@@ -11,7 +11,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use animatix_plugin_api::{
-    ABI_VERSION, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON, NATIVE_PATH_RECT,
+    ABI_VERSION, NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE,
+    NATIVE_PATH_POLYGON, NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT,
     NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
     NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
@@ -20,10 +21,10 @@ use animatix_plugin_api::{
     NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
     NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeActionExecuteFn, NativeAssignmentContext,
     NativeAssignmentFn, NativeChild, NativeFinalizeContext, NativeFinalizeFn, NativeFunction,
-    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
-    NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
-    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
-    NativeValue,
+    NativeHighlightCommand, NativeImageCommand, NativeInstallFn, NativeModifierValue,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveBuildCtx,
+    NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn,
+    NativePropertyDescriptor, NativePropertyValue, NativeService, NativeTextCommand, NativeValue,
 };
 use kurbo::Shape;
 use libloading::Library;
@@ -33,6 +34,7 @@ use crate::extension_context::ExtensionContext;
 use crate::primitives::{AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
 use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, Value};
 
 use super::{ExtensionPlugin, PluginDisposer, PluginError};
@@ -601,15 +603,21 @@ impl Primitive for NativePrimitiveAdapter {
     fn evaluate(
         &self,
         ctx: &EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
         let Some(evaluate) = self.evaluate else {
             return Ok(None);
         };
+        let (text_compiler, font_context) = match text_ctx {
+            Some(text_ctx) => (Some(&mut *text_ctx.text_compiler), Some(text_ctx.font_context)),
+            None => (None, None),
+        };
         let mut host = NativePrimitiveEvaluateHost {
             ctx,
             property_ids: &self.property_ids,
+            text_compiler,
+            font_context,
             commands: Vec::new(),
             arena: NativeValueArena::default(),
         };
@@ -619,6 +627,9 @@ impl Primitive for NativePrimitiveAdapter {
             host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
             get_property: Some(native_get_property),
             append_path: Some(native_append_path),
+            append_text: Some(native_append_text),
+            append_image: Some(native_append_image),
+            append_highlight: Some(native_append_highlight),
         };
         let status = unsafe { evaluate(&mut native_ctx) };
         if status != NATIVE_STATUS_OK {
@@ -634,6 +645,8 @@ impl Primitive for NativePrimitiveAdapter {
 struct NativePrimitiveEvaluateHost<'a> {
     ctx: &'a EvaluateCtx<'a>,
     property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
+    text_compiler: Option<&'a mut crate::renderer::text::TextCompiler>,
+    font_context: Option<&'a crate::renderer::text::FontContext>,
     commands: Vec<crate::primitives::RenderCommand>,
     arena: NativeValueArena,
 }
@@ -1048,6 +1061,108 @@ unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCo
     NATIVE_STATUS_OK
 }
 
+unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCommand) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(compiler) = host.text_compiler.as_mut() else {
+        return NATIVE_STATUS_UNSUPPORTED;
+    };
+    let Some(font_ctx) = host.font_context else {
+        return NATIVE_STATUS_UNSUPPORTED;
+    };
+    let Some(content) = (unsafe { read_c_string_len(command.content, command.content_len) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let font_family =
+        (unsafe { read_c_string(command.font_family) }).unwrap_or_else(|| "sans-serif".to_string());
+    let font_style =
+        (unsafe { read_c_string(command.font_style) }).unwrap_or_else(|| "normal".to_string());
+    let text_align =
+        (unsafe { read_c_string(command.text_align) }).unwrap_or_else(|| "left".to_string());
+    let overflow =
+        (unsafe { read_c_string(command.overflow) }).unwrap_or_else(|| "visible".to_string());
+    let color = [
+        command.color[0].clamp(0.0, 1.0) as f32,
+        command.color[1].clamp(0.0, 1.0) as f32,
+        command.color[2].clamp(0.0, 1.0) as f32,
+        command.color[3].clamp(0.0, 1.0) as f32,
+    ];
+    let paths = match compiler.compile(
+        &content,
+        &font_family,
+        command.font_size as f32,
+        command.font_weight as f32,
+        &font_style,
+        command.line_height as f32,
+        command.letter_spacing as f32,
+        command.word_spacing as f32,
+        color,
+        crate::renderer::text::TextKind::Text,
+        font_ctx,
+        command.max_width as f32,
+        &text_align,
+        &overflow,
+    ) {
+        Ok(paths) => paths,
+        Err(_) => return NATIVE_STATUS_TYPE_ERROR,
+    };
+    host.commands.push(crate::primitives::RenderCommand::Text { paths });
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImageCommand) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(image) = host.ctx.track.image.get(host.ctx.time_ms, None) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let natural_size = if command.natural_size[0] > 0.0 && command.natural_size[1] > 0.0 {
+        [
+            command.natural_size[0] as f32,
+            command.natural_size[1] as f32,
+        ]
+    } else {
+        let half = host
+            .ctx
+            .track
+            .geometry
+            .size
+            .get(host.ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        [half[0] * 2.0, half[1] * 2.0]
+    };
+    host.commands.push(crate::primitives::RenderCommand::Image {
+        image,
+        natural_size,
+    });
+    NATIVE_STATUS_OK
+}
+
+unsafe extern "C" fn native_append_highlight(
+    host: *mut c_void,
+    command: NativeHighlightCommand,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let rect = kurbo::Rect::new(command.rect[0], command.rect[1], command.rect[2], command.rect[3]);
+    let blend = match command.blend {
+        1 => vello::peniko::Mix::Multiply,
+        2 => vello::peniko::Mix::Difference,
+        3 => vello::peniko::Mix::Screen,
+        _ => vello::peniko::Mix::Normal,
+    };
+    host.commands.push(crate::primitives::RenderCommand::HighlightLayer {
+        rect,
+        color: native_color(command.color),
+        blend,
+        alpha: command.alpha.clamp(0.0, 1.0) as f32,
+        corner_radius: command.corner_radius,
+    });
+    NATIVE_STATUS_OK
+}
+
 fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::VelloPath> {
     let mut path = kurbo::BezPath::new();
     match command.kind {
@@ -1081,6 +1196,38 @@ fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::
                 path.line_to((point.x, point.y));
             }
             path.close_path();
+        },
+        NATIVE_PATH_CUBIC => {
+            path.move_to((command.x, command.y));
+            path.curve_to(
+                (command.x1, command.y1),
+                (command.x2, command.y2),
+                (command.width, command.height),
+            );
+        },
+        NATIVE_PATH_QUADRATIC => {
+            path.move_to((command.x, command.y));
+            path.quad_to((command.x1, command.y1), (command.x2, command.y2));
+        },
+        NATIVE_PATH_ARC => {
+            let arc = kurbo::Arc::new(
+                (command.x, command.y),
+                (command.width, command.height),
+                command.start_angle,
+                command.sweep_angle,
+                0.0,
+            );
+            path = arc.into_path(1e-3);
+        },
+        NATIVE_PATH_ROUNDED_RECT => {
+            let rect = kurbo::RoundedRect::new(
+                command.x,
+                command.y,
+                command.x + command.width,
+                command.y + command.height,
+                command.radius,
+            );
+            path = rect.into_path(1e-3);
         },
         _ => return None,
     }
@@ -1181,6 +1328,14 @@ unsafe fn read_c_string(ptr: *const c_char) -> Option<String> {
         return None;
     }
     unsafe { CStr::from_ptr(ptr) }.to_str().ok().map(str::to_owned)
+}
+
+unsafe fn read_c_string_len(ptr: *const c_char, len: usize) -> Option<String> {
+    if ptr.is_null() {
+        return Some(String::new());
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(ptr.cast::<u8>(), len) };
+    std::str::from_utf8(bytes).ok().map(str::to_owned)
 }
 
 fn native_property_kind(kind: u32) -> Option<animatix_syntax::schema::PropertyValueKind> {
@@ -1561,6 +1716,9 @@ mod tests {
             y2: 0.0,
             points: std::ptr::null(),
             point_len: 0,
+            radius: 0.0,
+            start_angle: 0.0,
+            sweep_angle: 0.0,
             fill: [0.2, 0.8, 1.0, 1.0],
             stroke: [1.0, 1.0, 1.0, 1.0],
             stroke_width: 2.0,
@@ -1718,6 +1876,8 @@ mod tests {
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            text_compiler: None,
+            font_context: None,
             commands: Vec::new(),
             arena: NativeValueArena::default(),
         };
@@ -1733,6 +1893,9 @@ mod tests {
             y2: 0.0,
             points: std::ptr::null(),
             point_len: 0,
+            radius: 0.0,
+            start_angle: 0.0,
+            sweep_angle: 0.0,
             fill: [0.0, 0.0, 0.0, 1.0],
             stroke: [1.0, 1.0, 1.0, 1.0],
             stroke_width: 1.0,
@@ -1749,6 +1912,187 @@ mod tests {
             NATIVE_STATUS_OK
         );
         assert_eq!(host.commands.len(), 1);
+    }
+
+    #[test]
+    fn native_append_text_produces_text_command() {
+        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let eval_ctx = sample_evaluate_ctx(&track);
+        let property_ids = HashMap::new();
+        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+        let mut text_compiler = crate::renderer::text::TextCompiler::new();
+        let text_ctx = crate::primitives::TextCompileCtx {
+            text_compiler: &mut text_compiler,
+            font_context: &font_context,
+        };
+        let (text_compiler, font_context) =
+            (Some(&mut *text_ctx.text_compiler), Some(text_ctx.font_context));
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            text_compiler,
+            font_context,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let command = NativeTextCommand {
+            content: c"Pulse".as_ptr(),
+            content_len: 5,
+            font_family: c"".as_ptr(),
+            font_size: 28.0,
+            font_weight: 600.0,
+            font_style: c"normal".as_ptr(),
+            line_height: 1.2,
+            letter_spacing: 0.0,
+            word_spacing: 0.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            max_width: 0.0,
+            text_align: c"center".as_ptr(),
+            overflow: c"visible".as_ptr(),
+        };
+        assert_eq!(
+            unsafe {
+                native_append_text(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert!(matches!(
+            host.commands.as_slice(),
+            [crate::primitives::RenderCommand::Text { .. }]
+        ));
+    }
+
+    #[test]
+    fn native_append_highlight_produces_highlight_command() {
+        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let eval_ctx = sample_evaluate_ctx(&track);
+        let property_ids = HashMap::new();
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let command = NativeHighlightCommand {
+            rect: [-10.0, -10.0, 10.0, 10.0],
+            color: [0.0, 0.0, 1.0, 1.0],
+            alpha: 0.5,
+            corner_radius: 2.0,
+            blend: 2,
+        };
+        assert_eq!(
+            unsafe {
+                native_append_highlight(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert!(matches!(
+            host.commands.as_slice(),
+            [crate::primitives::RenderCommand::HighlightLayer { .. }]
+        ));
+    }
+
+    #[test]
+    fn native_append_image_uses_actor_image() {
+        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let image = crate::timeline::image::SceneImage {
+            data: vello::peniko::ImageData {
+                data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
+                format: vello::peniko::ImageFormat::Rgba8,
+                alpha_type: vello::peniko::ImageAlphaType::Alpha,
+                width: 1,
+                height: 1,
+            },
+            natural_size: [1.0, 1.0],
+        };
+        track
+            .image
+            .ensure(None)
+            .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
+        let eval_ctx = sample_evaluate_ctx(&track);
+        let property_ids = HashMap::new();
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let command = NativeImageCommand {
+            url: std::ptr::null(),
+            natural_size: [100.0, 50.0],
+        };
+        assert_eq!(
+            unsafe {
+                native_append_image(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert!(matches!(
+            host.commands.as_slice(),
+            [crate::primitives::RenderCommand::Image { .. }]
+        ));
+    }
+
+    #[test]
+    fn native_path_commands_support_curve_and_rounded_rect() {
+        let cubic = NativePathCommand {
+            kind: NATIVE_PATH_CUBIC,
+            x: 0.0,
+            y: 0.0,
+            width: 10.0,
+            height: 10.0,
+            x1: 2.0,
+            y1: 2.0,
+            x2: 8.0,
+            y2: 8.0,
+            points: std::ptr::null(),
+            point_len: 0,
+            radius: 0.0,
+            start_angle: 0.0,
+            sweep_angle: 0.0,
+            fill: [1.0, 1.0, 1.0, 1.0],
+            stroke: [0.0; 4],
+            stroke_width: 0.0,
+            line_cap: 0,
+            line_join: 0,
+        };
+        assert!(native_path_to_vello(&cubic).is_some());
+
+        let rounded = NativePathCommand {
+            kind: NATIVE_PATH_ROUNDED_RECT,
+            x: 0.0,
+            y: 0.0,
+            width: 20.0,
+            height: 10.0,
+            x1: 0.0,
+            y1: 0.0,
+            x2: 0.0,
+            y2: 0.0,
+            points: std::ptr::null(),
+            point_len: 0,
+            radius: 3.0,
+            start_angle: 0.0,
+            sweep_angle: 0.0,
+            fill: [1.0, 1.0, 1.0, 1.0],
+            stroke: [0.0; 4],
+            stroke_width: 0.0,
+            line_cap: 0,
+            line_join: 0,
+        };
+        assert!(native_path_to_vello(&rounded).is_some());
     }
 
     #[test]
@@ -1777,6 +2121,8 @@ mod tests {
         let mut host = NativePrimitiveEvaluateHost {
             ctx: &eval_ctx,
             property_ids: &property_ids,
+            text_compiler: None,
+            font_context: None,
             commands: Vec::new(),
             arena: NativeValueArena::default(),
         };

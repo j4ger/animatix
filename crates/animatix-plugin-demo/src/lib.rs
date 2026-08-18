@@ -8,8 +8,9 @@ use std::ffi::{c_char, c_void};
 use animatix_plugin_api::{
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
     NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
-    NativePropertyDescriptor, NativeService, NativeValue,
+    NativeHighlightCommand, NativePathCommand, NativePluginApi, NativePrimitive,
+    NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService, NativeTextCommand,
+    NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -154,13 +155,54 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
         y2: 0.0,
         points: std::ptr::null(),
         point_len: 0,
+        radius: 0.0,
+        start_angle: 0.0,
+        sweep_angle: 0.0,
         fill: [0.2, 0.8, 1.0, 1.0],
         stroke: [1.0, 1.0, 1.0, 1.0],
         stroke_width: 2.0,
         line_cap: 0,
         line_join: 0,
     };
-    unsafe { (append_path)(ctx.host, command) }
+    let path_status = unsafe { (append_path)(ctx.host, command) };
+    if path_status != NATIVE_STATUS_OK {
+        return path_status;
+    }
+    if let Some(append_text) = ctx.append_text {
+        let text_command = NativeTextCommand {
+            content: c"Pulse".as_ptr(),
+            content_len: 5,
+            font_family: c"".as_ptr(),
+            font_size: 28.0,
+            font_weight: 600.0,
+            font_style: c"normal".as_ptr(),
+            line_height: 1.2,
+            letter_spacing: 0.0,
+            word_spacing: 0.0,
+            color: [1.0, 1.0, 1.0, 1.0],
+            max_width: 0.0,
+            text_align: c"center".as_ptr(),
+            overflow: c"visible".as_ptr(),
+        };
+        let text_status = unsafe { (append_text)(ctx.host, text_command) };
+        if text_status != NATIVE_STATUS_OK {
+            return text_status;
+        }
+    }
+    if let Some(append_highlight) = ctx.append_highlight {
+        let highlight_command = NativeHighlightCommand {
+            rect: [-46.0, -46.0, 46.0, 46.0],
+            color: [0.2, 0.8, 1.0, 1.0],
+            alpha: 0.12,
+            corner_radius: 10.0,
+            blend: 2,
+        };
+        let highlight_status = unsafe { (append_highlight)(ctx.host, highlight_command) };
+        if highlight_status != NATIVE_STATUS_OK {
+            return highlight_status;
+        }
+    }
+    NATIVE_STATUS_OK
 }
 
 /// Execute callback for the `pulse` demo action.

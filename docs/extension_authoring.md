@@ -140,9 +140,10 @@ primitives have optional `build`, `evaluate`, `handle_assignment`, and
 `finalize_container_build` callbacks. The host builds children through the same
 timeline path as built-ins and then calls finalize, so native containers no
 longer need to fake their way through a built-in `ActorKindId`. Evaluate
-callbacks receive a host context with `get_property` and `append_path`; the demo
-primitive reads its keyframed `glow` property and emits vector paths that render
-through the normal scene-evaluation path. Expression callbacks exchange
+callbacks receive a host context with `get_property`, `append_path`,
+`append_text`, `append_image`, and `append_highlight`; the demo primitive reads
+its keyframed `glow` property and emits paths, text, and a highlight layer that
+render through the normal scene-evaluation path. Expression callbacks exchange
 `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`, `Color`,
 `String`, and `List`. Objects, closures, and native function values return a
 type error.
