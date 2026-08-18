@@ -1,6 +1,6 @@
 # Unified Extension Architecture
 
-Status: implementation in progress
+Status: complete
 
 This document refines the extension abstraction plan into one concrete target:
 a single descriptor/registry path for built-ins, in-process extensions, and
@@ -146,7 +146,8 @@ completions, and native ABI compatibility.
   through unified `PropertyDescriptor`s from `Timeline`, and analyzer/LSP
   manifests parse into shared `PrimitiveDescriptor`/`PropertyDescriptor`
   objects used by completions and hover.
-- Remaining: full commit gates and final docs/bench verification.
+- Phase G passed: fmt, clippy, workspace tests, no-video build/test, rustdoc,
+  docs/example/bench gates, and eparts feature checks are all green.
 
 ## Phases
 
