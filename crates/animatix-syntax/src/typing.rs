@@ -501,7 +501,9 @@ pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
     CACHE.get_or_init(|| {
         let mut map = HashMap::new();
         for spec in property_specs() {
-            map.insert((spec.actor_type.to_string(), spec.name.to_string()), spec.ty);
+            for actor_type in spec.actor_types {
+                map.insert((actor_type.to_string(), spec.name.to_string()), spec.ty.clone());
+            }
         }
         map
     })
@@ -516,9 +518,11 @@ pub fn known_properties() -> &'static HashMap<String, Vec<String>> {
     CACHE.get_or_init(|| {
         let mut map = HashMap::<String, Vec<String>>::new();
         for spec in property_specs() {
-            let properties = map.entry(spec.actor_type.to_string()).or_default();
-            if !properties.iter().any(|existing| existing == spec.name) {
-                properties.push(spec.name.to_string());
+            for actor_type in spec.actor_types {
+                let properties = map.entry(actor_type.to_string()).or_default();
+                if !properties.iter().any(|existing| existing == spec.name) {
+                    properties.push(spec.name.to_string());
+                }
             }
         }
         map

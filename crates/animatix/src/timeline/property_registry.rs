@@ -1739,22 +1739,52 @@ pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
     property_index(name).map(|i| &PROPERTY_REGISTRY[i])
 }
 
-/// Resolve a property name to its stable runtime [`animatix_syntax::schema::PropertyId`].
+/// Resolve a property name to its stable shared-schema [`animatix_syntax::schema::PropertyId`].
 ///
-/// The id is the index into [`PROPERTY_REGISTRY`], so it is stable for a given
-/// build of Animatix and supports direct slot access in [`crate::timeline::plan`].
+/// The id comes from the shared schema declaration order, so analyzer,
+/// typechecker, and runtime plans all address the same property namespace.
 pub fn property_id(name: &str) -> Option<animatix_syntax::schema::PropertyId> {
-    property_index(name).map(|i| animatix_syntax::schema::PropertyId(i as u32))
+    schema_property_ids().get(name).copied()
 }
 
-/// Look up a property schema by stable [`animatix_syntax::schema::PropertyId`].
+fn schema_property_ids()
+-> &'static std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId> {
+    static CACHE: std::sync::OnceLock<
+        std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        animatix_syntax::schema::property_specs()
+            .into_iter()
+            .map(|spec| (spec.name, spec.id))
+            .collect()
+    })
+}
+
+/// Look up a property schema by stable shared-schema [`animatix_syntax::schema::PropertyId`].
 pub fn property_schema_by_id(
     id: animatix_syntax::schema::PropertyId,
 ) -> Option<&'static PropertySchema> {
-    PROPERTY_REGISTRY.get(id.0 as usize)
+    property_schema_by_id_cache().get(&id).copied()
 }
 
-/// Look up the canonical name for a stable [`animatix_syntax::schema::PropertyId`].
+fn property_schema_by_id_cache()
+-> &'static std::collections::HashMap<animatix_syntax::schema::PropertyId, &'static PropertySchema>
+{
+    static CACHE: std::sync::OnceLock<
+        std::collections::HashMap<animatix_syntax::schema::PropertyId, &'static PropertySchema>,
+    > = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        for schema in PROPERTY_REGISTRY {
+            if let Some(id) = property_id(schema.name) {
+                map.insert(id, schema);
+            }
+        }
+        map
+    })
+}
+
+/// Look up the canonical name for a stable shared-schema [`animatix_syntax::schema::PropertyId`].
 pub fn property_name(id: animatix_syntax::schema::PropertyId) -> Option<&'static str> {
     property_schema_by_id(id).map(|schema| schema.name)
 }
@@ -1817,11 +1847,47 @@ mod tests {
 
     #[test]
     fn property_ids_roundtrip_through_registry() {
-        for (index, schema) in PROPERTY_REGISTRY.iter().enumerate() {
-            let id = animatix_syntax::schema::PropertyId(index as u32);
-            assert_eq!(property_id(schema.name), Some(id), "name -> id mismatch");
+        for schema in PROPERTY_REGISTRY {
+            let id = property_id(schema.name).expect("runtime property must have a schema id");
             assert_eq!(property_schema_by_id(id).map(|s| s.name), Some(schema.name));
             assert_eq!(property_name(id), Some(schema.name));
+        }
+    }
+
+    #[test]
+    fn shared_schema_covers_every_runtime_property() {
+        let shared = animatix_syntax::schema::property_specs();
+        let shared_names: std::collections::HashSet<_> =
+            shared.iter().map(|spec| spec.name).collect();
+        assert!(
+            shared_names.len() >= PROPERTY_REGISTRY.len(),
+            "shared schema shrank below runtime registry size"
+        );
+        for schema in PROPERTY_REGISTRY {
+            assert!(
+                shared_names.contains(schema.name),
+                "shared schema is missing runtime property '{}'",
+                schema.name
+            );
+            let id = property_id(schema.name).expect("runtime property has schema id");
+            let shared =
+                shared.iter().find(|spec| spec.id == id).expect("schema id resolves to spec");
+            let expected = match schema.value_type {
+                ValueType::F32 => animatix_syntax::schema::PropertyValueKind::F32,
+                ValueType::U32 => animatix_syntax::schema::PropertyValueKind::U32,
+                ValueType::Vec2 => animatix_syntax::schema::PropertyValueKind::Vec2,
+                ValueType::Vec4 | ValueType::Color => {
+                    animatix_syntax::schema::PropertyValueKind::Vec4
+                },
+                ValueType::String => animatix_syntax::schema::PropertyValueKind::String,
+                ValueType::PointList => animatix_syntax::schema::PropertyValueKind::PointList,
+                _ => animatix_syntax::schema::PropertyValueKind::Generic,
+            };
+            assert_eq!(
+                shared.value_kind, expected,
+                "schema value kind drifted for '{}'",
+                schema.name
+            );
         }
     }
 
