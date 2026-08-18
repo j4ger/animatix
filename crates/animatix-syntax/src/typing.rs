@@ -3,11 +3,12 @@
 //! This module provides the internal type model shared by the syntax
 //! typechecker and the analyzer. It deliberately keeps user-facing
 //! [`TypeAnnotation`](crate::ast::TypeAnnotation) separate from the richer
-//! internal [`Type`] used during inference.
+//! internal `Type` used during inference.
 
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
+use crate::schema::property_specs;
 
 pub use crate::builtins::{
     COLOR_CONSTRUCTOR_FUNCTIONS as COLOR_CONSTRUCTOR_FNS, COLOR_NAMES as NAMED_COLOR_NAMES,
@@ -451,7 +452,7 @@ impl TypeEnv {
 }
 
 /// Accepted source forms for `transform`: 2/4/6-element tuples.
-fn transform_type() -> Type {
+pub(crate) fn transform_type() -> Type {
     Type::Union(vec![
         Type::Vec2,
         Type::Vec4,
@@ -499,8 +500,8 @@ pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
     static CACHE: std::sync::OnceLock<HashMap<(String, String), Type>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut map = HashMap::new();
-        for (ty, property, property_type) in property_specs() {
-            map.insert((ty.to_string(), property.to_string()), property_type);
+        for spec in property_specs() {
+            map.insert((spec.actor_type.to_string(), spec.name.to_string()), spec.ty);
         }
         map
     })
@@ -514,131 +515,14 @@ pub fn known_properties() -> &'static HashMap<String, Vec<String>> {
     static CACHE: std::sync::OnceLock<HashMap<String, Vec<String>>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut map = HashMap::<String, Vec<String>>::new();
-        for (ty, property, _) in property_specs() {
-            let properties = map.entry(ty.to_string()).or_default();
-            if !properties.iter().any(|existing| existing == property) {
-                properties.push(property.to_string());
+        for spec in property_specs() {
+            let properties = map.entry(spec.actor_type.to_string()).or_default();
+            if !properties.iter().any(|existing| existing == spec.name) {
+                properties.push(spec.name.to_string());
             }
         }
         map
     })
-}
-
-/// Single ordered source for the known property registry.
-fn property_specs() -> Vec<(&'static str, &'static str, Type)> {
-    let mut specs = Vec::new();
-
-    let common: &[(&'static str, Type)] = &[
-        ("position", Type::Vec2),
-        ("anchor", Type::Vec2),
-        ("offset", Type::Vec2),
-        ("scale", Type::Num),
-        ("rotation", Type::Num),
-        ("opacity", Type::Num),
-        ("color", Type::Color),
-        ("at", Type::Vec2),
-        ("transform", transform_type()),
-    ];
-    for ty in [
-        "Text",
-        "Code",
-        "Typst",
-        "Rect",
-        "Ellipse",
-        "Polygon",
-        "Line",
-        "Button",
-        "Svg",
-        "Image",
-        "Graph",
-        "PlotCurve",
-    ] {
-        specs.extend(
-            common
-                .iter()
-                .map(|(property, property_type)| (ty, *property, property_type.clone())),
-        );
-    }
-
-    specs.extend([
-        // Text-specific
-        ("Text", "text", Type::Str),
-        ("Text", "content", Type::Str),
-        ("Text", "font_size", Type::Num),
-        ("Text", "font_family", Type::Str),
-        ("Text", "font_weight", Type::Num),
-        ("Text", "font_style", Type::Str),
-        ("Text", "line_height", Type::Num),
-        ("Text", "letter_spacing", Type::Num),
-        ("Text", "word_spacing", Type::Num),
-        ("Text", "max_width", Type::Num),
-        ("Text", "text_align", Type::Str),
-        ("Text", "overflow", Type::Str),
-        // Typst-specific
-        ("Typst", "content", Type::Str),
-        ("Typst", "font_size", Type::Num),
-        ("Typst", "font_family", Type::Str),
-        ("Typst", "font_weight", Type::Num),
-        ("Typst", "font_style", Type::Str),
-        ("Typst", "line_height", Type::Num),
-        ("Typst", "letter_spacing", Type::Num),
-        ("Typst", "word_spacing", Type::Num),
-        ("Typst", "max_width", Type::Num),
-        ("Typst", "text_align", Type::Str),
-        ("Typst", "overflow", Type::Str),
-        // Code-specific
-        ("Code", "code", Type::Str),
-        ("Code", "content", Type::Str),
-        ("Code", "language", Type::Str),
-        ("Code", "font_weight", Type::Num),
-        ("Code", "font_style", Type::Str),
-        ("Code", "line_height", Type::Num),
-        ("Code", "letter_spacing", Type::Num),
-        ("Code", "word_spacing", Type::Num),
-        ("Code", "max_width", Type::Num),
-        ("Code", "text_align", Type::Str),
-        ("Code", "overflow", Type::Str),
-        // Shape-specific
-        ("Rect", "fill", Type::Color),
-        ("Rect", "stroke", Type::Color),
-        ("Rect", "stroke_width", Type::Num),
-        ("Rect", "size", Type::Vec2),
-        ("Rect", "radius", Type::Num),
-        ("Ellipse", "fill", Type::Color),
-        ("Ellipse", "stroke", Type::Color),
-        ("Ellipse", "stroke_width", Type::Num),
-        ("Ellipse", "size", Type::Vec2),
-        ("Ellipse", "radius", Type::Num),
-        ("Polygon", "fill", Type::Color),
-        ("Polygon", "stroke", Type::Color),
-        ("Polygon", "stroke_width", Type::Num),
-        ("Polygon", "size", Type::Vec2),
-        ("Polygon", "radius", Type::Num),
-        // Line
-        ("Line", "start", Type::Vec2),
-        ("Line", "end", Type::Vec2),
-        ("Line", "stroke", Type::Color),
-        ("Line", "stroke_width", Type::Num),
-        // Button
-        ("Button", "text", Type::Str),
-        ("Button", "size", Type::Vec2),
-        ("Button", "fill", Type::Color),
-        ("Button", "stroke", Type::Color),
-        // Svg/Image
-        ("Svg", "url", Type::Str),
-        ("Svg", "size", Type::Vec2),
-        ("Image", "url", Type::Str),
-        ("Image", "size", Type::Vec2),
-        // Graph
-        ("Graph", "x_range", Type::Vec2),
-        ("Graph", "y_range", Type::Vec2),
-        ("Graph", "function", Type::Str),
-        ("PlotCurve", "x_range", Type::Vec2),
-        ("PlotCurve", "y_range", Type::Vec2),
-        ("PlotCurve", "function", Type::Str),
-    ]);
-
-    specs
 }
 
 /// Compute the common supertype for a list of inferred types.

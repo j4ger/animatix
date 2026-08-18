@@ -32,6 +32,7 @@ use tracing::{debug, instrument, warn};
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
+use crate::extension_context::ExtensionContext;
 use crate::timeline::Timeline;
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
@@ -292,6 +293,26 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
     ]
 }
 
+/// Run one resolved action handler after group-target expansion.
+fn execute_action(
+    action: &Action,
+    time_ms: f64,
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+    handler: &dyn BuiltinAction,
+) {
+    let expanded_targets = expand_group_targets(timeline, &action.targets, &action.verb);
+    if expanded_targets != action.targets {
+        debug!(
+            "Expanded group targets for '{}': {:?} -> {:?}",
+            action.verb, action.targets, expanded_targets
+        );
+    }
+    let mut expanded_action = action.clone();
+    expanded_action.targets = expanded_targets;
+    handler.execute(&expanded_action, time_ms, timeline, diagnostics);
+}
+
 /// Looks up the action by verb and executes it if found.
 /// Group targets are automatically expanded into their leaf children.
 #[instrument(skip(timeline, diagnostics), fields(verb = %action.verb, targets = ?action.targets))]
@@ -302,19 +323,26 @@ pub fn process_action(
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) {
-    let actions = get_builtin_actions();
-    for builtin in actions {
+    process_action_with_extensions(action, time_ms, timeline, diagnostics, span, None);
+}
+
+/// Like [`process_action`], but honors custom actions from an extension context.
+pub fn process_action_with_extensions(
+    action: &Action,
+    time_ms: f64,
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+    span: Option<crate::ast::Span>,
+    extensions: Option<&ExtensionContext>,
+) {
+    if let Some(handler) = extensions.and_then(|ctx| ctx.action(&action.verb)) {
+        execute_action(action, time_ms, timeline, diagnostics, handler);
+        return;
+    }
+
+    for builtin in get_builtin_actions() {
         if builtin.signature().name == action.verb {
-            let expanded_targets = expand_group_targets(timeline, &action.targets, &action.verb);
-            if expanded_targets != action.targets {
-                debug!(
-                    "Expanded group targets for '{}': {:?} -> {:?}",
-                    action.verb, action.targets, expanded_targets
-                );
-            }
-            let mut expanded_action = action.clone();
-            expanded_action.targets = expanded_targets;
-            builtin.execute(&expanded_action, time_ms, timeline, diagnostics);
+            execute_action(action, time_ms, timeline, diagnostics, builtin.as_ref());
             return;
         }
     }
@@ -325,6 +353,21 @@ pub fn process_action(
 /// Exposes all action signatures for LSP/UI integration.
 pub fn get_action_signatures() -> Vec<ActionSignature> {
     get_builtin_actions().iter().map(|a| a.signature()).collect()
+}
+
+/// Exposes built-in and extension action signatures.
+pub fn get_action_signatures_with_extensions(
+    extensions: Option<&ExtensionContext>,
+) -> Vec<ActionSignature> {
+    let mut signatures = get_action_signatures();
+    if let Some(ctx) = extensions {
+        for signature in ctx.action_signatures() {
+            if !signatures.iter().any(|existing| existing.name == signature.name) {
+                signatures.push(signature);
+            }
+        }
+    }
+    signatures
 }
 
 #[cfg(test)]

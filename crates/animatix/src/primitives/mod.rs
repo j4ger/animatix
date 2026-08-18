@@ -317,6 +317,8 @@ mod mask;
 pub use mask::MASK;
 mod filter;
 pub use filter::FILTER;
+mod registry;
+pub use registry::{PrimitiveRegistrationError, PrimitiveRegistry};
 
 mod typst;
 pub use typst::TYPST;
@@ -627,6 +629,67 @@ pub trait Primitive: Send + Sync {
         false
     }
 
+    /// Shared schema capabilities for this primitive.
+    ///
+    /// This is the migration point for metadata that previously lived in
+    /// `PrimitiveDescriptor` string matching. Primitives can override it when
+    /// they need capabilities beyond the category defaults.
+    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+        match self.category() {
+            ActorCategory::Shape => animatix_syntax::schema::PrimitiveCapabilities {
+                vector_paths: true,
+                morphable_paths: true,
+                vector_reveal_target: true,
+                is_shape: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            },
+            ActorCategory::Text => animatix_syntax::schema::PrimitiveCapabilities {
+                text_paths: true,
+                morphable_paths: true,
+                vector_reveal_target: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            },
+            ActorCategory::Media => match self.type_name() {
+                "Svg" => animatix_syntax::schema::PrimitiveCapabilities {
+                    vector_paths: true,
+                    morphable_paths: true,
+                    vector_reveal_target: true,
+                    ..animatix_syntax::schema::PrimitiveCapabilities::default()
+                },
+                "Image" => animatix_syntax::schema::PrimitiveCapabilities {
+                    image_payload: true,
+                    ..animatix_syntax::schema::PrimitiveCapabilities::default()
+                },
+                _ => animatix_syntax::schema::PrimitiveCapabilities::default(),
+            },
+            ActorCategory::Plot => animatix_syntax::schema::PrimitiveCapabilities {
+                vector_paths: true,
+                morphable_paths: true,
+                vector_reveal_target: true,
+                plot_geometry: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            },
+            ActorCategory::Container => {
+                if matches!(self.type_name(), "Group" | "Mask") {
+                    animatix_syntax::schema::PrimitiveCapabilities {
+                        is_container: true,
+                        ..animatix_syntax::schema::PrimitiveCapabilities::default()
+                    }
+                } else {
+                    animatix_syntax::schema::PrimitiveCapabilities {
+                        layout_container: true,
+                        is_container: true,
+                        ..animatix_syntax::schema::PrimitiveCapabilities::default()
+                    }
+                }
+            },
+            ActorCategory::Annotation => animatix_syntax::schema::PrimitiveCapabilities {
+                vector_paths: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            },
+        }
+    }
+
     /// Returns the corresponding `ActorKindId` variant.
     fn kind_id(&self) -> ActorKindId;
 
@@ -875,6 +938,47 @@ pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
     actor_kind_registry().iter().find(|m| m.type_name == name)
 }
 
+/// Expose built-in primitive metadata through the shared schema model.
+pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
+    actor_kind_registry()
+        .iter()
+        .map(|meta| {
+            let capabilities = crate::primitives::find_primitive(meta.type_name)
+                .map(|primitive| primitive.capabilities())
+                .unwrap_or_default();
+            animatix_syntax::schema::PrimitiveSpec {
+                type_name: meta.type_name,
+                display_name: meta.display_name,
+                category: match meta.category {
+                    ActorCategory::Shape => animatix_syntax::schema::PrimitiveCategory::Shape,
+                    ActorCategory::Text => animatix_syntax::schema::PrimitiveCategory::Text,
+                    ActorCategory::Media => animatix_syntax::schema::PrimitiveCategory::Media,
+                    ActorCategory::Plot => animatix_syntax::schema::PrimitiveCategory::Plot,
+                    ActorCategory::Container => {
+                        animatix_syntax::schema::PrimitiveCategory::Container
+                    },
+                    ActorCategory::Annotation => {
+                        animatix_syntax::schema::PrimitiveCategory::Annotation
+                    },
+                },
+                icon_id: meta.icon_id,
+                advanced: meta.advanced,
+                capabilities: animatix_syntax::schema::PrimitiveCapabilities {
+                    text_paths: capabilities.text_paths,
+                    vector_paths: capabilities.vector_paths,
+                    image_payload: capabilities.image_payload,
+                    layout_container: capabilities.layout_container,
+                    morphable_paths: capabilities.morphable_paths,
+                    vector_reveal_target: capabilities.vector_reveal_target,
+                    plot_geometry: capabilities.plot_geometry,
+                    is_container: meta.category == ActorCategory::Container,
+                    is_shape: meta.category == ActorCategory::Shape,
+                },
+            }
+        })
+        .collect()
+}
+
 // ── Dispatch helpers ────────────────────────────────────────────────────
 
 /// Look up a primitive by its type name.
@@ -918,6 +1022,18 @@ mod tests {
             assert_eq!(meta.icon_id, prim.icon_id());
             assert_eq!(meta.advanced, prim.is_advanced());
         }
+    }
+
+    #[test]
+    fn primitive_specs_cover_builtins_with_capabilities() {
+        let specs = primitive_specs();
+        assert_eq!(specs.len(), PRIMITIVES.len());
+        let rect = specs.iter().find(|spec| spec.type_name == "Rect").expect("Rect is a built-in");
+        assert_eq!(rect.category, animatix_syntax::schema::PrimitiveCategory::Shape);
+        assert!(rect.capabilities.vector_paths);
+        let row = specs.iter().find(|spec| spec.type_name == "Row").expect("Row is a built-in");
+        assert_eq!(row.category, animatix_syntax::schema::PrimitiveCategory::Container);
+        assert!(row.capabilities.layout_container);
     }
 
     #[test]

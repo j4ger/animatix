@@ -32,95 +32,86 @@ pub struct PrimitiveDescriptor {
 impl PrimitiveDescriptor {
     pub fn for_actor_type(actor_type: &str) -> Self {
         if let Some(primitive) = find_primitive(actor_type) {
-            return match primitive.type_name() {
-                "Group" => Self {
-                    actor_type: "Group",
-                    family: PrimitiveFamily::Group,
-                    capabilities: PrimitiveCapabilities::default(),
-                },
-                "Mask" => Self {
-                    actor_type: "Mask",
-                    family: PrimitiveFamily::Group,
-                    capabilities: PrimitiveCapabilities::default(),
-                },
-                "Graph" => Self {
-                    actor_type: "Graph",
-                    family: PrimitiveFamily::Plot,
+            let caps = primitive.capabilities();
+            return match primitive.category() {
+                ActorCategory::Shape => Self {
+                    actor_type: "VectorShape",
+                    family: PrimitiveFamily::VectorShape,
                     capabilities: PrimitiveCapabilities {
-                        plot_geometry: true,
+                        vector_paths: caps.vector_paths,
+                        morphable_paths: caps.morphable_paths,
+                        vector_reveal_target: caps.vector_reveal_target,
                         ..PrimitiveCapabilities::default()
                     },
                 },
-                _ => match primitive.category() {
-                    ActorCategory::Shape => Self {
-                        actor_type: "VectorShape",
-                        family: PrimitiveFamily::VectorShape,
-                        capabilities: PrimitiveCapabilities {
-                            vector_paths: true,
-                            morphable_paths: true,
-                            vector_reveal_target: true,
-                            ..PrimitiveCapabilities::default()
-                        },
+                ActorCategory::Text => Self {
+                    actor_type: "TextLike",
+                    family: PrimitiveFamily::TextLike,
+                    capabilities: PrimitiveCapabilities {
+                        text_paths: caps.text_paths,
+                        morphable_paths: caps.morphable_paths,
+                        vector_reveal_target: caps.vector_reveal_target,
+                        ..PrimitiveCapabilities::default()
                     },
-                    ActorCategory::Text => Self {
-                        actor_type: "TextLike",
-                        family: PrimitiveFamily::TextLike,
-                        capabilities: PrimitiveCapabilities {
-                            text_paths: true,
-                            morphable_paths: true,
-                            vector_reveal_target: true,
-                            ..PrimitiveCapabilities::default()
-                        },
-                    },
-                    ActorCategory::Media => {
-                        if primitive.type_name() == "Svg" {
-                            Self {
-                                actor_type: "Svg",
-                                family: PrimitiveFamily::Media,
-                                capabilities: PrimitiveCapabilities {
-                                    vector_paths: true,
-                                    morphable_paths: true,
-                                    vector_reveal_target: true,
-                                    ..PrimitiveCapabilities::default()
-                                },
-                            }
-                        } else {
-                            Self {
-                                actor_type: "Image",
-                                family: PrimitiveFamily::Media,
-                                capabilities: PrimitiveCapabilities {
-                                    image_payload: true,
-                                    ..PrimitiveCapabilities::default()
-                                },
-                            }
+                },
+                ActorCategory::Media => {
+                    if caps.image_payload {
+                        Self {
+                            actor_type: "Image",
+                            family: PrimitiveFamily::Media,
+                            capabilities: PrimitiveCapabilities {
+                                image_payload: true,
+                                ..PrimitiveCapabilities::default()
+                            },
                         }
+                    } else {
+                        Self {
+                            actor_type: "Svg",
+                            family: PrimitiveFamily::Media,
+                            capabilities: PrimitiveCapabilities {
+                                vector_paths: caps.vector_paths,
+                                morphable_paths: caps.morphable_paths,
+                                vector_reveal_target: caps.vector_reveal_target,
+                                ..PrimitiveCapabilities::default()
+                            },
+                        }
+                    }
+                },
+                ActorCategory::Plot => Self {
+                    actor_type: primitive.type_name(),
+                    family: PrimitiveFamily::Plot,
+                    capabilities: PrimitiveCapabilities {
+                        vector_paths: caps.vector_paths,
+                        morphable_paths: caps.morphable_paths,
+                        vector_reveal_target: caps.vector_reveal_target,
+                        plot_geometry: caps.plot_geometry,
+                        ..PrimitiveCapabilities::default()
                     },
-                    ActorCategory::Plot => Self {
-                        actor_type: primitive.type_name(),
-                        family: PrimitiveFamily::Plot,
-                        capabilities: PrimitiveCapabilities {
-                            vector_paths: true,
-                            morphable_paths: true,
-                            vector_reveal_target: true,
-                            plot_geometry: true,
-                            ..PrimitiveCapabilities::default()
-                        },
-                    },
-                    ActorCategory::Container => Self {
-                        actor_type: "Container",
-                        family: PrimitiveFamily::Container,
-                        capabilities: PrimitiveCapabilities {
-                            layout_container: true,
-                            ..PrimitiveCapabilities::default()
-                        },
-                    },
-                    ActorCategory::Annotation => Self {
-                        actor_type: primitive.type_name(),
-                        family: PrimitiveFamily::VectorShape,
-                        capabilities: PrimitiveCapabilities {
-                            vector_paths: true,
-                            ..PrimitiveCapabilities::default()
-                        },
+                },
+                ActorCategory::Container => {
+                    if caps.layout_container {
+                        Self {
+                            actor_type: "Container",
+                            family: PrimitiveFamily::Container,
+                            capabilities: PrimitiveCapabilities {
+                                layout_container: true,
+                                ..PrimitiveCapabilities::default()
+                            },
+                        }
+                    } else {
+                        Self {
+                            actor_type: "Group",
+                            family: PrimitiveFamily::Group,
+                            capabilities: PrimitiveCapabilities::default(),
+                        }
+                    }
+                },
+                ActorCategory::Annotation => Self {
+                    actor_type: primitive.type_name(),
+                    family: PrimitiveFamily::VectorShape,
+                    capabilities: PrimitiveCapabilities {
+                        vector_paths: caps.vector_paths,
+                        ..PrimitiveCapabilities::default()
                     },
                 },
             };

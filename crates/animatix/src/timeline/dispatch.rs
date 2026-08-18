@@ -54,6 +54,18 @@ pub struct AnimationTrack {
     pub label: String,
     /// Compile-time kind of this actor.
     pub kind: ActorKindId,
+    /// Source type name from the declaration, when known.
+    ///
+    /// Built-in actors can resolve through [`ActorKindId`], but extension
+    /// primitives need the original name to look themselves up again during
+    /// scene evaluation.
+    pub actor_type: Option<String>,
+    /// Registry-derived property plan for this actor.
+    ///
+    /// Built after the actor kind is known; frame-time extension paths can use
+    /// this instead of string lookups.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
     /// Labels of child actors in the scene hierarchy.
@@ -115,50 +127,50 @@ pub struct AnimationTrack {
     /// ## Why a side-channel?
     ///
     /// Most animatable properties (f32, Vec2, Color, etc.) implement the
-    /// [`Interpolate`] trait, which allows the standard `PropertyTrack<T>`
+    /// [`crate::timeline::Interpolate`] trait, which allows the standard `PropertyTrack<T>`
     /// keyframe system to compute in-between values automatically. Closures
     /// (function sources like `(x) => sin(x * freq)`) **cannot** implement
-    /// [`Interpolate`] — there is no meaningful way to "lerp" two closures.
+    /// [`crate::timeline::Interpolate`] — there is no meaningful way to "lerp" two closures.
     ///
     /// Instead of forcing closures into the `Interpolate` model, we store
     /// function transitions as a **parallel side-channel** alongside the
-    /// normal property tracks. Each [`FuncTransition`] records a start time,
-    /// end time, easing, blend mode, and the `from` / `to` [`FuncSource`]
+    /// normal property tracks. Each `FuncTransition` records a start time,
+    /// end time, easing, blend mode, and the `from` / `to` `FuncSource`
     /// closures. At frame evaluation time,
-    /// [`sample_procedural_plot_at`] checks for active
+    /// `sample_procedural_plot_at` checks for active
     /// transitions and combines the two sources by the eased progress value.
     ///
     /// ## How it works
     ///
-    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends a [`FuncTransition`] to
+    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends a `FuncTransition` to
     ///    this vector (not to a `PropertyTrack`).
-    /// 2. At each frame, [`sample_procedural_plot_at`] finds the active transition (if any),
+    /// 2. At each frame, `sample_procedural_plot_at` finds the active transition (if any),
     ///    evaluates both `from` and `to` closure outputs at each sample point, and lerps the
     ///    outputs.
-    /// 3. Completed transitions are detected via [`FuncTransition::is_complete_at`] and the last
+    /// 3. Completed transitions are detected via `FuncTransition::is_complete_at` and the last
     ///    completed `to` source is used as the new baseline.
     ///
     /// ## When to use this pattern
     ///
-    /// Any property whose type cannot implement [`Interpolate`] should use a
+    /// Any property whose type cannot implement [`crate::timeline::Interpolate`] should use a
     /// side-channel. Candidates include:
     ///
     /// - **Closures / AST function bodies** (the current case)
     /// - **Arbitrary AST nodes** that are structural rather than numeric
     /// - **External resource handles** (e.g., image URLs that need loading)
     ///
-    /// If the type *can* implement [`Interpolate`], prefer the standard
+    /// If the type *can* implement [`crate::timeline::Interpolate`], prefer the standard
     /// `PropertyTrack<T>` approach instead.
     ///
     /// ## Implementation checklist for new non-interpolatable properties
     ///
-    /// 1. Define a transition struct (like [`FuncTransition`]) with `start_ms`, `end_ms`,
+    /// 1. Define a transition struct (like `FuncTransition`) with `start_ms`, `end_ms`,
     ///    `easing`, `from`, `to`.
-    /// 2. Define the source type (like [`FuncSource`]) with variants for raw values and
+    /// 2. Define the source type (like `FuncSource`) with variants for raw values and
     ///    mid-transition blends.
     /// 3. Add a `Vec<YourTransition>` field to [`AnimationTrack`].
-    /// 4. Include the transition end times in [`max_keyframe_time`].
-    /// 5. Include non-empty transitions in [`has_any_keyframes`].
+    /// 4. Include the transition end times in `max_keyframe_time`.
+    /// 5. Include non-empty transitions in `has_any_keyframes`.
     /// 6. At frame evaluation, find the active transition and blend the *outputs* of `from` and
     ///    `to` by eased progress.
     pub func_transitions: Vec<FuncTransition>,
@@ -179,6 +191,8 @@ impl AnimationTrack {
             // Identity
             label: label.clone(),
             kind: ActorKindId::Shape(ShapeKind::Rect),
+            actor_type: None,
+            property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
             children: Vec::new(),
             parent: None,
@@ -222,6 +236,13 @@ impl AnimationTrack {
             // Legend tier
             legend: super::legend::LegendTracks::default(),
         }
+    }
+
+    /// Rebuild the property plan from the current actor kind.
+    pub fn rebuild_property_plan(&mut self) {
+        let previous = std::mem::take(&mut self.property_plan);
+        self.property_plan = super::plan::PropertyPlan::for_actor_kind(self.kind);
+        self.property_plan.preserve_extension_slots(&previous);
     }
 
     // ── layout_size convenience methods (replacing old LayoutSizeState) ──
@@ -367,6 +388,10 @@ impl AnimationTrack {
                 max = Some(max.map_or(t, |m| m.max(t)));
             }
         }
+        // Registry-driven plan tracks.
+        if let Some(t) = self.property_plan.max_keyframe_time() {
+            max = Some(max.map_or(t, |m| m.max(t)));
+        }
         // Func transitions: include the end time of each transition.
         for ft in &self.func_transitions {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
@@ -386,6 +411,7 @@ impl AnimationTrack {
         }
         self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
             || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
+            || self.property_plan.has_any_keyframes()
             || !self.func_transitions.is_empty()
     }
 }
@@ -1132,6 +1158,14 @@ pub fn read_property_value(
     field: ActorField,
     time_ms: u64,
 ) -> Option<PropertyValue> {
+    if let ActorField::Tagged(name) = field
+        && name != "legend"
+        && name != "callout_place"
+        && let Some(id) = crate::timeline::property_registry::property_id(name)
+        && let Some(value) = super::property_engine::read_property_plan_slot(track, id, time_ms)
+    {
+        return Some(value);
+    }
     track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
 }
 
@@ -1156,6 +1190,11 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
     if let Some(svg_track) = svg_paths_track_for(track, field) {
         return svg_track.keyframes.contains_key(&time_ms);
     }
+    if let Some(id) = plan_id_for_tagged_field(&field)
+        && track.property_plan.has_keyframe_at(id, time_ms)
+    {
+        return true;
+    }
     track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
 }
 
@@ -1163,6 +1202,11 @@ pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_
 pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
     if let Some(svg_track) = svg_paths_track_for(track, field) {
         return svg_track.keyframes.len();
+    }
+    if let Some(id) = plan_id_for_tagged_field(&field)
+        && track.property_plan.keyframe_count(id) > 0
+    {
+        return track.property_plan.keyframe_count(id);
     }
     track.field_ref(field).map_or(0, |f| f.keyframe_count())
 }
@@ -1173,6 +1217,12 @@ pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec
         let mut times: Vec<u64> = svg_track.keyframes.keys().copied().collect();
         times.sort_unstable();
         return times;
+    }
+    if let Some(id) = plan_id_for_tagged_field(&field) {
+        let times = track.property_plan.keyframe_times(id);
+        if !times.is_empty() {
+            return times;
+        }
     }
     track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
 }
@@ -1186,5 +1236,21 @@ pub fn property_keyframe_easing(
     if let Some(svg_track) = svg_paths_track_for(track, field) {
         return svg_track.keyframes.get(&time_ms).map(|(_, easing)| *easing);
     }
+    if let Some(id) = plan_id_for_tagged_field(&field) {
+        if let Some(easing) = track.property_plan.keyframe_easing(id, time_ms) {
+            return Some(easing);
+        }
+    }
     track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
+}
+
+/// Resolve a tagged field to a plan-backed property id, excluding legacy
+/// special fields that still use typed/tagged storage.
+fn plan_id_for_tagged_field(field: &ActorField) -> Option<animatix_syntax::schema::PropertyId> {
+    match field {
+        ActorField::Tagged(name) if *name != "legend" && *name != "callout_place" => {
+            crate::timeline::property_registry::property_id(name)
+        },
+        _ => None,
+    }
 }

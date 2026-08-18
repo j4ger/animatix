@@ -173,6 +173,13 @@ impl Timeline {
         for (label, track) in &self.tracks {
             // Use the centralized injector for base track values.
             crate::timeline::property_engine::inject_property_into_env(env, label, track, time_ms);
+            crate::timeline::property_engine::inject_extension_properties_into_env(
+                env,
+                label,
+                track,
+                time_ms,
+                self.extensions.as_deref(),
+            );
 
             // Apply overrides on top (from `always` blocks or modifiers).
             let node_overrides = overrides.and_then(|map| map.get(label));

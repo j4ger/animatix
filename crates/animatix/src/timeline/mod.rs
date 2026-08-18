@@ -62,6 +62,7 @@ pub(crate) mod modifier_runtime;
 /// Path morphing between vector shapes.
 pub mod morph;
 pub mod path_progress;
+pub mod plan;
 mod plot;
 mod position;
 pub(crate) mod property_engine;
@@ -76,11 +77,13 @@ pub use dispatch::{
     property_keyframe_easing, property_keyframe_times, read_property_value,
     read_property_value_or_default,
 };
-pub use property_engine::PropertyValue;
+pub use plan::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
+pub use property_engine::{PropertyValue, read_property_plan_slot, write_property_plan_slot};
 // Re-export property registry types for the GUI
 pub use property_registry::{
     ActorField, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, SumVariant,
-    ValueType, allowed_property_indices, lookup_property,
+    ValueType, allowed_property_indices, lookup_property, property_id, property_name,
+    property_schema_by_id,
 };
 /// Frame evaluation environment construction and modifier execution.
 ///
@@ -119,7 +122,7 @@ pub mod utils;
 /// Vello path wrapper with fill/stroke.
 pub mod vello_path;
 
-use actions::process_action;
+use actions::process_action_with_extensions;
 pub use actor_kind::ActorKind;
 pub(crate) use assignments::recompile_text_at_assignment;
 pub use builtins::load_standard_library;
@@ -493,6 +496,10 @@ pub struct Timeline {
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
     pub(crate) env: Environment,
+    /// Runtime primitive registry used by builds that supply extensions.
+    pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
+    /// Optional extension context used during build.
+    extensions: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
@@ -605,6 +612,8 @@ impl Timeline {
             background_color: bg_track,
             root_nodes: Vec::new(),
             env: Environment::new(),
+            primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
+            extensions: None,
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),
             modifiers: Vec::new(),
             modifier_programs: Vec::new(),
@@ -630,6 +639,21 @@ impl Timeline {
             plot_path_cache: std::collections::HashMap::new(),
             modifier_hash: 0,
         }
+    }
+
+    /// Runtime primitive registry snapshot used by this build.
+    pub fn primitive_registry_snapshot(
+        &self,
+    ) -> std::sync::Arc<crate::primitives::PrimitiveRegistry> {
+        std::sync::Arc::clone(&self.primitive_registry)
+    }
+
+    /// External property descriptors installed on this build.
+    pub fn extension_property_specs(&self) -> Vec<crate::extension_context::ExtensionPropertySpec> {
+        self.extensions
+            .as_ref()
+            .map(|ctx| ctx.property_specs().to_vec())
+            .unwrap_or_default()
     }
 
     /// Duration of the authored animation in seconds, derived from the latest

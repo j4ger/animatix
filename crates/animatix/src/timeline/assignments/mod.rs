@@ -547,6 +547,38 @@ impl Timeline {
                 }
             }
         } else {
+            // Extension properties registered on this actor type.
+            if let Some(ctx) = self.extensions.clone() {
+                let actor_type = track.actor_type.clone();
+                let spec = actor_type
+                    .as_deref()
+                    .and_then(|actor_type| ctx.property_spec(actor_type, property))
+                    .cloned();
+                if let Some(spec) = spec {
+                    if let Some(pv) =
+                        crate::timeline::property_engine::parse_extension_property_value(
+                            spec.kind,
+                            value,
+                            &eval_env,
+                            diagnostics,
+                            &assignment_subject,
+                        )
+                    {
+                        crate::timeline::property_engine::write_extension_property_slot(
+                            track,
+                            &ctx,
+                            &spec.actor_type,
+                            property,
+                            pv,
+                            t_start_ms,
+                            t_end_ms,
+                            easing,
+                        );
+                    }
+                    return;
+                }
+            }
+
             // Check if this is a plot parameter assignment
             let is_plot_param = track
                 .procedural_plot

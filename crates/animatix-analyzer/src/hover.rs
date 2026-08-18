@@ -57,12 +57,18 @@ pub fn hover_at(
         });
     }
     if symbols.types.contains(text) {
+        let doc = animatix_syntax::builtins::type_documentation(text);
+        let doc = if doc == "Unknown type." {
+            animatix_syntax::schema::builtin_primitive_specs()
+                .iter()
+                .find(|spec| spec.type_name == text)
+                .map(|spec| spec.display_name)
+                .unwrap_or(doc)
+        } else {
+            doc
+        };
         return Some(HoverInfo {
-            contents: format!(
-                "**Type** `{}`\n\n{}",
-                text,
-                animatix_syntax::builtins::type_documentation(text)
-            ),
+            contents: format!("**Type** `{}`\n\n{}", text, doc),
             range,
         });
     }

@@ -1724,15 +1724,39 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
 // Lookup
 // ─────────────────────────────────────────────────────────────
 
+/// Return the index of a property in [`PROPERTY_REGISTRY`].
+///
+/// Uses binary search over the sorted registry.
+fn property_index(name: &str) -> Option<usize> {
+    PROPERTY_REGISTRY.binary_search_by_key(&name, |s| s.name).ok()
+}
+
 /// Look up a property schema by name.
 ///
 /// Uses binary search over the sorted `PROPERTY_REGISTRY`.
 /// Returns `None` if no property with that name exists.
 pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
-    PROPERTY_REGISTRY
-        .binary_search_by_key(&name, |s| s.name)
-        .ok()
-        .map(|i| &PROPERTY_REGISTRY[i])
+    property_index(name).map(|i| &PROPERTY_REGISTRY[i])
+}
+
+/// Resolve a property name to its stable runtime [`animatix_syntax::schema::PropertyId`].
+///
+/// The id is the index into [`PROPERTY_REGISTRY`], so it is stable for a given
+/// build of Animatix and supports direct slot access in [`crate::timeline::plan`].
+pub fn property_id(name: &str) -> Option<animatix_syntax::schema::PropertyId> {
+    property_index(name).map(|i| animatix_syntax::schema::PropertyId(i as u32))
+}
+
+/// Look up a property schema by stable [`animatix_syntax::schema::PropertyId`].
+pub fn property_schema_by_id(
+    id: animatix_syntax::schema::PropertyId,
+) -> Option<&'static PropertySchema> {
+    PROPERTY_REGISTRY.get(id.0 as usize)
+}
+
+/// Look up the canonical name for a stable [`animatix_syntax::schema::PropertyId`].
+pub fn property_name(id: animatix_syntax::schema::PropertyId) -> Option<&'static str> {
+    property_schema_by_id(id).map(|schema| schema.name)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1789,5 +1813,21 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), original_len, "Duplicate property names detected");
+    }
+
+    #[test]
+    fn property_ids_roundtrip_through_registry() {
+        for (index, schema) in PROPERTY_REGISTRY.iter().enumerate() {
+            let id = animatix_syntax::schema::PropertyId(index as u32);
+            assert_eq!(property_id(schema.name), Some(id), "name -> id mismatch");
+            assert_eq!(property_schema_by_id(id).map(|s| s.name), Some(schema.name));
+            assert_eq!(property_name(id), Some(schema.name));
+        }
+    }
+
+    #[test]
+    fn unknown_property_has_no_id() {
+        assert_eq!(property_id("definitely_not_a_property"), None);
+        assert!(property_schema_by_id(animatix_syntax::schema::PropertyId(u32::MAX)).is_none());
     }
 }

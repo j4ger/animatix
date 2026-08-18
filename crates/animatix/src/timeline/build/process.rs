@@ -146,7 +146,15 @@ impl Timeline {
                         });
                     }
 
-                    process_action(action, time_ms, self, diagnostics, *span);
+                    let extensions = self.extensions.clone();
+                    process_action_with_extensions(
+                        action,
+                        time_ms,
+                        self,
+                        diagnostics,
+                        *span,
+                        extensions.as_deref(),
+                    );
                 },
                 Stmt::LetDecl { name, value, .. } => {
                     // G5/G6 guard: Anchor-point refs (`n0.right`) are

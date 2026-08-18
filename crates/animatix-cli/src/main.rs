@@ -237,7 +237,8 @@ fn load_and_build(input: &Path) -> (BuildTarget, Vec<animatix_syntax::diagnostic
         },
     };
 
-    let report = BuildTarget::from_ast(&ast, &namespaces, Some(input));
+    let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+    let report = BuildTarget::from_ast_with_context(&ast, &namespaces, Some(input), context);
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);
     print_build_diagnostics(&all_diagnostics);
@@ -653,7 +654,8 @@ fn main() {
                     std::process::exit(1);
                 },
             };
-            let report = BuildTarget::from_ast(
+            let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+            let report = BuildTarget::from_ast_with_context(
                 &ast,
                 &namespaces,
                 if file_label == "-" {
@@ -661,6 +663,7 @@ fn main() {
                 } else {
                     Some(std::path::Path::new(&file_label))
                 },
+                context,
             );
             let mut diagnostics = type_diagnostics;
             diagnostics.extend(report.diagnostics);

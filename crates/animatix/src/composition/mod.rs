@@ -143,6 +143,67 @@ impl BuildTarget {
         )
     }
 
+    /// Build from AST with an extension context.
+    pub fn from_ast_with_context(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
+        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
+    ) -> BuildReport<Self> {
+        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
+        let mut report = if has_scenes {
+            let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
+                statements,
+                namespaces,
+                font_context,
+                crate::timeline::BuildQuality::Production,
+                None,
+                context.clone(),
+            );
+            BuildReport {
+                output: BuildTarget::MultiScene(report.output),
+                diagnostics: report.diagnostics,
+            }
+        } else {
+            let report =
+                Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
+                    statements,
+                    namespaces,
+                    font_context,
+                    crate::timeline::BuildQuality::Production,
+                    None,
+                    context,
+                );
+            let mut diags = report.diagnostics;
+            for (label, &flag) in &report.output.persistence_flags {
+                if flag {
+                    diags.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor '{}' is persisted but there is no successor scene to carry into.",
+                                label,
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+            BuildReport {
+                output: BuildTarget::SingleScene(report.output),
+                diagnostics: diags,
+            }
+        };
+        if let Some(path) = source_path {
+            for diag in &mut report.diagnostics {
+                diag.location.path = Some(path.to_path_buf());
+            }
+        }
+        report
+    }
+
     /// Build from AST with explicit build quality and an existing asset cache.
     pub fn from_ast_with_quality_and_asset_cache(
         statements: &[Stmt],
@@ -174,6 +235,70 @@ impl BuildTarget {
                 asset_cache,
             );
             // Warn about persistent actors in a truly single-scene file (no successor).
+            let mut diags = report.diagnostics;
+            for (label, &flag) in &report.output.persistence_flags {
+                if flag {
+                    diags.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor '{}' is persisted but there is no successor scene to carry into.",
+                                label,
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+            BuildReport {
+                output: BuildTarget::SingleScene(report.output),
+                diagnostics: diags,
+            }
+        };
+        if let Some(path) = source_path {
+            for diag in &mut report.diagnostics {
+                diag.location.path = Some(path.to_path_buf());
+            }
+        }
+        report
+    }
+
+    /// Build from AST with explicit quality, asset cache, and extension context.
+    #[allow(clippy::too_many_arguments)]
+    pub fn from_ast_with_quality_and_asset_cache_and_extension_context(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
+    ) -> BuildReport<Self> {
+        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
+        let mut report = if has_scenes {
+            let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
+                statements,
+                namespaces,
+                font_context,
+                build_quality,
+                asset_cache,
+                context,
+            );
+            BuildReport {
+                output: BuildTarget::MultiScene(report.output),
+                diagnostics: report.diagnostics,
+            }
+        } else {
+            let report =
+                Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
+                    statements,
+                    namespaces,
+                    font_context,
+                    build_quality,
+                    asset_cache,
+                    context,
+                );
             let mut diags = report.diagnostics;
             for (label, &flag) in &report.output.persistence_flags {
                 if flag {
@@ -248,6 +373,25 @@ impl Composition {
             font_context,
             build_quality,
             asset_cache,
+        )
+    }
+
+    /// Build a composition with an extension context.
+    pub fn build_with_font_context_and_asset_cache_and_extension_context(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
+    ) -> BuildReport<Self> {
+        Self::build_with_font_context_impl_with_context(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            asset_cache,
+            Some(context),
         )
     }
 

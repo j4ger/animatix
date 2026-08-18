@@ -209,7 +209,7 @@ impl Timeline {
     /// Resolve the world-space position `[x, y]` of an actor at a given time.
     ///
     /// Extracts the translation component of the world-space affine transform
-    /// returned by [`resolve_actor_world_transform`].
+    /// returned by `resolve_actor_world_transform`.
     ///
     /// Returns `None` if the actor is not present in this timeline.
     pub fn resolve_actor_world_position(
@@ -529,7 +529,11 @@ impl Timeline {
             // execute them and skip the legacy manual rendering path.
             let primitive_dispatch = {
                 let meta = crate::primitives::actor_kind_meta(track.kind);
-                let primitive = meta.and_then(|m| crate::primitives::find_primitive(m.type_name));
+                let primitive = track
+                    .actor_type
+                    .as_deref()
+                    .and_then(|ty| self.primitive_registry.find(ty))
+                    .or_else(|| meta.and_then(|m| crate::primitives::find_primitive(m.type_name)));
                 if let Some(primitive) = primitive {
                     let ctx = crate::primitives::EvaluateCtx {
                         track,
@@ -1089,7 +1093,7 @@ impl Timeline {
         Some(cached.program.clone())
     }
 
-    /// Evaluate the timeline into an observable [`SceneProgram`].
+    /// Evaluate the timeline into an observable [`crate::timeline::scene_program::SceneProgram`].
     ///
     /// The program carries the authoritative encoded scene plus the structured
     /// frame data used by tooling/tests. Filter and mask paths remain encoded

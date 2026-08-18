@@ -7,6 +7,74 @@ use crate::timeline::Timeline;
 
 use super::{Composition, CompositionScene, SceneEdge};
 
+fn build_timeline_with_context(
+    statements: &[Stmt],
+    namespaces: &HashMap<String, Namespace>,
+    font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+    build_quality: crate::timeline::BuildQuality,
+    asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+    context: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
+) -> BuildReport<Timeline> {
+    match context {
+        Some(ctx) => {
+            Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
+                statements,
+                namespaces,
+                font_context,
+                build_quality,
+                asset_cache,
+                ctx,
+            )
+        },
+        None => Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            asset_cache,
+        ),
+    }
+}
+
+fn build_timeline_with_carry_context(
+    statements: &[Stmt],
+    namespaces: &HashMap<String, Namespace>,
+    font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+    build_quality: crate::timeline::BuildQuality,
+    carry: Option<&crate::timeline::persistence::CarryBag>,
+    source_timeline: Option<&Timeline>,
+    source_duration_ms: u64,
+    dims: [f64; 2],
+    asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+    context: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
+) -> BuildReport<Timeline> {
+    match context {
+        Some(ctx) => Timeline::build_with_carry_and_asset_cache_and_extension_context(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            carry,
+            source_timeline,
+            source_duration_ms,
+            dims,
+            asset_cache,
+            ctx,
+        ),
+        None => Timeline::build_with_carry_and_asset_cache(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            carry,
+            source_timeline,
+            source_duration_ms,
+            dims,
+            asset_cache,
+        ),
+    }
+}
+
 fn validate_play_target(
     target: &str,
     scenes: &BTreeMap<String, CompositionScene>,
@@ -105,6 +173,24 @@ impl Composition {
         build_quality: crate::timeline::BuildQuality,
         asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
     ) -> BuildReport<Self> {
+        Self::build_with_font_context_impl_with_context(
+            statements,
+            namespaces,
+            font_context,
+            build_quality,
+            asset_cache,
+            None,
+        )
+    }
+
+    pub(crate) fn build_with_font_context_impl_with_context(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
+        build_quality: crate::timeline::BuildQuality,
+        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
+        context: Option<std::sync::Arc<crate::extension_context::ExtensionContext>>,
+    ) -> BuildReport<Self> {
         let mut diagnostics: Vec<Diagnostic> = Vec::new();
         let mut scenes: BTreeMap<String, CompositionScene> = BTreeMap::new();
         let mut declaration_order: Vec<String> = Vec::new();
@@ -156,14 +242,14 @@ impl Composition {
                     merged_body.extend(body.clone());
                     merged_bodies.insert(name.clone(), merged_body.clone());
 
-                    let build_report =
-                        Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
-                            &merged_body,
-                            namespaces,
-                            font_context.clone(),
-                            build_quality,
-                            asset_cache.clone(),
-                        );
+                    let build_report = build_timeline_with_context(
+                        &merged_body,
+                        namespaces,
+                        font_context.clone(),
+                        build_quality,
+                        asset_cache.clone(),
+                        context.clone(),
+                    );
                     diagnostics.extend(
                         build_report
                             .diagnostics
@@ -266,14 +352,14 @@ impl Composition {
                 });
                 merged.extend(scene_data.body.clone());
                 merged_bodies.insert(target.clone(), merged.clone());
-                let build_report =
-                    Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
-                        &merged,
-                        namespaces,
-                        font_context.clone(),
-                        build_quality,
-                        asset_cache.clone(),
-                    );
+                let build_report = build_timeline_with_context(
+                    &merged,
+                    namespaces,
+                    font_context.clone(),
+                    build_quality,
+                    asset_cache.clone(),
+                    context.clone(),
+                );
                 diagnostics.extend(
                     build_report
                         .diagnostics
@@ -399,7 +485,7 @@ impl Composition {
                     .retain(|d| d.location.subject.as_deref() != Some(scene_subject.as_str()));
 
                 // Rebuild with carry injection.
-                let build_report = crate::timeline::Timeline::build_with_carry_and_asset_cache(
+                let build_report = build_timeline_with_carry_context(
                     &merged_body,
                     namespaces,
                     font_context.clone(),
@@ -409,6 +495,7 @@ impl Composition {
                     pred_duration_ms,
                     default_dims,
                     asset_cache.clone(),
+                    context.clone(),
                 );
 
                 diagnostics.extend(

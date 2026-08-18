@@ -126,8 +126,7 @@ impl CompletionContext {
         let prev = tokens
             .iter()
             .filter(|t| t.span.end <= byte)
-            .filter(|t| !matches!(t.kind, TokenKind::Comment(_)))
-            .last();
+            .rfind(|t| !matches!(t.kind, TokenKind::Comment(_)));
 
         let Some(prev) = prev else {
             return CompletionContext::TopLevel;
@@ -281,7 +280,7 @@ fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
 
 /// Type completions with documentation.
 fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
-    symbols
+    let mut items = symbols
         .types
         .iter()
         .map(|ty| {
@@ -294,7 +293,20 @@ fn type_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
                 insert_text: None,
             }
         })
-        .collect()
+        .collect::<Vec<_>>();
+
+    for spec in animatix_syntax::schema::builtin_primitive_specs() {
+        if !symbols.types.contains(spec.type_name) {
+            items.push(CompletionItem {
+                label: spec.type_name.to_string(),
+                kind: CompletionKind::Type,
+                detail: Some(spec.category.label().to_string()),
+                documentation: Some(spec.display_name.to_string()),
+                insert_text: None,
+            });
+        }
+    }
+    items
 }
 
 /// Label completions (actor names, let bindings).

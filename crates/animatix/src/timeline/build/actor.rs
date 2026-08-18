@@ -229,6 +229,36 @@ impl Timeline {
             return;
         }
 
+        // Extension primitives that are not in the static built-in set are
+        // dispatched through the runtime registry.
+        if crate::primitives::find_primitive(ty).is_none() {
+            let registry = self.primitive_registry.clone();
+            if let Some(primitive) = registry.find(ty) {
+                let mut ctx = crate::primitives::BuildCtx {
+                    timeline: self,
+                    time_ms,
+                    parent_label,
+                    diagnostics,
+                };
+                if let Err(mut diags) = primitive.build(&mut ctx, label, props, modifiers, children)
+                {
+                    diagnostics.append(&mut diags);
+                }
+                if let Some(track) = self.tracks.get_mut(label) {
+                    track.actor_type = Some(ty.to_string());
+                }
+                self.write_extension_properties_for_decl(
+                    label,
+                    ty,
+                    props,
+                    modifiers,
+                    time_ms,
+                    diagnostics,
+                );
+                return;
+            }
+        }
+
         let Some(kind_id) = super::ActorKindId::from_type_name(ty) else {
             diagnostics.push(
                 Diagnostic::error(
@@ -291,6 +321,8 @@ impl Timeline {
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
             early_track.kind = kind_id;
+            early_track.actor_type = Some(ty.to_string());
+            early_track.rebuild_property_plan();
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);
@@ -607,6 +639,8 @@ impl Timeline {
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string()));
         track.kind = kind_id;
+        track.actor_type = Some(ty.to_string());
+        track.rebuild_property_plan();
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
         }
@@ -879,6 +913,8 @@ impl Timeline {
             morph_options,
         );
 
+        self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
+
         if let Some(p) = crate::primitives::find_primitive(ty) {
             let mut ctx = crate::primitives::BuildCtx {
                 timeline: self,
@@ -888,6 +924,67 @@ impl Timeline {
             };
             if let Err(mut diags) = p.finalize_container_build(&mut ctx, label, props) {
                 diagnostics.append(&mut diags);
+            }
+        }
+    }
+
+    /// Write registered external properties on an actor declaration.
+    ///
+    /// This runs after the primitive has created/updated its track so both
+    /// built-in and custom primitives can expose schema-driven properties
+    /// without hand-writing storage or keyframe code.
+    fn write_extension_properties_for_decl(
+        &mut self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(ctx) = self.extensions.clone() else {
+            return;
+        };
+        if !props.iter().any(|prop| ctx.property_spec(ty, &prop.name).is_some()) {
+            return;
+        }
+
+        let ParsedTimingModifiers {
+            duration_ms,
+            delay_ms,
+            easing,
+            ..
+        } = parse_timing_modifiers(
+            modifiers,
+            ModifierHost::ActorDeclaration,
+            Some(label),
+            diagnostics,
+        );
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let eval_env = self.build_eval_env(time_ms as u64);
+        let Some(track) = self.tracks.get_mut(label) else {
+            return;
+        };
+
+        for prop in props {
+            if crate::timeline::property_registry::lookup_property(&prop.name).is_some() {
+                continue;
+            }
+            let Some(spec) = ctx.property_spec(ty, &prop.name) else {
+                continue;
+            };
+            let subject = format!("{}.{}", label, prop.name);
+            if let Some(pv) = crate::timeline::property_engine::parse_extension_property_value(
+                spec.kind,
+                &prop.value,
+                &eval_env,
+                diagnostics,
+                &subject,
+            ) {
+                crate::timeline::property_engine::write_extension_property_slot(
+                    track, &ctx, ty, &prop.name, pv, t_start_ms, t_end_ms, easing,
+                );
             }
         }
     }
@@ -989,6 +1086,8 @@ impl Timeline {
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string()));
             track.kind = kind_id;
+            track.actor_type = Some(ty.to_string());
+            track.rebuild_property_plan();
             track.procedural_plot = procedural_plot;
             if let Some(pl) = parent_label {
                 track.parent = Some(pl.to_string());

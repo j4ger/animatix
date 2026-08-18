@@ -20,6 +20,8 @@ pub mod icon_glyphs;
 pub mod module;
 pub mod occurrence;
 pub mod parser;
+/// Shared actor/property schema for runtime, analyzer, LSP, and GUI.
+pub mod schema;
 /// Re-export of chumsky for integration tests that need `chumsky::Parser`.
 #[doc(hidden)]
 pub use chumsky;

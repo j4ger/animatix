@@ -38,10 +38,12 @@ use super::preserve_instant_delayed_value;
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
+use crate::extension_context::ExtensionContext;
 use crate::timeline::dispatch::read_property_value;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{AnimationTrack, Interpolate, PropertyTrack, ShapeType, TrackAccessor};
+use animatix_syntax::schema::PropertyValueKind;
 
 // ─────────────────────────────────────────────────────────────
 // Parsed property values
@@ -326,6 +328,25 @@ pub(crate) fn write_property_field(
             .ensure(crate::timeline::animation_track::CalloutPlace::Right)
             .add_keyframe(t_end_ms, place, easing);
     }
+
+    // Route registry-backed tagged properties through the actor plan before
+    // falling back to the legacy tagged_tracks map. Special callout/legend
+    // fields remain on their existing typed paths for now.
+    if let ActorField::Tagged(name) = field
+        && name != "legend"
+        && name != "callout_place"
+        && let Some(id) = crate::timeline::property_registry::property_id(name)
+    {
+        let kind = track
+            .property_plan
+            .get(id)
+            .map(|slot| slot.kind)
+            .unwrap_or(crate::timeline::PropertyKind::Generic);
+        if write_property_plan_slot(track, id, kind, value.clone(), t_start_ms, t_end_ms, easing) {
+            return;
+        }
+    }
+
     if let Some(tf) = track.field_mut(field) {
         match tf {
             TrackFieldMut::F32(f) => {
@@ -494,6 +515,165 @@ pub(crate) fn write_property_field(
             TrackFieldMut::Image(_) => {},
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Plan-backed property access
+// ─────────────────────────────────────────────────────────────
+
+/// Write a property value through the actor's registry-driven `PropertyPlan`.
+///
+/// Returns `true` when the value was stored in a plan slot. The slot is
+/// created lazily for extension properties not present in the built-in
+/// registry.
+pub fn write_property_plan_slot(
+    track: &mut AnimationTrack,
+    id: animatix_syntax::schema::PropertyId,
+    kind: crate::timeline::PropertyKind,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) -> bool {
+    let has_duration = t_end_ms > t_start_ms;
+    let slot = track.property_plan.ensure_slot(id, kind);
+    if has_duration {
+        if let Some(start) = slot.track.sample(t_start_ms) {
+            slot.track.add_keyframe(t_start_ms, start);
+        }
+    }
+    slot.track.add_keyframe_eased(t_end_ms, value, easing).is_some()
+}
+
+/// Read a property value through the actor's registry-driven `PropertyPlan`.
+pub fn read_property_plan_slot(
+    track: &AnimationTrack,
+    id: animatix_syntax::schema::PropertyId,
+    time_ms: u64,
+) -> Option<PropertyValue> {
+    track.property_plan.get(id).and_then(|slot| slot.track.sample(time_ms))
+}
+
+/// Parse an expression into the finite value kind declared by an extension.
+pub(crate) fn parse_extension_property_value(
+    kind: PropertyValueKind,
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let value = super::evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    let parsed = match kind {
+        PropertyValueKind::F32 => match value {
+            Value::Num(n) => Some(PropertyValue::F32(n as f32)),
+            _ => None,
+        },
+        PropertyValueKind::U32 => match value {
+            Value::Num(n) if n >= 0.0 && n <= u32::MAX as f64 => Some(PropertyValue::U32(n as u32)),
+            _ => None,
+        },
+        PropertyValueKind::Vec2 => match value {
+            Value::Vec2(v) => Some(PropertyValue::Vec2([v[0] as f32, v[1] as f32])),
+            _ => None,
+        },
+        PropertyValueKind::Vec4 => match value {
+            Value::Vec4(v) | Value::Color(v) => {
+                Some(PropertyValue::Vec4([v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32]))
+            },
+            _ => None,
+        },
+        PropertyValueKind::String => match value {
+            Value::Str(s) => Some(PropertyValue::String(s)),
+            _ => None,
+        },
+        PropertyValueKind::PointList => match value {
+            Value::List(items) => {
+                let mut points = Vec::with_capacity(items.len());
+                for item in items {
+                    match item {
+                        Value::Vec2(v) => points.push([v[0] as f32, v[1] as f32]),
+                        _ => return None,
+                    }
+                }
+                Some(PropertyValue::PointList(points))
+            },
+            _ => None,
+        },
+        PropertyValueKind::Generic => property_value_from_value(value),
+    };
+    if parsed.is_none() {
+        tracing::warn!(
+            "{subject}: extension property expects {:?}, got a value of another kind",
+            kind
+        );
+    }
+    parsed
+}
+
+fn property_value_from_value(value: Value) -> Option<PropertyValue> {
+    Some(match value {
+        Value::Num(n) => PropertyValue::F32(n as f32),
+        Value::Str(s) => PropertyValue::String(s),
+        Value::Bool(b) => PropertyValue::Bool(b),
+        Value::Vec2(v) => PropertyValue::Vec2([v[0] as f32, v[1] as f32]),
+        Value::Vec3(v) => PropertyValue::Vec4([v[0] as f32, v[1] as f32, v[2] as f32, 1.0]),
+        Value::Vec4(v) | Value::Color(v) => {
+            PropertyValue::Color([v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32])
+        },
+        Value::List(items) => {
+            if items.iter().all(|item| matches!(item, Value::Vec2(_))) {
+                PropertyValue::PointList(
+                    items
+                        .iter()
+                        .map(|item| {
+                            let Value::Vec2(v) = item else {
+                                unreachable!("filtered above");
+                            };
+                            [v[0] as f32, v[1] as f32]
+                        })
+                        .collect(),
+                )
+            } else if items.iter().all(|item| matches!(item, Value::Str(_))) {
+                PropertyValue::StringList(
+                    items
+                        .iter()
+                        .map(|item| {
+                            let Value::Str(s) = item else {
+                                unreachable!("filtered above");
+                            };
+                            s.clone()
+                        })
+                        .collect(),
+                )
+            } else {
+                return None;
+            }
+        },
+        Value::Object(_, _) | Value::NativeFn(_) | Value::Closure(_, _, _) => return None,
+    })
+}
+
+/// Write an extension property into the actor plan.
+pub(crate) fn write_extension_property_slot(
+    track: &mut AnimationTrack,
+    ctx: &ExtensionContext,
+    actor_type: &str,
+    property: &str,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) -> bool {
+    let Some(spec) = ctx.property_spec(actor_type, property) else {
+        return false;
+    };
+    let value = match (spec.kind, &value) {
+        (PropertyValueKind::Vec4, PropertyValue::Color(v)) => PropertyValue::Vec4(*v),
+        (PropertyValueKind::F32, PropertyValue::U32(v)) => PropertyValue::F32(*v as f32),
+        (PropertyValueKind::U32, PropertyValue::F32(v)) => PropertyValue::U32(v.max(0.0) as u32),
+        _ => value,
+    };
+    write_property_plan_slot(track, spec.id, spec.kind.into(), value, t_start_ms, t_end_ms, easing)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -782,6 +962,48 @@ pub(crate) fn inject_property_into_env(
     }
 }
 
+/// Inject external property values into a frame environment.
+pub(crate) fn inject_extension_properties_into_env(
+    env: &mut Environment,
+    label: &str,
+    track: &AnimationTrack,
+    time_ms: u64,
+    ctx: Option<&ExtensionContext>,
+) {
+    let Some(ctx) = ctx else {
+        return;
+    };
+    let Some(actor_type) = track.actor_type.as_deref() else {
+        return;
+    };
+
+    let mut key = String::with_capacity(label.len() + 24);
+    key.push_str(label);
+    key.push('.');
+    let prefix_len = key.len();
+
+    for spec in ctx.property_specs() {
+        if !spec.injectable || spec.actor_type != actor_type {
+            continue;
+        }
+        let Some(pv) = read_property_plan_slot(track, spec.id, time_ms) else {
+            continue;
+        };
+        key.truncate(prefix_len);
+        key.push_str(&spec.name);
+        inject_value(env, &mut key, prefix_len, &spec.name, &pv);
+
+        let animating = track
+            .property_plan
+            .get(spec.id)
+            .is_some_and(|slot| slot.track.has_any_keyframes());
+        key.truncate(prefix_len);
+        key.push_str("_animating_");
+        key.push_str(&spec.name);
+        env.set(&key, Value::Num(if animating { 1.0 } else { 0.0 }));
+    }
+}
+
 /// Inject a `PropertyValue` into the environment, with typed sub-keys
 /// (`.x`, `.y` for Vec2; `.r`, `.g`, `.b`, `.a` for Color/Vec4).
 ///
@@ -968,6 +1190,73 @@ mod tests {
         assert_eq!(value.name(), "left");
         assert_eq!(CalloutPlace::from_name(value.name()), Some(value));
         assert_eq!(value.to_property_value(), PropertyValue::Enum("left".to_string()));
+    }
+
+    #[test]
+    fn tagged_property_routes_through_actor_plan() {
+        let mut track = AnimationTrack::new("test".to_string());
+        track.rebuild_property_plan();
+        let field = ActorField::Tagged("legend_title");
+        write_property_field(
+            &mut track,
+            field,
+            PropertyValue::String("Revenue".to_string()),
+            0,
+            0,
+            Easing::Linear,
+            &mut vec![],
+        );
+        assert_eq!(
+            read_property_value(&track, field, 0),
+            Some(PropertyValue::String("Revenue".to_string()))
+        );
+
+        write_property_field(
+            &mut track,
+            field,
+            PropertyValue::String("Costs".to_string()),
+            0,
+            1000,
+            Easing::EaseInOut,
+            &mut vec![],
+        );
+        assert!(property_has_keyframes(&track, field));
+        assert!(property_has_keyframe_at(&track, field, 1000));
+        assert_eq!(property_keyframe_times(&track, field), vec![0, 1000]);
+        assert_eq!(property_keyframe_easing(&track, field, 1000), Some(Easing::EaseInOut));
+    }
+
+    #[test]
+    fn property_plan_slot_writes_and_reads_without_string_lookup() {
+        let mut track = AnimationTrack::new("test".to_string());
+        track.rebuild_property_plan();
+        let position = crate::timeline::property_id("position").expect("position is registered");
+
+        assert!(write_property_plan_slot(
+            &mut track,
+            position,
+            crate::timeline::PropertyKind::Vec2,
+            PropertyValue::Vec2([10.0, 20.0]),
+            0,
+            0,
+            Easing::Linear,
+        ));
+        assert_eq!(
+            read_property_plan_slot(&track, position, 0),
+            Some(PropertyValue::Vec2([10.0, 20.0]))
+        );
+
+        assert!(write_property_plan_slot(
+            &mut track,
+            position,
+            crate::timeline::PropertyKind::Vec2,
+            PropertyValue::Vec2([110.0, 20.0]),
+            0,
+            1000,
+            Easing::Linear,
+        ));
+        let slot = track.property_plan.get(position).expect("position slot");
+        assert_eq!(slot.track.sample(500), Some(PropertyValue::Vec2([60.0, 20.0])));
     }
 
     // Helper: write a keyframe and read it back
