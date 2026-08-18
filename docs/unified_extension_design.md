@@ -10,7 +10,7 @@ execution order.
 ## Current State
 
 Registration and dispatch go through one registry shape. A later hardening pass
-closed the remaining runtime seams: native primitives render through ABI v2
+closed the remaining runtime seams: native primitives render through ABI v3
 path commands, manifest descriptors no longer guess runtime property ids,
 custom primitives dispatch through the active registry, primitive metadata is
 borrowed instead of leaked, and native services carry destructors.
@@ -22,7 +22,7 @@ borrowed instead of leaked, and native services carry destructors.
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
 | Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
 | Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
-| Native plugins | n/a | C ABI v2 primitive/action/service registration |
+| Native plugins | n/a | C ABI v3 primitive/action/service registration |
 
 `PROPERTY_REGISTRY` remains the runtime binding table (typed field, read
 source, flags, defaults) while shared schema owns descriptors (name, actor
@@ -113,7 +113,7 @@ completions, and native ABI compatibility.
 | `animatix::extension_context` | delegate all registration to `ExtensionRegistry` |
 | GUI inspector/keyframe table | consume unified descriptor list |
 | analyzer/LSP | consume shared descriptor plus manifests |
-| `animatix-plugin-api` | add ABI v2 callback table |
+| `animatix-plugin-api` | add ABI v3 callback table |
 | docs/authoring | document the single registration path |
 
 ### Risk
@@ -209,7 +209,7 @@ Acceptance:
 - Adding a built-in or extension primitive requires only one registration path.
 - `scene_eval.rs` does not grow with primitive count.
 
-### Phase 5: Native ABI v2
+### Phase 5: Native ABI v3
 
 Extend `animatix-plugin-api` with primitive/action/service callbacks. Wrap them
 in host-side `Primitive` adapters so native plugins register into the same

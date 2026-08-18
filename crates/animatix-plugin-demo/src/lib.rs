@@ -8,8 +8,8 @@ use std::ffi::{c_char, c_void};
 use animatix_plugin_api::{
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
     NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativePathCommandV2, NativePluginApiV1, NativePluginApiV2, NativePrimitiveEvaluateCtxV2,
-    NativePrimitiveV2, NativeServiceV2, NativeValueV1,
+    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx, NativeService,
+    NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -24,39 +24,24 @@ pub extern "C" fn animatix_plugin_name() -> *const c_char {
     c"demo".as_ptr()
 }
 
-/// Install plugin capabilities through the v1 host API table.
+/// Install plugin capabilities through the current host API table.
 ///
 /// # Safety
 ///
 /// `api` and `host` must be the values passed by the Animatix loader to the
 /// install entry point. `host` must remain valid for the duration of the call.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn animatix_plugin_install_v1(
-    api: *const NativePluginApiV1,
+pub unsafe extern "C" fn animatix_plugin_install(
+    api: *const NativePluginApi,
     host: *mut c_void,
 ) -> i32 {
     let api = unsafe { &*api };
-    let property_status = unsafe {
-        (api.register_property)(host, c"Rect".as_ptr(), c"glow".as_ptr(), NATIVE_PROPERTY_F32, true)
-    };
-    if property_status != NATIVE_STATUS_OK {
-        return property_status;
+    if api.size != std::mem::size_of::<NativePluginApi>()
+        || api.version != animatix_plugin_api::ABI_VERSION
+    {
+        return NATIVE_STATUS_TYPE_ERROR;
     }
-    unsafe { (api.register_function)(host, c"double".as_ptr(), double) }
-}
 
-/// Install plugin capabilities through the unified v2 host API table.
-///
-/// # Safety
-///
-/// `api` and `host` must be the values passed by the Animatix loader to the
-/// install entry point. `host` must remain valid for the duration of the call.
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn animatix_plugin_install_v2(
-    api: *const NativePluginApiV2,
-    host: *mut c_void,
-) -> i32 {
-    let api = unsafe { &*api };
     let property_status = unsafe {
         (api.register_property)(host, c"Rect".as_ptr(), c"glow".as_ptr(), NATIVE_PROPERTY_F32, true)
     };
@@ -69,7 +54,7 @@ pub unsafe extern "C" fn animatix_plugin_install_v2(
         return function_status;
     }
 
-    let primitive = NativePrimitiveV2 {
+    let primitive = NativePrimitive {
         type_name: c"Pulse".as_ptr(),
         display_name: c"Pulse".as_ptr(),
         icon_id: c"extension:pulse".as_ptr(),
@@ -88,7 +73,7 @@ pub unsafe extern "C" fn animatix_plugin_install_v2(
         return action_status;
     }
 
-    let service = NativeServiceV2 {
+    let service = NativeService {
         name: c"demo.pulse".as_ptr(),
         value: pulse_action as *const () as usize,
         drop: Some(drop_service),
@@ -97,10 +82,10 @@ pub unsafe extern "C" fn animatix_plugin_install_v2(
 }
 
 unsafe extern "C" fn double(
-    args: *const NativeValueV1,
+    args: *const NativeValue,
     arg_len: usize,
     _env: *const c_void,
-    out: *mut NativeValueV1,
+    out: *mut NativeValue,
 ) -> i32 {
     if arg_len != 1 {
         return NATIVE_STATUS_TYPE_ERROR;
@@ -109,10 +94,10 @@ unsafe extern "C" fn double(
     if arg.tag != NATIVE_VALUE_NUM {
         return NATIVE_STATUS_TYPE_ERROR;
     }
-    let result = NativeValueV1 {
+    let result = NativeValue {
         tag: NATIVE_VALUE_NUM,
         num: arg.num * 2.0,
-        ..NativeValueV1::default()
+        ..NativeValue::default()
     };
     unsafe {
         *out = result;
@@ -126,12 +111,12 @@ unsafe extern "C" fn double(
 ///
 /// `ctx` must be the callback context passed by the Animatix host, and its
 /// `append_path` function pointer must be called with the matching `host`.
-unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtxV2) -> i32 {
+unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32 {
     let ctx = unsafe { &*ctx };
     let Some(append_path) = ctx.append_path else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let command = NativePathCommandV2 {
+    let command = NativePathCommand {
         kind: NATIVE_PATH_ELLIPSE,
         x: 0.0,
         y: 0.0,

@@ -4,11 +4,14 @@
 //! `animatix_plugin_name`-equivalent symbols, and the install entry point.
 //! The host and plugin never pass Rust trait objects across the library
 //! boundary; they exchange only `repr(C)` structs and function pointers.
+//!
+//! There is exactly one current ABI version. No compatibility layer is kept
+//! for earlier in-repo ABI generations.
 
 use std::ffi::{c_char, c_void};
 
 /// ABI version negotiated by the host and plugin.
-pub const ABI_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 3;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -47,12 +50,12 @@ pub const NATIVE_STATUS_UNSUPPORTED: i32 = 2;
 
 /// A finite runtime value exchanged with native expression functions.
 ///
-/// Strings, lists, and closures are intentionally not part of ABI v1. Plugins
-/// that need richer values should return a type error or use a registered
-/// property track instead.
+/// Strings, lists, and closures are intentionally not part of this ABI yet.
+/// Plugins that need richer values should return a type error or use a
+/// registered property track instead.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
-pub struct NativeValueV1 {
+pub struct NativeValue {
     /// Value tag from the `NATIVE_VALUE_*` constants.
     pub tag: u32,
     /// Numeric payload for `NATIVE_VALUE_NUM`.
@@ -63,7 +66,7 @@ pub struct NativeValueV1 {
     pub vec: [f64; 4],
 }
 
-impl Default for NativeValueV1 {
+impl Default for NativeValue {
     fn default() -> Self {
         Self {
             tag: NATIVE_VALUE_NUM,
@@ -78,66 +81,48 @@ impl Default for NativeValueV1 {
 ///
 /// Returns [`NATIVE_STATUS_OK`] on success or one of the `NATIVE_STATUS_*`
 /// error codes. The output value is written into `out`.
-pub type NativeFunctionV1 = unsafe extern "C" fn(
-    args: *const NativeValueV1,
+pub type NativeFunction = unsafe extern "C" fn(
+    args: *const NativeValue,
     arg_len: usize,
     env: *const c_void,
-    out: *mut NativeValueV1,
+    out: *mut NativeValue,
 ) -> i32;
 
-/// Host callbacks available to a native plugin during install.
-#[derive(Clone, Copy)]
-#[repr(C)]
-pub struct NativePluginApiV1 {
-    /// `size_of::<NativePluginApiV1>()` so future ABI revisions can grow the
-    /// table without breaking old plugins.
-    pub size: usize,
-    /// Register an external property for an actor type.
-    pub register_property:
-        unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32, bool) -> i32,
-    /// Register a native expression function.
-    pub register_function:
-        unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunctionV1) -> i32,
-}
-
-/// Native plugin install entry point.
-pub type NativeInstallFn = unsafe extern "C" fn(*const NativePluginApiV1, *mut c_void) -> i32;
-
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_SHAPE: u32 = 0;
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_TEXT: u32 = 1;
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_MEDIA: u32 = 2;
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_PLOT: u32 = 3;
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_CONTAINER: u32 = 4;
-/// Primitive UI category for ABI v2.
+/// Primitive UI category.
 pub const NATIVE_PRIMITIVE_CATEGORY_ANNOTATION: u32 = 5;
 
-/// Child-processing strategy for ABI v2.
+/// Child-processing strategy.
 pub const NATIVE_PRIMITIVE_CHILD_GENERIC: u32 = 0;
-/// Child-processing strategy for ABI v2.
+/// Child-processing strategy.
 pub const NATIVE_PRIMITIVE_CHILD_FILTER: u32 = 1;
-/// Child-processing strategy for ABI v2.
+/// Child-processing strategy.
 pub const NATIVE_PRIMITIVE_CHILD_MASK: u32 = 2;
-/// Child-processing strategy for ABI v2.
+/// Child-processing strategy.
 pub const NATIVE_PRIMITIVE_CHILD_EQUATION: u32 = 3;
 
-/// Primitive path command kind for ABI v2 evaluation.
+/// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_RECT: u32 = 0;
-/// Primitive path command kind for ABI v2 evaluation.
+/// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_ELLIPSE: u32 = 1;
-/// Primitive path command kind for ABI v2 evaluation.
+/// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_LINE: u32 = 2;
-/// Primitive path command kind for ABI v2 evaluation.
+/// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_POLYGON: u32 = 3;
 
 /// A 2D point used by polygon path commands.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
-pub struct NativePointV2 {
+pub struct NativePoint {
     /// X coordinate in scene units.
     pub x: f64,
     /// Y coordinate in scene units.
@@ -147,7 +132,7 @@ pub struct NativePointV2 {
 /// A vector path command emitted by a native primitive during evaluation.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
-pub struct NativePathCommandV2 {
+pub struct NativePathCommand {
     /// `NATIVE_PATH_*` kind.
     pub kind: u32,
     /// Rectangle origin / ellipse center X.
@@ -167,7 +152,7 @@ pub struct NativePathCommandV2 {
     /// Line end Y.
     pub y2: f64,
     /// Polygon points; valid only for `NATIVE_PATH_POLYGON`.
-    pub points: *const NativePointV2,
+    pub points: *const NativePoint,
     /// Number of polygon points.
     pub point_len: usize,
     /// RGBA fill color in 0..=1 ranges.
@@ -184,26 +169,26 @@ pub struct NativePathCommandV2 {
 
 /// Context passed to a native primitive evaluate callback.
 #[repr(C)]
-pub struct NativePrimitiveEvaluateCtxV2 {
-    /// `size_of::<NativePrimitiveEvaluateCtxV2>()`.
+pub struct NativePrimitiveEvaluateCtx {
+    /// `size_of::<NativePrimitiveEvaluateCtx>()`.
     pub size: usize,
     /// Current evaluation time in milliseconds.
     pub time_ms: f64,
     /// Opaque host handle passed back to `append_path`.
     pub host: *mut c_void,
     /// Append one vector path command to the current frame.
-    pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommandV2) -> i32>,
+    pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommand) -> i32>,
 }
 
 /// Native primitive evaluate callback.
-pub type NativePrimitiveEvaluateV2 = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtxV2) -> i32;
+pub type NativePrimitiveEvaluateFn = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtx) -> i32;
 
 /// Native action execute callback.
-pub type NativeActionExecuteV2 = unsafe extern "C" fn(*mut c_void) -> i32;
+pub type NativeActionExecuteFn = unsafe extern "C" fn(*mut c_void) -> i32;
 
 /// Service value provided by a native plugin.
 #[repr(C)]
-pub struct NativeServiceV2 {
+pub struct NativeService {
     /// Canonical service name.
     pub name: *const c_char,
     /// Opaque service value understood by the plugin.
@@ -215,7 +200,7 @@ pub struct NativeServiceV2 {
 /// Descriptor passed from a native plugin to register a primitive.
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct NativePrimitiveV2 {
+pub struct NativePrimitive {
     /// Source text type name.
     pub type_name: *const c_char,
     /// Display name for GUI palettes.
@@ -229,29 +214,30 @@ pub struct NativePrimitiveV2 {
     /// `NATIVE_PRIMITIVE_CHILD_*` value.
     pub child_processing: u32,
     /// Optional frame-time evaluate callback.
-    pub evaluate: Option<NativePrimitiveEvaluateV2>,
+    pub evaluate: Option<NativePrimitiveEvaluateFn>,
 }
 
-/// Host callbacks available to a native plugin during ABI v2 install.
+/// Host callbacks available to a native plugin during install.
 #[derive(Clone, Copy)]
 #[repr(C)]
-pub struct NativePluginApiV2 {
-    /// `size_of::<NativePluginApiV2>()` so future ABI revisions can grow.
+pub struct NativePluginApi {
+    /// `size_of::<NativePluginApi>()` so future ABI revisions can be detected.
     pub size: usize,
+    /// Current `ABI_VERSION`.
+    pub version: u32,
     /// Register an external property for an actor type.
     pub register_property:
         unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32, bool) -> i32,
     /// Register a native expression function.
-    pub register_function:
-        unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunctionV1) -> i32,
+    pub register_function: unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunction) -> i32,
     /// Register a native primitive.
-    pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitiveV2) -> i32,
+    pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitive) -> i32,
     /// Register a native action.
     pub register_action:
-        unsafe extern "C" fn(*mut c_void, *const c_char, NativeActionExecuteV2) -> i32,
+        unsafe extern "C" fn(*mut c_void, *const c_char, NativeActionExecuteFn) -> i32,
     /// Provide a native service value with an optional destructor.
-    pub provide_service: unsafe extern "C" fn(*mut c_void, NativeServiceV2) -> i32,
+    pub provide_service: unsafe extern "C" fn(*mut c_void, NativeService) -> i32,
 }
 
-/// Native plugin ABI v2 install entry point.
-pub type NativeInstallFnV2 = unsafe extern "C" fn(*const NativePluginApiV2, *mut c_void) -> i32;
+/// Native plugin install entry point.
+pub type NativeInstallFn = unsafe extern "C" fn(*const NativePluginApi, *mut c_void) -> i32;

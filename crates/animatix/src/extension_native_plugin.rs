@@ -15,9 +15,9 @@ use animatix_plugin_api::{
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
     NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
     NATIVE_VALUE_COLOR, NATIVE_VALUE_NUM, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4,
-    NativeActionExecuteV2, NativeFunctionV1, NativeInstallFn, NativeInstallFnV2,
-    NativePathCommandV2, NativePluginApiV1, NativePluginApiV2, NativePrimitiveEvaluateCtxV2,
-    NativePrimitiveEvaluateV2, NativePrimitiveV2, NativeServiceV2, NativeValueV1,
+    NativeActionExecuteFn, NativeFunction, NativeInstallFn, NativePathCommand, NativePluginApi,
+    NativePrimitive, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn, NativeService,
+    NativeValue,
 };
 use kurbo::Shape;
 use libloading::Library;
@@ -33,10 +33,8 @@ use super::{ExtensionPlugin, PluginDisposer, PluginError};
 pub struct NativePlugin {
     name: String,
     library: Arc<Library>,
-    api_v1: NativePluginApiV1,
-    install_v1: Option<NativeInstallFn>,
-    api_v2: NativePluginApiV2,
-    install_v2: Option<NativeInstallFnV2>,
+    api: NativePluginApi,
+    install: Option<NativeInstallFn>,
 }
 
 impl NativePlugin {
@@ -76,28 +74,18 @@ impl NativePlugin {
                 CStr::from_ptr(name_ptr).to_string_lossy().into_owned()
             };
 
-            let install_v1 = library
-                .get::<NativeInstallFn>(b"animatix_plugin_install_v1")
-                .ok()
-                .map(|symbol| *symbol);
-            let install_v2 = library
-                .get::<NativeInstallFnV2>(b"animatix_plugin_install_v2")
-                .ok()
-                .map(|symbol| *symbol);
-            if install_v1.is_none() && install_v2.is_none() {
-                return Err(PluginError(format!(
-                    "'{}' has no animatix_plugin_install_v1 or _v2 symbol",
-                    path.display()
-                )));
-            }
+            let install =
+                library.get::<NativeInstallFn>(b"animatix_plugin_install").map_err(|err| {
+                    PluginError(format!(
+                        "'{}' has no animatix_plugin_install symbol: {err}",
+                        path.display()
+                    ))
+                })?;
+            let install = Some(*install);
 
-            let api_v1 = NativePluginApiV1 {
-                size: std::mem::size_of::<NativePluginApiV1>(),
-                register_property: native_register_property,
-                register_function: native_register_function,
-            };
-            let api_v2 = NativePluginApiV2 {
-                size: std::mem::size_of::<NativePluginApiV2>(),
+            let api = NativePluginApi {
+                size: std::mem::size_of::<NativePluginApi>(),
+                version: ABI_VERSION,
                 register_property: native_register_property,
                 register_function: native_register_function,
                 register_primitive: native_register_primitive,
@@ -108,10 +96,8 @@ impl NativePlugin {
             Ok(Self {
                 name,
                 library: Arc::new(library),
-                api_v1,
-                install_v1,
-                api_v2,
-                install_v2,
+                api,
+                install,
             })
         }
     }
@@ -134,12 +120,8 @@ impl ExtensionPlugin for NativePlugin {
                 actions: Vec::new(),
                 services: Vec::new(),
             };
-            let status = if let Some(install_v2) = self.install_v2 {
-                unsafe { (install_v2)(&self.api_v2, (&mut host as *mut NativeHost).cast()) }
-            } else {
-                let install_v1 = self.install_v1.expect("v1 install checked during load");
-                unsafe { (install_v1)(&self.api_v1, (&mut host as *mut NativeHost).cast()) }
-            };
+            let install = self.install.expect("install symbol checked during load");
+            let status = unsafe { (install)(&self.api, (&mut host as *mut NativeHost).cast()) };
             if status != NATIVE_STATUS_OK {
                 return Err(PluginError(format!(
                     "{} install failed with status {status}",
@@ -213,7 +195,7 @@ unsafe extern "C" fn native_register_property(
 unsafe extern "C" fn native_register_function(
     host: *mut c_void,
     name: *const c_char,
-    callback: NativeFunctionV1,
+    callback: NativeFunction,
 ) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
@@ -226,7 +208,7 @@ unsafe extern "C" fn native_register_function(
     host.ctx.register_function(name.clone(), move |args, env| unsafe {
         let _keep_alive = &library;
         let native_args = args.iter().map(value_to_native).collect::<Result<Vec<_>, _>>()?;
-        let mut out = NativeValueV1::default();
+        let mut out = NativeValue::default();
         let status = callback(
             if native_args.is_empty() {
                 std::ptr::null()
@@ -256,7 +238,7 @@ unsafe extern "C" fn native_register_function(
 
 unsafe extern "C" fn native_register_primitive(
     host: *mut c_void,
-    primitive: NativePrimitiveV2,
+    primitive: NativePrimitive,
 ) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
@@ -278,7 +260,7 @@ unsafe extern "C" fn native_register_primitive(
 unsafe extern "C" fn native_register_action(
     host: *mut c_void,
     name: *const c_char,
-    callback: NativeActionExecuteV2,
+    callback: NativeActionExecuteFn,
 ) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
@@ -312,7 +294,7 @@ impl Drop for NativeServiceHandle {
     }
 }
 
-unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeServiceV2) -> i32 {
+unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeService) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
@@ -344,12 +326,12 @@ struct NativePrimitiveAdapter {
     kind: ActorKindId,
     advanced: bool,
     child_processing: ChildProcessing,
-    evaluate: Option<NativePrimitiveEvaluateV2>,
+    evaluate: Option<NativePrimitiveEvaluateFn>,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
 impl NativePrimitiveAdapter {
-    fn new(primitive: NativePrimitiveV2, library: Arc<dyn Any + Send + Sync>) -> Option<Self> {
+    fn new(primitive: NativePrimitive, library: Arc<dyn Any + Send + Sync>) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
         let display_name =
             unsafe { read_c_string(primitive.display_name) }.unwrap_or_else(|| type_name.clone());
@@ -436,8 +418,8 @@ impl Primitive for NativePrimitiveAdapter {
         let mut host = NativePrimitiveEvaluateHost {
             commands: Vec::new(),
         };
-        let mut native_ctx = NativePrimitiveEvaluateCtxV2 {
-            size: std::mem::size_of::<NativePrimitiveEvaluateCtxV2>(),
+        let mut native_ctx = NativePrimitiveEvaluateCtx {
+            size: std::mem::size_of::<NativePrimitiveEvaluateCtx>(),
             time_ms: ctx.time_ms as f64,
             host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
             append_path: Some(native_append_path),
@@ -457,7 +439,7 @@ struct NativePrimitiveEvaluateHost {
     commands: Vec<crate::primitives::RenderCommand>,
 }
 
-unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCommandV2) -> i32 {
+unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCommand) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
@@ -469,7 +451,7 @@ unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCo
     NATIVE_STATUS_OK
 }
 
-fn native_path_to_vello(command: &NativePathCommandV2) -> Option<crate::timeline::VelloPath> {
+fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::VelloPath> {
     let mut path = kurbo::BezPath::new();
     match command.kind {
         NATIVE_PATH_RECT => {
@@ -528,7 +510,7 @@ fn native_color([r, g, b, a]: [f64; 4]) -> vello::peniko::Color {
 /// Host-side adapter that turns a native action callback into a runtime action.
 struct NativeActionAdapter {
     name: String,
-    callback: NativeActionExecuteV2,
+    callback: NativeActionExecuteFn,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
@@ -617,8 +599,8 @@ fn native_property_kind(kind: u32) -> Option<animatix_syntax::schema::PropertyVa
     }
 }
 
-fn value_to_native(value: &Value) -> Result<NativeValueV1, EvalError> {
-    let mut native = NativeValueV1::default();
+fn value_to_native(value: &Value) -> Result<NativeValue, EvalError> {
+    let mut native = NativeValue::default();
     match value {
         Value::Num(num) => {
             native.tag = NATIVE_VALUE_NUM;
@@ -654,7 +636,7 @@ fn value_to_native(value: &Value) -> Result<NativeValueV1, EvalError> {
     Ok(native)
 }
 
-fn native_to_value(native: NativeValueV1) -> Result<Value, EvalError> {
+fn native_to_value(native: NativeValue) -> Result<Value, EvalError> {
     match native.tag {
         NATIVE_VALUE_NUM => Ok(Value::Num(native.num)),
         NATIVE_VALUE_BOOL => Ok(Value::Bool(native.boolean)),
@@ -722,10 +704,10 @@ mod tests {
     }
 
     unsafe extern "C" fn double(
-        args: *const NativeValueV1,
+        args: *const NativeValue,
         arg_len: usize,
         _env: *const c_void,
-        out: *mut NativeValueV1,
+        out: *mut NativeValue,
     ) -> i32 {
         if arg_len != 1 {
             return NATIVE_STATUS_TYPE_ERROR;
@@ -734,10 +716,10 @@ mod tests {
         if arg.tag != NATIVE_VALUE_NUM {
             return NATIVE_STATUS_TYPE_ERROR;
         }
-        let result = NativeValueV1 {
+        let result = NativeValue {
             tag: NATIVE_VALUE_NUM,
             num: arg.num * 2.0,
-            ..NativeValueV1::default()
+            ..NativeValue::default()
         };
         unsafe {
             *out = result;
@@ -749,12 +731,12 @@ mod tests {
         NATIVE_STATUS_OK
     }
 
-    unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtxV2) -> i32 {
+    unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32 {
         let ctx = unsafe { &*ctx };
         let Some(append_path) = ctx.append_path else {
             return NATIVE_STATUS_TYPE_ERROR;
         };
-        let command = NativePathCommandV2 {
+        let command = NativePathCommand {
             kind: NATIVE_PATH_ELLIPSE,
             x: 0.0,
             y: 0.0,
@@ -820,7 +802,7 @@ mod tests {
             },
             NATIVE_STATUS_OK
         );
-        let primitive = NativePrimitiveV2 {
+        let primitive = NativePrimitive {
             type_name: c"Pulse".as_ptr(),
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),
@@ -852,7 +834,7 @@ mod tests {
             unsafe {
                 native_provide_service(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    NativeServiceV2 {
+                    NativeService {
                         name: c"demo.pulse".as_ptr(),
                         value: 7,
                         drop: Some(drop_service),
@@ -907,7 +889,7 @@ mod tests {
         let mut host = NativePrimitiveEvaluateHost {
             commands: Vec::new(),
         };
-        let command = NativePathCommandV2 {
+        let command = NativePathCommand {
             kind: NATIVE_PATH_RECT,
             x: 10.0,
             y: 20.0,
@@ -943,7 +925,7 @@ mod tests {
             NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
         };
 
-        let primitive = NativePrimitiveV2 {
+        let primitive = NativePrimitive {
             type_name: c"Pulse".as_ptr(),
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),

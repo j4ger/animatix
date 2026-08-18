@@ -131,16 +131,14 @@ A plugin exports:
 
 - `animatix_plugin_abi_version() -> u32`
 - `animatix_plugin_name() -> *const c_char`
-- `animatix_plugin_install_v1(api, host) -> i32` and/or
-  `animatix_plugin_install_v2(api, host) -> i32`
+- `animatix_plugin_install(api, host) -> i32`
 
-ABI v1 can register external properties and native expression functions. ABI v2
-adds `NativePrimitiveV2`, action callbacks, and service values with optional
-destructors, so one native install path can register the same capability kinds
-as an in-process `ExtensionPlugin`. Native evaluate callbacks receive a host
-context with `append_path`; the demo primitive emits vector paths that render
-through the normal scene-evaluation path. Expression callbacks exchange
-`NativeValueV1` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
+The current ABI is version 3 and has exactly one install entry. It can register
+external properties, native expression functions, primitives, actions, and
+service values with optional destructors. Native evaluate callbacks receive a
+host context with `append_path`; the demo primitive emits vector paths that
+render through the normal scene-evaluation path. Expression callbacks exchange
+`NativeValue` values: `Num`, `Bool`, `Vec2`, `Vec3`, `Vec4`, and `Color`.
 Strings, lists, closures, and other runtime values return a type error.
 
 ```bash
@@ -170,7 +168,7 @@ name = "glow"
 type = "Num"
 ```
 
-Primitives, actions, and services now share one native ABI v2 path with
+Primitives, actions, and services now share one native ABI path with
 properties and functions. The host keeps each loaded `Library` alive through the
 registered callbacks and the disposer returned by install.
 
@@ -185,7 +183,7 @@ registered callbacks and the disposer returned by install.
   the timeline's primitive registry, and the inspector/keyframe table show
   extension properties from the actor plan. LSP does not load runtime extension
   contexts.
-- CLI accepts `--plugin` manifests and native libraries. Native ABI v2
-  registers properties, expression functions, primitives, actions, and services
+- CLI accepts `--plugin` manifests and native libraries. Native plugins
+  register properties, expression functions, primitives, actions, and services
   from a dynamic library; analyzer/LSP still derive most static metadata from
   the manifest.
