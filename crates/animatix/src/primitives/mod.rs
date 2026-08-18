@@ -597,18 +597,7 @@ impl RenderCommand {
 }
 
 /// Child-rendering strategy selected by a primitive.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ChildProcessing {
-    /// Render children through the normal scene graph recursion.
-    #[default]
-    Generic,
-    /// Render children through the offscreen filter pipeline.
-    Filter,
-    /// Render children inside a clip mask.
-    Mask,
-    /// Render children as one aggregated equation document.
-    Equation,
-}
+pub use animatix_syntax::schema::ChildProcessingKind as ChildProcessing;
 
 /// Every actor type in Animatix implements this trait.
 ///
@@ -997,6 +986,9 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
                     is_container: meta.category == ActorCategory::Container,
                     is_shape: meta.category == ActorCategory::Shape,
                 },
+                child_processing: crate::primitives::find_primitive(meta.type_name)
+                    .map(|primitive| primitive.child_processing())
+                    .unwrap_or_default(),
             }
         })
         .collect()

@@ -120,6 +120,7 @@ impl PrimitiveRegistry {
                         is_container: primitive.is_container(),
                         is_shape: primitive.is_shape(),
                     },
+                    child_processing: primitive.child_processing(),
                 }
             })
             .collect()

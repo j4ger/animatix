@@ -57,6 +57,37 @@ pub struct PropertySpec {
     pub value_kind: PropertyValueKind,
 }
 
+/// Neutral property descriptor shared by built-ins, extensions, and tooling.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PropertyDescriptor {
+    /// Stable property id used by plans and runtime lookup.
+    pub id: PropertyId,
+    /// Canonical source-text property name.
+    pub name: String,
+    /// Actor source types this property applies to.
+    pub actor_types: Vec<String>,
+    /// Type annotation consumed by analyzer/typechecker-compatible APIs.
+    pub ty: Type,
+    /// Finite value kind used by dynamic property tracks.
+    pub value_kind: PropertyValueKind,
+    /// Whether the property is injected into frame environments.
+    pub injectable: bool,
+}
+
+impl PropertyDescriptor {
+    /// Build a descriptor from a shared schema spec and runtime flags.
+    pub fn from_spec(spec: &PropertySpec, injectable: bool) -> Self {
+        Self {
+            id: spec.id,
+            name: spec.name.to_string(),
+            actor_types: spec.actor_types.iter().map(|actor| actor.to_string()).collect(),
+            ty: spec.ty.clone(),
+            value_kind: spec.value_kind,
+            injectable,
+        }
+    }
+}
+
 /// UI/domain category for a primitive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PrimitiveCategory {
@@ -111,6 +142,20 @@ pub struct PrimitiveCapabilities {
     pub is_shape: bool,
 }
 
+/// Child-rendering strategy selected by a primitive.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ChildProcessingKind {
+    /// Render children through the normal scene graph recursion.
+    #[default]
+    Generic,
+    /// Render children through the offscreen filter pipeline.
+    Filter,
+    /// Render children inside a clip mask.
+    Mask,
+    /// Render children as one aggregated equation document.
+    Equation,
+}
+
 /// Metadata for a primitive in the shared schema.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrimitiveSpec {
@@ -126,6 +171,29 @@ pub struct PrimitiveSpec {
     pub advanced: bool,
     /// Engine capability flags.
     pub capabilities: PrimitiveCapabilities,
+    /// Child-rendering strategy used by the scene subtree renderer.
+    pub child_processing: ChildProcessingKind,
+}
+
+/// Neutral primitive descriptor shared by built-ins, extensions, and tooling.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PrimitiveDescriptor {
+    /// Source text type name, e.g. `Gauge`.
+    pub type_name: String,
+    /// Display name for GUI palettes.
+    pub display_name: String,
+    /// UI category.
+    pub category: PrimitiveCategory,
+    /// Opaque icon id.
+    pub icon_id: String,
+    /// Whether this primitive is hidden in the advanced menu.
+    pub advanced: bool,
+    /// Engine capability flags.
+    pub capabilities: PrimitiveCapabilities,
+    /// Child-rendering strategy used by the scene subtree renderer.
+    pub child_processing: ChildProcessingKind,
+    /// Stable ids of properties declared by this primitive.
+    pub properties: Vec<PropertyId>,
 }
 
 /// Built-in primitive metadata shared by runtime, GUI, and LSP tooling.
@@ -177,6 +245,7 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
             icon_id,
             advanced: *advanced,
             capabilities: schema_capabilities(type_name, *category),
+            child_processing: schema_child_processing(type_name),
         })
         .collect()
 }
@@ -231,6 +300,16 @@ fn schema_capabilities(type_name: &str, category: PrimitiveCategory) -> Primitiv
             vector_paths: true,
             ..PrimitiveCapabilities::default()
         },
+    }
+}
+
+/// Child-processing strategy for a built-in primitive name.
+pub fn schema_child_processing(type_name: &str) -> ChildProcessingKind {
+    match type_name {
+        "Filter" => ChildProcessingKind::Filter,
+        "Mask" => ChildProcessingKind::Mask,
+        "Equation" => ChildProcessingKind::Equation,
+        _ => ChildProcessingKind::Generic,
     }
 }
 
@@ -1036,8 +1115,8 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
 #[cfg(test)]
 mod tests {
     use super::{
-        PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec, builtin_primitive_specs,
-        property_specs,
+        ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
+        builtin_primitive_specs, property_specs, schema_child_processing,
     };
     use crate::typing::Type;
 
@@ -1096,9 +1175,18 @@ mod tests {
                 vector_reveal_target: true,
                 ..PrimitiveCapabilities::default()
             },
+            child_processing: ChildProcessingKind::Generic,
         };
         assert_eq!(rect.category.label(), "Shapes");
         assert!(rect.capabilities.vector_paths);
         assert!(!rect.capabilities.layout_container);
+    }
+
+    #[test]
+    fn child_processing_kind_matches_special_containers() {
+        assert_eq!(schema_child_processing("Filter"), ChildProcessingKind::Filter);
+        assert_eq!(schema_child_processing("Mask"), ChildProcessingKind::Mask);
+        assert_eq!(schema_child_processing("Equation"), ChildProcessingKind::Equation);
+        assert_eq!(schema_child_processing("Rect"), ChildProcessingKind::Generic);
     }
 }

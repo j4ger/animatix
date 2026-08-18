@@ -669,14 +669,12 @@ impl Timeline {
                     property_registry::property_schema_by_id(spec.id).is_some_and(|schema| {
                         schema.flags.contains(property_registry::PropertyFlags::INJECTABLE)
                     });
-                crate::property_descriptor::PropertyDescriptor::from_schema(spec, injectable)
+                crate::property_descriptor::from_schema(spec, injectable)
             })
             .collect::<Vec<_>>();
         if let Some(ctx) = self.extensions.as_ref() {
             descriptors.extend(
-                ctx.property_specs()
-                    .iter()
-                    .map(crate::property_descriptor::PropertyDescriptor::from_extension),
+                ctx.property_specs().iter().map(crate::property_descriptor::from_extension),
             );
         }
         descriptors
