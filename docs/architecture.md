@@ -710,9 +710,15 @@ impl Primitive for TrianglePrimitive {
 Steps:
 1. Create `primitives/<name>.rs` implementing `Primitive`.
 2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/actor_kind.rs` (still needed for match arms).
+3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/actor_kind.rs` (still needed for built-in match arms).
 
 Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
+
+External primitives can avoid step 3 by registering through `PrimitiveRegistry`
+or `ExtensionContext`; the timeline records the source `actor_type` and resolves
+it back to the runtime primitive during scene evaluation. External properties
+can likewise be registered as `ExtensionPropertySpec` values and are stored in
+the actor's `PropertyPlan`/`DynTrack` slots.
 
 ### When to group primitives
 
