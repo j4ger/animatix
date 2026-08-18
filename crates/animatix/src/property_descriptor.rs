@@ -1,7 +1,7 @@
 //! Unified property descriptor shared by built-in and extension properties.
 
 pub use animatix_syntax::schema::PropertyDescriptor;
-use animatix_syntax::schema::{PropertySpec, PropertyValueKind};
+use animatix_syntax::schema::{PropertyId, PropertySpec, PropertyValueKind};
 use animatix_syntax::typing::Type;
 
 use crate::extension_context::ExtensionPropertySpec;
@@ -14,13 +14,21 @@ pub fn from_schema(spec: &PropertySpec, injectable: bool) -> PropertyDescriptor 
 /// Build a descriptor from an extension property spec.
 pub fn from_extension(spec: &ExtensionPropertySpec) -> PropertyDescriptor {
     PropertyDescriptor {
-        id: spec.id,
+        id: Some(spec.id),
         name: spec.name.clone(),
         actor_types: vec![spec.actor_type.clone()],
         ty: type_for_value_kind(spec.kind),
         value_kind: spec.kind,
         injectable: spec.injectable,
     }
+}
+
+/// Return the runtime id carried by a runtime-registered descriptor.
+///
+/// Manifest/tooling descriptors do not carry runtime ids and must not be
+/// passed to property-plan accessors.
+pub fn runtime_id(descriptor: &PropertyDescriptor) -> PropertyId {
+    descriptor.id.expect("runtime property descriptors carry a PropertyId")
 }
 
 /// Map a finite value kind to its analyzer-facing type.
@@ -51,7 +59,7 @@ mod tests {
             value_kind: PropertyValueKind::Vec2,
         };
         let descriptor = from_schema(&spec, true);
-        assert_eq!(descriptor.id, PropertyId(7));
+        assert_eq!(descriptor.id, Some(PropertyId(7)));
         assert_eq!(descriptor.name, "size");
         assert_eq!(descriptor.actor_types, vec!["Rect".to_string()]);
         assert_eq!(descriptor.ty, Type::Vec2);

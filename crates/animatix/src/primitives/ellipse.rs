@@ -16,16 +16,16 @@ pub struct EllipsePrimitive;
 pub const ELLIPSE: EllipsePrimitive = EllipsePrimitive;
 
 impl Primitive for EllipsePrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Ellipse"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Ellipse"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Shape
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::CIRCLE_NOTCH
     }
     fn is_shape(&self) -> bool {

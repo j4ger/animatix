@@ -73,16 +73,16 @@ pub struct ArrowPrimitive;
 pub const ARROW: ArrowPrimitive = ArrowPrimitive;
 
 impl Primitive for ArrowPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Arrow"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Arrow"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Shape
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::ARROW_RIGHT
     }
     fn is_shape(&self) -> bool {

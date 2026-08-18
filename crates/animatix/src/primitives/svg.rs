@@ -19,16 +19,16 @@ pub struct SvgPrimitive;
 pub const SVG: SvgPrimitive = SvgPrimitive;
 
 impl Primitive for SvgPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Svg"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "SVG"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Media
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::VECTOR_THREE
     }
     fn is_advanced(&self) -> bool {

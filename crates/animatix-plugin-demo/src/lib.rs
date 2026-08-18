@@ -6,9 +6,10 @@
 use std::ffi::{c_char, c_void};
 
 use animatix_plugin_api::{
-    NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PROPERTY_F32,
-    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM, NativePluginApiV1,
-    NativePluginApiV2, NativePrimitiveV2, NativeValueV1,
+    NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+    NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
+    NativePathCommandV2, NativePluginApiV1, NativePluginApiV2, NativePrimitiveEvaluateCtxV2,
+    NativePrimitiveV2, NativeServiceV2, NativeValueV1,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -87,9 +88,12 @@ pub unsafe extern "C" fn animatix_plugin_install_v2(
         return action_status;
     }
 
-    unsafe {
-        (api.provide_service)(host, c"demo.pulse".as_ptr(), pulse_action as *const () as usize)
-    }
+    let service = NativeServiceV2 {
+        name: c"demo.pulse".as_ptr(),
+        value: pulse_action as *const () as usize,
+        drop: Some(drop_service),
+    };
+    unsafe { (api.provide_service)(host, service) }
 }
 
 unsafe extern "C" fn double(
@@ -120,9 +124,32 @@ unsafe extern "C" fn double(
 ///
 /// # Safety
 ///
-/// `host` must be the opaque callback context passed by the Animatix host.
-unsafe extern "C" fn pulse_evaluate(_host: *mut c_void) -> i32 {
-    NATIVE_STATUS_OK
+/// `ctx` must be the callback context passed by the Animatix host, and its
+/// `append_path` function pointer must be called with the matching `host`.
+unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtxV2) -> i32 {
+    let ctx = unsafe { &*ctx };
+    let Some(append_path) = ctx.append_path else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let command = NativePathCommandV2 {
+        kind: NATIVE_PATH_ELLIPSE,
+        x: 0.0,
+        y: 0.0,
+        width: 60.0,
+        height: 60.0,
+        x1: 0.0,
+        y1: 0.0,
+        x2: 0.0,
+        y2: 0.0,
+        points: std::ptr::null(),
+        point_len: 0,
+        fill: [0.2, 0.8, 1.0, 1.0],
+        stroke: [1.0, 1.0, 1.0, 1.0],
+        stroke_width: 2.0,
+        line_cap: 0,
+        line_join: 0,
+    };
+    unsafe { (append_path)(ctx.host, command) }
 }
 
 /// Execute callback for the `pulse` demo action.
@@ -133,3 +160,10 @@ unsafe extern "C" fn pulse_evaluate(_host: *mut c_void) -> i32 {
 unsafe extern "C" fn pulse_action(_host: *mut c_void) -> i32 {
     NATIVE_STATUS_OK
 }
+
+/// Destructor for the demo service value.
+///
+/// # Safety
+///
+/// `value` must be a service value previously provided by this plugin.
+unsafe extern "C" fn drop_service(_value: usize) {}

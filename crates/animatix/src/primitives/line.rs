@@ -16,16 +16,16 @@ pub struct LinePrimitive;
 pub const LINE: LinePrimitive = LinePrimitive;
 
 impl Primitive for LinePrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Line"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Line"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Shape
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::MINUS
     }
     fn is_shape(&self) -> bool {

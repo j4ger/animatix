@@ -25,4 +25,7 @@ pub enum RenderError {
     /// Text or math compilation via Typst failed.
     #[error("Text compilation failed: {0}")]
     TextCompilation(String),
+    /// A native extension primitive failed during frame evaluation.
+    #[error("Native primitive evaluation failed: {0}")]
+    NativePrimitive(String),
 }

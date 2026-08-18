@@ -13,16 +13,16 @@ pub struct TypstPrimitive;
 pub const TYPST: TypstPrimitive = TypstPrimitive;
 
 impl Primitive for TypstPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Typst"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Typst"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::ARTICLE
     }
     fn is_advanced(&self) -> bool {

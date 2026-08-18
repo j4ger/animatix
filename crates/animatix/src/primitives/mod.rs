@@ -606,16 +606,16 @@ pub trait Primitive: Send + Sync {
     // ── Metadata ──
 
     /// Source-text type name, e.g. "Rect", "Text", "Row".
-    fn type_name(&self) -> &'static str;
+    fn type_name(&self) -> &str;
 
     /// Human-readable label for UI palettes and tooltips.
-    fn display_name(&self) -> &'static str;
+    fn display_name(&self) -> &str;
 
     /// UI category (Shapes, Text, Media, Plots, Containers).
     fn category(&self) -> ActorCategory;
 
     /// Opaque icon identifier. The GUI maps this to a concrete icon.
-    fn icon_id(&self) -> &'static str;
+    fn icon_id(&self) -> &str;
 
     /// When true, shown in a "More..." submenu instead of top-level.
     fn is_advanced(&self) -> bool {
@@ -959,8 +959,8 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
                 .map(|primitive| primitive.capabilities())
                 .unwrap_or_default();
             animatix_syntax::schema::PrimitiveSpec {
-                type_name: meta.type_name,
-                display_name: meta.display_name,
+                type_name: meta.type_name.to_string(),
+                display_name: meta.display_name.to_string(),
                 category: match meta.category {
                     ActorCategory::Shape => animatix_syntax::schema::PrimitiveCategory::Shape,
                     ActorCategory::Text => animatix_syntax::schema::PrimitiveCategory::Text,
@@ -973,7 +973,7 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
                         animatix_syntax::schema::PrimitiveCategory::Annotation
                     },
                 },
-                icon_id: meta.icon_id,
+                icon_id: meta.icon_id.to_string(),
                 advanced: meta.advanced,
                 capabilities: animatix_syntax::schema::PrimitiveCapabilities {
                     text_paths: capabilities.text_paths,

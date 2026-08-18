@@ -8,16 +8,16 @@ pub struct AudioPrimitive;
 pub const AUDIO: AudioPrimitive = AudioPrimitive;
 
 impl Primitive for AudioPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Audio"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Audio"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Media
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::SPEAKER_HIGH
     }
     fn is_advanced(&self) -> bool {

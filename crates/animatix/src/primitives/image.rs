@@ -17,16 +17,16 @@ pub struct ImagePrimitive;
 pub const IMAGE: ImagePrimitive = ImagePrimitive;
 
 impl Primitive for ImagePrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Image"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Image"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Media
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::IMAGE
     }
     fn kind_id(&self) -> ActorKindId {

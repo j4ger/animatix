@@ -10,13 +10,16 @@ use std::path::Path;
 use std::sync::Arc;
 
 use animatix_plugin_api::{
-    ABI_VERSION, NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
+    ABI_VERSION, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON, NATIVE_PATH_RECT,
+    NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
     NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
     NATIVE_VALUE_COLOR, NATIVE_VALUE_NUM, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4,
-    NativeActionExecuteV2, NativeFunctionV1, NativeInstallFn, NativeInstallFnV2, NativePluginApiV1,
-    NativePluginApiV2, NativePrimitiveEvaluateV2, NativePrimitiveV2, NativeValueV1,
+    NativeActionExecuteV2, NativeFunctionV1, NativeInstallFn, NativeInstallFnV2,
+    NativePathCommandV2, NativePluginApiV1, NativePluginApiV2, NativePrimitiveEvaluateCtxV2,
+    NativePrimitiveEvaluateV2, NativePrimitiveV2, NativeServiceV2, NativeValueV1,
 };
+use kurbo::Shape;
 use libloading::Library;
 
 use crate::extension_context::ExtensionContext;
@@ -295,18 +298,38 @@ unsafe extern "C" fn native_register_action(
     NATIVE_STATUS_OK
 }
 
-unsafe extern "C" fn native_provide_service(
-    host: *mut c_void,
-    name: *const c_char,
+struct NativeServiceHandle {
     value: usize,
-) -> i32 {
+    drop: Option<unsafe extern "C" fn(usize)>,
+    _library: Arc<dyn Any + Send + Sync>,
+}
+
+impl Drop for NativeServiceHandle {
+    fn drop(&mut self) {
+        if let Some(drop) = self.drop {
+            unsafe { drop(self.value) };
+        }
+    }
+}
+
+unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeServiceV2) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
+    let Some(name) = (unsafe { read_c_string(service.name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    host.ctx.provide(name.clone(), value);
+    let Some(library) = host.library.clone() else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    host.ctx.provide(
+        name.clone(),
+        NativeServiceHandle {
+            value: service.value,
+            drop: service.drop,
+            _library: library,
+        },
+    );
     host.services.push(name);
     NATIVE_STATUS_OK
 }
@@ -314,10 +337,11 @@ unsafe extern "C" fn native_provide_service(
 /// Host-side adapter that turns a native primitive descriptor into a runtime
 /// [`Primitive`].
 struct NativePrimitiveAdapter {
-    type_name: &'static str,
-    display_name: &'static str,
-    icon_id: &'static str,
+    type_name: String,
+    display_name: String,
+    icon_id: String,
     category: ActorCategory,
+    kind: ActorKindId,
     advanced: bool,
     child_processing: ChildProcessing,
     evaluate: Option<NativePrimitiveEvaluateV2>,
@@ -332,11 +356,13 @@ impl NativePrimitiveAdapter {
         let icon_id =
             unsafe { read_c_string(primitive.icon_id) }.unwrap_or_else(|| "extension".to_string());
         let category = native_primitive_category(primitive.category)?;
+        let kind = native_kind(category);
         Some(Self {
-            type_name: Box::leak(type_name.into_boxed_str()),
-            display_name: Box::leak(display_name.into_boxed_str()),
-            icon_id: Box::leak(icon_id.into_boxed_str()),
+            type_name,
+            display_name,
+            icon_id,
             category,
+            kind,
             advanced: primitive.advanced,
             child_processing: native_child_processing(primitive.child_processing)
                 .unwrap_or_default(),
@@ -347,20 +373,20 @@ impl NativePrimitiveAdapter {
 }
 
 impl Primitive for NativePrimitiveAdapter {
-    fn type_name(&self) -> &'static str {
-        self.type_name
+    fn type_name(&self) -> &str {
+        &self.type_name
     }
 
-    fn display_name(&self) -> &'static str {
-        self.display_name
+    fn display_name(&self) -> &str {
+        &self.display_name
     }
 
     fn category(&self) -> ActorCategory {
         self.category
     }
 
-    fn icon_id(&self) -> &'static str {
-        self.icon_id
+    fn icon_id(&self) -> &str {
+        &self.icon_id
     }
 
     fn is_advanced(&self) -> bool {
@@ -376,7 +402,7 @@ impl Primitive for NativePrimitiveAdapter {
     }
 
     fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Text
+        self.kind
     }
 
     fn build(
@@ -392,23 +418,111 @@ impl Primitive for NativePrimitiveAdapter {
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
-        track.kind = ActorKindId::Text;
-        track.actor_type = Some(self.type_name.to_string());
+        track.kind = self.kind;
+        track.actor_type = Some(self.type_name.clone());
         track.rebuild_property_plan();
         Ok(())
     }
 
     fn evaluate(
         &self,
-        _ctx: &EvaluateCtx,
+        ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        if let Some(evaluate) = self.evaluate {
-            let _status = unsafe { evaluate(std::ptr::null_mut()) };
+        let Some(evaluate) = self.evaluate else {
+            return Ok(None);
+        };
+        let mut host = NativePrimitiveEvaluateHost {
+            commands: Vec::new(),
+        };
+        let mut native_ctx = NativePrimitiveEvaluateCtxV2 {
+            size: std::mem::size_of::<NativePrimitiveEvaluateCtxV2>(),
+            time_ms: ctx.time_ms as f64,
+            host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
+            append_path: Some(native_append_path),
+        };
+        let status = unsafe { evaluate(&mut native_ctx) };
+        if status != NATIVE_STATUS_OK {
+            return Err(crate::renderer::error::RenderError::NativePrimitive(format!(
+                "native primitive '{}' failed with status {status}",
+                self.type_name
+            )));
         }
-        Ok(Some(vec![]))
+        Ok(Some(host.commands))
     }
+}
+
+struct NativePrimitiveEvaluateHost {
+    commands: Vec<crate::primitives::RenderCommand>,
+}
+
+unsafe extern "C" fn native_append_path(host: *mut c_void, command: NativePathCommandV2) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(path) = native_path_to_vello(&command) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    host.commands
+        .push(crate::primitives::RenderCommand::Paths { paths: vec![path] });
+    NATIVE_STATUS_OK
+}
+
+fn native_path_to_vello(command: &NativePathCommandV2) -> Option<crate::timeline::VelloPath> {
+    let mut path = kurbo::BezPath::new();
+    match command.kind {
+        NATIVE_PATH_RECT => {
+            let rect = kurbo::Rect::new(
+                command.x,
+                command.y,
+                command.x + command.width,
+                command.y + command.height,
+            );
+            path = rect.into_path(1e-3);
+        },
+        NATIVE_PATH_ELLIPSE => {
+            let ellipse =
+                kurbo::Ellipse::new((command.x, command.y), (command.width, command.height), 0.0);
+            path = ellipse.into_path(1e-3);
+        },
+        NATIVE_PATH_LINE => {
+            path.move_to((command.x1, command.y1));
+            path.line_to((command.x2, command.y2));
+        },
+        NATIVE_PATH_POLYGON => {
+            if command.points.is_null() || command.point_len == 0 {
+                return None;
+            }
+            // The callback owns the points buffer for the duration of the call,
+            // and this conversion copies them into a host-owned BezPath.
+            let points = unsafe { std::slice::from_raw_parts(command.points, command.point_len) };
+            path.move_to((points[0].x, points[0].y));
+            for point in points.iter().skip(1) {
+                path.line_to((point.x, point.y));
+            }
+            path.close_path();
+        },
+        _ => return None,
+    }
+    let fill = native_color(command.fill);
+    let stroke = if command.stroke_width > 0.0 {
+        Some((native_color(command.stroke), command.stroke_width as f32))
+    } else {
+        None
+    };
+    Some(crate::timeline::VelloPath {
+        path,
+        fill: Some(fill),
+        stroke,
+        line_cap: command.line_cap,
+        line_join: command.line_join,
+    })
+}
+
+fn native_color([r, g, b, a]: [f64; 4]) -> vello::peniko::Color {
+    let clamp = |component: f64| (component.clamp(0.0, 1.0) * 255.0).round() as u8;
+    vello::peniko::Color::from_rgba8(clamp(r), clamp(g), clamp(b), clamp(a))
 }
 
 /// Host-side adapter that turns a native action callback into a runtime action.
@@ -468,6 +582,18 @@ fn native_child_processing(kind: u32) -> Option<ChildProcessing> {
         NATIVE_PRIMITIVE_CHILD_MASK => Some(ChildProcessing::Mask),
         NATIVE_PRIMITIVE_CHILD_EQUATION => Some(ChildProcessing::Equation),
         _ => None,
+    }
+}
+
+fn native_kind(category: ActorCategory) -> ActorKindId {
+    use crate::timeline::ShapeKind;
+    match category {
+        ActorCategory::Shape => ActorKindId::Shape(ShapeKind::Rect),
+        ActorCategory::Text => ActorKindId::Text,
+        ActorCategory::Media => ActorKindId::Image,
+        ActorCategory::Plot => ActorKindId::PlotCurve,
+        ActorCategory::Container => ActorKindId::Group,
+        ActorCategory::Annotation => ActorKindId::Callout,
     }
 }
 
@@ -623,6 +749,39 @@ mod tests {
         NATIVE_STATUS_OK
     }
 
+    unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtxV2) -> i32 {
+        let ctx = unsafe { &*ctx };
+        let Some(append_path) = ctx.append_path else {
+            return NATIVE_STATUS_TYPE_ERROR;
+        };
+        let command = NativePathCommandV2 {
+            kind: NATIVE_PATH_ELLIPSE,
+            x: 0.0,
+            y: 0.0,
+            width: 60.0,
+            height: 60.0,
+            x1: 0.0,
+            y1: 0.0,
+            x2: 0.0,
+            y2: 0.0,
+            points: std::ptr::null(),
+            point_len: 0,
+            fill: [0.2, 0.8, 1.0, 1.0],
+            stroke: [1.0, 1.0, 1.0, 1.0],
+            stroke_width: 2.0,
+            line_cap: 0,
+            line_join: 0,
+        };
+        unsafe { (append_path)(ctx.host, command) }
+    }
+
+    unsafe extern "C" fn drop_service(_value: usize) {
+        DROPPED_SERVICES.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    static DROPPED_SERVICES: std::sync::atomic::AtomicUsize =
+        std::sync::atomic::AtomicUsize::new(0);
+
     #[test]
     fn native_host_callbacks_install_and_dispose_capabilities() {
         use animatix_plugin_api::{
@@ -668,7 +827,7 @@ mod tests {
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
-            evaluate: None,
+            evaluate: Some(pulse_evaluate),
         };
         assert_eq!(
             unsafe {
@@ -693,8 +852,11 @@ mod tests {
             unsafe {
                 native_provide_service(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    c"demo.pulse".as_ptr(),
-                    7,
+                    NativeServiceV2 {
+                        name: c"demo.pulse".as_ptr(),
+                        value: 7,
+                        drop: Some(drop_service),
+                    },
                 )
             },
             NATIVE_STATUS_OK
@@ -724,18 +886,93 @@ mod tests {
             call(&[Value::Num(21.0)], &Environment::new()).expect("call native function"),
             Value::Num(42.0)
         );
+        DROPPED_SERVICES.store(0, std::sync::atomic::Ordering::SeqCst);
         assert!(ctx.primitive_registry().find("Pulse").is_some());
         assert!(ctx.action("pulse").is_some());
-        assert!(ctx.get::<usize>("demo.pulse").is_some());
+        assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_some());
 
         assert!(ctx.remove_property("Rect", "glow"));
         assert!(ctx.remove_function("double"));
         assert!(ctx.remove_primitive("Pulse"));
         assert!(ctx.remove_action("pulse"));
         assert!(ctx.remove_service("demo.pulse"));
+        assert_eq!(DROPPED_SERVICES.load(std::sync::atomic::Ordering::SeqCst), 1);
         assert!(ctx.primitive_registry().find("Pulse").is_none());
         assert!(ctx.action("pulse").is_none());
-        assert!(ctx.get::<usize>("demo.pulse").is_none());
+        assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_none());
+    }
+
+    #[test]
+    fn native_path_commands_become_render_commands() {
+        let mut host = NativePrimitiveEvaluateHost {
+            commands: Vec::new(),
+        };
+        let command = NativePathCommandV2 {
+            kind: NATIVE_PATH_RECT,
+            x: 10.0,
+            y: 20.0,
+            width: 100.0,
+            height: 50.0,
+            x1: 0.0,
+            y1: 0.0,
+            x2: 0.0,
+            y2: 0.0,
+            points: std::ptr::null(),
+            point_len: 0,
+            fill: [0.0, 0.0, 0.0, 1.0],
+            stroke: [1.0, 1.0, 1.0, 1.0],
+            stroke_width: 1.0,
+            line_cap: 0,
+            line_join: 0,
+        };
+        assert_eq!(
+            unsafe {
+                native_append_path(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(host.commands.len(), 1);
+    }
+
+    #[test]
+    fn native_primitive_evaluate_emits_render_commands() {
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+        };
+
+        let primitive = NativePrimitiveV2 {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            evaluate: Some(pulse_evaluate),
+        };
+        let adapter =
+            NativePrimitiveAdapter::new(primitive, Arc::new(()) as Arc<dyn Any + Send + Sync>)
+                .expect("adapter");
+        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let ctx = EvaluateCtx {
+            track: &track,
+            time_ms: 0,
+            local_transform: kurbo::Affine::IDENTITY,
+            opacity: 1.0,
+            scene_dimensions: crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            background_color: [0.0; 4],
+            overrides: None,
+            vector_paths: &[],
+            target_resolver: None,
+        };
+        let commands =
+            adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
+        assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));
     }
 
     #[test]

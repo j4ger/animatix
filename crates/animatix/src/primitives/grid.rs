@@ -13,16 +13,16 @@ pub struct GridPrimitive;
 pub const GRID: GridPrimitive = GridPrimitive;
 
 impl Primitive for GridPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Grid"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Grid"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::SQUARES_FOUR
     }
     fn is_container(&self) -> bool {

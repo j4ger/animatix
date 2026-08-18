@@ -60,8 +60,11 @@ pub struct PropertySpec {
 /// Neutral property descriptor shared by built-ins, extensions, and tooling.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PropertyDescriptor {
-    /// Stable property id used by plans and runtime lookup.
-    pub id: PropertyId,
+    /// Stable runtime property id, when this descriptor is registered at runtime.
+    ///
+    /// Manifests and analyzer-only descriptors keep this `None`; runtime
+    /// `PropertyRegistry` descriptors always carry `Some`.
+    pub id: Option<PropertyId>,
     /// Canonical source-text property name.
     pub name: String,
     /// Actor source types this property applies to.
@@ -78,7 +81,7 @@ impl PropertyDescriptor {
     /// Build a descriptor from a shared schema spec and runtime flags.
     pub fn from_spec(spec: &PropertySpec, injectable: bool) -> Self {
         Self {
-            id: spec.id,
+            id: Some(spec.id),
             name: spec.name.to_string(),
             actor_types: spec.actor_types.iter().map(|actor| actor.to_string()).collect(),
             ty: spec.ty.clone(),
@@ -160,13 +163,13 @@ pub enum ChildProcessingKind {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrimitiveSpec {
     /// Source text type name, e.g. `Rect`.
-    pub type_name: &'static str,
+    pub type_name: String,
     /// Display name for GUI palettes.
-    pub display_name: &'static str,
+    pub display_name: String,
     /// UI category.
     pub category: PrimitiveCategory,
     /// Opaque icon id.
-    pub icon_id: &'static str,
+    pub icon_id: String,
     /// Whether this primitive is hidden in the advanced menu.
     pub advanced: bool,
     /// Engine capability flags.
@@ -239,10 +242,10 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
     entries
         .iter()
         .map(|(type_name, display_name, icon_id, category, advanced)| PrimitiveSpec {
-            type_name,
-            display_name,
+            type_name: (*type_name).to_string(),
+            display_name: (*display_name).to_string(),
             category: *category,
-            icon_id,
+            icon_id: (*icon_id).to_string(),
             advanced: *advanced,
             capabilities: schema_capabilities(type_name, *category),
             child_processing: schema_child_processing(type_name),
@@ -1164,10 +1167,10 @@ mod tests {
     #[test]
     fn primitive_spec_carries_capabilities_and_category() {
         let rect = PrimitiveSpec {
-            type_name: "Rect",
-            display_name: "Rectangle",
+            type_name: "Rect".to_string(),
+            display_name: "Rectangle".to_string(),
             category: PrimitiveCategory::Shape,
-            icon_id: "rect",
+            icon_id: "rect".to_string(),
             advanced: false,
             capabilities: PrimitiveCapabilities {
                 vector_paths: true,

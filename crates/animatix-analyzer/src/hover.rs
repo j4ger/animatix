@@ -74,13 +74,14 @@ pub fn hover_at(
         }
         let doc = animatix_syntax::builtins::type_documentation(text);
         let doc = if doc == "Unknown type." {
-            animatix_syntax::schema::builtin_primitive_specs()
+            let specs = animatix_syntax::schema::builtin_primitive_specs();
+            specs
                 .iter()
                 .find(|spec| spec.type_name == text)
-                .map(|spec| spec.display_name)
-                .unwrap_or(doc)
+                .map(|spec| spec.display_name.clone())
+                .unwrap_or_else(|| doc.to_string())
         } else {
-            doc
+            doc.to_string()
         };
         return Some(HoverInfo {
             contents: format!("**Type** `{}`\n\n{}", text, doc),

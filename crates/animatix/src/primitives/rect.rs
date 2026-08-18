@@ -13,11 +13,11 @@ pub struct RectPrimitive;
 pub const RECT: RectPrimitive = RectPrimitive;
 
 impl Primitive for RectPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Rect"
     }
 
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Rectangle"
     }
 
@@ -25,7 +25,7 @@ impl Primitive for RectPrimitive {
         ActorCategory::Shape
     }
 
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::SQUARE
     }
 

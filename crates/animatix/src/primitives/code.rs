@@ -13,16 +13,16 @@ pub struct CodePrimitive;
 pub const CODE: CodePrimitive = CodePrimitive;
 
 impl Primitive for CodePrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Code"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Code"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::CODE
     }
     fn is_advanced(&self) -> bool {

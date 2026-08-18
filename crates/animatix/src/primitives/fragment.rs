@@ -24,16 +24,16 @@ pub struct FragmentPrimitive;
 pub const FRAGMENT: FragmentPrimitive = FragmentPrimitive;
 
 impl Primitive for FragmentPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Fragment"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Fragment"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::HIGHLIGHTER
     }
     fn kind_id(&self) -> ActorKindId {

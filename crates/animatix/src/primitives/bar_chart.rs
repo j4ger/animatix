@@ -15,11 +15,11 @@ pub struct BarChartPrimitive;
 pub const BAR_CHART: BarChartPrimitive = BarChartPrimitive;
 
 impl Primitive for BarChartPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "BarChart"
     }
 
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Bar Chart"
     }
 
@@ -27,7 +27,7 @@ impl Primitive for BarChartPrimitive {
         ActorCategory::Plot
     }
 
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::CHART_BAR
     }
 

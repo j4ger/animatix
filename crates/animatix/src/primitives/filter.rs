@@ -15,16 +15,16 @@ pub struct FilterPrimitive;
 pub const FILTER: FilterPrimitive = FilterPrimitive;
 
 impl Primitive for FilterPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Filter"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Filter"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::FILTERS
     }
     fn is_container(&self) -> bool {

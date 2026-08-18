@@ -20,16 +20,16 @@ pub struct EquationPrimitive;
 pub const EQUATION: EquationPrimitive = EquationPrimitive;
 
 impl Primitive for EquationPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Equation"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Equation"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::SIGMA
     }
     fn is_container(&self) -> bool {

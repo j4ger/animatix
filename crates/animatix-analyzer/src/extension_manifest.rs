@@ -1,14 +1,13 @@
 //! Extension manifests for analyzer-only language intelligence.
 //!
 //! These manifests describe external primitives and properties without loading
-//! native runtime plugins. Parsed manifests are converted into the shared
-//! `animatix-syntax::schema` descriptors, so analyzer/LSP and runtime-facing
-//! tooling speak the same in-memory shape. The LSP and GUI can consume them
-//! without depending on the runtime crate.
+//! native runtime plugins. Parsed manifests use the shared schema descriptor
+//! shapes, but their property `id` is intentionally `None`: runtime ids are
+//! allocated by `ExtensionRegistry`, never guessed by a manifest.
 
 use animatix_syntax::schema::{
     ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveDescriptor,
-    PropertyDescriptor, PropertyId, PropertyValueKind,
+    PropertyDescriptor, PropertyValueKind,
 };
 use animatix_syntax::typing::Type;
 use serde::{Deserialize, Deserializer};
@@ -117,9 +116,8 @@ impl ExtensionManifest {
         let properties = raw
             .properties
             .into_iter()
-            .enumerate()
-            .map(|(index, property)| PropertyDescriptor {
-                id: PropertyId(1_000_000 + index as u32),
+            .map(|property| PropertyDescriptor {
+                id: None,
                 name: property.name,
                 actor_types: vec![property.actor_type],
                 ty: parse_manifest_type(&property.ty),
@@ -139,13 +137,6 @@ impl ExtensionManifest {
                     .as_deref()
                     .and_then(parse_primitive_category)
                     .unwrap_or(PrimitiveCategory::Shape);
-                let property_ids = properties
-                    .iter()
-                    .filter(|property| {
-                        property.actor_types.iter().any(|actor_type| actor_type == &type_name)
-                    })
-                    .map(|property| property.id)
-                    .collect();
                 PrimitiveDescriptor {
                     type_name,
                     display_name,
@@ -158,7 +149,7 @@ impl ExtensionManifest {
                         .as_deref()
                         .and_then(parse_child_processing)
                         .unwrap_or_default(),
-                    properties: property_ids,
+                    properties: Vec::new(),
                 }
             })
             .collect();
@@ -276,9 +267,10 @@ injectable = true
         assert_eq!(primitive.icon_id, "gauge");
         assert!(primitive.advanced);
         assert_eq!(primitive.child_processing, ChildProcessingKind::Filter);
-        assert_eq!(primitive.properties, vec![manifest.properties[0].id]);
+        assert!(primitive.properties.is_empty(), "manifests must not guess runtime ids");
 
         let property = &manifest.properties[0];
+        assert_eq!(property.id, None);
         assert_eq!(property.actor_types, vec!["Gauge".to_string()]);
         assert_eq!(property.ty, Type::Num);
         assert_eq!(property.value_kind, PropertyValueKind::F32);

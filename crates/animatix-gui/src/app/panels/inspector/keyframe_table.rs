@@ -409,15 +409,16 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
             continue;
         }
-        if track.property_plan.keyframe_count(descriptor.id) == 0 {
+        let id = animatix::property_descriptor::runtime_id(&descriptor);
+        if track.property_plan.keyframe_count(id) == 0 {
             continue;
         }
         let mut keyframes = Vec::new();
-        for time_ms in track.property_plan.keyframe_times(descriptor.id) {
-            if let Some(value) = read_property_plan_slot(track, descriptor.id, time_ms) {
+        for time_ms in track.property_plan.keyframe_times(id) {
+            if let Some(value) = read_property_plan_slot(track, id, time_ms) {
                 let easing = track
                     .property_plan
-                    .keyframe_easing(descriptor.id, time_ms)
+                    .keyframe_easing(id, time_ms)
                     .unwrap_or(animatix_syntax::easing::Easing::Linear);
                 keyframes.push((time_ms, format_value(&value, &descriptor.name), easing));
             }

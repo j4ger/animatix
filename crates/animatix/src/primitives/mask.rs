@@ -12,16 +12,16 @@ pub struct MaskPrimitive;
 pub const MASK: MaskPrimitive = MaskPrimitive;
 
 impl Primitive for MaskPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Mask"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Mask"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::MASK_HAPPY
     }
     fn is_advanced(&self) -> bool {

@@ -13,16 +13,16 @@ pub struct PathPrimitive;
 pub const PATH: PathPrimitive = PathPrimitive;
 
 impl Primitive for PathPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Path"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Path"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Shape
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::PEN
     }
     fn is_shape(&self) -> bool {

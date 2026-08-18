@@ -99,6 +99,11 @@ pub struct PropertyRegistry {
 
 impl PropertyRegistry {
     /// Create a registry seeded with built-in property entries.
+    ///
+    /// Shared schema owns the descriptor (name, actor types, type, id), while
+    /// `PROPERTY_REGISTRY` supplies the runtime binding (field, read source,
+    /// flags, default). Guard tests keep the two sources aligned in both
+    /// directions so adding a binding without a descriptor fails CI.
     pub fn new() -> Self {
         let builtins = animatix_syntax::schema::property_specs()
             .into_iter()
@@ -512,11 +517,11 @@ mod tests {
     struct Marker;
 
     impl Primitive for Marker {
-        fn type_name(&self) -> &'static str {
+        fn type_name(&self) -> &str {
             "Marker"
         }
 
-        fn display_name(&self) -> &'static str {
+        fn display_name(&self) -> &str {
             "Marker"
         }
 
@@ -524,7 +529,7 @@ mod tests {
             ActorCategory::Annotation
         }
 
-        fn icon_id(&self) -> &'static str {
+        fn icon_id(&self) -> &str {
             "marker"
         }
 
@@ -547,11 +552,11 @@ mod tests {
     struct Gauge;
 
     impl Primitive for Gauge {
-        fn type_name(&self) -> &'static str {
+        fn type_name(&self) -> &str {
             "Gauge"
         }
 
-        fn display_name(&self) -> &'static str {
+        fn display_name(&self) -> &str {
             "Gauge"
         }
 
@@ -559,7 +564,7 @@ mod tests {
             ActorCategory::Plot
         }
 
-        fn icon_id(&self) -> &'static str {
+        fn icon_id(&self) -> &str {
             "gauge"
         }
 

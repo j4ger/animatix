@@ -125,11 +125,92 @@ pub const NATIVE_PRIMITIVE_CHILD_MASK: u32 = 2;
 /// Child-processing strategy for ABI v2.
 pub const NATIVE_PRIMITIVE_CHILD_EQUATION: u32 = 3;
 
+/// Primitive path command kind for ABI v2 evaluation.
+pub const NATIVE_PATH_RECT: u32 = 0;
+/// Primitive path command kind for ABI v2 evaluation.
+pub const NATIVE_PATH_ELLIPSE: u32 = 1;
+/// Primitive path command kind for ABI v2 evaluation.
+pub const NATIVE_PATH_LINE: u32 = 2;
+/// Primitive path command kind for ABI v2 evaluation.
+pub const NATIVE_PATH_POLYGON: u32 = 3;
+
+/// A 2D point used by polygon path commands.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
+pub struct NativePointV2 {
+    /// X coordinate in scene units.
+    pub x: f64,
+    /// Y coordinate in scene units.
+    pub y: f64,
+}
+
+/// A vector path command emitted by a native primitive during evaluation.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[repr(C)]
+pub struct NativePathCommandV2 {
+    /// `NATIVE_PATH_*` kind.
+    pub kind: u32,
+    /// Rectangle origin / ellipse center X.
+    pub x: f64,
+    /// Rectangle origin / ellipse center Y.
+    pub y: f64,
+    /// Rectangle width / ellipse X radius.
+    pub width: f64,
+    /// Rectangle height / ellipse Y radius.
+    pub height: f64,
+    /// Line start X.
+    pub x1: f64,
+    /// Line start Y.
+    pub y1: f64,
+    /// Line end X.
+    pub x2: f64,
+    /// Line end Y.
+    pub y2: f64,
+    /// Polygon points; valid only for `NATIVE_PATH_POLYGON`.
+    pub points: *const NativePointV2,
+    /// Number of polygon points.
+    pub point_len: usize,
+    /// RGBA fill color in 0..=1 ranges.
+    pub fill: [f64; 4],
+    /// RGBA stroke color in 0..=1 ranges.
+    pub stroke: [f64; 4],
+    /// Stroke width in scene units; zero disables the stroke.
+    pub stroke_width: f64,
+    /// Stroke line cap (0=Butt, 1=Round, 2=Square).
+    pub line_cap: u32,
+    /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
+    pub line_join: u32,
+}
+
+/// Context passed to a native primitive evaluate callback.
+#[repr(C)]
+pub struct NativePrimitiveEvaluateCtxV2 {
+    /// `size_of::<NativePrimitiveEvaluateCtxV2>()`.
+    pub size: usize,
+    /// Current evaluation time in milliseconds.
+    pub time_ms: f64,
+    /// Opaque host handle passed back to `append_path`.
+    pub host: *mut c_void,
+    /// Append one vector path command to the current frame.
+    pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommandV2) -> i32>,
+}
+
 /// Native primitive evaluate callback.
-pub type NativePrimitiveEvaluateV2 = unsafe extern "C" fn(*mut c_void) -> i32;
+pub type NativePrimitiveEvaluateV2 = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtxV2) -> i32;
 
 /// Native action execute callback.
 pub type NativeActionExecuteV2 = unsafe extern "C" fn(*mut c_void) -> i32;
+
+/// Service value provided by a native plugin.
+#[repr(C)]
+pub struct NativeServiceV2 {
+    /// Canonical service name.
+    pub name: *const c_char,
+    /// Opaque service value understood by the plugin.
+    pub value: usize,
+    /// Optional destructor invoked when the host drops the service.
+    pub drop: Option<unsafe extern "C" fn(usize)>,
+}
 
 /// Descriptor passed from a native plugin to register a primitive.
 #[derive(Clone, Copy)]
@@ -168,8 +249,8 @@ pub struct NativePluginApiV2 {
     /// Register a native action.
     pub register_action:
         unsafe extern "C" fn(*mut c_void, *const c_char, NativeActionExecuteV2) -> i32,
-    /// Provide a native service value.
-    pub provide_service: unsafe extern "C" fn(*mut c_void, *const c_char, usize) -> i32,
+    /// Provide a native service value with an optional destructor.
+    pub provide_service: unsafe extern "C" fn(*mut c_void, NativeServiceV2) -> i32,
 }
 
 /// Native plugin ABI v2 install entry point.

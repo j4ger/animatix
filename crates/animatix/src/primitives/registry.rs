@@ -64,6 +64,14 @@ impl PrimitiveRegistry {
             .map(|primitive| primitive.as_ref())
     }
 
+    /// Return whether `name` belongs to the built-in prefix of this registry.
+    pub fn is_builtin(&self, name: &str) -> bool {
+        self.primitives
+            .iter()
+            .take(self.builtin_count)
+            .any(|primitive| primitive.type_name() == name)
+    }
+
     /// Iterate all primitives in registration order.
     pub fn iter(&self) -> impl Iterator<Item = &dyn Primitive> {
         self.primitives.iter().map(|primitive| primitive.as_ref())
@@ -85,8 +93,8 @@ impl PrimitiveRegistry {
             .map(|primitive| {
                 let capabilities = primitive.capabilities();
                 animatix_syntax::schema::PrimitiveSpec {
-                    type_name: primitive.type_name(),
-                    display_name: primitive.display_name(),
+                    type_name: primitive.type_name().to_string(),
+                    display_name: primitive.display_name().to_string(),
                     category: match primitive.category() {
                         super::ActorCategory::Shape => {
                             animatix_syntax::schema::PrimitiveCategory::Shape
@@ -107,7 +115,7 @@ impl PrimitiveRegistry {
                             animatix_syntax::schema::PrimitiveCategory::Annotation
                         },
                     },
-                    icon_id: primitive.icon_id(),
+                    icon_id: primitive.icon_id().to_string(),
                     advanced: primitive.is_advanced(),
                     capabilities: animatix_syntax::schema::PrimitiveCapabilities {
                         text_paths: capabilities.text_paths,
@@ -132,11 +140,11 @@ impl PrimitiveRegistry {
 struct BuiltinPrimitive(&'static dyn Primitive);
 
 impl Primitive for BuiltinPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         self.0.type_name()
     }
 
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         self.0.display_name()
     }
 
@@ -144,7 +152,7 @@ impl Primitive for BuiltinPrimitive {
         self.0.category()
     }
 
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         self.0.icon_id()
     }
 
@@ -294,11 +302,11 @@ mod tests {
     struct Gauge;
 
     impl Primitive for Gauge {
-        fn type_name(&self) -> &'static str {
+        fn type_name(&self) -> &str {
             "Gauge"
         }
 
-        fn display_name(&self) -> &'static str {
+        fn display_name(&self) -> &str {
             "Gauge"
         }
 
@@ -306,7 +314,7 @@ mod tests {
             ActorCategory::Plot
         }
 
-        fn icon_id(&self) -> &'static str {
+        fn icon_id(&self) -> &str {
             "gauge"
         }
 
@@ -345,9 +353,12 @@ mod tests {
     fn registry_layers_custom_primitive_over_builtins() {
         let mut registry = PrimitiveRegistry::new();
         assert!(registry.find("Rect").is_some());
+        assert!(registry.is_builtin("Rect"));
         assert!(registry.find("Gauge").is_none());
+        assert!(!registry.is_builtin("Gauge"));
         assert!(registry.register(Arc::new(Gauge)).is_ok());
         assert!(registry.find("Gauge").is_some());
+        assert!(!registry.is_builtin("Gauge"));
         assert_eq!(registry.len(), super::PRIMITIVES.len() + 1);
 
         let specs = registry.specs();

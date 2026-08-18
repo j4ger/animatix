@@ -313,7 +313,7 @@ fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<
         .collect::<Vec<_>>();
 
     for spec in animatix_syntax::schema::builtin_primitive_specs() {
-        if !symbols.types.contains(spec.type_name) {
+        if !symbols.types.contains(spec.type_name.as_str()) {
             items.push(CompletionItem {
                 label: spec.type_name.to_string(),
                 kind: CompletionKind::Type,

@@ -229,11 +229,11 @@ impl Timeline {
             return;
         }
 
-        // Extension primitives that are not in the static built-in set are
-        // dispatched through the runtime registry.
-        if crate::primitives::find_primitive(ty).is_none() {
-            let registry = self.primitive_registry.clone();
-            if let Some(primitive) = registry.find(ty) {
+        // Extension primitives are dispatched through the active runtime
+        // registry. Built-ins remain on the static actor-kind path below.
+        let registry = self.primitive_registry.clone();
+        if let Some(primitive) = registry.find(ty) {
+            if !registry.is_builtin(ty) {
                 let mut ctx = crate::primitives::BuildCtx {
                     timeline: self,
                     time_ms,

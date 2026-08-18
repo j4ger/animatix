@@ -14,16 +14,16 @@ pub struct PolygonPrimitive;
 pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 
 impl Primitive for PolygonPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Polygon"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Polygon"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Shape
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::POLYGON
     }
     fn is_shape(&self) -> bool {

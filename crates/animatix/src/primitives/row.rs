@@ -13,16 +13,16 @@ pub struct RowPrimitive;
 pub const ROW: RowPrimitive = RowPrimitive;
 
 impl Primitive for RowPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Row"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Row"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::ROWS
     }
     fn is_container(&self) -> bool {

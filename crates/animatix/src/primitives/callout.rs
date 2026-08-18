@@ -49,16 +49,16 @@ pub struct CalloutPrimitive;
 pub const CALLOUT: CalloutPrimitive = CalloutPrimitive;
 
 impl Primitive for CalloutPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Callout"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Callout"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Annotation
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::TEXT_T
     }
     fn is_advanced(&self) -> bool {

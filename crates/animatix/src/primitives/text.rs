@@ -13,16 +13,16 @@ pub struct TextPrimitive;
 pub const TEXT: TextPrimitive = TextPrimitive;
 
 impl Primitive for TextPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Text"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Text"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::TEXT_T
     }
     fn kind_id(&self) -> ActorKindId {

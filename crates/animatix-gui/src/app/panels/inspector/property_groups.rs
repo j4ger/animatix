@@ -233,19 +233,16 @@ pub(crate) fn build_property_groups(
         if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
             continue;
         }
-        let Some(value) =
-            animatix::timeline::read_property_plan_slot(track, descriptor.id, time_ms)
-        else {
+        let id = animatix::property_descriptor::runtime_id(&descriptor);
+        let Some(value) = animatix::timeline::read_property_plan_slot(track, id, time_ms) else {
             continue;
         };
         extension_props.push(PropertyEntry {
             name: descriptor.name.clone(),
             kind: extension_value_to_kind(value),
-            has_keyframes: track.property_plan.keyframe_count(descriptor.id) > 0,
-            has_keyframe_at_current_time: track
-                .property_plan
-                .has_keyframe_at(descriptor.id, time_ms),
-            keyframe_count: track.property_plan.keyframe_count(descriptor.id),
+            has_keyframes: track.property_plan.keyframe_count(id) > 0,
+            has_keyframe_at_current_time: track.property_plan.has_keyframe_at(id, time_ms),
+            keyframe_count: track.property_plan.keyframe_count(id),
         });
     }
     if !extension_props.is_empty() {

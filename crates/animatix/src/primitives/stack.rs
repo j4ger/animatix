@@ -13,16 +13,16 @@ pub struct StackPrimitive;
 pub const STACK: StackPrimitive = StackPrimitive;
 
 impl Primitive for StackPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Stack"
     }
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Stack"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::STACK
     }
     fn is_container(&self) -> bool {

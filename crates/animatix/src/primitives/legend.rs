@@ -129,11 +129,11 @@ pub struct LegendPrimitive;
 pub const LEGEND: LegendPrimitive = LegendPrimitive;
 
 impl Primitive for LegendPrimitive {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Legend"
     }
 
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         "Legend"
     }
 
@@ -141,7 +141,7 @@ impl Primitive for LegendPrimitive {
         ActorCategory::Annotation
     }
 
-    fn icon_id(&self) -> &'static str {
+    fn icon_id(&self) -> &str {
         crate::icon_glyphs::CHART_LINE_UP
     }
 
