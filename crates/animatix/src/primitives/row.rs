@@ -9,7 +9,7 @@ use crate::timeline::{SceneDimensions, Value};
 /// The `Row` primitive.
 pub struct RowPrimitive;
 
-/// Singleton instance of [`RowPrimitive`].
+/// Singleton instance of `RowPrimitive`.
 pub const ROW: RowPrimitive = RowPrimitive;
 
 impl Primitive for RowPrimitive {

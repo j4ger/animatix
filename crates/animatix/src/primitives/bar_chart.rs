@@ -11,7 +11,7 @@ use crate::timeline::SceneDimensions;
 /// The `BarChart` primitive.
 pub struct BarChartPrimitive;
 
-/// Singleton instance of [`BarChartPrimitive`].
+/// Singleton instance of `BarChartPrimitive`.
 pub const BAR_CHART: BarChartPrimitive = BarChartPrimitive;
 
 impl Primitive for BarChartPrimitive {

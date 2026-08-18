@@ -740,6 +740,129 @@ fn draw_wavy_underlines(
     }
 }
 
+// ── Divider between cells ────────────────────────────────────────────────
+
+fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
+    let theme = eparts::theme(ui);
+    let available = ui.available_width();
+    let height = 36.0; // taller for breathing room
+    let (rect, response) =
+        ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
+
+    let center = rect.center();
+    let y = center.y;
+    let left = rect.left() + 48.0;
+    let right = rect.right() - 48.0;
+
+    // Smooth hover transition for the divider line
+    let t = anim::animate_toward(
+        ui.ctx(),
+        ui.id().with(("divider_line", after_index)),
+        if response.hovered() { 1.0 } else { 0.0 },
+        motion::HOVER,
+    );
+
+    // ── Divider line (always visible, brightens on hover) ──
+    if left < right {
+        let line_color = if t > 0.0 {
+            theme.border.strong
+        } else {
+            theme.border.default
+        };
+        let line_a = egui::lerp(120.0..=220.0, t) as u8;
+        ui.painter().line_segment(
+            [egui::pos2(left, y), egui::pos2(right, y)],
+            Stroke::new(
+                egui::lerp(1.0..=1.5, t),
+                Color32::from_rgba_premultiplied(
+                    line_color.r(),
+                    line_color.g(),
+                    line_color.b(),
+                    line_a,
+                ),
+            ),
+        );
+    }
+
+    // ── Center "add" button — ALWAYS visible ──
+    let btn_size = Vec2::splat(24.0);
+    let btn_rect = egui::Rect::from_center_size(center, btn_size);
+
+    // Animate the button independently so it has smooth transitions even though
+    // it's always on screen.
+    let btn_t = anim::animate_toward(
+        ui.ctx(),
+        ui.id().with(("divider_btn", after_index)),
+        if response.hovered() || response.is_pointer_button_down_on() {
+            1.0
+        } else {
+            0.0
+        },
+        motion::HOVER,
+    );
+    let pressed = response.is_pointer_button_down_on();
+
+    // Background (always visible — no alpha tricks)
+    let bg_idle = theme.surface.widget;
+    let bg_hover = theme.surface.hover;
+    let bg = if pressed {
+        theme.status.warning
+    } else {
+        lerp_color(bg_idle, bg_hover, btn_t)
+    };
+
+    // Border (subtle idle, stronger hover)
+    let border = if pressed {
+        theme.status.warning
+    } else if btn_t > 0.0 {
+        theme.border.strong
+    } else {
+        theme.border.default
+    };
+
+    // Icon color
+    let icon = if pressed {
+        theme.text.on_accent
+    } else if btn_t > 0.0 {
+        theme.text.primary
+    } else {
+        theme.text.secondary
+    };
+
+    ui.painter().rect_filled(btn_rect, 6.0, bg);
+    ui.painter()
+        .rect_stroke(btn_rect, 6.0, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+
+    ui.painter().text(
+        center,
+        egui::Align2::CENTER_CENTER,
+        egui_phosphor::regular::PLUS,
+        TextRole::Body.font_id(),
+        icon,
+    );
+
+    if response.clicked() {
+        state.pending_insert_after = Some(after_index);
+    }
+
+    use crate::app::components::context_menu::{MenuEntry, render_menu};
+
+    response.context_menu(|ui| {
+        let entries = vec![
+            MenuEntry::item_with_icon(egui_phosphor::regular::FILM_STRIP, "Insert keyframe"),
+            MenuEntry::item_with_icon(egui_phosphor::regular::CODE, "Insert code block"),
+        ];
+        if let Some(idx) = render_menu(ui, &entries) {
+            match idx {
+                0 => state.pending_insert_after = Some(after_index),
+                1 => state.pending_insert_code_after = Some(after_index),
+                _ => {},
+            }
+            ui.close();
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use egui::{Context, Event, Modifiers, Pos2, Rect, Vec2};
@@ -865,127 +988,4 @@ mod tests {
         assert_eq!(cells[0].body(), "first");
         assert_eq!(cells[1].body(), "second你");
     }
-}
-
-// ── Divider between cells ────────────────────────────────────────────────
-
-fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
-    let theme = eparts::theme(ui);
-    let available = ui.available_width();
-    let height = 36.0; // taller for breathing room
-    let (rect, response) =
-        ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
-
-    let center = rect.center();
-    let y = center.y;
-    let left = rect.left() + 48.0;
-    let right = rect.right() - 48.0;
-
-    // Smooth hover transition for the divider line
-    let t = anim::animate_toward(
-        ui.ctx(),
-        ui.id().with(("divider_line", after_index)),
-        if response.hovered() { 1.0 } else { 0.0 },
-        motion::HOVER,
-    );
-
-    // ── Divider line (always visible, brightens on hover) ──
-    if left < right {
-        let line_color = if t > 0.0 {
-            theme.border.strong
-        } else {
-            theme.border.default
-        };
-        let line_a = egui::lerp(120.0..=220.0, t) as u8;
-        ui.painter().line_segment(
-            [egui::pos2(left, y), egui::pos2(right, y)],
-            Stroke::new(
-                egui::lerp(1.0..=1.5, t),
-                Color32::from_rgba_premultiplied(
-                    line_color.r(),
-                    line_color.g(),
-                    line_color.b(),
-                    line_a,
-                ),
-            ),
-        );
-    }
-
-    // ── Center "add" button — ALWAYS visible ──
-    let btn_size = Vec2::splat(24.0);
-    let btn_rect = egui::Rect::from_center_size(center, btn_size);
-
-    // Animate the button independently so it has smooth transitions even though
-    // it's always on screen.
-    let btn_t = anim::animate_toward(
-        ui.ctx(),
-        ui.id().with(("divider_btn", after_index)),
-        if response.hovered() || response.is_pointer_button_down_on() {
-            1.0
-        } else {
-            0.0
-        },
-        motion::HOVER,
-    );
-    let pressed = response.is_pointer_button_down_on();
-
-    // Background (always visible — no alpha tricks)
-    let bg_idle = theme.surface.widget;
-    let bg_hover = theme.surface.hover;
-    let bg = if pressed {
-        theme.status.warning
-    } else {
-        lerp_color(bg_idle, bg_hover, btn_t)
-    };
-
-    // Border (subtle idle, stronger hover)
-    let border = if pressed {
-        theme.status.warning
-    } else if btn_t > 0.0 {
-        theme.border.strong
-    } else {
-        theme.border.default
-    };
-
-    // Icon color
-    let icon = if pressed {
-        theme.text.on_accent
-    } else if btn_t > 0.0 {
-        theme.text.primary
-    } else {
-        theme.text.secondary
-    };
-
-    ui.painter().rect_filled(btn_rect, 6.0, bg);
-    ui.painter()
-        .rect_stroke(btn_rect, 6.0, Stroke::new(1.0, border), egui::StrokeKind::Inside);
-
-    ui.painter().text(
-        center,
-        egui::Align2::CENTER_CENTER,
-        egui_phosphor::regular::PLUS,
-        TextRole::Body.font_id(),
-        icon,
-    );
-
-    if response.clicked() {
-        state.pending_insert_after = Some(after_index);
-    }
-
-    use crate::app::components::context_menu::{MenuEntry, render_menu};
-
-    response.context_menu(|ui| {
-        let entries = vec![
-            MenuEntry::item_with_icon(egui_phosphor::regular::FILM_STRIP, "Insert keyframe"),
-            MenuEntry::item_with_icon(egui_phosphor::regular::CODE, "Insert code block"),
-        ];
-        if let Some(idx) = render_menu(ui, &entries) {
-            match idx {
-                0 => state.pending_insert_after = Some(after_index),
-                1 => state.pending_insert_code_after = Some(after_index),
-                _ => {},
-            }
-            ui.close();
-        }
-    });
 }

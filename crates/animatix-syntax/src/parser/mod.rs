@@ -22,11 +22,11 @@
 //!
 //! | Module | Contents |
 //! |--------|----------|
-//! | [`common`] | Shared parser type aliases and factory helpers (`ident`, `property`, `modifier`, `time`, etc.) |
-//! | [`expr`] | Expression parser with operator precedence, closures, and conditionals |
-//! | [`inline`] | Inline item parser (`InlineItem`, `FlatItem`, slot markers/fills) |
-//! | [`stmt`] | Recursive statement parser (declarations, assignments, actions, composition) |
-//! | [`top_level`] | Top-level parser (`config`, scenes, keyframes, `group_scenes`) |
+//! | `common` | Shared parser type aliases and factory helpers (`ident`, `property`, `modifier`, `time`, etc.) |
+//! | `expr` | Expression parser with operator precedence, closures, and conditionals |
+//! | `inline` | Inline item parser (`InlineItem`, `FlatItem`, slot markers/fills) |
+//! | `stmt` | Recursive statement parser (declarations, assignments, actions, composition) |
+//! | `top_level` | Top-level parser (`config`, scenes, keyframes, `group_scenes`) |
 //!
 //! ## Relationship to Other Systems
 //!
@@ -346,7 +346,7 @@ impl ParseError {
     /// The resulting diagnostic has:
     /// * `code`: [`DiagnosticCode::ParseError`]
     /// * `phase`: [`DiagnosticPhase::Parse`]
-    /// * `severity`: [`DiagnosticSeverity::Error`]
+    /// * `severity`: [`crate::diagnostics::DiagnosticSeverity::Error`]
     /// * `message`: the parse error message plus parser context
     /// * `location`: the line, column, and byte span of the error
     pub fn to_diagnostic(&self) -> Diagnostic {
@@ -424,7 +424,7 @@ pub fn parser_simple<'src>()
 /// Build the top-level `.amx` file parser.
 ///
 /// Parses a full source file into a `Vec<Stmt>`, grouping statements into scenes
-/// via [`group_scenes`]. Accepts a shared warnings collector for emitting semantic
+/// via `group_scenes`. Accepts a shared warnings collector for emitting semantic
 /// diagnostics during parsing.
 pub fn parser<'src>(
     warnings: Rc<RefCell<Vec<Diagnostic>>>,

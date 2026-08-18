@@ -11,7 +11,7 @@ use crate::timeline::SceneDimensions;
 /// The `Filter` primitive.
 pub struct FilterPrimitive;
 
-/// Singleton instance of [`FilterPrimitive`].
+/// Singleton instance of `FilterPrimitive`.
 pub const FILTER: FilterPrimitive = FilterPrimitive;
 
 impl Primitive for FilterPrimitive {

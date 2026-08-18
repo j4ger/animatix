@@ -4,7 +4,6 @@
 //! (e.g. adding a parameter to `evaluate`) only require a single edit.
 
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
-use chumsky::Parser;
 
 /// Default 1080p scene dimensions used by most benches.
 // Reserved for use by individual benchmarks

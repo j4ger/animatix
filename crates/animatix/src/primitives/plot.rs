@@ -8,13 +8,13 @@ use crate::timeline::SceneDimensions;
 /// The `Graph` plot primitive.
 pub struct GraphPrimitive;
 
-/// Singleton instance of [`GraphPrimitive`].
+/// Singleton instance of `GraphPrimitive`.
 pub const GRAPH: GraphPrimitive = GraphPrimitive;
 
 /// The `PlotCurve` plot primitive.
 pub struct PlotCurvePrimitive;
 
-/// Singleton instance of [`PlotCurvePrimitive`].
+/// Singleton instance of `PlotCurvePrimitive`.
 pub const PLOT_CURVE: PlotCurvePrimitive = PlotCurvePrimitive;
 
 impl Primitive for GraphPrimitive {
@@ -182,7 +182,7 @@ impl Primitive for PlotCurvePrimitive {
 /// The `VectorField` plot primitive.
 pub struct VectorFieldPrimitive;
 
-/// Singleton instance of [`VectorFieldPrimitive`].
+/// Singleton instance of `VectorFieldPrimitive`.
 pub const VECTOR_FIELD: VectorFieldPrimitive = VectorFieldPrimitive;
 
 impl Primitive for VectorFieldPrimitive {
@@ -263,7 +263,7 @@ impl Primitive for VectorFieldPrimitive {
 /// The `Heatmap` plot primitive.
 pub struct HeatmapPrimitive;
 
-/// Singleton instance of [`HeatmapPrimitive`].
+/// Singleton instance of `HeatmapPrimitive`.
 pub const HEATMAP: HeatmapPrimitive = HeatmapPrimitive;
 
 impl Primitive for HeatmapPrimitive {
@@ -341,7 +341,7 @@ impl Primitive for HeatmapPrimitive {
 /// The `ContourSet` plot primitive.
 pub struct ContourSetPrimitive;
 
-/// Singleton instance of [`ContourSetPrimitive`].
+/// Singleton instance of `ContourSetPrimitive`.
 pub const CONTOUR_SET: ContourSetPrimitive = ContourSetPrimitive;
 
 impl Primitive for ContourSetPrimitive {
@@ -421,7 +421,7 @@ impl Primitive for ContourSetPrimitive {
 }
 
 pub struct NumberPlanePrimitive;
-/// Singleton instance of [`NumberPlanePrimitive`].
+/// Singleton instance of `NumberPlanePrimitive`.
 pub const NUMBER_PLANE: NumberPlanePrimitive = NumberPlanePrimitive;
 
 impl Primitive for NumberPlanePrimitive {

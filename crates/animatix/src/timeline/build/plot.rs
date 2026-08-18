@@ -1620,7 +1620,7 @@ fn math_to_screen(
     (sx, sy)
 }
 
-/// Evaluate a scalar field [`FuncSource`] at (x,y).
+/// Evaluate a scalar field `FuncSource` at (x,y).
 fn eval_scalar_field_source(source: &FuncSource, env: &mut Environment, x: f64, y: f64) -> f64 {
     match source {
         FuncSource::Compiled(args, body, captures) => {
@@ -1647,7 +1647,7 @@ fn eval_scalar_field_source(source: &FuncSource, env: &mut Environment, x: f64, 
     }
 }
 
-/// Evaluate a vector field [`FuncSource`] at (x,y), returning (dx, dy).
+/// Evaluate a vector field `FuncSource` at (x,y), returning (dx, dy).
 fn eval_vec2_field_source(source: &FuncSource, env: &mut Environment, x: f64, y: f64) -> [f64; 2] {
     match source {
         FuncSource::Compiled(args, body, captures) => {

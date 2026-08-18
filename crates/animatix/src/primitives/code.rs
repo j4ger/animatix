@@ -9,7 +9,7 @@ use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 /// The `Code` primitive.
 pub struct CodePrimitive;
 
-/// Singleton instance of [`CodePrimitive`].
+/// Singleton instance of `CodePrimitive`.
 pub const CODE: CodePrimitive = CodePrimitive;
 
 impl Primitive for CodePrimitive {

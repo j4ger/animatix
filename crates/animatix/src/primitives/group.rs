@@ -8,7 +8,7 @@ use crate::timeline::SceneDimensions;
 /// The `Group` primitive.
 pub struct GroupPrimitive;
 
-/// Singleton instance of [`GroupPrimitive`].
+/// Singleton instance of `GroupPrimitive`.
 pub const GROUP: GroupPrimitive = GroupPrimitive;
 
 impl Primitive for GroupPrimitive {

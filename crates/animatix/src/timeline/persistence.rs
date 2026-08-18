@@ -9,11 +9,11 @@
 //!
 //! This module provides:
 //!
-//! - [`CarryBag`] — bag holding snapshot entries keyed by actor label.
-//! - [`CarryEntry`] — a single snapshotted actor plus its recursive subtree.
+//! - `CarryBag` — bag holding snapshot entries keyed by actor label.
+//! - `CarryEntry` — a single snapshotted actor plus its recursive subtree.
 //! - [`Timeline::compute_carry_bag`] — snapshots all `persistent == true` actors and their children
 //!   at a given time.
-//! - [`snapshot_track_at`] — collapses all keyframes of a single track to a single frame at `t=0`
+//! - `snapshot_track_at` — collapses all keyframes of a single track to a single frame at `t=0`
 //!   sampled at `time_ms`.
 
 use std::collections::BTreeMap;
@@ -110,10 +110,10 @@ fn collect_persistent_entries(
 }
 
 impl Timeline {
-    /// Snapshot the timeline at a given time, returning a [`CarryBag`].
+    /// Snapshot the timeline at a given time, returning a `CarryBag`.
     ///
     /// Iterates `persistence_flags`, finds entries where `persistent == true`,
-    /// snapshots the tracks via [`snapshot_track_at`], and recursively
+    /// snapshots the tracks via `snapshot_track_at`, and recursively
     /// snapshots children.
     ///
     /// `has_successor` — when `false`, any persisted actors will emit a
@@ -141,7 +141,7 @@ impl Timeline {
 // inject_carry_bag
 // ---------------------------------------------------------------------------
 
-/// Inject a single [`CarryEntry`] into a target timeline.
+/// Inject a single `CarryEntry` into a target timeline.
 ///
 /// `is_root` — when `true` the entry is a top-level carry-bag entry and its
 /// label is added to `root_nodes`.  When `false` the entry is a child of a
@@ -253,7 +253,7 @@ fn inject_entry(
 }
 
 impl Timeline {
-    /// Inject a [`CarryBag`] into this timeline **before** statement processing.
+    /// Inject a `CarryBag` into this timeline **before** statement processing.
     ///
     /// Called by [`Timeline::build_with_carry`] immediately after construction
     /// and configuration loading, so that carried actors are visible to

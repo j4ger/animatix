@@ -9,7 +9,7 @@ use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 /// The `Text` primitive.
 pub struct TextPrimitive;
 
-/// Singleton instance of [`TextPrimitive`].
+/// Singleton instance of `TextPrimitive`.
 pub const TEXT: TextPrimitive = TextPrimitive;
 
 impl Primitive for TextPrimitive {

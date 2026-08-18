@@ -13,7 +13,7 @@ use crate::timeline::{
 /// The `Image` primitive.
 pub struct ImagePrimitive;
 
-/// Singleton instance of [`ImagePrimitive`].
+/// Singleton instance of `ImagePrimitive`.
 pub const IMAGE: ImagePrimitive = ImagePrimitive;
 
 impl Primitive for ImagePrimitive {

@@ -12,7 +12,7 @@ use crate::timeline::{
 /// The `Ellipse` primitive.
 pub struct EllipsePrimitive;
 
-/// Singleton instance of [`EllipsePrimitive`].
+/// Singleton instance of `EllipsePrimitive`.
 pub const ELLIPSE: EllipsePrimitive = EllipsePrimitive;
 
 impl Primitive for EllipsePrimitive {

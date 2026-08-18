@@ -202,7 +202,7 @@ pub enum SourceEdit {
 /// Apply a semantic edit to a statement list.
 ///
 /// Returns `Ok(())` if the edit was applied successfully, or a structured
-/// [`SourceEditError`] describing why it failed.
+/// [`crate::source_edit::SourceEditError`] describing why it failed.
 pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::SourceEditError> {
     match edit {
         SourceEdit::SetProperty {

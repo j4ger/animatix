@@ -1,7 +1,7 @@
 //! This is a thin trait wrapper over format_core. It provides ergonomic
 //! `.to_source()` calls with fixed indent = 2.
 //!
-//! All formatting logic lives in [`format_core`](crate::format_core). If you
+//! All formatting logic lives in [`format_core`]. If you
 //! need configurable formatting, use [`formatter::Formatter`](crate::formatter::Formatter).
 //! This module is the canonical 2-space serialization API.
 

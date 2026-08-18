@@ -1,6 +1,6 @@
 //! Easing curve definitions and helpers for the Animatix syntax crate.
 //!
-//! Provides the [`Easing`] enum, a canonical easing name registry, and
+//! Provides the `Easing` enum, a canonical easing name registry, and
 //! functions to apply easing to a progress value and to parse easing names.
 
 #[cfg(feature = "serde")]

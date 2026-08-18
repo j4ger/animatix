@@ -9,7 +9,7 @@ use crate::timeline::{SceneDimensions, Value};
 /// The `Grid` primitive.
 pub struct GridPrimitive;
 
-/// Singleton instance of [`GridPrimitive`].
+/// Singleton instance of `GridPrimitive`.
 pub const GRID: GridPrimitive = GridPrimitive;
 
 impl Primitive for GridPrimitive {

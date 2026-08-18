@@ -3,7 +3,7 @@
 //! This module defines:
 //! - [`ExportError`] — unified error type for all export paths
 //! - [`ExportSettings`], [`MaxRenderThreads`], [`VideoCodec`], [`H264Preset`] — configuration
-//! - [`mux_audio_segments`] — ffmpeg CLI-based audio integration
+//! - `mux_audio_segments` — ffmpeg CLI-based audio integration
 //!
 //! Sub-modules contain the actual encoding implementations for each format.
 

@@ -54,8 +54,8 @@ impl Lerp for egui::Vec2 {
 ///
 /// Returns the current animated value. When `target` changes, starts animating
 /// from the current animated value toward the new target over `transition.duration`
-/// seconds. If `transition` is `INSTANT` or the current [`MotionPreference`]
-/// is [`MotionPreference::Reduced`], returns `target` immediately.
+/// seconds. If `transition` is `INSTANT` or the current `MotionPreference`
+/// is `MotionPreference::Reduced`, returns `target` immediately.
 pub fn animate_toward(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
     let pref = motion_preference_from_ctx(ctx);
     let duration = resolve_duration(pref, transition);

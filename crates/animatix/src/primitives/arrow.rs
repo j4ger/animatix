@@ -69,7 +69,7 @@ pub(crate) fn build_arrow_path(from: [f32; 2], to: [f32; 2], head_size: f32) -> 
 /// The `Arrow` primitive.
 pub struct ArrowPrimitive;
 
-/// Singleton instance of [`ArrowPrimitive`].
+/// Singleton instance of `ArrowPrimitive`.
 pub const ARROW: ArrowPrimitive = ArrowPrimitive;
 
 impl Primitive for ArrowPrimitive {

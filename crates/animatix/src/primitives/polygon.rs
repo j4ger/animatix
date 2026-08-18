@@ -10,7 +10,7 @@ use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeSt
 /// The `Polygon` primitive.
 pub struct PolygonPrimitive;
 
-/// Singleton instance of [`PolygonPrimitive`].
+/// Singleton instance of `PolygonPrimitive`.
 pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 
 impl Primitive for PolygonPrimitive {

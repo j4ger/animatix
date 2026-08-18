@@ -9,7 +9,7 @@ use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeSt
 /// The `Path` primitive.
 pub struct PathPrimitive;
 
-/// Singleton instance of [`PathPrimitive`].
+/// Singleton instance of `PathPrimitive`.
 pub const PATH: PathPrimitive = PathPrimitive;
 
 impl Primitive for PathPrimitive {

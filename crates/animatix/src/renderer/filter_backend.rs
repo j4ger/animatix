@@ -1,9 +1,9 @@
 //! Shared GPU filter backend for preview and export renderers.
 //!
 //! Both [`crate::renderer::offscreen::OffscreenRenderer`] and the GUI's
-//! [`PreviewSurface`](crate::preview_surface::PreviewSurface) need identical
+//! `PreviewSurface` need identical
 //! offscreen → GPU filter → readback behaviour for [`Filter`](crate::timeline::ActorKindId::Filter)
-//! actors.  This module provides a single [`GpuFilterBackend`] implementation
+//! actors.  This module provides a single `GpuFilterBackend` implementation
 //! that can be instantiated by any renderer that owns (or can borrow) a
 //! [`wgpu::Device`] and [`wgpu::Queue`].
 //!

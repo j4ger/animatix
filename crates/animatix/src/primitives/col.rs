@@ -9,7 +9,7 @@ use crate::timeline::{SceneDimensions, Value};
 /// The `Col` primitive.
 pub struct ColPrimitive;
 
-/// Singleton instance of [`ColPrimitive`].
+/// Singleton instance of `ColPrimitive`.
 pub const COL: ColPrimitive = ColPrimitive;
 
 impl Primitive for ColPrimitive {

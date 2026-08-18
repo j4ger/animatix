@@ -256,8 +256,8 @@ pub struct DiagnosticLocation {
     ///
     /// This is a **character (grapheme) offset**, not a byte offset.
     /// Converting from byte offsets (e.g. from parser spans) must account
-    /// for multi-byte UTF-8 characters. Use [`Span::from_range`] which
-    /// performs this conversion correctly.
+    /// for multi-byte UTF-8 characters. Use [`crate::ast::Span::from_range`]
+    /// which performs this conversion correctly.
     pub column: Option<usize>,
     /// 1-based line number where the diagnostic range ends.
     pub end_line: Option<usize>,

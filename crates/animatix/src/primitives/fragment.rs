@@ -20,7 +20,7 @@ use crate::timeline::{AnimationTrack, Environment, TrackAccessor};
 /// The `Fragment` primitive.
 pub struct FragmentPrimitive;
 
-/// Singleton instance of [`FragmentPrimitive`].
+/// Singleton instance of `FragmentPrimitive`.
 pub const FRAGMENT: FragmentPrimitive = FragmentPrimitive;
 
 impl Primitive for FragmentPrimitive {

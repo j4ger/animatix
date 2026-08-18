@@ -28,7 +28,6 @@ pub(crate) fn parser<'src>(
             .filter(move |(s, _): &(String, ByteSpan)| s == name)
             .map_with(|(s, span), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
                 crate::occurrence::record(OccurrenceKind::Type, s, span);
-                ()
             })
     }
 

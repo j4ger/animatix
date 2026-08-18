@@ -14,7 +14,7 @@ use crate::timeline::SceneDimensions;
 /// The `Equation` primitive.
 pub struct EquationPrimitive;
 
-/// Singleton instance of [`EquationPrimitive`].
+/// Singleton instance of `EquationPrimitive`.
 pub const EQUATION: EquationPrimitive = EquationPrimitive;
 
 impl Primitive for EquationPrimitive {

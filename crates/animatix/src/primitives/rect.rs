@@ -9,7 +9,7 @@ use crate::timeline::{SceneDimensions, TrackAccessor, VectorShapeState, VelloPat
 /// The `Rect` primitive.
 pub struct RectPrimitive;
 
-/// Singleton instance of [`RectPrimitive`].
+/// Singleton instance of `RectPrimitive`.
 pub const RECT: RectPrimitive = RectPrimitive;
 
 impl Primitive for RectPrimitive {

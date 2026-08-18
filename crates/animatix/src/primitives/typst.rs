@@ -9,7 +9,7 @@ use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 /// The `Typst` primitive.
 pub struct TypstPrimitive;
 
-/// Singleton instance of [`TypstPrimitive`].
+/// Singleton instance of `TypstPrimitive`.
 pub const TYPST: TypstPrimitive = TypstPrimitive;
 
 impl Primitive for TypstPrimitive {

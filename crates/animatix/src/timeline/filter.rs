@@ -29,7 +29,7 @@ pub trait FilterBackend: Send {
 
     /// GPU-accelerated version: render the scene and apply filters on the GPU,
     /// then readback once.  The default implementation delegates to
-    /// [`render_scene_to_image`] followed by [`apply_cpu_filters`].
+    /// `render_scene_to_image` followed by `apply_cpu_filters`.
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,

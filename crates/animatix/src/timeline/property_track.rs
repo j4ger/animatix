@@ -1,7 +1,7 @@
 //! Primitive property track types and interpolation traits.
 //!
 //! This module contains the core building blocks for keyframed animation:
-//! - [`Interpolate`] trait for value blending
+//! - [`crate::timeline::Interpolate`] trait for value blending
 //! - [`PropertyTrack<T>`] keyframed animation track
 //! - [`TrackAccessor`] extension trait for ergonomic access
 //! - Re-exports of [`Easing`] and [`apply_easing`] from `crate::easing`
@@ -326,7 +326,7 @@ impl<T> PropertyTrack<T> {
     /// Use this for read-only access to keyframe timestamps and values
     /// when you don't need interpolation (e.g., displaying keyframe times
     /// in a GUI). Prefer [`keyframes`](Self::keyframes) when `T` implements
-    /// [`Interpolate`], as it makes the trait bound explicit at the call site.
+    /// [`crate::timeline::Interpolate`], as it makes the trait bound explicit at the call site.
     pub fn keyframes_raw(&self) -> &BTreeMap<u64, (T, Easing)> {
         &self.keyframes
     }

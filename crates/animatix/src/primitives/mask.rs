@@ -8,7 +8,7 @@ use crate::timeline::SceneDimensions;
 /// The `Mask` primitive.
 pub struct MaskPrimitive;
 
-/// Singleton instance of [`MaskPrimitive`].
+/// Singleton instance of `MaskPrimitive`.
 pub const MASK: MaskPrimitive = MaskPrimitive;
 
 impl Primitive for MaskPrimitive {

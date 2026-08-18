@@ -15,7 +15,7 @@ use crate::timeline::{
 /// The `Svg` primitive.
 pub struct SvgPrimitive;
 
-/// Singleton instance of [`SvgPrimitive`].
+/// Singleton instance of `SvgPrimitive`.
 pub const SVG: SvgPrimitive = SvgPrimitive;
 
 impl Primitive for SvgPrimitive {

@@ -12,7 +12,7 @@ use crate::timeline::{
 /// The `Line` primitive.
 pub struct LinePrimitive;
 
-/// Singleton instance of [`LinePrimitive`].
+/// Singleton instance of `LinePrimitive`.
 pub const LINE: LinePrimitive = LinePrimitive;
 
 impl Primitive for LinePrimitive {

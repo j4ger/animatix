@@ -3,14 +3,14 @@
 //!
 //! The `func` property on plot actors cannot use standard `PropertyTrack<T>`
 //! animation because closures (function bodies like `(x) => sin(x * freq)`)
-//! cannot implement the [`Interpolate`](crate::easing::Interpolate) trait.
+//! cannot implement the [`crate::timeline::Interpolate`] trait.
 //! There is no meaningful way to "lerp" two closure ASTs.
 //!
 //! Instead, `func` transitions use a **side-channel** pattern:
 //!
-//! - [`FuncTransition`] records a time range, easing, blend mode, and the
-//!   `from`/`to` [`FuncSource`] closures in a parallel `Vec` on `AnimationTrack`.
-//! - At frame time, [`sample_procedural_plot_at`] checks for active transitions.
+//! - `FuncTransition` records a time range, easing, blend mode, and the
+//!   `from`/`to` `FuncSource` closures in a parallel `Vec` on `AnimationTrack`.
+//! - At frame time, `sample_procedural_plot_at` checks for active transitions.
 //!   Output blending evaluates both sources and lerps their outputs at each
 //!   sample point; opacity blending renders the two generated path sets at
 //!   partial opacity.
@@ -148,7 +148,7 @@ impl FuncSource {
     }
 }
 
-/// How a [`FuncTransition`] combines its two function sources.
+/// How a `FuncTransition` combines its two function sources.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FuncBlendMode {
@@ -159,11 +159,11 @@ pub enum FuncBlendMode {
     Opacity,
 }
 
-/// One keyframe-driven transition between two [`FuncSource`] values.
+/// One keyframe-driven transition between two `FuncSource` values.
 ///
 /// This is the core unit of the **side-channel pattern** for the `func`
 /// property on plot actors. Because closures cannot implement
-/// [`Interpolate`](crate::easing::Interpolate), `func` transitions are stored
+/// [`crate::timeline::Interpolate`], `func` transitions are stored
 /// in a parallel `Vec<FuncTransition>` on `AnimationTrack` (the
 /// `func_transitions` field in `dispatch.rs`) rather than in a standard
 /// `PropertyTrack<T>`.
@@ -214,7 +214,7 @@ impl FuncTransition {
     }
 }
 
-/// Evaluate a [`FuncSource`] at a single scalar argument, returning the scalar
+/// Evaluate a `FuncSource` at a single scalar argument, returning the scalar
 /// result. Clones `env` locally to avoid mutating the caller's environment.
 #[allow(dead_code)] // Reserved for future VectorField/Heatmap/ContourSet transition support
 pub fn resolve_func_source(
@@ -242,7 +242,7 @@ pub fn resolve_func_source(
     }
 }
 
-/// Evaluate a [`FuncSource`] at scalar `t`, returning a 2-element array
+/// Evaluate a `FuncSource` at scalar `t`, returning a 2-element array
 /// (for parametric plots). Non-Vec2 results become `[NaN, NaN]`.
 #[allow(dead_code)] // Reserved for future parametric plot transition support
 pub fn resolve_func_source_vec2(
@@ -845,7 +845,7 @@ pub(crate) fn implicit_intersection(
     kurbo::Point::new(screen_x, screen_y)
 }
 
-/// Evaluate a [`FuncSource`] at (x, y) coordinates, returning a scalar value
+/// Evaluate a `FuncSource` at (x, y) coordinates, returning a scalar value
 /// for implicit contour detection. Supports blended transitions via recursive
 /// evaluation of `Blend` nodes.
 pub(crate) fn eval_implicit_source(
@@ -884,7 +884,7 @@ pub(crate) fn eval_implicit_source(
     }
 }
 
-/// Build an implicit plot contour path from a [`FuncSource`], evaluating
+/// Build an implicit plot contour path from a `FuncSource`, evaluating
 /// the scalar field on a grid and extracting zero-contours via marching
 /// squares. Supports function transitions via blend sources.
 pub fn build_implicit_plot_path_from_source(
@@ -1133,7 +1133,7 @@ impl ProceduralPlot {
 
 /// Re-sample a procedural plot at frame time using the given environment.
 /// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
-/// [`sample_procedural_plot_at`] with no active transitions.
+/// `sample_procedural_plot_at` with no active transitions.
 #[deprecated(since = "0.5.0", note = "use sample_procedural_plot_at instead")]
 #[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
 pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
@@ -1253,7 +1253,7 @@ fn scaled_plot_quality(plot: &ProceduralPlot, quality_factor: f64) -> (usize, f6
     )
 }
 
-/// Re-sample one concrete [`FuncSource`] with the procedural renderer described
+/// Re-sample one concrete `FuncSource` with the procedural renderer described
 /// by `plot`. Output-mode blending passes a [`FuncSource::Blend`] here;
 /// opacity-mode blending calls this separately for each endpoint.
 pub(crate) fn sample_plot_source(

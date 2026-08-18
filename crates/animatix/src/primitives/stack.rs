@@ -9,7 +9,7 @@ use crate::timeline::{SceneDimensions, Value};
 /// The `Stack` primitive.
 pub struct StackPrimitive;
 
-/// Singleton instance of [`StackPrimitive`].
+/// Singleton instance of `StackPrimitive`.
 pub const STACK: StackPrimitive = StackPrimitive;
 
 impl Primitive for StackPrimitive {

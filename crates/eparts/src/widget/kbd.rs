@@ -4,7 +4,7 @@
 //! label (e.g. `"Ctrl+S"`, `"Cmd Shift+P"`).
 //!
 //! ## Usage
-//! ```ignore
+//! ```text
 //! use eparts::widget::{Kbd, format_shortcut};
 //! if ui.add(Kbd::new("Ctrl+S")).clicked() { … }
 //! let text = format_shortcut(&shortcut, ui.ctx());

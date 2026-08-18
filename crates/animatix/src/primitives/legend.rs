@@ -125,7 +125,7 @@ use crate::timeline::{AnimationTrack, SceneDimensions};
 /// The `Legend` primitive.
 pub struct LegendPrimitive;
 
-/// Singleton instance of [`LegendPrimitive`].
+/// Singleton instance of `LegendPrimitive`.
 pub const LEGEND: LegendPrimitive = LegendPrimitive;
 
 impl Primitive for LegendPrimitive {
