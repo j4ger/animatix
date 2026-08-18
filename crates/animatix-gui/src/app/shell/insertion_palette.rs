@@ -93,7 +93,7 @@ impl InsertionPalette {
     /// Populate items from the core registries.
     pub fn populate(
         &mut self,
-        _timeline: Option<&animatix::timeline::Timeline>,
+        timeline: Option<&animatix::timeline::Timeline>,
         components: &std::collections::HashMap<String, animatix_syntax::module::ComponentEntry>,
         theme: eparts::Theme,
     ) {
@@ -101,7 +101,10 @@ impl InsertionPalette {
         self.items.clear();
 
         // Primitives
-        for prim in animatix::primitives::PRIMITIVES.iter() {
+        let registry = timeline
+            .map(animatix::timeline::Timeline::primitive_registry_snapshot)
+            .unwrap_or_else(|| std::sync::Arc::new(animatix::primitives::PrimitiveRegistry::new()));
+        for prim in registry.iter() {
             self.items.push(PaletteItem {
                 label: prim.display_name().to_string(),
                 detail: prim.type_name().to_string(),

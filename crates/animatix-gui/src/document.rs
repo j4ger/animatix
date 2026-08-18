@@ -41,6 +41,8 @@ pub struct DocumentSession {
     pub is_dirty: bool,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
+    /// Per-document extension context used for all timeline rebuilds.
+    pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
     /// Bi-directional timeline index mapping source lines to times and vice versa.
     pub timeline_index: TimelineIndex,
     /// Set of 0-indexed line numbers that contain keyframe declarations.
@@ -82,6 +84,9 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
+            extension_context: std::sync::Arc::new(
+                animatix::extension_context::ExtensionContext::new(),
+            ),
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -116,6 +121,9 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
+            extension_context: std::sync::Arc::new(
+                animatix::extension_context::ExtensionContext::new(),
+            ),
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -143,6 +151,9 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
+            extension_context: std::sync::Arc::new(
+                animatix::extension_context::ExtensionContext::new(),
+            ),
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -239,12 +250,13 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&result.raw_statements);
 
-        let report = BuildTarget::from_ast_with_quality_and_asset_cache(
+        let report = BuildTarget::from_ast_with_quality_and_asset_cache_and_extension_context(
             &result.expanded_statements,
             &result.namespaces,
             Some(&self.file_path),
             animatix::timeline::BuildQuality::Draft,
             asset_cache,
+            std::sync::Arc::clone(&self.extension_context),
         );
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);

@@ -679,7 +679,7 @@ pub(super) fn inspector_ui(
                 }
 
                 let current_time_ms = (current_time_s * 1000.0) as u64;
-                let groups = build_property_groups(track, current_time_ms);
+                let groups = build_property_groups(timeline, track, current_time_ms);
                 if groups.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(sp.base.space_3);

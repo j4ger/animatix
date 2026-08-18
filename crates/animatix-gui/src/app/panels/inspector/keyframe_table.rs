@@ -1,7 +1,7 @@
 use animatix::timeline::{
     ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyValue, ShapeType, Timeline,
     allowed_property_indices, property_has_keyframes, property_keyframe_easing,
-    property_keyframe_times, read_property_value,
+    property_keyframe_times, read_property_plan_slot, read_property_value,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Rect, Vec2};
@@ -15,7 +15,7 @@ use crate::app::design_tokens::typography::TextRole;
 // ─── Data Structures ──────────────────────────────────────────────────────
 
 struct PropertyTrackInfo {
-    name: &'static str,
+    name: String,
     keyframes: Vec<(u64, String, animatix_syntax::easing::Easing)>, /* time_ms, formatted_value,
                                                                      * easing */
 }
@@ -29,7 +29,7 @@ struct TrackGroup {
 
 pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
     let indices = allowed_property_indices(track.kind);
-    indices
+    let builtin = indices
         .iter()
         .filter_map(|&idx| {
             let schema = &PROPERTY_REGISTRY[idx];
@@ -39,7 +39,14 @@ pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
                 None
             }
         })
-        .sum()
+        .sum::<usize>();
+    let extension = track
+        .property_plan
+        .iter()
+        .filter(|slot| slot.id.0 >= 1_000_000)
+        .map(|slot| slot.track.keyframe_count())
+        .sum::<usize>();
+    builtin + extension
 }
 
 pub(super) fn render_dope_sheet(
@@ -52,7 +59,7 @@ pub(super) fn render_dope_sheet(
     active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
-    let groups = collect_track_groups(track);
+    let groups = collect_track_groups(timeline, track);
 
     if groups.is_empty() {
         crate::app::components::layout::empty_state(
@@ -138,7 +145,7 @@ fn render_compact_track_row(
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
-        track.name,
+        track.name.as_str(),
         TextRole::BodyS.font_id(),
         theme.text.secondary,
     );
@@ -174,7 +181,7 @@ fn render_compact_track_row(
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
             let dot_rect = egui::Rect::from_center_size(dot_pos, egui::vec2(8.0, 8.0));
-            let dot_id = ui.id().with(("kf_dot", track.name, *time_ms));
+            let dot_id = ui.id().with(("kf_dot", track.name.as_str(), *time_ms));
             let dot_response = ui.interact(dot_rect, dot_id, egui::Sense::click());
             ui.painter().circle_filled(dot_pos, size, color);
 
@@ -205,7 +212,7 @@ fn render_compact_track_row(
             });
 
             // Per-dot hover tooltip with value and easing info
-            Tooltip::new(ui.id().with(("kf_dot_tooltip", track.name, *time_ms))).show(
+            Tooltip::new(ui.id().with(("kf_dot_tooltip", track.name.as_str(), *time_ms))).show(
                 ui,
                 &dot_response,
                 |ui| {
@@ -241,7 +248,7 @@ fn render_compact_track_row(
         // Click to scrub
         let strip_response = ui.interact(
             strip_rect,
-            ui.id().with(("compact_strip", track.name)),
+            ui.id().with(("compact_strip", track.name.as_str())),
             egui::Sense::click_and_drag(),
         );
         if strip_response.clicked() || strip_response.dragged() {
@@ -254,50 +261,54 @@ fn render_compact_track_row(
     }
 
     // Hover tooltip showing keyframe values
-    Tooltip::new(ui.id().with(("compact_track_tooltip", track.name))).show(ui, &response, |ui| {
-        ui.horizontal(|ui| {
-            ui.strong(track.name);
-            ui.label(
-                egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
-                    .size(TextRole::Micro.size())
-                    .color(theme.text.muted),
-            );
-        });
-        ui.add_space(sp.base.space_1);
-        for (time_ms, value, easing) in &track.keyframes {
-            let is_current = *time_ms == current_time_ms;
-            let color = if is_current {
-                theme.status.warning
-            } else {
-                theme.text.secondary
-            };
+    Tooltip::new(ui.id().with(("compact_track_tooltip", track.name.as_str()))).show(
+        ui,
+        &response,
+        |ui| {
             ui.horizontal(|ui| {
-                let icon = egui_phosphor::regular::DIAMOND;
-                ui.label(egui::RichText::new(icon).size(TextRole::Micro.size()).color(color));
+                ui.strong(track.name.as_str());
                 ui.label(
-                    egui::RichText::new(format!("{:.2}s", *time_ms as f64 / 1000.0))
-                        .monospace()
-                        .size(TextRole::Micro.size())
-                        .color(color),
-                );
-                ui.label(
-                    egui::RichText::new(value)
-                        .size(TextRole::Micro.size())
-                        .color(theme.text.secondary),
-                );
-                ui.label(
-                    egui::RichText::new(easing_display_name(*easing))
+                    egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
                         .size(TextRole::Micro.size())
                         .color(theme.text.muted),
                 );
             });
-        }
-    });
+            ui.add_space(sp.base.space_1);
+            for (time_ms, value, easing) in &track.keyframes {
+                let is_current = *time_ms == current_time_ms;
+                let color = if is_current {
+                    theme.status.warning
+                } else {
+                    theme.text.secondary
+                };
+                ui.horizontal(|ui| {
+                    let icon = egui_phosphor::regular::DIAMOND;
+                    ui.label(egui::RichText::new(icon).size(TextRole::Micro.size()).color(color));
+                    ui.label(
+                        egui::RichText::new(format!("{:.2}s", *time_ms as f64 / 1000.0))
+                            .monospace()
+                            .size(TextRole::Micro.size())
+                            .color(color),
+                    );
+                    ui.label(
+                        egui::RichText::new(value)
+                            .size(TextRole::Micro.size())
+                            .color(theme.text.secondary),
+                    );
+                    ui.label(
+                        egui::RichText::new(easing_display_name(*easing))
+                            .size(TextRole::Micro.size())
+                            .color(theme.text.muted),
+                    );
+                });
+            }
+        },
+    );
 }
 
 // ─── Collection (generic via registry) ────────────────────────────────────
 
-fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
+fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<TrackGroup> {
     let indices = allowed_property_indices(track.kind);
 
     let mut transform = Vec::new();
@@ -325,7 +336,7 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
         }
 
         let info = PropertyTrackInfo {
-            name: schema.name,
+            name: schema.name.to_string(),
             keyframes,
         };
 
@@ -389,6 +400,40 @@ fn collect_track_groups(track: &AnimationTrack) -> Vec<TrackGroup> {
         groups.push(TrackGroup {
             icon: egui_phosphor::regular::FILM_STRIP,
             tracks: media,
+        });
+    }
+
+    let actor_type = track.actor_type.as_deref();
+    let mut extensions = Vec::new();
+    for spec in timeline.extension_property_specs() {
+        if Some(spec.actor_type.as_str()) != actor_type {
+            continue;
+        }
+        if track.property_plan.keyframe_count(spec.id) == 0 {
+            continue;
+        }
+        let mut keyframes = Vec::new();
+        for time_ms in track.property_plan.keyframe_times(spec.id) {
+            if let Some(value) = read_property_plan_slot(track, spec.id, time_ms) {
+                let easing = track
+                    .property_plan
+                    .keyframe_easing(spec.id, time_ms)
+                    .unwrap_or(animatix_syntax::easing::Easing::Linear);
+                keyframes.push((time_ms, format_value(&value, &spec.name), easing));
+            }
+        }
+        if keyframes.is_empty() {
+            continue;
+        }
+        extensions.push(PropertyTrackInfo {
+            name: spec.name.clone(),
+            keyframes,
+        });
+    }
+    if !extensions.is_empty() {
+        groups.push(TrackGroup {
+            icon: egui_phosphor::regular::PLUG,
+            tracks: extensions,
         });
     }
 

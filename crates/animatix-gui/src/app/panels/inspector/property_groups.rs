@@ -32,7 +32,7 @@ pub(crate) struct PropertyGroup {
 }
 
 pub(crate) struct PropertyEntry {
-    pub name: &'static str,
+    pub name: String,
     pub kind: PropertyKind,
     pub has_keyframes: bool,
     pub has_keyframe_at_current_time: bool,
@@ -64,7 +64,11 @@ pub(crate) enum PropertyKind {
 
 // ─── Group Builder (generic via registry) ─────────────────────────────────
 
-pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec<PropertyGroup> {
+pub(crate) fn build_property_groups(
+    timeline: &animatix::timeline::Timeline,
+    track: &AnimationTrack,
+    time_ms: u64,
+) -> Vec<PropertyGroup> {
     let indices = allowed_property_indices(track.kind);
 
     let mut geometry = Vec::new();
@@ -111,7 +115,7 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
             _ => value_to_kind(value, schema.value_type, schema.name),
         };
         let entry = PropertyEntry {
-            name: schema.name,
+            name: schema.name.to_string(),
             kind,
             has_keyframes: has_kf,
             has_keyframe_at_current_time: has_kf_now,
@@ -223,7 +227,48 @@ pub(crate) fn build_property_groups(track: &AnimationTrack, time_ms: u64) -> Vec
         });
     }
 
+    let mut extension_props = Vec::new();
+    let actor_type = track.actor_type.as_deref();
+    for spec in timeline.extension_property_specs() {
+        if Some(spec.actor_type.as_str()) != actor_type {
+            continue;
+        }
+        let Some(value) = animatix::timeline::read_property_plan_slot(track, spec.id, time_ms)
+        else {
+            continue;
+        };
+        extension_props.push(PropertyEntry {
+            name: spec.name.clone(),
+            kind: extension_value_to_kind(value),
+            has_keyframes: track.property_plan.keyframe_count(spec.id) > 0,
+            has_keyframe_at_current_time: track.property_plan.has_keyframe_at(spec.id, time_ms),
+            keyframe_count: track.property_plan.keyframe_count(spec.id),
+        });
+    }
+    if !extension_props.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Extensions",
+            icon: egui_phosphor::regular::PLUG,
+            properties: extension_props,
+        });
+    }
+
     groups
+}
+
+fn extension_value_to_kind(value: PropertyValue) -> PropertyKind {
+    match value {
+        PropertyValue::F32(v) => PropertyKind::Float(v),
+        PropertyValue::U32(v) => PropertyKind::U32(v),
+        PropertyValue::Vec2(v) => PropertyKind::Vec2 { x: v[0], y: v[1] },
+        PropertyValue::Vec4(v) | PropertyValue::Color(v) => PropertyKind::Color(v),
+        PropertyValue::String(s) => PropertyKind::Text(s),
+        PropertyValue::Bool(b) => PropertyKind::Enum {
+            variants: &["true", "false"],
+            value: b.to_string(),
+        },
+        other => PropertyKind::Text(format!("{other:?}")),
+    }
 }
 
 fn legend_participation_entry(
@@ -245,7 +290,7 @@ fn legend_participation_entry(
         },
     };
     PropertyEntry {
-        name: "legend",
+        name: "legend".to_string(),
         kind: PropertyKind::Sum {
             variants: LEGEND_SUM_VARIANTS,
             value,
@@ -257,9 +302,9 @@ fn legend_participation_entry(
 }
 
 fn legend_style_entries(track: &AnimationTrack) -> Vec<PropertyEntry> {
-    fn entry(name: &'static str, kind: PropertyKind) -> PropertyEntry {
+    fn entry(name: &str, kind: PropertyKind) -> PropertyEntry {
         PropertyEntry {
-            name,
+            name: name.to_string(),
             kind,
             has_keyframes: false,
             has_keyframe_at_current_time: false,
@@ -500,7 +545,7 @@ pub(crate) fn render_property_row(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        egui::RichText::new(entry.name)
+                        egui::RichText::new(entry.name.as_str())
                             .size(TextRole::BodyS.size())
                             .color(theme.text.secondary),
                     )
@@ -534,8 +579,11 @@ pub(crate) fn render_property_row(
         egui::pos2(kf_btn_left, row_rect.min.y + (row_height - INSPECTOR_KF_BTN_WIDTH) * 0.5),
         Vec2::new(INSPECTOR_KF_BTN_WIDTH, INSPECTOR_KF_BTN_WIDTH),
     );
-    let kf_btn_resp =
-        ui.interact(kf_btn_rect, ui.id().with(("kf_btn", entry.name)), egui::Sense::click());
+    let kf_btn_resp = ui.interact(
+        kf_btn_rect,
+        ui.id().with(("kf_btn", entry.name.as_str())),
+        egui::Sense::click(),
+    );
 
     // Draw diamond icon — dimmed when keyframe_mode is off and no keyframe exists
     let kf_color = if entry.has_keyframe_at_current_time {
@@ -646,7 +694,7 @@ pub(crate) fn render_property_row(
         PropertyKind::Vec2 { x, y } => {
             let nx = *x;
             let ny = *y;
-            let (a_label, b_label) = vec2_labels(entry.name);
+            let (a_label, b_label) = vec2_labels(&entry.name);
             ui.scope_builder(
                 egui::UiBuilder::new()
                     .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
@@ -719,11 +767,11 @@ pub(crate) fn render_property_row(
         PropertyKind::Float(v) => {
             let mut nv = *v;
             let is_01 = matches!(
-                entry.name,
+                entry.name.as_str(),
                 "opacity" | "fill_opacity" | "stroke_progress" | "sepia" | "volume"
             );
             let is_angle = entry.name == "rotation" || entry.name == "hue_rotate";
-            let unit = unit_suffix(entry.name);
+            let unit = unit_suffix(&entry.name);
             if is_01 {
                 ui.scope_builder(
                     egui::UiBuilder::new()
@@ -878,19 +926,21 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-                            let response =
-                                ColorPicker::new(ui.id().with(("color", entry.name)), &mut color)
-                                    .swatches(&[
-                                        theme.accent.primary,
-                                        theme.status.success,
-                                        theme.status.warning,
-                                        theme.status.error,
-                                        theme.text.primary,
-                                        theme.text.muted,
-                                        theme.surface.surface,
-                                        theme.surface.widget,
-                                    ])
-                                    .show(ui);
+                            let response = ColorPicker::new(
+                                ui.id().with(("color", entry.name.as_str())),
+                                &mut color,
+                            )
+                            .swatches(&[
+                                theme.accent.primary,
+                                theme.status.success,
+                                theme.status.warning,
+                                theme.status.error,
+                                theme.text.primary,
+                                theme.text.muted,
+                                theme.surface.surface,
+                                theme.surface.widget,
+                            ])
+                            .show(ui);
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(color_to_hex_rgba(color))
@@ -932,7 +982,11 @@ pub(crate) fn render_property_row(
                     *ui.style_mut() = flat_style.clone();
                     ui.add_sized(
                         Vec2::new(ui.available_width(), row_height - sp.base.space_2),
-                        Select::new(ui.id().with(("enum", entry.name)), &mut selected, variants),
+                        Select::new(
+                            ui.id().with(("enum", entry.name.as_str())),
+                            &mut selected,
+                            variants,
+                        ),
                     );
                 },
             );
@@ -1124,7 +1178,7 @@ pub(crate) fn render_property_row(
                                 ui.add_sized(
                                     Vec2::new(ui.available_width(), row_height - sp.base.space_2),
                                     Select::new(
-                                        ui.id().with(("enum", entry.name)),
+                                        ui.id().with(("enum", entry.name.as_str())),
                                         &mut sel_idx,
                                         &variants[..],
                                     ),
@@ -1147,29 +1201,31 @@ pub(crate) fn render_property_row(
                             } else if entry.name == "font_family" {
                                 let font_ctx = crate::fonts::system_font_context();
                                 let families = animatix_text::available_font_families(font_ctx);
-                                egui::ComboBox::from_id_salt(ui.id().with(("font", entry.name)))
-                                    .selected_text(text.as_str())
-                                    .width(ui.available_width())
-                                    .show_ui(ui, |ui| {
-                                        for family in families {
-                                            let label = format!("Aa   {}", family);
-                                            if ui
-                                                .stable_selectable_label(family == *text, label)
-                                                .clicked()
-                                            {
-                                                commands.push_back(
-                                                    DocumentCommand::PropertyEdit(PropertyEdit {
-                                                        time_s: None,
-                                                        actor: actor_label.to_string(),
-                                                        property: entry.name.to_string(),
-                                                        value: GuiPropertyValue::String(family),
-                                                        create_keyframe: keyframe_mode,
-                                                    })
-                                                    .into(),
-                                                );
-                                            }
+                                egui::ComboBox::from_id_salt(
+                                    ui.id().with(("font", entry.name.as_str())),
+                                )
+                                .selected_text(text.as_str())
+                                .width(ui.available_width())
+                                .show_ui(ui, |ui| {
+                                    for family in families {
+                                        let label = format!("Aa   {}", family);
+                                        if ui
+                                            .stable_selectable_label(family == *text, label)
+                                            .clicked()
+                                        {
+                                            commands.push_back(
+                                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                                    time_s: None,
+                                                    actor: actor_label.to_string(),
+                                                    property: entry.name.to_string(),
+                                                    value: GuiPropertyValue::String(family),
+                                                    create_keyframe: keyframe_mode,
+                                                })
+                                                .into(),
+                                            );
                                         }
-                                    });
+                                    }
+                                });
                             } else if entry.name == "text_content"
                                 || entry.name == "text"
                                 || entry.name == "source"
