@@ -33,6 +33,22 @@ mod taffy_layout;
 mod variable_tracks;
 
 #[test]
+fn property_descriptors_include_shared_builtin_schema() {
+    let report = Timeline::build_with_diagnostics(&[], &std::collections::HashMap::new());
+    let descriptors = report.output.property_descriptors();
+    assert!(
+        descriptors.iter().any(|descriptor| descriptor.name == "size"),
+        "built-in property descriptors should be exposed through the unified view"
+    );
+    assert!(
+        descriptors
+            .iter()
+            .any(|descriptor| descriptor.actor_types.contains(&"Rect".to_string())),
+        "unified descriptors should carry actor applicability"
+    );
+}
+
+#[test]
 fn get_track_mut_invalidates_frame_cache() {
     let ast = vec![Stmt::Keyframe {
         time: crate::ast::Time::Seconds(0.0),

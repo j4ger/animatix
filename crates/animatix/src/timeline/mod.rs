@@ -656,6 +656,32 @@ impl Timeline {
             .unwrap_or_default()
     }
 
+    /// Unified property descriptor view for built-in and extension properties.
+    ///
+    /// This is the tooling-facing migration point: consumers that need one
+    /// property table can use this instead of reading built-in and extension
+    /// tables separately.
+    pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        let mut descriptors = animatix_syntax::schema::property_specs()
+            .iter()
+            .map(|spec| {
+                let injectable =
+                    property_registry::property_schema_by_id(spec.id).is_some_and(|schema| {
+                        schema.flags.contains(property_registry::PropertyFlags::INJECTABLE)
+                    });
+                crate::property_descriptor::PropertyDescriptor::from_schema(spec, injectable)
+            })
+            .collect::<Vec<_>>();
+        if let Some(ctx) = self.extensions.as_ref() {
+            descriptors.extend(
+                ctx.property_specs()
+                    .iter()
+                    .map(crate::property_descriptor::PropertyDescriptor::from_extension),
+            );
+        }
+        descriptors
+    }
+
     /// Duration of the authored animation in seconds, derived from the latest
     /// keyframe across all tracks, background, and child order animations.
     pub fn duration_seconds(&self) -> f64 {

@@ -15,6 +15,8 @@ pub mod extension_plugin;
 pub mod ir;
 /// Primitive shape and media types.
 pub mod primitives;
+/// Unified property descriptors shared by built-in and extension properties.
+pub mod property_descriptor;
 /// Rendering backend (Vello/WGPU-based).
 pub mod renderer;
 /// Timeline construction, evaluation, and animation engine.
