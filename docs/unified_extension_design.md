@@ -131,6 +131,9 @@ completions, and native ABI compatibility.
 - Phase B implemented: the per-build capability container is now
   `ExtensionRegistry`; `ExtensionContext` remains as a compatibility alias,
   and `Timeline` stores `Arc<ExtensionRegistry>`.
+- Phase C implemented: `PropertyRegistry` now owns built-in
+  `PropertyEntry`/`PropertyBinding` rows plus extension specs, and
+  `Timeline::property_descriptors()` reads from that unified registry.
 - Phases 3-6 remain planned; they involve property binding migration,
   capability dispatch migration, native ABI v2, and tooling cleanup.
 

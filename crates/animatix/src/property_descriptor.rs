@@ -17,13 +17,14 @@ pub fn from_extension(spec: &ExtensionPropertySpec) -> PropertyDescriptor {
         id: spec.id,
         name: spec.name.clone(),
         actor_types: vec![spec.actor_type.clone()],
-        ty: type_from_kind(spec.kind),
+        ty: type_for_value_kind(spec.kind),
         value_kind: spec.kind,
         injectable: spec.injectable,
     }
 }
 
-fn type_from_kind(kind: PropertyValueKind) -> Type {
+/// Map a finite value kind to its analyzer-facing type.
+pub fn type_for_value_kind(kind: PropertyValueKind) -> Type {
     match kind {
         PropertyValueKind::F32 | PropertyValueKind::U32 => Type::Num,
         PropertyValueKind::Vec2 => Type::Vec2,

@@ -55,6 +55,154 @@ impl std::fmt::Display for PropertyRegistrationError {
 
 impl std::error::Error for PropertyRegistrationError {}
 
+/// Runtime binding for a built-in property descriptor.
+#[derive(Clone, Debug)]
+pub enum PropertyBinding {
+    /// Property reads/writes through a typed track field.
+    Direct {
+        /// Typed storage field.
+        field: crate::timeline::property_registry::ActorField,
+        /// Frame-time read source.
+        read_source: crate::timeline::property_registry::ReadSource,
+        /// Optional compound resolution group.
+        group: Option<crate::timeline::property_registry::GroupMembership>,
+        /// Runtime feature flags.
+        flags: crate::timeline::property_registry::PropertyFlags,
+        /// Default value, potentially actor-kind dependent.
+        default_value: fn(crate::timeline::ActorKindId) -> crate::timeline::PropertyValue,
+    },
+    /// Property lives in a dynamic `PropertyPlan` slot.
+    Plan {
+        /// Stable slot id.
+        id: PropertyId,
+    },
+    /// No runtime storage; metadata only (aliases/build-time descriptors).
+    None,
+}
+
+/// One registered property with its descriptor and runtime binding.
+#[derive(Clone, Debug)]
+pub struct PropertyEntry {
+    /// Shared descriptor.
+    pub descriptor: crate::property_descriptor::PropertyDescriptor,
+    /// Runtime binding.
+    pub binding: PropertyBinding,
+}
+
+/// Registry of built-in and extension property descriptors.
+#[derive(Default)]
+pub struct PropertyRegistry {
+    builtins: Vec<PropertyEntry>,
+    extensions: Vec<ExtensionPropertySpec>,
+    next_property_id: u32,
+}
+
+impl PropertyRegistry {
+    /// Create a registry seeded with built-in property entries.
+    pub fn new() -> Self {
+        let builtins = animatix_syntax::schema::property_specs()
+            .into_iter()
+            .map(|spec| {
+                let binding = crate::timeline::property_registry::property_schema_by_id(spec.id)
+                    .map(|schema| PropertyBinding::Direct {
+                        field: schema.field,
+                        read_source: schema.read_source,
+                        group: schema.group,
+                        flags: schema.flags,
+                        default_value: schema.default_value,
+                    })
+                    .unwrap_or(PropertyBinding::None);
+                let injectable = matches!(
+                    binding,
+                    PropertyBinding::Direct { flags, .. }
+                        if flags.contains(crate::timeline::property_registry::PropertyFlags::INJECTABLE)
+                );
+                PropertyEntry {
+                    descriptor: crate::property_descriptor::from_schema(&spec, injectable),
+                    binding,
+                }
+            })
+            .collect();
+        Self {
+            builtins,
+            extensions: Vec::new(),
+            next_property_id: 1_000_000,
+        }
+    }
+
+    /// Built-in property descriptors only, for timelines without extensions.
+    pub fn builtin_descriptors() -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        static CACHE: std::sync::OnceLock<Vec<crate::property_descriptor::PropertyDescriptor>> =
+            std::sync::OnceLock::new();
+        CACHE
+            .get_or_init(|| {
+                Self::new().builtins.iter().map(|entry| entry.descriptor.clone()).collect()
+            })
+            .clone()
+    }
+
+    /// Register an external property for an actor type.
+    pub fn register(
+        &mut self,
+        actor_type: &str,
+        name: &str,
+        kind: PropertyValueKind,
+        injectable: bool,
+    ) -> Result<PropertyId, PropertyRegistrationError> {
+        if crate::timeline::property_registry::property_id(name).is_some()
+            || self
+                .extensions
+                .iter()
+                .any(|property| property.actor_type == actor_type && property.name == name)
+        {
+            return Err(PropertyRegistrationError::Duplicate(format!("{actor_type}.{name}")));
+        }
+        let id = PropertyId(self.next_property_id);
+        self.next_property_id = self.next_property_id.saturating_add(1);
+        self.extensions.push(ExtensionPropertySpec {
+            id,
+            actor_type: actor_type.to_string(),
+            name: name.to_string(),
+            kind,
+            injectable,
+        });
+        Ok(id)
+    }
+
+    /// Remove an external property by actor type and name.
+    pub fn remove(&mut self, actor_type: &str, name: &str) -> bool {
+        let before = self.extensions.len();
+        self.extensions
+            .retain(|property| property.actor_type != actor_type || property.name != name);
+        self.extensions.len() != before
+    }
+
+    /// Look up an external property by actor type and name.
+    pub fn spec(&self, actor_type: &str, name: &str) -> Option<&ExtensionPropertySpec> {
+        self.extensions
+            .iter()
+            .find(|property| property.actor_type == actor_type && property.name == name)
+    }
+
+    /// Look up an external property by stable id.
+    pub fn spec_by_id(&self, id: PropertyId) -> Option<&ExtensionPropertySpec> {
+        self.extensions.iter().find(|property| property.id == id)
+    }
+
+    /// Return all external property descriptors in registration order.
+    pub fn specs(&self) -> &[ExtensionPropertySpec] {
+        &self.extensions
+    }
+
+    /// Return all built-in and extension descriptors in one view.
+    pub fn descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        let mut descriptors =
+            self.builtins.iter().map(|entry| entry.descriptor.clone()).collect::<Vec<_>>();
+        descriptors.extend(self.extensions.iter().map(crate::property_descriptor::from_extension));
+        descriptors
+    }
+}
+
 /// Per-build container of capabilities provided by extensions.
 ///
 /// This is the single registry for primitives, properties, actions, functions,
@@ -63,8 +211,7 @@ impl std::error::Error for PropertyRegistrationError {}
 #[derive(Default)]
 pub struct ExtensionRegistry {
     primitives: Arc<PrimitiveRegistry>,
-    properties: Vec<ExtensionPropertySpec>,
-    next_property_id: u32,
+    properties: PropertyRegistry,
     actions: Vec<Box<dyn BuiltinAction>>,
     functions: Vec<(String, Arc<ExtensionFunction>)>,
     services: HashMap<String, Arc<dyn Any + Send + Sync>>,
@@ -77,7 +224,7 @@ impl ExtensionRegistry {
     /// Create a context initialized with the built-in primitive registry.
     pub fn new() -> Self {
         Self {
-            next_property_id: 1_000_000,
+            properties: PropertyRegistry::new(),
             ..Self::default()
         }
     }
@@ -111,51 +258,32 @@ impl ExtensionRegistry {
         kind: PropertyValueKind,
         injectable: bool,
     ) -> Result<PropertyId, PropertyRegistrationError> {
-        let actor_type = actor_type.into();
-        let name = name.into();
-        if crate::timeline::property_registry::property_id(&name).is_some()
-            || self
-                .properties
-                .iter()
-                .any(|property| property.actor_type == actor_type && property.name == name)
-        {
-            return Err(PropertyRegistrationError::Duplicate(format!("{actor_type}.{name}")));
-        }
-        let id = PropertyId(self.next_property_id);
-        self.next_property_id = self.next_property_id.saturating_add(1);
-        self.properties.push(ExtensionPropertySpec {
-            id,
-            actor_type,
-            name,
-            kind,
-            injectable,
-        });
-        Ok(id)
+        self.properties.register(&actor_type.into(), &name.into(), kind, injectable)
     }
 
     /// Remove an external property by actor type and name.
     pub fn remove_property(&mut self, actor_type: &str, name: &str) -> bool {
-        let before = self.properties.len();
-        self.properties
-            .retain(|property| property.actor_type != actor_type || property.name != name);
-        self.properties.len() != before
+        self.properties.remove(actor_type, name)
     }
 
     /// Look up an external property by actor type and name.
     pub fn property_spec(&self, actor_type: &str, name: &str) -> Option<&ExtensionPropertySpec> {
-        self.properties
-            .iter()
-            .find(|property| property.actor_type == actor_type && property.name == name)
+        self.properties.spec(actor_type, name)
     }
 
     /// Look up an external property by stable id.
     pub fn property_spec_by_id(&self, id: PropertyId) -> Option<&ExtensionPropertySpec> {
-        self.properties.iter().find(|property| property.id == id)
+        self.properties.spec_by_id(id)
     }
 
     /// Return all external property descriptors in registration order.
     pub fn property_specs(&self) -> &[ExtensionPropertySpec] {
-        &self.properties
+        self.properties.specs()
+    }
+
+    /// Return all built-in and extension property descriptors.
+    pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
+        self.properties.descriptors()
     }
 
     /// Register or replace a custom action handler.
@@ -358,7 +486,7 @@ impl Drop for ExtensionScope<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::ExtensionContext;
+    use super::{ExtensionContext, PropertyBinding, PropertyRegistry};
     use crate::ast::Action;
     use crate::composition::BuildTarget;
     use crate::diagnostics::Diagnostic;
@@ -656,6 +784,23 @@ mod tests {
         };
         let scene = composition.scenes.get("A").expect("scene A");
         assert_eq!(scene.timeline.env.get("answer"), Some(Value::Num(42.0)));
+    }
+
+    #[test]
+    fn builtin_property_entries_cover_runtime_registry() {
+        let registry = PropertyRegistry::new();
+        for schema in crate::timeline::PROPERTY_REGISTRY {
+            let entry = registry
+                .builtins
+                .iter()
+                .find(|entry| entry.descriptor.name == schema.name)
+                .unwrap_or_else(|| panic!("missing property entry for {}", schema.name));
+            assert!(
+                matches!(entry.binding, PropertyBinding::Direct { .. }),
+                "runtime property {} must have a direct binding",
+                schema.name
+            );
+        }
     }
 
     #[test]

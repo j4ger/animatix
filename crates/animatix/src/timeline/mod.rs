@@ -662,22 +662,10 @@ impl Timeline {
     /// property table can use this instead of reading built-in and extension
     /// tables separately.
     pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
-        let mut descriptors = animatix_syntax::schema::property_specs()
-            .iter()
-            .map(|spec| {
-                let injectable =
-                    property_registry::property_schema_by_id(spec.id).is_some_and(|schema| {
-                        schema.flags.contains(property_registry::PropertyFlags::INJECTABLE)
-                    });
-                crate::property_descriptor::from_schema(spec, injectable)
-            })
-            .collect::<Vec<_>>();
-        if let Some(ctx) = self.extensions.as_ref() {
-            descriptors.extend(
-                ctx.property_specs().iter().map(crate::property_descriptor::from_extension),
-            );
+        match self.extensions.as_ref() {
+            Some(registry) => registry.property_descriptors(),
+            None => crate::extension_context::PropertyRegistry::builtin_descriptors(),
         }
-        descriptors
     }
 
     /// Duration of the authored animation in seconds, derived from the latest
