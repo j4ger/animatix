@@ -314,3 +314,5 @@ Acceptance:
 - Phase 6: extension property end-to-end tests cover custom primitives,
   built-in actors, declaration keyframes, assignment transitions, and frame
   environment injection.
+- Phase 6: CI no longer runs the removed tree-sitter parser sync job; a quick
+  `extension-bench.sh --max-plan-ns 10000` gate now runs on pull requests.

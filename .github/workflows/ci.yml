@@ -52,17 +52,15 @@ jobs:
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-  parser-sync:
-    name: Parser Sync
+  extension-bench:
+    name: Extension Bench Gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Install tree-sitter CLI
-        run: npm install -g tree-sitter-cli
-      - name: Run parser sync check
-        run: bash scripts/check-parser-sync.sh
+      - name: Run extension benchmark gate
+        run: bash scripts/extension-bench.sh --quick --max-plan-ns 10000
 
   fmt:
     name: Format
