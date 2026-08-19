@@ -34,6 +34,8 @@ pub struct ExtensionPropertySpec {
     pub name: String,
     /// Finite value kind used by the dynamic track.
     pub kind: PropertyValueKind,
+    /// Optional precise type annotation for tooling; falls back to `kind`.
+    pub ty: Option<animatix_syntax::typing::Type>,
     /// Whether the property is injected into frame environments.
     pub injectable: bool,
     /// Human-readable name for GUI labels, when it differs from `name`.
@@ -191,6 +193,30 @@ impl PropertyRegistry {
         group: Option<String>,
         help: Option<String>,
     ) -> Result<PropertyId, PropertyRegistrationError> {
+        self.register_full_typed(
+            actor_type,
+            name,
+            kind,
+            None,
+            injectable,
+            display_name,
+            group,
+            help,
+        )
+    }
+
+    /// Register an external property with a precise type annotation.
+    pub fn register_full_typed(
+        &mut self,
+        actor_type: &str,
+        name: &str,
+        kind: PropertyValueKind,
+        ty: Option<animatix_syntax::typing::Type>,
+        injectable: bool,
+        display_name: Option<String>,
+        group: Option<String>,
+        help: Option<String>,
+    ) -> Result<PropertyId, PropertyRegistrationError> {
         if crate::timeline::property_registry::property_id(name).is_some()
             || self
                 .extensions
@@ -206,6 +232,7 @@ impl PropertyRegistry {
             actor_type: actor_type.to_string(),
             name: name.to_string(),
             kind,
+            ty,
             injectable,
             display_name,
             group,
@@ -264,7 +291,9 @@ pub struct ExtensionRegistry {
     properties: PropertyRegistry,
     actions: Vec<Box<dyn BuiltinAction>>,
     functions: Vec<(String, Arc<ExtensionFunction>)>,
+    function_descriptors: Vec<animatix_syntax::schema::FunctionDescriptor>,
     services: HashMap<String, Arc<dyn Any + Send + Sync>>,
+    service_descriptors: Vec<animatix_syntax::schema::ServiceDescriptor>,
 }
 
 /// Compatibility alias for the unified extension registry.
@@ -326,6 +355,30 @@ impl ExtensionRegistry {
             &actor_type.into(),
             &name.into(),
             kind,
+            injectable,
+            display_name,
+            group,
+            help,
+        )
+    }
+
+    /// Register an external property with a precise tooling type.
+    pub fn register_property_full_typed(
+        &mut self,
+        actor_type: impl Into<String>,
+        name: impl Into<String>,
+        kind: PropertyValueKind,
+        ty: Option<animatix_syntax::typing::Type>,
+        injectable: bool,
+        display_name: Option<String>,
+        group: Option<String>,
+        help: Option<String>,
+    ) -> Result<PropertyId, PropertyRegistrationError> {
+        self.properties.register_full_typed(
+            &actor_type.into(),
+            &name.into(),
+            kind,
+            ty,
             injectable,
             display_name,
             group,
@@ -412,17 +465,44 @@ impl ExtensionRegistry {
         F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
     {
         let name = name.into();
+        let descriptor = animatix_syntax::schema::FunctionDescriptor {
+            name: name.clone(),
+            params: Vec::new(),
+            return_type: None,
+            help: None,
+        };
+        self.register_function_with_descriptor(name, call, descriptor)
+    }
+
+    /// Register a function together with tooling metadata.
+    pub fn register_function_with_descriptor<F>(
+        &mut self,
+        name: impl Into<String>,
+        call: F,
+        descriptor: animatix_syntax::schema::FunctionDescriptor,
+    ) -> Result<(), ExtensionRegistrationError>
+    where
+        F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
+    {
+        let name = name.into();
         if self.functions.iter().any(|(existing, _)| *existing == name) {
             return Err(ExtensionRegistrationError::Duplicate(name));
         }
-        self.functions.push((name, Arc::new(call)));
+        self.functions.push((name.clone(), Arc::new(call)));
+        self.function_descriptors.push(descriptor);
         Ok(())
+    }
+
+    /// Return registered function descriptors.
+    pub fn function_descriptors(&self) -> Vec<animatix_syntax::schema::FunctionDescriptor> {
+        self.function_descriptors.clone()
     }
 
     /// Remove a registered expression function.
     pub fn remove_function(&mut self, name: &str) -> bool {
         let before = self.functions.len();
         self.functions.retain(|(existing, _)| existing != name);
+        self.function_descriptors.retain(|descriptor| descriptor.name != name);
         self.functions.len() != before
     }
 
@@ -445,16 +525,43 @@ impl ExtensionRegistry {
         T: Any + Send + Sync,
     {
         let name = name.into();
+        let descriptor = animatix_syntax::schema::ServiceDescriptor {
+            name: name.clone(),
+            type_info: None,
+            help: None,
+        };
+        self.provide_with_descriptor(name, service, descriptor)
+    }
+
+    /// Provide a service together with tooling metadata.
+    pub fn provide_with_descriptor<T>(
+        &mut self,
+        name: impl Into<String>,
+        service: T,
+        descriptor: animatix_syntax::schema::ServiceDescriptor,
+    ) -> Result<(), ExtensionRegistrationError>
+    where
+        T: Any + Send + Sync,
+    {
+        let name = name.into();
         if self.services.contains_key(&name) {
             return Err(ExtensionRegistrationError::Duplicate(name));
         }
-        self.services.insert(name, Arc::new(service));
+        self.services.insert(name.clone(), Arc::new(service));
+        self.service_descriptors.push(descriptor);
         Ok(())
+    }
+
+    /// Return registered service descriptors.
+    pub fn service_descriptors(&self) -> Vec<animatix_syntax::schema::ServiceDescriptor> {
+        self.service_descriptors.clone()
     }
 
     /// Remove a provided service.
     pub fn remove_service(&mut self, name: &str) -> bool {
-        self.services.remove(name).is_some()
+        let removed = self.services.remove(name).is_some();
+        self.service_descriptors.retain(|descriptor| descriptor.name != name);
+        removed
     }
 
     /// Read a typed service.
@@ -749,6 +856,98 @@ mod tests {
         let mut env = crate::timeline::Environment::new();
         ctx.install_functions(&mut env);
         assert!(matches!(env.get("double"), Some(Value::NativeFn(_))));
+    }
+
+    #[test]
+    fn context_records_tooling_descriptors() {
+        let mut ctx = ExtensionContext::new();
+        ctx.register_action(Box::new(MarkAction)).expect("register action");
+        ctx.register_function_with_descriptor(
+            "double",
+            |_args, _env| Ok(Value::Num(42.0)),
+            animatix_syntax::schema::FunctionDescriptor {
+                name: "double".to_string(),
+                params: vec![animatix_syntax::schema::ActionParam {
+                    name: "value".to_string(),
+                    description: "Input value".to_string(),
+                    type_info: "Num".to_string(),
+                }],
+                return_type: Some(animatix_syntax::typing::Type::Num),
+                help: Some("Doubles a number".to_string()),
+            },
+        )
+        .expect("register function");
+        ctx.provide_with_descriptor(
+            "theme",
+            "dark",
+            animatix_syntax::schema::ServiceDescriptor {
+                name: "theme".to_string(),
+                type_info: Some("str".to_string()),
+                help: None,
+            },
+        )
+        .expect("provide service");
+
+        assert_eq!(ctx.action_signatures()[0].name, "mark");
+        assert_eq!(ctx.function_descriptors()[0].params[0].name, "value");
+        assert_eq!(ctx.service_descriptors()[0].type_info.as_deref(), Some("str"));
+    }
+
+    #[test]
+    fn extension_bool_property_roundtrips() {
+        use animatix_syntax::schema::{PropertyId, PropertyValueKind};
+
+        let (ast, errors) = animatix_syntax::parser::parse_source(
+            "r: Rect, visible: true\n#1s\n r.visible = false",
+        );
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let mut ctx = ExtensionContext::new();
+        ctx.register_property("Rect", "visible", PropertyValueKind::Bool, true)
+            .expect("register property");
+
+        let report =
+            Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let track = report.output.tracks.get("r").expect("rect track");
+        let slot = track.property_plan.get(PropertyId(1_000_000)).expect("bool slot");
+        assert_eq!(slot.track.sample(0), Some(crate::timeline::PropertyValue::Bool(true)));
+        assert_eq!(slot.track.sample(1000), Some(crate::timeline::PropertyValue::Bool(false)));
+
+        let frame_env = report.output.build_frame_env(
+            1000,
+            crate::timeline::SceneDimensions::default(),
+            &std::collections::HashMap::new(),
+        );
+        assert_eq!(frame_env.get("r.visible"), Some(Value::Bool(false)));
+    }
+
+    #[test]
+    fn typed_property_descriptor_preserves_precise_type() {
+        use animatix_syntax::schema::PropertyValueKind;
+        use animatix_syntax::typing::Type;
+
+        let mut ctx = ExtensionContext::new();
+        ctx.register_property_full_typed(
+            "Pulse",
+            "glow",
+            PropertyValueKind::Vec4,
+            Some(Type::Color),
+            true,
+            None,
+            None,
+            None,
+        )
+        .expect("register typed property");
+
+        let descriptor = ctx.extension_property_descriptors().pop().expect("descriptor");
+        assert_eq!(descriptor.ty, Type::Color);
+        assert_eq!(descriptor.value_kind, PropertyValueKind::Vec4);
     }
 
     #[test]

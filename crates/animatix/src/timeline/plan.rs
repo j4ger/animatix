@@ -23,6 +23,8 @@ pub enum PropertyKind {
     F32,
     /// 32-bit unsigned integer.
     U32,
+    /// Boolean flag.
+    Bool,
     /// 2D vector.
     Vec2,
     /// 4D vector / color.
@@ -40,6 +42,7 @@ impl From<PropertyValueKind> for PropertyKind {
         match kind {
             PropertyValueKind::F32 => Self::F32,
             PropertyValueKind::U32 => Self::U32,
+            PropertyValueKind::Bool => Self::Bool,
             PropertyValueKind::Vec2 => Self::Vec2,
             PropertyValueKind::Vec4 => Self::Vec4,
             PropertyValueKind::String => Self::String,
@@ -218,6 +221,8 @@ pub enum DynTrack {
     F32(Option<PropertyTrack<f32>>),
     /// Unsigned integer track.
     U32(Option<PropertyTrack<u32>>),
+    /// Boolean track.
+    Bool(Option<PropertyTrack<bool>>),
     /// 2D vector track.
     Vec2(Option<PropertyTrack<[f32; 2]>>),
     /// 4D vector / color track.
@@ -236,6 +241,7 @@ impl DynTrack {
         match kind {
             PropertyKind::F32 => Self::F32(None),
             PropertyKind::U32 => Self::U32(None),
+            PropertyKind::Bool => Self::Bool(None),
             PropertyKind::Vec2 => Self::Vec2(None),
             PropertyKind::Vec4 => Self::Vec4(None),
             PropertyKind::String => Self::String(None),
@@ -249,6 +255,7 @@ impl DynTrack {
         match self {
             Self::F32(_) => PropertyKind::F32,
             Self::U32(_) => PropertyKind::U32,
+            Self::Bool(_) => PropertyKind::Bool,
             Self::Vec2(_) => PropertyKind::Vec2,
             Self::Vec4(_) => PropertyKind::Vec4,
             Self::String(_) => PropertyKind::String,
@@ -277,6 +284,11 @@ impl DynTrack {
             },
             (Self::U32(track), PropertyValue::U32(value)) => {
                 let track = track.get_or_insert_with(|| PropertyTrack::new(0));
+                track.add_keyframe(time_ms, value, easing);
+                Some(())
+            },
+            (Self::Bool(track), PropertyValue::Bool(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(false));
                 track.add_keyframe(time_ms, value, easing);
                 Some(())
             },
@@ -315,6 +327,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => Some(PropertyValue::F32(track.evaluate(time_ms))),
             Self::U32(Some(track)) => Some(PropertyValue::U32(track.evaluate(time_ms))),
+            Self::Bool(Some(track)) => Some(PropertyValue::Bool(track.evaluate(time_ms))),
             Self::Vec2(Some(track)) => Some(PropertyValue::Vec2(track.evaluate(time_ms))),
             Self::Vec4(Some(track)) => Some(PropertyValue::Vec4(track.evaluate(time_ms))),
             Self::String(Some(track)) => Some(PropertyValue::String(track.evaluate(time_ms))),
@@ -329,6 +342,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => track.keyframes.len(),
             Self::U32(Some(track)) => track.keyframes.len(),
+            Self::Bool(Some(track)) => track.keyframes.len(),
             Self::Vec2(Some(track)) => track.keyframes.len(),
             Self::Vec4(Some(track)) => track.keyframes.len(),
             Self::String(Some(track)) => track.keyframes.len(),
@@ -343,6 +357,7 @@ impl DynTrack {
         let mut times = match self {
             Self::F32(Some(track)) => track.keyframes.keys().copied().collect(),
             Self::U32(Some(track)) => track.keyframes.keys().copied().collect(),
+            Self::Bool(Some(track)) => track.keyframes.keys().copied().collect(),
             Self::Vec2(Some(track)) => track.keyframes.keys().copied().collect(),
             Self::Vec4(Some(track)) => track.keyframes.keys().copied().collect(),
             Self::String(Some(track)) => track.keyframes.keys().copied().collect(),
@@ -359,6 +374,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => track.keyframes.contains_key(&time_ms),
             Self::U32(Some(track)) => track.keyframes.contains_key(&time_ms),
+            Self::Bool(Some(track)) => track.keyframes.contains_key(&time_ms),
             Self::Vec2(Some(track)) => track.keyframes.contains_key(&time_ms),
             Self::Vec4(Some(track)) => track.keyframes.contains_key(&time_ms),
             Self::String(Some(track)) => track.keyframes.contains_key(&time_ms),
@@ -373,6 +389,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
             Self::U32(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
+            Self::Bool(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
             Self::Vec2(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
             Self::Vec4(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
             Self::String(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
@@ -389,6 +406,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => track.last_keyframe_time(),
             Self::U32(Some(track)) => track.last_keyframe_time(),
+            Self::Bool(Some(track)) => track.last_keyframe_time(),
             Self::Vec2(Some(track)) => track.last_keyframe_time(),
             Self::Vec4(Some(track)) => track.last_keyframe_time(),
             Self::String(Some(track)) => track.last_keyframe_time(),
@@ -403,6 +421,7 @@ impl DynTrack {
         match self {
             Self::F32(Some(track)) => !track.is_effectively_static(),
             Self::U32(Some(track)) => !track.is_effectively_static(),
+            Self::Bool(Some(track)) => !track.is_effectively_static(),
             Self::Vec2(Some(track)) => !track.is_effectively_static(),
             Self::Vec4(Some(track)) => !track.is_effectively_static(),
             Self::String(Some(track)) => !track.is_effectively_static(),

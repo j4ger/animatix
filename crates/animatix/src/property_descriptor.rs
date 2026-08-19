@@ -17,7 +17,7 @@ pub fn from_extension(spec: &ExtensionPropertySpec) -> PropertyDescriptor {
         id: Some(spec.id),
         name: spec.name.clone(),
         actor_types: vec![spec.actor_type.clone()],
-        ty: type_for_value_kind(spec.kind),
+        ty: spec.ty.clone().unwrap_or_else(|| type_for_value_kind(spec.kind)),
         value_kind: spec.kind,
         injectable: spec.injectable,
         display_name: spec.display_name.clone(),
@@ -38,6 +38,7 @@ pub fn runtime_id(descriptor: &PropertyDescriptor) -> PropertyId {
 pub fn type_for_value_kind(kind: PropertyValueKind) -> Type {
     match kind {
         PropertyValueKind::F32 | PropertyValueKind::U32 => Type::Num,
+        PropertyValueKind::Bool => Type::Bool,
         PropertyValueKind::Vec2 => Type::Vec2,
         PropertyValueKind::Vec4 => Type::Vec4,
         PropertyValueKind::String => Type::Str,
@@ -76,6 +77,7 @@ mod tests {
             actor_type: "Gauge".to_string(),
             name: "level".to_string(),
             kind: PropertyValueKind::F32,
+            ty: None,
             injectable: true,
             display_name: Some("Level".to_string()),
             group: Some("Value".to_string()),

@@ -572,6 +572,10 @@ pub(crate) fn parse_extension_property_value(
             Value::Num(n) if n >= 0.0 && n <= u32::MAX as f64 => Some(PropertyValue::U32(n as u32)),
             _ => None,
         },
+        PropertyValueKind::Bool => match value {
+            Value::Bool(b) => Some(PropertyValue::Bool(b)),
+            _ => None,
+        },
         PropertyValueKind::Vec2 => match value {
             Value::Vec2(v) => Some(PropertyValue::Vec2([v[0] as f32, v[1] as f32])),
             _ => None,

@@ -48,6 +48,8 @@ pub const NATIVE_VALUE_VARIANT: u32 = 14;
 pub const NATIVE_PROPERTY_F32: u32 = 0;
 /// 32-bit unsigned integer property kind.
 pub const NATIVE_PROPERTY_U32: u32 = 1;
+/// Boolean property kind.
+pub const NATIVE_PROPERTY_BOOL: u32 = 7;
 /// 2D vector property kind.
 pub const NATIVE_PROPERTY_VEC2: u32 = 2;
 /// 4D vector/color property kind.

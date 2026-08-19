@@ -3,30 +3,7 @@ use crate::diagnostics::Diagnostic;
 use crate::timeline::Timeline;
 
 /// Description of a single action parameter or modifier.
-#[derive(Debug, Clone)]
-pub struct ActionParam {
-    /// Parameter name as used in source code (e.g. `"ease"`, `"to"`).
-    pub name: String,
-    /// Human-readable description of the parameter's purpose.
-    pub description: String,
-    /// Expected type for documentation and UI hints (e.g. `"vec2"`, `"string"`).
-    pub type_info: String,
-}
-
-/// Metadata describing a built-in action for LSP completions and UI tooltips.
-#[derive(Debug, Clone)]
-pub struct ActionSignature {
-    /// Action verb as written in source (e.g. `"fade-in"`, `"move"`).
-    pub name: String,
-    /// High-level grouping for UI organization (e.g. `"Entrance"`, `"Motion"`).
-    pub category: String,
-    /// One-line explanation of what the action does.
-    pub description: String,
-    /// Positional arguments accepted by the action.
-    pub params: Vec<ActionParam>,
-    /// Named modifiers accepted by the action.
-    pub modifiers: Vec<ActionParam>,
-}
+pub use animatix_syntax::schema::{ActionParam, ActionSignature};
 
 /// Trait implemented by every built-in timeline action.
 pub trait BuiltinAction: Send + Sync {

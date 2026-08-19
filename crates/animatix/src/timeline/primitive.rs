@@ -11,25 +11,17 @@ pub enum PrimitiveFamily {
     Group,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PrimitiveCapabilities {
-    pub text_paths: bool,
-    pub vector_paths: bool,
-    pub image_payload: bool,
-    pub layout_container: bool,
-    pub morphable_paths: bool,
-    pub vector_reveal_target: bool,
-    pub plot_geometry: bool,
-}
+/// Capability flags shared with schema/tooling descriptors.
+pub type PrimitiveCapabilities = animatix_syntax::schema::PrimitiveCapabilities;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PrimitiveDescriptor {
+pub struct PrimitiveFamilyDescriptor {
     pub actor_type: &'static str,
     pub family: PrimitiveFamily,
     pub capabilities: PrimitiveCapabilities,
 }
 
-impl PrimitiveDescriptor {
+impl PrimitiveFamilyDescriptor {
     pub fn for_actor_type(actor_type: &str) -> Self {
         if let Some(primitive) = find_primitive(actor_type) {
             let caps = primitive.capabilities();
@@ -149,11 +141,11 @@ impl PrimitiveDescriptor {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrimitiveDescriptor, PrimitiveFamily};
+    use super::{PrimitiveFamily, PrimitiveFamilyDescriptor};
 
     #[test]
     fn classifies_text_like_primitives() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("Text");
+        let descriptor = PrimitiveFamilyDescriptor::for_actor_type("Text");
         assert_eq!(descriptor.family, PrimitiveFamily::TextLike);
         assert!(descriptor.capabilities.text_paths);
         assert!(descriptor.capabilities.morphable_paths);
@@ -161,21 +153,21 @@ mod tests {
 
     #[test]
     fn classifies_plot_primitives() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("PlotCurve");
+        let descriptor = PrimitiveFamilyDescriptor::for_actor_type("PlotCurve");
         assert_eq!(descriptor.family, PrimitiveFamily::Plot);
         assert!(descriptor.capabilities.plot_geometry);
     }
 
     #[test]
     fn classifies_layout_containers() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("Row");
+        let descriptor = PrimitiveFamilyDescriptor::for_actor_type("Row");
         assert_eq!(descriptor.family, PrimitiveFamily::Container);
         assert!(descriptor.is_layout_container());
     }
 
     #[test]
     fn treats_circle_as_vector_shape() {
-        let descriptor = PrimitiveDescriptor::for_actor_type("Ellipse");
+        let descriptor = PrimitiveFamilyDescriptor::for_actor_type("Ellipse");
         assert_eq!(descriptor.family, PrimitiveFamily::VectorShape);
         assert!(descriptor.capabilities.vector_paths);
     }

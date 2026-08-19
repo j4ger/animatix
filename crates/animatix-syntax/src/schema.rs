@@ -30,6 +30,8 @@ pub enum PropertyValueKind {
     F32,
     /// 32-bit unsigned integer.
     U32,
+    /// Boolean flag.
+    Bool,
     /// 2D vector.
     Vec2,
     /// 4D vector or color.
@@ -98,6 +100,56 @@ impl PropertyDescriptor {
             help: None,
         }
     }
+}
+
+/// Description of one action parameter or named modifier.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActionParam {
+    /// Parameter name as written in source, e.g. `"to"`.
+    pub name: String,
+    /// Human-readable description.
+    pub description: String,
+    /// Expected type information for docs, completion, and validation.
+    pub type_info: String,
+}
+
+/// Description of a built-in or extension action.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActionSignature {
+    /// Action verb as written in source, e.g. `"fade-in"`.
+    pub name: String,
+    /// High-level grouping for UI organization, e.g. `"Motion"`.
+    pub category: String,
+    /// One-line explanation of what the action does.
+    pub description: String,
+    /// Positional arguments accepted by the action.
+    pub params: Vec<ActionParam>,
+    /// Named modifiers accepted by the action.
+    pub modifiers: Vec<ActionParam>,
+}
+
+/// Description of an extension expression function.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FunctionDescriptor {
+    /// Function name as written in source.
+    pub name: String,
+    /// Positional parameter descriptions.
+    pub params: Vec<ActionParam>,
+    /// Optional return type for language intelligence.
+    pub return_type: Option<Type>,
+    /// Optional help text.
+    pub help: Option<String>,
+}
+
+/// Description of an opaque extension service.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ServiceDescriptor {
+    /// Canonical service name.
+    pub name: String,
+    /// Optional type information for tooling.
+    pub type_info: Option<String>,
+    /// Optional help text.
+    pub help: Option<String>,
 }
 
 /// UI/domain category for a primitive.

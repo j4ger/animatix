@@ -26,7 +26,7 @@ impl Timeline {
         vector_shape_state: &VectorShapeState,
         parent_label: Option<&str>,
     ) -> Vec<VelloPath> {
-        let primitive = PrimitiveDescriptor::for_actor_type(ty);
+        let primitive = PrimitiveFamilyDescriptor::for_actor_type(ty);
         if primitive.is_graph_host() {
             return build_graph_axis_paths(
                 size,
@@ -281,7 +281,7 @@ impl Timeline {
             return;
         };
 
-        let primitive = PrimitiveDescriptor::for_actor_type(ty);
+        let primitive = PrimitiveFamilyDescriptor::for_actor_type(ty);
         let existing_track = self
             .tracks
             .get(label)

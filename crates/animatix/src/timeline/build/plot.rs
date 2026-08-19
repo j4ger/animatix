@@ -540,7 +540,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         existing_track: &AnimationTrack,
     ) -> Option<ProcessedPlotActor> {
-        let primitive = PrimitiveDescriptor::for_actor_type(ty);
+        let primitive = PrimitiveFamilyDescriptor::for_actor_type(ty);
         if !primitive.is_graph_host() && !primitive.is_plot() {
             return None;
         }

@@ -341,6 +341,7 @@ fn collapse_dyn_track(track: &mut crate::timeline::DynTrack, time_ms: u64) {
     match track {
         crate::timeline::DynTrack::F32(t) => collapse_optional_track(t, time_ms),
         crate::timeline::DynTrack::U32(t) => collapse_optional_track(t, time_ms),
+        crate::timeline::DynTrack::Bool(t) => collapse_optional_track(t, time_ms),
         crate::timeline::DynTrack::Vec2(t) => collapse_optional_track(t, time_ms),
         crate::timeline::DynTrack::Vec4(t) => collapse_optional_track(t, time_ms),
         crate::timeline::DynTrack::String(t) => collapse_optional_track(t, time_ms),

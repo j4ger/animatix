@@ -152,7 +152,7 @@ use position::{
     preserve_discrete_position_state_before, resolve_bound_position,
     resolve_position_binding_with_lookup_diagnostic, set_track_position_binding,
 };
-pub(crate) use primitive::PrimitiveDescriptor;
+pub(crate) use primitive::PrimitiveFamilyDescriptor;
 pub use shapes::{
     ShapeType, VectorShapeState, VectorShapeStyle, apply_vector_shape_defaults,
     apply_vector_shape_property, build_shape_vello_path, build_vector_shape_vello_path,
@@ -663,6 +663,36 @@ impl Timeline {
         self.extensions
             .as_ref()
             .map(|ctx| ctx.extension_property_descriptors())
+            .unwrap_or_default()
+    }
+
+    /// Signatures for extension actions installed on this build.
+    pub fn extension_action_signatures(
+        &self,
+    ) -> Vec<animatix_syntax::schema::ActionSignature> {
+        self.extensions
+            .as_ref()
+            .map(|ctx| ctx.action_signatures())
+            .unwrap_or_default()
+    }
+
+    /// Descriptors for extension functions installed on this build.
+    pub fn extension_function_descriptors(
+        &self,
+    ) -> Vec<animatix_syntax::schema::FunctionDescriptor> {
+        self.extensions
+            .as_ref()
+            .map(|ctx| ctx.function_descriptors())
+            .unwrap_or_default()
+    }
+
+    /// Descriptors for extension services installed on this build.
+    pub fn extension_service_descriptors(
+        &self,
+    ) -> Vec<animatix_syntax::schema::ServiceDescriptor> {
+        self.extensions
+            .as_ref()
+            .map(|ctx| ctx.service_descriptors())
             .unwrap_or_default()
     }
 

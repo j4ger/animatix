@@ -55,6 +55,8 @@ struct RawPrimitive {
     #[serde(default)]
     child_processing: Option<String>,
     #[serde(default)]
+    properties: Vec<String>,
+    #[serde(default)]
     text_paths: bool,
     #[serde(default)]
     vector_paths: bool,
@@ -127,6 +129,7 @@ struct OutputPrimitive<'a> {
     is_shape: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     child_processing: Option<&'static str>,
+    properties: Vec<&'a str>,
 }
 
 #[derive(Serialize)]
@@ -190,15 +193,22 @@ impl ExtensionManifest {
             library,
             primitives: primitives
                 .iter()
-                .map(|spec| PrimitiveDescriptor {
-                    type_name: spec.type_name.clone(),
-                    display_name: spec.display_name.clone(),
-                    category: spec.category,
-                    icon_id: spec.icon_id.clone(),
-                    advanced: spec.advanced,
-                    capabilities: spec.capabilities,
-                    child_processing: spec.child_processing,
-                    properties: Vec::new(),
+                .map(|spec| {
+                    let declared = properties
+                        .iter()
+                        .filter(|property| property.actor_types.iter().any(|ty| ty == &spec.type_name))
+                        .map(|property| property.name.clone())
+                        .collect();
+                    PrimitiveDescriptor {
+                        type_name: spec.type_name.clone(),
+                        display_name: spec.display_name.clone(),
+                        category: spec.category,
+                        icon_id: spec.icon_id.clone(),
+                        advanced: spec.advanced,
+                        capabilities: spec.capabilities,
+                        child_processing: spec.child_processing,
+                        properties: declared,
+                    }
                 })
                 .collect(),
             properties: properties
@@ -241,6 +251,11 @@ impl ExtensionManifest {
                     is_container: primitive.capabilities.is_container,
                     is_shape: primitive.capabilities.is_shape,
                     child_processing: output_child_processing(primitive.child_processing),
+                    properties: primitive
+                        .properties
+                        .iter()
+                        .map(String::as_str)
+                        .collect(),
                 })
                 .collect(),
             properties: self
@@ -330,7 +345,7 @@ impl ExtensionManifest {
                         .as_deref()
                         .and_then(parse_child_processing)
                         .unwrap_or_default(),
-                    properties: Vec::new(),
+                    properties: primitive.properties,
                 }
             })
             .collect();
@@ -369,6 +384,7 @@ fn manifest_value_kind(ty: &str) -> PropertyValueKind {
     match ty.trim() {
         "Num" => PropertyValueKind::F32,
         "U32" => PropertyValueKind::U32,
+        "Bool" => PropertyValueKind::Bool,
         "Str" | "String" => PropertyValueKind::String,
         "Vec2" => PropertyValueKind::Vec2,
         "Vec4" | "Color" => PropertyValueKind::Vec4,
@@ -396,6 +412,7 @@ fn output_property_type(kind: PropertyValueKind) -> &'static str {
     match kind {
         PropertyValueKind::F32 => "Num",
         PropertyValueKind::U32 => "U32",
+        PropertyValueKind::Bool => "Bool",
         PropertyValueKind::Vec2 => "Vec2",
         PropertyValueKind::Vec4 => "Vec4",
         PropertyValueKind::String => "Str",

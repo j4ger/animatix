@@ -15,7 +15,7 @@ use animatix_plugin_api::{
     NATIVE_PATH_POLYGON, NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT,
     NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
-    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
+    NATIVE_PROPERTY_BOOL, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
     NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
     NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
     NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
@@ -1110,6 +1110,9 @@ fn native_to_property_value(
         PropertyValueKind::U32 => (native.tag == NATIVE_VALUE_NUM
             || native.tag == NATIVE_VALUE_U32)
             .then_some(PropertyValue::U32(native.num.max(0.0) as u32)),
+        PropertyValueKind::Bool => {
+            (native.tag == NATIVE_VALUE_BOOL).then_some(PropertyValue::Bool(native.boolean))
+        },
         PropertyValueKind::Vec2 => (native.tag == NATIVE_VALUE_VEC2)
             .then_some(PropertyValue::Vec2([native.vec[0] as f32, native.vec[1] as f32])),
         PropertyValueKind::Vec4 => (native.tag == NATIVE_VALUE_VEC4
@@ -1689,6 +1692,7 @@ fn native_property_kind(kind: u32) -> Option<animatix_syntax::schema::PropertyVa
     match kind {
         NATIVE_PROPERTY_F32 => Some(animatix_syntax::schema::PropertyValueKind::F32),
         NATIVE_PROPERTY_U32 => Some(animatix_syntax::schema::PropertyValueKind::U32),
+        NATIVE_PROPERTY_BOOL => Some(animatix_syntax::schema::PropertyValueKind::Bool),
         NATIVE_PROPERTY_VEC2 => Some(animatix_syntax::schema::PropertyValueKind::Vec2),
         NATIVE_PROPERTY_VEC4 => Some(animatix_syntax::schema::PropertyValueKind::Vec4),
         NATIVE_PROPERTY_STRING => Some(animatix_syntax::schema::PropertyValueKind::String),
@@ -2097,6 +2101,7 @@ mod tests {
         for kind in [
             PropertyKind::F32,
             PropertyKind::U32,
+            PropertyKind::Bool,
             PropertyKind::Vec2,
             PropertyKind::Vec4,
             PropertyKind::String,
@@ -2112,6 +2117,7 @@ mod tests {
         match kind {
             PropertyKind::F32 => NATIVE_PROPERTY_F32,
             PropertyKind::U32 => NATIVE_PROPERTY_U32,
+            PropertyKind::Bool => NATIVE_PROPERTY_BOOL,
             PropertyKind::Vec2 => NATIVE_PROPERTY_VEC2,
             PropertyKind::Vec4 => NATIVE_PROPERTY_VEC4,
             PropertyKind::String => NATIVE_PROPERTY_STRING,

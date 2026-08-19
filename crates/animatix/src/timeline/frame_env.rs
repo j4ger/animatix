@@ -101,6 +101,15 @@ impl Timeline {
             && self.modifiers.is_empty()
             && !self.has_procedural_plots()
         {
+            for (label, track) in &self.tracks {
+                crate::timeline::property_engine::inject_extension_properties_into_env(
+                    &mut env,
+                    label,
+                    track,
+                    time_ms,
+                    self.extensions.as_deref(),
+                );
+            }
             return env;
         }
         self.inject_runtime_lookup_values(

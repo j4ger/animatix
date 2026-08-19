@@ -112,6 +112,12 @@ impl Interpolate for u32 {
     }
 }
 
+impl Interpolate for bool {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
+}
+
 impl Interpolate for MorphOptions {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { *self } else { *other }
