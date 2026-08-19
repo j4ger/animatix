@@ -61,6 +61,23 @@ impl std::fmt::Display for PropertyRegistrationError {
 
 impl std::error::Error for PropertyRegistrationError {}
 
+/// Error returned when an action, function, or service name is already taken.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ExtensionRegistrationError {
+    /// The name is already registered in this context.
+    Duplicate(String),
+}
+
+impl std::fmt::Display for ExtensionRegistrationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Duplicate(name) => write!(f, "extension '{name}' is already registered"),
+        }
+    }
+}
+
+impl std::error::Error for ExtensionRegistrationError {}
+
 /// Runtime binding for a built-in property descriptor.
 #[derive(Clone, Debug)]
 pub enum PropertyBinding {
@@ -348,18 +365,19 @@ impl ExtensionRegistry {
         self.properties.extension_descriptors()
     }
 
-    /// Register or replace a custom action handler.
-    pub fn register_action(&mut self, action: Box<dyn BuiltinAction>) -> &mut Self {
-        if let Some(existing) = self
-            .actions
-            .iter_mut()
-            .find(|existing| existing.signature().name == action.signature().name)
-        {
-            *existing = action;
-        } else {
-            self.actions.push(action);
+    /// Register a custom action handler.
+    ///
+    /// The action name must be unique within this context.
+    pub fn register_action(
+        &mut self,
+        action: Box<dyn BuiltinAction>,
+    ) -> Result<(), ExtensionRegistrationError> {
+        let name = action.signature().name.clone();
+        if self.actions.iter().any(|existing| existing.signature().name == name) {
+            return Err(ExtensionRegistrationError::Duplicate(name));
         }
-        self
+        self.actions.push(action);
+        Ok(())
     }
 
     /// Remove a custom action by name.
@@ -383,17 +401,22 @@ impl ExtensionRegistry {
     }
 
     /// Register a native expression function.
-    pub fn register_function<F>(&mut self, name: impl Into<String>, call: F) -> &mut Self
+    ///
+    /// The function name must be unique within this context.
+    pub fn register_function<F>(
+        &mut self,
+        name: impl Into<String>,
+        call: F,
+    ) -> Result<(), ExtensionRegistrationError>
     where
         F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
     {
         let name = name.into();
-        if let Some(existing) = self.functions.iter_mut().find(|(existing, _)| *existing == name) {
-            existing.1 = Arc::new(call);
-        } else {
-            self.functions.push((name, Arc::new(call)));
+        if self.functions.iter().any(|(existing, _)| *existing == name) {
+            return Err(ExtensionRegistrationError::Duplicate(name));
         }
-        self
+        self.functions.push((name, Arc::new(call)));
+        Ok(())
     }
 
     /// Remove a registered expression function.
@@ -411,12 +434,22 @@ impl ExtensionRegistry {
     }
 
     /// Provide a typed service visible to extension handlers.
-    pub fn provide<T>(&mut self, name: impl Into<String>, service: T) -> &mut Self
+    ///
+    /// The service name must be unique within this context.
+    pub fn provide<T>(
+        &mut self,
+        name: impl Into<String>,
+        service: T,
+    ) -> Result<(), ExtensionRegistrationError>
     where
         T: Any + Send + Sync,
     {
-        self.services.insert(name.into(), Arc::new(service));
-        self
+        let name = name.into();
+        if self.services.contains_key(&name) {
+            return Err(ExtensionRegistrationError::Duplicate(name));
+        }
+        self.services.insert(name, Arc::new(service));
+        Ok(())
     }
 
     /// Remove a provided service.
@@ -486,30 +519,44 @@ impl ExtensionScope<'_> {
     }
 
     /// Register an action and remove it when this scope is disposed.
-    pub fn register_action(&mut self, action: Box<dyn BuiltinAction>) {
+    pub fn register_action(
+        &mut self,
+        action: Box<dyn BuiltinAction>,
+    ) -> Result<(), ExtensionRegistrationError> {
         let name = action.signature().name.clone();
-        self.ctx.register_action(action);
+        self.ctx.register_action(action)?;
         self.action_names.push(name);
+        Ok(())
     }
 
     /// Register a function and remove it when this scope is disposed.
-    pub fn register_function<F>(&mut self, name: impl Into<String>, call: F)
+    pub fn register_function<F>(
+        &mut self,
+        name: impl Into<String>,
+        call: F,
+    ) -> Result<(), ExtensionRegistrationError>
     where
         F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
     {
         let name = name.into();
-        self.ctx.register_function(name.clone(), call);
+        self.ctx.register_function(name.clone(), call)?;
         self.function_names.push(name);
+        Ok(())
     }
 
     /// Provide a service and remove it when this scope is disposed.
-    pub fn provide<T>(&mut self, name: impl Into<String>, service: T)
+    pub fn provide<T>(
+        &mut self,
+        name: impl Into<String>,
+        service: T,
+    ) -> Result<(), ExtensionRegistrationError>
     where
         T: Any + Send + Sync,
     {
         let name = name.into();
-        self.ctx.provide(name.clone(), service);
+        self.ctx.provide(name.clone(), service)?;
         self.service_names.push(name);
+        Ok(())
     }
 
     /// Dispose all registrations in this scope.
@@ -683,7 +730,7 @@ mod tests {
     fn context_registers_capabilities() {
         let mut ctx = ExtensionContext::new();
         ctx.register_primitive(Arc::new(Marker)).expect("register primitive");
-        ctx.register_action(Box::new(MarkAction));
+        ctx.register_action(Box::new(MarkAction)).expect("register action");
         ctx.register_function("double", |args, _env| {
             let Some(Value::Num(n)) = args.first() else {
                 return Err(crate::timeline::EvalError::TypeMismatch(
@@ -691,8 +738,9 @@ mod tests {
                 ));
             };
             Ok(Value::Num(*n * 2.0))
-        });
-        ctx.provide("threshold", 42_u32);
+        })
+        .expect("register function");
+        ctx.provide("threshold", 42_u32).expect("provide service");
 
         assert!(ctx.primitive_registry().find("Marker").is_some());
         assert!(ctx.action("mark").is_some());
@@ -709,16 +757,18 @@ mod tests {
         {
             let mut scope = ctx.scope();
             scope.register_primitive(Arc::new(Marker)).expect("register primitive");
-            scope.register_action(Box::new(MarkAction));
-            scope.register_function("double", |args, _env| {
-                let Some(Value::Num(n)) = args.first() else {
-                    return Err(crate::timeline::EvalError::TypeMismatch(
-                        "double expects one number".to_string(),
-                    ));
-                };
-                Ok(Value::Num(*n * 2.0))
-            });
-            scope.provide("threshold", 42_u32);
+            scope.register_action(Box::new(MarkAction)).expect("register action");
+            scope
+                .register_function("double", |args, _env| {
+                    let Some(Value::Num(n)) = args.first() else {
+                        return Err(crate::timeline::EvalError::TypeMismatch(
+                            "double expects one number".to_string(),
+                        ));
+                    };
+                    Ok(Value::Num(*n * 2.0))
+                })
+                .expect("register function");
+            scope.provide("threshold", 42_u32).expect("provide service");
         }
 
         assert!(ctx.primitive_registry().find("Marker").is_none());
@@ -734,7 +784,7 @@ mod tests {
     fn context_can_dispose_registered_capabilities() {
         let mut ctx = ExtensionContext::new();
         ctx.register_primitive(Arc::new(Marker)).expect("register primitive");
-        ctx.register_action(Box::new(MarkAction));
+        ctx.register_action(Box::new(MarkAction)).expect("register action");
         ctx.register_function("double", |args, _env| {
             let Some(Value::Num(n)) = args.first() else {
                 return Err(crate::timeline::EvalError::TypeMismatch(
@@ -742,8 +792,9 @@ mod tests {
                 ));
             };
             Ok(Value::Num(*n * 2.0))
-        });
-        ctx.provide("threshold", 42_u32);
+        })
+        .expect("register function");
+        ctx.provide("threshold", 42_u32).expect("provide service");
 
         assert!(ctx.remove_primitive("Marker"));
         assert!(!ctx.remove_primitive("Marker"));
@@ -769,7 +820,8 @@ mod tests {
                 ));
             };
             Ok(Value::Num(*n * 2.0))
-        });
+        })
+        .expect("register function");
 
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
@@ -795,7 +847,8 @@ mod tests {
                 ));
             };
             Ok(Value::Num(*n * 2.0))
-        });
+        })
+        .expect("register function");
 
         let report = BuildTarget::from_ast_with_context(
             &ast,
@@ -828,7 +881,8 @@ mod tests {
                 ));
             };
             Ok(Value::Num(*n * 2.0))
-        });
+        })
+        .expect("register function");
 
         let report = BuildTarget::from_ast_with_context(
             &ast,
@@ -1014,7 +1068,7 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut ctx = ExtensionContext::new();
-        ctx.register_action(Box::new(MarkAction));
+        ctx.register_action(Box::new(MarkAction)).expect("register action");
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(

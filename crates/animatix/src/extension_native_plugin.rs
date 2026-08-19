@@ -137,6 +137,7 @@ impl ExtensionPlugin for NativePlugin {
             let install = self.install.expect("install symbol checked during load");
             let status = unsafe { (install)(&self.api, (&mut host as *mut NativeHost).cast()) };
             if status != NATIVE_STATUS_OK {
+                host.rollback();
                 return Err(PluginError(format!(
                     "{} install failed with status {status}",
                     self.name
@@ -177,6 +178,27 @@ struct NativeHost<'a> {
     primitives: Vec<String>,
     actions: Vec<String>,
     services: Vec<String>,
+}
+
+impl NativeHost<'_> {
+    fn rollback(&mut self) {
+        let ctx = &mut *self.ctx;
+        for (actor_type, name) in self.properties.drain(..) {
+            ctx.remove_property(&actor_type, &name);
+        }
+        for name in self.functions.drain(..) {
+            ctx.remove_function(&name);
+        }
+        for name in self.primitives.drain(..) {
+            ctx.remove_primitive(&name);
+        }
+        for name in self.actions.drain(..) {
+            ctx.remove_action(&name);
+        }
+        for name in self.services.drain(..) {
+            ctx.remove_service(&name);
+        }
+    }
 }
 
 struct NativeFunctionHost<'a> {
@@ -286,48 +308,54 @@ unsafe extern "C" fn native_register_function(
     let library = host.library.clone();
     let service_values = host.service_values.clone();
     let function_name = name.clone();
-    host.ctx.register_function(name.clone(), move |args, env| unsafe {
-        let _keep_alive = &library;
-        let mut arena = NativeValueArena::default();
-        let native_args = args
-            .iter()
-            .map(|value| value_to_native(value, &mut arena))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut out = NativeValue::default();
-        let mut function_host = NativeFunctionHost {
-            env,
-            service_values: &service_values,
-            arena,
-        };
-        let mut native_ctx = NativeFunctionContext {
-            size: std::mem::size_of::<NativeFunctionContext>(),
-            host: (&mut function_host as *mut NativeFunctionHost).cast(),
-            get_env: native_function_get_env,
-            get_service: native_function_get_service,
-        };
-        let status = callback(
-            &mut native_ctx,
-            if native_args.is_empty() {
-                std::ptr::null()
-            } else {
-                native_args.as_ptr()
-            },
-            native_args.len(),
-            &mut out,
-        );
-        match status {
-            NATIVE_STATUS_OK => native_to_value(out),
-            NATIVE_STATUS_TYPE_ERROR => Err(EvalError::TypeMismatch(format!(
-                "native plugin function '{function_name}' rejected its arguments"
-            ))),
-            NATIVE_STATUS_UNSUPPORTED => Err(EvalError::UnsupportedConstruct(format!(
-                "native plugin function '{function_name}' does not support this value"
-            ))),
-            _ => Err(EvalError::TypeMismatch(format!(
-                "native plugin function '{function_name}' failed with status {status}"
-            ))),
-        }
-    });
+    if host
+        .ctx
+        .register_function(name.clone(), move |args, env| unsafe {
+            let _keep_alive = &library;
+            let mut arena = NativeValueArena::default();
+            let native_args = args
+                .iter()
+                .map(|value| value_to_native(value, &mut arena))
+                .collect::<Result<Vec<_>, _>>()?;
+            let mut out = NativeValue::default();
+            let mut function_host = NativeFunctionHost {
+                env,
+                service_values: &service_values,
+                arena,
+            };
+            let mut native_ctx = NativeFunctionContext {
+                size: std::mem::size_of::<NativeFunctionContext>(),
+                host: (&mut function_host as *mut NativeFunctionHost).cast(),
+                get_env: native_function_get_env,
+                get_service: native_function_get_service,
+            };
+            let status = callback(
+                &mut native_ctx,
+                if native_args.is_empty() {
+                    std::ptr::null()
+                } else {
+                    native_args.as_ptr()
+                },
+                native_args.len(),
+                &mut out,
+            );
+            match status {
+                NATIVE_STATUS_OK => native_to_value(out),
+                NATIVE_STATUS_TYPE_ERROR => Err(EvalError::TypeMismatch(format!(
+                    "native plugin function '{function_name}' rejected its arguments"
+                ))),
+                NATIVE_STATUS_UNSUPPORTED => Err(EvalError::UnsupportedConstruct(format!(
+                    "native plugin function '{function_name}' does not support this value"
+                ))),
+                _ => Err(EvalError::TypeMismatch(format!(
+                    "native plugin function '{function_name}' failed with status {status}"
+                ))),
+            }
+        })
+        .is_err()
+    {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
     host.functions.push(name);
     NATIVE_STATUS_OK
 }
@@ -395,20 +423,26 @@ unsafe extern "C" fn native_register_action(host: *mut c_void, action: NativeAct
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    host.ctx.register_action(Box::new(NativeActionAdapter {
-        signature: ActionSignature {
-            name: name.clone(),
-            category,
-            description,
-            params,
-            modifiers,
-        },
-        callback: action.execute,
-        property_ids: host.property_ids.clone(),
-        property_kinds: host.property_kinds.clone(),
-        service_values: host.service_values.clone(),
-        _library: library,
-    }));
+    if host
+        .ctx
+        .register_action(Box::new(NativeActionAdapter {
+            signature: ActionSignature {
+                name: name.clone(),
+                category,
+                description,
+                params,
+                modifiers,
+            },
+            callback: action.execute,
+            property_ids: host.property_ids.clone(),
+            property_kinds: host.property_kinds.clone(),
+            service_values: host.service_values.clone(),
+            _library: library,
+        }))
+        .is_err()
+    {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
     host.actions.push(name);
     NATIVE_STATUS_OK
 }
@@ -437,14 +471,20 @@ unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeSe
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    host.ctx.provide(
-        name.clone(),
-        NativeServiceHandle {
-            value: service.value,
-            drop: service.drop,
-            _library: library,
-        },
-    );
+    if host
+        .ctx
+        .provide(
+            name.clone(),
+            NativeServiceHandle {
+                value: service.value,
+                drop: service.drop,
+                _library: library,
+            },
+        )
+        .is_err()
+    {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
     host.service_values.insert(name.clone(), service.value);
     host.services.push(name);
     NATIVE_STATUS_OK
@@ -2284,6 +2324,118 @@ mod tests {
         assert!(ctx.primitive_registry().find("Pulse").is_none());
         assert!(ctx.action("pulse").is_none());
         assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_none());
+    }
+
+    #[test]
+    fn native_host_rollback_removes_partial_registrations() {
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+        };
+
+        let mut ctx = ExtensionContext::new();
+        let mut host = NativeHost {
+            ctx: &mut ctx,
+            library: Some(Arc::new(()) as Arc<dyn Any + Send + Sync>),
+            properties: Vec::new(),
+            property_ids: HashMap::new(),
+            property_kinds: HashMap::new(),
+            service_values: HashMap::new(),
+            functions: Vec::new(),
+            primitives: Vec::new(),
+            actions: Vec::new(),
+            services: Vec::new(),
+        };
+        let mut property_id = 0;
+        assert_eq!(
+            unsafe {
+                native_register_property(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    NativePropertyDescriptor {
+                        actor_type: c"Pulse".as_ptr(),
+                        name: c"glow".as_ptr(),
+                        display_name: std::ptr::null(),
+                        kind: NATIVE_PROPERTY_F32,
+                        injectable: true,
+                        group: std::ptr::null(),
+                        help: std::ptr::null(),
+                    },
+                    &mut property_id,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(
+            unsafe {
+                native_register_function(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    c"double".as_ptr(),
+                    double,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            build: None,
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+        };
+        assert_eq!(
+            unsafe {
+                native_register_primitive(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    primitive,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(
+            unsafe {
+                native_register_action(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    NativeAction {
+                        name: c"pulse".as_ptr(),
+                        category: c"Native".as_ptr(),
+                        description: c"Demo native pulse action".as_ptr(),
+                        params: std::ptr::null(),
+                        param_len: 0,
+                        modifiers: std::ptr::null(),
+                        modifier_len: 0,
+                        execute: pulse_action,
+                    },
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert_eq!(
+            unsafe {
+                native_provide_service(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    NativeService {
+                        name: c"demo.pulse".as_ptr(),
+                        value: 7,
+                        drop: Some(drop_service),
+                    },
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+
+        host.rollback();
+
+        assert!(ctx.property_spec("Pulse", "glow").is_none());
+        assert!(ctx.action("pulse").is_none());
+        assert!(ctx.get::<NativeServiceHandle>("demo.pulse").is_none());
+        assert!(ctx.primitive_registry().find("Pulse").is_none());
+        let mut env = Environment::new();
+        ctx.install_functions(&mut env);
+        assert!(env.get("double").is_none());
     }
 
     #[test]
