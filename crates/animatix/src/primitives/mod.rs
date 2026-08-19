@@ -672,6 +672,7 @@ pub trait Primitive: Send + Sync {
                 morphable_paths: true,
                 vector_reveal_target: true,
                 plot_geometry: true,
+                plot_host: self.type_name() == "Graph",
                 ..animatix_syntax::schema::PrimitiveCapabilities::default()
             },
             ActorCategory::Container => {
@@ -705,8 +706,18 @@ pub trait Primitive: Send + Sync {
 
     /// Property names this primitive declares from the built-in or extension
     /// property registries.
-    fn declared_properties(&self) -> &[String] {
-        &[]
+    ///
+    /// The generic property writer only needs membership tests, so callers
+    /// should prefer [`Self::declares_property`] instead of materializing this
+    /// list and repeatedly searching it.
+    fn declared_property_names(&self) -> Vec<&str> {
+        Vec::new()
+    }
+
+    /// Returns true when this primitive declares `name` from a built-in or
+    /// extension property registry.
+    fn declares_property(&self, name: &str) -> bool {
+        self.declared_property_names().iter().any(|declared| *declared == name)
     }
 
     /// Returns the corresponding `ActorKindId` variant.
@@ -991,6 +1002,7 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
                     morphable_paths: capabilities.morphable_paths,
                     vector_reveal_target: capabilities.vector_reveal_target,
                     plot_geometry: capabilities.plot_geometry,
+                    plot_host: capabilities.plot_host,
                     is_container: meta.category == ActorCategory::Container,
                     is_shape: meta.category == ActorCategory::Shape,
                 },

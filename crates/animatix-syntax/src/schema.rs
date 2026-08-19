@@ -200,6 +200,8 @@ pub struct PrimitiveCapabilities {
     pub vector_reveal_target: bool,
     /// Emits plot geometry.
     pub plot_geometry: bool,
+    /// Hosts plot-curve children in a math coordinate system.
+    pub plot_host: bool,
     /// Is a container primitive.
     pub is_container: bool,
     /// Is a vector shape.
@@ -347,6 +349,7 @@ fn schema_capabilities(type_name: &str, category: PrimitiveCategory) -> Primitiv
             morphable_paths: true,
             vector_reveal_target: true,
             plot_geometry: true,
+            plot_host: type_name == "Graph",
             ..PrimitiveCapabilities::default()
         },
         PrimitiveCategory::Container => match type_name {

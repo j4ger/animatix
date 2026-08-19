@@ -11,7 +11,7 @@
 use std::ffi::{c_char, c_void};
 
 /// ABI version negotiated by the host and plugin.
-pub const ABI_VERSION: u32 = 4;
+pub const ABI_VERSION: u32 = 5;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -60,6 +60,8 @@ pub const NATIVE_PROPERTY_STRING: u32 = 4;
 pub const NATIVE_PROPERTY_POINT_LIST: u32 = 5;
 /// Generic finite-value property kind.
 pub const NATIVE_PROPERTY_GENERIC: u32 = 6;
+/// Named enum property kind stored as a string choice.
+pub const NATIVE_PROPERTY_ENUM: u32 = 8;
 
 /// Success status for plugin install and function calls.
 pub const NATIVE_STATUS_OK: i32 = 0;
@@ -337,6 +339,8 @@ pub const NATIVE_CAP_PLOT_GEOMETRY: u32 = 1 << 6;
 pub const NATIVE_CAP_IS_CONTAINER: u32 = 1 << 7;
 /// Primitive capability: is a vector shape.
 pub const NATIVE_CAP_IS_SHAPE: u32 = 1 << 8;
+/// Primitive capability: hosts plot-curve children in math coordinates.
+pub const NATIVE_CAP_PLOT_HOST: u32 = 1 << 9;
 
 /// Resize mode: editor sizes the actor bounds directly.
 pub const NATIVE_RESIZE_MODE_SIZE: u32 = 0;
@@ -414,6 +418,13 @@ pub struct NativePathCommand {
     pub line_join: u32,
 }
 
+/// Text command kind: normal text glyphs.
+pub const NATIVE_TEXT_KIND_TEXT: u32 = 0;
+/// Text command kind: syntax-highlighted code glyphs.
+pub const NATIVE_TEXT_KIND_CODE: u32 = 1;
+/// Text command kind: Typst/math glyphs.
+pub const NATIVE_TEXT_KIND_TYST: u32 = 2;
+
 /// Text command emitted by a native primitive during evaluation.
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -444,6 +455,8 @@ pub struct NativeTextCommand {
     pub text_align: *const c_char,
     /// Overflow behavior.
     pub overflow: *const c_char,
+    /// `NATIVE_TEXT_KIND_*` renderer choice.
+    pub kind: u32,
 }
 
 /// Image command emitted by a native primitive during evaluation.

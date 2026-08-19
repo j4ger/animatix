@@ -13,13 +13,14 @@ use std::sync::Arc;
 use animatix_plugin_api::{
     ABI_VERSION, NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
     NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
-    NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
-    NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON,
-    NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL,
-    NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
-    NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
-    NATIVE_RESIZE_MODE_SCALE, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR,
-    NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL, NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST,
+    NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
+    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE,
+    NATIVE_PATH_LINE, NATIVE_PATH_POLYGON, NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT,
+    NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL, NATIVE_PROPERTY_ENUM, NATIVE_PROPERTY_F32,
+    NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST, NATIVE_PROPERTY_STRING,
+    NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4, NATIVE_RESIZE_MODE_SCALE,
+    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_TEXT_KIND_CODE,
+    NATIVE_TEXT_KIND_TYST, NATIVE_VALUE_BOOL, NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST,
     NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST, NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST,
     NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32,
     NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction,
@@ -621,8 +622,12 @@ impl Primitive for NativePrimitiveAdapter {
         self.child_processing
     }
 
-    fn declared_properties(&self) -> &[String] {
-        &self.declared_properties
+    fn declared_property_names(&self) -> Vec<&str> {
+        self.declared_properties.iter().map(String::as_str).collect()
+    }
+
+    fn declares_property(&self, name: &str) -> bool {
+        self.declared_properties.iter().any(|declared| declared == name)
     }
 
     fn resize_mode(&self) -> ResizeMode {
@@ -1311,6 +1316,11 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
         command.color[2].clamp(0.0, 1.0) as f32,
         command.color[3].clamp(0.0, 1.0) as f32,
     ];
+    let text_kind = match command.kind {
+        NATIVE_TEXT_KIND_CODE => crate::renderer::text::TextKind::Code,
+        NATIVE_TEXT_KIND_TYST => crate::renderer::text::TextKind::Typst,
+        _ => crate::renderer::text::TextKind::Text,
+    };
     let paths = match compiler.compile(
         &content,
         &font_family,
@@ -1321,7 +1331,7 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
         command.letter_spacing as f32,
         command.word_spacing as f32,
         color,
-        crate::renderer::text::TextKind::Text,
+        text_kind,
         font_ctx,
         command.max_width as f32,
         &text_align,
@@ -1340,14 +1350,12 @@ unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImage
     };
     let requested_url = unsafe { read_c_string(command.url) };
     let image = match requested_url {
-        Some(url) => host
-            .ctx
-            .asset_cache
-            .get_image(&url)
-            .or_else(|| host.ctx.track.image.get(host.ctx.time_ms, None)),
+        Some(url) => host.ctx.asset_cache.get_image(&url),
         None => host.ctx.track.image.get(host.ctx.time_ms, None),
     };
     let Some(image) = image else {
+        // Explicit URLs must be resolved from the document asset cache; silently
+        // falling back to the actor image would hide stale plugin behavior.
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let natural_size = if command.natural_size[0] > 0.0 && command.natural_size[1] > 0.0 {
@@ -1748,6 +1756,7 @@ fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabili
         morphable_paths: flags & NATIVE_CAP_MORPHABLE_PATHS != 0,
         vector_reveal_target: flags & NATIVE_CAP_VECTOR_REVEAL_TARGET != 0,
         plot_geometry: flags & NATIVE_CAP_PLOT_GEOMETRY != 0,
+        plot_host: flags & NATIVE_CAP_PLOT_HOST != 0,
         is_container: flags & NATIVE_CAP_IS_CONTAINER != 0,
         is_shape: flags & NATIVE_CAP_IS_SHAPE != 0,
     }
@@ -1763,7 +1772,11 @@ fn native_resize_mode(mode: u32) -> ResizeMode {
 
 fn parse_native_type(ty: &str) -> Option<animatix_syntax::typing::Type> {
     use animatix_syntax::typing::Type;
-    match ty.trim() {
+    let trimmed = ty.trim();
+    if let Some(variants) = parse_enum_type(trimmed) {
+        return Some(Type::Enum(variants));
+    }
+    match trimmed {
         "Num" | "U32" => Some(Type::Num),
         "Str" | "String" => Some(Type::Str),
         "Bool" => Some(Type::Bool),
@@ -1775,6 +1788,24 @@ fn parse_native_type(ty: &str) -> Option<animatix_syntax::typing::Type> {
         "List<Vec2>" => Some(Type::List(Box::new(Type::Vec2))),
         _ => None,
     }
+}
+
+fn parse_enum_type(ty: &str) -> Option<Vec<String>> {
+    let inner = ty
+        .strip_prefix("Enum<")
+        .and_then(|value| value.strip_suffix('>'))
+        .or_else(|| ty.strip_prefix("Enum(").and_then(|value| value.strip_suffix(')')))?
+        .trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let variants = inner
+        .split([',', '|'])
+        .map(str::trim)
+        .filter(|variant| !variant.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    (!variants.is_empty()).then_some(variants)
 }
 
 unsafe fn read_c_string(ptr: *const c_char) -> Option<String> {
@@ -1801,7 +1832,9 @@ fn native_property_kind(kind: u32) -> Option<animatix_syntax::schema::PropertyVa
         NATIVE_PROPERTY_VEC4 => Some(animatix_syntax::schema::PropertyValueKind::Vec4),
         NATIVE_PROPERTY_STRING => Some(animatix_syntax::schema::PropertyValueKind::String),
         NATIVE_PROPERTY_POINT_LIST => Some(animatix_syntax::schema::PropertyValueKind::PointList),
-        NATIVE_PROPERTY_GENERIC => Some(animatix_syntax::schema::PropertyValueKind::Generic),
+        NATIVE_PROPERTY_GENERIC | NATIVE_PROPERTY_ENUM => {
+            Some(animatix_syntax::schema::PropertyValueKind::Generic)
+        },
         _ => None,
     }
 }
@@ -2222,6 +2255,21 @@ mod tests {
         assert!(native_property_kind(99).is_none());
     }
 
+    #[test]
+    fn native_enum_type_and_property_kind_are_supported() {
+        use animatix_plugin_api::NATIVE_PROPERTY_ENUM;
+        use animatix_syntax::typing::Type;
+
+        assert_eq!(
+            parse_native_type("Enum(left, right, top)"),
+            Some(Type::Enum(vec!["left".to_string(), "right".to_string(), "top".to_string()]))
+        );
+        assert_eq!(
+            native_property_kind(NATIVE_PROPERTY_ENUM),
+            Some(animatix_syntax::schema::PropertyValueKind::Generic)
+        );
+    }
+
     fn property_kind_code(kind: PropertyKind) -> u32 {
         match kind {
             PropertyKind::F32 => NATIVE_PROPERTY_F32,
@@ -2630,6 +2678,8 @@ mod tests {
 
     #[test]
     fn native_append_text_produces_text_command() {
+        use animatix_plugin_api::NATIVE_TEXT_KIND_TEXT;
+
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
@@ -2666,6 +2716,7 @@ mod tests {
             max_width: 0.0,
             text_align: c"center".as_ptr(),
             overflow: c"visible".as_ptr(),
+            kind: NATIVE_TEXT_KIND_TEXT,
         };
         assert_eq!(
             unsafe {
@@ -2767,6 +2818,56 @@ mod tests {
             host.commands.as_slice(),
             [crate::primitives::RenderCommand::Image { .. }]
         ));
+    }
+
+    #[test]
+    fn native_append_image_rejects_uncached_explicit_url() {
+        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let image = crate::timeline::image::SceneImage {
+            data: vello::peniko::ImageData {
+                data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
+                format: vello::peniko::ImageFormat::Rgba8,
+                alpha_type: vello::peniko::ImageAlphaType::Alpha,
+                width: 1,
+                height: 1,
+            },
+            natural_size: [1.0, 1.0],
+        };
+        track
+            .image
+            .ensure(None)
+            .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
+        let property_ids = HashMap::new();
+        let service_values = HashMap::new();
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            service_values: &service_values,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let url = std::ffi::CString::new("missing.png").expect("cstring");
+        let command = NativeImageCommand {
+            url: url.as_ptr(),
+            natural_size: [100.0, 50.0],
+        };
+        assert_eq!(
+            unsafe {
+                native_append_image(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_TYPE_ERROR
+        );
+        assert!(
+            host.commands.is_empty(),
+            "explicit uncached URL must not silently fall back to the actor image"
+        );
     }
 
     #[test]
@@ -3162,12 +3263,13 @@ mod tests {
         use animatix_plugin_api::{
             NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
             NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
-            NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
-            NATIVE_PRIMITIVE_CATEGORY_ANNOTATION, NATIVE_PRIMITIVE_CATEGORY_CONTAINER,
-            NATIVE_PRIMITIVE_CATEGORY_MEDIA, NATIVE_PRIMITIVE_CATEGORY_PLOT,
-            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CATEGORY_TEXT,
-            NATIVE_PRIMITIVE_CHILD_EQUATION, NATIVE_PRIMITIVE_CHILD_FILTER,
-            NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PRIMITIVE_CHILD_MASK, NATIVE_RESIZE_MODE_SCALE,
+            NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
+            NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_PRIMITIVE_CATEGORY_ANNOTATION,
+            NATIVE_PRIMITIVE_CATEGORY_CONTAINER, NATIVE_PRIMITIVE_CATEGORY_MEDIA,
+            NATIVE_PRIMITIVE_CATEGORY_PLOT, NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            NATIVE_PRIMITIVE_CATEGORY_TEXT, NATIVE_PRIMITIVE_CHILD_EQUATION,
+            NATIVE_PRIMITIVE_CHILD_FILTER, NATIVE_PRIMITIVE_CHILD_GENERIC,
+            NATIVE_PRIMITIVE_CHILD_MASK, NATIVE_RESIZE_MODE_SCALE,
         };
 
         assert_eq!(
@@ -3222,6 +3324,7 @@ mod tests {
                 | NATIVE_CAP_MORPHABLE_PATHS
                 | NATIVE_CAP_VECTOR_REVEAL_TARGET
                 | NATIVE_CAP_PLOT_GEOMETRY
+                | NATIVE_CAP_PLOT_HOST
                 | NATIVE_CAP_IS_CONTAINER
                 | NATIVE_CAP_IS_SHAPE,
         );
@@ -3232,6 +3335,7 @@ mod tests {
         assert!(capabilities.morphable_paths);
         assert!(capabilities.vector_reveal_target);
         assert!(capabilities.plot_geometry);
+        assert!(capabilities.plot_host);
         assert!(capabilities.is_container);
         assert!(capabilities.is_shape);
         assert!(!native_capabilities(0).is_container);

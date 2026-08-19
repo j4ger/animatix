@@ -125,6 +125,7 @@ impl PrimitiveRegistry {
                         morphable_paths: capabilities.morphable_paths,
                         vector_reveal_target: capabilities.vector_reveal_target,
                         plot_geometry: capabilities.plot_geometry,
+                        plot_host: capabilities.plot_host,
                         is_container: primitive.is_container(),
                         is_shape: primitive.is_shape(),
                     },
@@ -176,8 +177,12 @@ impl Primitive for BuiltinPrimitive {
         self.0.child_processing()
     }
 
-    fn declared_properties(&self) -> &[String] {
-        self.0.declared_properties()
+    fn declared_property_names(&self) -> Vec<&str> {
+        self.0.declared_property_names()
+    }
+
+    fn declares_property(&self, name: &str) -> bool {
+        self.0.declares_property(name)
     }
 
     fn kind_id(&self) -> ActorKindId {

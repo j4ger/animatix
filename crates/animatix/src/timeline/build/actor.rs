@@ -26,7 +26,11 @@ impl Timeline {
         vector_shape_state: &VectorShapeState,
         parent_label: Option<&str>,
     ) -> Vec<VelloPath> {
-        let primitive = PrimitiveFamilyDescriptor::for_actor_type(ty);
+        let primitive = self
+            .primitive_registry
+            .find(ty)
+            .map(PrimitiveFamilyDescriptor::from_primitive)
+            .unwrap_or_default();
         if primitive.is_graph_host() {
             return build_graph_axis_paths(
                 size,
@@ -281,7 +285,11 @@ impl Timeline {
             return;
         };
 
-        let primitive = PrimitiveFamilyDescriptor::for_actor_type(ty);
+        let primitive = self
+            .primitive_registry
+            .find(ty)
+            .map(PrimitiveFamilyDescriptor::from_primitive)
+            .unwrap_or_default();
         let existing_track = self
             .tracks
             .get(label)
@@ -960,8 +968,7 @@ impl Timeline {
         let primitive = self.primitive_registry.find(ty);
         if !props.iter().any(|prop| {
             ctx.property_spec(ty, &prop.name).is_some()
-                || primitive
-                    .is_some_and(|primitive| primitive.declared_properties().contains(&prop.name))
+                || primitive.is_some_and(|primitive| primitive.declares_property(&prop.name))
         }) {
             return;
         }
@@ -987,9 +994,7 @@ impl Timeline {
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) {
-                if primitive
-                    .is_some_and(|primitive| primitive.declared_properties().contains(&prop.name))
-                {
+                if primitive.is_some_and(|primitive| primitive.declares_property(&prop.name)) {
                     if let Some(pv) = crate::timeline::property_engine::parse_property_value(
                         schema.value_type,
                         &prop.value,

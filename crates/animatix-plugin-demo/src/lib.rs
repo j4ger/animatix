@@ -9,10 +9,10 @@ use animatix_plugin_api::{
     NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
     NATIVE_PROPERTY_F32, NATIVE_RESIZE_MODE_SIZE, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR,
-    NATIVE_VALUE_NUM, NativeAction, NativeActionContext, NativeFunctionContext,
-    NativeFunctionDescriptor, NativeHighlightCommand, NativePathCommand, NativePluginApi,
-    NativePrimitive, NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService,
-    NativeTextCommand, NativeValue,
+    NATIVE_TEXT_KIND_TEXT, NATIVE_VALUE_NUM, NativeAction, NativeActionContext,
+    NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand, NativePathCommand,
+    NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx, NativePropertyDescriptor,
+    NativeService, NativeTextCommand, NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -217,6 +217,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
             max_width: 0.0,
             text_align: c"center".as_ptr(),
             overflow: c"visible".as_ptr(),
+            kind: NATIVE_TEXT_KIND_TEXT,
         };
         let text_status = unsafe { (append_text)(ctx.host, text_command) };
         if text_status != NATIVE_STATUS_OK {

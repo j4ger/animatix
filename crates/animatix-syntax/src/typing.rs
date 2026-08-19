@@ -61,6 +61,8 @@ pub enum Type {
     Tuple(Vec<Type>),
     /// Union of accepted types.
     Union(Vec<Type>),
+    /// Named enum choices used by manifest/native extension properties.
+    Enum(Vec<String>),
     /// Function value.
     Function {
         /// Function parameter types.
@@ -89,6 +91,7 @@ impl std::fmt::Display for Type {
                 let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
                 write!(f, "{inner}")
             },
+            Type::Enum(variants) => write!(f, "Enum({})", variants.join(", ")),
             Type::Tuple(items) => {
                 let inner = items.iter().map(ToString::to_string).collect::<Vec<_>>().join(", ");
                 write!(f, "({inner})")
@@ -121,6 +124,9 @@ impl Type {
             },
             Type::Union(types) => {
                 TypeAnnotation::Union(types.iter().map(Type::to_annotation).collect())
+            },
+            Type::Enum(variants) => {
+                TypeAnnotation::Union(variants.iter().map(|_| TypeAnnotation::Str).collect())
             },
             Type::Function { params, ret } => TypeAnnotation::Function {
                 params: params.iter().map(Type::to_annotation).collect(),
@@ -568,6 +574,8 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
         (a, b) if a == b => true,
         (Type::Color, Type::Vec4) => true,
         (Type::List(a), Type::List(b)) => is_subtype(a, b),
+        (Type::Enum(a), Type::Enum(b)) => a == b,
+        (Type::Enum(_), Type::Str) | (Type::Str, Type::Enum(_)) => true,
         (Type::Tuple(a), Type::Tuple(b)) => {
             a.len() == b.len()
                 && a.iter().zip(b).all(|(actual, expected)| is_subtype(actual, expected))

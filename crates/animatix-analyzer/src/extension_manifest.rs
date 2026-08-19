@@ -84,6 +84,8 @@ struct RawPrimitive {
     #[serde(default)]
     plot_geometry: bool,
     #[serde(default)]
+    plot_host: bool,
+    #[serde(default)]
     is_container: bool,
     #[serde(default)]
     is_shape: bool,
@@ -179,6 +181,8 @@ struct OutputPrimitive<'a> {
     #[serde(skip_serializing_if = "is_false")]
     plot_geometry: bool,
     #[serde(skip_serializing_if = "is_false")]
+    plot_host: bool,
+    #[serde(skip_serializing_if = "is_false")]
     is_container: bool,
     #[serde(skip_serializing_if = "is_false")]
     is_shape: bool,
@@ -192,7 +196,7 @@ struct OutputProperty<'a> {
     actor_type: &'a str,
     name: &'a str,
     #[serde(rename = "type")]
-    ty: &'static str,
+    ty: String,
     #[serde(skip_serializing_if = "is_false")]
     injectable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -350,6 +354,7 @@ impl ExtensionManifest {
                     morphable_paths: primitive.capabilities.morphable_paths,
                     vector_reveal_target: primitive.capabilities.vector_reveal_target,
                     plot_geometry: primitive.capabilities.plot_geometry,
+                    plot_host: primitive.capabilities.plot_host,
                     is_container: primitive.capabilities.is_container,
                     is_shape: primitive.capabilities.is_shape,
                     child_processing: output_child_processing(primitive.child_processing),
@@ -363,7 +368,10 @@ impl ExtensionManifest {
                     property.actor_types.iter().map(move |actor_type| OutputProperty {
                         actor_type,
                         name: &property.name,
-                        ty: output_property_type(property.value_kind),
+                        ty: match &property.ty {
+                            animatix_syntax::typing::Type::Enum(_) => property.ty.to_string(),
+                            _ => output_property_type(property.value_kind).to_string(),
+                        },
                         injectable: property.injectable,
                         display_name: property.display_name.as_deref(),
                         group: property.group.as_deref(),
@@ -474,6 +482,7 @@ impl ExtensionManifest {
                         morphable_paths: primitive.morphable_paths,
                         vector_reveal_target: primitive.vector_reveal_target,
                         plot_geometry: primitive.plot_geometry,
+                        plot_host: primitive.plot_host,
                         is_container: primitive.is_container,
                         is_shape: primitive.is_shape,
                     },
@@ -575,7 +584,11 @@ fn manifest_value_kind(ty: &str) -> PropertyValueKind {
 }
 
 fn parse_manifest_type(ty: &str) -> Type {
-    match ty.trim() {
+    let trimmed = ty.trim();
+    if let Some(variants) = parse_enum_type(trimmed) {
+        return Type::Enum(variants);
+    }
+    match trimmed {
         "Num" | "U32" => Type::Num,
         "Str" | "String" => Type::Str,
         "Bool" => Type::Bool,
@@ -587,6 +600,24 @@ fn parse_manifest_type(ty: &str) -> Type {
         "List<Vec2>" => Type::List(Box::new(Type::Vec2)),
         _ => Type::Any,
     }
+}
+
+fn parse_enum_type(ty: &str) -> Option<Vec<String>> {
+    let inner = ty
+        .strip_prefix("Enum<")
+        .and_then(|value| value.strip_suffix('>'))
+        .or_else(|| ty.strip_prefix("Enum(").and_then(|value| value.strip_suffix(')')))?
+        .trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let variants = inner
+        .split([',', '|'])
+        .map(str::trim)
+        .filter(|variant| !variant.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    (!variants.is_empty()).then_some(variants)
 }
 
 fn output_property_type(kind: PropertyValueKind) -> &'static str {
@@ -709,6 +740,27 @@ injectable = true
         assert_eq!(property.ty, Type::Num);
         assert_eq!(property.value_kind, PropertyValueKind::F32);
         assert!(property.injectable);
+    }
+
+    #[test]
+    fn manifest_parses_enum_property_type_and_roundtrips() {
+        let manifest = ExtensionManifest::from_toml(
+            r#"
+[[properties]]
+actor_type = "Gauge"
+name = "direction"
+type = "Enum(left, right, top)"
+"#,
+        )
+        .expect("parse manifest");
+        assert_eq!(
+            manifest.properties[0].ty,
+            Type::Enum(vec!["left".to_string(), "right".to_string(), "top".to_string()])
+        );
+        let toml = manifest.to_toml().expect("serialize manifest");
+        assert!(toml.contains("Enum(left, right, top)"));
+        let parsed = ExtensionManifest::from_toml(&toml).expect("parse roundtrip");
+        assert_eq!(parsed, manifest);
     }
 
     #[test]

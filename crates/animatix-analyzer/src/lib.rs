@@ -17,6 +17,7 @@ mod completer;
 mod definition;
 mod diagnostics;
 mod document_symbol;
+mod extension_discovery;
 mod extension_manifest;
 mod hover;
 mod references;
@@ -34,6 +35,10 @@ pub use completer::{CompletionItem, CompletionKind, all_snippets, completions_at
 pub use diagnostics::{
     Diagnostic, DiagnosticSeverity, LintConfig, collect_diagnostics,
     collect_diagnostics_with_config,
+};
+pub use extension_discovery::{
+    ManifestIssue, ManifestSource, discover_manifest_paths, discover_manifest_sources,
+    fingerprint_sources, load_manifest_source,
 };
 pub use extension_manifest::{ExtensionManifest, ManifestPrimitive, ManifestProperty};
 pub use symbol_table::{

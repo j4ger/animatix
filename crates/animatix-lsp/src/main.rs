@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use animatix_analyzer::{Analyzer, ExtensionManifest, Workspace};
+use animatix_analyzer::{Analyzer, ExtensionManifest, Workspace, discover_manifest_sources};
 use animatix_syntax::token::LineIndex;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
@@ -59,8 +59,11 @@ impl Backend {
 
     /// Reload `*.amx-plugin.toml` manifests from the document's directory.
     async fn refresh_manifests(&self, path: Option<&Path>) {
-        let manifests = path.and_then(Path::parent).map(load_manifests).unwrap_or_default();
-        *self.manifests.lock().await = manifests;
+        let sources = path
+            .and_then(Path::parent)
+            .map(|dir| discover_manifest_sources(Some(dir), None, &[]))
+            .unwrap_or_default();
+        *self.manifests.lock().await = sources.into_iter().map(|source| source.manifest).collect();
     }
 
     /// Update the analyzer for a document. Rebuilds workspace if needed.
@@ -588,29 +591,6 @@ fn role_index(role: &str) -> u32 {
         .unwrap_or(6) // fall back to variable for unknown roles
 }
 
-/// Load analyzer-only extension manifests from a directory.
-fn load_manifests(dir: &Path) -> Vec<ExtensionManifest> {
-    let mut manifests = Vec::new();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return manifests;
-    };
-    for entry in entries.flatten() {
-        let file_name = entry.file_name();
-        let Some(name) = file_name.to_str() else {
-            continue;
-        };
-        if !name.ends_with(".amx-plugin.toml") {
-            continue;
-        }
-        if let Ok(source) = std::fs::read_to_string(entry.path()) {
-            if let Ok(manifest) = ExtensionManifest::from_toml(&source) {
-                manifests.push(manifest);
-            }
-        }
-    }
-    manifests
-}
-
 /// Convert a file:// URI to a PathBuf.
 fn uri_to_path(uri: &str) -> Option<PathBuf> {
     let url = url::Url::parse(uri).ok()?;
@@ -667,9 +647,9 @@ mod tests {
             .expect("write manifest");
         std::fs::write(dir.join("ignored.toml"), "").expect("write ignored file");
 
-        let manifests = load_manifests(&dir);
-        assert_eq!(manifests.len(), 1);
-        assert_eq!(manifests[0].primitives[0].type_name, "Gauge");
+        let sources = discover_manifest_sources(Some(&dir), None, &[]);
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].manifest.primitives[0].type_name, "Gauge");
 
         std::fs::remove_dir_all(&dir).ok();
     }

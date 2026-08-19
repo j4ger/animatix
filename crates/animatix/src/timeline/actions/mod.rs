@@ -166,8 +166,8 @@ pub(crate) fn expand_group_targets(
             if track.children.is_empty() {
                 // Leaf actor — keep the resolved key
                 result.push(resolved);
-            } else if is_layout_container(timeline, track) {
-                // Layout container (Row, Col, Grid, etc.) — recurse into children
+            } else if is_recursive_container(timeline, track) {
+                // Container (layout or structural group) — recurse into children
                 for child in track.children.iter().rev() {
                     stack.push(child.clone());
                 }
@@ -185,16 +185,15 @@ pub(crate) fn expand_group_targets(
     result
 }
 
-/// Returns true if the actor kind is a layout container whose children
-/// should be expanded by `expand_group_targets`. Plot containers like
-/// Graph (which have tick label children) are NOT layout containers.
-fn is_layout_container(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+/// Returns true if the actor kind is a container whose children should be
+/// expanded by `expand_group_targets`. Equation containers aggregate children
+/// into one renderable document and stay leaf-like for action targeting.
+fn is_recursive_container(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     if let Some(primitive) =
         track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
     {
-        let capabilities = primitive.capabilities();
-        return (capabilities.layout_container || capabilities.is_container)
-            && primitive.child_processing() != crate::primitives::ChildProcessing::Equation;
+        return crate::timeline::PrimitiveFamilyDescriptor::from_primitive(primitive)
+            .is_recursive_container();
     }
     matches!(
         track.kind,

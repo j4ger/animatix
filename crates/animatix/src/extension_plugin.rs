@@ -6,6 +6,8 @@ mod extension_native_plugin;
 #[cfg(feature = "plugin-loading")]
 pub use extension_native_plugin::NativePlugin;
 
+use std::sync::Arc;
+
 use crate::extension_context::ExtensionContext;
 
 /// Disposer returned by a plugin install.
@@ -28,10 +30,19 @@ pub trait ExtensionPlugin: Send + Sync {
     fn install(&self, ctx: &mut ExtensionContext) -> Result<PluginDisposer, PluginError>;
 }
 
+/// One plugin registered in a [`PluginLoader`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LoadedPluginInfo {
+    /// Stable plugin name.
+    pub name: String,
+    /// Registration index.
+    pub index: usize,
+}
+
 /// Registry of plugins to install together.
 #[derive(Default)]
 pub struct PluginLoader {
-    plugins: Vec<Box<dyn ExtensionPlugin>>,
+    plugins: Vec<Arc<dyn ExtensionPlugin>>,
 }
 
 impl PluginLoader {
@@ -42,7 +53,61 @@ impl PluginLoader {
 
     /// Register a plugin.
     pub fn register(&mut self, plugin: Box<dyn ExtensionPlugin>) {
+        self.plugins.push(Arc::from(plugin));
+    }
+
+    /// Register a shared plugin instance that can be cloned across reloads.
+    pub fn register_shared(&mut self, plugin: Arc<dyn ExtensionPlugin>) {
         self.plugins.push(plugin);
+    }
+
+    /// Return metadata for every registered plugin in registration order.
+    pub fn list(&self) -> Vec<LoadedPluginInfo> {
+        self.plugins
+            .iter()
+            .enumerate()
+            .map(|(index, plugin)| LoadedPluginInfo {
+                name: plugin.name().to_string(),
+                index,
+            })
+            .collect()
+    }
+
+    /// Look up a plugin by name.
+    pub fn get(&self, name: &str) -> Option<&dyn ExtensionPlugin> {
+        self.plugins
+            .iter()
+            .find(|plugin| plugin.name() == name)
+            .map(|plugin| plugin.as_ref())
+    }
+
+    /// Replace one plugin by name, returning an error when it is not registered.
+    pub fn replace(
+        &mut self,
+        name: &str,
+        plugin: Box<dyn ExtensionPlugin>,
+    ) -> Result<(), PluginError> {
+        self.replace_shared(name, Arc::from(plugin))
+    }
+
+    /// Replace one shared plugin by name.
+    pub fn replace_shared(
+        &mut self,
+        name: &str,
+        plugin: Arc<dyn ExtensionPlugin>,
+    ) -> Result<(), PluginError> {
+        let Some(index) = self.plugins.iter().position(|existing| existing.name() == name) else {
+            return Err(PluginError(format!("plugin '{name}' is not registered")));
+        };
+        self.plugins[index] = plugin;
+        Ok(())
+    }
+
+    /// Remove one plugin by name.
+    pub fn remove(&mut self, name: &str) -> bool {
+        let before = self.plugins.len();
+        self.plugins.retain(|plugin| plugin.name() != name);
+        self.plugins.len() != before
     }
 
     /// Install all plugins into a context.
@@ -119,6 +184,21 @@ mod tests {
         }
     }
 
+    struct MarkPlugin;
+
+    impl ExtensionPlugin for MarkPlugin {
+        fn name(&self) -> &str {
+            "mark"
+        }
+
+        fn install(
+            &self,
+            _ctx: &mut ExtensionContext,
+        ) -> Result<super::PluginDisposer, PluginError> {
+            Ok(Box::new(|_ctx| {}))
+        }
+    }
+
     struct MarkAction;
 
     impl crate::timeline::actions::registry::BuiltinAction for MarkAction {
@@ -161,6 +241,35 @@ mod tests {
         let mut env = crate::timeline::Environment::new();
         ctx.install_functions(&mut env);
         assert!(env.get("double").is_none());
+    }
+
+    #[test]
+    fn plugin_loader_lists_replaces_and_removes() {
+        let mut loader = PluginLoader::new();
+        loader.register(Box::new(DoublePlugin));
+        loader.register(Box::new(MarkPlugin));
+
+        let listed = loader.list();
+        assert_eq!(listed.len(), 2);
+        assert_eq!(listed[0].name, "double");
+        assert_eq!(listed[1].name, "mark");
+
+        loader
+            .replace("double", Box::new(DoublePlugin))
+            .expect("replace registered plugin");
+        assert!(loader.replace("missing", Box::new(DoublePlugin)).is_err());
+
+        assert!(loader.remove("mark"));
+        assert!(!loader.remove("mark"));
+        assert_eq!(loader.list().len(), 1);
+    }
+
+    #[test]
+    fn plugin_loader_get_returns_registered_plugin() {
+        let mut loader = PluginLoader::new();
+        loader.register(Box::new(DoublePlugin));
+        assert_eq!(loader.get("double").expect("registered plugin").name(), "double");
+        assert!(loader.get("missing").is_none());
     }
 
     #[test]

@@ -1011,6 +1011,15 @@ impl Timeline {
         self.asset_cache.clone()
     }
 
+    /// Configure document/workspace base directories for relative asset URLs.
+    pub fn set_asset_base_dirs(
+        &mut self,
+        document_dir: Option<&std::path::Path>,
+        workspace_root: Option<&std::path::Path>,
+    ) {
+        std::sync::Arc::make_mut(&mut self.asset_cache).set_base_dirs(document_dir, workspace_root);
+    }
+
     /// Iterate over asset path → actor labels that reference it.
     pub fn asset_usage(&self) -> impl Iterator<Item = (&String, &BTreeSet<String>)> {
         self.asset_cache.asset_usage()

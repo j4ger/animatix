@@ -260,6 +260,7 @@ impl BuildTarget {
             for diag in &mut report.diagnostics {
                 diag.location.path = Some(path.to_path_buf());
             }
+            report.output.set_asset_source_base(path);
         }
         report
     }
@@ -324,6 +325,7 @@ impl BuildTarget {
             for diag in &mut report.diagnostics {
                 diag.location.path = Some(path.to_path_buf());
             }
+            report.output.set_asset_source_base(path);
         }
         report
     }
@@ -333,6 +335,22 @@ impl BuildTarget {
         match self {
             BuildTarget::SingleScene(timeline) => timeline.duration_seconds(),
             BuildTarget::MultiScene(composition) => composition.global_duration_s,
+        }
+    }
+
+    fn set_asset_source_base(&mut self, source_path: &std::path::Path) {
+        let document_dir = source_path.parent();
+        match self {
+            BuildTarget::SingleScene(timeline) => {
+                std::sync::Arc::make_mut(&mut timeline.asset_cache)
+                    .set_base_dirs(document_dir, None);
+            },
+            BuildTarget::MultiScene(composition) => {
+                for scene in composition.scenes.values_mut() {
+                    std::sync::Arc::make_mut(&mut scene.timeline.asset_cache)
+                        .set_base_dirs(document_dir, None);
+                }
+            },
         }
     }
 }
@@ -398,6 +416,17 @@ impl Composition {
     /// Returns true if the composition has at least one scene.
     pub fn has_scenes(&self) -> bool {
         !self.scenes.is_empty()
+    }
+
+    /// Configure document/workspace base directories for relative asset URLs.
+    pub fn set_asset_base_dirs(
+        &mut self,
+        document_dir: Option<&std::path::Path>,
+        workspace_root: Option<&std::path::Path>,
+    ) {
+        for scene in self.scenes.values_mut() {
+            scene.timeline.set_asset_base_dirs(document_dir, workspace_root);
+        }
     }
 }
 

@@ -1,4 +1,5 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::renderer::types::VelloPath;
@@ -13,13 +14,17 @@ struct AssetFileMetadata {
 
 /// Centralized cache for loaded assets and the actors that reference them.
 ///
-/// Assets are keyed by their source identifier (file path). Usage tracking maps
-/// each asset to the actor labels that loaded it, so GUI tooling can show asset
-/// references. Rebuilds can carry an existing `Arc<AssetCache>` forward; the
-/// cache records file metadata on load so only paths that changed on disk need
-/// to be reloaded.
+/// Assets are keyed by their normalized source identifier. Relative URLs are
+/// resolved against the document directory first and the workspace root second
+/// when one is configured, so native plugins and built-in media agree on the
+/// meaning of `"img/foo.png"`. Usage tracking maps each asset to the actor
+/// labels that loaded it, so GUI tooling can show asset references. Rebuilds
+/// can carry an existing `Arc<AssetCache>` forward; the cache records file
+/// metadata on load so only paths that changed on disk need to be reloaded.
 #[derive(Clone, Default)]
 pub struct AssetCache {
+    document_dir: Option<PathBuf>,
+    workspace_root: Option<PathBuf>,
     svg_paths: HashMap<String, Vec<VelloPath>>,
     images: HashMap<String, SceneImage>,
     usage: HashMap<String, BTreeSet<String>>,
@@ -32,6 +37,37 @@ impl AssetCache {
         Self::default()
     }
 
+    /// Configure base directories used to resolve relative asset URLs.
+    ///
+    /// Document directory wins over workspace root; absolute and remote URLs
+    /// are never rewritten.
+    pub fn set_base_dirs(&mut self, document_dir: Option<&Path>, workspace_root: Option<&Path>) {
+        self.document_dir = document_dir.map(Path::to_path_buf);
+        self.workspace_root = workspace_root.map(Path::to_path_buf);
+    }
+
+    /// Normalize an asset identifier to the cache key used by the engine.
+    pub fn normalize_asset_url(&self, url: &str) -> String {
+        if url.is_empty()
+            || url.starts_with("http://")
+            || url.starts_with("https://")
+            || url.starts_with("data:")
+        {
+            return url.to_string();
+        }
+        let path = Path::new(url);
+        if path.is_absolute() {
+            return normalize_lexically(path.to_path_buf()).display().to_string();
+        }
+        if let Some(document_dir) = &self.document_dir {
+            return normalize_lexically(document_dir.join(path)).display().to_string();
+        }
+        if let Some(workspace_root) = &self.workspace_root {
+            return normalize_lexically(workspace_root.join(path)).display().to_string();
+        }
+        normalize_lexically(PathBuf::from(path)).display().to_string()
+    }
+
     /// Load an SVG file and record that `actor_label` references it.
     ///
     /// Returns cached paths when the same file was loaded before.
@@ -40,15 +76,16 @@ impl AssetCache {
         path: &str,
         actor_label: &str,
     ) -> Result<Vec<VelloPath>, String> {
-        let paths = if let Some(paths) = self.svg_paths.get(path) {
+        let key = self.normalize_asset_url(path);
+        let paths = if let Some(paths) = self.svg_paths.get(&key) {
             paths.clone()
         } else {
-            let parsed = crate::timeline::svg::parse_svg_file(path)?;
-            self.record_file_metadata(path);
-            self.svg_paths.insert(path.to_string(), parsed.clone());
+            let parsed = crate::timeline::svg::parse_svg_file(&key)?;
+            self.record_file_metadata(&key);
+            self.svg_paths.insert(key.clone(), parsed.clone());
             parsed
         };
-        self.record_usage(path, actor_label);
+        self.record_usage(&key, actor_label);
         Ok(paths)
     }
 
@@ -56,15 +93,16 @@ impl AssetCache {
     ///
     /// Returns cached image data when the same file was loaded before.
     pub fn load_image_for(&mut self, path: &str, actor_label: &str) -> Result<SceneImage, String> {
-        let image = if let Some(image) = self.images.get(path) {
+        let key = self.normalize_asset_url(path);
+        let image = if let Some(image) = self.images.get(&key) {
             image.clone()
         } else {
-            let loaded = crate::timeline::image::load_image_file(path)?;
-            self.record_file_metadata(path);
-            self.images.insert(path.to_string(), loaded.clone());
+            let loaded = crate::timeline::image::load_image_file(&key)?;
+            self.record_file_metadata(&key);
+            self.images.insert(key.clone(), loaded.clone());
             loaded
         };
-        self.record_usage(path, actor_label);
+        self.record_usage(&key, actor_label);
         Ok(image)
     }
 
@@ -106,7 +144,7 @@ impl AssetCache {
 
     /// Read a cached image by source path, without loading or usage tracking.
     pub fn get_image(&self, path: &str) -> Option<SceneImage> {
-        self.images.get(path).cloned()
+        self.images.get(&self.normalize_asset_url(path)).cloned()
     }
 
     /// Drop decoded payloads whose file metadata changed since they were loaded.
@@ -168,6 +206,22 @@ impl AssetCache {
         self.usage.remove(path);
         self.metadata.remove(path);
     }
+}
+
+fn normalize_lexically(path: PathBuf) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {},
+            std::path::Component::ParentDir => {
+                if !normalized.pop() && !normalized.has_root() {
+                    normalized.push(component.as_os_str());
+                }
+            },
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+    normalized
 }
 
 #[cfg(test)]
@@ -281,6 +335,19 @@ mod tests {
 
         cache.load_svg_for(&unused_str, "unused_actor").expect("reload unused svg");
         assert_eq!(cache.svg_paths().count(), 2);
+    }
+
+    #[test]
+    fn relative_urls_resolve_against_document_dir() {
+        let dir = std::env::temp_dir().join("animatix_asset_base_dir_tests");
+        let mut cache = AssetCache::new();
+        cache.set_base_dirs(Some(&dir), None);
+        let key = cache.normalize_asset_url("img/logo.png");
+        assert_eq!(Path::new(&key), dir.join("img/logo.png").as_path());
+        assert_eq!(
+            cache.normalize_asset_url("https://example.com/logo.png"),
+            "https://example.com/logo.png"
+        );
     }
 
     #[test]
