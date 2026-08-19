@@ -115,6 +115,9 @@ pub(crate) struct SettingsPersistence {
     /// Persisted shortcut overrides keyed by stable binding name.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub shortcuts: BTreeMap<String, SavedShortcut>,
+    /// Explicit plugin manifest/library paths.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub plugin_paths: Vec<PathBuf>,
 }
 
 /// Load persisted shortcut overrides from the workspace persistence file.
@@ -181,5 +184,37 @@ pub(super) fn clear_app_state() {
         if let Err(e) = fs::remove_file(&path) {
             tracing::warn!("Failed to remove app state file {}: {}", path.display(), e);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn settings_persistence_roundtrips_plugin_paths() {
+        let settings = SettingsPersistence {
+            rebuild_debounce_ms: 150,
+            scrub_step_s: 0.05,
+            nudge_step_px: 1.0,
+            nudge_step_shift_px: 8.0,
+            rotation_snap_degrees: 15.0,
+            snap_fps: 60.0,
+            keyframe_merge_window_s: 0.05,
+            undo_limit: 100,
+            grid_size: 40.0,
+            app_theme: "dark".to_string(),
+            reduce_motion: false,
+            density: "default".to_string(),
+            theme_dir: None,
+            theme_name: None,
+            shortcuts: BTreeMap::new(),
+            plugin_paths: vec![PathBuf::from("/tmp/plugins")],
+        };
+        let serialized = ron::ser::to_string_pretty(&settings, ron::ser::PrettyConfig::default())
+            .expect("serialize settings");
+        let parsed: SettingsPersistence =
+            ron::from_str(&serialized).expect("parse settings roundtrip");
+        assert_eq!(parsed.plugin_paths, settings.plugin_paths);
     }
 }

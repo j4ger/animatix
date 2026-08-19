@@ -439,9 +439,19 @@ impl GuiShell {
 
     fn load(initial_path: PathBuf, show_welcome: bool) -> Self {
         let workspace_root = workspace_root_for(&initial_path);
-        let plugin_manager =
-            DocumentPluginManager::new(initial_path.clone(), workspace_root.clone());
-        let (document, status, error, is_welcome) = if show_welcome {
+        let persistence_path = persistence_path();
+        let persistence = load_workspace_persistence(&persistence_path);
+        let plugin_paths = persistence
+            .as_ref()
+            .and_then(|p| p.settings.as_ref())
+            .map(|settings| settings.plugin_paths.clone())
+            .unwrap_or_default();
+        let plugin_manager = DocumentPluginManager::new_with_explicit_paths(
+            initial_path.clone(),
+            workspace_root.clone(),
+            plugin_paths,
+        );
+        let (mut document, status, error, is_welcome) = if show_welcome {
             // No recent file persisted — show welcome screen
             let doc = DocumentSession::from_error(initial_path.clone());
             (doc, None, None, true)
@@ -466,10 +476,10 @@ impl GuiShell {
             }
         };
 
+        document.set_plugin_epoch(plugin_manager.epoch());
+
         let expanded_dirs = HashSet::from([workspace_root.clone()]);
         let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
-        let persistence_path = persistence_path();
-        let persistence = load_workspace_persistence(&persistence_path);
         let tree = persistence.as_ref().map(|p| p.tree.clone()).unwrap_or_else(default_tree);
         let window_size =
             persistence.as_ref().and_then(|p| p.window_size).unwrap_or([1440.0, 960.0]);
@@ -1127,6 +1137,7 @@ impl GuiShell {
                 theme_dir: self.ui_store.view.theme_dir.clone(),
                 theme_name: self.ui_store.view.theme_name.clone(),
                 shortcuts: self.ui_store.shortcut_overrides.clone(),
+                plugin_paths: self.plugin_manager.explicit_plugin_paths(),
             }),
         };
         if let Ok(serialized) =
@@ -1171,10 +1182,13 @@ impl GuiShell {
 
     /// Apply a plugin reload to the current document and schedule a rebuild.
     fn apply_plugin_reload(&mut self) {
+        let context = self.plugin_manager.context();
+        let manifest = self.plugin_manager.manifest();
+        let epoch = self.plugin_manager.epoch();
         self.document_store
             .source
             .document
-            .set_extension_context(self.plugin_manager.context(), self.plugin_manager.manifest());
+            .set_extension_context(context, manifest, epoch);
         self.preview_store.pending_rebuild_at = Some(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),

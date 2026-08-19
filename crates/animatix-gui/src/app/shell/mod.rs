@@ -80,8 +80,11 @@ impl GuiShell {
                 &mut self.ui_store,
             ),
             Command::ReloadPlugins => {
-                self.plugin_manager.reload();
-                self.apply_plugin_reload();
+                if self.plugin_manager.reload() {
+                    self.apply_plugin_reload();
+                } else {
+                    self.preview_store.preview.set_status_info("Plugins already up to date");
+                }
                 vec![]
             },
             Command::ScrubTo(next_time) => playback::handle_scrub_to(

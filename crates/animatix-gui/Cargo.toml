@@ -17,6 +17,7 @@ theme-json = ["eparts/theme-json"]
 [dependencies]
 animatix = { path = "../animatix" }
 animatix-analyzer = { path = "../animatix-analyzer" }
+animatix-plugin-tooling = { path = "../animatix-plugin-tooling" }
 animatix-syntax = { path = "../animatix-syntax" }
 eparts = { path = "../eparts" }
 crossbeam-channel = "0.5"

@@ -21,6 +21,7 @@ impl GuiShell {
         let snapshot = self.plugin_manager.snapshot();
         let mut reload = false;
         let mut add_path: Option<PathBuf> = None;
+        let mut remove_path: Option<PathBuf> = None;
         let mut describe_library: Option<PathBuf> = None;
 
         let open = dialog::modal(ui, &spec, |ui, _dc| -> bool {
@@ -165,11 +166,22 @@ impl GuiShell {
             ui.add_space(sp.base.space_2);
             let explicit = self.plugin_manager.explicit_plugin_paths();
             for path in &explicit {
-                ui.label(
-                    egui::RichText::new(path.display().to_string())
-                        .size(TextRole::Micro.size())
-                        .color(theme.text.secondary),
-                );
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(path.display().to_string())
+                            .size(TextRole::Micro.size())
+                            .color(theme.text.secondary),
+                    );
+                    if ui
+                        .add(
+                            Button::icon(egui_phosphor::regular::X)
+                                .with_tooltip("Remove explicit plugin path"),
+                        )
+                        .clicked()
+                    {
+                        remove_path = Some(path.clone());
+                    }
+                });
             }
             ui.horizontal(|ui| {
                 eparts::TextField::new(&mut self.ui_store.plugin_path_input)
@@ -205,16 +217,28 @@ impl GuiShell {
             title_close
         });
 
-        if reload || add_path.is_some() {
-            let mut paths = self.plugin_manager.explicit_plugin_paths();
-            if let Some(path) = add_path
-                && !paths.contains(&path)
-            {
-                paths.insert(0, path);
+        let path_changed = remove_path.is_some() || add_path.is_some();
+        let mut paths = self.plugin_manager.explicit_plugin_paths();
+        if let Some(path) = remove_path {
+            paths.retain(|existing| existing != &path);
+        }
+        if let Some(path) = add_path
+            && !paths.contains(&path)
+        {
+            paths.insert(0, path);
+        }
+        let changed = if reload || path_changed {
+            if reload && !path_changed {
+                self.plugin_manager.reload()
+            } else {
+                self.plugin_manager.set_explicit_plugin_paths(paths)
             }
-            self.plugin_manager.set_explicit_plugin_paths(paths);
-            self.plugin_manager.reload();
+        } else {
+            false
+        };
+        if changed {
             self.apply_plugin_reload();
+            self.save_persistence();
         }
 
         #[cfg(feature = "plugin-loading")]

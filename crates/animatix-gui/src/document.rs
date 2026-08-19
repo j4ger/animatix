@@ -48,6 +48,8 @@ pub struct DocumentSession {
     pub extension_manifest: ExtensionManifest,
     /// Optional workspace root used for relative plugin/asset resolution.
     pub workspace_root: Option<PathBuf>,
+    /// Plugin context generation used to discard stale background rebuilds.
+    pub plugin_epoch: u64,
     /// Bi-directional timeline index mapping source lines to times and vice versa.
     pub timeline_index: TimelineIndex,
     /// Set of 0-indexed line numbers that contain keyframe declarations.
@@ -128,6 +130,7 @@ impl DocumentSession {
             extension_context,
             extension_manifest,
             workspace_root: None,
+            plugin_epoch: 0,
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -171,14 +174,21 @@ impl DocumentSession {
         &mut self,
         extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
         extension_manifest: ExtensionManifest,
+        plugin_epoch: u64,
     ) {
         self.extension_context = extension_context;
         self.extension_manifest = extension_manifest;
+        self.plugin_epoch = plugin_epoch;
     }
 
     /// Replace the workspace root used for relative asset resolution.
     pub fn set_workspace_root(&mut self, workspace_root: Option<PathBuf>) {
         self.workspace_root = workspace_root;
+    }
+
+    /// Set the current plugin context generation.
+    pub fn set_plugin_epoch(&mut self, plugin_epoch: u64) {
+        self.plugin_epoch = plugin_epoch;
     }
 
     /// Apply document/workspace base directories to every active asset cache.

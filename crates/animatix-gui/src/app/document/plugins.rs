@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use animatix::extension_context::ExtensionContext;
-use animatix::extension_plugin::{ExtensionPlugin, PluginDisposer, PluginLoader};
+use animatix::extension_plugin::{ExtensionPlugin, PluginLoader};
 use animatix_analyzer::{
     ExtensionManifest, ManifestSource, discover_manifest_paths, fingerprint_sources,
     load_manifest_source,
@@ -42,7 +42,8 @@ struct PluginState {
     issues: Vec<PluginIssue>,
     plugin_names: Vec<String>,
     fingerprint: u64,
-    _disposers: Vec<PluginDisposer>,
+    attempted_fingerprint: Option<u64>,
+    epoch: u64,
 }
 
 /// Owns the current extension context and last-known-good plugin state.
@@ -59,25 +60,9 @@ const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 impl DocumentPluginManager {
     /// Create a manager and load plugins for `document_path`.
+    #[cfg(test)]
     pub(crate) fn new(document_path: PathBuf, workspace_root: PathBuf) -> Self {
-        let mut manager = Self {
-            document_path,
-            workspace_root,
-            explicit_plugin_paths: Vec::new(),
-            in_process_plugins: Vec::new(),
-            state: Mutex::new(PluginState {
-                context: Arc::new(ExtensionContext::new()),
-                manifest: ExtensionManifest::default(),
-                sources: Vec::new(),
-                issues: Vec::new(),
-                plugin_names: Vec::new(),
-                fingerprint: 0,
-                _disposers: Vec::new(),
-            }),
-            last_check: Mutex::new(Instant::now()),
-        };
-        manager.reload();
-        manager
+        Self::new_with_options(document_path, workspace_root, Vec::new(), Vec::new())
     }
 
     /// Create a manager with injected in-process plugins for tests.
@@ -87,8 +72,41 @@ impl DocumentPluginManager {
         workspace_root: PathBuf,
         plugins: Vec<Arc<dyn ExtensionPlugin>>,
     ) -> Self {
-        let mut manager = Self::new(document_path, workspace_root);
-        manager.in_process_plugins = plugins;
+        Self::new_with_options(document_path, workspace_root, Vec::new(), plugins)
+    }
+
+    /// Create a manager with persisted explicit plugin paths.
+    pub(crate) fn new_with_explicit_paths(
+        document_path: PathBuf,
+        workspace_root: PathBuf,
+        explicit_plugin_paths: Vec<PathBuf>,
+    ) -> Self {
+        Self::new_with_options(document_path, workspace_root, explicit_plugin_paths, Vec::new())
+    }
+
+    fn new_with_options(
+        document_path: PathBuf,
+        workspace_root: PathBuf,
+        explicit_plugin_paths: Vec<PathBuf>,
+        in_process_plugins: Vec<Arc<dyn ExtensionPlugin>>,
+    ) -> Self {
+        let mut manager = Self {
+            document_path,
+            workspace_root,
+            explicit_plugin_paths,
+            in_process_plugins,
+            state: Mutex::new(PluginState {
+                context: Arc::new(ExtensionContext::new()),
+                manifest: ExtensionManifest::default(),
+                sources: Vec::new(),
+                issues: Vec::new(),
+                plugin_names: Vec::new(),
+                fingerprint: u64::MAX,
+                attempted_fingerprint: None,
+                epoch: 0,
+            }),
+            last_check: Mutex::new(Instant::now()),
+        };
         manager.reload();
         manager
     }
@@ -101,9 +119,9 @@ impl DocumentPluginManager {
     }
 
     /// Set explicit plugin paths in priority order (highest first).
-    pub(crate) fn set_explicit_plugin_paths(&mut self, paths: Vec<PathBuf>) {
+    pub(crate) fn set_explicit_plugin_paths(&mut self, paths: Vec<PathBuf>) -> bool {
         self.explicit_plugin_paths = paths;
-        self.reload();
+        self.reload()
     }
 
     /// Read explicit plugin paths.
@@ -121,6 +139,11 @@ impl DocumentPluginManager {
         self.state.lock().expect("plugin state lock").manifest.clone()
     }
 
+    /// Current plugin context generation; changes when a context is swapped.
+    pub(crate) fn epoch(&self) -> u64 {
+        self.state.lock().expect("plugin state lock").epoch
+    }
+
     /// Read the status-panel snapshot.
     pub(crate) fn snapshot(&self) -> PluginSnapshot {
         let state = self.state.lock().expect("plugin state lock");
@@ -133,7 +156,7 @@ impl DocumentPluginManager {
 
     /// Force a reload and return true when any state changed.
     pub(crate) fn reload(&mut self) -> bool {
-        self.reload_inner(true)
+        self.reload_inner()
     }
 
     /// Poll manifest/library files for changes and reload when needed.
@@ -145,17 +168,18 @@ impl DocumentPluginManager {
         }
         *last = now;
         drop(last);
-        self.reload_inner(false)
+        self.reload_inner()
     }
 
-    fn reload_inner(&mut self, force: bool) -> bool {
+    fn reload_inner(&mut self) -> bool {
         let (sources, mut issues) = self.discover_sources();
         let fingerprint = fingerprint_sources(&sources);
-        {
+        let (previous_fingerprint, previous_attempted) = {
             let state = self.state.lock().expect("plugin state lock");
-            if !force && state.fingerprint == fingerprint {
-                return false;
-            }
+            (state.fingerprint, state.attempted_fingerprint)
+        };
+        if previous_fingerprint == fingerprint || previous_attempted == Some(fingerprint) {
+            return false;
         }
 
         let (loader, plugin_names) = self.build_loader(&sources, &mut issues);
@@ -165,50 +189,40 @@ impl DocumentPluginManager {
         // plugins that were already installed.
         if issues.iter().any(|issue| issue.path.is_some()) {
             let mut state = self.state.lock().expect("plugin state lock");
-            state.sources = sources.clone();
             state.issues = issues;
-            state.fingerprint = fingerprint;
+            state.attempted_fingerprint = Some(fingerprint);
             return true;
         }
 
         let mut context = ExtensionContext::new();
-        let disposers = match loader.install_all(&mut context) {
-            Ok(disposers) => {
-                for name in &plugin_names {
-                    tracing::info!(
-                        "Installed plugin '{name}' for {}",
-                        self.document_path.display()
-                    );
-                }
-                disposers
-            },
-            Err(err) => {
-                issues.push(PluginIssue {
-                    path: None,
-                    message: err.to_string(),
-                });
-                // Keep the previous last-known-good context on install failure.
-                let mut state = self.state.lock().expect("plugin state lock");
-                state.sources = sources.clone();
-                state.issues = issues;
-                state.fingerprint = fingerprint;
-                return true;
-            },
-        };
+        if let Err(err) = loader.install_all(&mut context) {
+            issues.push(PluginIssue {
+                path: None,
+                message: err.to_string(),
+            });
+            // Keep the previous last-known-good context on install failure.
+            let mut state = self.state.lock().expect("plugin state lock");
+            state.issues = issues;
+            state.attempted_fingerprint = Some(fingerprint);
+            return true;
+        }
+        for name in &plugin_names {
+            tracing::info!("Installed plugin '{name}' for {}", self.document_path.display());
+        }
 
         let manifest = ExtensionManifest::merge(
             &sources.iter().map(|source| source.manifest.clone()).collect::<Vec<_>>(),
         );
         let mut state = self.state.lock().expect("plugin state lock");
-        let changed = force || state.fingerprint != fingerprint;
         state.context = Arc::new(context);
         state.manifest = manifest;
         state.sources = sources;
         state.issues = issues;
         state.plugin_names = plugin_names;
         state.fingerprint = fingerprint;
-        state._disposers = disposers;
-        changed
+        state.attempted_fingerprint = None;
+        state.epoch = state.epoch.saturating_add(1);
+        true
     }
 
     fn discover_sources(&self) -> (Vec<ManifestSource>, Vec<PluginIssue>) {
@@ -275,68 +289,16 @@ pub(crate) fn generate_manifest_for_library(
     library: &Path,
     output: &Path,
 ) -> Result<String, String> {
-    let plugin = animatix::extension_plugin::NativePlugin::load(library)
-        .map_err(|err| format!("Cannot load {}: {err}", library.display()))?;
-    let mut ctx = ExtensionContext::new();
-    let disposer = plugin
-        .install(&mut ctx)
-        .map_err(|err| format!("Cannot install {}: {err}", library.display()))?;
-
-    let registry = ctx.primitive_registry();
-    let primitives = registry
-        .specs()
-        .into_iter()
-        .filter(|spec| !registry.is_builtin(&spec.type_name))
-        .collect::<Vec<_>>();
-    let manifest_library = output
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .and_then(|parent| relative_path(parent, library))
-        .unwrap_or_else(|| library.to_path_buf())
-        .to_string_lossy()
-        .into_owned();
-    let manifest = ExtensionManifest::from_runtime(
-        Some(manifest_library),
-        &primitives,
-        &ctx.extension_property_descriptors(),
-        &ctx.action_signatures(),
-        &ctx.function_descriptors(),
-        &ctx.service_descriptors(),
-    );
-    let toml = manifest.to_toml()?;
-    let parsed = ExtensionManifest::from_toml(&toml).map_err(|err| err.to_string())?;
-    if parsed != manifest {
-        return Err("Generated manifest failed validation round-trip".to_string());
-    }
+    let toml = animatix_plugin_tooling::generate_manifest_toml(library, Some(output))?;
     std::fs::write(output, &toml)
         .map_err(|err| format!("Cannot write {}: {err}", output.display()))?;
-    disposer(&mut ctx);
     Ok(output.display().to_string())
-}
-
-#[cfg(feature = "plugin-loading")]
-fn relative_path(from_dir: &Path, target: &Path) -> Option<PathBuf> {
-    let from = std::fs::canonicalize(from_dir).ok()?;
-    let target = std::fs::canonicalize(target).ok()?;
-    let mut from_components = from.components().peekable();
-    let mut target_components = target.components().peekable();
-    while from_components.peek() == target_components.peek() {
-        from_components.next();
-        target_components.next();
-    }
-    let mut result = PathBuf::new();
-    for _ in from_components {
-        result.push("..");
-    }
-    for component in target_components {
-        result.push(component.as_os_str());
-    }
-    Some(result)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use animatix::extension_plugin::PluginDisposer;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     struct DoublePlugin;
@@ -428,5 +390,73 @@ mod tests {
             manager.snapshot().issues.iter().any(|issue| issue.path.is_some()),
             "missing library should surface an issue"
         );
+    }
+
+    #[test]
+    fn failed_reload_keeps_full_active_state_and_skips_same_fingerprint() {
+        let dir = temp_dir("failed_state");
+        let entry = dir.join("test.amx");
+        std::fs::write(&entry, "#0s\n").expect("write source");
+        let mut manager = DocumentPluginManager::with_plugins(
+            entry.clone(),
+            dir.clone(),
+            vec![Arc::new(DoublePlugin) as Arc<dyn ExtensionPlugin>],
+        );
+        let active_sources = manager.snapshot().sources.clone();
+        let active_manifest = manager.manifest();
+        let active_epoch = manager.epoch();
+
+        std::fs::write(
+            dir.join("bad.amx-plugin.toml"),
+            "library = \"missing.so\"\n[[primitives]]\ntype_name = \"Gauge\"\n",
+        )
+        .expect("write manifest");
+        assert!(manager.reload(), "new fingerprint should be attempted");
+        assert_eq!(manager.snapshot().sources, active_sources);
+        assert_eq!(manager.manifest(), active_manifest);
+        assert_eq!(manager.epoch(), active_epoch);
+        assert!(
+            manager.snapshot().issues.iter().any(|issue| issue.path.is_some()),
+            "failed reload should surface an issue"
+        );
+        assert!(!manager.reload(), "same failed fingerprint must not be retried every call");
+    }
+
+    #[test]
+    fn successful_reload_after_fix_swaps_context_and_increments_epoch() {
+        let dir = temp_dir("recovery");
+        let entry = dir.join("test.amx");
+        std::fs::write(&entry, "#0s\n").expect("write source");
+        let mut manager = DocumentPluginManager::with_plugins(
+            entry.clone(),
+            dir.clone(),
+            vec![Arc::new(DoublePlugin) as Arc<dyn ExtensionPlugin>],
+        );
+        let before_epoch = manager.epoch();
+
+        std::fs::write(
+            dir.join("bad.amx-plugin.toml"),
+            "library = \"missing.so\"\n[[primitives]]\ntype_name = \"Gauge\"\n",
+        )
+        .expect("write manifest");
+        manager.reload();
+        std::fs::write(dir.join("bad.amx-plugin.toml"), "[[primitives]]\ntype_name = \"Gauge\"\n")
+            .expect("write fixed manifest");
+
+        assert!(manager.reload(), "fixed fingerprint should be applied");
+        assert!(manager.epoch() > before_epoch);
+        assert!(manager.manifest().primitives.iter().any(|p| p.type_name == "Gauge"));
+        assert!(manager.snapshot().issues.is_empty());
+    }
+
+    #[test]
+    fn no_op_reload_keeps_epoch_unchanged() {
+        let dir = temp_dir("noop");
+        let entry = dir.join("test.amx");
+        std::fs::write(&entry, "#0s\n").expect("write source");
+        let mut manager = DocumentPluginManager::new(entry, dir);
+        let epoch = manager.epoch();
+        assert!(!manager.reload());
+        assert_eq!(manager.epoch(), epoch);
     }
 }

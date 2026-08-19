@@ -39,6 +39,7 @@ pub(crate) struct PropertyEntry {
     pub keyframe_count: usize,
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum PropertyKind {
     Vec2 {
         x: f32,
@@ -1413,5 +1414,45 @@ fn vec2_labels(name: &str) -> (&'static str, &'static str) {
     match name {
         "size" | "layout_size" => ("W: ", "H: "),
         _ => ("X: ", "Y: "),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use animatix_syntax::typing::Type;
+
+    #[test]
+    fn extension_value_to_kind_uses_manifest_types() {
+        let enum_value = animatix::timeline::PropertyValue::String("right".to_string());
+        assert_eq!(
+            extension_value_to_kind(
+                enum_value,
+                &Type::Enum(vec!["left".to_string(), "right".to_string()])
+            ),
+            PropertyKind::EnumOwned {
+                variants: vec!["left".to_string(), "right".to_string()],
+                value: "right".to_string(),
+            }
+        );
+
+        assert_eq!(
+            extension_value_to_kind(animatix::timeline::PropertyValue::Bool(true), &Type::Bool),
+            PropertyKind::Bool(true)
+        );
+        assert_eq!(
+            extension_value_to_kind(
+                animatix::timeline::PropertyValue::Color([1.0, 0.0, 0.0, 1.0]),
+                &Type::Color
+            ),
+            PropertyKind::Color([1.0, 0.0, 0.0, 1.0])
+        );
+        assert_eq!(
+            extension_value_to_kind(
+                animatix::timeline::PropertyValue::Vec2([3.0, 4.0]),
+                &Type::Vec2
+            ),
+            PropertyKind::Vec2 { x: 3.0, y: 4.0 }
+        );
     }
 }

@@ -35,6 +35,8 @@ pub struct RebuildRequest {
     pub extension_manifest: animatix_analyzer::ExtensionManifest,
     /// Workspace root used for relative asset URL resolution.
     pub workspace_root: Option<PathBuf>,
+    /// Plugin context generation; stale responses are discarded by the UI.
+    pub plugin_epoch: u64,
     pub cancellation: CancellationToken,
 }
 
@@ -43,6 +45,7 @@ pub struct RebuildResponse {
     pub token: RebuildToken,
     pub source_epoch: SourceEpoch,
     pub source_hash: SourceHash,
+    pub plugin_epoch: u64,
     pub result: Result<RebuildOutput, RebuildFailure>,
     pub elapsed_ms: f32,
 }
@@ -149,6 +152,7 @@ impl RebuildWorker {
             extension_context: source.document.extension_context.clone(),
             extension_manifest: source.document.extension_manifest.clone(),
             workspace_root: source.document.workspace_root.clone(),
+            plugin_epoch: source.document.plugin_epoch,
             cancellation: self.cancel_source.token(),
         };
 
@@ -198,6 +202,7 @@ impl RebuildWorker {
                         token: request.token,
                         source_epoch: request.source_epoch,
                         source_hash: request.source_hash,
+                        plugin_epoch: request.plugin_epoch,
                         result: Err(RebuildFailure {
                             error: "failed to create document session".into(),
                             diagnostics: Vec::new(),
@@ -259,6 +264,7 @@ impl RebuildWorker {
                 token: request.token,
                 source_epoch: request.source_epoch,
                 source_hash: request.source_hash,
+                plugin_epoch: request.plugin_epoch,
                 result,
                 elapsed_ms,
             });
@@ -271,6 +277,7 @@ fn cancelled_response(request: RebuildRequest, start: Instant) -> RebuildRespons
         token: request.token,
         source_epoch: request.source_epoch,
         source_hash: request.source_hash,
+        plugin_epoch: request.plugin_epoch,
         result: Err(RebuildFailure {
             error: "rebuild cancelled".to_string(),
             diagnostics: Vec::new(),
@@ -350,6 +357,7 @@ mod tests {
                 ),
                 extension_manifest: animatix_analyzer::ExtensionManifest::default(),
                 workspace_root: None,
+                plugin_epoch: 3,
                 cancellation: token,
             })
             .expect("send request");

@@ -70,7 +70,8 @@ pub fn handle_open_file(
         extension_manifest,
         Some(plugin_workspace_root),
     ) {
-        Ok(document) => {
+        Ok(mut document) => {
+            document.set_plugin_epoch(plugin_manager.epoch());
             // Only recompute workspace root if the file is outside the current workspace
             if !path.starts_with(&workspace_store.workspace_root) {
                 let new_workspace_root = crate::app::file_tree::workspace_root_for(&path);
@@ -447,8 +448,10 @@ pub fn handle_rebuild_response(
     ui_store: &mut UiStore,
     response: RebuildResponse,
 ) -> Vec<Effect> {
-    // Discard stale responses (a newer rebuild was started)
-    if response.source_epoch != document_store.source.epoch() {
+    // Discard stale responses (a newer source or plugin context was accepted)
+    if response.source_epoch != document_store.source.epoch()
+        || response.plugin_epoch != document_store.source.document.plugin_epoch
+    {
         return vec![];
     }
 
@@ -497,6 +500,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::*;
+    use crate::app::document::version::SourceHash;
     use crate::editor::EditorBuffer;
 
     #[test]
@@ -638,5 +642,42 @@ mod tests {
             "Built timeline • 0.10s total duration • scene 'Diagram' removed • removed graph"
         );
         assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn stale_plugin_epoch_rebuild_response_is_discarded() {
+        let mut document_store = make_document_store("#0s\nbox: Rect, size: (100, 100)\n");
+        document_store.source.document.plugin_epoch = 4;
+        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
+            1.0,
+            document_store.source.document.scene_dimensions,
+        ));
+        let mut preview_store = preview;
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+
+        let response = RebuildResponse {
+            token: RebuildToken(99),
+            source_epoch: document_store.source.epoch(),
+            source_hash: SourceHash(0),
+            plugin_epoch: 3,
+            result: Err(crate::app::document::rebuild_output::RebuildFailure {
+                error: "stale plugin context".into(),
+                diagnostics: Vec::new(),
+                partial_source_index: None,
+            }),
+            elapsed_ms: 1.0,
+        };
+
+        let effects = handle_rebuild_response(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            response,
+        );
+
+        assert!(effects.is_empty());
+        assert!(!preview_store.rebuild_in_progress);
+        assert!(preview_store.preview.error.is_none());
     }
 }
