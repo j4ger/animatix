@@ -6,10 +6,11 @@ rust-version = "1.85"
 default-run = "animatix-gui"
 
 [features]
-default = []
+default = ["plugin-loading"]
 # Enables the bounded widget-screenshot binary. Never enable in shipped binaries.
 dev-screenshots = ["dep:image"]
 video = ["animatix/video"]
+plugin-loading = ["animatix/plugin-loading"]
 # Enables eparts JSON theme loading, registries, and live directory watching.
 theme-json = ["eparts/theme-json"]
 

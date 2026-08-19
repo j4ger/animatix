@@ -42,7 +42,8 @@ pub struct EditorBuffer {
 
 impl EditorBuffer {
     pub fn new(path: &Path, text: String) -> Self {
-        let analyzer = Analyzer::new(&text);
+        let mut analyzer = Analyzer::new(&text);
+        analyzer.set_extension_manifest(crate::document::extension_manifest_for_path(path));
         let cells = parse_cells(&text);
         Self {
             text: text.clone(),
@@ -66,6 +67,8 @@ impl EditorBuffer {
         self.document_path = path.to_path_buf();
         self.cached_highlight = None;
         self.analyzer.update(&self.text);
+        self.analyzer
+            .set_extension_manifest(crate::document::extension_manifest_for_path(path));
         self.completion.hide();
         self.cells = parse_cells(&text);
         self.cell_state = CellEditorState::default();
@@ -74,6 +77,11 @@ impl EditorBuffer {
         self.keyframe_times_s.clear();
         self.cursor_line = None;
         self.pending_scrub_to_time = None;
+    }
+
+    /// Replace analyzer metadata for extension manifests beside the document.
+    pub fn set_extension_manifest(&mut self, manifest: animatix_analyzer::ExtensionManifest) {
+        self.analyzer.set_extension_manifest(manifest);
     }
 
     pub fn text(&self) -> &str {

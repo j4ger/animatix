@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use animatix::composition::{BuildTarget, Composition};
 use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, TimelineIndex};
+use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::{
@@ -43,6 +44,8 @@ pub struct DocumentSession {
     pub scene_dimensions: SceneDimensions,
     /// Per-document extension context used for all timeline rebuilds.
     pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+    /// Analyzer metadata merged from `.amx-plugin.toml` files beside the document.
+    pub extension_manifest: ExtensionManifest,
     /// Bi-directional timeline index mapping source lines to times and vice versa.
     pub timeline_index: TimelineIndex,
     /// Set of 0-indexed line numbers that contain keyframe declarations.
@@ -69,6 +72,8 @@ impl DocumentSession {
             source: err,
         })?;
 
+        let (extension_context, extension_manifest) = document_extensions(&file_path);
+
         let mut document = Self {
             file_path,
             source_text,
@@ -84,9 +89,8 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
-            extension_context: std::sync::Arc::new(
-                animatix::extension_context::ExtensionContext::new(),
-            ),
+            extension_context,
+            extension_manifest,
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -106,6 +110,7 @@ impl DocumentSession {
     /// Create a session from in-memory source text without loading from disk.
     /// This is used by the background rebuild worker.
     pub fn from_source(file_path: PathBuf, source_text: String) -> Result<Self, GuiError> {
+        let (extension_context, extension_manifest) = document_extensions(&file_path);
         Ok(Self {
             file_path,
             source_text,
@@ -121,9 +126,8 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
-            extension_context: std::sync::Arc::new(
-                animatix::extension_context::ExtensionContext::new(),
-            ),
+            extension_context,
+            extension_manifest,
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -136,6 +140,7 @@ impl DocumentSession {
     }
 
     pub fn from_error(file_path: PathBuf) -> Self {
+        let (extension_context, extension_manifest) = document_extensions(&file_path);
         Self {
             file_path,
             source_text: String::new(),
@@ -151,9 +156,8 @@ impl DocumentSession {
             is_dirty: false,
             duration_s: 5.0,
             scene_dimensions: SceneDimensions::default(),
-            extension_context: std::sync::Arc::new(
-                animatix::extension_context::ExtensionContext::new(),
-            ),
+            extension_context,
+            extension_manifest,
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -846,6 +850,74 @@ fn atomic_write(path: &Path, contents: &str) -> Result<(), GuiError> {
     })
 }
 
+fn document_extensions(
+    file_path: &Path,
+) -> (std::sync::Arc<animatix::extension_context::ExtensionContext>, ExtensionManifest) {
+    let manifests = load_extension_manifests(file_path);
+    let extension_manifest = ExtensionManifest::merge(&manifests);
+    let mut ctx = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+
+    #[cfg(feature = "plugin-loading")]
+    {
+        use animatix::extension_plugin::{NativePlugin, PluginLoader};
+
+        let mut loader = PluginLoader::new();
+        for manifest in &manifests {
+            let Some(library) = manifest.library.as_deref() else {
+                continue;
+            };
+            let library_path = file_path.parent().unwrap_or_else(|| Path::new(".")).join(library);
+            match NativePlugin::load(&library_path) {
+                Ok(plugin) => loader.register(Box::new(plugin)),
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to load plugin library {} for {}: {}",
+                        library_path.display(),
+                        file_path.display(),
+                        err
+                    );
+                },
+            }
+        }
+        if let Some(ctx_mut) = std::sync::Arc::get_mut(&mut ctx) {
+            if let Err(err) = loader.install_all(ctx_mut) {
+                tracing::warn!(
+                    "Failed to install document plugins for {}: {}",
+                    file_path.display(),
+                    err
+                );
+            }
+        }
+    }
+
+    (ctx, extension_manifest)
+}
+
+/// Analyzer-only manifest metadata for a document's directory.
+pub(crate) fn extension_manifest_for_path(file_path: &Path) -> ExtensionManifest {
+    ExtensionManifest::merge(&load_extension_manifests(file_path))
+}
+
+fn load_extension_manifests(file_path: &Path) -> Vec<ExtensionManifest> {
+    let Some(dir) = file_path.parent() else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let file_name = path.file_name().map(|name| name.to_string_lossy().into_owned())?;
+            if !file_name.ends_with(".amx-plugin.toml") {
+                return None;
+            }
+            let source = fs::read_to_string(&path).ok()?;
+            ExtensionManifest::from_toml(&source).ok()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -1322,5 +1394,22 @@ scene: Rect, size: (100, 100)
         document.rebuild().expect("rebuild should retry despite the failure marker");
         assert!(document.last_rebuild_error.is_none());
         assert!(document.timeline.is_some());
+    }
+
+    #[test]
+    fn document_session_loads_extension_manifest_from_directory() {
+        let dir = temp_project_dir("document_extension_manifest").unwrap();
+        let entry = dir.join("scene.amx");
+
+        write_file(&entry, "#0s\n").unwrap();
+        write_file(&dir.join("demo.amx-plugin.toml"), "[[primitives]]\ntype_name = \"Gauge\"\n")
+            .unwrap();
+
+        let manifest = extension_manifest_for_path(&entry);
+        assert_eq!(manifest.primitives.len(), 1);
+        assert_eq!(manifest.primitives[0].type_name, "Gauge");
+
+        let document = DocumentSession::from_source(entry, "#0s\n".to_string()).unwrap();
+        assert_eq!(document.extension_manifest.primitives.len(), 1);
     }
 }
