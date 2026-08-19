@@ -5,11 +5,10 @@ remove the completed items from this file.
 
 ---
 
-## Active Work
+## Completed Tracks
 
-The following tracks are under evaluation or scheduled for implementation;
-approve and sequence them through their detailed planning documents before
-starting.
+Historical tracks are kept as evidence. New implementation work is tracked in
+[Backlog & Prioritization](#backlog--prioritization).
 
 ### Architecture Follow-Ups (2026-08-12)
 
@@ -29,14 +28,6 @@ starting.
 | P4 | Theme inheritance + raw/resolved runtime theme | Framework capability done 2026-08-12; GUI integration deferred | Theme deltas, dependency validation, full-closure hot reload | High | Medium |
 | P5 | Unified asset store + usage tracking | Done 2026-08-12 (usage re-derived on rebuild) | Inspector asset usage and a clear rebuild lifecycle | Medium | Medium |
 | P6 | Async file-backed asset loading | Closed by design 2026-08-12 | No current consumer; P5 fallback seam remains documented | High if scoped | Low |
-
-### Comment Directive Question (open)
-
-Presenterm uses HTML-comment directives because it must extend markdown without
-creating a second DSL. Animatix already owns a semantic DSL, so comment
-directives are likely the wrong mechanism. The recommendation is to map valuable
-commands to native `.amx` features and add first-class metadata (for example
-speaker notes or export presets) only when a concrete user story appears.
 
 ### Dogfood Follow-Ups (2026-08-13)
 
@@ -61,12 +52,24 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 
 ---
 
+## Open Questions
+
+### Comment Directives
+
+Presenterm uses HTML-comment directives because it must extend markdown without
+creating a second DSL. Animatix already owns a semantic DSL, so comment
+directives are likely the wrong mechanism. The recommendation is to map valuable
+commands to native `.amx` features and add first-class metadata (for example
+speaker notes or export presets) only when a concrete user story appears.
+
+---
+
 ## Audit History
 
 | Item | Resolution |
 |------|------------|
 | Semantic AST single source | Done. `parse_canonical` is the Chumsky semantic source; analyzer uses the lossless token stream plus AST for positions/completions. |
-| Semantic index single source | Done for declarations. `animatix-syntax::builtins` is the single registry; parser records declaration/action-target/play-scene occurrences; `Analyzer` uses them for positions; LSP emits UTF-16 semantic-token columns; `_` and import aliases have roles. Remaining scope-resolution and reference-occurrence items are in Open Backlog. |
+| Semantic index single source | Done for declarations. `animatix-syntax::builtins` is the single registry; parser records declaration/action-target/play-scene occurrences; `Analyzer` uses them for positions; LSP emits UTF-16 semantic-token columns; `_` and import aliases have roles. Remaining scope-resolution and reference-occurrence items are in [Backlog & Prioritization](#backlog--prioritization). |
 | Module/Workspace resolver unification | Done. `Workspace` is now a thin facade over `ModuleGraph` in `SourcesOnly` mode; parsing, symbols, import identity, and namespace resolution are single-source. LSP continues to use per-document `Analyzer` for CST/positions while workspace symbols come from the shared graph. |
 | Semantic diagnostics single emitter | Done. `animatix-syntax::semantic_diagnostics` is the canonical emitter; analyzer and LSP convert DTOs instead of re-implementing checks. |
 | Path/source-map model | Done. `animatix-syntax::module::source_map` owns normalized path identity, import resolution, and in-memory source overrides. |
@@ -133,22 +136,56 @@ concrete second-app need exists.
 
 ---
 
-## Open Backlog
+## Backlog & Prioritization
 
-### Extension Follow-Ups
+Open work is grouped by delivery phase:
 
-Issues collected during the complete extension pass (P1-P8). These are
-candidates for the next extension lifecycle or native ABI maintenance pass.
+- `P0` = next implementation pass
+- `P1` = planned follow-up
+- `P2` = design/maintenance backlog
 
-| ID | Track | Status | Benefit | Feasibility | Necessity |
-|----|-------|--------|---------|-------------|-----------|
-| E1 | Native image URL failure semantics | Open | Prevent plugins from silently rendering a different actor image when an explicit URL is not cached | Low | Medium |
-| E2 | GUI plugin hot reload / reinstall | Open | Let plugin manifests and native libraries reload without reopening the document | Medium | Medium |
-| E3 | Native text command TextKind | Open | Let native text primitives choose Text/Code/Typst rendering instead of always plain text | Low | Medium |
-| E4 | `declared_properties` ergonomics | Open | Avoid per-property `Vec<String>` ownership and repeated linear contains calls in the generic writer | Medium | Medium |
-| E5 | `PrimitiveFamilyDescriptor` dynamic reuse | Open | Remove the `&'static` primitive assumption and remaining `"Graph"` string dispatch | Medium | Low |
-| E6 | GUI manifest scan deduplication | Open | Load `.amx-plugin.toml` once per document and reuse the merged manifest in both runtime and editor paths | Low | Low |
-| E7 | `is_layout_container` naming/semantics | Open | Rename and align recursive container detection with a single capability/child-processing definition | Low | Low |
+### Phase 1: Plugin Lifecycle & GUI Runtime Integration (P0)
+
+| ID | Track | Effort | Dependencies | Notes |
+|----|-------|--------|--------------|-------|
+| GL-01 | `DocumentPluginManager` | Medium | None | Unify manifest discovery, context ownership, install/dispose/reload, and disposer retention; support atomic last-known-good swaps |
+| GL-02 | Rebuild worker reuses document extension context | Medium | GL-01 | Stop loading native plugins again on every background rebuild |
+| GL-03 | Extension actions in insertion palette | Small | None | Use `Timeline::extension_action_signatures()` so plugin actions are insertable |
+| GL-04 | Plugin errors surfaced in GUI | Small | GL-01 | Convert load/install failures into diagnostics/toasts instead of tracing-only warnings |
+| GL-05 | Plugin reload command and watcher | Small | GL-01 | Manual reload plus manifest/library change detection |
+
+### Phase 2: GUI Plugin UX and Discovery (P1)
+
+| ID | Track | Effort | Dependencies | Notes |
+|----|-------|--------|--------------|-------|
+| GUI-01 | Plugin status panel | Medium | GL-01, GL-05 | Show manifests, loaded libraries, capabilities, errors, and reload controls |
+| GUI-02 | Workspace-level plugin discovery | Medium | GL-01 | Search workspace root, document directory, and explicit plugin paths in priority order |
+| GUI-03 | Shared manifest discovery module | Medium | GUI-02 | Move discovery/merge/fingerprint into analyzer and reuse from GUI/LSP |
+| GUI-04 | Manifest-driven property editors | Medium | GL-01 | Choose Bool/Color/Vec2/Enum/etc editors from descriptor types |
+| GUI-05 | GUI plugin test seam | Medium | GL-01 | Inject in-process fake plugins/contexts so unit tests do not need native libraries |
+
+### Phase 3: Native ABI and Runtime Polish (P1/P2)
+
+| ID | Track | Effort | Dependencies | Notes |
+|----|-------|--------|--------------|-------|
+| EXT-01 | Native image URL failure semantics | Small | None | Explicit URL not cached should return an error/diagnostic instead of silently falling back to the actor image |
+| EXT-02 | Native text command `TextKind` | Medium | None | Let native text primitives choose Text/Code/Typst rendering |
+| EXT-03 | `declared_properties` ergonomics | Medium | None | Avoid `Vec<String>` ownership and repeated linear `contains` in the generic writer |
+| EXT-04 | `PrimitiveFamilyDescriptor` dynamic reuse | Medium | None | Remove the `&'static` primitive assumption and remaining `"Graph"` string dispatch |
+| EXT-05 | `is_layout_container` naming/semantics | Small | None | Rename and align recursive container detection with one capability/child-processing definition |
+| EXT-06 | Asset cache URL normalization | Medium | None | Define how native image URLs resolve relative to document/workspace paths |
+
+### Lower-Priority Design Backlog (P2)
+
+| ID | Track | Notes |
+|----|-------|-------|
+| GUI-06 | Plugin authoring in GUI | Generate/validate manifests and expose `plugin describe` integration |
+| GUI-07 | Plugin capability badges | Show declared properties/actions/services and plugin source in palette/inspector |
+| EXT-07 | Runtime plugin list/reload API | Extend `PluginLoader` with list/reload support so GUI/CLI share lifecycle control |
+
+The earlier `Extension Follow-Ups` E1-E7 are folded into this structure:
+E1 → `EXT-01`, E2 → `GL-01`/`GL-05`, E3 → `EXT-02`, E4 → `EXT-03`,
+E5 → `EXT-04`, E6 → `GL-01`/`GUI-03`, E7 → `EXT-05`.
 
 Completed items are recorded in [Audit History](#audit-history); design-deferred
 items are archived below until a concrete user story pulls them forward.
