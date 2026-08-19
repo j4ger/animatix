@@ -135,9 +135,23 @@ concrete second-app need exists.
 
 ## Open Backlog
 
-No open backlog items are currently scheduled. Completed items are recorded in
-[Audit History](#audit-history); design-deferred items are archived below until
-a concrete user story pulls them forward.
+### Extension Follow-Ups
+
+Issues collected during the complete extension pass (P1-P8). These are
+candidates for the next extension lifecycle or native ABI maintenance pass.
+
+| ID | Track | Status | Benefit | Feasibility | Necessity |
+|----|-------|--------|---------|-------------|-----------|
+| E1 | Native image URL failure semantics | Open | Prevent plugins from silently rendering a different actor image when an explicit URL is not cached | Low | Medium |
+| E2 | GUI plugin hot reload / reinstall | Open | Let plugin manifests and native libraries reload without reopening the document | Medium | Medium |
+| E3 | Native text command TextKind | Open | Let native text primitives choose Text/Code/Typst rendering instead of always plain text | Low | Medium |
+| E4 | `declared_properties` ergonomics | Open | Avoid per-property `Vec<String>` ownership and repeated linear contains calls in the generic writer | Medium | Medium |
+| E5 | `PrimitiveFamilyDescriptor` dynamic reuse | Open | Remove the `&'static` primitive assumption and remaining `"Graph"` string dispatch | Medium | Low |
+| E6 | GUI manifest scan deduplication | Open | Load `.amx-plugin.toml` once per document and reuse the merged manifest in both runtime and editor paths | Low | Low |
+| E7 | `is_layout_container` naming/semantics | Open | Rename and align recursive container detection with a single capability/child-processing definition | Low | Low |
+
+Completed items are recorded in [Audit History](#audit-history); design-deferred
+items are archived below until a concrete user story pulls them forward.
 
 ---
 
