@@ -19,7 +19,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libffmpeg-dev pkg-config
       - name: Run tests
-        run: cargo test --workspace
+        # Serialize GPU-backed core tests; headless Vello/WGPU teardown can SIGSEGV
+        # when renderer tests run concurrently on the same adapter.
+        run: cargo test --workspace -- --test-threads=1
 
   no-video:
     name: Build without video feature
@@ -34,7 +36,7 @@ jobs:
       - name: Build animatix crate without video
         run: cargo build -p animatix --no-default-features --features render,text,svg
       - name: Test animatix crate without video
-        run: cargo test -p animatix --lib --no-default-features --features render,text,svg
+        run: cargo test -p animatix --lib --no-default-features --features render,text,svg -- --test-threads=1
 
   clippy:
     name: Clippy
