@@ -399,6 +399,8 @@ pub struct EvaluateCtx<'a> {
     pub overrides: Option<&'a std::collections::HashMap<String, Value>>,
     /// Pre-sampled vector paths (includes procedural plot sampling).
     pub vector_paths: &'a [VelloPath],
+    /// Shared image cache for native render commands that specify a URL.
+    pub asset_cache: &'a crate::timeline::assets::AssetCache,
     /// Narrow resolver for target actor bounds (targeted callout mode).
     /// Replaces the previous broad `Option<&Timeline>` field.
     pub target_resolver: Option<&'a dyn TargetResolver>,
@@ -1156,6 +1158,7 @@ mod tests {
 
         let font_ctx = FontContext::new();
         let mut text_compiler = TextCompiler::new();
+        let asset_cache = crate::timeline::assets::AssetCache::new();
         let ctx = EvaluateCtx {
             track: &track,
             time_ms: 1500,
@@ -1168,6 +1171,7 @@ mod tests {
             background_color: [0.0; 4],
             overrides: None,
             vector_paths: &[],
+            asset_cache: &asset_cache,
             target_resolver: None,
         };
         let mut text_ctx = TextCompileCtx {

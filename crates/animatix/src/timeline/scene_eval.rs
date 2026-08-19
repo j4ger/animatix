@@ -544,6 +544,7 @@ impl Timeline {
                         background_color: self.background_color.evaluate(time_ms),
                         overrides: node_overrides,
                         vector_paths: &vector_paths,
+                        asset_cache: &self.asset_cache,
                         target_resolver: Some(self),
                     };
                     let mut text_ctx = crate::primitives::TextCompileCtx {

@@ -51,6 +51,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         vec![("A very long series label that should wrap".to_string(), [1.0, 0.0, 0.0, 1.0])];
     track.legend.text_max_width = 80.0;
 
+    let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
         time_ms: 0,
@@ -63,6 +64,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         background_color: [0.04, 0.06, 0.09, 1.0],
         overrides: None,
         vector_paths: &[],
+        asset_cache: &asset_cache,
         target_resolver: None,
     };
     let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
@@ -199,6 +201,7 @@ fn test_legend_empty() {
     // Ensure entries are empty (default)
     assert!(track.legend.entries.is_empty(), "fresh track should have empty legend entries");
 
+    let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
         time_ms: 0,
@@ -211,6 +214,7 @@ fn test_legend_empty() {
         background_color: [0.04, 0.06, 0.09, 1.0],
         overrides: None,
         vector_paths: &[],
+        asset_cache: &asset_cache,
         target_resolver: None,
     };
 
@@ -599,6 +603,7 @@ fn test_legend_render_commands_produced() {
         ("Series C".to_string(), [0.0, 0.0, 1.0, 1.0]),
     ];
 
+    let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
         time_ms: 0,
@@ -611,6 +616,7 @@ fn test_legend_render_commands_produced() {
         background_color: [0.04, 0.06, 0.09, 1.0],
         overrides: None,
         vector_paths: &[],
+        asset_cache: &asset_cache,
         target_resolver: None,
     };
 

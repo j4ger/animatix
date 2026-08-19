@@ -451,6 +451,7 @@ pub struct NativeTextCommand {
 #[repr(C)]
 pub struct NativeImageCommand {
     /// Image URL; if null, the actor's currently loaded image is used.
+    /// Non-null URLs are resolved from the timeline's cached image assets.
     pub url: *const c_char,
     /// Natural display width and height in scene units.
     pub natural_size: [f64; 2],

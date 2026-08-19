@@ -1338,7 +1338,16 @@ unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImage
     let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(image) = host.ctx.track.image.get(host.ctx.time_ms, None) else {
+    let requested_url = unsafe { read_c_string(command.url) };
+    let image = match requested_url {
+        Some(url) => host
+            .ctx
+            .asset_cache
+            .get_image(&url)
+            .or_else(|| host.ctx.track.image.get(host.ctx.time_ms, None)),
+        None => host.ctx.track.image.get(host.ctx.time_ms, None),
+    };
+    let Some(image) = image else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let natural_size = if command.natural_size[0] > 0.0 && command.natural_size[1] > 0.0 {
@@ -2068,7 +2077,10 @@ mod tests {
         NATIVE_STATUS_OK
     }
 
-    fn sample_evaluate_ctx(track: &crate::timeline::AnimationTrack) -> EvaluateCtx<'_> {
+    fn sample_evaluate_ctx<'a>(
+        track: &'a crate::timeline::AnimationTrack,
+        asset_cache: &'a crate::timeline::assets::AssetCache,
+    ) -> EvaluateCtx<'a> {
         EvaluateCtx {
             track,
             time_ms: 0,
@@ -2081,6 +2093,7 @@ mod tests {
             background_color: [0.0; 4],
             overrides: None,
             vector_paths: &[],
+            asset_cache,
             target_resolver: None,
         }
     }
@@ -2569,7 +2582,8 @@ mod tests {
     #[test]
     fn native_path_commands_become_render_commands() {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
-        let eval_ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
         let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
@@ -2617,7 +2631,8 @@ mod tests {
     #[test]
     fn native_append_text_produces_text_command() {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
-        let eval_ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
         let service_values = HashMap::new();
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
@@ -2670,7 +2685,8 @@ mod tests {
     #[test]
     fn native_append_highlight_produces_highlight_command() {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
-        let eval_ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
         let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
@@ -2721,7 +2737,8 @@ mod tests {
             .image
             .ensure(None)
             .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
-        let eval_ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
         let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
@@ -2749,6 +2766,51 @@ mod tests {
         assert!(matches!(
             host.commands.as_slice(),
             [crate::primitives::RenderCommand::Image { .. }]
+        ));
+    }
+
+    #[test]
+    fn native_append_image_resolves_cached_url() {
+        let dir = std::env::temp_dir().join("animatix_native_image_url_tests");
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join(format!("native_image_url_{}.png", std::process::id()));
+        let rgba = ::image::RgbaImage::from_raw(2, 2, vec![255; 16]).expect("rgba pixels");
+        rgba.save(&path).expect("save image");
+
+        let mut asset_cache = crate::timeline::assets::AssetCache::new();
+        asset_cache.load_image_for(&path.to_string_lossy(), "p").expect("cache image");
+
+        let track = crate::timeline::AnimationTrack::new("p".to_string());
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
+        let property_ids = HashMap::new();
+        let service_values = HashMap::new();
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            service_values: &service_values,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let url = std::ffi::CString::new(path.to_string_lossy().into_owned()).expect("cstring");
+        let command = NativeImageCommand {
+            url: url.as_ptr(),
+            natural_size: [40.0, 20.0],
+        };
+        assert_eq!(
+            unsafe {
+                native_append_image(
+                    (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                    command,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        assert!(matches!(
+            host.commands.as_slice(),
+            [crate::primitives::RenderCommand::Image { natural_size, .. }]
+                if *natural_size == [40.0, 20.0]
         ));
     }
 
@@ -2822,7 +2884,8 @@ mod tests {
             0,
             crate::easing::Easing::Linear,
         );
-        let eval_ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::from([("glow".to_string(), id)]);
         let service_values = HashMap::new();
         let mut host = NativePrimitiveEvaluateHost {
@@ -3087,7 +3150,8 @@ mod tests {
         .expect("adapter");
         assert_eq!(adapter.kind_id(), ActorKindId::Extension);
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
-        let ctx = sample_evaluate_ctx(&track);
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let ctx = sample_evaluate_ctx(&track, &asset_cache);
         let commands =
             adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
         assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));

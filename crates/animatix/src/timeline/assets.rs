@@ -104,6 +104,11 @@ impl AssetCache {
         self.images.iter()
     }
 
+    /// Read a cached image by source path, without loading or usage tracking.
+    pub fn get_image(&self, path: &str) -> Option<SceneImage> {
+        self.images.get(path).cloned()
+    }
+
     /// Drop decoded payloads whose file metadata changed since they were loaded.
     ///
     /// Usage entries are dropped with the payload, so a later `load_*_for` call
