@@ -1,8 +1,8 @@
 # Extension Authoring
 
-This document describes the current extension surface. It is intentionally
-incremental: the registry-driven primitive/property architecture is being
-migrated in phases, so not every built-in behavior is descriptor-driven yet.
+This document describes the current extension surface. Built-ins keep typed hot
+paths internally, but external primitives, properties, actions, functions, and
+services go through the same registry/descriptor path used by the demo plugin.
 
 ## Extension Context
 
@@ -133,10 +133,13 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current ABI is version 3 and has exactly one install entry. It can register
+The current ABI is version 4 and has exactly one install entry. It can register
 external properties with full tooling metadata, native expression functions,
 primitives, actions, and service values with optional destructors. Native
-primitives have optional `build`, `evaluate`, `handle_assignment`, and
+primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property
+names, and a `NATIVE_RESIZE_MODE_*` value so the GUI, actions, and generic
+property writer can route them without string matching. Native primitives have
+optional `build`, `evaluate`, `handle_assignment`, and
 `finalize_container_build` callbacks. The host builds children through the same
 timeline path as built-ins and then calls finalize, so native containers no
 longer need to fake their way through a built-in `ActorKindId`. Extension
@@ -146,6 +149,8 @@ Evaluate callbacks receive a host context with `get_property`, `get_service`,
 `append_path`, `append_text`, `append_image`, and `append_highlight`; the demo
 primitive reads its keyframed `glow` property and emits paths, text, and a
 highlight layer that render through the normal scene-evaluation path. Native
+image commands can pass a URL that is resolved from the timeline's cached image
+assets, or pass null to reuse the actor's currently loaded image. Native
 actions register full signatures and execute with targets, args, modifiers,
 time, and a host `write_keyframe` API. Native functions receive a host context
 that can read frame-environment values and services. Expression callbacks
@@ -206,10 +211,13 @@ registered callbacks and the disposer returned by install.
   intentionally split and protected by bidirectional drift guards, so a new
   binding must still be registered in both descriptor and binding layers.
 - GUI builds use a per-document extension context. The insertion palette reads
-  the timeline's primitive registry, and the inspector/keyframe table show
-  extension properties from the actor plan. LSP does not load runtime extension
-  contexts.
+  the timeline's primitive registry, the inspector/keyframe table show
+  extension properties from the actor plan, and the GUI auto-loads
+  `.amx-plugin.toml` manifests and their native libraries from the document's
+  directory. The editor feeds the merged manifest to the analyzer, so
+  completions and hover match the runtime plugin. LSP stays runtime-free and
+  loads the same manifest files from the document directory.
 - CLI accepts `--plugin` manifests and native libraries. Native plugins
   register properties, expression functions, primitives, actions, and services
-  from a dynamic library; analyzer/LSP still derive most static metadata from
-  the manifest.
+  from a dynamic library; analyzer/LSP still derive static metadata from the
+  manifest.

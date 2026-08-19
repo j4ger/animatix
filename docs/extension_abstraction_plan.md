@@ -323,3 +323,17 @@ Acceptance:
   environment injection.
 - Phase 6: CI no longer runs the removed tree-sitter parser sync job; a quick
   `extension-bench.sh --max-plan-ns 10000` gate now runs on pull requests.
+- Extension completion pass: transactional plugin installs roll back prior
+  disposers on failure; duplicate registrations return typed errors.
+- Extension completion pass: shared descriptors and TOML manifests now cover
+  primitives, properties, actions, functions, and services.
+- Extension completion pass: native ABI v4 adds precise property types,
+  function descriptors, service metadata, primitive capabilities, declared
+  property names, and resize mode.
+- Extension completion pass: layout/plot/text/equation runtime dispatch reads
+  primitive capabilities instead of growing `ActorKindId` matches.
+- Extension completion pass: GUI auto-loads sibling manifests and native
+  libraries and feeds the merged manifest into analyzer completions; LSP
+  remains runtime-free and consumes the same manifests.
+- Extension completion pass: native image commands resolve cached image URLs,
+  completing the path/text/image/highlight render command surface.

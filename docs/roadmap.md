@@ -97,6 +97,7 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 | Export presets | Done. Named `ExportPreset` values are shared by CLI and GUI; `config { export_preset: "1080p30" }` is honored by CLI video/GIF export. |
 | Speaker-notes metadata | Closed by design for now. No concrete presentation/export consumer exists; per the roadmap's metadata policy, first-class notes should be added when that user story appears. |
 | AI review evaluator | Design retained in `docs/ai_agent_animation_quality.md`. Implementation would be a new review crate/rule engine/agent loop and remains unscheduled until a product milestone pulls it forward. |
+| Complete extension surface | Done. Transactional plugin lifecycle, shared descriptors/types, full manifests, native ABI v4, capability-based runtime dispatch, GUI/LSP/analyzer integration, native render command completeness, docs, and workspace gates are implemented and committed phase-by-phase. |
 
 ### eparts Framework Expansion (closed)
 

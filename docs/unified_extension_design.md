@@ -9,14 +9,16 @@ execution order.
 
 ## Current State
 
-Registration and dispatch go through one registry shape. A later hardening pass
-closed the remaining runtime seams: native primitives render through ABI v3
-path commands, manifest descriptors no longer guess runtime property ids,
-custom primitives dispatch through the active registry, primitive metadata is
-borrowed instead of leaked, native services carry destructors, extension
-tracks use the neutral `ActorKindId::Extension` instead of category-derived
-built-in kinds, and the CLI can regenerate analyzer manifests from loaded
-runtime descriptors.
+Registration and dispatch go through one registry shape. The complete extension
+pass closed the remaining runtime seams: native primitives render through ABI v4
+path/text/image/highlight commands, image commands resolve cached URLs,
+manifest descriptors no longer guess runtime property ids, custom primitives
+dispatch through the active registry, capability flags drive container/plot/text
+dispatch, primitive metadata is borrowed instead of leaked, native services
+carry destructors, extension tracks use the neutral `ActorKindId::Extension`
+instead of category-derived built-in kinds, the CLI can regenerate analyzer
+manifests from loaded runtime descriptors, and the GUI auto-loads manifests and
+native plugins beside each document.
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
@@ -25,7 +27,7 @@ runtime descriptors.
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
 | Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
 | Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
-| Native plugins | n/a | C ABI v3 primitive/action/service registration |
+| Native plugins | n/a | C ABI v4 primitive/action/service registration |
 
 `PROPERTY_REGISTRY` remains the runtime binding table (typed field, read
 source, flags, defaults) while shared schema owns descriptors (name, actor
@@ -115,8 +117,9 @@ completions, and native ABI compatibility.
 | `animatix::timeline::dispatch` | route built-in property access through descriptor binding |
 | `animatix::extension_context` | delegate all registration to `ExtensionRegistry` |
 | GUI inspector/keyframe table | consume unified descriptor list |
+| GUI document lifecycle | auto-discover manifests and native plugins beside the document |
 | analyzer/LSP | consume shared descriptor plus manifests |
-| `animatix-plugin-api` | add ABI v3 callback table |
+| `animatix-plugin-api` | add ABI v4 callback table |
 | docs/authoring | document the single registration path |
 
 ### Risk
@@ -167,6 +170,19 @@ completions, and native ABI compatibility.
   plugin into a scratch `ExtensionContext`, filters to extension
   primitive/property descriptors, and serializes the analyzer manifest with
   the same TOML schema consumed by `--plugin`.
+- ABI v4 pass: native descriptors carry precise tooling types, function
+  metadata, service metadata, primitive capabilities, declared property names,
+  and resize mode; the demo manifest round-trips all of it.
+- Capability dispatch pass: layout container expansion, plot `func`
+  assignments, draw-in text routing, equation highlight parent resolution, and
+  primitive family classification all consult registry capabilities instead of
+  growing with `ActorKindId` matches.
+- GUI integration pass: `animatix-gui` enables `plugin-loading` by default,
+  installs sibling manifests/libraries into each document's extension context,
+  and feeds the merged manifest into editor completions/hover.
+- Render completeness pass: native image commands resolve URLs from the
+  timeline asset cache, and path/text/image/highlight commands all render
+  through the normal `RenderCommand` pipeline.
 
 ## Phases
 
@@ -207,6 +223,10 @@ Acceptance:
 
 ### Phase 4: Capability Dispatch Migration
 
+Implemented: action target expansion, plot `func` dispatch, draw-in text
+handling, highlight equation parent lookup, and primitive family classification
+now read registry capabilities.
+
 Replace remaining `ActorKindId`/`PrimitiveDescriptor` string matches with
 descriptor capabilities and child-processing strategies. Remove the static
 `PRIMITIVES`-specific call sites.
@@ -216,7 +236,7 @@ Acceptance:
 - Adding a built-in or extension primitive requires only one registration path.
 - `scene_eval.rs` does not grow with primitive count.
 
-### Phase 5: Native ABI v3
+### Phase 5: Native ABI v4
 
 Extend `animatix-plugin-api` with primitive/action/service callbacks. Wrap them
 in host-side `Primitive` adapters so native plugins register into the same
