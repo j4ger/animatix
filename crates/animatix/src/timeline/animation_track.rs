@@ -615,6 +615,11 @@ mod tests {
         for kind in &non_shapes {
             assert!(registered.contains(kind), "ActorKindMeta missing for {:?}", kind);
         }
+
+        assert!(
+            !registered.contains(&ActorKindId::Extension),
+            "Extension is a dynamic kind resolved through actor_type/primitive registry"
+        );
     }
 
     /// Every registry entry must have a non-empty type_name and display_name.

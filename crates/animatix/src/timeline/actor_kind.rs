@@ -122,6 +122,12 @@ pub enum ActorKindId {
     Callout,
     /// Legend with auto-generated color swatches and labels.
     Legend,
+    /// Runtime extension primitive with no compile-time built-in kind.
+    ///
+    /// Extension dispatch uses `AnimationTrack::actor_type` and the active
+    /// `PrimitiveRegistry`; this variant avoids pretending a plugin primitive
+    /// is a built-in shape, text, plot, or container.
+    Extension,
 }
 
 impl ActorKindId {

@@ -13,8 +13,10 @@ Registration and dispatch go through one registry shape. A later hardening pass
 closed the remaining runtime seams: native primitives render through ABI v3
 path commands, manifest descriptors no longer guess runtime property ids,
 custom primitives dispatch through the active registry, primitive metadata is
-borrowed instead of leaked, native services carry destructors, and the CLI can
-regenerate analyzer manifests from loaded runtime descriptors.
+borrowed instead of leaked, native services carry destructors, extension
+tracks use the neutral `ActorKindId::Extension` instead of category-derived
+built-in kinds, and the CLI can regenerate analyzer manifests from loaded
+runtime descriptors.
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
@@ -77,7 +79,7 @@ object crossing the library boundary:
 
 ```rust
 #[repr(C)]
-struct AnimatixPluginApiV2 {
+struct AnimatixPluginApiV3 {
     register_primitive,
     register_property,
     register_action,
@@ -146,7 +148,7 @@ completions, and native ABI compatibility.
 - Phase D implemented: `find_primitive()` is backed by a global built-in
   `PrimitiveRegistry`, and timeline build/eval paths use
   `Timeline::primitive_registry` directly.
-- Phase E implemented: `animatix-plugin-api` grew a v2 callback table for
+- Phase E implemented: `animatix-plugin-api` grew a v3 callback table for
   primitives, actions, and services; the native host wraps them in
   `Primitive`/`BuiltinAction` adapters and the demo plugin registers all five
   capability kinds through the same install path.

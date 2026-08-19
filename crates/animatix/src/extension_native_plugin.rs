@@ -457,7 +457,6 @@ struct NativePrimitiveAdapter {
     display_name: String,
     icon_id: String,
     category: ActorCategory,
-    kind: ActorKindId,
     advanced: bool,
     child_processing: ChildProcessing,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
@@ -484,13 +483,11 @@ impl NativePrimitiveAdapter {
         let icon_id =
             unsafe { read_c_string(primitive.icon_id) }.unwrap_or_else(|| "extension".to_string());
         let category = native_primitive_category(primitive.category)?;
-        let kind = native_kind(category);
         Some(Self {
             type_name,
             display_name,
             icon_id,
             category,
-            kind,
             advanced: primitive.advanced,
             child_processing: native_child_processing(primitive.child_processing)
                 .unwrap_or_default(),
@@ -536,7 +533,7 @@ impl Primitive for NativePrimitiveAdapter {
     }
 
     fn kind_id(&self) -> ActorKindId {
-        self.kind
+        ActorKindId::Extension
     }
 
     fn build(
@@ -560,7 +557,7 @@ impl Primitive for NativePrimitiveAdapter {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
-            track.kind = self.kind;
+            track.kind = ActorKindId::Extension;
             track.actor_type = Some(self.type_name.clone());
             track.rebuild_property_plan();
         }
@@ -1630,18 +1627,6 @@ fn native_child_processing(kind: u32) -> Option<ChildProcessing> {
         NATIVE_PRIMITIVE_CHILD_MASK => Some(ChildProcessing::Mask),
         NATIVE_PRIMITIVE_CHILD_EQUATION => Some(ChildProcessing::Equation),
         _ => None,
-    }
-}
-
-fn native_kind(category: ActorCategory) -> ActorKindId {
-    use crate::timeline::ShapeKind;
-    match category {
-        ActorCategory::Shape => ActorKindId::Shape(ShapeKind::Rect),
-        ActorCategory::Text => ActorKindId::Text,
-        ActorCategory::Media => ActorKindId::Image,
-        ActorCategory::Plot => ActorKindId::PlotCurve,
-        ActorCategory::Container => ActorKindId::Group,
-        ActorCategory::Annotation => ActorKindId::Callout,
     }
 }
 
@@ -2812,6 +2797,7 @@ mod tests {
             HashMap::new(),
         )
         .expect("adapter");
+        assert_eq!(adapter.kind_id(), ActorKindId::Extension);
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let ctx = sample_evaluate_ctx(&track);
         let commands =

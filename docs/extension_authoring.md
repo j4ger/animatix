@@ -139,8 +139,10 @@ primitives, actions, and service values with optional destructors. Native
 primitives have optional `build`, `evaluate`, `handle_assignment`, and
 `finalize_container_build` callbacks. The host builds children through the same
 timeline path as built-ins and then calls finalize, so native containers no
-longer need to fake their way through a built-in `ActorKindId`. Evaluate
-callbacks receive a host context with `get_property`, `get_service`,
+longer need to fake their way through a built-in `ActorKindId`. Extension
+tracks use the neutral `ActorKindId::Extension`; build, assignment, and frame
+evaluation resolve them through `actor_type` and the active primitive registry.
+Evaluate callbacks receive a host context with `get_property`, `get_service`,
 `append_path`, `append_text`, `append_image`, and `append_highlight`; the demo
 primitive reads its keyframed `glow` property and emits paths, text, and a
 highlight layer that render through the normal scene-evaluation path. Native

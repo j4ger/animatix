@@ -1126,6 +1126,11 @@ mod tests {
         ] {
             assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
         }
+
+        assert!(
+            !kinds.contains(&ActorKindId::Extension),
+            "Extension is a dynamic kind without static built-in metadata"
+        );
     }
 
     #[test]

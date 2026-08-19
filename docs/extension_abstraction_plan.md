@@ -256,6 +256,9 @@ Acceptance:
 - Phase 3: `AnimationTrack` stores the source `actor_type`, and `scene_eval`
   resolves custom primitives through `Timeline.primitive_registry` before the
   static built-in fallback.
+- Phase 3: extension primitives use the neutral `ActorKindId::Extension`;
+  runtime dispatch uses `actor_type` and the active primitive registry instead
+  of category-derived built-in kind ids.
 - Phase 3: integration test builds a custom `Gauge`, evaluates the timeline,
   and confirms the custom primitive's `evaluate()` participates in rendering.
 - Phase 3: remaining manual child-processing paths for `Filter`, `Mask`, and
