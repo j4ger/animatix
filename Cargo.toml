@@ -7,6 +7,7 @@ members = [
     "crates/animatix-lsp",
     "crates/animatix-plugin-api",
     "crates/animatix-plugin-demo",
+    "crates/animatix-plugin-tooling",
     "crates/animatix-syntax",
     "crates/eparts"
 ]

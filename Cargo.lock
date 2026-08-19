@@ -156,6 +156,7 @@ version = "0.1.0"
 dependencies = [
  "animatix",
  "animatix-analyzer",
+ "animatix-plugin-tooling",
  "animatix-syntax",
  "clap",
  "serde_json",
@@ -170,6 +171,7 @@ version = "0.1.0"
 dependencies = [
  "animatix",
  "animatix-analyzer",
+ "animatix-plugin-tooling",
  "animatix-syntax",
  "chumsky",
  "crossbeam-channel",
@@ -218,6 +220,14 @@ name = "animatix-plugin-demo"
 version = "0.1.0"
 dependencies = [
  "animatix-plugin-api",
+]
+
+[[package]]
+name = "animatix-plugin-tooling"
+version = "0.1.0"
+dependencies = [
+ "animatix",
+ "animatix-analyzer",
 ]
 
 [[package]]

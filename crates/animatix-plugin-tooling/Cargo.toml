@@ -1,0 +1,10 @@
+[package]
+name = "animatix-plugin-tooling"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Shared native plugin manifest generation for Animatix CLI and GUI"
+
+[dependencies]
+animatix = { path = "../animatix", features = ["plugin-loading"] }
+animatix-analyzer = { path = "../animatix-analyzer" }

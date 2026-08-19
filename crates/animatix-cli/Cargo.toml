@@ -13,6 +13,7 @@ video = ["animatix/video"]
 [dependencies]
 animatix = { path = "../animatix" }
 animatix-analyzer = { path = "../animatix-analyzer" }
+animatix-plugin-tooling = { path = "../animatix-plugin-tooling" }
 animatix-syntax = { path = "../animatix-syntax" }
 clap = { version = "4.5.0", features = ["derive"] }
 serde_json = "1"
