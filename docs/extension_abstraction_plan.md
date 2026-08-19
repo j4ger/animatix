@@ -300,7 +300,7 @@ Acceptance:
   hand-maintained.
 - Phase 5: `crates/animatix-plugin-demo` is a workspace `cdylib` sample that
   registers an external property and a native expression function through the
-  stable ABI.
+  unstable in-repo ABI snapshot.
 - Phase 6: extension authoring guide added at
   `docs/extension_authoring.md`.
 - Phase 6: `scripts/extension-bench.sh` added to run property interpolation and
@@ -327,7 +327,7 @@ Acceptance:
   disposers on failure; duplicate registrations return typed errors.
 - Extension completion pass: shared descriptors and TOML manifests now cover
   primitives, properties, actions, functions, and services.
-- Extension completion pass: native ABI v5 adds precise property types,
+- Extension completion pass: unstable ABI snapshot 5 adds precise property types,
   function descriptors, service metadata, primitive capabilities, declared
   property names, resize mode, and native text renderer kinds.
 - Extension completion pass: layout/plot/text/equation runtime dispatch reads

@@ -127,9 +127,9 @@ Scoped registration is also available:
 ## Native Plugins
 
 The `plugin-loading` feature in `animatix` adds a native `cdylib` loader. The
-stable ABI lives in `crates/animatix-plugin-api`; host and plugin exchange only
-`repr(C)` structs and function pointers, so plugins do not share Rust trait
-objects or internal runtime types with the host.
+unstable in-repo ABI snapshot lives in `crates/animatix-plugin-api`; host and
+plugin exchange only `repr(C)` structs and function pointers, so plugins do not
+share Rust trait objects or internal runtime types with the host.
 
 A plugin exports:
 
@@ -137,7 +137,9 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current ABI is version 5 and has exactly one install entry. It can register
+The current unstable ABI snapshot is 5 and has exactly one install entry. The
+snapshot is not a compatibility version: plugins must be rebuilt from the same
+source tree as the host whenever it changes. It can register
 external properties with full tooling metadata, native expression functions,
 primitives, actions, and service values with optional destructors. Native
 primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property

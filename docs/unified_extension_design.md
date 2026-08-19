@@ -10,7 +10,7 @@ execution order.
 ## Current State
 
 Registration and dispatch go through one registry shape. The complete extension
-pass closed the remaining runtime seams: native primitives render through ABI v5
+pass closed the remaining runtime seams: native primitives render through unstable ABI snapshot 5
 path/text/image/highlight commands, image commands resolve cached URLs against
 document/workspace base paths, manifest descriptors no longer guess runtime
 property ids, custom primitives dispatch through the active registry,
@@ -28,7 +28,7 @@ last-known-good `DocumentPluginManager`.
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
 | Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
 | Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
-| Native plugins | n/a | C ABI v5 primitive/action/service registration |
+| Native plugins | n/a | C ABI snapshot 5 primitive/action/service registration |
 
 `PROPERTY_REGISTRY` remains the runtime binding table (typed field, read
 source, flags, defaults) while shared schema owns descriptors (name, actor
@@ -77,7 +77,7 @@ API. After installation, the engine cannot tell the source apart.
 
 ### Native Plugin Layer
 
-The stable ABI should grow to a complete callback table, not a Rust trait
+The unstable native ABI should grow to a complete callback table, not a Rust trait
 object crossing the library boundary:
 
 ```rust
@@ -120,7 +120,7 @@ completions, and native ABI compatibility.
 | GUI inspector/keyframe table | consume unified descriptor list |
 | GUI document lifecycle | auto-discover manifests and native plugins beside the document |
 | analyzer/LSP | consume shared descriptor plus manifests |
-| `animatix-plugin-api` | add ABI v5 callback table |
+| `animatix-plugin-api` | add unstable ABI snapshot 5 callback table |
 | docs/authoring | document the single registration path |
 
 ### Risk
@@ -171,7 +171,7 @@ completions, and native ABI compatibility.
   plugin into a scratch `ExtensionContext`, filters to extension
   primitive/property descriptors, and serializes the analyzer manifest with
   the same TOML schema consumed by `--plugin`.
-- ABI v5 pass: native descriptors carry precise tooling types, function
+- Unstable ABI snapshot 5 pass: native descriptors carry precise tooling types, function
   metadata, service metadata, primitive capabilities, declared property names,
   and resize mode; the demo manifest round-trips all of it.
 - Native text pass: `append_text` accepts `Text`, `Code`, and `Typst` renderer
@@ -257,7 +257,7 @@ Acceptance:
 - Adding a built-in or extension primitive requires only one registration path.
 - `scene_eval.rs` does not grow with primitive count.
 
-### Phase 5: Native ABI v5
+### Phase 5: Unstable Native ABI
 
 Extend `animatix-plugin-api` with primitive/action/service callbacks. Wrap them
 in host-side `Primitive` adapters so native plugins register into the same

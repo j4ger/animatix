@@ -1,17 +1,21 @@
-//! Stable C ABI shared by the Animatix host and native extension plugins.
+//! Unstable C ABI shared by the Animatix host and native extension plugins.
 //!
-//! Plugins are `cdylib` files that export [`ABI_VERSION`],
+//! Plugins are `cdylib` files that export [`UNSTABLE_ABI_VERSION`],
 //! `animatix_plugin_name`-equivalent symbols, and the install entry point.
 //! The host and plugin never pass Rust trait objects across the library
 //! boundary; they exchange only `repr(C)` structs and function pointers.
 //!
-//! There is exactly one current ABI version. No compatibility layer is kept
-//! for earlier in-repo ABI generations.
+//! There is exactly one current ABI snapshot. The ABI is intentionally
+//! unstable: no compatibility layer is kept for earlier in-repo snapshots, and
+//! plugins must be rebuilt from the same source tree as the host.
 
 use std::ffi::{c_char, c_void};
 
-/// ABI version negotiated by the host and plugin.
-pub const ABI_VERSION: u32 = 5;
+/// Unstable ABI snapshot id negotiated by the host and plugin.
+///
+/// This is not a compatibility version. Bump it whenever the `repr(C)` layout
+/// or callback table changes; the host rejects any other snapshot.
+pub const UNSTABLE_ABI_VERSION: u32 = 5;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -638,9 +642,9 @@ pub struct NativePrimitive {
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub struct NativePluginApi {
-    /// `size_of::<NativePluginApi>()` so future ABI revisions can be detected.
+    /// `size_of::<NativePluginApi>()` so layout changes are detected.
     pub size: usize,
-    /// Current `ABI_VERSION`.
+    /// Current `UNSTABLE_ABI_VERSION`.
     pub version: u32,
     /// Register an external property for an actor type and write its runtime
     /// `PropertyId` into `out_id`.

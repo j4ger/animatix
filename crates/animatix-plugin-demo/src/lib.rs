@@ -15,10 +15,10 @@ use animatix_plugin_api::{
     NativeService, NativeTextCommand, NativeValue,
 };
 
-/// Return the ABI version implemented by this plugin.
+/// Return the unstable ABI snapshot implemented by this plugin.
 #[unsafe(no_mangle)]
 pub extern "C" fn animatix_plugin_abi_version() -> u32 {
-    animatix_plugin_api::ABI_VERSION
+    animatix_plugin_api::UNSTABLE_ABI_VERSION
 }
 
 /// Return the stable plugin name shown in loader diagnostics.
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn animatix_plugin_install(
 ) -> i32 {
     let api = unsafe { &*api };
     if api.size != std::mem::size_of::<NativePluginApi>()
-        || api.version != animatix_plugin_api::ABI_VERSION
+        || api.version != animatix_plugin_api::UNSTABLE_ABI_VERSION
     {
         return NATIVE_STATUS_TYPE_ERROR;
     }

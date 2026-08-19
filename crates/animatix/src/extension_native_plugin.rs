@@ -1,8 +1,9 @@
 //! Native cdylib plugin loading behind the `plugin-loading` feature.
 //!
-//! Plugins communicate through the stable ABI in `animatix-plugin-api`, so
-//! their Rust version and internal types can differ from the host. The host
-//! keeps the loaded `Library` alive for the lifetime of registered callbacks.
+//! Plugins communicate through the unstable in-repo ABI in
+//! `animatix-plugin-api`, so their Rust version and internal types can differ
+//! from the host. The host keeps the loaded `Library` alive for the lifetime
+//! of registered callbacks.
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use animatix_plugin_api::{
-    ABI_VERSION, NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
+    NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
     NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
     NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
     NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE,
@@ -30,7 +31,7 @@ use animatix_plugin_api::{
     NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
     NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
     NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
-    NativeTextCommand, NativeValue,
+    NativeTextCommand, NativeValue, UNSTABLE_ABI_VERSION,
 };
 use kurbo::Shape;
 use libloading::Library;
@@ -56,7 +57,7 @@ pub struct NativePlugin {
 }
 
 impl NativePlugin {
-    /// Load a native plugin and verify its ABI version.
+    /// Load a native plugin and verify its unstable ABI snapshot.
     pub fn load(path: impl AsRef<Path>) -> Result<Self, PluginError> {
         let path = path.as_ref();
         let library = unsafe { Library::new(path) }.map_err(|err| {
@@ -69,12 +70,12 @@ impl NativePlugin {
                 .map_err(|err| {
                     PluginError(format!("'{}' is not an Animatix plugin: {err}", path.display()))
                 })?;
-            if version() != ABI_VERSION {
+            if version() != UNSTABLE_ABI_VERSION {
                 return Err(PluginError(format!(
-                    "'{}' uses ABI version {}, host expects {}",
+                    "'{}' uses unstable ABI snapshot {}, host expects {}; rebuild the plugin from the same source tree",
                     path.display(),
                     version(),
-                    ABI_VERSION
+                    UNSTABLE_ABI_VERSION
                 )));
             }
 
@@ -103,7 +104,7 @@ impl NativePlugin {
 
             let api = NativePluginApi {
                 size: std::mem::size_of::<NativePluginApi>(),
-                version: ABI_VERSION,
+                version: UNSTABLE_ABI_VERSION,
                 register_property: native_register_property,
                 register_function: native_register_function,
                 register_primitive: native_register_primitive,
