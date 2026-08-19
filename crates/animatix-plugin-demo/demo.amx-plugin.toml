@@ -8,6 +8,7 @@ icon_id = "extension:pulse"
 vector_paths = true
 morphable_paths = true
 vector_reveal_target = true
+properties = ["glow"]
 
 [[properties]]
 actor_type = "Pulse"
@@ -17,3 +18,17 @@ injectable = true
 display_name = "Glow"
 group = "Pulse"
 help = "Pulse radius glow amount"
+
+[[actions]]
+name = "pulse"
+category = "Native"
+description = "Demo native pulse action"
+params = []
+modifiers = []
+
+[[functions]]
+name = "double"
+params = []
+
+[[services]]
+name = "demo.pulse"

@@ -25,6 +25,10 @@ pub struct SymbolTable {
     pub keywords: HashSet<String>,
     /// Built-in action verbs (e.g., "fade-in", "move", "rotate").
     pub actions: HashSet<String>,
+    /// Extension expression function names.
+    pub functions: HashSet<String>,
+    /// Extension service names.
+    pub services: HashSet<String>,
     /// Imports declared in this file.
     pub imports: Vec<ImportInfo>,
     /// Labels referenced in actions/assignments (for unused label detection).

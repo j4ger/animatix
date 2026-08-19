@@ -314,6 +314,9 @@ fn run_plugin_describe(library: &Path, output: Option<&Path>) -> Result<(), Stri
         .filter(|spec| !registry.is_builtin(&spec.type_name))
         .collect::<Vec<_>>();
     let properties = ctx.extension_property_descriptors();
+    let actions = ctx.action_signatures();
+    let functions = ctx.function_descriptors();
+    let services = ctx.service_descriptors();
 
     let manifest_library = output
         .map(|output| {
@@ -328,8 +331,14 @@ fn run_plugin_describe(library: &Path, output: Option<&Path>) -> Result<(), Stri
         })
         .unwrap_or_else(|| library.to_string_lossy().into_owned());
 
-    let manifest =
-        ExtensionManifest::from_runtime(Some(manifest_library), &primitives, &properties);
+    let manifest = ExtensionManifest::from_runtime(
+        Some(manifest_library),
+        &primitives,
+        &properties,
+        &actions,
+        &functions,
+        &services,
+    );
     let toml = manifest.to_toml()?;
     let result = match output {
         Some(path) => {

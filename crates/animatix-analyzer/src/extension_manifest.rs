@@ -6,8 +6,9 @@
 //! allocated by `ExtensionRegistry`, never guessed by a manifest.
 
 use animatix_syntax::schema::{
-    ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveDescriptor,
-    PrimitiveSpec, PropertyDescriptor, PropertyValueKind,
+    ActionParam, ActionSignature, ChildProcessingKind, FunctionDescriptor, PrimitiveCapabilities,
+    PrimitiveCategory, PrimitiveDescriptor, PrimitiveSpec, PropertyDescriptor, PropertyValueKind,
+    ServiceDescriptor,
 };
 use animatix_syntax::typing::Type;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -29,6 +30,12 @@ pub struct ExtensionManifest {
     pub primitives: Vec<PrimitiveDescriptor>,
     /// Property declarations.
     pub properties: Vec<PropertyDescriptor>,
+    /// Action declarations.
+    pub actions: Vec<ActionSignature>,
+    /// Function declarations.
+    pub functions: Vec<FunctionDescriptor>,
+    /// Service declarations.
+    pub services: Vec<ServiceDescriptor>,
 }
 
 #[derive(Deserialize)]
@@ -39,6 +46,12 @@ struct RawManifest {
     primitives: Vec<RawPrimitive>,
     #[serde(default)]
     properties: Vec<RawProperty>,
+    #[serde(default)]
+    actions: Vec<RawAction>,
+    #[serde(default)]
+    functions: Vec<RawFunction>,
+    #[serde(default)]
+    services: Vec<RawService>,
 }
 
 #[derive(Deserialize)]
@@ -92,12 +105,54 @@ struct RawProperty {
     help: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct RawAction {
+    name: String,
+    category: String,
+    description: String,
+    #[serde(default)]
+    params: Vec<RawActionParam>,
+    #[serde(default)]
+    modifiers: Vec<RawActionParam>,
+}
+
+#[derive(Deserialize)]
+struct RawActionParam {
+    name: String,
+    description: String,
+    #[serde(rename = "type")]
+    ty: String,
+}
+
+#[derive(Deserialize)]
+struct RawFunction {
+    name: String,
+    #[serde(default)]
+    params: Vec<RawActionParam>,
+    #[serde(default)]
+    return_type: Option<String>,
+    #[serde(default)]
+    help: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawService {
+    name: String,
+    #[serde(rename = "type")]
+    ty: Option<String>,
+    #[serde(default)]
+    help: Option<String>,
+}
+
 #[derive(Serialize)]
 struct OutputManifest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     library: Option<&'a str>,
     primitives: Vec<OutputPrimitive<'a>>,
     properties: Vec<OutputProperty<'a>>,
+    actions: Vec<OutputAction<'a>>,
+    functions: Vec<OutputFunction<'a>>,
+    services: Vec<OutputService<'a>>,
 }
 
 #[derive(Serialize)]
@@ -148,6 +203,42 @@ struct OutputProperty<'a> {
     help: Option<&'a str>,
 }
 
+#[derive(Serialize)]
+struct OutputAction<'a> {
+    name: &'a str,
+    category: &'a str,
+    description: &'a str,
+    params: Vec<OutputActionParam<'a>>,
+    modifiers: Vec<OutputActionParam<'a>>,
+}
+
+#[derive(Serialize)]
+struct OutputActionParam<'a> {
+    name: &'a str,
+    description: &'a str,
+    #[serde(rename = "type")]
+    ty: &'a str,
+}
+
+#[derive(Serialize)]
+struct OutputFunction<'a> {
+    name: &'a str,
+    params: Vec<OutputActionParam<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    return_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    help: Option<&'a str>,
+}
+
+#[derive(Serialize)]
+struct OutputService<'a> {
+    name: &'a str,
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    ty: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    help: Option<&'a str>,
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -176,6 +267,9 @@ impl ExtensionManifest {
             }
             merged.primitives.extend(manifest.primitives.iter().cloned());
             merged.properties.extend(manifest.properties.iter().cloned());
+            merged.actions.extend(manifest.actions.iter().cloned());
+            merged.functions.extend(manifest.functions.iter().cloned());
+            merged.services.extend(manifest.services.iter().cloned());
         }
         merged
     }
@@ -188,6 +282,9 @@ impl ExtensionManifest {
         library: Option<String>,
         primitives: &[PrimitiveSpec],
         properties: &[PropertyDescriptor],
+        actions: &[ActionSignature],
+        functions: &[FunctionDescriptor],
+        services: &[ServiceDescriptor],
     ) -> Self {
         Self {
             library,
@@ -225,6 +322,9 @@ impl ExtensionManifest {
                     help: property.help.clone(),
                 })
                 .collect(),
+            actions: actions.to_vec(),
+            functions: functions.to_vec(),
+            services: services.to_vec(),
         }
     }
 
@@ -273,6 +373,36 @@ impl ExtensionManifest {
                     })
                 })
                 .collect(),
+            actions: self
+                .actions
+                .iter()
+                .map(|action| OutputAction {
+                    name: &action.name,
+                    category: &action.category,
+                    description: &action.description,
+                    params: action.params.iter().map(output_action_param).collect(),
+                    modifiers: action.modifiers.iter().map(output_action_param).collect(),
+                })
+                .collect(),
+            functions: self
+                .functions
+                .iter()
+                .map(|function| OutputFunction {
+                    name: &function.name,
+                    params: function.params.iter().map(output_action_param).collect(),
+                    return_type: function.return_type.as_ref().map(ToString::to_string),
+                    help: function.help.as_deref(),
+                })
+                .collect(),
+            services: self
+                .services
+                .iter()
+                .map(|service| OutputService {
+                    name: &service.name,
+                    ty: service.type_info.as_deref(),
+                    help: service.help.as_deref(),
+                })
+                .collect(),
         };
         toml::to_string(&output).map_err(|err| err.to_string())
     }
@@ -292,6 +422,15 @@ impl ExtensionManifest {
                     .property_types
                     .insert((actor_type.clone(), property.name.clone()), property.ty.clone());
             }
+        }
+        for action in &self.actions {
+            table.actions.insert(action.name.clone());
+        }
+        for function in &self.functions {
+            table.functions.insert(function.name.clone());
+        }
+        for service in &self.services {
+            table.services.insert(service.name.clone());
         }
     }
 
@@ -350,11 +489,55 @@ impl ExtensionManifest {
             })
             .collect();
 
+        let actions = raw
+            .actions
+            .into_iter()
+            .map(|action| ActionSignature {
+                name: action.name,
+                category: action.category,
+                description: action.description,
+                params: action.params.into_iter().map(raw_action_param).collect(),
+                modifiers: action.modifiers.into_iter().map(raw_action_param).collect(),
+            })
+            .collect::<Vec<_>>();
+
+        let functions = raw
+            .functions
+            .into_iter()
+            .map(|function| FunctionDescriptor {
+                name: function.name,
+                params: function.params.into_iter().map(raw_action_param).collect(),
+                return_type: function.return_type.as_deref().map(parse_manifest_type),
+                help: function.help,
+            })
+            .collect::<Vec<_>>();
+
+        let services = raw
+            .services
+            .into_iter()
+            .map(|service| ServiceDescriptor {
+                name: service.name,
+                type_info: service.ty,
+                help: service.help,
+            })
+            .collect::<Vec<_>>();
+
         Self {
             library: raw.library,
             primitives,
             properties,
+            actions,
+            functions,
+            services,
         }
+    }
+}
+
+fn raw_action_param(param: RawActionParam) -> ActionParam {
+    ActionParam {
+        name: param.name,
+        description: param.description,
+        type_info: param.ty,
     }
 }
 
@@ -421,6 +604,14 @@ fn output_property_type(kind: PropertyValueKind) -> &'static str {
     }
 }
 
+fn output_action_param(param: &ActionParam) -> OutputActionParam<'_> {
+    OutputActionParam {
+        name: &param.name,
+        description: &param.description,
+        ty: &param.type_info,
+    }
+}
+
 fn output_child_processing(kind: ChildProcessingKind) -> Option<&'static str> {
     match kind {
         ChildProcessingKind::Generic => None,
@@ -457,6 +648,31 @@ type = "Num"
             table.property_types.get(&("Gauge".to_string(), "level".to_string())),
             Some(&Type::Num)
         );
+    }
+
+    #[test]
+    fn applies_action_function_and_service_names() {
+        let manifest = ExtensionManifest::from_toml(
+            r#"
+[[actions]]
+name = "pulse"
+category = "Native"
+description = "Demo action"
+
+[[functions]]
+name = "double"
+
+[[services]]
+name = "demo.pulse"
+"#,
+        )
+        .expect("parse manifest");
+
+        let mut table = SymbolTable::default();
+        manifest.apply_to(&mut table);
+        assert!(table.actions.contains("pulse"));
+        assert!(table.functions.contains("double"));
+        assert!(table.services.contains("demo.pulse"));
     }
 
     #[test]
@@ -534,15 +750,48 @@ injectable = true
             help: Some("Pulse radius glow amount".to_string()),
         };
 
+        let action = ActionSignature {
+            name: "pulse".to_string(),
+            category: "Native".to_string(),
+            description: "Demo pulse action".to_string(),
+            params: vec![ActionParam {
+                name: "target".to_string(),
+                description: "Target actor".to_string(),
+                type_info: "Str".to_string(),
+            }],
+            modifiers: vec![],
+        };
+        let function = FunctionDescriptor {
+            name: "double".to_string(),
+            params: vec![ActionParam {
+                name: "value".to_string(),
+                description: "Input value".to_string(),
+                type_info: "Num".to_string(),
+            }],
+            return_type: Some(Type::Num),
+            help: Some("Doubles a value".to_string()),
+        };
+        let service = ServiceDescriptor {
+            name: "demo.pulse".to_string(),
+            type_info: Some("usize".to_string()),
+            help: None,
+        };
+
         let manifest = ExtensionManifest::from_runtime(
             Some("libdemo.so".to_string()),
             &[primitive],
             &[property],
+            &[action],
+            &[function],
+            &[service],
         );
         let toml = manifest.to_toml().expect("serialize manifest");
         assert!(toml.contains("icon_id = \"extension:pulse\""));
         assert!(toml.contains("type = \"U32\""));
         assert!(toml.contains("child_processing = \"Filter\""));
+        assert!(toml.contains("[[actions]]"));
+        assert!(toml.contains("[[functions]]"));
+        assert!(toml.contains("[[services]]"));
 
         let parsed = ExtensionManifest::from_toml(&toml).expect("parse manifest");
         assert_eq!(parsed, manifest);
