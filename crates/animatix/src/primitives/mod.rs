@@ -48,6 +48,20 @@ use crate::timeline::{
     default_stroke_width,
 };
 
+/// Map the runtime UI category onto the schema category used by tooling.
+pub(crate) fn actor_category_to_primitive_category(
+    category: ActorCategory,
+) -> animatix_syntax::schema::PrimitiveCategory {
+    match category {
+        ActorCategory::Shape => animatix_syntax::schema::PrimitiveCategory::Shape,
+        ActorCategory::Text => animatix_syntax::schema::PrimitiveCategory::Text,
+        ActorCategory::Media => animatix_syntax::schema::PrimitiveCategory::Media,
+        ActorCategory::Plot => animatix_syntax::schema::PrimitiveCategory::Plot,
+        ActorCategory::Container => animatix_syntax::schema::PrimitiveCategory::Container,
+        ActorCategory::Annotation => animatix_syntax::schema::PrimitiveCategory::Annotation,
+    }
+}
+
 /// Evaluate text paths for a text primitive at frame time.
 ///
 /// This replicates the logic in `scene_eval.rs::evaluate_text_node` so that
@@ -640,60 +654,10 @@ pub trait Primitive: Send + Sync {
     /// `PrimitiveDescriptor` string matching. Primitives can override it when
     /// they need capabilities beyond the category defaults.
     fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-        match self.category() {
-            ActorCategory::Shape => animatix_syntax::schema::PrimitiveCapabilities {
-                vector_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
-                is_shape: true,
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            },
-            ActorCategory::Text => animatix_syntax::schema::PrimitiveCapabilities {
-                text_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            },
-            ActorCategory::Media => match self.type_name() {
-                "Svg" => animatix_syntax::schema::PrimitiveCapabilities {
-                    vector_paths: true,
-                    morphable_paths: true,
-                    vector_reveal_target: true,
-                    ..animatix_syntax::schema::PrimitiveCapabilities::default()
-                },
-                "Image" => animatix_syntax::schema::PrimitiveCapabilities {
-                    image_payload: true,
-                    ..animatix_syntax::schema::PrimitiveCapabilities::default()
-                },
-                _ => animatix_syntax::schema::PrimitiveCapabilities::default(),
-            },
-            ActorCategory::Plot => animatix_syntax::schema::PrimitiveCapabilities {
-                vector_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
-                plot_geometry: true,
-                plot_host: self.type_name() == "Graph",
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            },
-            ActorCategory::Container => {
-                if matches!(self.type_name(), "Group" | "Mask") {
-                    animatix_syntax::schema::PrimitiveCapabilities {
-                        is_container: true,
-                        ..animatix_syntax::schema::PrimitiveCapabilities::default()
-                    }
-                } else {
-                    animatix_syntax::schema::PrimitiveCapabilities {
-                        layout_container: true,
-                        is_container: true,
-                        ..animatix_syntax::schema::PrimitiveCapabilities::default()
-                    }
-                }
-            },
-            ActorCategory::Annotation => animatix_syntax::schema::PrimitiveCapabilities {
-                vector_paths: true,
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            },
-        }
+        animatix_syntax::schema::primitive_capabilities(
+            self.type_name(),
+            actor_category_to_primitive_category(self.category()),
+        )
     }
 
     /// Child-processing capability used by the scene subtree renderer.

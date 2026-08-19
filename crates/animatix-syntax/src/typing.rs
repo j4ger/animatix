@@ -125,9 +125,7 @@ impl Type {
             Type::Union(types) => {
                 TypeAnnotation::Union(types.iter().map(Type::to_annotation).collect())
             },
-            Type::Enum(variants) => {
-                TypeAnnotation::Union(variants.iter().map(|_| TypeAnnotation::Str).collect())
-            },
+            Type::Enum(variants) => TypeAnnotation::Enum(variants.clone()),
             Type::Function { params, ret } => TypeAnnotation::Function {
                 params: params.iter().map(Type::to_annotation).collect(),
                 ret: Box::new(ret.to_annotation()),
@@ -161,6 +159,7 @@ impl Type {
             TypeAnnotation::Union(types) => {
                 Type::Union(types.iter().map(Type::from_annotation).collect())
             },
+            TypeAnnotation::Enum(variants) => Type::Enum(variants.clone()),
             TypeAnnotation::Alias(_) => Type::Any,
             TypeAnnotation::Any => Type::Any,
         }
@@ -856,6 +855,7 @@ mod tests {
             function,
             TypeAnnotation::Scene,
             TypeAnnotation::List(Box::new(TypeAnnotation::Tuple(vec![TypeAnnotation::Num]))),
+            TypeAnnotation::Enum(vec!["left".to_string(), "right".to_string(), "top".to_string()]),
         ] {
             assert_eq!(Type::from_annotation(&annotation).to_annotation(), annotation);
         }

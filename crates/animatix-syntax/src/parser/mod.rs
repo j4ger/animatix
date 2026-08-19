@@ -1024,6 +1024,26 @@ mod tests {
     }
 
     #[test]
+    fn test_enum_type_annotation_parses_in_action_param() {
+        let src = r#"action transform(x: Enum(left, right, top)) { fade-in x [300ms] }"#;
+        let (stmts, errors) = parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = stmts.expect("expected parse output");
+        if let Stmt::ComponentAction { params, .. } = &stmts[0] {
+            assert_eq!(
+                params[0].param_type,
+                Some(TypeAnnotation::Enum(vec![
+                    "left".to_string(),
+                    "right".to_string(),
+                    "top".to_string()
+                ]))
+            );
+        } else {
+            panic!("expected ComponentAction, got {:?}", stmts[0]);
+        }
+    }
+
+    #[test]
     fn test_type_alias_parses_union_annotation() {
         let src = "pub type LegendMode = Bool | Str\n";
         let (stmts, errors) = parse_source(src);

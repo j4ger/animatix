@@ -310,13 +310,20 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
             category: *category,
             icon_id: (*icon_id).to_string(),
             advanced: *advanced,
-            capabilities: schema_capabilities(type_name, *category),
+            capabilities: primitive_capabilities(type_name, *category),
             child_processing: schema_child_processing(type_name),
         })
         .collect()
 }
 
-fn schema_capabilities(type_name: &str, category: PrimitiveCategory) -> PrimitiveCapabilities {
+/// Canonical built-in capability defaults for a primitive.
+///
+/// Runtime `Primitive` implementations use this same function instead of
+/// maintaining a second category/type-name table.
+pub fn primitive_capabilities(
+    type_name: &str,
+    category: PrimitiveCategory,
+) -> PrimitiveCapabilities {
     match category {
         PrimitiveCategory::Shape => PrimitiveCapabilities {
             vector_paths: true,

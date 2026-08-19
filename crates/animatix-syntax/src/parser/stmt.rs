@@ -126,10 +126,22 @@ pub(crate) fn parser<'src>(
                     ret: Box::new(ret),
                 })
                 .boxed();
+            let enum_annotation = type_keyword("Enum")
+                .ignore_then(choice((lt().to(()), lparen().to(()))))
+                .ignore_then(
+                    common::ident()
+                        .separated_by(comma())
+                        .allow_trailing()
+                        .collect::<Vec<_>>(),
+                )
+                .then_ignore(choice((gt().to(()), rparen().to(()))))
+                .map(TypeAnnotation::Enum)
+                .boxed();
             let atom = simple
                 .or(list)
                 .or(tuple)
                 .or(function)
+                .or(enum_annotation)
                 .or(common::type_ident().map(TypeAnnotation::Alias))
                 .or(canonical_alias)
                 .or(legacy_alias);

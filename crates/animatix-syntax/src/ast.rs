@@ -404,6 +404,8 @@ pub enum TypeAnnotation {
     },
     /// Union of accepted types, e.g. `Bool | Str`.
     Union(Vec<TypeAnnotation>),
+    /// Named enum choices, e.g. `Enum(left, right)`.
+    Enum(Vec<String>),
     /// Named type alias reference.
     Alias(String),
     /// Unannotated — accepts any value.
@@ -434,6 +436,9 @@ impl std::fmt::Display for TypeAnnotation {
             TypeAnnotation::Union(types) => {
                 let inner = types.iter().map(ToString::to_string).collect::<Vec<_>>().join(" | ");
                 write!(f, "{inner}")
+            },
+            TypeAnnotation::Enum(variants) => {
+                write!(f, "Enum({})", variants.join(", "))
             },
             TypeAnnotation::Alias(name) => write!(f, "{name}"),
             TypeAnnotation::Any => write!(f, "Any"),

@@ -95,26 +95,7 @@ impl PrimitiveRegistry {
                 animatix_syntax::schema::PrimitiveSpec {
                     type_name: primitive.type_name().to_string(),
                     display_name: primitive.display_name().to_string(),
-                    category: match primitive.category() {
-                        super::ActorCategory::Shape => {
-                            animatix_syntax::schema::PrimitiveCategory::Shape
-                        },
-                        super::ActorCategory::Text => {
-                            animatix_syntax::schema::PrimitiveCategory::Text
-                        },
-                        super::ActorCategory::Media => {
-                            animatix_syntax::schema::PrimitiveCategory::Media
-                        },
-                        super::ActorCategory::Plot => {
-                            animatix_syntax::schema::PrimitiveCategory::Plot
-                        },
-                        super::ActorCategory::Container => {
-                            animatix_syntax::schema::PrimitiveCategory::Container
-                        },
-                        super::ActorCategory::Annotation => {
-                            animatix_syntax::schema::PrimitiveCategory::Annotation
-                        },
-                    },
+                    category: super::actor_category_to_primitive_category(primitive.category()),
                     icon_id: primitive.icon_id().to_string(),
                     advanced: primitive.is_advanced(),
                     capabilities: animatix_syntax::schema::PrimitiveCapabilities {
