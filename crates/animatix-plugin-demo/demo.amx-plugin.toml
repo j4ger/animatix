@@ -29,6 +29,10 @@ modifiers = []
 [[functions]]
 name = "double"
 params = []
+return_type = "Num"
+help = "Doubles a number"
 
 [[services]]
 name = "demo.pulse"
+type = "usize"
+help = "Demo native service"

@@ -11,7 +11,7 @@
 use std::ffi::{c_char, c_void};
 
 /// ABI version negotiated by the host and plugin.
-pub const ABI_VERSION: u32 = 3;
+pub const ABI_VERSION: u32 = 4;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -139,6 +139,8 @@ pub struct NativePropertyDescriptor {
     pub display_name: *const c_char,
     /// `NATIVE_PROPERTY_*` value kind.
     pub kind: u32,
+    /// Optional precise tooling type string, e.g. `"Color"` or `"Bool"`.
+    pub type_info: *const c_char,
     /// Whether the property is injected into frame environments.
     pub injectable: bool,
     /// Inspector grouping key.
@@ -264,6 +266,24 @@ pub type NativeFunction = unsafe extern "C" fn(
     out: *mut NativeValue,
 ) -> i32;
 
+/// Descriptor passed from a native plugin to register an expression function.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeFunctionDescriptor {
+    /// Function name as written in source.
+    pub name: *const c_char,
+    /// Positional parameter descriptions.
+    pub params: *const NativeActionParam,
+    /// Number of positional parameters.
+    pub param_len: usize,
+    /// Optional return type string, e.g. `"Num"` or `"Color"`.
+    pub return_type: *const c_char,
+    /// Optional help text.
+    pub help: *const c_char,
+    /// Expression callback.
+    pub callback: NativeFunction,
+}
+
 /// Context passed to a native expression function callback.
 #[repr(C)]
 pub struct NativeFunctionContext {
@@ -298,6 +318,30 @@ pub const NATIVE_PRIMITIVE_CHILD_FILTER: u32 = 1;
 pub const NATIVE_PRIMITIVE_CHILD_MASK: u32 = 2;
 /// Child-processing strategy.
 pub const NATIVE_PRIMITIVE_CHILD_EQUATION: u32 = 3;
+
+/// Primitive capability: emits text glyph paths.
+pub const NATIVE_CAP_TEXT_PATHS: u32 = 1 << 0;
+/// Primitive capability: emits vector paths.
+pub const NATIVE_CAP_VECTOR_PATHS: u32 = 1 << 1;
+/// Primitive capability: carries a raster image payload.
+pub const NATIVE_CAP_IMAGE_PAYLOAD: u32 = 1 << 2;
+/// Primitive capability: participates in layout containers.
+pub const NATIVE_CAP_LAYOUT_CONTAINER: u32 = 1 << 3;
+/// Primitive capability: supports path morphing.
+pub const NATIVE_CAP_MORPHABLE_PATHS: u32 = 1 << 4;
+/// Primitive capability: is a vector reveal target.
+pub const NATIVE_CAP_VECTOR_REVEAL_TARGET: u32 = 1 << 5;
+/// Primitive capability: emits plot geometry.
+pub const NATIVE_CAP_PLOT_GEOMETRY: u32 = 1 << 6;
+/// Primitive capability: is a container primitive.
+pub const NATIVE_CAP_IS_CONTAINER: u32 = 1 << 7;
+/// Primitive capability: is a vector shape.
+pub const NATIVE_CAP_IS_SHAPE: u32 = 1 << 8;
+
+/// Resize mode: editor sizes the actor bounds directly.
+pub const NATIVE_RESIZE_MODE_SIZE: u32 = 0;
+/// Resize mode: editor scales the actor uniformly.
+pub const NATIVE_RESIZE_MODE_SCALE: u32 = 1;
 
 /// Primitive path command kind for evaluation.
 pub const NATIVE_PATH_RECT: u32 = 0;
@@ -532,6 +576,10 @@ pub type NativeActionExecuteFn = unsafe extern "C" fn(*mut NativeActionContext) 
 pub struct NativeService {
     /// Canonical service name.
     pub name: *const c_char,
+    /// Optional type information for tooling.
+    pub type_info: *const c_char,
+    /// Optional help text.
+    pub help: *const c_char,
     /// Opaque service value understood by the plugin.
     pub value: usize,
     /// Optional destructor invoked when the host drops the service.
@@ -550,10 +598,18 @@ pub struct NativePrimitive {
     pub icon_id: *const c_char,
     /// `NATIVE_PRIMITIVE_CATEGORY_*` value.
     pub category: u32,
+    /// `NATIVE_CAP_*` capability flags.
+    pub capabilities: u32,
+    /// Names of properties declared by this primitive.
+    pub properties: *const *const c_char,
+    /// Number of property names in `properties`.
+    pub property_len: usize,
     /// Whether the primitive is hidden in the advanced menu.
     pub advanced: bool,
     /// `NATIVE_PRIMITIVE_CHILD_*` value.
     pub child_processing: u32,
+    /// `NATIVE_RESIZE_MODE_*` value.
+    pub resize_mode: u32,
     /// Optional build callback.
     pub build: Option<NativePrimitiveBuildFn>,
     /// Optional frame-time evaluate callback.
@@ -577,7 +633,7 @@ pub struct NativePluginApi {
     pub register_property:
         unsafe extern "C" fn(*mut c_void, NativePropertyDescriptor, *mut u32) -> i32,
     /// Register a native expression function.
-    pub register_function: unsafe extern "C" fn(*mut c_void, *const c_char, NativeFunction) -> i32,
+    pub register_function: unsafe extern "C" fn(*mut c_void, NativeFunctionDescriptor) -> i32,
     /// Register a native primitive.
     pub register_primitive: unsafe extern "C" fn(*mut c_void, NativePrimitive) -> i32,
     /// Register a native action.

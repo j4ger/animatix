@@ -293,7 +293,9 @@ impl ExtensionManifest {
                 .map(|spec| {
                     let declared = properties
                         .iter()
-                        .filter(|property| property.actor_types.iter().any(|ty| ty == &spec.type_name))
+                        .filter(|property| {
+                            property.actor_types.iter().any(|ty| ty == &spec.type_name)
+                        })
                         .map(|property| property.name.clone())
                         .collect();
                     PrimitiveDescriptor {
@@ -351,11 +353,7 @@ impl ExtensionManifest {
                     is_container: primitive.capabilities.is_container,
                     is_shape: primitive.capabilities.is_shape,
                     child_processing: output_child_processing(primitive.child_processing),
-                    properties: primitive
-                        .properties
-                        .iter()
-                        .map(String::as_str)
-                        .collect(),
+                    properties: primitive.properties.iter().map(String::as_str).collect(),
                 })
                 .collect(),
             properties: self

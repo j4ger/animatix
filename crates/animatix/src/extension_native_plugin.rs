@@ -11,21 +11,25 @@ use std::path::Path;
 use std::sync::Arc;
 
 use animatix_plugin_api::{
-    ABI_VERSION, NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE,
-    NATIVE_PATH_POLYGON, NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT,
+    ABI_VERSION, NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
+    NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
+    NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
+    NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON,
+    NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL,
     NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
     NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
-    NATIVE_PROPERTY_BOOL, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL,
-    NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
-    NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
-    NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
-    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction, NativeActionContext, NativeActionExecuteFn,
-    NativeActionParam, NativeAssignmentContext, NativeAssignmentFn, NativeChild,
-    NativeFinalizeContext, NativeFinalizeFn, NativeFunction, NativeFunctionContext,
-    NativeHighlightCommand, NativeImageCommand, NativeInstallFn, NativeModifierValue,
-    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveBuildCtx,
-    NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn,
-    NativePropertyDescriptor, NativePropertyValue, NativeService, NativeTextCommand, NativeValue,
+    NATIVE_RESIZE_MODE_SCALE, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR,
+    NATIVE_STATUS_UNSUPPORTED, NATIVE_VALUE_BOOL, NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST,
+    NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST, NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST,
+    NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32,
+    NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction,
+    NativeActionContext, NativeActionExecuteFn, NativeActionParam, NativeAssignmentContext,
+    NativeAssignmentFn, NativeChild, NativeFinalizeContext, NativeFinalizeFn,
+    NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand,
+    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
+    NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
+    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
+    NativeTextCommand, NativeValue,
 };
 use kurbo::Shape;
 use libloading::Library;
@@ -36,7 +40,9 @@ use crate::primitives::{AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, P
 use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, Value};
+use crate::timeline::{
+    ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, ResizeMode, Value,
+};
 
 use super::{ExtensionPlugin, PluginDisposer, PluginError};
 
@@ -272,10 +278,12 @@ unsafe extern "C" fn native_register_property(
     let display_name = unsafe { read_c_string(descriptor.display_name) };
     let group = unsafe { read_c_string(descriptor.group) };
     let help = unsafe { read_c_string(descriptor.help) };
-    let id = match host.ctx.register_property_full(
+    let ty = unsafe { read_c_string(descriptor.type_info) }.and_then(|ty| parse_native_type(&ty));
+    let id = match host.ctx.register_property_full_typed(
         actor_type.clone(),
         name.clone(),
         kind,
+        ty,
         descriptor.injectable,
         display_name,
         group,
@@ -296,62 +304,76 @@ unsafe extern "C" fn native_register_property(
 
 unsafe extern "C" fn native_register_function(
     host: *mut c_void,
-    name: *const c_char,
-    callback: NativeFunction,
+    descriptor: NativeFunctionDescriptor,
 ) -> i32 {
     let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
+    let Some(name) = (unsafe { read_c_string(descriptor.name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let callback = descriptor.callback;
+    let params = unsafe { read_native_action_params(descriptor.params, descriptor.param_len) };
+    let return_type =
+        unsafe { read_c_string(descriptor.return_type) }.and_then(|ty| parse_native_type(&ty));
+    let help = unsafe { read_c_string(descriptor.help) };
+    let function_descriptor = animatix_syntax::schema::FunctionDescriptor {
+        name: name.clone(),
+        params,
+        return_type,
+        help,
     };
     let library = host.library.clone();
     let service_values = host.service_values.clone();
     let function_name = name.clone();
     if host
         .ctx
-        .register_function(name.clone(), move |args, env| unsafe {
-            let _keep_alive = &library;
-            let mut arena = NativeValueArena::default();
-            let native_args = args
-                .iter()
-                .map(|value| value_to_native(value, &mut arena))
-                .collect::<Result<Vec<_>, _>>()?;
-            let mut out = NativeValue::default();
-            let mut function_host = NativeFunctionHost {
-                env,
-                service_values: &service_values,
-                arena,
-            };
-            let mut native_ctx = NativeFunctionContext {
-                size: std::mem::size_of::<NativeFunctionContext>(),
-                host: (&mut function_host as *mut NativeFunctionHost).cast(),
-                get_env: native_function_get_env,
-                get_service: native_function_get_service,
-            };
-            let status = callback(
-                &mut native_ctx,
-                if native_args.is_empty() {
-                    std::ptr::null()
-                } else {
-                    native_args.as_ptr()
-                },
-                native_args.len(),
-                &mut out,
-            );
-            match status {
-                NATIVE_STATUS_OK => native_to_value(out),
-                NATIVE_STATUS_TYPE_ERROR => Err(EvalError::TypeMismatch(format!(
-                    "native plugin function '{function_name}' rejected its arguments"
-                ))),
-                NATIVE_STATUS_UNSUPPORTED => Err(EvalError::UnsupportedConstruct(format!(
-                    "native plugin function '{function_name}' does not support this value"
-                ))),
-                _ => Err(EvalError::TypeMismatch(format!(
-                    "native plugin function '{function_name}' failed with status {status}"
-                ))),
-            }
-        })
+        .register_function_with_descriptor(
+            name.clone(),
+            move |args, env| unsafe {
+                let _keep_alive = &library;
+                let mut arena = NativeValueArena::default();
+                let native_args = args
+                    .iter()
+                    .map(|value| value_to_native(value, &mut arena))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut out = NativeValue::default();
+                let mut function_host = NativeFunctionHost {
+                    env,
+                    service_values: &service_values,
+                    arena,
+                };
+                let mut native_ctx = NativeFunctionContext {
+                    size: std::mem::size_of::<NativeFunctionContext>(),
+                    host: (&mut function_host as *mut NativeFunctionHost).cast(),
+                    get_env: native_function_get_env,
+                    get_service: native_function_get_service,
+                };
+                let status = callback(
+                    &mut native_ctx,
+                    if native_args.is_empty() {
+                        std::ptr::null()
+                    } else {
+                        native_args.as_ptr()
+                    },
+                    native_args.len(),
+                    &mut out,
+                );
+                match status {
+                    NATIVE_STATUS_OK => native_to_value(out),
+                    NATIVE_STATUS_TYPE_ERROR => Err(EvalError::TypeMismatch(format!(
+                        "native plugin function '{function_name}' rejected its arguments"
+                    ))),
+                    NATIVE_STATUS_UNSUPPORTED => Err(EvalError::UnsupportedConstruct(format!(
+                        "native plugin function '{function_name}' does not support this value"
+                    ))),
+                    _ => Err(EvalError::TypeMismatch(format!(
+                        "native plugin function '{function_name}' failed with status {status}"
+                    ))),
+                }
+            },
+            function_descriptor,
+        )
         .is_err()
     {
         return NATIVE_STATUS_TYPE_ERROR;
@@ -471,15 +493,21 @@ unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeSe
     let Some(library) = host.library.clone() else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    let service_descriptor = animatix_syntax::schema::ServiceDescriptor {
+        name: name.clone(),
+        type_info: unsafe { read_c_string(service.type_info) },
+        help: unsafe { read_c_string(service.help) },
+    };
     if host
         .ctx
-        .provide(
+        .provide_with_descriptor(
             name.clone(),
             NativeServiceHandle {
                 value: service.value,
                 drop: service.drop,
                 _library: library,
             },
+            service_descriptor,
         )
         .is_err()
     {
@@ -499,6 +527,9 @@ struct NativePrimitiveAdapter {
     category: ActorCategory,
     advanced: bool,
     child_processing: ChildProcessing,
+    capabilities: animatix_syntax::schema::PrimitiveCapabilities,
+    declared_properties: Vec<String>,
+    resize_mode: ResizeMode,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
     property_kinds: HashMap<String, animatix_syntax::schema::PropertyValueKind>,
     service_values: HashMap<String, usize>,
@@ -523,6 +554,13 @@ impl NativePrimitiveAdapter {
         let icon_id =
             unsafe { read_c_string(primitive.icon_id) }.unwrap_or_else(|| "extension".to_string());
         let category = native_primitive_category(primitive.category)?;
+        let declared_properties = if primitive.properties.is_null() || primitive.property_len == 0 {
+            Vec::new()
+        } else {
+            let names =
+                unsafe { std::slice::from_raw_parts(primitive.properties, primitive.property_len) };
+            names.iter().filter_map(|ptr| unsafe { read_c_string(*ptr) }).collect()
+        };
         Some(Self {
             type_name,
             display_name,
@@ -531,6 +569,9 @@ impl NativePrimitiveAdapter {
             advanced: primitive.advanced,
             child_processing: native_child_processing(primitive.child_processing)
                 .unwrap_or_default(),
+            capabilities: native_capabilities(primitive.capabilities),
+            declared_properties,
+            resize_mode: native_resize_mode(primitive.resize_mode),
             property_ids,
             property_kinds,
             service_values,
@@ -565,11 +606,27 @@ impl Primitive for NativePrimitiveAdapter {
     }
 
     fn is_container(&self) -> bool {
-        matches!(self.category, ActorCategory::Container)
+        self.capabilities.is_container
+    }
+
+    fn is_shape(&self) -> bool {
+        self.capabilities.is_shape
+    }
+
+    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+        self.capabilities
     }
 
     fn child_processing(&self) -> ChildProcessing {
         self.child_processing
+    }
+
+    fn declared_properties(&self) -> &[String] {
+        &self.declared_properties
+    }
+
+    fn resize_mode(&self) -> ResizeMode {
+        self.resize_mode
     }
 
     fn kind_id(&self) -> ActorKindId {
@@ -1673,6 +1730,44 @@ fn native_child_processing(kind: u32) -> Option<ChildProcessing> {
     }
 }
 
+fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabilities {
+    animatix_syntax::schema::PrimitiveCapabilities {
+        text_paths: flags & NATIVE_CAP_TEXT_PATHS != 0,
+        vector_paths: flags & NATIVE_CAP_VECTOR_PATHS != 0,
+        image_payload: flags & NATIVE_CAP_IMAGE_PAYLOAD != 0,
+        layout_container: flags & NATIVE_CAP_LAYOUT_CONTAINER != 0,
+        morphable_paths: flags & NATIVE_CAP_MORPHABLE_PATHS != 0,
+        vector_reveal_target: flags & NATIVE_CAP_VECTOR_REVEAL_TARGET != 0,
+        plot_geometry: flags & NATIVE_CAP_PLOT_GEOMETRY != 0,
+        is_container: flags & NATIVE_CAP_IS_CONTAINER != 0,
+        is_shape: flags & NATIVE_CAP_IS_SHAPE != 0,
+    }
+}
+
+fn native_resize_mode(mode: u32) -> ResizeMode {
+    if mode == NATIVE_RESIZE_MODE_SCALE {
+        ResizeMode::Scale
+    } else {
+        ResizeMode::Size
+    }
+}
+
+fn parse_native_type(ty: &str) -> Option<animatix_syntax::typing::Type> {
+    use animatix_syntax::typing::Type;
+    match ty.trim() {
+        "Num" | "U32" => Some(Type::Num),
+        "Str" | "String" => Some(Type::Str),
+        "Bool" => Some(Type::Bool),
+        "Vec2" => Some(Type::Vec2),
+        "Vec3" => Some(Type::Vec3),
+        "Vec4" => Some(Type::Vec4),
+        "Color" => Some(Type::Color),
+        "Any" => Some(Type::Any),
+        "List<Vec2>" => Some(Type::List(Box::new(Type::Vec2))),
+        _ => None,
+    }
+}
+
 unsafe fn read_c_string(ptr: *const c_char) -> Option<String> {
     if ptr.is_null() {
         return None;
@@ -1943,6 +2038,7 @@ mod tests {
     use super::*;
     use crate::extension_context::ExtensionContext;
     use crate::timeline::{Environment, PropertyKind, Value};
+    use animatix_plugin_api::NATIVE_RESIZE_MODE_SIZE;
     use std::ffi::c_void;
 
     static BUILD_CHILD_COUNT: std::sync::atomic::AtomicUsize =
@@ -2219,6 +2315,7 @@ mod tests {
                         name: c"glow".as_ptr(),
                         display_name: std::ptr::null(),
                         kind: NATIVE_PROPERTY_F32,
+                        type_info: std::ptr::null(),
                         injectable: true,
                         group: std::ptr::null(),
                         help: std::ptr::null(),
@@ -2233,8 +2330,14 @@ mod tests {
             unsafe {
                 native_register_function(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    c"double".as_ptr(),
-                    double,
+                    NativeFunctionDescriptor {
+                        name: c"double".as_ptr(),
+                        params: std::ptr::null(),
+                        param_len: 0,
+                        return_type: std::ptr::null(),
+                        help: std::ptr::null(),
+                        callback: double,
+                    },
                 )
             },
             NATIVE_STATUS_OK
@@ -2244,8 +2347,12 @@ mod tests {
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
             build: None,
             evaluate: Some(pulse_evaluate),
             handle_assignment: None,
@@ -2284,6 +2391,8 @@ mod tests {
                     (&mut host as *mut NativeHost).cast::<c_void>(),
                     NativeService {
                         name: c"demo.pulse".as_ptr(),
+                        type_info: std::ptr::null(),
+                        help: std::ptr::null(),
                         value: 7,
                         drop: Some(drop_service),
                     },
@@ -2361,6 +2470,7 @@ mod tests {
                         name: c"glow".as_ptr(),
                         display_name: std::ptr::null(),
                         kind: NATIVE_PROPERTY_F32,
+                        type_info: std::ptr::null(),
                         injectable: true,
                         group: std::ptr::null(),
                         help: std::ptr::null(),
@@ -2374,8 +2484,14 @@ mod tests {
             unsafe {
                 native_register_function(
                     (&mut host as *mut NativeHost).cast::<c_void>(),
-                    c"double".as_ptr(),
-                    double,
+                    NativeFunctionDescriptor {
+                        name: c"double".as_ptr(),
+                        params: std::ptr::null(),
+                        param_len: 0,
+                        return_type: std::ptr::null(),
+                        help: std::ptr::null(),
+                        callback: double,
+                    },
                 )
             },
             NATIVE_STATUS_OK
@@ -2385,8 +2501,12 @@ mod tests {
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
             build: None,
             evaluate: None,
             handle_assignment: None,
@@ -2425,6 +2545,8 @@ mod tests {
                     (&mut host as *mut NativeHost).cast::<c_void>(),
                     NativeService {
                         name: c"demo.pulse".as_ptr(),
+                        type_info: std::ptr::null(),
+                        help: std::ptr::null(),
                         value: 7,
                         drop: Some(drop_service),
                     },
@@ -2895,8 +3017,12 @@ mod tests {
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),
             category: NATIVE_PRIMITIVE_CATEGORY_CONTAINER,
+            capabilities: NATIVE_CAP_IS_CONTAINER,
+            properties: std::ptr::null(),
+            property_len: 0,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
             build: Some(record_build_children),
             evaluate: None,
             handle_assignment: None,
@@ -2940,8 +3066,12 @@ mod tests {
             display_name: c"Pulse".as_ptr(),
             icon_id: c"extension:pulse".as_ptr(),
             category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
             advanced: false,
             child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
             build: None,
             evaluate: Some(pulse_evaluate),
             handle_assignment: None,
@@ -2966,11 +3096,14 @@ mod tests {
     #[test]
     fn native_primitive_metadata_maps_all_abi_codes() {
         use animatix_plugin_api::{
+            NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
+            NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
+            NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
             NATIVE_PRIMITIVE_CATEGORY_ANNOTATION, NATIVE_PRIMITIVE_CATEGORY_CONTAINER,
             NATIVE_PRIMITIVE_CATEGORY_MEDIA, NATIVE_PRIMITIVE_CATEGORY_PLOT,
             NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CATEGORY_TEXT,
             NATIVE_PRIMITIVE_CHILD_EQUATION, NATIVE_PRIMITIVE_CHILD_FILTER,
-            NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PRIMITIVE_CHILD_MASK,
+            NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PRIMITIVE_CHILD_MASK, NATIVE_RESIZE_MODE_SCALE,
         };
 
         assert_eq!(
@@ -3016,5 +3149,93 @@ mod tests {
             Some(ChildProcessing::Equation)
         );
         assert_eq!(native_child_processing(99), None);
+
+        let capabilities = native_capabilities(
+            NATIVE_CAP_TEXT_PATHS
+                | NATIVE_CAP_VECTOR_PATHS
+                | NATIVE_CAP_IMAGE_PAYLOAD
+                | NATIVE_CAP_LAYOUT_CONTAINER
+                | NATIVE_CAP_MORPHABLE_PATHS
+                | NATIVE_CAP_VECTOR_REVEAL_TARGET
+                | NATIVE_CAP_PLOT_GEOMETRY
+                | NATIVE_CAP_IS_CONTAINER
+                | NATIVE_CAP_IS_SHAPE,
+        );
+        assert!(capabilities.text_paths);
+        assert!(capabilities.vector_paths);
+        assert!(capabilities.image_payload);
+        assert!(capabilities.layout_container);
+        assert!(capabilities.morphable_paths);
+        assert!(capabilities.vector_reveal_target);
+        assert!(capabilities.plot_geometry);
+        assert!(capabilities.is_container);
+        assert!(capabilities.is_shape);
+        assert!(!native_capabilities(0).is_container);
+        assert!(!native_capabilities(0).is_shape);
+
+        assert_eq!(native_resize_mode(NATIVE_RESIZE_MODE_SCALE), ResizeMode::Scale);
+        assert_eq!(native_resize_mode(NATIVE_RESIZE_MODE_SIZE), ResizeMode::Size);
+        assert_eq!(native_resize_mode(99), ResizeMode::Size);
+    }
+
+    #[test]
+    fn native_declared_builtin_properties_use_generic_writer() {
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+        };
+
+        let declared = [c"position".as_ptr(), c"color".as_ptr()];
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: declared.as_ptr(),
+            property_len: declared.len(),
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
+            build: None,
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+        };
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
+        .expect("adapter");
+        let mut ctx = ExtensionContext::new();
+        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source("p: Pulse, position: (10, 20), color: red");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+        let report = crate::timeline::Timeline::build_with_context(
+            &ast,
+            &std::collections::HashMap::new(),
+            Arc::new(ctx),
+        );
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let track = report.output.tracks.get("p").expect("pulse track");
+        assert_eq!(
+            track.geometry.position.get(0, [0.0, 0.0]),
+            [10.0, 20.0],
+            "declared position should be written by the generic property engine"
+        );
+        assert_eq!(
+            track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]),
+            [1.0, 0.0, 0.0, 1.0],
+            "declared color should be written by the generic property engine"
+        );
     }
 }

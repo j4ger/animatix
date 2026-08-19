@@ -957,7 +957,12 @@ impl Timeline {
         let Some(ctx) = self.extensions.clone() else {
             return;
         };
-        if !props.iter().any(|prop| ctx.property_spec(ty, &prop.name).is_some()) {
+        let primitive = self.primitive_registry.find(ty);
+        if !props.iter().any(|prop| {
+            ctx.property_spec(ty, &prop.name).is_some()
+                || primitive
+                    .is_some_and(|primitive| primitive.declared_properties().contains(&prop.name))
+        }) {
             return;
         }
 
@@ -980,13 +985,34 @@ impl Timeline {
         };
 
         for prop in props {
-            if crate::timeline::property_registry::lookup_property(&prop.name).is_some() {
+            let subject = format!("{}.{}", label, prop.name);
+            if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) {
+                if primitive
+                    .is_some_and(|primitive| primitive.declared_properties().contains(&prop.name))
+                {
+                    if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                        schema.value_type,
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &subject,
+                    ) {
+                        crate::timeline::property_engine::write_property_field(
+                            track,
+                            schema.field,
+                            pv,
+                            t_start_ms,
+                            t_end_ms,
+                            easing,
+                            diagnostics,
+                        );
+                    }
+                }
                 continue;
             }
             let Some(spec) = ctx.property_spec(ty, &prop.name) else {
                 continue;
             };
-            let subject = format!("{}.{}", label, prop.name);
             if let Some(pv) = crate::timeline::property_engine::parse_extension_property_value(
                 spec.kind,
                 &prop.value,

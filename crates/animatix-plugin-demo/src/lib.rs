@@ -6,11 +6,13 @@
 use std::ffi::{c_char, c_void};
 
 use animatix_plugin_api::{
+    NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
     NATIVE_PATH_ELLIPSE, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
-    NATIVE_PROPERTY_F32, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_VALUE_NUM,
-    NativeAction, NativeActionContext, NativeFunctionContext, NativeHighlightCommand,
-    NativePathCommand, NativePluginApi, NativePrimitive, NativePrimitiveEvaluateCtx,
-    NativePropertyDescriptor, NativeService, NativeTextCommand, NativeValue,
+    NATIVE_PROPERTY_F32, NATIVE_RESIZE_MODE_SIZE, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR,
+    NATIVE_VALUE_NUM, NativeAction, NativeActionContext, NativeFunctionContext,
+    NativeFunctionDescriptor, NativeHighlightCommand, NativePathCommand, NativePluginApi,
+    NativePrimitive, NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService,
+    NativeTextCommand, NativeValue,
 };
 
 /// Return the ABI version implemented by this plugin.
@@ -52,6 +54,7 @@ pub unsafe extern "C" fn animatix_plugin_install(
                 name: c"glow".as_ptr(),
                 display_name: c"Glow".as_ptr(),
                 kind: NATIVE_PROPERTY_F32,
+                type_info: c"Num".as_ptr(),
                 injectable: true,
                 group: c"Pulse".as_ptr(),
                 help: c"Pulse radius glow amount".as_ptr(),
@@ -63,18 +66,37 @@ pub unsafe extern "C" fn animatix_plugin_install(
         return NATIVE_STATUS_TYPE_ERROR;
     }
 
-    let function_status = unsafe { (api.register_function)(host, c"double".as_ptr(), double) };
+    let function_status = unsafe {
+        (api.register_function)(
+            host,
+            NativeFunctionDescriptor {
+                name: c"double".as_ptr(),
+                params: std::ptr::null(),
+                param_len: 0,
+                return_type: c"Num".as_ptr(),
+                help: c"Doubles a number".as_ptr(),
+                callback: double,
+            },
+        )
+    };
     if function_status != NATIVE_STATUS_OK {
         return function_status;
     }
 
+    let property_names = [c"glow".as_ptr()];
     let primitive = NativePrimitive {
         type_name: c"Pulse".as_ptr(),
         display_name: c"Pulse".as_ptr(),
         icon_id: c"extension:pulse".as_ptr(),
         category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+        capabilities: NATIVE_CAP_VECTOR_PATHS
+            | NATIVE_CAP_MORPHABLE_PATHS
+            | NATIVE_CAP_VECTOR_REVEAL_TARGET,
+        properties: property_names.as_ptr(),
+        property_len: property_names.len(),
         advanced: false,
         child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+        resize_mode: NATIVE_RESIZE_MODE_SIZE,
         build: None,
         evaluate: Some(pulse_evaluate),
         handle_assignment: None,
@@ -102,6 +124,8 @@ pub unsafe extern "C" fn animatix_plugin_install(
 
     let service = NativeService {
         name: c"demo.pulse".as_ptr(),
+        type_info: c"usize".as_ptr(),
+        help: c"Demo native service".as_ptr(),
         value: pulse_action as *const () as usize,
         drop: Some(drop_service),
     };

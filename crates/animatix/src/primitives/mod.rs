@@ -701,6 +701,12 @@ pub trait Primitive: Send + Sync {
         ChildProcessing::Generic
     }
 
+    /// Property names this primitive declares from the built-in or extension
+    /// property registries.
+    fn declared_properties(&self) -> &[String] {
+        &[]
+    }
+
     /// Returns the corresponding `ActorKindId` variant.
     fn kind_id(&self) -> ActorKindId;
 

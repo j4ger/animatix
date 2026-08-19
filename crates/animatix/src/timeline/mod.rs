@@ -667,13 +667,8 @@ impl Timeline {
     }
 
     /// Signatures for extension actions installed on this build.
-    pub fn extension_action_signatures(
-        &self,
-    ) -> Vec<animatix_syntax::schema::ActionSignature> {
-        self.extensions
-            .as_ref()
-            .map(|ctx| ctx.action_signatures())
-            .unwrap_or_default()
+    pub fn extension_action_signatures(&self) -> Vec<animatix_syntax::schema::ActionSignature> {
+        self.extensions.as_ref().map(|ctx| ctx.action_signatures()).unwrap_or_default()
     }
 
     /// Descriptors for extension functions installed on this build.
@@ -687,9 +682,7 @@ impl Timeline {
     }
 
     /// Descriptors for extension services installed on this build.
-    pub fn extension_service_descriptors(
-        &self,
-    ) -> Vec<animatix_syntax::schema::ServiceDescriptor> {
+    pub fn extension_service_descriptors(&self) -> Vec<animatix_syntax::schema::ServiceDescriptor> {
         self.extensions
             .as_ref()
             .map(|ctx| ctx.service_descriptors())

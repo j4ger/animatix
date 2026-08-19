@@ -176,6 +176,10 @@ impl Primitive for BuiltinPrimitive {
         self.0.child_processing()
     }
 
+    fn declared_properties(&self) -> &[String] {
+        self.0.declared_properties()
+    }
+
     fn kind_id(&self) -> ActorKindId {
         self.0.kind_id()
     }
