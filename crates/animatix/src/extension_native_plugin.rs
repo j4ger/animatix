@@ -3407,4 +3407,60 @@ mod tests {
             "declared color should be written by the generic property engine"
         );
     }
+
+    #[test]
+    fn extension_actor_is_visible_from_declaration_time() {
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+        };
+
+        // Regression: the extension build path must set `first_seen_ms` like
+        // the built-in path, otherwise render_actor_node skips the actor
+        // forever (`time_ms < u64::MAX` is always true).
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
+            build: None,
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+        };
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
+        .expect("adapter");
+        let mut ctx = ExtensionContext::new();
+        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+
+        let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse, glow: 0.25");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+        let report = crate::timeline::Timeline::build_with_context(
+            &ast,
+            &std::collections::HashMap::new(),
+            Arc::new(ctx),
+        );
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let track = report.output.tracks.get("p").expect("pulse track");
+        assert_eq!(
+            track.first_seen_ms, 0,
+            "extension actors must be visible from their declaration time"
+        );
+    }
 }

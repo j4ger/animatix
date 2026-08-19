@@ -250,6 +250,12 @@ impl Timeline {
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
                     track.actor_type = Some(ty.to_string());
+                    // Extension builds create the track; mirror the built-in
+                    // path so the actor is visible from its declaration time
+                    // instead of being skipped forever (first_seen_ms = MAX).
+                    if track.first_seen_ms == u64::MAX {
+                        track.first_seen_ms = time_ms as u64;
+                    }
                 }
                 self.process_inline_items(time_ms, children, label, diagnostics);
                 self.write_extension_properties_for_decl(
