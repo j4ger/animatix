@@ -105,6 +105,15 @@ language design gaps.
 | `projects/leetcode_climbing_stairs.amx` | Algorithm animation with probes |
 | `projects/leetcode_reverse_linked_list.amx` | Linked-list reversal with probes |
 | `projects/leetcode_sort_colors.amx` | Dutch national flag with probes |
+| `projects/plugin_pulse.amx` | Native plugin showcase: custom primitive, enum property, action, function, cached image |
+
+`projects/plugin_pulse.amx` requires the native demo plugin and its manifest:
+
+```bash
+cargo build -p animatix-plugin-demo
+cargo run --bin animatix -- check examples/projects/plugin_pulse.amx \
+  --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml
+```
 
 ## Library Modules (`lib/`)
 

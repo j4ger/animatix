@@ -1,4 +1,33 @@
-p: Pulse, glow: 0.25
+// Demo scene for the `animatix-plugin-demo` native plugin.
+//
+// Exercises the full extension surface: a custom `Pulse` primitive with a
+// keyframed `Num` property, a manifest-driven `Enum` property (`mode`), `Str`
+// and `Vec2` properties, a native expression function (`scale`), and a native
+// action (`throb`) that writes keyframes through the host API.
+//
+// Build and check:
+//   cargo build -p animatix-plugin-demo
+//   animatix check demo.amx --plugin demo.amx-plugin.toml
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// lint-disable: unused-label
+// Cache the checker texture so the native `append_image` command can resolve
+// it from the asset cache (see the `image_url` property on `p`). Run checks
+// from the workspace root so relative asset URLs resolve.
+checker: Image, url: "examples/assets/checker.png", opacity: 0
+
+p: Pulse, glow: 0.25, mode: "dot", caption: "dot", origin: (640, 360), image_url: "examples/assets/checker.png"
+
+#0.5s
+fade-in p [500ms]
 
 #1s
-p.glow = 0.75
+throb p [strength: 0.9]
+
+#2s
+p.mode = "cross" [300ms]
+p.caption = "cross + scale()" [300ms]
+
+#2.8s
+p.glow = scale(0.25, 2.0) [400ms]

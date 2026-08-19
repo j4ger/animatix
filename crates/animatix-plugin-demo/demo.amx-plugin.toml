@@ -8,7 +8,7 @@ icon_id = "extension:pulse"
 vector_paths = true
 morphable_paths = true
 vector_reveal_target = true
-properties = ["glow"]
+properties = ["glow", "mode", "caption", "origin", "image_url"]
 
 [[properties]]
 actor_type = "Pulse"
@@ -17,22 +17,70 @@ type = "Num"
 injectable = true
 display_name = "Glow"
 group = "Pulse"
-help = "Pulse radius glow amount"
+help = "Pulse radius glow amount (0..1)"
+
+[[properties]]
+actor_type = "Pulse"
+name = "mode"
+type = "Enum(ring, dot, cross)"
+injectable = true
+display_name = "Mode"
+group = "Pulse"
+help = "Render variant: ring outline, filled dot, or crosshair"
+
+[[properties]]
+actor_type = "Pulse"
+name = "caption"
+type = "Str"
+injectable = true
+display_name = "Caption"
+group = "Pulse"
+help = "Label rendered below the pulse"
+
+[[properties]]
+actor_type = "Pulse"
+name = "origin"
+type = "Vec2"
+injectable = true
+display_name = "Origin"
+group = "Pulse"
+help = "Scene position of the pulse center"
+
+[[properties]]
+actor_type = "Pulse"
+name = "image_url"
+type = "Str"
+display_name = "Image URL"
+group = "Pulse"
+help = "Optional cached image URL stamped over the pulse"
 
 [[actions]]
-name = "pulse"
+name = "throb"
 category = "Native"
-description = "Demo native pulse action"
+description = "Pulse the glow property of each target up over 500ms"
 params = []
-modifiers = []
+
+[[actions.modifiers]]
+name = "strength"
+description = "Peak glow reached by the throb"
+type = "Num"
 
 [[functions]]
-name = "double"
-params = []
+name = "scale"
 return_type = "Num"
-help = "Doubles a number"
+help = "Returns value * factor"
+
+[[functions.params]]
+name = "value"
+description = "Number to scale"
+type = "Num"
+
+[[functions.params]]
+name = "factor"
+description = "Scale factor"
+type = "Num"
 
 [[services]]
 name = "demo.pulse"
 type = "usize"
-help = "Demo native service"
+help = "Demo native service value"

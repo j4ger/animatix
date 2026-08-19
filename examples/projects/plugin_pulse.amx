@@ -1,0 +1,51 @@
+// Plugin showcase: the `animatix-plugin-demo` native plugin.
+//
+// Demonstrates a custom `Pulse` primitive exposing:
+//   - `glow`      — keyframed `Num` property (radius factor)
+//   - `mode`      — `Enum(ring, dot, cross)` property (GUI dropdown)
+//   - `caption`   — `Str` property rendered as a text label
+//   - `origin`    — `Vec2` placement property
+//   - `image_url` — `Str` property stamped via `append_image` from the cache
+//   - `throb`     — native action that writes a `glow` keyframe
+//   - `scale()`   — native expression function
+//
+// Build the plugin first, then check with the manifest so the analyzer knows
+// the extension types and properties:
+//
+//   cargo build -p animatix-plugin-demo
+//   animatix check examples/projects/plugin_pulse.amx \
+//     --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml
+//
+// (Running the demo from the workspace root keeps relative asset URLs valid.)
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Cache the checker texture so the native `append_image` command can resolve
+// it from the asset cache (see `image_url` on `dot`).
+// lint-disable: unused-label
+checker: Image, url: "examples/assets/checker.png", opacity: 0
+
+title: Text, text: "Native Plugin: Pulse", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 56)
+subtitle: Text, text: "enum property · keyframed glow · throb action · scale() function · cached image", font_size: 16, color: text.muted, anchor: scene.top, offset: (0, 100)
+
+dot:   Pulse, glow: 0.2, mode: "dot",   caption: "dot",   origin: (380, 400), image_url: "examples/assets/checker.png"
+ring:  Pulse, glow: 0.5, mode: "ring",  caption: "ring",  origin: (640, 400)
+cross: Pulse, glow: 0.8, mode: "cross", caption: "cross", origin: (900, 400)
+
+#0.5s
+fade-in title [500ms]
+fade-in subtitle [500ms, delay: 150ms]
+stagger [120ms] {
+  fade-in dot [400ms]
+  fade-in ring [400ms]
+  fade-in cross [400ms]
+}
+
+#2s
+throb dot, ring [strength: 0.9]
+dot.glow = 0.9 [400ms]
+ring.mode = "cross" [300ms]
+
+#3s
+dot.glow = scale(0.25, 2.0) [400ms]
+cross.mode = "dot" [300ms]

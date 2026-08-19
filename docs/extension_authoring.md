@@ -179,6 +179,18 @@ animatix check demo.amx --plugin crates/animatix-plugin-demo/demo.amx-plugin.tom
 animatix check demo.amx --plugin target/debug/libanimatix_plugin_demo.so
 ```
 
+The in-repo demo plugin (`crates/animatix-plugin-demo`) showcases the whole
+surface on one `Pulse` primitive: a keyframed `Num` property (`glow`), a
+manifest-driven `Enum(ring, dot, cross)` property (`mode`, a dropdown in the
+GUI inspector), `Str`/`Vec2` properties (`caption`, `origin`, `image_url`), a
+`Text` + `Code` text pair, a highlight layer, a best-effort `append_image`
+stamp resolved from the asset cache, a two-argument native function (`scale`),
+a native action (`throb`) that writes a `glow` keyframe through
+`write_keyframe`, and a typed service with a destructor. A runnable scene,
+`examples/projects/plugin_pulse.amx`, uses the plugin and is gated by
+`scripts/check_examples.sh` (which builds the plugin first and passes the
+manifest to `check`).
+
 A manifest passed to `--plugin` also feeds the analyzer, so unknown extension
 types/properties are suppressed during `check` and `lint`. Manifest entries are
 parsed into the shared `PrimitiveDescriptor`/`PropertyDescriptor` schema, so
