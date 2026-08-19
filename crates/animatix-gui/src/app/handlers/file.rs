@@ -5,6 +5,7 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
+use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
 use crate::app::document::timeline_diff::{
     KeyframeId, TimelineDiff, TimelineFingerprint, preserved_time_s,
@@ -49,6 +50,7 @@ pub fn handle_open_file(
     workspace_store: &mut WorkspaceStore,
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
+    plugin_manager: &mut DocumentPluginManager,
     path: PathBuf,
 ) -> Vec<Effect> {
     // P0.3: Refuse to open if there are unsaved changes.
@@ -58,7 +60,16 @@ pub fn handle_open_file(
             "Save changes before opening another file",
         ))];
     }
-    match DocumentSession::load(path.clone()) {
+    let plugin_workspace_root = crate::app::file_tree::workspace_root_for(&path);
+    plugin_manager.set_document(path.clone(), plugin_workspace_root.clone());
+    let extension_context = plugin_manager.context();
+    let extension_manifest = plugin_manager.manifest();
+    match DocumentSession::load_with_extension(
+        path.clone(),
+        extension_context,
+        extension_manifest,
+        Some(plugin_workspace_root),
+    ) {
         Ok(document) => {
             // Only recompute workspace root if the file is outside the current workspace
             if !path.starts_with(&workspace_store.workspace_root) {
@@ -112,6 +123,21 @@ pub fn handle_open_file(
             sync_preview_from_document(document_store, preview_store, status, true, true);
             preview_store.preview.error = error;
             ui_store.toasts.push(Toast::info(format!("Opened {}", path.display())));
+            let plugin_issues = plugin_manager.snapshot().issues;
+            if !plugin_issues.is_empty() {
+                let message = plugin_issues
+                    .iter()
+                    .map(|issue| {
+                        issue
+                            .path
+                            .as_ref()
+                            .map(|path| format!("{}: {}", path.display(), issue.message))
+                            .unwrap_or_else(|| issue.message.clone())
+                    })
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                ui_store.toasts.push(Toast::warning(format!("Plugin load issue: {message}")));
+            }
             ui_store.view.welcome_open = false;
             save_app_state(&path);
             vec![]

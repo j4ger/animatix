@@ -100,7 +100,10 @@ speaker notes or export presets) only when a concrete user story appears.
 | Export presets | Done. Named `ExportPreset` values are shared by CLI and GUI; `config { export_preset: "1080p30" }` is honored by CLI video/GIF export. |
 | Speaker-notes metadata | Closed by design for now. No concrete presentation/export consumer exists; per the roadmap's metadata policy, first-class notes should be added when that user story appears. |
 | AI review evaluator | Design retained in `docs/ai_agent_animation_quality.md`. Implementation would be a new review crate/rule engine/agent loop and remains unscheduled until a product milestone pulls it forward. |
-| Complete extension surface | Done. Transactional plugin lifecycle, shared descriptors/types, full manifests, native ABI v4, capability-based runtime dispatch, GUI/LSP/analyzer integration, native render command completeness, docs, and workspace gates are implemented and committed phase-by-phase. |
+| Complete extension surface | Done. Transactional plugin lifecycle, shared descriptors/types, full manifests, native ABI v5, capability-based runtime dispatch, GUI/LSP/analyzer integration, native render command completeness, docs, and workspace gates are implemented and committed phase-by-phase. |
+| Plugin lifecycle pass | Done 2026-08-19. `GL-01`..`GL-05`: `DocumentPluginManager` owns explicit/document/workspace discovery, disposer retention, atomic last-known-good swaps, plugin error toasts, manual reload, and change polling; the background rebuild worker reuses the shared extension context; extension actions appear in the insertion palette. |
+| GUI plugin UX pass | Done 2026-08-19. `GUI-01`..`GUI-07`: plugin status panel with manifests/libraries/capabilities/errors/reload/authoring, shared analyzer discovery reused by LSP, workspace-level priority discovery, manifest-driven Bool/Color/Vec2/Enum/Text editors, in-process fake-plugin test seam, and capability badges. |
+| Native ABI/runtime polish pass | Done 2026-08-19. `EXT-01`..`EXT-07`: explicit uncached native image URLs fail instead of falling back, `append_text` supports Text/Code/Typst, `Type::Enum(...)` powers manifest enum editors, `declared_property_names`/`declares_property` replace repeated `Vec<String>` contains, `PrimitiveFamilyDescriptor` classifies any runtime primitive, plot hosting uses a capability, recursive container expansion is unified, asset URLs normalize against document/workspace paths, and `PluginLoader` exposes list/replace/remove APIs. |
 
 ### eparts Framework Expansion (closed)
 
@@ -136,59 +139,15 @@ concrete second-app need exists.
 
 ---
 
-## Backlog & Prioritization
+## Completed Backlog (2026-08-19)
 
-Open work is grouped by delivery phase:
+All previously open extension/plugin backlog items are done. The remaining
+source of truth for implementation details is
+[Audit History](#audit-history).
 
-- `P0` = next implementation pass
-- `P1` = planned follow-up
-- `P2` = design/maintenance backlog
-
-### Phase 1: Plugin Lifecycle & GUI Runtime Integration (P0)
-
-| ID | Track | Effort | Dependencies | Notes |
-|----|-------|--------|--------------|-------|
-| GL-01 | `DocumentPluginManager` | Medium | None | Unify manifest discovery, context ownership, install/dispose/reload, and disposer retention; support atomic last-known-good swaps |
-| GL-02 | Rebuild worker reuses document extension context | Medium | GL-01 | Stop loading native plugins again on every background rebuild |
-| GL-03 | Extension actions in insertion palette | Small | None | Use `Timeline::extension_action_signatures()` so plugin actions are insertable |
-| GL-04 | Plugin errors surfaced in GUI | Small | GL-01 | Convert load/install failures into diagnostics/toasts instead of tracing-only warnings |
-| GL-05 | Plugin reload command and watcher | Small | GL-01 | Manual reload plus manifest/library change detection |
-
-### Phase 2: GUI Plugin UX and Discovery (P1)
-
-| ID | Track | Effort | Dependencies | Notes |
-|----|-------|--------|--------------|-------|
-| GUI-01 | Plugin status panel | Medium | GL-01, GL-05 | Show manifests, loaded libraries, capabilities, errors, and reload controls |
-| GUI-02 | Workspace-level plugin discovery | Medium | GL-01 | Search workspace root, document directory, and explicit plugin paths in priority order |
-| GUI-03 | Shared manifest discovery module | Medium | GUI-02 | Move discovery/merge/fingerprint into analyzer and reuse from GUI/LSP |
-| GUI-04 | Manifest-driven property editors | Medium | GL-01 | Choose Bool/Color/Vec2/Enum/etc editors from descriptor types |
-| GUI-05 | GUI plugin test seam | Medium | GL-01 | Inject in-process fake plugins/contexts so unit tests do not need native libraries |
-
-### Phase 3: Native ABI and Runtime Polish (P1/P2)
-
-| ID | Track | Effort | Dependencies | Notes |
-|----|-------|--------|--------------|-------|
-| EXT-01 | Native image URL failure semantics | Small | None | Explicit URL not cached should return an error/diagnostic instead of silently falling back to the actor image |
-| EXT-02 | Native text command `TextKind` | Medium | None | Let native text primitives choose Text/Code/Typst rendering |
-| EXT-03 | `declared_properties` ergonomics | Medium | None | Avoid `Vec<String>` ownership and repeated linear `contains` in the generic writer |
-| EXT-04 | `PrimitiveFamilyDescriptor` dynamic reuse | Medium | None | Remove the `&'static` primitive assumption and remaining `"Graph"` string dispatch |
-| EXT-05 | `is_layout_container` naming/semantics | Small | None | Rename and align recursive container detection with one capability/child-processing definition |
-| EXT-06 | Asset cache URL normalization | Medium | None | Define how native image URLs resolve relative to document/workspace paths |
-
-### Lower-Priority Design Backlog (P2)
-
-| ID | Track | Notes |
-|----|-------|-------|
-| GUI-06 | Plugin authoring in GUI | Generate/validate manifests and expose `plugin describe` integration |
-| GUI-07 | Plugin capability badges | Show declared properties/actions/services and plugin source in palette/inspector |
-| EXT-07 | Runtime plugin list/reload API | Extend `PluginLoader` with list/reload support so GUI/CLI share lifecycle control |
-
-The earlier `Extension Follow-Ups` E1-E7 are folded into this structure:
-E1 → `EXT-01`, E2 → `GL-01`/`GL-05`, E3 → `EXT-02`, E4 → `EXT-03`,
-E5 → `EXT-04`, E6 → `GL-01`/`GUI-03`, E7 → `EXT-05`.
-
-Completed items are recorded in [Audit History](#audit-history); design-deferred
-items are archived below until a concrete user story pulls them forward.
+- Plugin lifecycle and GUI runtime integration: `GL-01` through `GL-05`
+- GUI plugin UX and discovery: `GUI-01` through `GUI-07`
+- Native ABI and runtime polish: `EXT-01` through `EXT-07`
 
 ---
 

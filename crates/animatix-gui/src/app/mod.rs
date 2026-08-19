@@ -52,6 +52,7 @@ use crate::app::design_tokens::spatial::{
     RADIUS_L, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,
 };
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::handlers::file;
 use crate::app::interaction::keyboard::ShortcutRegistry;
@@ -384,6 +385,7 @@ struct GuiShell {
     ui_store: UiStore,
     export_store: ExportStore,
     rebuild_worker: RebuildWorker,
+    plugin_manager: DocumentPluginManager,
     external_commands: CommandQueue,
     insertion_palette: InsertionPalette,
     shortcut_registry: ShortcutRegistry,
@@ -436,12 +438,22 @@ impl GuiShell {
     }
 
     fn load(initial_path: PathBuf, show_welcome: bool) -> Self {
+        let workspace_root = workspace_root_for(&initial_path);
+        let plugin_manager =
+            DocumentPluginManager::new(initial_path.clone(), workspace_root.clone());
         let (document, status, error, is_welcome) = if show_welcome {
             // No recent file persisted — show welcome screen
             let doc = DocumentSession::from_error(initial_path.clone());
             (doc, None, None, true)
         } else {
-            match DocumentSession::load(initial_path.clone()) {
+            let context = plugin_manager.context();
+            let manifest = plugin_manager.manifest();
+            match DocumentSession::load_with_extension(
+                initial_path.clone(),
+                context,
+                manifest,
+                Some(workspace_root.clone()),
+            ) {
                 Ok(document) => {
                     let error = document.last_rebuild_error.clone();
                     (document, None, error, false)
@@ -454,7 +466,6 @@ impl GuiShell {
             }
         };
 
-        let workspace_root = workspace_root_for(&document.file_path);
         let expanded_dirs = HashSet::from([workspace_root.clone()]);
         let file_tree = build_file_tree(&workspace_root, &document.file_path, &expanded_dirs);
         let persistence_path = persistence_path();
@@ -537,6 +548,7 @@ impl GuiShell {
             ui_store,
             export_store: ExportStore::new(),
             rebuild_worker: RebuildWorker::start(),
+            plugin_manager,
             external_commands: CommandQueue::new(),
             insertion_palette: InsertionPalette::default(),
             shortcut_registry,
@@ -545,6 +557,25 @@ impl GuiShell {
         };
         if let Some(s) = persistence.as_ref().and_then(|p| p.settings.as_ref()) {
             shell.document_store.history.undo_limit = s.undo_limit;
+        }
+
+        let plugin_issues = shell.plugin_manager.snapshot().issues;
+        if !plugin_issues.is_empty() {
+            let message = plugin_issues
+                .iter()
+                .map(|issue| {
+                    issue
+                        .path
+                        .as_ref()
+                        .map(|path| format!("{}: {}", path.display(), issue.message))
+                        .unwrap_or_else(|| issue.message.clone())
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            shell
+                .ui_store
+                .toasts
+                .push(Toast::warning(format!("Plugin load issue: {message}")));
         }
 
         if !is_welcome {
@@ -571,6 +602,11 @@ impl GuiShell {
 
         // Check for hot reload
         self.check_hot_reload(now);
+
+        // Poll plugin manifests/libraries for changes and reload atomically.
+        if self.plugin_manager.poll() {
+            self.apply_plugin_reload();
+        }
 
         // Poll background export status
         self.export_store.poll_export_status();
@@ -826,6 +862,11 @@ impl GuiShell {
         // Shortcut cheat sheet overlay
         if self.ui_store.view.shortcuts_open {
             self.shortcut_cheat_sheet_ui(ui);
+        }
+
+        // Plugin status overlay
+        if self.ui_store.view.plugin_status_open {
+            self.plugin_status_ui(ui);
         }
 
         // Command palette overlay
@@ -1126,6 +1167,40 @@ impl GuiShell {
             self.preview_store.preview.set_status_info(status);
         }
         self.preview_store.preview.error = error;
+    }
+
+    /// Apply a plugin reload to the current document and schedule a rebuild.
+    fn apply_plugin_reload(&mut self) {
+        self.document_store
+            .source
+            .document
+            .set_extension_context(self.plugin_manager.context(), self.plugin_manager.manifest());
+        self.preview_store.pending_rebuild_at = Some(
+            std::time::Instant::now()
+                + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+        );
+        let issues = self.plugin_manager.snapshot().issues;
+        if !issues.is_empty() {
+            let message = issues
+                .iter()
+                .map(|issue| {
+                    issue
+                        .path
+                        .as_ref()
+                        .map(|path| format!("{}: {}", path.display(), issue.message))
+                        .unwrap_or_else(|| issue.message.clone())
+                })
+                .collect::<Vec<_>>()
+                .join("; ");
+            self.ui_store
+                .toasts
+                .push(Toast::warning(format!("Plugin reload issue: {message}")));
+            self.preview_store
+                .preview
+                .set_status_info("Plugin reload completed with issues");
+        } else {
+            self.preview_store.preview.set_status_info("Plugin reload completed");
+        }
     }
 
     fn set_render_error(&mut self, error: String) {

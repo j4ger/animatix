@@ -1296,6 +1296,7 @@ fn format_property_value(kind: &PropertyKind) -> String {
         PropertyKind::Vec2 { x, y } => format!("({:.1}, {:.1})", x, y),
         PropertyKind::Float(v) => format!("{:.2}", v),
         PropertyKind::U32(v) => format!("{}", v),
+        PropertyKind::Bool(v) => v.to_string(),
         PropertyKind::Color(rgba) => {
             let r = (rgba[0] * 255.0).round() as u8;
             let g = (rgba[1] * 255.0).round() as u8;
@@ -1314,6 +1315,7 @@ fn format_property_value(kind: &PropertyKind) -> String {
             }
         },
         PropertyKind::Enum { value, .. } => value.clone(),
+        PropertyKind::EnumOwned { value, .. } => value.clone(),
         PropertyKind::Sum { value, .. } => match value {
             animatix::timeline::PropertyValue::Variant { name, value } => {
                 let payload = match value.as_ref() {

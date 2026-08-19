@@ -117,7 +117,15 @@ impl InsertionPalette {
         }
 
         // Actions
-        for sig in animatix::timeline::actions::get_action_signatures() {
+        let mut action_signatures = animatix::timeline::actions::get_action_signatures();
+        if let Some(timeline) = timeline {
+            for signature in timeline.extension_action_signatures() {
+                if !action_signatures.iter().any(|existing| existing.name == signature.name) {
+                    action_signatures.push(signature);
+                }
+            }
+        }
+        for sig in action_signatures {
             self.items.push(PaletteItem {
                 label: sig.name.clone(),
                 detail: sig.description.clone(),

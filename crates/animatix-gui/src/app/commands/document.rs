@@ -5,6 +5,7 @@ pub enum DocumentCommand {
     OpenFile(std::path::PathBuf),
     Save,
     Reload,
+    ReloadPlugins,
     Rebuild,
     #[allow(dead_code)] // Constructed via Command directly, not through DocumentCommand
     ToggleExpandDir(std::path::PathBuf),
@@ -24,6 +25,7 @@ impl From<DocumentCommand> for super::Command {
             DocumentCommand::OpenFile(v) => super::Command::OpenFile(v),
             DocumentCommand::Save => super::Command::Save,
             DocumentCommand::Reload => super::Command::Reload,
+            DocumentCommand::ReloadPlugins => super::Command::ReloadPlugins,
             DocumentCommand::Rebuild => super::Command::Rebuild,
             DocumentCommand::ToggleExpandDir(v) => super::Command::ToggleExpandDir(v),
             DocumentCommand::SwitchWorkspace(v) => super::Command::SwitchWorkspace(v),

@@ -2,6 +2,7 @@ pub mod command_palette;
 pub mod export_dialog;
 pub mod find_replace;
 pub mod insertion_palette;
+pub mod plugin_status;
 pub mod settings;
 pub mod shortcut_cheat_sheet;
 pub mod toolbar;
@@ -35,6 +36,7 @@ impl GuiShell {
                     &mut self.workspace_store,
                     &mut self.preview_store,
                     &mut self.ui_store,
+                    &mut self.plugin_manager,
                     path,
                 )
             },
@@ -77,6 +79,11 @@ impl GuiShell {
                 &mut self.preview_store,
                 &mut self.ui_store,
             ),
+            Command::ReloadPlugins => {
+                self.plugin_manager.reload();
+                self.apply_plugin_reload();
+                vec![]
+            },
             Command::ScrubTo(next_time) => playback::handle_scrub_to(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -393,6 +400,10 @@ impl GuiShell {
             ViewAction::OpenCommandPalette => {
                 self.ui_store.view.command_palette_open = true;
                 self.ui_store.command_palette_selected = 0;
+                vec![]
+            },
+            ViewAction::OpenPluginStatus => {
+                self.ui_store.view.plugin_status_open = true;
                 vec![]
             },
             ViewAction::OpenFindReplace => {

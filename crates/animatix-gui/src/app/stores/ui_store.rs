@@ -99,6 +99,7 @@ pub struct ViewStore {
     pub welcome_open: bool,
     pub workspace_switcher_open: bool,
     pub command_palette_open: bool,
+    pub plugin_status_open: bool,
     pub find_replace_open: bool,
     /// Currently active scene name (if in a multi-scene composition).
     pub active_scene: Option<String>,
@@ -142,6 +143,7 @@ impl ViewStore {
             welcome_open: false,
             workspace_switcher_open: false,
             command_palette_open: false,
+            plugin_status_open: false,
             find_replace_open: false,
             active_scene: None,
             timeline_scroll_offset: 0.0,
@@ -200,6 +202,8 @@ pub struct UiStore {
         std::collections::BTreeMap<String, crate::app::interaction::keyboard::SavedShortcut>,
     /// Binding currently waiting for the next key press in the settings dialog.
     pub recording_shortcut: Option<String>,
+    /// Path buffer for adding an explicit plugin manifest/library path.
+    pub plugin_path_input: String,
 }
 
 impl UiStore {
@@ -234,6 +238,7 @@ impl UiStore {
             unsaved_changes: UnsavedChangesDialog::default(),
             shortcut_overrides: std::collections::BTreeMap::new(),
             recording_shortcut: None,
+            plugin_path_input: String::new(),
         }
     }
 

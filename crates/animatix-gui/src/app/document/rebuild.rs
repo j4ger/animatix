@@ -29,6 +29,12 @@ pub struct RebuildRequest {
     /// Asset cache carried from the previous successful build. `None` on the
     /// first build or when the previous build had no renderable timeline.
     pub asset_cache: Option<std::sync::Arc<animatix::timeline::assets::AssetCache>>,
+    /// Shared document extension context; the worker never reloads plugins.
+    pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+    /// Analyzer manifest for the shared extension context.
+    pub extension_manifest: animatix_analyzer::ExtensionManifest,
+    /// Workspace root used for relative asset URL resolution.
+    pub workspace_root: Option<PathBuf>,
     pub cancellation: CancellationToken,
 }
 
@@ -140,6 +146,9 @@ impl RebuildWorker {
             file_path: source.file_path().to_path_buf(),
             source_text: source.text().to_string(),
             asset_cache: source.document.asset_cache(),
+            extension_context: source.document.extension_context.clone(),
+            extension_manifest: source.document.extension_manifest.clone(),
+            workspace_root: source.document.workspace_root.clone(),
             cancellation: self.cancel_source.token(),
         };
 
@@ -176,9 +185,12 @@ impl RebuildWorker {
             }
 
             // Build a temporary DocumentSession and run rebuild
-            let mut session = match DocumentSession::from_source(
+            let mut session = match DocumentSession::from_source_with_extension(
                 request.file_path.clone(),
                 request.source_text.clone(),
+                request.extension_context.clone(),
+                request.extension_manifest.clone(),
+                request.workspace_root.clone(),
             ) {
                 Ok(s) => s,
                 Err(_) => {
@@ -333,6 +345,11 @@ mod tests {
                 file_path: std::path::PathBuf::from("test.amx"),
                 source_text: "#0s\n".to_string(),
                 asset_cache: None,
+                extension_context: std::sync::Arc::new(
+                    animatix::extension_context::ExtensionContext::new(),
+                ),
+                extension_manifest: animatix_analyzer::ExtensionManifest::default(),
+                workspace_root: None,
                 cancellation: token,
             })
             .expect("send request");

@@ -10,15 +10,16 @@ execution order.
 ## Current State
 
 Registration and dispatch go through one registry shape. The complete extension
-pass closed the remaining runtime seams: native primitives render through ABI v4
-path/text/image/highlight commands, image commands resolve cached URLs,
-manifest descriptors no longer guess runtime property ids, custom primitives
-dispatch through the active registry, capability flags drive container/plot/text
-dispatch, primitive metadata is borrowed instead of leaked, native services
-carry destructors, extension tracks use the neutral `ActorKindId::Extension`
-instead of category-derived built-in kinds, the CLI can regenerate analyzer
-manifests from loaded runtime descriptors, and the GUI auto-loads manifests and
-native plugins beside each document.
+pass closed the remaining runtime seams: native primitives render through ABI v5
+path/text/image/highlight commands, image commands resolve cached URLs against
+document/workspace base paths, manifest descriptors no longer guess runtime
+property ids, custom primitives dispatch through the active registry,
+capability flags drive container/plot/text dispatch, primitive metadata is
+borrowed instead of leaked, native services carry destructors, extension tracks
+use the neutral `ActorKindId::Extension` instead of category-derived built-in
+kinds, the CLI can regenerate analyzer manifests from loaded runtime
+descriptors, and the GUI manages plugins through a workspace-aware
+last-known-good `DocumentPluginManager`.
 
 | Concern | Built-ins | Extensions |
 |---|---|---|
@@ -27,7 +28,7 @@ native plugins beside each document.
 | Property storage | typed `AnimationTrack` fields | `PropertyPlan` + `DynTrack` |
 | Runtime lookup | `find_primitive()` / `Timeline::primitive_registry` | `Timeline::primitive_registry` |
 | Tooling metadata | `schema::builtin_primitive_specs()` | shared `PrimitiveDescriptor`/`PropertyDescriptor` manifests |
-| Native plugins | n/a | C ABI v4 primitive/action/service registration |
+| Native plugins | n/a | C ABI v5 primitive/action/service registration |
 
 `PROPERTY_REGISTRY` remains the runtime binding table (typed field, read
 source, flags, defaults) while shared schema owns descriptors (name, actor
@@ -119,7 +120,7 @@ completions, and native ABI compatibility.
 | GUI inspector/keyframe table | consume unified descriptor list |
 | GUI document lifecycle | auto-discover manifests and native plugins beside the document |
 | analyzer/LSP | consume shared descriptor plus manifests |
-| `animatix-plugin-api` | add ABI v4 callback table |
+| `animatix-plugin-api` | add ABI v5 callback table |
 | docs/authoring | document the single registration path |
 
 ### Risk
@@ -170,9 +171,29 @@ completions, and native ABI compatibility.
   plugin into a scratch `ExtensionContext`, filters to extension
   primitive/property descriptors, and serializes the analyzer manifest with
   the same TOML schema consumed by `--plugin`.
-- ABI v4 pass: native descriptors carry precise tooling types, function
+- ABI v5 pass: native descriptors carry precise tooling types, function
   metadata, service metadata, primitive capabilities, declared property names,
   and resize mode; the demo manifest round-trips all of it.
+- Native text pass: `append_text` accepts `Text`, `Code`, and `Typst` renderer
+  kinds, and `Type::Enum(...)` lets native/manifest properties expose named
+  choices to the inspector.
+- Asset URL pass: `AssetCache` normalizes relative URLs against the document
+  directory and optional workspace root, and explicit native image URLs that
+  are not cached return an error instead of falling back to the actor image.
+- Runtime polish pass: primitive family classification accepts any
+  `&dyn Primitive`, plot hosting uses a capability instead of `"Graph"`
+  string dispatch, recursive container expansion shares one
+  capability/child-processing definition, and `declared_property_names` avoids
+  repeated linear membership checks in the generic property writer.
+- Plugin lifecycle pass: `PluginLoader` exposes list/replace/remove APIs, and
+  `DocumentPluginManager` provides workspace-aware discovery, atomic
+  last-known-good swaps, background-rebuild context reuse, error surfacing, and
+  manual/automatic reload.
+- GUI integration pass: `animatix-gui` enables `plugin-loading` by default,
+  installs manifests/libraries through `DocumentPluginManager`, feeds the
+  merged manifest into editor completions/hover, inserts extension actions from
+  the timeline, renders manifest-driven property editors, and exposes a plugin
+  status/authoring dialog.
 - Capability dispatch pass: layout container expansion, plot `func`
   assignments, draw-in text routing, equation highlight parent resolution, and
   primitive family classification all consult registry capabilities instead of
@@ -236,7 +257,7 @@ Acceptance:
 - Adding a built-in or extension primitive requires only one registration path.
 - `scene_eval.rs` does not grow with primitive count.
 
-### Phase 5: Native ABI v4
+### Phase 5: Native ABI v5
 
 Extend `animatix-plugin-api` with primitive/action/service callbacks. Wrap them
 in host-side `Primitive` adapters so native plugins register into the same

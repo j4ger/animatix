@@ -327,9 +327,9 @@ Acceptance:
   disposers on failure; duplicate registrations return typed errors.
 - Extension completion pass: shared descriptors and TOML manifests now cover
   primitives, properties, actions, functions, and services.
-- Extension completion pass: native ABI v4 adds precise property types,
+- Extension completion pass: native ABI v5 adds precise property types,
   function descriptors, service metadata, primitive capabilities, declared
-  property names, and resize mode.
+  property names, resize mode, and native text renderer kinds.
 - Extension completion pass: layout/plot/text/equation runtime dispatch reads
   primitive capabilities instead of growing `ActorKindId` matches.
 - Extension completion pass: GUI auto-loads sibling manifests and native

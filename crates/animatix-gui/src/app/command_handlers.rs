@@ -17,6 +17,7 @@ mod tests {
 
     use crate::app::PreviewPaneState;
     use crate::app::commands::Effect;
+    use crate::app::document::plugins::DocumentPluginManager;
     use crate::app::handlers::*;
     use crate::app::persistence::default_tree;
     use crate::app::preview::DragState;
@@ -737,12 +738,14 @@ circle: Ellipse, at: (200, 200), radius: 50, color: red
         std::fs::create_dir_all(&dir).expect("create temp test dir");
         let path = dir.join("open_test.amx");
         std::fs::write(&path, TEST_SOURCE).expect("write test source");
+        let mut plugin_manager = DocumentPluginManager::new(path.clone(), dir.clone());
 
         file::handle_open_file(
             &mut document_store,
             &mut workspace_store,
             &mut preview_store,
             &mut ui_store,
+            &mut plugin_manager,
             path.clone(),
         );
 

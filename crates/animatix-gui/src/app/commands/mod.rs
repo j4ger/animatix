@@ -274,6 +274,7 @@ pub enum Command {
     OpenFile(PathBuf),
     Save,
     Reload,
+    ReloadPlugins,
     Rebuild,
 
     // ── Workspace / Explorer ──────────────────────────────────────────
@@ -441,6 +442,7 @@ pub enum ViewAction {
     ShowInspector,
     OpenExportDialog,
     OpenCommandPalette,
+    OpenPluginStatus,
     OpenFindReplace,
     DeselectActors,
 }

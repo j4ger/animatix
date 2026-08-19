@@ -144,6 +144,12 @@ impl GuiShell {
             keywords: "reload refresh",
         });
         items.push(PaletteItem {
+            label: "Reload Plugins".into(),
+            icon: egui_phosphor::regular::PLUG,
+            action: DocumentCommand::ReloadPlugins.into(),
+            keywords: "plugins reload extension manifest",
+        });
+        items.push(PaletteItem {
             label: "Rebuild".into(),
             icon: egui_phosphor::regular::ARROWS_CLOCKWISE,
             action: DocumentCommand::Rebuild.into(),
@@ -154,6 +160,12 @@ impl GuiShell {
             icon: egui_phosphor::regular::DOWNLOAD,
             action: ShellAction::View(ViewAction::OpenExportDialog),
             keywords: "export render video gif image",
+        });
+        items.push(PaletteItem {
+            label: "Plugins…".into(),
+            icon: egui_phosphor::regular::PLUG,
+            action: ShellAction::View(ViewAction::OpenPluginStatus),
+            keywords: "plugin extensions status reload manifest",
         });
         items.push(PaletteItem {
             label: "Toggle Playback".into(),

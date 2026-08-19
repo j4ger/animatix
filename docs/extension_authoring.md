@@ -110,6 +110,10 @@ loader.register(Box::new(MyPlugin));
 let disposers = loader.install_all(&mut ctx)?;
 ```
 
+`PluginLoader` also exposes `list()`, `get(name)`, `replace(name, plugin)`,
+`replace_shared`, and `remove(name)` so the GUI/CLI can share lifecycle control
+without reimplementing install/rollback logic.
+
 Scoped registration is also available:
 
 ```rust
@@ -133,7 +137,7 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current ABI is version 4 and has exactly one install entry. It can register
+The current ABI is version 5 and has exactly one install entry. It can register
 external properties with full tooling metadata, native expression functions,
 primitives, actions, and service values with optional destructors. Native
 primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property
@@ -148,15 +152,19 @@ evaluation resolve them through `actor_type` and the active primitive registry.
 Evaluate callbacks receive a host context with `get_property`, `get_service`,
 `append_path`, `append_text`, `append_image`, and `append_highlight`; the demo
 primitive reads its keyframed `glow` property and emits paths, text, and a
-highlight layer that render through the normal scene-evaluation path. Native
-image commands can pass a URL that is resolved from the timeline's cached image
-assets, or pass null to reuse the actor's currently loaded image. Native
-actions register full signatures and execute with targets, args, modifiers,
-time, and a host `write_keyframe` API. Native functions receive a host context
-that can read frame-environment values and services. Expression callbacks
-exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`, `Vec4`,
-`Color`, `String`, and `List`. Objects, closures, and native function values
-return a type error.
+highlight layer that render through the normal scene-evaluation path.
+`append_text` takes a `NATIVE_TEXT_KIND_*` value so one primitive can choose
+`Text`, `Code`, or `Typst` rendering. Native image commands can pass a URL that
+is resolved from the timeline's cached image assets, or pass null to reuse the
+actor's currently loaded image. Explicit URLs are normalized against the
+document directory first and workspace root second; an explicit URL that is not
+already cached returns an error instead of silently falling back to the actor
+image. Native actions register full signatures and execute with targets, args,
+modifiers, time, and a host `write_keyframe` API. Native functions receive a
+host context that can read frame-environment values and services. Expression
+callbacks exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`,
+`Vec4`, `Color`, `String`, and `List`. Objects, closures, and native function
+values return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo
@@ -171,7 +179,10 @@ completions and hover metadata use the same shapes as runtime tooling. Manifest
 property descriptors keep `id: None`; runtime ids are allocated only when the
 plugin or in-process extension registers into `ExtensionRegistry`. If the
 manifest has a `library` field, the CLI loads that native library relative to
-the manifest.
+the manifest. Property `type` strings can use the primitive kinds (`Num`,
+`Bool`, `Color`, `Vec2`, etc.) or an enum form such as
+`Enum(left, right, top)`; enum properties render as manifest-driven dropdowns
+in the GUI inspector.
 
 Manifests can be regenerated from a native library instead of hand-maintained.
 `plugin describe` installs the library into a scratch `ExtensionContext`, reads
@@ -210,13 +221,19 @@ registered callbacks and the disposer returned by install.
   binding table (field, read source, flags, defaults). The two sources are
   intentionally split and protected by bidirectional drift guards, so a new
   binding must still be registered in both descriptor and binding layers.
-- GUI builds use a per-document extension context. The insertion palette reads
-  the timeline's primitive registry, the inspector/keyframe table show
-  extension properties from the actor plan, and the GUI auto-loads
-  `.amx-plugin.toml` manifests and their native libraries from the document's
-  directory. The editor feeds the merged manifest to the analyzer, so
-  completions and hover match the runtime plugin. LSP stays runtime-free and
-  loads the same manifest files from the document directory.
+- GUI builds use a per-document extension context managed by
+  `DocumentPluginManager`. Discovery searches explicit plugin paths, the
+  document directory, then the workspace root; the manager keeps a
+  last-known-good context and atomically swaps candidates. The background
+  rebuild worker reuses the same context Arc instead of loading native
+  libraries again. The plugin status dialog shows manifests, loaded libraries,
+  capability counts, errors, reload controls, explicit paths, and a
+  `plugin describe`-style manifest generator. The insertion palette includes
+  extension actions, the inspector/keyframe table show extension properties
+  from the actor plan, and the editor feeds the merged manifest to the
+  analyzer, so completions and hover match the runtime plugin. LSP stays
+  runtime-free and uses the same shared discovery module from the document
+  directory.
 - CLI accepts `--plugin` manifests and native libraries. Native plugins
   register properties, expression functions, primitives, actions, and services
   from a dynamic library; analyzer/LSP still derive static metadata from the

@@ -365,6 +365,17 @@ impl GuiShell {
                     ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
+                        // Plugin status
+                        if ui
+                            .add(
+                                Button::icon(egui_phosphor::regular::PLUG)
+                                    .with_tooltip("Plugin status"),
+                            )
+                            .clicked()
+                        {
+                            commands.push_back(ShellAction::View(ViewAction::OpenPluginStatus));
+                        }
+
                         // Command palette / shortcut reference button
                         if ui
                             .add(

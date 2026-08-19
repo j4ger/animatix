@@ -46,6 +46,7 @@ pub(crate) enum PropertyKind {
     },
     Float(f32),
     U32(u32),
+    Bool(bool),
     Color([f32; 4]),
     Text(String),
     Union {
@@ -58,6 +59,10 @@ pub(crate) enum PropertyKind {
     },
     Enum {
         variants: &'static [&'static str],
+        value: String,
+    },
+    EnumOwned {
+        variants: Vec<String>,
         value: String,
     },
 }
@@ -239,7 +244,7 @@ pub(crate) fn build_property_groups(
         };
         extension_props.push(PropertyEntry {
             name: descriptor.name.clone(),
-            kind: extension_value_to_kind(value),
+            kind: extension_value_to_kind(value, &descriptor.ty),
             has_keyframes: track.property_plan.keyframe_count(id) > 0,
             has_keyframe_at_current_time: track.property_plan.has_keyframe_at(id, time_ms),
             keyframe_count: track.property_plan.keyframe_count(id),
@@ -256,17 +261,27 @@ pub(crate) fn build_property_groups(
     groups
 }
 
-fn extension_value_to_kind(value: PropertyValue) -> PropertyKind {
+fn extension_value_to_kind(
+    value: PropertyValue,
+    ty: &animatix_syntax::typing::Type,
+) -> PropertyKind {
+    if let animatix_syntax::typing::Type::Enum(variants) = ty {
+        let text = match &value {
+            PropertyValue::Enum(s) | PropertyValue::String(s) => s.clone(),
+            other => format!("{other:?}"),
+        };
+        return PropertyKind::EnumOwned {
+            variants: variants.clone(),
+            value: text,
+        };
+    }
     match value {
         PropertyValue::F32(v) => PropertyKind::Float(v),
         PropertyValue::U32(v) => PropertyKind::U32(v),
+        PropertyValue::Bool(b) => PropertyKind::Bool(b),
         PropertyValue::Vec2(v) => PropertyKind::Vec2 { x: v[0], y: v[1] },
         PropertyValue::Vec4(v) | PropertyValue::Color(v) => PropertyKind::Color(v),
         PropertyValue::String(s) => PropertyKind::Text(s),
-        PropertyValue::Bool(b) => PropertyKind::Enum {
-            variants: &["true", "false"],
-            value: b.to_string(),
-        },
         other => PropertyKind::Text(format!("{other:?}")),
     }
 }
@@ -910,6 +925,33 @@ pub(crate) fn render_property_row(
                 },
             );
         },
+        PropertyKind::Bool(value) => {
+            let mut checked = *value;
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                |ui| {
+                    *ui.style_mut() = flat_style.clone();
+                    ui.with_layout(
+                        egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
+                        |ui| {
+                            if ui.checkbox(&mut checked, "").changed() {
+                                commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                        time_s: None,
+                                        actor: actor_label.to_string(),
+                                        property: entry.name.to_string(),
+                                        value: GuiPropertyValue::Bool(checked),
+                                        create_keyframe: keyframe_mode,
+                                    })
+                                    .into(),
+                                );
+                            }
+                        },
+                    );
+                },
+            );
+        },
         PropertyKind::Color(rgba) => {
             let mut color = Color32::from_rgba_premultiplied(
                 (rgba[0] * 255.0) as u8,
@@ -999,6 +1041,40 @@ pub(crate) fn render_property_row(
                             actor: actor_label.to_string(),
                             property: entry.name.to_string(),
                             value: GuiPropertyValue::String(chosen.to_string()),
+                            create_keyframe: keyframe_mode,
+                        })
+                        .into(),
+                    );
+                }
+            }
+        },
+        PropertyKind::EnumOwned { variants, value } => {
+            let mut selected = variants.iter().position(|variant| variant == value);
+            ui.scope_builder(
+                egui::UiBuilder::new()
+                    .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
+                |ui| {
+                    *ui.style_mut() = flat_style.clone();
+                    let selected_ref = &mut selected;
+                    ui.add_sized(
+                        Vec2::new(ui.available_width(), row_height - sp.base.space_2),
+                        Select::new(
+                            ui.id().with(("enum_owned", entry.name.as_str())),
+                            selected_ref,
+                            variants.as_slice(),
+                        ),
+                    );
+                },
+            );
+            if let Some(selected) = selected {
+                let chosen = variants[selected].clone();
+                if chosen != *value {
+                    commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor_label.to_string(),
+                            property: entry.name.to_string(),
+                            value: GuiPropertyValue::String(chosen),
                             create_keyframe: keyframe_mode,
                         })
                         .into(),
@@ -1285,9 +1361,11 @@ fn entry_to_gui_value(entry: &PropertyEntry) -> Option<GuiPropertyValue> {
         PropertyKind::Vec2 { x, y } => Some(GuiPropertyValue::Vec2([*x, *y])),
         PropertyKind::Float(v) => Some(GuiPropertyValue::F32(*v)),
         PropertyKind::U32(v) => Some(GuiPropertyValue::F32(*v as f32)),
+        PropertyKind::Bool(v) => Some(GuiPropertyValue::Bool(*v)),
         PropertyKind::Color(rgba) => Some(GuiPropertyValue::Color(*rgba)),
         PropertyKind::Text(t) => Some(GuiPropertyValue::String(t.clone())),
         PropertyKind::Enum { value, .. } => Some(GuiPropertyValue::String(value.clone())),
+        PropertyKind::EnumOwned { value, .. } => Some(GuiPropertyValue::String(value.clone())),
         PropertyKind::Sum { variants, value } => match value {
             PropertyValue::Variant { name, value: inner } => {
                 let index = variants.iter().position(|variant| variant.name == name).unwrap_or(0);

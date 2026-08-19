@@ -46,6 +46,8 @@ pub struct DocumentSession {
     pub extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
     /// Analyzer metadata merged from `.amx-plugin.toml` files beside the document.
     pub extension_manifest: ExtensionManifest,
+    /// Optional workspace root used for relative plugin/asset resolution.
+    pub workspace_root: Option<PathBuf>,
     /// Bi-directional timeline index mapping source lines to times and vice versa.
     pub timeline_index: TimelineIndex,
     /// Set of 0-indexed line numbers that contain keyframe declarations.
@@ -73,33 +75,8 @@ impl DocumentSession {
         })?;
 
         let (extension_context, extension_manifest) = document_extensions(&file_path);
-
-        let mut document = Self {
-            file_path,
-            source_text,
-            raw_statements: None,
-            expanded_statements: None,
-            namespaces: HashMap::new(),
-            source_index: None,
-            timeline: None,
-            composition: None,
-            active_scene: None,
-            diagnostics: Vec::new(),
-            last_rebuild_error: None,
-            is_dirty: false,
-            duration_s: 5.0,
-            scene_dimensions: SceneDimensions::default(),
-            extension_context,
-            extension_manifest,
-            timeline_index: TimelineIndex::default(),
-            keyframe_lines: Vec::new(),
-            components: HashMap::new(),
-            module_actions: HashMap::new(),
-            last_source_hash: 0,
-            last_component_hash: 0,
-            cached_expanded: None,
-            cached_module_graph: None,
-        };
+        let mut document =
+            Self::from_parts(file_path, source_text, extension_context, extension_manifest);
 
         if let Err(e) = document.rebuild() {
             tracing::warn!("Initial document rebuild failed: {}", e);
@@ -107,11 +84,33 @@ impl DocumentSession {
         Ok(document)
     }
 
-    /// Create a session from in-memory source text without loading from disk.
-    /// This is used by the background rebuild worker.
-    pub fn from_source(file_path: PathBuf, source_text: String) -> Result<Self, GuiError> {
-        let (extension_context, extension_manifest) = document_extensions(&file_path);
-        Ok(Self {
+    /// Load a document using a caller-provided plugin context/manifest.
+    pub fn load_with_extension(
+        file_path: PathBuf,
+        extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+        extension_manifest: ExtensionManifest,
+        workspace_root: Option<PathBuf>,
+    ) -> Result<Self, GuiError> {
+        let source_text = fs::read_to_string(&file_path).map_err(|err| GuiError::Io {
+            path: file_path.clone(),
+            source: err,
+        })?;
+        let mut document =
+            Self::from_parts(file_path, source_text, extension_context, extension_manifest);
+        document.workspace_root = workspace_root;
+        if let Err(e) = document.rebuild() {
+            tracing::warn!("Initial document rebuild failed: {}", e);
+        }
+        Ok(document)
+    }
+
+    fn from_parts(
+        file_path: PathBuf,
+        source_text: String,
+        extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+        extension_manifest: ExtensionManifest,
+    ) -> Self {
+        Self {
             file_path,
             source_text,
             raw_statements: None,
@@ -128,6 +127,7 @@ impl DocumentSession {
             scene_dimensions: SceneDimensions::default(),
             extension_context,
             extension_manifest,
+            workspace_root: None,
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
@@ -136,36 +136,60 @@ impl DocumentSession {
             last_component_hash: 0,
             cached_expanded: None,
             cached_module_graph: None,
-        })
+        }
+    }
+
+    /// Create a session from in-memory source text without loading from disk.
+    /// This is used by the background rebuild worker.
+    pub fn from_source(file_path: PathBuf, source_text: String) -> Result<Self, GuiError> {
+        let (extension_context, extension_manifest) = document_extensions(&file_path);
+        Ok(Self::from_parts(file_path, source_text, extension_context, extension_manifest))
+    }
+
+    /// Create a session from in-memory source text with a shared plugin
+    /// context/manifest, so background rebuilds do not load plugins again.
+    pub fn from_source_with_extension(
+        file_path: PathBuf,
+        source_text: String,
+        extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+        extension_manifest: ExtensionManifest,
+        workspace_root: Option<PathBuf>,
+    ) -> Result<Self, GuiError> {
+        let mut session =
+            Self::from_parts(file_path, source_text, extension_context, extension_manifest);
+        session.workspace_root = workspace_root;
+        Ok(session)
     }
 
     pub fn from_error(file_path: PathBuf) -> Self {
         let (extension_context, extension_manifest) = document_extensions(&file_path);
-        Self {
-            file_path,
-            source_text: String::new(),
-            raw_statements: None,
-            expanded_statements: None,
-            namespaces: HashMap::new(),
-            source_index: None,
-            timeline: None,
-            composition: None,
-            active_scene: None,
-            diagnostics: Vec::new(),
-            last_rebuild_error: None,
-            is_dirty: false,
-            duration_s: 5.0,
-            scene_dimensions: SceneDimensions::default(),
-            extension_context,
-            extension_manifest,
-            timeline_index: TimelineIndex::default(),
-            keyframe_lines: Vec::new(),
-            components: HashMap::new(),
-            module_actions: HashMap::new(),
-            last_source_hash: 0,
-            last_component_hash: 0,
-            cached_expanded: None,
-            cached_module_graph: None,
+        Self::from_parts(file_path, String::new(), extension_context, extension_manifest)
+    }
+
+    /// Replace the extension context/manifest after a plugin reload.
+    pub fn set_extension_context(
+        &mut self,
+        extension_context: std::sync::Arc<animatix::extension_context::ExtensionContext>,
+        extension_manifest: ExtensionManifest,
+    ) {
+        self.extension_context = extension_context;
+        self.extension_manifest = extension_manifest;
+    }
+
+    /// Replace the workspace root used for relative asset resolution.
+    pub fn set_workspace_root(&mut self, workspace_root: Option<PathBuf>) {
+        self.workspace_root = workspace_root;
+    }
+
+    /// Apply document/workspace base directories to every active asset cache.
+    fn apply_asset_base_dirs(&mut self) {
+        let document_dir = self.file_path.parent();
+        let workspace_root = self.workspace_root.as_deref();
+        if let Some(timeline) = &mut self.timeline {
+            timeline.set_asset_base_dirs(document_dir, workspace_root);
+        }
+        if let Some(composition) = &mut self.composition {
+            composition.set_asset_base_dirs(document_dir, workspace_root);
         }
     }
 
@@ -346,6 +370,9 @@ impl DocumentSession {
         self.timeline_index = TimelineIndex::build(&self.source_text);
         self.keyframe_lines = self.timeline_index.keyframes.iter().map(|(_, line)| *line).collect();
 
+        // Relative asset URLs need the document/workspace base directories.
+        self.apply_asset_base_dirs();
+
         // Update source hash after successful rebuild
         self.last_source_hash = source_hash;
 
@@ -439,6 +466,7 @@ impl DocumentSession {
             self.composition = None;
             self.active_scene = None;
         }
+        self.apply_asset_base_dirs();
     }
 
     /// Apply a failed background rebuild output to this session.
