@@ -13,7 +13,10 @@ use crate::extension_context::ExtensionContext;
 /// Disposer returned by a plugin install.
 ///
 /// A disposer must be invoked exactly once with the same context the plugin was
-/// installed into. Calling it returns the context to its pre-install state.
+/// installed into when the host unloads that context in place. Hosts that
+/// atomically replace the whole context must not invoke old disposers against
+/// a new context; dropping the old context releases its registered
+/// capabilities.
 pub type PluginDisposer = Box<dyn FnOnce(&mut ExtensionContext) + Send>;
 
 /// Error returned while installing a plugin.

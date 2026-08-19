@@ -167,10 +167,10 @@ completions, and native ABI compatibility.
   custom primitive routing uses the active registry's built-in prefix;
   primitive metadata no longer uses `Box::leak`; services own destructors and
   library lifetime.
-- Manifest generation pass: `animatix plugin describe <library>` installs the
-  plugin into a scratch `ExtensionContext`, filters to extension
+- Manifest generation pass: the shared `animatix-plugin-tooling` crate installs
+  a native library into a scratch `ExtensionContext`, filters to extension
   primitive/property descriptors, and serializes the analyzer manifest with
-  the same TOML schema consumed by `--plugin`.
+  the same TOML schema consumed by `--plugin`; CLI and GUI both use it.
 - Unstable ABI snapshot 5 pass: native descriptors carry precise tooling types, function
   metadata, service metadata, primitive capabilities, declared property names,
   and resize mode; the demo manifest round-trips all of it.
@@ -187,13 +187,19 @@ completions, and native ABI compatibility.
   repeated linear membership checks in the generic property writer.
 - Plugin lifecycle pass: `PluginLoader` exposes list/replace/remove APIs, and
   `DocumentPluginManager` provides workspace-aware discovery, atomic
-  last-known-good swaps, background-rebuild context reuse, error surfacing, and
-  manual/automatic reload.
+  last-known-good swaps, background-rebuild context reuse, plugin epochs for
+  stale-rebuild rejection, persisted explicit paths, error surfacing, and
+  manual/automatic reload. Failed reloads keep the full active snapshot and
+  avoid retrying the same failing fingerprint.
 - GUI integration pass: `animatix-gui` enables `plugin-loading` by default,
   installs manifests/libraries through `DocumentPluginManager`, feeds the
   merged manifest into editor completions/hover, inserts extension actions from
   the timeline, renders manifest-driven property editors, and exposes a plugin
   status/authoring dialog.
+- Maintainability pass: `Type::Enum` round-trips through `TypeAnnotation`,
+  built-in primitive capability defaults come from one schema table used by
+  runtime and tooling, and plugin status/insertion/editor behavior has direct
+  unit coverage.
 - Capability dispatch pass: layout container expansion, plot `func`
   assignments, draw-in text routing, equation highlight parent resolution, and
   primitive family classification all consult registry capabilities instead of

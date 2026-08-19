@@ -114,6 +114,11 @@ let disposers = loader.install_all(&mut ctx)?;
 `replace_shared`, and `remove(name)` so the GUI/CLI can share lifecycle control
 without reimplementing install/rollback logic.
 
+Disposers are for in-place unload and partial-failure rollback. Hosts that
+atomically replace the whole context, like `DocumentPluginManager`, must not
+invoke old disposers against a new context; dropping the old context releases
+its registered capabilities.
+
 Scoped registration is also available:
 
 ```rust
@@ -187,9 +192,10 @@ the manifest. Property `type` strings can use the primitive kinds (`Num`,
 in the GUI inspector.
 
 Manifests can be regenerated from a native library instead of hand-maintained.
-`plugin describe` installs the library into a scratch `ExtensionContext`, reads
-its runtime primitive/property descriptors, and serializes them through the same
-manifest schema:
+The CLI and GUI both use `animatix-plugin-tooling::generate_manifest_toml`,
+which installs the library into a scratch `ExtensionContext`, reads its runtime
+primitive/property descriptors, and serializes them through the same manifest
+schema:
 
 ```bash
 cargo build -p animatix-plugin-demo
@@ -226,10 +232,12 @@ registered callbacks and the disposer returned by install.
 - GUI builds use a per-document extension context managed by
   `DocumentPluginManager`. Discovery searches explicit plugin paths, the
   document directory, then the workspace root; the manager keeps a
-  last-known-good context and atomically swaps candidates. The background
-  rebuild worker reuses the same context Arc instead of loading native
-  libraries again. The plugin status dialog shows manifests, loaded libraries,
-  capability counts, errors, reload controls, explicit paths, and a
+  last-known-good context and atomically swaps candidates. Explicit plugin
+  paths are persisted in workspace settings. Background rebuilds carry a plugin
+  epoch, so results from an older context are discarded after a plugin reload.
+  The background rebuild worker reuses the same context Arc instead of loading
+  native libraries again. The plugin status dialog shows manifests, loaded
+  libraries, capability counts, errors, reload controls, explicit paths, and a
   `plugin describe`-style manifest generator. The insertion palette includes
   extension actions, the inspector/keyframe table show extension properties
   from the actor plan, and the editor feeds the merged manifest to the

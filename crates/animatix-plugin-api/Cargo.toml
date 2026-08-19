@@ -3,7 +3,7 @@ name = "animatix-plugin-api"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
-description = "Stable C ABI shared by Animatix and native extension plugins"
+description = "Unstable C ABI shared by Animatix and native extension plugins"
 publish = false
 
 [lib]
