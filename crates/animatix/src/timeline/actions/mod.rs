@@ -166,7 +166,7 @@ pub(crate) fn expand_group_targets(
             if track.children.is_empty() {
                 // Leaf actor — keep the resolved key
                 result.push(resolved);
-            } else if is_layout_container(track.kind) {
+            } else if is_layout_container(timeline, track) {
                 // Layout container (Row, Col, Grid, etc.) — recurse into children
                 for child in track.children.iter().rev() {
                     stack.push(child.clone());
@@ -188,9 +188,16 @@ pub(crate) fn expand_group_targets(
 /// Returns true if the actor kind is a layout container whose children
 /// should be expanded by `expand_group_targets`. Plot containers like
 /// Graph (which have tick label children) are NOT layout containers.
-fn is_layout_container(kind: ActorKindId) -> bool {
+fn is_layout_container(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+    if let Some(primitive) =
+        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
+    {
+        let capabilities = primitive.capabilities();
+        return (capabilities.layout_container || capabilities.is_container)
+            && primitive.child_processing() != crate::primitives::ChildProcessing::Equation;
+    }
     matches!(
-        kind,
+        track.kind,
         ActorKindId::Row
             | ActorKindId::Col
             | ActorKindId::Grid
@@ -219,7 +226,15 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    if track.kind == crate::timeline::ActorKindId::Image {
+    let capabilities = track
+        .actor_type
+        .as_deref()
+        .and_then(|ty| timeline.primitive_registry.find(ty))
+        .map(|primitive| primitive.capabilities());
+
+    if track.kind == crate::timeline::ActorKindId::Image
+        || capabilities.is_some_and(|caps| caps.image_payload)
+    {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -244,14 +259,15 @@ pub(crate) fn ensure_vector_reveal_target(
 
     // Text/Code/Typst targets are now allowed; draw-in uses char_progress for typewriter effect.
 
-    if timeline.tracks.get(target).is_some_and(|track| !track.children.is_empty())
-        && track
-            .shape
-            .vector_paths
-            .as_ref()
-            .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
-            .unwrap_or(true)
-        && !track.has_svg_path_content()
+    if capabilities.is_some_and(|caps| caps.is_container || caps.layout_container)
+        || (timeline.tracks.get(target).is_some_and(|track| !track.children.is_empty())
+            && track
+                .shape
+                .vector_paths
+                .as_ref()
+                .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
+                .unwrap_or(true)
+            && !track.has_svg_path_content())
     {
         push_unsupported_action_target_diagnostic(
             verb,
@@ -375,7 +391,104 @@ mod tests {
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
-    use crate::timeline::{AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack};
+    use crate::primitives::{BuildCtx, Primitive};
+    use crate::timeline::{
+        ActorCategory, AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack,
+    };
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    struct FlexContainer;
+
+    impl Primitive for FlexContainer {
+        fn type_name(&self) -> &str {
+            "FlexContainer"
+        }
+
+        fn display_name(&self) -> &str {
+            "Flex Container"
+        }
+
+        fn category(&self) -> ActorCategory {
+            ActorCategory::Container
+        }
+
+        fn icon_id(&self) -> &str {
+            "flex"
+        }
+
+        fn kind_id(&self) -> ActorKindId {
+            ActorKindId::Extension
+        }
+
+        fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+            animatix_syntax::schema::PrimitiveCapabilities {
+                layout_container: true,
+                is_container: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            }
+        }
+
+        fn build(
+            &self,
+            ctx: &mut BuildCtx,
+            label: &str,
+            _props: &[crate::ast::Property],
+            _modifiers: &[crate::ast::Modifier],
+            _children: &[crate::ast::InlineItem],
+        ) -> Result<(), Vec<Diagnostic>> {
+            let track = ctx
+                .timeline
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            track.kind = ActorKindId::Extension;
+            track.rebuild_property_plan();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn extension_layout_container_expands_for_leaf_actions() {
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source("root: FlexContainer { a: Rect, b: Rect }");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let mut registry = crate::primitives::PrimitiveRegistry::new();
+        registry.register(Arc::new(FlexContainer)).expect("register FlexContainer");
+        let report =
+            Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let mut timeline = report.output;
+        assert_eq!(timeline.tracks.get("root").expect("root").children, vec!["a", "b"]);
+
+        let action = Action {
+            verb: "fade-in".to_string(),
+            targets: vec!["root".to_string()],
+            args: vec![],
+            modifiers: vec![Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("1s".to_string()),
+            }],
+            byte_span: None,
+        };
+        let mut diagnostics = Vec::new();
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
+        assert!(
+            timeline.tracks.get("root").expect("root").style.opacity.is_none(),
+            "layout container itself should not receive the leaf action"
+        );
+        for label in ["a", "b"] {
+            let opacity = timeline.tracks.get(label).expect(label).style.opacity.get(0, 1.0);
+            assert_eq!(opacity, 0.0, "{label} should receive the expanded leaf action");
+        }
+    }
 
     #[test]
     fn runtime_action_names_match_builtins_registry() {

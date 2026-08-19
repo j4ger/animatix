@@ -1,11 +1,13 @@
 use super::*;
 use crate::ast::Expr;
 use crate::easing::Easing;
+use crate::primitives::{BuildCtx, Primitive, PrimitiveRegistry};
 use crate::timeline::modifier_runtime::ir::compile_expr;
 use crate::timeline::plot::{
     FuncBlendMode, FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, ProceduralPlotKind,
     blend_depth, flatten_blend, resolve_func_source, sample_procedural_plot_at,
 };
+use std::sync::Arc;
 
 // ─────────────────────────────────────────────────────────────
 // Helpers
@@ -72,6 +74,88 @@ fn line_yx_expr() -> Expr {
         crate::ast::BinaryOp::Sub,
         Box::new(Expr::Ident("x".to_string())),
     )
+}
+
+struct PlotExt;
+
+impl Primitive for PlotExt {
+    fn type_name(&self) -> &str {
+        "PlotExt"
+    }
+
+    fn display_name(&self) -> &str {
+        "Plot Extension"
+    }
+
+    fn category(&self) -> ActorCategory {
+        ActorCategory::Plot
+    }
+
+    fn icon_id(&self) -> &str {
+        "plot-ext"
+    }
+
+    fn kind_id(&self) -> ActorKindId {
+        ActorKindId::Extension
+    }
+
+    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+        animatix_syntax::schema::PrimitiveCapabilities {
+            vector_paths: true,
+            plot_geometry: true,
+            ..animatix_syntax::schema::PrimitiveCapabilities::default()
+        }
+    }
+
+    fn build(
+        &self,
+        ctx: &mut BuildCtx,
+        label: &str,
+        _props: &[crate::ast::Property],
+        _modifiers: &[crate::ast::Modifier],
+        _children: &[crate::ast::InlineItem],
+    ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
+        let track = ctx
+            .timeline
+            .tracks
+            .entry(label.to_string())
+            .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+        track.kind = ActorKindId::Extension;
+        track.procedural_plot = Some(ProceduralPlot {
+            plot_type: ProceduralPlotKind::default(),
+            kind: PlotCurveKind::Cartesian,
+            func_args: vec!["x".to_string()],
+            func_body: compile_expr(&Expr::Ident("x".to_string())).expect("compile test body"),
+            actor_label: label.to_string(),
+            param_names: vec![],
+            p_x_domain: [-5.0, 5.0],
+            p_y_domain: [-5.0, 5.0],
+            p_size: [320.0, 200.0],
+            padding: [0.0, 0.0, 0.0, 0.0],
+            t_domain: [0.0, 0.0],
+            tolerance: 0.1,
+            max_depth: 6,
+            resolution: 64,
+            density: 0,
+            levels: vec![],
+            stroke_width: 2.0,
+            stroke_color: [1.0, 1.0, 1.0, 1.0],
+            fill_color: [0.0, 0.0, 0.0, 0.0],
+            params: vec![],
+            extra_captures: Default::default(),
+        });
+        track.rebuild_property_plan();
+        Ok(())
+    }
+
+    fn evaluate(
+        &self,
+        _ctx: &crate::primitives::EvaluateCtx,
+        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
+        Ok(Some(vec![crate::primitives::RenderCommand::Paths { paths: Vec::new() }]))
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1612,5 +1696,31 @@ fn depth_4_nested_blend_parity() {
         x,
         expected,
         result2
+    );
+}
+
+#[test]
+fn extension_plot_capability_enables_func_assignments() {
+    let (ast, errors) = animatix_syntax::parser::parse_source("p: PlotExt\np.func = (x) => x [1s]");
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let ast = ast.expect("parsed AST");
+
+    let mut registry = PrimitiveRegistry::new();
+    registry.register(Arc::new(PlotExt)).expect("register PlotExt");
+    let report = Timeline::build_with_primitive_registry(
+        &ast,
+        &std::collections::HashMap::new(),
+        Arc::new(registry),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let track = report.output.tracks.get("p").expect("plot extension track");
+    assert_eq!(
+        track.func_transitions.len(),
+        1,
+        "plot_geometry capability should enable func transitions"
     );
 }

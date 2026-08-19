@@ -282,121 +282,119 @@ impl Timeline {
         // `func` is a build-time-only AST node, not a registry property.
         // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
         // FuncTransition that blends function outputs at frame time.
-        if property == "func" {
-            match track.kind {
+        let is_plot_actor = primitive
+            .is_some_and(|primitive| primitive.capabilities().plot_geometry)
+            || matches!(
+                track.kind,
                 ActorKindId::VectorField
-                | ActorKindId::Heatmap
-                | ActorKindId::ContourSet
-                | ActorKindId::PlotCurve => {
-                    // Evaluate RHS to a closure.
-                    let closure_val = match evaluate_expr(value, &eval_env) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            diagnostics.push(
-                                Diagnostic::error(
-                                    DiagnosticCode::InvalidPlotFunc,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Failed to evaluate func assignment on '{}': {}",
-                                        target_key, e
-                                    ),
-                                )
-                                .with_subject(&assignment_subject),
-                            );
-                            return;
-                        },
-                    };
-                    let (to_args, to_body, to_captures) = match closure_val {
-                        Value::Closure(args, body, captures) => (args, *body, captures),
-                        _ => {
-                            diagnostics.push(
-                                Diagnostic::error(
-                                    DiagnosticCode::InvalidPlotFunc,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "func assignment on '{}' must be a closure (e.g. `(x) => expr`)",
-                                        target_key
-                                    ),
-                                )
-                                .with_subject(&assignment_subject),
-                            );
-                            return;
-                        },
-                    };
-
-                    // Determine "from" source:
-                    //   - If there's an active transition, record-and-chain: freeze current blend
-                    //   - Else use last completed transition's `to`, or the declaration func
-                    let from_source = if let Some(active) = track.func_transitions.last() {
-                        if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
-                            // Record-and-chain: freeze current blend state
-                            let progress = if active.end_ms > active.start_ms {
-                                ((time_ms as u64 - active.start_ms) as f64
-                                    / (active.end_ms - active.start_ms) as f64)
-                                    .clamp(0.0, 1.0)
-                            } else {
-                                1.0
-                            };
-                            FuncSource::Blend {
-                                from: Box::new(active.from.clone()),
-                                to: Box::new(active.to.clone()),
-                                frozen_progress: progress,
-                            }
-                        } else {
-                            // Last transition completed, use its `to`
-                            active.to.clone()
-                        }
-                    } else if let Some(plot) = track.procedural_plot.as_ref() {
-                        // No prior transitions, use declaration func
-                        FuncSource::Compiled(
-                            plot.func_args.clone(),
-                            Box::new(plot.func_body.clone()),
-                            plot.extra_captures.clone(),
+                    | ActorKindId::Heatmap
+                    | ActorKindId::ContourSet
+                    | ActorKindId::PlotCurve
+            );
+        if property == "func" && is_plot_actor {
+            // Evaluate RHS to a closure.
+            let closure_val = match evaluate_expr(value, &eval_env) {
+                Ok(v) => v,
+                Err(e) => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPlotFunc,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Failed to evaluate func assignment on '{}': {}",
+                                target_key, e
+                            ),
                         )
-                    } else {
-                        diagnostics.push(
-                            Diagnostic::error(
-                                DiagnosticCode::InvalidPlotFunc,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Cannot assign func on '{}': no func declared on this plot actor",
-                                    target_key
-                                ),
-                            )
-                            .with_subject(&assignment_subject),
-                        );
-                        return;
-                    };
-
-                    // Validate same arity
-                    if from_source.arity() != to_args.len() {
-                        diagnostics.push(
-                            Diagnostic::error(
-                                DiagnosticCode::InvalidPlotFunc,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "func transition on '{}' must keep the same arity ",
-                                    target_key
-                                ),
-                            )
-                            .with_subject(&assignment_subject),
-                        );
-                        return;
-                    }
-
-                    // Push FuncTransition
-                    track.func_transitions.push(crate::timeline::plot::FuncTransition {
-                        start_ms: t_start_ms,
-                        end_ms: t_end_ms,
-                        easing,
-                        from: from_source,
-                        to: FuncSource::Compiled(to_args, Box::new(to_body), to_captures),
-                        blend_mode: func_blend_mode,
-                    });
-                    return; // func is not a registry property; do not fall through
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
                 },
-                _ => {},
+            };
+            let (to_args, to_body, to_captures) = match closure_val {
+                Value::Closure(args, body, captures) => (args, *body, captures),
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPlotFunc,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "func assignment on '{}' must be a closure (e.g. `(x) => expr`)",
+                                target_key
+                            ),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                },
+            };
+
+            // Determine "from" source:
+            //   - If there's an active transition, record-and-chain: freeze current blend
+            //   - Else use last completed transition's `to`, or the declaration func
+            let from_source = if let Some(active) = track.func_transitions.last() {
+                if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
+                    // Record-and-chain: freeze current blend state
+                    let progress = if active.end_ms > active.start_ms {
+                        ((time_ms as u64 - active.start_ms) as f64
+                            / (active.end_ms - active.start_ms) as f64)
+                            .clamp(0.0, 1.0)
+                    } else {
+                        1.0
+                    };
+                    FuncSource::Blend {
+                        from: Box::new(active.from.clone()),
+                        to: Box::new(active.to.clone()),
+                        frozen_progress: progress,
+                    }
+                } else {
+                    // Last transition completed, use its `to`
+                    active.to.clone()
+                }
+            } else if let Some(plot) = track.procedural_plot.as_ref() {
+                // No prior transitions, use declaration func
+                FuncSource::Compiled(
+                    plot.func_args.clone(),
+                    Box::new(plot.func_body.clone()),
+                    plot.extra_captures.clone(),
+                )
+            } else {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPlotFunc,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Cannot assign func on '{}': no func declared on this plot actor",
+                            target_key
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+                return;
+            };
+
+            // Validate same arity
+            if from_source.arity() != to_args.len() {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidPlotFunc,
+                        DiagnosticPhase::Build,
+                        format!("func transition on '{}' must keep the same arity ", target_key),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+                return;
             }
+
+            // Push FuncTransition
+            track.func_transitions.push(crate::timeline::plot::FuncTransition {
+                start_ms: t_start_ms,
+                end_ms: t_end_ms,
+                easing,
+                from: from_source,
+                to: FuncSource::Compiled(to_args, Box::new(to_body), to_captures),
+                blend_mode: func_blend_mode,
+            });
+            return; // func is not a registry property; do not fall through
         }
 
         // ── Generic engine for all other properties ──

@@ -26,6 +26,17 @@ fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u6
         .add_keyframe(time_ms, color, Easing::Linear);
 }
 
+/// Returns true when a primitive emits text glyph paths. The `ActorKindId`
+/// fallback covers hand-built test tracks without an actor type name.
+fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+    if let Some(primitive) =
+        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
+    {
+        return primitive.capabilities().text_paths;
+    }
+    matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst)
+}
+
 /// Draws in vector targets by animating stroke progress first, then revealing fill.
 pub struct DrawIn;
 
@@ -73,13 +84,13 @@ impl BuiltinAction for DrawIn {
                 continue;
             }
 
+            let is_text =
+                timeline.tracks.get(target).is_some_and(|track| is_text_like(timeline, track));
+
             let track = match timeline.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
-
-            let is_text =
-                matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst);
 
             if is_text {
                 // Typewriter effect: animate char_progress 0→1
@@ -466,6 +477,62 @@ mod tests {
     use super::*;
     use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
+    use crate::primitives::{BuildCtx, Primitive};
+    use crate::timeline::ActorCategory;
+    use crate::timeline::actions::process_action;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    struct TextExt;
+
+    impl Primitive for TextExt {
+        fn type_name(&self) -> &str {
+            "TextExt"
+        }
+
+        fn display_name(&self) -> &str {
+            "Text Extension"
+        }
+
+        fn category(&self) -> ActorCategory {
+            ActorCategory::Text
+        }
+
+        fn icon_id(&self) -> &str {
+            "text-ext"
+        }
+
+        fn kind_id(&self) -> ActorKindId {
+            ActorKindId::Extension
+        }
+
+        fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
+            animatix_syntax::schema::PrimitiveCapabilities {
+                text_paths: true,
+                morphable_paths: true,
+                vector_reveal_target: true,
+                ..animatix_syntax::schema::PrimitiveCapabilities::default()
+            }
+        }
+
+        fn build(
+            &self,
+            ctx: &mut BuildCtx,
+            label: &str,
+            _props: &[crate::ast::Property],
+            _modifiers: &[crate::ast::Modifier],
+            _children: &[crate::ast::InlineItem],
+        ) -> Result<(), Vec<Diagnostic>> {
+            let track = ctx
+                .timeline
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            track.kind = ActorKindId::Extension;
+            track.rebuild_property_plan();
+            Ok(())
+        }
+    }
 
     fn circle_decl(label: &str) -> Stmt {
         Stmt::ActorDecl {
@@ -863,6 +930,38 @@ mod tests {
         assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
         assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_uses_text_capability_for_extension_primitives() {
+        let (ast, errors) = animatix_syntax::parser::parse_source("p: TextExt");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let mut registry = crate::primitives::PrimitiveRegistry::new();
+        registry.register(Arc::new(TextExt)).expect("register TextExt");
+        let report =
+            Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
+        assert!(
+            report.diagnostics.is_empty(),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let mut timeline = report.output;
+        let action = match action_stmt("draw-in", "p", 1.0) {
+            Stmt::Action(action, _) => action,
+            _ => unreachable!("action statement"),
+        };
+        let mut diagnostics = Vec::new();
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+        assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
+        let track = timeline.tracks.get("p").expect("text extension track");
+        assert!(track.text.char_progress.is_some());
+        assert!(
+            track.style.stroke_progress.is_none()
+                || track.style.stroke_progress.as_ref().is_some_and(|t| t.keyframes.is_empty()),
+            "text capability should select the typewriter path"
+        );
     }
 
     #[test]

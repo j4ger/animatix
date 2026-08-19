@@ -2,6 +2,7 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_p
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::primitives::ChildProcessing;
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
@@ -50,6 +51,15 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
     }
 }
 
+fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+    if let Some(primitive) =
+        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
+    {
+        return primitive.child_processing() == ChildProcessing::Equation;
+    }
+    track.kind == ActorKindId::Equation
+}
+
 /// Find the parent Equation track label for a given Fragment label, if any.
 ///
 /// This enables exclusive group behavior: when a Fragment inside an Equation
@@ -60,7 +70,7 @@ fn find_equation_parent(timeline: &Timeline, fragment: &str) -> Option<String> {
         .tracks
         .iter()
         .find(|(_, t)| {
-            t.kind == ActorKindId::Equation && t.children.contains(&fragment.to_string())
+            is_equation_parent(timeline, t) && t.children.contains(&fragment.to_string())
         })
         .map(|(k, _)| k.clone())
 }
