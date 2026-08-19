@@ -303,6 +303,10 @@ impl ExtensionRegistry {
     /// Create a context initialized with the built-in primitive registry.
     pub fn new() -> Self {
         Self {
+            // Seed the built-in primitive set so capability-based dispatch
+            // (plot hosting, graph hosts, recursive containers) still resolves
+            // built-ins when the context backs a CLI/GUI build.
+            primitives: Arc::new(PrimitiveRegistry::new()),
             properties: PropertyRegistry::new(),
             ..Self::default()
         }
