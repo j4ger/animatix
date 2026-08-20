@@ -21,29 +21,228 @@ pub(super) fn expand_fn_calls(
     stmts: Vec<Stmt>,
     registry: &InstanceFnRegistry,
     module_fns: &HashMap<String, FnTemplate>,
+    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
+    let cycle_members = detect_fn_cycles(module_fns, diagnostics);
     let mut stack: Vec<String> = Vec::new();
-    expand_stmt_list(stmts, registry, module_fns, &mut stack)
+    expand_stmt_list(stmts, registry, module_fns, &cycle_members, &mut stack, diagnostics).0
+}
+
+/// Detect recursive timeline-function call cycles before expansion.
+///
+/// The expander flattens nested calls across re-scan passes, so a runtime
+/// call-stack guard cannot see cycles; report them up front instead.
+fn detect_fn_cycles(
+    module_fns: &HashMap<String, FnTemplate>,
+    diagnostics: &mut Vec<String>,
+) -> std::collections::HashSet<String> {
+    fn called_names(stmt: &Stmt, out: &mut Vec<String>) {
+        match stmt {
+            Stmt::Action(action, ..) => out.push(action.verb.clone()),
+            Stmt::LetDecl { value, .. } => collect_calls_in_expr(value, out),
+            Stmt::Assignment { value, .. } => collect_calls_in_expr(value, out),
+            Stmt::Conditional {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                collect_calls_in_expr(condition, out);
+                for s in then_branch {
+                    called_names(s, out);
+                }
+                if let Some(eb) = else_branch {
+                    for s in eb {
+                        called_names(s, out);
+                    }
+                }
+            },
+            Stmt::Match {
+                scrutinee, arms, ..
+            } => {
+                collect_calls_in_expr(scrutinee, out);
+                for (_, body) in arms {
+                    for s in body {
+                        called_names(s, out);
+                    }
+                }
+            },
+            Stmt::ForLoop { iterable, body, .. } => {
+                collect_calls_in_expr(iterable, out);
+                for s in body {
+                    called_names(s, out);
+                }
+            },
+            Stmt::Block { body, .. } => {
+                for s in body {
+                    called_names(s, out);
+                }
+            },
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Scene { body, .. } => {
+                for s in body {
+                    called_names(s, out);
+                }
+            },
+            _ => {},
+        }
+    }
+    fn collect_calls_in_expr(expr: &crate::ast::Expr, out: &mut Vec<String>) {
+        match expr {
+            crate::ast::Expr::Call(name, args) => {
+                out.push(name.clone());
+                for arg in args {
+                    collect_calls_in_expr(arg, out);
+                }
+            },
+            crate::ast::Expr::Tuple(items) | crate::ast::Expr::List(items) => {
+                for item in items {
+                    collect_calls_in_expr(item, out);
+                }
+            },
+            crate::ast::Expr::Binary(l, _, r) => {
+                collect_calls_in_expr(l, out);
+                collect_calls_in_expr(r, out);
+            },
+            crate::ast::Expr::Unary(_, v) => collect_calls_in_expr(v, out),
+            crate::ast::Expr::Method(receiver, _, args) => {
+                collect_calls_in_expr(receiver, out);
+                for arg in args {
+                    collect_calls_in_expr(arg, out);
+                }
+            },
+            crate::ast::Expr::Closure(_, body) => collect_calls_in_expr(body, out),
+            crate::ast::Expr::Conditional(c, t, e) => {
+                collect_calls_in_expr(c, out);
+                collect_calls_in_expr(t, out);
+                collect_calls_in_expr(e, out);
+            },
+            crate::ast::Expr::Match(scrutinee, arms) => {
+                collect_calls_in_expr(scrutinee, out);
+                for (_, arm) in arms {
+                    collect_calls_in_expr(arm, out);
+                }
+            },
+            crate::ast::Expr::Construct(_, props) => {
+                for prop in props {
+                    collect_calls_in_expr(&prop.value, out);
+                }
+            },
+            crate::ast::Expr::Index(target, index) => {
+                collect_calls_in_expr(target, out);
+                collect_calls_in_expr(index, out);
+            },
+            _ => {},
+        }
+    }
+
+    // Build adjacency: fn -> fns it calls (only timeline fns call other fns).
+    let mut graph: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for (name, template) in module_fns {
+        if template.return_type.is_some() {
+            continue;
+        }
+        let mut calls = Vec::new();
+        for stmt in &template.body {
+            called_names(stmt, &mut calls);
+        }
+        graph.insert(name.clone(), calls);
+    }
+    // DFS cycle detection (white/gray/black).
+    enum Color {
+        White,
+        Gray,
+        Black,
+    }
+    let mut colors: std::collections::HashMap<&str, Color> = std::collections::HashMap::new();
+    let mut stack: Vec<String> = Vec::new();
+    let mut cycle_members: std::collections::HashSet<String> = std::collections::HashSet::new();
+    fn visit<'a>(
+        name: &'a str,
+        graph: &'a std::collections::HashMap<String, Vec<String>>,
+        colors: &mut std::collections::HashMap<&'a str, Color>,
+        stack: &mut Vec<String>,
+        cycle_members: &mut std::collections::HashSet<String>,
+        diagnostics: &mut Vec<String>,
+    ) {
+        colors.insert(name, Color::Gray);
+        stack.push(name.to_string());
+        if let Some(callees) = graph.get(name) {
+            for callee in callees {
+                match colors.get(callee.as_str()).unwrap_or(&Color::White) {
+                    Color::Gray => {
+                        let cycle_start = stack.iter().position(|s| s == callee).unwrap_or(0);
+                        let cycle = stack[cycle_start..].join(" -> ");
+                        diagnostics.push(format!(
+                            "recursive timeline-function cycle: {cycle} -> {callee}; recursion is not supported"
+                        ));
+                        for member in &stack[cycle_start..] {
+                            cycle_members.insert(member.clone());
+                        }
+                        cycle_members.insert(callee.clone());
+                    },
+                    Color::White => visit(callee, graph, colors, stack, cycle_members, diagnostics),
+                    Color::Black => {},
+                }
+            }
+        }
+        stack.pop();
+        colors.insert(name, Color::Black);
+    }
+    for name in graph.keys() {
+        if matches!(colors.get(name.as_str()).unwrap_or(&Color::White), Color::White) {
+            visit(name, &graph, &mut colors, &mut stack, &mut cycle_members, diagnostics);
+        }
+    }
+    cycle_members
 }
 
 fn expand_stmt_list(
     stmts: Vec<Stmt>,
     registry: &InstanceFnRegistry,
     module_fns: &HashMap<String, FnTemplate>,
+    cycle_members: &std::collections::HashSet<String>,
     stack: &mut Vec<String>,
-) -> Vec<Stmt> {
-    stmts
-        .into_iter()
-        .flat_map(|stmt| expand_stmt(stmt, registry, module_fns, stack))
-        .collect()
+    diagnostics: &mut Vec<String>,
+) -> (Vec<Stmt>, bool) {
+    let mut expanded = true;
+    let mut current = stmts;
+    let mut guard = 0;
+    let mut any_expanded = false;
+    // Re-scan until a pass expands nothing (nested timeline-function calls
+    // inside expanded blocks expand in later passes; built-in/unknown actions
+    // terminate the loop). The guard is a safety net against expander bugs.
+    while expanded && guard < 128 {
+        let mut next = Vec::new();
+        let mut did_expand = false;
+        for stmt in current {
+            let (out, expanded_any) =
+                expand_stmt(stmt, registry, module_fns, cycle_members, stack, diagnostics);
+            did_expand |= expanded_any;
+            next.extend(out);
+        }
+        current = next;
+        expanded = did_expand;
+        any_expanded |= did_expand;
+        guard += 1;
+    }
+    (current, any_expanded)
 }
 
 fn expand_stmt(
     stmt: Stmt,
     registry: &InstanceFnRegistry,
     module_fns: &HashMap<String, FnTemplate>,
+    cycle_members: &std::collections::HashSet<String>,
     stack: &mut Vec<String>,
-) -> Vec<Stmt> {
+    diagnostics: &mut Vec<String>,
+) -> (Vec<Stmt>, bool) {
     match stmt {
         Stmt::Action(action, span) => {
             let mut inlined = Vec::new();
@@ -54,13 +253,25 @@ fn expand_stmt(
                 // Function-style call `highlight_key(bars, key)` (or `f()`):
                 // bind positional arguments to parameters.
                 if let Some(template) = module_fns.get(&action.verb) {
-                    if template.return_type.is_none() {
-                        inlined.extend(expand_arg_call(template, &action, stack));
+                    if template.return_type.is_none() && !cycle_members.contains(&action.verb) {
+                        inlined.extend(expand_arg_call(
+                            template,
+                            &action,
+                            module_fns,
+                            stack,
+                            diagnostics,
+                        ));
+                    } else if cycle_members.contains(&action.verb) {
+                        // Cycle already reported by detect_fn_cycles; drop the
+                        // call so it does not surface as "unknown action".
                     } else {
-                        // Statement-level pure-function call: leave for the
-                        // runtime to report with a context-aware diagnostic.
-                        remaining.push(action.verb.clone());
-                        remaining_index.push(None);
+                        // Statement-level pure-function call cannot emit
+                        // timeline events; report it clearly instead of
+                        // falling through to "unknown action".
+                        diagnostics.push(format!(
+                            "pure function '{}' must be called in an expression, e.g. `let v = {}(...)`",
+                            action.verb, action.verb
+                        ));
                     }
                 } else {
                     remaining.push(action.verb.clone());
@@ -71,10 +282,24 @@ fn expand_stmt(
                     let index = action.target_index.get(target_index).cloned().flatten();
                     // Component instance functions are more specific than module functions.
                     if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
-                        inlined.extend(expand_target_call(template, target, &action, stack));
+                        inlined.extend(expand_target_call(
+                            template,
+                            target,
+                            &action,
+                            module_fns,
+                            stack,
+                            diagnostics,
+                        ));
                     } else if let Some(template) = module_fns.get(&action.verb) {
                         if template.return_type.is_none() {
-                            inlined.extend(expand_target_call(template, target, &action, stack));
+                            inlined.extend(expand_target_call(
+                                template,
+                                target,
+                                &action,
+                                module_fns,
+                                stack,
+                                diagnostics,
+                            ));
                         } else {
                             remaining.push(target.clone());
                             remaining_index.push(index);
@@ -99,16 +324,31 @@ fn expand_stmt(
                     span,
                 ));
             }
-
-            inlined
+            let did_expand = inlined.iter().any(|stmt| matches!(stmt, Stmt::Block { .. }));
+            (inlined, did_expand)
         },
         // For all other statements, recurse into bodies using shared walk.
+        Stmt::FnDecl { .. } => {
+            // Function declarations are templates expanded at call sites;
+            // expanding them in place would re-expand on every pass.
+            (vec![stmt], false)
+        },
         mut stmt => {
             let bodies = crate::walk::collect_stmt_bodies_mut(&mut stmt);
+            let mut did_expand = false;
             for body in bodies {
-                *body = expand_stmt_list(std::mem::take(body), registry, module_fns, stack);
+                let (next, expanded_any) = expand_stmt_list(
+                    std::mem::take(body),
+                    registry,
+                    module_fns,
+                    cycle_members,
+                    stack,
+                    diagnostics,
+                );
+                did_expand |= expanded_any;
+                *body = next;
             }
-            vec![stmt]
+            (vec![stmt], did_expand)
         },
     }
 }
@@ -122,10 +362,14 @@ fn expand_target_call(
     template: &FnTemplate,
     target: &str,
     action: &Action,
+    module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
+    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
-        return vec![Stmt::Action(action.clone(), None)];
+        // Cycle already reported by detect_fn_cycles; drop the call so it
+        // does not surface as a confusing "unknown action".
+        return Vec::new();
     }
     stack.push(action.verb.clone());
     // Param values come from named invocation modifiers, then defaults.
@@ -166,7 +410,7 @@ fn expand_target_call(
         })
         .cloned()
         .collect();
-    let body = expand_with_params(template, &values, stack);
+    let body = expand_with_params(template, &values, module_fns, stack);
     let body = rewrite_self_targets(body, target);
     let body = apply_modifiers_to_body(body, &unconsumed);
     stack.pop();
@@ -175,9 +419,17 @@ fn expand_target_call(
 
 /// Expand a function-style call `highlight_key(bars, key)` into a scoped block:
 /// positional arguments bind to parameters in order, defaults fill the rest.
-fn expand_arg_call(template: &FnTemplate, action: &Action, stack: &mut Vec<String>) -> Vec<Stmt> {
+fn expand_arg_call(
+    template: &FnTemplate,
+    action: &Action,
+    module_fns: &HashMap<String, FnTemplate>,
+    stack: &mut Vec<String>,
+    diagnostics: &mut Vec<String>,
+) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
-        return vec![Stmt::Action(action.clone(), None)];
+        // Cycle already reported by detect_fn_cycles; drop the call so it
+        // does not surface as a confusing "unknown action".
+        return Vec::new();
     }
     stack.push(action.verb.clone());
     let mut values: HashMap<String, Expr> = HashMap::new();
@@ -193,7 +445,7 @@ fn expand_arg_call(template: &FnTemplate, action: &Action, stack: &mut Vec<Strin
             },
         }
     }
-    let body = expand_with_params(template, &values, stack);
+    let body = expand_with_params(template, &values, module_fns, stack);
     let body = apply_modifiers_to_body(body, &action.modifiers);
     stack.pop();
     vec![Stmt::Block { body, span: None }]
@@ -209,9 +461,10 @@ fn expand_arg_call(template: &FnTemplate, action: &Action, stack: &mut Vec<Strin
 fn expand_with_params(
     template: &FnTemplate,
     values: &HashMap<String, Expr>,
+    module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
-    let label_params = collect_label_params(&template.body, values);
+    let label_params = collect_label_params(&template.body, values, module_fns);
     let mut block = Vec::new();
     let mut label_bindings: HashMap<String, Expr> = HashMap::new();
     for param in &template.params {
@@ -247,6 +500,102 @@ fn let_stmt(name: &str, value: Expr) -> Stmt {
 
 /// Find parameters used as whole action/assignment targets (actor labels).
 fn collect_label_params(
+    body: &[Stmt],
+    values: &HashMap<String, Expr>,
+    module_fns: &HashMap<String, FnTemplate>,
+) -> std::collections::HashSet<String> {
+    // Direct label params: names used as whole action/assignment targets.
+    let mut labels = direct_label_params(body, values);
+
+    // Transitive label params: a param passed positionally to a callee's
+    // label parameter is itself a label (`run(b)` forwards `bars` into
+    // `bubble_sort(bars, ...)` where `bars` is a label param of the callee).
+    // Precompute each callee's label-param positions, then iterate to a
+    // fixpoint (chains of forwarding functions).
+    let callee_label_positions: HashMap<&str, Vec<bool>> = module_fns
+        .iter()
+        .map(|(name, template)| {
+            let callee_params: HashMap<String, Expr> = template
+                .params
+                .iter()
+                .map(|p| (p.name.clone(), Expr::Ident(p.name.clone())))
+                .collect();
+            let callee_labels = direct_label_params(&template.body, &callee_params);
+            let positions =
+                template.params.iter().map(|p| callee_labels.contains(&p.name)).collect();
+            (name.as_str(), positions)
+        })
+        .collect();
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for param in values.keys().clone() {
+            if labels.contains(param) {
+                continue;
+            }
+            if forwards_to_label_param(body, param, &callee_label_positions) {
+                labels.insert(param.clone());
+                changed = true;
+            }
+        }
+    }
+    labels
+}
+
+/// Is `param` passed as an argument to any callee's label-param position?
+fn forwards_to_label_param(
+    body: &[Stmt],
+    param: &str,
+    callee_label_positions: &HashMap<&str, Vec<bool>>,
+) -> bool {
+    fn walk(stmt: &Stmt, param: &str, callee_label_positions: &HashMap<&str, Vec<bool>>) -> bool {
+        match stmt {
+            Stmt::Action(action, ..) if action.targets.is_empty() => {
+                let Some(positions) = callee_label_positions.get(action.verb.as_str()) else {
+                    return false;
+                };
+                for (position, arg) in action.args.iter().enumerate() {
+                    if matches!(arg, Expr::Ident(name) if name == param)
+                        && positions.get(position).copied().unwrap_or(false)
+                    {
+                        return true;
+                    }
+                }
+                false
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                then_branch.iter().any(|s| walk(s, param, callee_label_positions))
+                    || else_branch
+                        .as_ref()
+                        .is_some_and(|eb| eb.iter().any(|s| walk(s, param, callee_label_positions)))
+            },
+            Stmt::Match { arms, .. } => arms
+                .iter()
+                .any(|(_, arm)| arm.iter().any(|s| walk(s, param, callee_label_positions))),
+            Stmt::ForLoop { body, .. }
+            | Stmt::Block { body, .. }
+            | Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Scene { body, .. } => {
+                body.iter().any(|s| walk(s, param, callee_label_positions))
+            },
+            _ => false,
+        }
+    }
+    body.iter().any(|s| walk(s, param, callee_label_positions))
+}
+
+/// Parameters used as whole action/assignment targets in a body.
+fn direct_label_params(
     body: &[Stmt],
     values: &HashMap<String, Expr>,
 ) -> std::collections::HashSet<String> {
@@ -544,13 +893,21 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
 /// `bars` bound to `row.b` rewrites the target string to `row.b`; bound
 /// values that are not simple label expressions leave the target unchanged.
 fn substitute_label_in_target(target: &str, bindings: &HashMap<String, Expr>) -> String {
-    let Some(bound) = bindings.get(target) else {
+    // Dotted targets (`bars.bar[j]`) substitute through their first segment,
+    // matching the label-parameter detection in `collect_label_params`.
+    let (base, rest) = target.split_once('.').unwrap_or((target, ""));
+    let Some(bound) = bindings.get(base) else {
         return target.to_string();
     };
-    match bound {
+    let substituted = match bound {
         Expr::Ident(name) => name.clone(),
         Expr::Path(parts) => parts.join("."),
-        _ => target.to_string(),
+        _ => return target.to_string(),
+    };
+    if rest.is_empty() {
+        substituted
+    } else {
+        format!("{substituted}.{rest}")
     }
 }
 
@@ -794,7 +1151,15 @@ mod tests {
             }],
         );
         let module_fns: HashMap<String, FnTemplate> = HashMap::new();
-        let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
+        let result = expand_stmt_list(
+            vec![invocation],
+            &registry,
+            &module_fns,
+            &std::collections::HashSet::new(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+        .0;
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Block { body, .. } => {
@@ -839,7 +1204,15 @@ mod tests {
         let invocation =
             make_arg_call("highlight_key", vec![Expr::Ident("bars".to_string()), Expr::Num(2.0)]);
         let registry: InstanceFnRegistry = HashMap::new();
-        let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
+        let result = expand_stmt_list(
+            vec![invocation],
+            &registry,
+            &module_fns,
+            &std::collections::HashSet::new(),
+            &mut Vec::new(),
+            &mut Vec::new(),
+        )
+        .0;
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Block { body, .. } => {
@@ -858,7 +1231,7 @@ mod tests {
     }
 
     #[test]
-    fn recursion_cycle_leaves_call_in_place() {
+    fn recursion_cycle_is_diagnosed_and_dropped() {
         let template = template_with(vec![], vec![make_arg_call("b", Vec::new())]);
         let module_fns: HashMap<String, FnTemplate> = [
             ("a".to_string(), template.clone()),
@@ -868,10 +1241,19 @@ mod tests {
         .collect();
         let invocation = make_arg_call("a", Vec::new());
         let registry: InstanceFnRegistry = HashMap::new();
-        // Expanding `a`'s body calls `b`, which calls `a` again — the cycle
-        // guard must terminate without infinite recursion.
-        let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
-        assert!(!result.is_empty(), "cycle must not crash or loop forever");
+        // The cycle pre-pass reports the recursion and the expander drops the
+        // calls, so the run must terminate without infinite recursion or a
+        // surviving "unknown action".
+        let mut diagnostics = Vec::new();
+        let result = expand_fn_calls(vec![invocation], &registry, &module_fns, &mut diagnostics);
+        assert!(
+            diagnostics.iter().any(|d| d.contains("recursive")),
+            "expected a recursion diagnostic, got: {diagnostics:?}"
+        );
+        assert!(
+            !result.iter().any(|s| matches!(s, Stmt::Action(..))),
+            "cycle calls must be dropped, got: {result:?}"
+        );
     }
 
     #[test]
@@ -885,8 +1267,21 @@ mod tests {
             [("dnf".to_string(), template)].into_iter().collect();
         let invocation = make_arg_call("dnf", vec![Expr::Ident("arr".to_string())]);
         let registry: InstanceFnRegistry = HashMap::new();
-        let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
-        // The pure call stays as a statement for the runtime to diagnose.
-        assert!(matches!(&result[0], Stmt::Action(..)));
+        let mut diagnostics = Vec::new();
+        let result = expand_stmt_list(
+            vec![invocation],
+            &registry,
+            &module_fns,
+            &std::collections::HashSet::new(),
+            &mut Vec::new(),
+            &mut diagnostics,
+        )
+        .0;
+        // The pure call is diagnosed and dropped (no "unknown action" at runtime).
+        assert!(
+            diagnostics.iter().any(|d| d.contains("must be called in an expression")),
+            "expected a pure-function statement diagnostic, got: {diagnostics:?}"
+        );
+        assert!(result.is_empty(), "pure statement call must be dropped");
     }
 }

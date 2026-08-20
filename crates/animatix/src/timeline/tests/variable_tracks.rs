@@ -589,7 +589,7 @@ pulse btn [strength: 1.5]
     let program = graph
         .load_program_with_source(std::path::Path::new("fn_scope.amx"), Some(source))
         .expect("program loads");
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),
@@ -641,7 +641,7 @@ bubble_sort(b, vals)
     let program = graph
         .load_program_with_source(std::path::Path::new("fn_sort.amx"), Some(source))
         .expect("program loads");
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),
@@ -711,7 +711,7 @@ dnf_pass(arr, 0, 0, 5)
     let program = graph
         .load_program_with_source(std::path::Path::new("dnf_fn.amx"), Some(source))
         .expect("program loads");
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),
@@ -776,7 +776,7 @@ bubble_sort(bars, vals)
     let program = graph
         .load_program_with_source(std::path::Path::new("fn_dotted.amx"), Some(source))
         .expect("program loads");
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),
@@ -920,7 +920,7 @@ let scaled = bump(2, 4)
     std::fs::write(&scene_path, scene).expect("write scene");
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&scene_path).expect("program loads");
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),

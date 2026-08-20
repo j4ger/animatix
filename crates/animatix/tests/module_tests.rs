@@ -55,7 +55,7 @@ dashboard: MetricCard, title: "Latency"
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
 
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
     assert!(expanded_debug.contains("dashboard"));
     assert!(expanded_debug.contains("Latency"));
@@ -129,7 +129,7 @@ card: MetricCard, title: "Latency"
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(!expanded_debug.contains("MetricCard"));
@@ -173,7 +173,7 @@ panel: Rect, size: (200, 100), color: theme.accent
     assert!(!theme_ns.exports.contains_key("private"));
 
     // Verify the expanded statements do NOT include theme's statements
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
     assert!(!expanded_debug.contains("0.38")); // theme's pub let values not flattened
     assert!(!expanded_debug.contains("background")); // theme's other pub let not flattened
@@ -266,7 +266,7 @@ visible: Rect, size: (100, 100)
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
 
     // The hidden circle from helper should NOT be in expanded statements
     let expanded_debug = format!("{expanded:#?}");
@@ -364,7 +364,7 @@ pulse btn [200ms]
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
 
     // The custom action should be inlined: btn.scale assignments
     let expanded_debug = format!("{expanded:#?}");
@@ -425,7 +425,7 @@ pulse btn1, btn2, rect [200ms]
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     let scale_count = expanded_debug.matches("\"scale\"").count();
@@ -472,7 +472,7 @@ deck: Bars, values: {10, 20, 30}
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let timeline = Timeline::build(&expanded);
     assert!(timeline.tracks().contains_key("deck.bar__0"));
     assert!(timeline.tracks().contains_key("deck.bar__2"));
@@ -515,7 +515,7 @@ pulseAt deck [index: 1]
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let timeline = Timeline::build(&expanded);
     assert!(
         timeline.tracks().contains_key("deck.bar__1"),
@@ -555,7 +555,7 @@ glow card1 [500ms]
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
 
     let expanded_debug = format!("{expanded:#?}");
     // self should rewrite to the instance label
@@ -612,7 +612,7 @@ sequence {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
 
     // Build timeline to verify sequence timing works with inlined actions
     let timeline = animatix::timeline::Timeline::build(&expanded);
@@ -678,7 +678,7 @@ fn load_program_expands_component_with_slots() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     // Component should be expanded (no "SlideLayout" left)
@@ -718,7 +718,7 @@ fn load_program_slot_defaults_fallback() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(!expanded_debug.contains("SlideLayout"));
@@ -767,7 +767,7 @@ fn load_program_slot_mixed_filled_and_unfilled() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(!expanded_debug.contains("SlideLayout"));
@@ -806,7 +806,7 @@ fn load_program_slot_unfilled_required_becomes_empty() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(!expanded_debug.contains("SlideLayout"));
@@ -861,7 +861,7 @@ fn load_program_slot_multiple_instances_different_fills() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(expanded_debug.contains("first"));
@@ -903,7 +903,7 @@ fn load_program_slot_empty_fill() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(expanded_debug.contains("slide"));
@@ -942,7 +942,7 @@ fn load_program_slot_with_component_as_fill() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(expanded_debug.contains("slide"));
@@ -982,7 +982,7 @@ fn load_program_slot_fill_nonexistent_slot() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(expanded_debug.contains("card"));
@@ -1030,7 +1030,7 @@ fn load_program_slot_all_filled_no_defaults_used() {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
 
     assert!(expanded_debug.contains("card"));
@@ -1088,7 +1088,7 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
     let program = ModuleGraph::new().load_program(&entry).unwrap();
 
     // Also verify timeline builds correctly
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let timeline = Timeline::build(&expanded);
 
     // Check that all 3 cards exist in the timeline
@@ -1128,7 +1128,7 @@ highlight card_a
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let timeline = Timeline::build(&expanded);
 
     // Verify the card and its children exist after expansion
@@ -1163,7 +1163,7 @@ always {
     );
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let timeline = Timeline::build(&expanded);
 
     // Verify the box exists
@@ -1199,7 +1199,7 @@ dashboard: MetricCard, title: "Latency"
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
 
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let expanded_debug = format!("{expanded:#?}");
     assert!(expanded_debug.contains("dashboard"));
     assert!(expanded_debug.contains("Latency"));
@@ -1253,7 +1253,7 @@ fade-in a [0ms]
         "transform declaration should typecheck: {type_diagnostics:?}"
     );
 
-    let ast = program.expand_components();
+    let ast = program.expand_components(&mut Vec::new());
     let report = BuildTarget::from_ast(&ast, &program.namespaces, Some(&entry));
     assert!(
         report.diagnostics.is_empty(),

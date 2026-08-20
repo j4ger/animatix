@@ -338,7 +338,17 @@ fn load_and_build(
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
         Ok(mut program) => {
             let diagnostics = program.typecheck();
-            (program.expand_components(), program.namespaces, diagnostics)
+            let mut expansion_errors = Vec::new();
+            let expanded = program.expand_components(&mut expansion_errors);
+            let mut diagnostics = diagnostics;
+            for error in expansion_errors {
+                diagnostics.push(animatix_syntax::diagnostics::Diagnostic::error(
+                    animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
+                    animatix_syntax::diagnostics::DiagnosticPhase::Build,
+                    error,
+                ));
+            }
+            (expanded, program.namespaces, diagnostics)
         },
         Err(e) => {
             error!("Error: {}", e);
@@ -782,7 +792,17 @@ fn main() {
             {
                 Ok(mut program) => {
                     let diagnostics = program.typecheck();
-                    (program.expand_components(), program.namespaces, diagnostics)
+                    let mut expansion_errors = Vec::new();
+                    let expanded = program.expand_components(&mut expansion_errors);
+                    let mut diagnostics = diagnostics;
+                    for error in expansion_errors {
+                        diagnostics.push(animatix_syntax::diagnostics::Diagnostic::error(
+                            animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
+                            animatix_syntax::diagnostics::DiagnosticPhase::Build,
+                            error,
+                        ));
+                    }
+                    (expanded, program.namespaces, diagnostics)
                 },
                 Err(e) => {
                     error!("Error: {}", e);

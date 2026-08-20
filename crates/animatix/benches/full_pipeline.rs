@@ -63,7 +63,7 @@ fn full_pipeline(source: &str) {
     let mut program =
         graph.load_program_with_source(&path, Some(source)).expect("module load failed");
     let _type_diags = program.typecheck();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let _timeline = Timeline::build(&expanded);
 
     // Clean up
@@ -77,7 +77,7 @@ fn full_pipeline_file(path: &Path) {
     let mut program =
         graph.load_program_with_source(path, Some(&source)).expect("module load failed");
     let _type_diags = program.typecheck();
-    let expanded = program.expand_components();
+    let expanded = program.expand_components(&mut Vec::new());
     let _timeline = Timeline::build(&expanded);
 }
 

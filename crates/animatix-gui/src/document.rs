@@ -501,7 +501,7 @@ impl DocumentSession {
         let mut graph = self.cached_module_graph.take().unwrap_or_default();
         let mut program =
             graph.load_program_with_source(&self.file_path, Some(&self.source_text))?;
-        let type_diagnostics = program.typecheck();
+        let mut type_diagnostics = program.typecheck();
 
         // Hash the component registry to detect changes.
         let component_hash = {
@@ -521,15 +521,19 @@ impl DocumentSession {
             if let Some(expanded) = self.cached_expanded.clone() {
                 expanded
             } else {
-                let expanded = program.expand_components();
+                let mut expansion_errors = Vec::new();
+                let expanded = program.expand_components(&mut expansion_errors);
                 self.cached_expanded = Some(expanded.clone());
                 self.last_component_hash = component_hash;
+                Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
                 expanded
             }
         } else {
-            let expanded = program.expand_components();
+            let mut expansion_errors = Vec::new();
+            let expanded = program.expand_components(&mut expansion_errors);
             self.cached_expanded = Some(expanded.clone());
             self.last_component_hash = component_hash;
+            Self::push_expansion_diagnostics(&mut type_diagnostics, expansion_errors);
             expanded
         };
 
@@ -543,6 +547,21 @@ impl DocumentSession {
             components: program.components,
             module_fns: program.module_fns,
         })
+    }
+
+    /// Convert timeline-function expansion errors (recursion cycles, statement-level
+    /// pure-function calls) into build diagnostics attached to the document.
+    fn push_expansion_diagnostics(
+        diagnostics: &mut Vec<animatix_syntax::diagnostics::Diagnostic>,
+        errors: Vec<String>,
+    ) {
+        for error in errors {
+            diagnostics.push(animatix_syntax::diagnostics::Diagnostic::error(
+                animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
+                animatix_syntax::diagnostics::DiagnosticPhase::Build,
+                error,
+            ));
+        }
     }
 
     pub fn raw_program_statements(&self) -> Option<&[Stmt]> {

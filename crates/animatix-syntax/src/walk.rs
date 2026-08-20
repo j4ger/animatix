@@ -165,7 +165,8 @@ pub fn collect_stmt_bodies_mut(stmt: &mut Stmt) -> Vec<&mut Vec<Stmt>> {
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(crate::ast::ComponentDef { body, .. }, _)
         | Stmt::FnDecl { body, .. }
-        | Stmt::Scene { body, .. } => {
+        | Stmt::Scene { body, .. }
+        | Stmt::Block { body, .. } => {
             vec![body]
         },
         Stmt::Conditional {

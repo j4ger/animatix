@@ -727,13 +727,43 @@ pub(crate) fn parser<'src>(
                     )
                     .then(fn_body),
             ))
-            .map(|((is_pub, name), ((params, return_type), body))| Stmt::FnDecl {
-                is_pub,
-                name,
-                params,
-                return_type,
-                body,
-                span: None,
+            .map(|((is_pub, name), ((params, return_type), mut body))| {
+                // A timeline function's trailing call expression is a nested
+                // function call statement, not a tail value: `fn a() { b() }`
+                // means "call b", so convert `Expr(Call(b))` back to an action.
+                if return_type.is_none() {
+                    let tail_call = match body.last() {
+                        Some(Stmt::Expr(expr, _)) => match expr {
+                            Expr::Call(verb, args) => {
+                                Some((verb.clone(), args.clone()))
+                            },
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some((verb, args)) = tail_call {
+                        body.pop();
+                        body.push(Stmt::Action(
+                            Action {
+                                verb,
+                                targets: Vec::new(),
+                                target_index: Vec::new(),
+                                args,
+                                modifiers: Vec::new(),
+                                byte_span: None,
+                            },
+                            None,
+                        ));
+                    }
+                }
+                Stmt::FnDecl {
+                    is_pub,
+                    name,
+                    params,
+                    return_type,
+                    body,
+                    span: None,
+                }
             });
 
         let component_def = keyword("pub")

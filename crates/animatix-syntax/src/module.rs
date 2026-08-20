@@ -144,10 +144,12 @@ impl LoadedProgram {
         false
     }
 
-    /// Expand component instances into concrete statements and expand timeline-function calls.
-    pub fn expand_components(&self) -> Vec<Stmt> {
+    /// Expand component instances into concrete statements and expand
+    /// timeline-function calls. Expansion diagnostics (recursion cycles,
+    /// statement-level pure-function calls) are appended to `diagnostics`.
+    pub fn expand_components(&self, diagnostics: &mut Vec<String>) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::expand_fn_calls(stmts, &registry, &self.module_fns)
+        inline_actions::expand_fn_calls(stmts, &registry, &self.module_fns, diagnostics)
     }
 }
 
