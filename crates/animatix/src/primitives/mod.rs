@@ -494,6 +494,23 @@ pub fn translate_text_paths(
         .into()
 }
 
+/// Compute the transform that maps a texture's pixel rect onto its display box.
+///
+/// `vello::Scene::draw_image` fills a rect of `image_width × image_height`
+/// scene units (1 texture pixel = 1 unit), so a texture of `pixels` pixels
+/// needs a scale of `display / pixels` to appear at its requested display
+/// size. `display` is the command's `natural_size` (full actor size in scene
+/// units), `offset` shifts the box in local space before the actor transform.
+pub fn image_display_transform(
+    display: [f32; 2],
+    pixels: [f32; 2],
+    offset: [f64; 2],
+) -> kurbo::Affine {
+    let sx = (display[0] / pixels[0].max(1.0)) as f64;
+    let sy = (display[1] / pixels[1].max(1.0)) as f64;
+    kurbo::Affine::translate((offset[0], offset[1])) * kurbo::Affine::scale_non_uniform(sx, sy)
+}
+
 impl RenderCommand {
     /// Execute this command into a Vello scene with the given transform and opacity.
     pub fn execute(&self, scene: &mut vello::Scene, transform: &kurbo::Affine, opacity: f32) {
@@ -557,13 +574,8 @@ impl RenderCommand {
                 natural_size,
                 offset,
             } => {
-                let [nw, nh] = *natural_size;
                 let image_transform = *transform
-                    * kurbo::Affine::translate((offset[0], offset[1]))
-                    * kurbo::Affine::scale_non_uniform(
-                        (image.natural_size[0] * 2.0 / nw) as f64,
-                        (image.natural_size[1] * 2.0 / nh) as f64,
-                    );
+                    * image_display_transform(*natural_size, image.natural_size, *offset);
                 let brush = vello::peniko::ImageBrush::new(image.data.clone())
                     .with_extend(vello::peniko::Extend::Pad)
                     .with_quality(vello::peniko::ImageQuality::Medium)
@@ -1031,6 +1043,54 @@ mod tests {
             let name = p.type_name();
             assert!(seen.insert(name), "Duplicate type_name: {:?}", name);
         }
+    }
+
+    #[test]
+    fn image_display_transform_maps_pixels_to_display_box() {
+        // Map the four corners of the texture rect (drawn by Vello at its pixel
+        // size, 1 px = 1 unit) through the transform and check the bbox.
+        let corners = |t: &kurbo::Affine, w: f64, h: f64| -> (f64, f64) {
+            let xs = [
+                (*t * kurbo::Point::new(0.0, 0.0)).x,
+                (*t * kurbo::Point::new(w, 0.0)).x,
+                (*t * kurbo::Point::new(0.0, h)).x,
+                (*t * kurbo::Point::new(w, h)).x,
+            ];
+            let ys = [
+                (*t * kurbo::Point::new(0.0, 0.0)).y,
+                (*t * kurbo::Point::new(w, 0.0)).y,
+                (*t * kurbo::Point::new(0.0, h)).y,
+                (*t * kurbo::Point::new(w, h)).y,
+            ];
+            let c = |v: &[f64]| {
+                v.iter().cloned().fold(f64::NAN, f64::max)
+                    - v.iter().cloned().fold(f64::NAN, f64::min)
+            };
+            (c(&xs), c(&ys))
+        };
+        // A 24×24 texture in a 240×160 actor box must scale by (240/24, 160/24):
+        // the drawn quad then covers exactly the actor box (0..240 × 0..160).
+        let t = image_display_transform([240.0, 160.0], [24.0, 24.0], [0.0, 0.0]);
+        let (w, h) = corners(&t, 24.0, 24.0);
+        assert!((w - 240.0).abs() < 0.001, "width {w}");
+        assert!((h - 160.0).abs() < 0.001, "height {h}");
+
+        // Plugin-style command: a 24×24 texture with an explicit 72×72 display
+        // box stamps the texture over the full box (scale 3×3).
+        let t = image_display_transform([72.0, 72.0], [24.0, 24.0], [0.0, 0.0]);
+        let (w, h) = corners(&t, 24.0, 24.0);
+        assert!((w - 72.0).abs() < 0.001);
+        assert!((h - 72.0).abs() < 0.001);
+
+        // Offset shifts the box in local space before the actor transform.
+        let t = image_display_transform([100.0, 100.0], [1.0, 1.0], [30.0, 40.0]);
+        let p = t * kurbo::Point::new(0.0, 0.0);
+        assert!((p.x - 30.0).abs() < 0.001);
+        assert!((p.y - 40.0).abs() < 0.001);
+
+        // Zero / degenerate texture sizes degrade to a 1×1 guard instead of NaN.
+        let t = image_display_transform([100.0, 100.0], [0.0, 0.0], [0.0, 0.0]);
+        assert!(t.as_coeffs().iter().all(|c| c.is_finite()));
     }
 
     #[test]
