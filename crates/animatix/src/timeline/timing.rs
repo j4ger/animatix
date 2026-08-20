@@ -25,6 +25,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::FnDecl { .. } => "function",
         Stmt::Block { .. } => "block",
         Stmt::Return { .. } => "return",
+        Stmt::Expr(..) => "expression",
         Stmt::Config { .. } => "config block",
         Stmt::Comment(..) => "comment",
         Stmt::Scene { .. } => "scene declaration",

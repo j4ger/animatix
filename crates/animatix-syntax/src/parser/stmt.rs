@@ -680,6 +680,33 @@ pub(crate) fn parser<'src>(
         // `fn name(params) -> Type? { body }` — module-level or component-level.
         // A return type marks a pure function (computation only); without one
         // it is a timeline function that may emit events (`self` is implicit).
+        // Pure-function bodies (with `-> Type`) use a reduced statement set
+        // (let/if/match/for/return) plus an optional trailing expression that
+        // is the return value; timeline-function bodies fall back to the full
+        // statement grammar (actions, assignments, ...).
+        let pure_fn_stmt = choice((
+            let_decl.clone(),
+            conditional_stmt.clone(),
+            match_stmt.clone(),
+            for_stmt.clone(),
+            return_stmt.clone(),
+        ));
+        let pure_fn_body = pure_fn_stmt
+            .clone()
+            .repeated()
+            .collect::<Vec<_>>()
+            .then(expr.clone().or_not())
+            .delimited_by(lbrace(), rbrace())
+            .map(|(stmts, tail)| {
+                let mut body = stmts;
+                if let Some(tail) = tail {
+                    body.push(Stmt::Expr(tail, None));
+                }
+                body
+            });
+        let fn_body = pure_fn_body
+            .or(_stmt.clone().repeated().collect::<Vec<_>>().delimited_by(lbrace(), rbrace()));
+
         let fn_decl_stmt = keyword("pub")
             .or_not()
             .map(|p| p.is_some())
@@ -698,13 +725,7 @@ pub(crate) fn parser<'src>(
                             .ignore_then(type_annotation.clone())
                             .or_not(),
                     )
-                    .then(
-                        _stmt
-                            .clone()
-                            .repeated()
-                            .collect::<Vec<_>>()
-                            .delimited_by(lbrace(), rbrace()),
-                    ),
+                    .then(fn_body),
             ))
             .map(|((is_pub, name), ((params, return_type), body))| Stmt::FnDecl {
                 is_pub,

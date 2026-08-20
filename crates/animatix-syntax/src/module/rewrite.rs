@@ -194,6 +194,9 @@ pub(super) fn rewrite_stmt(
                 .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
             span: *span,
         },
+        Stmt::Expr(expr, span) => {
+            Stmt::Expr(rewrite_expr(expr, prefix, root_label, known_labels, bindings), *span)
+        },
         Stmt::Block { body, span, .. } => Stmt::Block {
             body: body
                 .iter()

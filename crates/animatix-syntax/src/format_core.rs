@@ -651,6 +651,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             Some(expr) => format!("return {}", format_expr(expr)),
             None => "return".to_string(),
         },
+        Stmt::Expr(expr, ..) => format_expr(expr),
         Stmt::Config { settings, .. } => {
             let inner = settings.iter().map(format_property).collect::<Vec<_>>().join(", ");
             format!("config {{ {} }}", inner)

@@ -441,6 +441,9 @@ impl SymbolTable {
                     self.collect_refs_from_stmt(stmt);
                 }
             },
+            Stmt::Expr(expr, ..) => {
+                self.collect_refs_from_expr(expr);
+            },
             Stmt::Action(action, ..) => {
                 for (target, index) in action.targets.iter().zip(action.target_index.iter()) {
                     if let Some(expr) = index {

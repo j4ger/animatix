@@ -803,3 +803,137 @@ bubble_sort(bars, vals)
         "dotted-target fn swaps must follow the insertion-sort passes"
     );
 }
+
+#[test]
+fn pure_fn_tail_expression_returns_value() {
+    // A pure function's final expression is its return value (Rust style);
+    // `return` statements still work for early unwinding.
+    let source = r#"
+fn sum2(xs: List<Num>) -> Num {
+  let a = xs[0]
+  let b = xs[1]
+  a + b
+}
+fn guard(n: Num) -> Num {
+  if n < 0 {
+    return 0
+  }
+  n * 2
+}
+#0s
+let s = sum2({3, 4})
+let g = guard(-5)
+let h = guard(21)
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let s = timeline.variable_tracks.get("s").expect("s track");
+    assert_eq!(s.evaluate(0), Some(Value::Num(7.0)), "tail expr 3+4");
+    let g = timeline.variable_tracks.get("g").expect("g track");
+    assert_eq!(g.evaluate(0), Some(Value::Num(0.0)), "early return 0");
+    let h = timeline.variable_tracks.get("h").expect("h track");
+    assert_eq!(h.evaluate(0), Some(Value::Num(42.0)), "tail expr 21*2");
+}
+
+#[test]
+fn always_block_calls_pure_fn_at_frame_time() {
+    // Pure functions are callable from `always` bodies: the IR executor
+    // resolves the UserFn through the frame environment.
+    let source = r#"
+fn double(n: Num) -> Num {
+  n * 2
+}
+box: Rect, size: (100, 50), color: blue
+#0s
+fade-in box [300ms]
+always {
+  box.scale = double(3) [0ms]
+}
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    // Always modifiers apply during frame evaluation: execute the compiled
+    // modifier program and check the override it produces.
+    use crate::timeline::modifier_runtime::ir::ModifierOverrides;
+    let mut overrides: ModifierOverrides = std::collections::HashMap::new();
+    let mut env = timeline.build_frame_env(
+        500,
+        crate::timeline::SceneDimensions::default(),
+        &std::collections::HashMap::new(),
+    );
+    for program in &timeline.modifier_programs {
+        crate::timeline::modifier_runtime::ir::execute_modifier_ir(
+            program,
+            &mut env,
+            &mut overrides,
+        )
+        .expect("modifier execution");
+    }
+    let box_overrides = overrides.get("box").expect("box overrides");
+    let scale = box_overrides.get("scale").expect("box.scale override");
+    assert_eq!(scale, &Value::Num(6.0), "always must evaluate double(3) = 6 at frame time");
+}
+
+#[test]
+fn pub_fn_imports_across_files() {
+    // `pub fn` declarations in an imported module are available to the entry
+    // file through the flattened module statements.
+    let lib = r#"
+pub fn dnf(arr: List<Num>) -> List<Num> {
+  let arr = list_swap(arr, 0, 2)
+  return arr
+}
+pub fn bump(v: Num, f: Num) -> Num {
+  v * f
+}
+"#;
+    let scene = r#"
+import "./lib.amx"
+#0s
+let sorted = dnf({3, 2, 1})
+let scaled = bump(2, 4)
+"#;
+    let dir = std::env::temp_dir().join(format!("animatix_pubfn_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("create dir");
+    std::fs::write(dir.join("lib.amx"), lib).expect("write lib");
+    let scene_path = dir.join("scene.amx");
+    std::fs::write(&scene_path, scene).expect("write scene");
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph.load_program(&scene_path).expect("program loads");
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let sorted = timeline.variable_tracks.get("sorted").expect("sorted");
+    assert_eq!(
+        sorted.evaluate(0),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)])),
+        "imported dnf must swap indices 0 and 2"
+    );
+    let scaled = timeline.variable_tracks.get("scaled").expect("scaled");
+    assert_eq!(scaled.evaluate(0), Some(Value::Num(8.0)), "imported bump(2,4)");
+}

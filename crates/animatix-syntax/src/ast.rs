@@ -921,6 +921,11 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
+    /// A bare expression statement. Inside a pure function body the final
+    /// expression is the return value (Rust-style tail expression); elsewhere
+    /// the checker rejects it.
+    Expr(Expr, Option<Span>),
+
     // === Configuration ===
     /// Config block: `@config { resolution: 1920x1080 }`
     Config {

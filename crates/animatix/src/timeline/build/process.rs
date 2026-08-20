@@ -336,6 +336,14 @@ impl Timeline {
                         "'return' is only valid inside a pure function body".to_string(),
                     ));
                 },
+                Stmt::Expr(..) => {
+                    diagnostics.push(Diagnostic::error(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        "bare expressions are only valid as the tail of a pure function body"
+                            .to_string(),
+                    ));
+                },
             }
         }
     }

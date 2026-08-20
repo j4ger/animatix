@@ -126,6 +126,12 @@ fn exec_block(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> 
                 };
                 return Ok(Flow::Return(value));
             },
+            // Tail expression: the final expression in a pure function body
+            // is its return value (Rust style).
+            Stmt::Expr(expr, ..) => {
+                let value = utils::evaluate_expr(expr, env)?;
+                return Ok(Flow::Return(value));
+            },
             // Timeline constructs are rejected by the purity checker before a
             // pure function is ever evaluated.
             _ => {},
