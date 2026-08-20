@@ -73,20 +73,20 @@ pub struct ModuleGraph {
     source_access: SourceAccess,
 }
 
-/// A component definition together with its source file and custom actions.
+/// A component definition together with its source file and timeline functions.
 #[derive(Clone, Debug)]
 pub struct ComponentEntry {
     /// The parsed component definition.
     pub definition: ComponentDef,
     /// Absolute path to the file that defined this component.
     pub source_path: PathBuf,
-    /// Custom action templates defined inside this component: action_name → template.
-    pub actions: HashMap<String, ActionTemplate>,
+    /// Timeline-function templates defined inside this component: fn_name → template.
+    pub actions: HashMap<String, FnTemplate>,
 }
 
 /// A timeline-function template with parameter definitions and body.
 #[derive(Clone, Debug)]
-pub struct ActionTemplate {
+pub struct FnTemplate {
     /// Parameter definitions for this function.
     pub params: Vec<ParamDef>,
     /// Return type annotation; `Some` marks a pure function that is evaluated
@@ -96,8 +96,8 @@ pub struct ActionTemplate {
     pub body: Vec<Stmt>,
 }
 
-/// Maps instance label → action_name → action template.
-pub type InstanceActionRegistry = HashMap<String, HashMap<String, ActionTemplate>>;
+/// Maps instance label → fn_name → function template.
+pub type InstanceFnRegistry = HashMap<String, HashMap<String, FnTemplate>>;
 
 /// A fully loaded program: top-level statements, component registry, and namespaces.
 #[derive(Clone, Debug, Default)]
@@ -107,7 +107,7 @@ pub struct LoadedProgram {
     /// All components keyed by name, collected from the entry file and imports.
     pub components: HashMap<String, ComponentEntry>,
     /// Module-scoped actions: action_name → template.
-    pub module_actions: HashMap<String, ActionTemplate>,
+    pub module_fns: HashMap<String, FnTemplate>,
     /// Namespaces exported by aliased imports, keyed by alias name.
     pub namespaces: HashMap<String, Namespace>,
 }
@@ -120,7 +120,7 @@ impl LoadedProgram {
     /// Unannotated parameters accept any value.
     pub fn typecheck(&mut self) -> Vec<crate::diagnostics::Diagnostic> {
         let strict_types = self.extract_strict_types();
-        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_actions)
+        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_fns)
             .with_strict_types(strict_types);
         env.register_module_aliases(&self.namespaces);
         env.check_statements(&self.statements)
@@ -144,10 +144,10 @@ impl LoadedProgram {
         false
     }
 
-    /// Expand component instances into concrete statements and inline custom actions.
+    /// Expand component instances into concrete statements and expand timeline-function calls.
     pub fn expand_components(&self) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::expand_fn_calls(stmts, &registry, &self.module_actions)
+        inline_actions::expand_fn_calls(stmts, &registry, &self.module_fns)
     }
 }
 
@@ -824,7 +824,7 @@ impl ModuleGraph {
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
 
         // Collect module-scoped actions from flattened statements
-        let module_actions = Self::collect_module_actions(&statements);
+        let module_fns = Self::collect_module_fns(&statements);
 
         let mut namespaces = HashMap::new();
         // Collect namespaces from the entry file's direct aliased imports,
@@ -858,7 +858,7 @@ impl ModuleGraph {
         Ok(LoadedProgram {
             statements,
             components,
-            module_actions,
+            module_fns,
             namespaces,
         })
     }
@@ -880,18 +880,15 @@ impl ModuleGraph {
     /// Walks into keyframe / relative-keyframe / sequence / stagger / always / drive / conditional
     /// / for bodies.
     #[doc(hidden)]
-    pub fn collect_module_actions(stmts: &[Stmt]) -> HashMap<String, ActionTemplate> {
+    pub fn collect_module_fns(stmts: &[Stmt]) -> HashMap<String, FnTemplate> {
         let mut actions = HashMap::new();
         for stmt in stmts {
-            Self::collect_module_actions_from_stmt(stmt, &mut actions);
+            Self::collect_module_fns_from_stmt(stmt, &mut actions);
         }
         actions
     }
 
-    fn collect_module_actions_from_stmt(
-        stmt: &Stmt,
-        actions: &mut HashMap<String, ActionTemplate>,
-    ) {
+    fn collect_module_fns_from_stmt(stmt: &Stmt, actions: &mut HashMap<String, FnTemplate>) {
         match stmt {
             Stmt::FnDecl {
                 name,
@@ -902,7 +899,7 @@ impl ModuleGraph {
             } => {
                 actions.insert(
                     name.clone(),
-                    ActionTemplate {
+                    FnTemplate {
                         params: params.clone(),
                         return_type: return_type.clone(),
                         body: body.clone(),
@@ -916,7 +913,7 @@ impl ModuleGraph {
             | Stmt::Always { body, .. }
             | Stmt::ForLoop { body, .. } => {
                 for stmt in body {
-                    Self::collect_module_actions_from_stmt(stmt, actions);
+                    Self::collect_module_fns_from_stmt(stmt, actions);
                 }
             },
             Stmt::Conditional {
@@ -925,18 +922,18 @@ impl ModuleGraph {
                 ..
             } => {
                 for stmt in then_branch {
-                    Self::collect_module_actions_from_stmt(stmt, actions);
+                    Self::collect_module_fns_from_stmt(stmt, actions);
                 }
                 if let Some(else_body) = else_branch {
                     for stmt in else_body {
-                        Self::collect_module_actions_from_stmt(stmt, actions);
+                        Self::collect_module_fns_from_stmt(stmt, actions);
                     }
                 }
             },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
-                        Self::collect_module_actions_from_stmt(stmt, actions);
+                        Self::collect_module_fns_from_stmt(stmt, actions);
                     }
                 }
             },

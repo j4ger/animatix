@@ -10,9 +10,7 @@ use animatix::timeline::{AnimationTrack, SceneDimensions, Timeline, TimelineInde
 use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use animatix_syntax::module::{
-    ActionTemplate, ComponentEntry, ModuleError, ModuleGraph, Namespace,
-};
+use animatix_syntax::module::{ComponentEntry, FnTemplate, ModuleError, ModuleGraph, Namespace};
 use animatix_syntax::source_index::SourceIndex;
 
 use crate::error::GuiError;
@@ -24,7 +22,7 @@ pub struct LoadedProgramResult {
     pub namespaces: HashMap<String, Namespace>,
     pub type_diagnostics: Vec<Diagnostic>,
     pub components: HashMap<String, ComponentEntry>,
-    pub module_actions: HashMap<String, ActionTemplate>,
+    pub module_fns: HashMap<String, FnTemplate>,
 }
 
 pub struct DocumentSession {
@@ -58,7 +56,7 @@ pub struct DocumentSession {
     /// Component registry from the last successful program load.
     pub components: HashMap<String, ComponentEntry>,
     /// Module-scoped actions from the last successful program load.
-    pub module_actions: HashMap<String, ActionTemplate>,
+    pub module_fns: HashMap<String, FnTemplate>,
     /// Hash of source_text at last successful rebuild — skip rebuild if unchanged.
     last_source_hash: u64,
     /// Hash of component registry at last successful rebuild — skip expansion if unchanged.
@@ -134,7 +132,7 @@ impl DocumentSession {
             timeline_index: TimelineIndex::default(),
             keyframe_lines: Vec::new(),
             components: HashMap::new(),
-            module_actions: HashMap::new(),
+            module_fns: HashMap::new(),
             last_source_hash: 0,
             last_component_hash: 0,
             cached_expanded: None,
@@ -270,7 +268,7 @@ impl DocumentSession {
                 // Preserve last-known-good component registry so the GUI
                 // stays usable while the user is editing.
                 // self.components = HashMap::new();
-                // self.module_actions = HashMap::new();
+                // self.module_fns = HashMap::new();
                 self.timeline = None;
                 self.composition = None;
                 self.active_scene = None;
@@ -304,7 +302,7 @@ impl DocumentSession {
         self.source_index = Some(source_index);
         self.namespaces = result.namespaces;
         self.components = result.components;
-        self.module_actions = result.module_actions;
+        self.module_fns = result.module_fns;
         let mut all_diagnostics = result.type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
@@ -428,7 +426,7 @@ impl DocumentSession {
         self.expanded_statements = Some(output.expanded_statements);
         self.namespaces = output.namespaces;
         self.components = output.components;
-        self.module_actions = output.module_actions;
+        self.module_fns = output.module_fns;
         self.source_index = Some(output.source_index);
         self.diagnostics = output.diagnostics;
         self.timeline_index = output.timeline_index;
@@ -543,7 +541,7 @@ impl DocumentSession {
             namespaces: program.namespaces,
             type_diagnostics,
             components: program.components,
-            module_actions: program.module_actions,
+            module_fns: program.module_fns,
         })
     }
 

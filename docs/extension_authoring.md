@@ -9,7 +9,7 @@ services go through the same registry/descriptor path used by the demo plugin.
 `ExtensionContext` is the per-build container for:
 
 - custom primitives
-- custom actions
+- timeline functions (`fn` without a return type; formerly `action`)
 - native expression functions
 - typed services
 

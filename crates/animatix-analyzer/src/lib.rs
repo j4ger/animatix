@@ -140,8 +140,8 @@ impl Analyzer {
         // Run type checker
         self.type_diagnostics = if let Some(ref stmts) = self.ast {
             let components = Self::build_component_registry(stmts);
-            let module_actions = std::collections::HashMap::new();
-            let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_actions);
+            let module_fns = std::collections::HashMap::new();
+            let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
             let syntax_diagnostics = env.check_statements(stmts);
             syntax_diagnostics.into_iter().map(Self::convert_type_diagnostic).collect()
         } else {

@@ -205,11 +205,11 @@ pub fn collect_scenes_from_stmts(stmts: &[Stmt]) -> HashMap<String, super::Scene
     scenes
 }
 
-/// Collect custom action templates from a component definition body.
-/// Returns a map of action_name → action template.
+/// Collect timeline-function templates from a component definition body.
+/// Returns a map of fn_name → function template.
 pub fn collect_component_actions(
     definition: &ComponentDef,
-) -> HashMap<String, crate::module::ActionTemplate> {
+) -> HashMap<String, crate::module::FnTemplate> {
     let mut actions = HashMap::new();
     for stmt in &definition.body {
         if let Stmt::FnDecl {
@@ -222,7 +222,7 @@ pub fn collect_component_actions(
         {
             actions.insert(
                 name.clone(),
-                crate::module::ActionTemplate {
+                crate::module::FnTemplate {
                     params: params.clone(),
                     return_type: return_type.clone(),
                     body: body.clone(),

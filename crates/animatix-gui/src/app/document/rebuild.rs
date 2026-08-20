@@ -242,7 +242,7 @@ impl RebuildWorker {
                         expanded_statements: session.expanded_statements.unwrap_or_default(),
                         namespaces: session.namespaces,
                         components: session.components,
-                        module_actions: session.module_actions,
+                        module_fns: session.module_fns,
                         source_index: session.source_index.unwrap_or_default(),
                         timeline: session.timeline,
                         composition: session.composition,

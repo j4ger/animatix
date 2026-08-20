@@ -1001,7 +1001,7 @@ pub component MetricCard(title: Str = "Metric", value: Str = "0") {
 
 **Component bodies** are pure actor templates — not scene containers. Only the following are valid inside `component { ... }`:
 - Actor declarations (`label: Type, props`)
-- Custom `action` blocks
+- Custom timeline functions (`fn` blocks)
 - Assignments (`actor.prop = value`)
 - `let` declarations
 - Control flow: `if`, `for`, `sequence`, `stagger`
@@ -1112,7 +1112,7 @@ slide: SlideLayout {
 
 ## 13. Type Annotations
 
-Animatix has a **gradual type system**. Type annotations are optional and may be added to component and function parameters. When present, the type checker validates property assignments and action invocations at build time, reporting type mismatches as diagnostics.
+Animatix has a **gradual type system**. Type annotations are optional and may be added to component and function parameters. When present, the type checker validates property assignments and function invocations at build time, reporting type mismatches as diagnostics.
 
 ### 13.1 Syntax
 

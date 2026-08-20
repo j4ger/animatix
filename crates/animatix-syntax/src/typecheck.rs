@@ -16,8 +16,8 @@ use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
 pub struct TypeEnv<'a> {
     /// Component name → component definition.
     components: &'a HashMap<String, crate::module::ComponentEntry>,
-    /// Module-scoped actions: action_name → template.
-    module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
+    /// Module-scoped timeline functions: fn_name → template.
+    module_fns: &'a HashMap<String, crate::module::FnTemplate>,
     /// Actor label → component type name (accumulated during AST walk).
     labels: HashMap<String, String>,
     /// Symbol-aware type environment used for expression inference.
@@ -30,7 +30,7 @@ impl<'a> TypeEnv<'a> {
     /// Create a new type environment from a component registry and module actions.
     pub fn new(
         components: &'a HashMap<String, crate::module::ComponentEntry>,
-        module_actions: &'a HashMap<String, crate::module::ActionTemplate>,
+        module_fns: &'a HashMap<String, crate::module::FnTemplate>,
     ) -> Self {
         let mut typed = TypedEnv::with_stdlib();
         for (name, entry) in components {
@@ -50,7 +50,7 @@ impl<'a> TypeEnv<'a> {
         }
         Self {
             components,
-            module_actions,
+            module_fns,
             labels: HashMap::new(),
             typed,
             strict_types: false,
@@ -153,7 +153,7 @@ impl<'a> TypeEnv<'a> {
             },
             Stmt::Action(action, _span) => {
                 for target in &action.targets {
-                    // Try component action first
+                    // Try component timeline function first
                     let mut checked = false;
                     if let Some(component_name) = self.labels.get(target) {
                         if let Some(entry) = self.components.get(component_name) {
@@ -172,7 +172,7 @@ impl<'a> TypeEnv<'a> {
                     }
                     // Fall back to module-scoped action
                     if !checked {
-                        if let Some(template) = self.module_actions.get(&action.verb) {
+                        if let Some(template) = self.module_fns.get(&action.verb) {
                             self.check_action_invocation(
                                 &action.verb,
                                 target,
@@ -298,9 +298,9 @@ impl<'a> TypeEnv<'a> {
                 ..
             } => {
                 if self.strict_types {
-                    self.check_param_annotations(name, "action", params, diagnostics);
+                    self.check_param_annotations(name, "function", params, diagnostics);
                 }
-                self.check_param_type_aliases(name, "action", params, diagnostics);
+                self.check_param_type_aliases(name, "function", params, diagnostics);
                 self.typed.push_scope();
                 for param in params {
                     let ty = param
@@ -452,7 +452,7 @@ impl<'a> TypeEnv<'a> {
 
     fn check_action_invocation(
         &self,
-        action_name: &str,
+        fn_name: &str,
         target: &str,
         component_name: &str,
         params: &[ParamDef],
@@ -479,13 +479,13 @@ impl<'a> TypeEnv<'a> {
                                     "Type mismatch: parameter '{}' of action '{}.{}' expects {}, got {} (from {})",
                                     param.name,
                                     component_name,
-                                    action_name,
+                                    fn_name,
                                     expected,
                                     actual,
                                     expr_summary(value)
                                 ),
                             )
-                            .with_subject(format!("{}.{}.{}", component_name, action_name, param.name)),
+                            .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name)),
                         );
                     }
                 } else if param.default.is_none() {
@@ -495,10 +495,10 @@ impl<'a> TypeEnv<'a> {
                             DiagnosticPhase::Build,
                             format!(
                                 "Missing required parameter '{}' for action '{}.{}' on '{}'",
-                                param.name, component_name, action_name, target
+                                param.name, component_name, fn_name, target
                             ),
                         )
-                        .with_subject(format!("{}.{}.{}", component_name, action_name, param.name)),
+                        .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name)),
                     );
                 }
             }
@@ -641,7 +641,7 @@ mod tests {
 
     use super::*;
     use crate::ast::{ComponentDef, ParamDef, Property, Stmt, TypeAnnotation};
-    use crate::module::{ActionTemplate, ComponentEntry};
+    use crate::module::{ComponentEntry, FnTemplate};
 
     fn make_env() -> TypeEnv<'static> {
         let mut components = HashMap::new();
@@ -783,7 +783,7 @@ mod tests {
                     let mut actions = HashMap::new();
                     actions.insert(
                         "pulse".to_string(),
-                        ActionTemplate {
+                        FnTemplate {
                             params: vec![ParamDef {
                                 name: "scale".to_string(),
                                 param_type: Some(TypeAnnotation::Num),
@@ -851,7 +851,7 @@ mod tests {
                     let mut actions = HashMap::new();
                     actions.insert(
                         "pulse".to_string(),
-                        ActionTemplate {
+                        FnTemplate {
                             params: vec![ParamDef {
                                 name: "scale".to_string(),
                                 param_type: Some(TypeAnnotation::Num),
@@ -971,8 +971,8 @@ mod tests {
                 },
             );
         }
-        let module_actions = crate::module::ModuleGraph::collect_module_actions(&ast);
-        let mut env = TypeEnv::new(&components, &module_actions);
+        let module_fns = crate::module::ModuleGraph::collect_module_fns(&ast);
+        let mut env = TypeEnv::new(&components, &module_fns);
         let type_errors = env.check_statements(&ast);
         assert!(type_errors.is_empty(), "Type errors: {:?}", type_errors);
     }

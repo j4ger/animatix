@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::ast::{Action, Expr, Modifier, Stmt, TargetSegment, array_actor_label};
-use crate::module::{ActionTemplate, InstanceActionRegistry};
+use crate::module::{FnTemplate, InstanceFnRegistry};
 
 // NOTE: This module takes ownership of Vec<Stmt> and produces a new
 // Vec<Stmt> (owned tree transformation with potential 1→N expansion).
@@ -19,8 +19,8 @@ use crate::module::{ActionTemplate, InstanceActionRegistry};
 /// calls are evaluated at runtime as expressions.
 pub(super) fn expand_fn_calls(
     stmts: Vec<Stmt>,
-    registry: &InstanceActionRegistry,
-    module_fns: &HashMap<String, ActionTemplate>,
+    registry: &InstanceFnRegistry,
+    module_fns: &HashMap<String, FnTemplate>,
 ) -> Vec<Stmt> {
     let mut stack: Vec<String> = Vec::new();
     expand_stmt_list(stmts, registry, module_fns, &mut stack)
@@ -28,8 +28,8 @@ pub(super) fn expand_fn_calls(
 
 fn expand_stmt_list(
     stmts: Vec<Stmt>,
-    registry: &InstanceActionRegistry,
-    module_fns: &HashMap<String, ActionTemplate>,
+    registry: &InstanceFnRegistry,
+    module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
     stmts
@@ -40,8 +40,8 @@ fn expand_stmt_list(
 
 fn expand_stmt(
     stmt: Stmt,
-    registry: &InstanceActionRegistry,
-    module_fns: &HashMap<String, ActionTemplate>,
+    registry: &InstanceFnRegistry,
+    module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
     match stmt {
@@ -119,7 +119,7 @@ fn expand_stmt(
 /// to the target, and the body is wrapped in a `Stmt::Block` so local `let`
 /// bindings do not leak.
 fn expand_target_call(
-    template: &ActionTemplate,
+    template: &FnTemplate,
     target: &str,
     action: &Action,
     stack: &mut Vec<String>,
@@ -175,11 +175,7 @@ fn expand_target_call(
 
 /// Expand a function-style call `highlight_key(bars, key)` into a scoped block:
 /// positional arguments bind to parameters in order, defaults fill the rest.
-fn expand_arg_call(
-    template: &ActionTemplate,
-    action: &Action,
-    stack: &mut Vec<String>,
-) -> Vec<Stmt> {
+fn expand_arg_call(template: &FnTemplate, action: &Action, stack: &mut Vec<String>) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
         return vec![Stmt::Action(action.clone(), None)];
     }
@@ -211,7 +207,7 @@ fn expand_arg_call(
 /// All other parameters bind via block-scoped `let` statements, which keeps
 /// shadowing inside the body working (`let zero = zero + 1` rebinds the local).
 fn expand_with_params(
-    template: &ActionTemplate,
+    template: &FnTemplate,
     values: &HashMap<String, Expr>,
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
@@ -347,7 +343,7 @@ fn is_time_expr(expr: &Expr) -> bool {
 }
 
 fn substitute_action_params(
-    template: &ActionTemplate,
+    template: &FnTemplate,
     invocation_modifiers: &[Modifier],
 ) -> (Vec<Stmt>, Vec<Modifier>) {
     // Build param bindings from defaults + invocation modifiers
@@ -763,8 +759,8 @@ mod tests {
         }
     }
 
-    fn template_with(params: Vec<ParamDef>, body: Vec<Stmt>) -> ActionTemplate {
-        ActionTemplate {
+    fn template_with(params: Vec<ParamDef>, body: Vec<Stmt>) -> FnTemplate {
+        FnTemplate {
             params,
             return_type: None,
             body,
@@ -785,7 +781,7 @@ mod tests {
                 Expr::Ident("scale".to_string()),
             )],
         );
-        let registry: InstanceActionRegistry =
+        let registry: InstanceFnRegistry =
             [("btn".to_string(), [("pulse".to_string(), template)].into_iter().collect())]
                 .into_iter()
                 .collect();
@@ -797,7 +793,7 @@ mod tests {
                 value: Expr::Num(1.5),
             }],
         );
-        let module_fns: HashMap<String, ActionTemplate> = HashMap::new();
+        let module_fns: HashMap<String, FnTemplate> = HashMap::new();
         let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
         assert_eq!(result.len(), 1);
         match &result[0] {
@@ -838,11 +834,11 @@ mod tests {
                 Expr::Path(vec!["bars".to_string(), "bar".to_string()]),
             )],
         );
-        let module_fns: HashMap<String, ActionTemplate> =
+        let module_fns: HashMap<String, FnTemplate> =
             [("highlight_key".to_string(), template)].into_iter().collect();
         let invocation =
             make_arg_call("highlight_key", vec![Expr::Ident("bars".to_string()), Expr::Num(2.0)]);
-        let registry: InstanceActionRegistry = HashMap::new();
+        let registry: InstanceFnRegistry = HashMap::new();
         let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
         assert_eq!(result.len(), 1);
         match &result[0] {
@@ -864,14 +860,14 @@ mod tests {
     #[test]
     fn recursion_cycle_leaves_call_in_place() {
         let template = template_with(vec![], vec![make_arg_call("b", Vec::new())]);
-        let module_fns: HashMap<String, ActionTemplate> = [
+        let module_fns: HashMap<String, FnTemplate> = [
             ("a".to_string(), template.clone()),
             ("b".to_string(), template),
         ]
         .into_iter()
         .collect();
         let invocation = make_arg_call("a", Vec::new());
-        let registry: InstanceActionRegistry = HashMap::new();
+        let registry: InstanceFnRegistry = HashMap::new();
         // Expanding `a`'s body calls `b`, which calls `a` again — the cycle
         // guard must terminate without infinite recursion.
         let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
@@ -880,15 +876,15 @@ mod tests {
 
     #[test]
     fn pure_function_call_is_not_expanded() {
-        let template = ActionTemplate {
+        let template = FnTemplate {
             params: vec![],
             return_type: Some(TypeAnnotation::Num),
             body: vec![],
         };
-        let module_fns: HashMap<String, ActionTemplate> =
+        let module_fns: HashMap<String, FnTemplate> =
             [("dnf".to_string(), template)].into_iter().collect();
         let invocation = make_arg_call("dnf", vec![Expr::Ident("arr".to_string())]);
-        let registry: InstanceActionRegistry = HashMap::new();
+        let registry: InstanceFnRegistry = HashMap::new();
         let result = expand_stmt_list(vec![invocation], &registry, &module_fns, &mut Vec::new());
         // The pure call stays as a statement for the runtime to diagnose.
         assert!(matches!(&result[0], Stmt::Action(..)));

@@ -9,7 +9,7 @@ use animatix::composition::Composition;
 use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::Diagnostic;
-use animatix_syntax::module::{ActionTemplate, ComponentEntry, Namespace};
+use animatix_syntax::module::{ComponentEntry, FnTemplate, Namespace};
 use animatix_syntax::source_index::SourceIndex;
 
 use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
@@ -51,7 +51,7 @@ pub struct DocumentSnapshot {
     pub expanded_statements: Option<Arc<Vec<Stmt>>>,
     pub namespaces: Arc<HashMap<String, Namespace>>,
     pub components: Arc<HashMap<String, ComponentEntry>>,
-    pub module_actions: Arc<HashMap<String, ActionTemplate>>,
+    pub module_fns: Arc<HashMap<String, FnTemplate>>,
     pub source_index: Option<SourceIndex>,
 
     // Build target

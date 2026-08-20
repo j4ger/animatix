@@ -6,7 +6,7 @@ use animatix::composition::Composition;
 use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::Diagnostic;
-use animatix_syntax::module::{ActionTemplate, ComponentEntry, Namespace};
+use animatix_syntax::module::{ComponentEntry, FnTemplate, Namespace};
 use animatix_syntax::source_index::SourceIndex;
 
 /// Successful rebuild output, owned for transfer across threads.
@@ -15,7 +15,7 @@ pub struct RebuildOutput {
     pub expanded_statements: Vec<Stmt>,
     pub namespaces: HashMap<String, Namespace>,
     pub components: HashMap<String, ComponentEntry>,
-    pub module_actions: HashMap<String, ActionTemplate>,
+    pub module_fns: HashMap<String, FnTemplate>,
     pub source_index: SourceIndex,
     pub timeline: Option<Timeline>,
     pub composition: Option<Composition>,

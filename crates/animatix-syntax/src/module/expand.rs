@@ -1,7 +1,7 @@
 use super::rewrite::rewrite_stmt;
 use super::{
-    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceActionRegistry, MatchPattern,
-    ParamDef, Property, Stmt, TargetSegment,
+    ComponentEntry, Expr, HashMap, HashSet, InlineItem, InstanceFnRegistry, MatchPattern, ParamDef,
+    Property, Stmt, TargetSegment,
 };
 
 /// Maximum nesting depth for component expansion before reporting a cycle error.
@@ -34,10 +34,10 @@ impl ExpansionCtx {
 pub(super) fn expand_statements(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
-) -> (Vec<Stmt>, InstanceActionRegistry) {
+) -> (Vec<Stmt>, InstanceFnRegistry) {
     let mut ctx = ExpansionCtx::new();
     let mut expanded = Vec::new();
-    let mut registry = InstanceActionRegistry::new();
+    let mut registry = InstanceFnRegistry::new();
     for stmt in statements {
         expand_stmt_into(stmt, components, &mut expanded, &mut registry, &mut ctx);
     }
@@ -48,7 +48,7 @@ fn expand_stmt_into(
     stmt: &Stmt,
     components: &HashMap<String, ComponentEntry>,
     output: &mut Vec<Stmt>,
-    registry: &mut InstanceActionRegistry,
+    registry: &mut InstanceFnRegistry,
     ctx: &mut ExpansionCtx,
 ) {
     match stmt {
@@ -237,7 +237,7 @@ fn expand_stmt_into(
     }
 }
 
-fn merge_registry(target: &mut InstanceActionRegistry, source: InstanceActionRegistry) {
+fn merge_registry(target: &mut InstanceFnRegistry, source: InstanceFnRegistry) {
     for (label, actions) in source {
         target.insert(label, actions);
     }
@@ -248,9 +248,9 @@ fn expand_statements_inner(
     statements: &[Stmt],
     components: &HashMap<String, ComponentEntry>,
     ctx: &mut ExpansionCtx,
-) -> (Vec<Stmt>, InstanceActionRegistry) {
+) -> (Vec<Stmt>, InstanceFnRegistry) {
     let mut expanded = Vec::new();
-    let mut registry = InstanceActionRegistry::new();
+    let mut registry = InstanceFnRegistry::new();
     for stmt in statements {
         expand_stmt_into(stmt, components, &mut expanded, &mut registry, ctx);
     }
@@ -261,7 +261,7 @@ fn expand_statements_inner(
 fn expand_inline_items(
     items: &[InlineItem],
     components: &HashMap<String, ComponentEntry>,
-    registry: &mut InstanceActionRegistry,
+    registry: &mut InstanceFnRegistry,
     ctx: &mut ExpansionCtx,
 ) -> Vec<InlineItem> {
     let mut result = Vec::new();
@@ -388,7 +388,7 @@ fn expand_component_instance(
     component: &ComponentEntry,
     components: &HashMap<String, ComponentEntry>,
     ctx: &mut ExpansionCtx,
-) -> (Vec<Stmt>, InstanceActionRegistry) {
+) -> (Vec<Stmt>, InstanceFnRegistry) {
     // Cycle detection: bail out if nesting is too deep.
     if ctx.depth >= MAX_EXPANSION_DEPTH {
         tracing::error!(
@@ -397,7 +397,7 @@ fn expand_component_instance(
             MAX_EXPANSION_DEPTH,
             instance_label
         );
-        return (Vec::new(), InstanceActionRegistry::new());
+        return (Vec::new(), InstanceFnRegistry::new());
     }
     ctx.depth += 1;
 
@@ -423,8 +423,8 @@ fn expand_component_instance(
         })
         .collect::<Vec<_>>();
 
-    // Collect custom actions from rewritten statements
-    let mut instance_actions: HashMap<String, crate::module::ActionTemplate> = HashMap::new();
+    // Collect timeline functions from rewritten statements
+    let mut instance_actions: HashMap<String, crate::module::FnTemplate> = HashMap::new();
     let filtered: Vec<Stmt> = rewritten
         .into_iter()
         .filter_map(|stmt| match &stmt {
@@ -437,7 +437,7 @@ fn expand_component_instance(
             } => {
                 instance_actions.insert(
                     name.clone(),
-                    crate::module::ActionTemplate {
+                    crate::module::FnTemplate {
                         params: params.clone(),
                         return_type: return_type.clone(),
                         body: body.clone(),
