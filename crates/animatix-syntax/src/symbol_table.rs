@@ -385,11 +385,21 @@ impl SymbolTable {
 
     fn collect_refs_from_stmt(&mut self, stmt: &Stmt) {
         match stmt {
-            Stmt::ActorDecl { ty, props, .. } if ty == "Callout" => {
+            Stmt::ActorDecl {
+                ty,
+                props,
+                children,
+                ..
+            } => {
                 for prop in props {
-                    if prop.name == "target" {
+                    if ty == "Callout" && prop.name == "target" {
                         self.collect_callout_target_ref(&prop.value);
+                    } else {
+                        self.collect_refs_from_expr(&prop.value);
                     }
+                }
+                for child in children {
+                    self.collect_inline_item(child);
                 }
             },
             Stmt::Action(action, ..) => {
@@ -612,9 +622,13 @@ impl SymbolTable {
             InlineItem::Labeled {
                 label,
                 array_index,
+                props,
                 children,
                 ..
             } => {
+                for prop in props {
+                    self.collect_refs_from_expr(&prop.value);
+                }
                 self.labels.insert(
                     label.clone(),
                     LabelInfo {
