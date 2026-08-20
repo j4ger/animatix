@@ -937,3 +937,34 @@ let scaled = bump(2, 4)
     let scaled = timeline.variable_tracks.get("scaled").expect("scaled");
     assert_eq!(scaled.evaluate(0), Some(Value::Num(8.0)), "imported bump(2,4)");
 }
+
+#[test]
+fn sort_colors_demo_file_produces_dnf_sequence() {
+    // Guard the actual demo file: the DNF timeline function must emit the
+    // partition swaps on the step-sequenced timeline and end with the
+    // values 0,0,1,1,2,2 left to right.
+    let workspace = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
+    let demo_path =
+        std::path::Path::new(&workspace).join("../../examples/projects/leetcode_sort_colors.amx");
+    if !demo_path.exists() {
+        eprintln!("skipping: demo file not found at {demo_path:?}");
+        return;
+    }
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph.load_program(&demo_path).expect("demo loads");
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "demo must build cleanly, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let track = timeline.child_orders.get("row").expect("row child_orders from the demo");
+    let final_order = track.evaluate(*track.keyframes.keys().max().expect("last keyframe"));
+    assert_eq!(
+        final_order,
+        vec!["b__5", "b__1", "b__2", "b__4", "b__3", "b__0"],
+        "DNF partition must leave values 0,0,1,1,2,2 left to right"
+    );
+}

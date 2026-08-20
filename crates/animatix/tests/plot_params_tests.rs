@@ -24,7 +24,7 @@ fn build_timeline_from_source(test_name: &str, source: &str) -> Timeline {
     let ast = ModuleGraph::new()
         .load_program(&temp_path)
         .expect("program should load")
-        .expand_components();
+        .expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),

@@ -39,8 +39,15 @@ fn roundtrip_all_example_files() {
         examples_dir.display()
     );
 
-    let amx_files = collect_amx_files(&examples_dir);
-    assert!(!amx_files.is_empty(), "no .amx files found in {}", examples_dir.display());
+    let mut amx_files = collect_amx_files(&examples_dir);
+    // Also round-trip the dogfood projects so formatter regressions on
+    // real-content files (e.g. lost `[step: ...]` modifiers) are caught.
+    let dogfood_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../dogfood/projects")
+        .canonicalize()
+        .expect("dogfood/projects directory not found");
+    amx_files.extend(collect_amx_files(&dogfood_dir));
+    assert!(!amx_files.is_empty(), "no .amx files found for roundtrip");
 
     let mut failures: Vec<String> = Vec::new();
 

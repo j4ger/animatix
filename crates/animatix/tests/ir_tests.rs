@@ -847,5 +847,5 @@ fn load_fixture_program(source: &str) -> Vec<Stmt> {
     ModuleGraph::new()
         .load_program(&temp_path)
         .expect("program should load")
-        .expand_components()
+        .expand_components(&mut Vec::new())
 }
