@@ -108,16 +108,16 @@ fn exec_block(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> 
                 ..
             } => {
                 for (idx, value) in for_iter_values(iterable, env).into_iter().enumerate() {
-                    bind_loop_var_local(env, var, value, idx);
+                    super::build::bind_loop_var(env, var, value, idx, &mut Vec::new());
                     if let Some(iv) = index_var {
                         env.set(iv, Value::Num(idx as f64));
                     }
                     if let Flow::Return(value) = exec_block(body, env)? {
-                        remove_loop_vars_local(env, var, index_var);
+                        super::build::remove_loop_vars(env, var, index_var);
                         return Ok(Flow::Return(value));
                     }
                 }
-                remove_loop_vars_local(env, var, index_var);
+                super::build::remove_loop_vars(env, var, index_var);
             },
             Stmt::Return { value, .. } => {
                 let value = match value {
@@ -141,46 +141,6 @@ fn exec_block(stmts: &[Stmt], env: &mut Environment) -> Result<Flow, EvalError> 
 }
 
 /// Bind a loop variable locally (mirrors the timeline's `bind_loop_var`).
-fn bind_loop_var_local(env: &mut Environment, var: &LoopPattern, value: Value, index: usize) {
-    match var {
-        LoopPattern::Single(name) => {
-            env.set(name, value);
-        },
-        LoopPattern::Tuple(names) => {
-            let components: Vec<Value> = match &value {
-                Value::List(items) => items.clone(),
-                Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                other => vec![other.clone()],
-            };
-            let min_len = names.len().min(components.len());
-            for (i, name) in names.iter().enumerate().take(min_len) {
-                env.set(name, components[i].clone());
-            }
-            let _ = index;
-        },
-    }
-}
-
-/// Remove loop-variable bindings after a loop exits.
-fn remove_loop_vars_local(env: &mut Environment, var: &LoopPattern, index_var: &Option<String>) {
-    match var {
-        LoopPattern::Single(name) => {
-            env.overrides.remove(name);
-        },
-        LoopPattern::Tuple(names) => {
-            for name in names {
-                env.overrides.remove(name);
-            }
-        },
-    }
-    if let Some(iv) = index_var {
-        env.overrides.remove(iv);
-    }
-}
-
 /// Collect pure function declarations from the AST so the build environment
 /// can seed them as callable [`Value::UserFn`] values.
 pub(crate) fn collect_pure_fns(

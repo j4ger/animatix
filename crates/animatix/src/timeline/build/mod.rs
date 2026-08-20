@@ -20,7 +20,7 @@ pub(super) use keyframe_utils::{
     insert_end_keyframes, insert_start_keyframes, preserve_delayed_values,
 };
 pub(super) use plot::{PlotCurveParams, build_graph_axis_paths, build_plot_curve_paths};
-pub(crate) use process::pattern_matches;
+pub(crate) use process::{bind_loop_var, pattern_matches, remove_loop_vars};
 
 use super::*;
 use crate::timeline::plot::PlotCurveKind;

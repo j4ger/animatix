@@ -6,6 +6,46 @@ use tracing::instrument;
 use super::*;
 use crate::ast::{InlineItem, LoopPattern, MatchPattern};
 
+pub(crate) fn bind_loop_var(
+    env: &mut Environment,
+    var: &LoopPattern,
+    value: Value,
+    index: usize,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match var {
+        LoopPattern::Single(name) => {
+            env.set(name, value);
+        },
+        LoopPattern::Tuple(names) => {
+            let components: Vec<Value> = match &value {
+                Value::List(items) => items.clone(),
+                Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
+                other => vec![other.clone()],
+            };
+            let min_len = names.len().min(components.len());
+            for (i, name) in names.iter().enumerate().take(min_len) {
+                env.set(name, components[i].clone());
+            }
+            if names.len() != components.len() {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "For loop tuple destructuring: expected {} variables but got {} components in value at index {}",
+                            names.len(), components.len(), index
+                        ),
+                    )
+                );
+            }
+        },
+    }
+}
+
 impl Timeline {
     // === Main AST Statement Processor ===
 
@@ -353,45 +393,6 @@ impl Timeline {
     // ─────────────────────────────────────────────────────────────
 
     /// Bind a loop iteration value according to the loop variable pattern.
-    fn bind_loop_var(
-        &mut self,
-        var: &LoopPattern,
-        value: Value,
-        index: usize,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        match var {
-            LoopPattern::Single(name) => {
-                self.env.set(name, value);
-            },
-            LoopPattern::Tuple(names) => {
-                let components: Vec<Value> = match &value {
-                    Value::List(items) => items.clone(),
-                    Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                    Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                    Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                    Value::Color(v) => v.iter().map(|&x| Value::Num(x)).collect(),
-                    other => vec![other.clone()],
-                };
-                let min_len = names.len().min(components.len());
-                for (i, name) in names.iter().enumerate().take(min_len) {
-                    self.env.set(name, components[i].clone());
-                }
-                if names.len() != components.len() {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "For loop tuple destructuring: expected {} variables but got {} components in value at index {}",
-                                names.len(), components.len(), index
-                            ),
-                        )
-                    );
-                }
-            },
-        }
-    }
 
     /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
     /// and calling the body processor for each iteration.
@@ -414,7 +415,7 @@ impl Timeline {
     ) {
         let step_ms = parse_for_loop_step(modifiers, diagnostics);
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
-            self.bind_loop_var(var, value, idx, diagnostics);
+            bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
             }
@@ -436,7 +437,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
-            self.bind_loop_var(var, value, idx, diagnostics);
+            bind_loop_var(&mut self.env, var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
             }
@@ -449,7 +450,7 @@ impl Timeline {
 
 /// Remove loop variables from the environment after the loop exits.
 /// Closures captured them at creation time (#11/#10), so it's safe to clean up.
-pub(super) fn remove_loop_vars(
+pub(crate) fn remove_loop_vars(
     env: &mut Environment,
     var: &LoopPattern,
     index_var: &Option<String>,
