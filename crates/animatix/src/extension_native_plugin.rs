@@ -1341,6 +1341,8 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
         Ok(paths) => paths,
         Err(_) => return NATIVE_STATUS_TYPE_ERROR,
     };
+    // Place the text at the command's local offset.
+    let paths = crate::primitives::translate_text_paths(paths, command.x, command.y);
     host.commands.push(crate::primitives::RenderCommand::Text { paths });
     NATIVE_STATUS_OK
 }
@@ -1350,8 +1352,8 @@ unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImage
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let requested_url = unsafe { read_c_string(command.url) };
-    let image = match requested_url {
-        Some(url) => host.ctx.asset_cache.get_image(&url),
+    let image = match requested_url.as_deref() {
+        Some(url) => host.ctx.asset_cache.get_image(url),
         None => host.ctx.track.image.get(host.ctx.time_ms, None),
     };
     let Some(image) = image else {
@@ -1376,6 +1378,7 @@ unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImage
     host.commands.push(crate::primitives::RenderCommand::Image {
         image,
         natural_size,
+        offset: [command.x, command.y],
     });
     NATIVE_STATUS_OK
 }
@@ -2719,6 +2722,8 @@ mod tests {
             text_align: c"center".as_ptr(),
             overflow: c"visible".as_ptr(),
             kind: NATIVE_TEXT_KIND_TEXT,
+            x: 0.0,
+            y: 0.0,
         };
         assert_eq!(
             unsafe {
@@ -2806,6 +2811,8 @@ mod tests {
         let command = NativeImageCommand {
             url: std::ptr::null(),
             natural_size: [100.0, 50.0],
+            x: 0.0,
+            y: 0.0,
         };
         assert_eq!(
             unsafe {
@@ -2856,6 +2863,8 @@ mod tests {
         let command = NativeImageCommand {
             url: url.as_ptr(),
             natural_size: [100.0, 50.0],
+            x: 0.0,
+            y: 0.0,
         };
         assert_eq!(
             unsafe {
@@ -2900,6 +2909,8 @@ mod tests {
         let command = NativeImageCommand {
             url: url.as_ptr(),
             natural_size: [40.0, 20.0],
+            x: 0.0,
+            y: 0.0,
         };
         assert_eq!(
             unsafe {

@@ -127,6 +127,7 @@ impl Primitive for ImagePrimitive {
             Ok(Some(vec![RenderCommand::Image {
                 image,
                 natural_size,
+                offset: [0.0, 0.0],
             }]))
         } else {
             Ok(None)

@@ -258,6 +258,17 @@ impl Timeline {
                     }
                 }
                 self.process_inline_items(time_ms, children, label, diagnostics);
+                // Extension builds only create the track; apply the common
+                // actor properties (at/anchor/offset, opacity, size) so
+                // extension actors behave like built-ins.
+                self.apply_extension_common_properties(
+                    label,
+                    ty,
+                    props,
+                    modifiers,
+                    time_ms,
+                    diagnostics,
+                );
                 self.write_extension_properties_for_decl(
                     label,
                     ty,
@@ -959,6 +970,96 @@ impl Timeline {
     /// This runs after the primitive has created/updated its track so both
     /// built-in and custom primitives can expose schema-driven properties
     /// without hand-writing storage or keyframe code.
+    /// Apply common actor properties to an extension-typed actor.
+    ///
+    /// Extension primitives build their own track and write only their own
+    /// declared properties; the shared properties (`at`/`anchor`/`offset`,
+    /// `opacity`, `size`, ...) fall through to here so they behave like
+    /// built-in actors.
+    fn apply_extension_common_properties(
+        &mut self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Position / anchor / offset resolution.
+        let eval_env = self.build_eval_env(time_ms as u64);
+        let mut at_expr: Option<crate::ast::Expr> = None;
+        let mut anchor_expr: Option<crate::ast::Expr> = None;
+        let mut offset_expr: Option<crate::ast::Expr> = None;
+        for prop in props {
+            match prop.name.as_str() {
+                "at" => at_expr = Some(prop.value.clone()),
+                "anchor" => anchor_expr = Some(prop.value.clone()),
+                "offset" => offset_expr = Some(prop.value.clone()),
+                _ => {},
+            }
+        }
+        if let Some((binding, bound_position)) = resolve_position_binding_with_lookup_diagnostic(
+            at_expr.as_ref(),
+            anchor_expr.as_ref(),
+            offset_expr.as_ref(),
+            &eval_env,
+            diagnostics,
+            label,
+        ) {
+            if let Some(track) = self.tracks.get_mut(label) {
+                let t_start_ms = time_ms as u64;
+                preserve_discrete_position_state_before(track, t_start_ms);
+                set_track_position_binding(track, t_start_ms, binding);
+                if let Some(bound_position) = bound_position {
+                    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                        t_start_ms,
+                        bound_position,
+                        Easing::Linear,
+                    );
+                }
+                mark_track_manual_position(track, t_start_ms);
+            }
+        }
+
+        // Declared opacity/size write through the property plan slots.
+        let _ = (ty, modifiers);
+        for prop in props {
+            match prop.name.as_str() {
+                "opacity" => {
+                    if let Ok(crate::timeline::Value::Num(v)) =
+                        super::evaluate_expr(&prop.value, &eval_env)
+                    {
+                        if let Some(track) = self.tracks.get_mut(label) {
+                            track.style.opacity.ensure(1.0).add_keyframe(
+                                time_ms as u64,
+                                v.clamp(0.0, 1.0) as f32,
+                                Easing::Linear,
+                            );
+                        }
+                    }
+                },
+                "size" => {
+                    if let Ok(crate::timeline::Value::Vec2(v)) =
+                        super::evaluate_expr(&prop.value, &eval_env)
+                    {
+                        if let Some(track) = self.tracks.get_mut(label) {
+                            track
+                                .geometry
+                                .size
+                                .ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+                                .add_keyframe(
+                                    time_ms as u64,
+                                    [v[0] as f32, v[1] as f32],
+                                    Easing::Linear,
+                                );
+                        }
+                    }
+                },
+                _ => {},
+            }
+        }
+    }
+
     fn write_extension_properties_for_decl(
         &mut self,
         label: &str,

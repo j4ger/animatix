@@ -968,3 +968,72 @@ fn sort_colors_demo_file_produces_dnf_sequence() {
         "DNF partition must leave values 0,0,1,1,2,2 left to right"
     );
 }
+
+#[test]
+fn extension_actor_at_position_regression() {
+    // A stub extension primitive with an `at` position: does the position
+    // track get written for extension types?
+    struct StubPrim;
+    impl crate::primitives::Primitive for StubPrim {
+        fn type_name(&self) -> &str {
+            "StubPulse"
+        }
+        fn display_name(&self) -> &str {
+            "Stub Pulse"
+        }
+        fn category(&self) -> crate::timeline::ActorCategory {
+            crate::timeline::ActorCategory::Shape
+        }
+        fn icon_id(&self) -> &str {
+            "stub"
+        }
+        fn kind_id(&self) -> crate::timeline::ActorKindId {
+            crate::timeline::ActorKindId::Extension
+        }
+        fn build(
+            &self,
+            ctx: &mut crate::primitives::BuildCtx,
+            label: &str,
+            _props: &[animatix_syntax::ast::Property],
+            _modifiers: &[animatix_syntax::ast::Modifier],
+            _children: &[animatix_syntax::ast::InlineItem],
+        ) -> Result<(), Vec<animatix_syntax::diagnostics::Diagnostic>> {
+            let track = ctx
+                .timeline
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            track.kind = crate::timeline::ActorKindId::Extension;
+            track.actor_type = Some("StubPulse".to_string());
+            track.rebuild_property_plan();
+            Ok(())
+        }
+    }
+    let source = r#"
+config { colorscheme: "editorial-dark" }
+p: StubPulse, at: (100, 100), size: (50, 50)
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "{:?}", parsed.parse_errors);
+    let mut ctx = crate::extension_context::ExtensionContext::new();
+    ctx.register_primitive(std::sync::Arc::new(StubPrim)).expect("register");
+    let report = crate::composition::BuildTarget::from_ast_with_context(
+        parsed.statements.as_ref().expect("stmts"),
+        &std::collections::HashMap::new(),
+        None,
+        std::sync::Arc::new(ctx),
+    );
+    assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
+    let crate::composition::BuildTarget::SingleScene(timeline) = report.output else {
+        panic!("expected single scene");
+    };
+    let track = timeline.tracks.get("p").expect("p track");
+    // Regression: extension actors must honor the common `at` property like
+    // built-ins (previously the position stayed [0,0], so native text and
+    // image commands rendered at the scene origin).
+    assert_eq!(
+        track.geometry.position.get(0, [0.0, 0.0]),
+        [100.0, 100.0],
+        "extension actor must apply `at`"
+    );
+}

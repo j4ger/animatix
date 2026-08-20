@@ -15,7 +15,7 @@ use std::ffi::{c_char, c_void};
 ///
 /// This is not a compatibility version. Bump it whenever the `repr(C)` layout
 /// or callback table changes; the host rejects any other snapshot.
-pub const UNSTABLE_ABI_VERSION: u32 = 5;
+pub const UNSTABLE_ABI_VERSION: u32 = 6;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -461,6 +461,10 @@ pub struct NativeTextCommand {
     pub overflow: *const c_char,
     /// `NATIVE_TEXT_KIND_*` renderer choice.
     pub kind: u32,
+    /// Local-space offset where the text origin is placed.
+    pub x: f64,
+    /// Local-space offset where the text origin is placed.
+    pub y: f64,
 }
 
 /// Image command emitted by a native primitive during evaluation.
@@ -472,6 +476,10 @@ pub struct NativeImageCommand {
     pub url: *const c_char,
     /// Natural display width and height in scene units.
     pub natural_size: [f64; 2],
+    /// Local-space offset where the image is placed.
+    pub x: f64,
+    /// Local-space offset where the image is placed.
+    pub y: f64,
 }
 
 /// Highlight command emitted by a native primitive during evaluation.

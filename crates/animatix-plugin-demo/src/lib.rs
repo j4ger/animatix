@@ -443,6 +443,8 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         text_align: c"center".as_ptr(),
                         overflow: c"visible".as_ptr(),
                         kind: NATIVE_TEXT_KIND_TEXT,
+                        x: origin[0],
+                        y: origin[1] + radius + 14.0,
                     },
                 )
             };
@@ -470,6 +472,8 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                     text_align: c"center".as_ptr(),
                     overflow: c"visible".as_ptr(),
                     kind: NATIVE_TEXT_KIND_CODE,
+                    x: origin[0],
+                    y: origin[1] + radius + 36.0,
                 },
             )
         };
@@ -501,6 +505,8 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
         let image_command = NativeImageCommand {
             url: url_bytes.as_ptr().cast::<c_char>(),
             natural_size: [radius * 2.0, radius * 2.0],
+            x: origin[0],
+            y: origin[1],
         };
         // A URL that is not cached returns an error; the pulse still renders
         // its paths so the failure is non-fatal for the frame.

@@ -44,7 +44,7 @@ type = "Vec2"
 injectable = true
 display_name = "Origin"
 group = "Pulse"
-help = "Scene position of the pulse center"
+help = "Local offset of the pulse center from the actor position"
 
 [[properties]]
 actor_type = "Pulse"

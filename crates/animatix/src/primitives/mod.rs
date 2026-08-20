@@ -455,6 +455,8 @@ pub enum RenderCommand {
         image: crate::timeline::image::SceneImage,
         /// Natural (display) width and height in scene units.
         natural_size: [f32; 2],
+        /// Local-space placement offset.
+        offset: [f64; 2],
     },
     /// A highlight layer drawn with a specific blend mode (for equation fragment highlights).
     HighlightLayer {
@@ -469,6 +471,27 @@ pub enum RenderCommand {
         /// Corner radius.
         corner_radius: f64,
     },
+}
+
+/// Translate text glyph paths by a local-space offset.
+pub fn translate_text_paths(
+    paths: std::sync::Arc<[crate::renderer::types::TextPath]>,
+    x: f64,
+    y: f64,
+) -> std::sync::Arc<[crate::renderer::types::TextPath]> {
+    if x == 0.0 && y == 0.0 {
+        return paths;
+    }
+    let translate = kurbo::Affine::translate((x, y));
+    paths
+        .iter()
+        .map(|tp| {
+            let mut p = tp.clone();
+            p.path.apply_affine(translate);
+            p
+        })
+        .collect::<Vec<_>>()
+        .into()
 }
 
 impl RenderCommand {
@@ -532,9 +555,11 @@ impl RenderCommand {
             RenderCommand::Image {
                 image,
                 natural_size,
+                offset,
             } => {
                 let [nw, nh] = *natural_size;
                 let image_transform = *transform
+                    * kurbo::Affine::translate((offset[0], offset[1]))
                     * kurbo::Affine::scale_non_uniform(
                         (image.natural_size[0] * 2.0 / nw) as f64,
                         (image.natural_size[1] * 2.0 / nh) as f64,
