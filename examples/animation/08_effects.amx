@@ -5,7 +5,7 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 bg_mark: Svg, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
 
-bg: Filter, blur: 0, brightness: 0.6, anchor: scene.center, at: (640, 360) {
+bg: Filter, blur: 0, brightness: 0.6, anchor: scene.center {
   grid: Image, url: "examples/assets/checker.png", size: (500, 500), anchor: scene.center
 }
 

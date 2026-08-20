@@ -254,13 +254,7 @@ fn expand_stmt(
                 // bind positional arguments to parameters.
                 if let Some(template) = module_fns.get(&action.verb) {
                     if template.return_type.is_none() && !cycle_members.contains(&action.verb) {
-                        inlined.extend(expand_arg_call(
-                            template,
-                            &action,
-                            module_fns,
-                            stack,
-                            diagnostics,
-                        ));
+                        inlined.extend(expand_arg_call(template, &action, module_fns, stack));
                     } else if cycle_members.contains(&action.verb) {
                         // Cycle already reported by detect_fn_cycles; drop the
                         // call so it does not surface as "unknown action".
@@ -283,22 +277,12 @@ fn expand_stmt(
                     // Component instance functions are more specific than module functions.
                     if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
                         inlined.extend(expand_target_call(
-                            template,
-                            target,
-                            &action,
-                            module_fns,
-                            stack,
-                            diagnostics,
+                            template, target, &action, module_fns, stack,
                         ));
                     } else if let Some(template) = module_fns.get(&action.verb) {
                         if template.return_type.is_none() {
                             inlined.extend(expand_target_call(
-                                template,
-                                target,
-                                &action,
-                                module_fns,
-                                stack,
-                                diagnostics,
+                                template, target, &action, module_fns, stack,
                             ));
                         } else {
                             remaining.push(target.clone());
@@ -364,7 +348,6 @@ fn expand_target_call(
     action: &Action,
     module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
-    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
         // Cycle already reported by detect_fn_cycles; drop the call so it
@@ -410,7 +393,7 @@ fn expand_target_call(
         })
         .cloned()
         .collect();
-    let body = expand_with_params(template, &values, module_fns, stack);
+    let body = expand_with_params(template, &values, module_fns);
     let body = rewrite_self_targets(body, target);
     let body = apply_modifiers_to_body(body, &unconsumed);
     stack.pop();
@@ -424,7 +407,6 @@ fn expand_arg_call(
     action: &Action,
     module_fns: &HashMap<String, FnTemplate>,
     stack: &mut Vec<String>,
-    diagnostics: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
         // Cycle already reported by detect_fn_cycles; drop the call so it
@@ -445,7 +427,7 @@ fn expand_arg_call(
             },
         }
     }
-    let body = expand_with_params(template, &values, module_fns, stack);
+    let body = expand_with_params(template, &values, module_fns);
     let body = apply_modifiers_to_body(body, &action.modifiers);
     stack.pop();
     vec![Stmt::Block { body, span: None }]
@@ -462,7 +444,6 @@ fn expand_with_params(
     template: &FnTemplate,
     values: &HashMap<String, Expr>,
     module_fns: &HashMap<String, FnTemplate>,
-    stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
     let label_params = collect_label_params(&template.body, values, module_fns);
     let mut block = Vec::new();
@@ -689,56 +670,6 @@ fn is_time_expr(expr: &Expr) -> bool {
         },
         _ => false,
     }
-}
-
-fn substitute_action_params(
-    template: &FnTemplate,
-    invocation_modifiers: &[Modifier],
-) -> (Vec<Stmt>, Vec<Modifier>) {
-    // Build param bindings from defaults + invocation modifiers
-    let mut bindings: HashMap<String, Expr> = HashMap::new();
-    let mut consumed: Vec<bool> = vec![false; invocation_modifiers.len()];
-
-    for param in &template.params {
-        if let Some(default) = &param.default {
-            bindings.insert(param.name.clone(), default.clone());
-        }
-    }
-
-    for (i, modifier) in invocation_modifiers.iter().enumerate() {
-        if let Some(name) = &modifier.name {
-            // Named modifier — bind if param exists
-            if template.params.iter().any(|p| p.name == *name) {
-                bindings.insert(name.clone(), modifier.value.clone());
-                consumed[i] = true;
-            }
-        } else if is_time_expr(&modifier.value)
-            && template.params.iter().any(|p| p.name == "duration")
-        {
-            // Positional time — bind to `duration` param if present
-            bindings.insert("duration".to_string(), modifier.value.clone());
-            consumed[i] = true;
-        }
-    }
-
-    let unconsumed: Vec<Modifier> = invocation_modifiers
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !consumed[*i])
-        .map(|(_, m)| m.clone())
-        .collect();
-
-    if bindings.is_empty() {
-        return (template.body.clone(), unconsumed);
-    }
-
-    let body = template
-        .body
-        .iter()
-        .map(|stmt| substitute_params_in_stmt(stmt, &bindings))
-        .collect();
-
-    (body, unconsumed)
 }
 
 fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> Stmt {

@@ -161,7 +161,7 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let inferred = typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib());
+                let inferred = self.infer_expr_type(value);
                 self.labels.insert(
                     name.clone(),
                     LabelInfo {
@@ -247,6 +247,15 @@ impl SymbolTable {
                 // Function parameters and `self` are valid labels inside the
                 // function body.
                 for param in params {
+                    let param_ty = param
+                        .param_type
+                        .as_ref()
+                        .map(|annotation| self.typed_resolve_annotation(annotation))
+                        .or_else(|| {
+                            param.default.as_ref().map(|value| {
+                                typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib())
+                            })
+                        });
                     self.labels.insert(
                         param.name.clone(),
                         LabelInfo {
@@ -256,7 +265,7 @@ impl SymbolTable {
                             col: 0,
                             span: None,
                             ty: None,
-                            inferred_type: None,
+                            inferred_type: param_ty,
                             is_pub: false,
                         },
                     );
@@ -284,6 +293,7 @@ impl SymbolTable {
             Stmt::ForLoop {
                 var,
                 index_var,
+                iterable,
                 body,
                 span,
                 ..
@@ -292,7 +302,23 @@ impl SymbolTable {
                     LoopPattern::Single(name) => vec![name.clone()],
                     LoopPattern::Tuple(names) => names.clone(),
                 };
-                for name in &var_names {
+                // Infer loop-variable types from the iterable so destructured
+                // variables resolve (e.g. `for (x, y), i in {(900,320), ...}`).
+                let iterable_ty = self.infer_expr_type(iterable);
+                let element_types: Vec<typing::Type> = match &iterable_ty {
+                    typing::Type::List(element) => match element.as_ref() {
+                        typing::Type::Vec2
+                        | typing::Type::Vec3
+                        | typing::Type::Vec4
+                        | typing::Type::Color => {
+                            vec![typing::Type::Num; var_names.len()]
+                        },
+                        typing::Type::Tuple(types) => types.clone(),
+                        other => vec![(*other).clone(); var_names.len()],
+                    },
+                    _ => vec![typing::Type::Any; var_names.len()],
+                };
+                for (index, name) in var_names.iter().enumerate() {
                     self.labels.insert(
                         name.clone(),
                         LabelInfo {
@@ -302,7 +328,7 @@ impl SymbolTable {
                             col: 0, // populated by Analyzer::enrich_positions from the token stream
                             span: *span,
                             ty: None,
-                            inferred_type: None,
+                            inferred_type: element_types.get(index).cloned(),
                             is_pub: false,
                         },
                     );
@@ -487,6 +513,9 @@ impl SymbolTable {
                 if property == "target" && self.target_is_callout(target) {
                     self.collect_callout_target_ref(value);
                 }
+                // The RHS may reference bindings (e.g. `cx` inside an always
+                // block), so collect its references too.
+                self.collect_refs_from_expr(value);
             },
             Stmt::Play { scene_name, .. } => {
                 self.referenced_labels.insert(scene_name.clone());
@@ -902,6 +931,11 @@ impl SymbolTable {
         let env = self.type_env();
         typing::infer_expr_type(expr, &env)
     }
+
+    /// Resolve a type annotation against the built-in type aliases.
+    fn typed_resolve_annotation(&self, annotation: &TypeAnnotation) -> typing::Type {
+        typing::TypeEnv::with_stdlib().resolve_annotation(annotation)
+    }
 }
 
 fn collect_component_internal_labels(stmts: &[Stmt], out: &mut HashSet<String>) {
@@ -1049,9 +1083,9 @@ mod tests {
                 "{ns}.primary should be Color"
             );
         }
-        // scene.* stays Any (mixes colors and anchors)
+        // scene.* resolves known fields (background is a Color)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(typing::infer_expr_type(&scene, &env), typing::Type::Any);
+        assert_eq!(typing::infer_expr_type(&scene, &env), typing::Type::Color);
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
         assert_eq!(typing::infer_expr_type(&single, &env), typing::Type::Any);

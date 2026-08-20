@@ -49,6 +49,7 @@ pub fn collect_semantic_diagnostics(
             if name == "self"
                 || info.kind == LabelKind::For
                 || info.kind == LabelKind::Always
+                || info.is_pub
                 || symbols.array_labels.contains(name)
                 || symbols.component_internal_labels.contains(name)
                 || structural_containers.contains(name)

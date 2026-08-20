@@ -41,6 +41,12 @@ pub(crate) fn ident<'src>() -> IdentParser<'src> {
     token_parser::ident().boxed()
 }
 
+/// Parse a keyword token as a bare identifier value, so keyword-named
+/// enumeration values are expressible (e.g. `[strategy: match]`).
+pub(crate) fn keyword_ident<'src>() -> impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> {
+    select! { crate::token::TokenKind::Keyword(k) => Expr::Ident(k.as_str().to_string()) }.boxed()
+}
+
 /// Parse an identifier and record its occurrence with the given role.
 pub(crate) fn ident_occ<'src>(kind: crate::occurrence::OccurrenceKind) -> IdentParser<'src> {
     ident_occ_with(kind, false)
@@ -272,7 +278,7 @@ pub(crate) fn modifier<'src>(
                     Time::Seconds(s) => Expr::Ident(format!("{s}s")),
                     Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
                 }),
-                expr.clone(),
+                keyword_ident().or(expr.clone()),
             )))
             .map(|(name, value)| Modifier {
                 name: Some(name),

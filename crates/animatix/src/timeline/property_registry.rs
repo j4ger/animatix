@@ -863,12 +863,12 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "data",
-        ValueType::String,
+        ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
         None,
         Applicable::ActorKinds(&[A::BarChart]),
-        |_| super::property_engine::PropertyValue::String(String::new())
+        |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
         "density",
@@ -1393,7 +1393,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "show_axis",
-        ValueType::String,
+        ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
         None,
@@ -1402,7 +1402,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "show_labels",
-        ValueType::String,
+        ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
         None,
@@ -1485,7 +1485,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
     ),
     schema!(
         "target",
-        ValueType::String,
+        ValueType::BuildTimeOnly,
         F::ASSIGNABLE,
         ActorField::CalloutTarget,
         None,

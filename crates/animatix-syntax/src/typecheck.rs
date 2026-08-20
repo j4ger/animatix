@@ -318,7 +318,11 @@ impl<'a> TypeEnv<'a> {
                 }
                 let pure = return_type.is_some();
                 for stmt in body {
+                    // Purity rules (timeline ops forbidden in pure bodies).
                     self.check_fn_body_stmt(name, stmt, pure, diagnostics);
+                    // Full type-checking with the parameter scope active, so
+                    // body expressions resolve parameter types.
+                    self.check_stmt(stmt, diagnostics);
                 }
                 self.typed.pop_scope();
             },
@@ -989,7 +993,7 @@ mod tests {
         }
         // scene.* stays Any (mixes colors and anchors)
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(infer_expr_type(&scene, &env), Type::Any);
+        assert_eq!(infer_expr_type(&scene, &env), Type::Color);
         // single-segment stays Any
         let single = Expr::Path(vec!["accent".to_string()]);
         assert_eq!(infer_expr_type(&single, &env), Type::Any);

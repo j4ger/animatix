@@ -288,6 +288,11 @@ impl TypeEnv {
         for name in MATH_FUNCTION_NAMES {
             self.functions.insert((*name).to_string(), Type::Num);
         }
+        // Built-in numeric constants used as bare identifiers, plus the
+        // frame-time variable `t` (seconds).
+        for name in ["pi", "tau", "e", "t"] {
+            self.builtins.insert(name.to_string(), Type::Num);
+        }
         self.construct_types.insert("Color".to_string(), Type::Color);
         self.construct_types
             .insert("Point".to_string(), Type::Tuple(vec![Type::Num, Type::Num]));
@@ -372,6 +377,22 @@ impl TypeEnv {
     fn lookup_path(&self, parts: &[String]) -> Option<Type> {
         if parts.len() >= 2 && COLOR_NAMESPACES.contains(&parts[0].as_str()) {
             return Some(Type::Color);
+        }
+        // The `scene` pseudo-object exposes layout facts to expressions.
+        if parts.first().map(String::as_str) == Some("scene") {
+            return match parts.get(1).map(String::as_str) {
+                Some("center") | Some("dimensions") | Some("top") | Some("bottom")
+                | Some("left") | Some("right") => {
+                    if parts.len() > 2 && matches!(parts[2].as_str(), "x" | "y") {
+                        Some(Type::Num)
+                    } else {
+                        Some(Type::Vec2)
+                    }
+                },
+                Some("width") | Some("height") => Some(Type::Num),
+                Some("background") => Some(Type::Color),
+                _ => None,
+            };
         }
         let first = parts.first()?;
         if let Some(namespace) = self.namespaces.get(first) {
@@ -571,13 +592,21 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
         (_, Type::Any) => true,
         (Type::Any, _) => true,
         (a, b) if a == b => true,
-        (Type::Color, Type::Vec4) => true,
+        (Type::Color, Type::Vec4) | (Type::Vec4, Type::Color) => true,
         (Type::List(a), Type::List(b)) => is_subtype(a, b),
         (Type::Enum(a), Type::Enum(b)) => a == b,
         (Type::Enum(_), Type::Str) | (Type::Str, Type::Enum(_)) => true,
         (Type::Tuple(a), Type::Tuple(b)) => {
             a.len() == b.len()
                 && a.iter().zip(b).all(|(actual, expected)| is_subtype(actual, expected))
+        },
+        // Tuple literals with `auto`/computed dimensions satisfy fixed-size
+        // vectors (e.g. `size: (640, auto)`).
+        (Type::Tuple(types), Type::Vec2)
+        | (Type::Tuple(types), Type::Vec3)
+        | (Type::Tuple(types), Type::Vec4) => {
+            types.len() == expected_tuple_arity(expected)
+                && types.iter().all(|t| matches!(t, Type::Num | Type::Any))
         },
         (Type::Function { params: a, ret: ar }, Type::Function { params: b, ret: br }) => {
             a.len() == b.len()
@@ -600,6 +629,19 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
 }
 
 /// Infer the type of an expression in a symbol-aware environment.
+
+/// Number of dimensions a fixed-size vector type expects (used to accept
+/// tuple literals with `auto`/computed dimensions for `size`-like props).
+fn expected_tuple_arity(expected: &Type) -> usize {
+    match expected {
+        Type::Vec2 => 2,
+        Type::Vec3 => 3,
+        Type::Vec4 | Type::Color => 4,
+        _ => 0,
+    }
+}
+
+/// Infer the type of an expression against a type environment.
 pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
     match expr {
         Expr::Num(_) | Expr::Percent(_) => Type::Num,
@@ -724,7 +766,7 @@ mod tests {
             assert_eq!(infer_expr_type(&path, &env), Type::Color);
         }
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
-        assert_eq!(infer_expr_type(&scene, &env), Type::Any);
+        assert_eq!(infer_expr_type(&scene, &env), Type::Color);
     }
 
     #[test]

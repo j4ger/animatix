@@ -4,7 +4,7 @@
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 // Non-visual audio actor — mixed during export, no runtime beat detection.
-track: Audio, source: "examples/assets/pulse.wav", volume: 1.0 [0s, 4s]
+track: Audio, source: "examples/assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
 
 title: Text, text: "Audio Reactive", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 60)
 sub: Text, text: "Audio primitive + waveform visualizer (always-driven)", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 105)
