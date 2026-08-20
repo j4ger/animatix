@@ -456,7 +456,8 @@ fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<InlineItem> {
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 if let Some(extracted) = extract_inline_item(body, label) {
                     return Some(extracted);
                 }
@@ -754,7 +755,8 @@ fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
             | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 if delete_actor_recursive(body, label) {
                     return true;
                 }
@@ -1053,7 +1055,8 @@ btn.position = (200, 100)"#,
                     | Stmt::Sequence { body, .. }
                     | Stmt::Stagger { body, .. }
                     | Stmt::Always { body, .. }
-                    | Stmt::ComponentAction { body, .. } => {
+                    | Stmt::FnDecl { body, .. }
+                    | Stmt::Block { body, .. } => {
                         walk(body, found_color, found_position);
                     },
                     Stmt::ComponentDef(ComponentDef { body, .. }, _) => {

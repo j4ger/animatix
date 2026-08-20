@@ -496,6 +496,11 @@ pub struct Timeline {
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
     pub(crate) env: Environment,
+    /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
+    /// records the `let` names bound inside that block so they can be removed
+    /// on exit; bindings inside a block stay local and never leak into the
+    /// scene, and never write scene variable tracks.
+    pub(crate) block_scope: Vec<std::collections::HashSet<String>>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Optional extension context used during build.
@@ -612,6 +617,7 @@ impl Timeline {
             background_color: bg_track,
             root_nodes: Vec::new(),
             env: Environment::new(),
+            block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
             extensions: None,
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),

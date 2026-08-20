@@ -281,7 +281,8 @@ pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(animatix_syntax::ast::ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 shift_keyframe_times(body, offset_s);
             },
             Stmt::Conditional {

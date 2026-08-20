@@ -140,6 +140,7 @@ unit_parsers!(
     (assign, Assign),
     (reactive_assign, ReactiveAssign),
     (arrow, Arrow),
+    (thin_arrow, ThinArrow),
     (range_inclusive, RangeInclusive),
     (pipe, Pipe),
     (colon_colon, ColonColon),

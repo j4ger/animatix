@@ -46,7 +46,8 @@ pub fn collect_semantic_diagnostics(
 
     for (name, info) in &symbols.labels {
         if !symbols.referenced_labels.contains(name) {
-            if info.kind == LabelKind::For
+            if name == "self"
+                || info.kind == LabelKind::For
                 || info.kind == LabelKind::Always
                 || symbols.array_labels.contains(name)
                 || symbols.component_internal_labels.contains(name)

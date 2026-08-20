@@ -612,18 +612,33 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             )
         },
         Stmt::ComponentDef(def, ..) => format_component_def(def, depth, indent_size),
-        Stmt::ComponentAction {
-            name, params, body, ..
+        Stmt::FnDecl {
+            is_pub,
+            name,
+            params,
+            return_type,
+            body,
+            ..
         } => {
+            let is_pub = if *is_pub { "pub " } else { "" };
             let params_str = params.iter().map(format_param_def).collect::<Vec<_>>().join(", ");
+            let ret = match return_type {
+                Some(ty) => format!(" -> {}", ty),
+                None => String::new(),
+            };
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             format!(
-                "action {}({}) {{\n{}\n{}}}",
-                name,
-                params_str,
-                body_str,
-                " ".repeat(indent_size * depth)
+                "{is_pub}fn {name}({params_str}){ret} {{\n{body_str}\n{indent}}}",
+                indent = " ".repeat(indent_size * depth)
             )
+        },
+        Stmt::Block { body, .. } => {
+            let body_str = format_stmts_raw(body, depth + 1, indent_size);
+            format!("{{\n{body_str}\n{indent}}}", indent = " ".repeat(indent_size * depth))
+        },
+        Stmt::Return { value, .. } => match value {
+            Some(expr) => format!("return {}", format_expr(expr)),
+            None => "return".to_string(),
         },
         Stmt::Config { settings, .. } => {
             let inner = settings.iter().map(format_property).collect::<Vec<_>>().join(", ");

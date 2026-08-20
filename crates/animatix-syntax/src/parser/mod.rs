@@ -197,7 +197,7 @@ fn collect_stmt_property_spans<'a>(stmt: &'a mut Stmt, out: &mut Vec<&'a mut Pro
         },
         Stmt::ForLoop { body, .. } => collect_property_spans(body, out),
         Stmt::ComponentDef(def, _) => collect_property_spans(&mut def.body, out),
-        Stmt::ComponentAction { body, .. } => collect_property_spans(body, out),
+        Stmt::FnDecl { body, .. } => collect_property_spans(body, out),
         Stmt::Config { settings, .. } => out.extend(settings.iter_mut()),
         Stmt::Scene { config, body, .. } => {
             out.extend(config.iter_mut());
@@ -996,40 +996,40 @@ mod tests {
     #[test]
     fn test_any_type_annotation_in_action_param() {
         // `Any` in a parameter type annotation should parse without error.
-        let src = r#"action transform(x: Any = 0) { fade-in x [300ms] }"#;
+        let src = r#"fn transform(x: Any = 0) { fade-in x [300ms] }"#;
         let (stmts, errors) = parse_source(src);
         assert!(errors.is_empty(), "parse errors: {:?}", errors);
         let stmts = stmts.expect("expected parse output");
-        if let Stmt::ComponentAction { params, .. } = &stmts[0] {
+        if let Stmt::FnDecl { params, .. } = &stmts[0] {
             assert_eq!(params[0].param_type, Some(TypeAnnotation::Any));
         } else {
-            panic!("expected ComponentAction, got {:?}", stmts[0]);
+            panic!("expected FnDecl, got {:?}", stmts[0]);
         }
     }
 
     #[test]
     fn test_union_type_annotation_in_action_param() {
-        let src = r#"action transform(x: Bool | Str = "x") { fade-in x [300ms] }"#;
+        let src = r#"fn transform(x: Bool | Str = "x") { fade-in x [300ms] }"#;
         let (stmts, errors) = parse_source(src);
         assert!(errors.is_empty(), "parse errors: {:?}", errors);
         let stmts = stmts.expect("expected parse output");
-        if let Stmt::ComponentAction { params, .. } = &stmts[0] {
+        if let Stmt::FnDecl { params, .. } = &stmts[0] {
             assert_eq!(
                 params[0].param_type,
                 Some(TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str,]))
             );
         } else {
-            panic!("expected ComponentAction, got {:?}", stmts[0]);
+            panic!("expected FnDecl, got {:?}", stmts[0]);
         }
     }
 
     #[test]
     fn test_enum_type_annotation_parses_in_action_param() {
-        let src = r#"action transform(x: Enum(left, right, top)) { fade-in x [300ms] }"#;
+        let src = r#"fn transform(x: Enum(left, right, top)) { fade-in x [300ms] }"#;
         let (stmts, errors) = parse_source(src);
         assert!(errors.is_empty(), "parse errors: {:?}", errors);
         let stmts = stmts.expect("expected parse output");
-        if let Stmt::ComponentAction { params, .. } = &stmts[0] {
+        if let Stmt::FnDecl { params, .. } = &stmts[0] {
             assert_eq!(
                 params[0].param_type,
                 Some(TypeAnnotation::Enum(vec![
@@ -1039,7 +1039,7 @@ mod tests {
                 ]))
             );
         } else {
-            panic!("expected ComponentAction, got {:?}", stmts[0]);
+            panic!("expected FnDecl, got {:?}", stmts[0]);
         }
     }
 

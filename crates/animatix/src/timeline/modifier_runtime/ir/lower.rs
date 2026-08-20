@@ -140,7 +140,9 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Always { .. }
         | Stmt::ReactiveBinding { .. }
         | Stmt::ComponentDef(..)
-        | Stmt::ComponentAction { .. }
+        | Stmt::FnDecl { .. }
+        | Stmt::Block { .. }
+        | Stmt::Return { .. }
         | Stmt::Config { .. }
         | Stmt::Scene { .. }
         | Stmt::Play { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),

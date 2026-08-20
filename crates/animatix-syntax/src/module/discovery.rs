@@ -67,13 +67,20 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
             Some(Stmt::Always { body, span: None })
         },
-        Stmt::ComponentAction {
-            name, params, body, ..
+        Stmt::FnDecl {
+            is_pub,
+            name,
+            params,
+            return_type,
+            body,
+            ..
         } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            Some(Stmt::ComponentAction {
+            Some(Stmt::FnDecl {
+                is_pub: *is_pub,
                 name: name.clone(),
                 params: params.clone(),
+                return_type: return_type.clone(),
                 body,
                 span: None,
             })
@@ -205,14 +212,19 @@ pub fn collect_component_actions(
 ) -> HashMap<String, crate::module::ActionTemplate> {
     let mut actions = HashMap::new();
     for stmt in &definition.body {
-        if let Stmt::ComponentAction {
-            name, params, body, ..
+        if let Stmt::FnDecl {
+            name,
+            params,
+            return_type,
+            body,
+            ..
         } = stmt
         {
             actions.insert(
                 name.clone(),
                 crate::module::ActionTemplate {
                     params: params.clone(),
+                    return_type: return_type.clone(),
                     body: body.clone(),
                 },
             );

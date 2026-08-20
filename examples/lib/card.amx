@@ -5,7 +5,7 @@ pub component Card(title: "Title", value: "0", accent: accent.primary) {
   header: Text, text: title, font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 12)
   body: Text, text: value, font_size: 42, color: accent, anchor: scene.center
 
-  action highlight {
+  fn highlight {
     self.frame.color = surface.primary [200ms]
     self.frame.color = surface.secondary [200ms]
   }

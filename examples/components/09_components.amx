@@ -11,7 +11,7 @@ pub component MetricCard(title: Str = "Metric", value: Str = "0") {
   }
   value_text: Text, text: value, font_size: 48, color: text.primary, anchor: scene.center
 
-  action pulse {
+  fn pulse {
     self.scale = 1.05 [120ms]
     self.scale = 1.0 [120ms]
   }

@@ -91,6 +91,7 @@ pub fn lexical_role(token: &Token) -> &'static str {
         | TokenKind::Assign
         | TokenKind::ReactiveAssign
         | TokenKind::Arrow
+        | TokenKind::ThinArrow
         | TokenKind::RangeInclusive
         | TokenKind::Pipe
         | TokenKind::ColonColon => "operator",
@@ -244,7 +245,7 @@ fn collect_stmt_label_names(stmt: &Stmt, names: &mut HashSet<String>) {
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
         | Stmt::ForLoop { body, .. }
-        | Stmt::ComponentAction { body, .. } => {
+        | Stmt::FnDecl { body, .. } => {
             for child in body {
                 collect_stmt_label_names(child, names);
             }

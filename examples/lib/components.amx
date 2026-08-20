@@ -10,7 +10,7 @@ pub component Button(label: "Button", accent: accent.primary) {
   bg: Rect, size: (140, 44), color: surface.secondary, anchor: scene.center
   label_text: Text, text: label, font_size: 16, color: accent, anchor: scene.center
 
-  action pulse {
+  fn pulse {
     self.scale = 1.05 [120ms]
     self.scale = 1.0 [150ms]
   }
@@ -35,7 +35,7 @@ pub component Panel(title: "Panel", width: 280, height: 180) {
     placeholder: Text, text: "Content", font_size: 14, color: text.secondary, anchor: scene.center
   }
 
-  action fade_in {
+  fn fade_in {
     self.opacity = 0 [0ms]
     self.opacity = 1 [400ms]
   }

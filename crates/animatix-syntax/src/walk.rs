@@ -164,7 +164,7 @@ pub fn collect_stmt_bodies_mut(stmt: &mut Stmt) -> Vec<&mut Vec<Stmt>> {
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(crate::ast::ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. }
+        | Stmt::FnDecl { body, .. }
         | Stmt::Scene { body, .. } => {
             vec![body]
         },
@@ -196,7 +196,7 @@ pub fn recurse_stmt_bodies(stmt: &Stmt, f: &mut dyn FnMut(&[Stmt])) {
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(crate::ast::ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. }
+        | Stmt::FnDecl { body, .. }
         | Stmt::Scene { body, .. } => {
             f(body);
         },
@@ -334,7 +334,7 @@ fn find_stmt_in_bodies<'a>(
         | Stmt::Stagger { body, .. }
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-        | Stmt::ComponentAction { body, .. }
+        | Stmt::FnDecl { body, .. }
         | Stmt::Scene { body, .. } => f(body),
         Stmt::Conditional {
             then_branch,
@@ -370,7 +370,7 @@ fn find_stmt_in_bodies_mut<'a>(
         Stmt::Stagger { body, .. } => f(body),
         Stmt::Always { body, .. } => f(body),
         Stmt::ComponentDef(ComponentDef { body, .. }, _) => f(body),
-        Stmt::ComponentAction { body, .. } => f(body),
+        Stmt::FnDecl { body, .. } => f(body),
         Stmt::Scene { body, .. } => f(body),
         Stmt::Conditional {
             then_branch,

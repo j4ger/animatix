@@ -286,7 +286,7 @@ impl<'a> TypeEnv<'a> {
                 }
                 self.typed.pop_scope();
             },
-            Stmt::ComponentAction {
+            Stmt::FnDecl {
                 name, params, body, ..
             } => {
                 if self.strict_types {
@@ -709,6 +709,7 @@ mod tests {
                                 param_type: Some(TypeAnnotation::Num),
                                 default: Some(Expr::Num(1.15)),
                             }],
+                            return_type: None,
                             body: vec![],
                         },
                     );
@@ -776,6 +777,7 @@ mod tests {
                                 param_type: Some(TypeAnnotation::Num),
                                 default: Some(Expr::Num(1.15)),
                             }],
+                            return_type: None,
                             body: vec![],
                         },
                     );

@@ -188,6 +188,19 @@ pub(super) fn rewrite_stmt(
     bindings: &HashMap<String, Expr>,
 ) -> Stmt {
     match stmt {
+        Stmt::Return { value, span, .. } => Stmt::Return {
+            value: value
+                .as_ref()
+                .map(|expr| rewrite_expr(expr, prefix, root_label, known_labels, bindings)),
+            span: *span,
+        },
+        Stmt::Block { body, span, .. } => Stmt::Block {
+            body: body
+                .iter()
+                .map(|s| rewrite_stmt(s, prefix, root_label, known_labels, bindings))
+                .collect(),
+            span: *span,
+        },
         Stmt::ActorDecl {
             is_pub,
             label,
@@ -467,15 +480,19 @@ pub(super) fn rewrite_stmt(
             },
             *span,
         ),
-        Stmt::ComponentAction {
+        Stmt::FnDecl {
+            is_pub,
             name,
             params,
+            return_type,
             body,
             span,
             ..
-        } => Stmt::ComponentAction {
+        } => Stmt::FnDecl {
+            is_pub: *is_pub,
             name: name.clone(),
             params: params.clone(),
+            return_type: return_type.clone(),
             body: if body.iter().any(|s| stmt_needs_rewrite(s, root_label, known_labels, bindings))
             {
                 body.iter()

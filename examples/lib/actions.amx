@@ -8,12 +8,12 @@
 // A minimal hit-target with press and pulse actions.
 
 pub component Pressable() {
-  action press {
+  fn press {
     self.scale = 0.92 [80ms]
     self.scale = 1.0 [120ms]
   }
 
-  action pulse {
+  fn pulse {
     self.scale = 1.08 [120ms]
     self.scale = 1.0 [180ms]
   }
@@ -25,12 +25,12 @@ pub component Pressable() {
 pub component Togglable() {
   frame: Rect, size: (60, 60), color: surface.primary, anchor: scene.center
 
-  action highlight {
+  fn highlight {
     self.frame.color = surface.secondary [200ms]
     self.frame.color = surface.primary [300ms]
   }
 
-  action dim {
+  fn dim {
     self.frame.color = surface.primary [200ms]
     self.frame.color = surface.secondary [300ms]
   }
@@ -40,11 +40,11 @@ pub component Togglable() {
 // A simple enter/exit helper.
 
 pub component Fadable() {
-  action show {
+  fn show {
     self.opacity = 1 [300ms]
   }
 
-  action hide {
+  fn hide {
     self.opacity = 0 [300ms]
   }
 }

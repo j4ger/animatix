@@ -107,7 +107,8 @@ fn update_assignment(
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 if let Ok(()) = update_assignment(body, actor, property, value.clone()) {
                     return Ok(());
                 }
@@ -255,7 +256,8 @@ fn update_assignment_easing(
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 if let Ok(()) = update_assignment_easing(body, actor, property, easing_expr) {
                     return Ok(());
                 }
@@ -641,7 +643,8 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. }
             | Stmt::ComponentDef(ComponentDef { body, .. }, _)
-            | Stmt::ComponentAction { body, .. } => {
+            | Stmt::FnDecl { body, .. }
+            | Stmt::Block { body, .. } => {
                 if contains_assignment(body, actor, property) {
                     return true;
                 }

@@ -84,12 +84,15 @@ pub struct ComponentEntry {
     pub actions: HashMap<String, ActionTemplate>,
 }
 
-/// A component action template with parameter definitions and body.
+/// A timeline-function template with parameter definitions and body.
 #[derive(Clone, Debug)]
 pub struct ActionTemplate {
-    /// Parameter definitions for this action.
+    /// Parameter definitions for this function.
     pub params: Vec<ParamDef>,
-    /// Body statements of the action.
+    /// Return type annotation; `Some` marks a pure function that is evaluated
+    /// at runtime instead of being expanded.
+    pub return_type: Option<crate::ast::TypeAnnotation>,
+    /// Body statements of the function.
     pub body: Vec<Stmt>,
 }
 
@@ -144,7 +147,7 @@ impl LoadedProgram {
     /// Expand component instances into concrete statements and inline custom actions.
     pub fn expand_components(&self) -> Vec<Stmt> {
         let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::inline_custom_actions(stmts, &registry, &self.module_actions)
+        inline_actions::expand_fn_calls(stmts, &registry, &self.module_actions)
     }
 }
 
@@ -890,13 +893,18 @@ impl ModuleGraph {
         actions: &mut HashMap<String, ActionTemplate>,
     ) {
         match stmt {
-            Stmt::ComponentAction {
-                name, params, body, ..
+            Stmt::FnDecl {
+                name,
+                params,
+                return_type,
+                body,
+                ..
             } => {
                 actions.insert(
                     name.clone(),
                     ActionTemplate {
                         params: params.clone(),
+                        return_type: return_type.clone(),
                         body: body.clone(),
                     },
                 );

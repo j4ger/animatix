@@ -240,8 +240,42 @@ impl SymbolTable {
                 }
             },
 
-            Stmt::ComponentAction { name, body, .. } => {
+            Stmt::FnDecl {
+                name, params, body, ..
+            } => {
                 self.actions.insert(name.clone());
+                // Function parameters and `self` are valid labels inside the
+                // function body.
+                for param in params {
+                    self.labels.insert(
+                        param.name.clone(),
+                        LabelInfo {
+                            name: param.name.clone(),
+                            kind: LabelKind::For,
+                            line: 0,
+                            col: 0,
+                            span: None,
+                            ty: None,
+                            inferred_type: None,
+                            is_pub: false,
+                        },
+                    );
+                }
+                // `self` is implicitly available inside timeline functions
+                // when invoked target-style.
+                self.labels.insert(
+                    "self".to_string(),
+                    LabelInfo {
+                        name: "self".to_string(),
+                        kind: LabelKind::Actor,
+                        line: 0,
+                        col: 0,
+                        span: None,
+                        ty: None,
+                        inferred_type: None,
+                        is_pub: false,
+                    },
+                );
                 for stmt in body {
                     self.collect_stmt(stmt);
                 }
@@ -420,9 +454,9 @@ impl SymbolTable {
                     } else {
                         self.referenced_labels.insert(target.clone());
                     }
-                    for arg in &action.args {
-                        self.collect_refs_from_expr(arg);
-                    }
+                }
+                for arg in &action.args {
+                    self.collect_refs_from_expr(arg);
                 }
             },
             Stmt::Assignment {

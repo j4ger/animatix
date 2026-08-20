@@ -184,7 +184,7 @@ fn expand_stmt_into(
             });
         },
         // ComponentAction is NOT emitted into output; it's collected during instance expansion
-        Stmt::ComponentAction { .. } => {},
+        Stmt::FnDecl { .. } => {},
         Stmt::ComponentDef(..) => {},
         Stmt::Scene {
             name,
@@ -427,13 +427,18 @@ fn expand_component_instance(
     let filtered: Vec<Stmt> = rewritten
         .into_iter()
         .filter_map(|stmt| match &stmt {
-            Stmt::ComponentAction {
-                name, params, body, ..
+            Stmt::FnDecl {
+                name,
+                params,
+                return_type,
+                body,
+                ..
             } => {
                 instance_actions.insert(
                     name.clone(),
                     crate::module::ActionTemplate {
                         params: params.clone(),
+                        return_type: return_type.clone(),
                         body: body.clone(),
                     },
                 );

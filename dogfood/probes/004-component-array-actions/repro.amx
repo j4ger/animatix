@@ -11,7 +11,7 @@ pub component Bars(values: List<Num>, colors: List<Color>) {
     }
   }
 
-  action pulseAt(index: Num) {
+  fn pulseAt(index: Num) {
     bar[index].scale = 1.1 [120ms]
     bar[index].scale = 1.0 [180ms]
   }

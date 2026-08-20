@@ -162,13 +162,18 @@ pub(crate) fn parser<'src>(
 
         let param_def = common::ident_decl_occ(OccurrenceKind::Parameter)
             .clone()
-            .then_ignore(colon())
             .then(
-                type_annotation
-                    .clone()
-                    .then(assign().ignore_then(expr.clone()).or_not())
-                    .map(|(ty, default)| (Some(ty), default))
-                    .or(expr.clone().map(|e| (None, Some(e)))),
+                colon()
+                    .ignore_then(
+                        type_annotation
+                            .clone()
+                            .then(assign().ignore_then(expr.clone()).or_not())
+                            .map(|(ty, default)| (Some(ty), default))
+                            .or(expr.clone().map(|e| (None, Some(e)))),
+                    )
+                    .or(assign().ignore_then(expr.clone()).map(|e| (None, Some(e))))
+                    .or_not()
+                    .map(|opt| opt.unwrap_or((None, None))),
             )
             .map(|(name, (param_type, default))| ParamDef {
                 name,
@@ -191,6 +196,12 @@ pub(crate) fn parser<'src>(
                 span: None,
             })
             .labelled("let declaration")
+            .as_context();
+
+        let return_stmt = keyword("return")
+            .ignore_then(expr.clone().or_not())
+            .map(|value| Stmt::Return { value, span: None })
+            .labelled("return statement")
             .as_context();
 
         let type_alias = keyword("pub")
@@ -506,7 +517,15 @@ pub(crate) fn parser<'src>(
                     .or_not()
                     .map(|opt| opt.unwrap_or_default()),
             )
-            .then(expr.clone().repeated().collect::<Vec<_>>())
+            // Function-style call args: `highlight_key(bars, key)` — a
+            // parenthesized comma-separated list. Plain target-style actions
+            // fall back to the existing bare-expr args.
+            .then(
+                lparen()
+                    .ignore_then(expr.clone().separated_by(comma()).collect::<Vec<_>>())
+                    .then_ignore(rparen())
+                    .or(expr.clone().repeated().collect::<Vec<_>>()),
+            )
             .then(modifiers.clone())
             .map_with(
                 |(((verb, targets), args), modifiers),
@@ -658,8 +677,14 @@ pub(crate) fn parser<'src>(
             .labelled("for loop")
             .as_context();
 
-        let component_action_stmt = keyword("action")
-            .ignore_then(common::ident_decl_occ(OccurrenceKind::Action).clone())
+        // `fn name(params) -> Type? { body }` — module-level or component-level.
+        // A return type marks a pure function (computation only); without one
+        // it is a timeline function that may emit events (`self` is implicit).
+        let fn_decl_stmt = keyword("pub")
+            .or_not()
+            .map(|p| p.is_some())
+            .then_ignore(keyword("fn"))
+            .then(common::ident_decl_occ(OccurrenceKind::Action).clone())
             .then(common::scoped(
                 param_def
                     .clone()
@@ -669,6 +694,11 @@ pub(crate) fn parser<'src>(
                     .or_not()
                     .map(|p| p.unwrap_or_default())
                     .then(
+                        thin_arrow()
+                            .ignore_then(type_annotation.clone())
+                            .or_not(),
+                    )
+                    .then(
                         _stmt
                             .clone()
                             .repeated()
@@ -676,9 +706,11 @@ pub(crate) fn parser<'src>(
                             .delimited_by(lbrace(), rbrace()),
                     ),
             ))
-            .map(|(name, (params, body))| Stmt::ComponentAction {
+            .map(|((is_pub, name), ((params, return_type), body))| Stmt::FnDecl {
+                is_pub,
                 name,
                 params,
+                return_type,
                 body,
                 span: None,
             });
@@ -738,12 +770,13 @@ pub(crate) fn parser<'src>(
             image_stmt,
             callout_stmt,
             always_stmt,
+            return_stmt,
             conditional_stmt,
             match_stmt,
             for_stmt,
             sequence_stmt,
             stagger_stmt,
-            component_action_stmt,
+            fn_decl_stmt,
             component_def,
             typst_shorthand,
             text_shorthand,

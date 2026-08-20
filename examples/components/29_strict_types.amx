@@ -16,7 +16,7 @@ pub component TypedCard(label: Str, amount: Num, bg: Color, enabled: Bool = true
   val: Text, text: amount, font_size: 42, color: text.primary, anchor: scene.center
 
   // action params are type-checked too: tint must be Color
-  action highlight(tint: Color) {
+  fn highlight(tint: Color) {
     self.frame.color = tint [300ms]
     self.frame.color = bg [300ms]
   }

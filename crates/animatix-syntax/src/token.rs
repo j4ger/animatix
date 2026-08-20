@@ -74,6 +74,8 @@ pub enum TokenKind {
     ReactiveAssign,
     /// `=>`
     Arrow,
+    /// `->`
+    ThinArrow,
     /// `..=`
     RangeInclusive,
     /// `|`
@@ -147,6 +149,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Assign => write!(f, "="),
             TokenKind::ReactiveAssign => write!(f, ":="),
             TokenKind::Arrow => write!(f, "=>"),
+            TokenKind::ThinArrow => write!(f, "->"),
             TokenKind::RangeInclusive => write!(f, "..="),
             TokenKind::Pipe => write!(f, "|"),
             TokenKind::ColonColon => write!(f, "::"),
@@ -280,8 +283,11 @@ impl<'a> Lexer<'a> {
 
         let text = &self.src[start..self.pos];
         let lower = text.to_ascii_lowercase();
-        if crate::builtins::KEYWORDS.contains(&lower.as_str())
-            || crate::builtins::RESERVED_KEYWORDS.contains(&lower.as_str())
+        // Keywords are all-lowercase words; `Fn` stays an identifier so the
+        // uppercase type keyword does not collide with the `fn` declaration.
+        if text == lower
+            && (crate::builtins::KEYWORDS.contains(&lower.as_str())
+                || crate::builtins::RESERVED_KEYWORDS.contains(&lower.as_str()))
         {
             TokenKind::Keyword(lower)
         } else if lower == "true" {
@@ -395,6 +401,10 @@ impl<'a> Lexer<'a> {
             },
             b'=' => self.advance(TokenKind::Assign),
             b'+' => self.advance(TokenKind::Plus),
+            b'-' if self.peek_n(1) == b'>' => {
+                self.pos += 2;
+                TokenKind::ThinArrow
+            },
             b'-' => self.advance(TokenKind::Minus),
             b'*' => self.advance(TokenKind::Star),
             b'/' => self.advance(TokenKind::Slash),

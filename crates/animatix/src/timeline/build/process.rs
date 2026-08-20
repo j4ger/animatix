@@ -210,14 +210,22 @@ impl Timeline {
                     let eval_env = self.build_eval_env(time_ms as u64);
                     match evaluate_expr(value, &eval_env) {
                         Ok(val) => {
-                            self.variable_tracks
-                                .entry(name.clone())
-                                .or_default()
-                                .keyframes
-                                .insert(time_ms as u64, val.clone());
-                            // Make the shadowed value visible to subsequent statements
-                            // in the same build pass (algorithm precomputation).
-                            self.env.set(name, val);
+                            if let Some(locals) = self.block_scope.last_mut() {
+                                // Function-local binding: visible within the
+                                // block, removed on exit, and never written to
+                                // the scene's variable tracks.
+                                locals.insert(name.clone());
+                                self.env.set(name, val);
+                            } else {
+                                self.variable_tracks
+                                    .entry(name.clone())
+                                    .or_default()
+                                    .keyframes
+                                    .insert(time_ms as u64, val.clone());
+                                // Make the shadowed value visible to subsequent statements
+                                // in the same build pass (algorithm precomputation).
+                                self.env.set(name, val);
+                            }
                         },
                         Err(e) => {
                             diagnostics.push(
@@ -308,7 +316,26 @@ impl Timeline {
                 | Stmt::Scene { .. }
                 | Stmt::Play { .. }
                 | Stmt::ComponentDef(..)
-                | Stmt::ComponentAction { .. } => {},
+                | Stmt::FnDecl { .. } => {},
+                Stmt::Block { body, .. } => {
+                    // Function-call expansion scope: `let` bindings inside
+                    // stay local and are removed when the block exits.
+                    self.block_scope.push(std::collections::HashSet::new());
+                    self.process_body(time_ms, body, parent_label, diagnostics);
+                    if let Some(locals) = self.block_scope.pop() {
+                        for name in locals {
+                            self.env.overrides.remove(&name);
+                        }
+                    }
+                },
+                Stmt::Return { value, span, .. } => {
+                    let _ = (value, span);
+                    diagnostics.push(Diagnostic::error(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        "'return' is only valid inside a pure function body".to_string(),
+                    ));
+                },
             }
         }
     }
