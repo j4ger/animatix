@@ -136,6 +136,10 @@ fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
             10u8.hash(hasher);
             params.hash(hasher);
         },
+        Value::UserFn { name, .. } => {
+            11u8.hash(hasher);
+            name.hash(hasher);
+        },
     }
 }
 
@@ -538,6 +542,9 @@ pub(crate) fn evaluate_call_value(
             // Closures evaluate against the captured (lexical) environment,
             // then bind parameters on top. Free variables resolve to their
             // values at creation time, not call time.
+            Value::UserFn {
+                name, params, body, ..
+            } => super::fn_eval::evaluate_user_fn(&name, &params, &body, &arg_values, env),
             Value::Closure(params, body, ref captures) => {
                 if arg_values.len() != params.len() {
                     return Err(EvalError::TypeMismatch(format!(
@@ -763,6 +770,7 @@ fn format_value(value: &Value) -> String {
         Value::Object(name, fields) => format!("{}({:?})", name, fields),
         Value::NativeFn(_) => "<NativeFn>".to_string(),
         Value::Closure(args, _, _) => format!("<Closure({:?})>", args),
+        Value::UserFn { name, .. } => format!("<UserFn({})>", name),
     }
 }
 

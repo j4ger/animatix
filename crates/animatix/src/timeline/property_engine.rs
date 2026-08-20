@@ -653,7 +653,10 @@ fn property_value_from_value(value: Value) -> Option<PropertyValue> {
                 return None;
             }
         },
-        Value::Object(_, _) | Value::NativeFn(_) | Value::Closure(_, _, _) => return None,
+        Value::Object(_, _)
+        | Value::NativeFn(_)
+        | Value::Closure(_, _, _)
+        | Value::UserFn { .. } => return None,
     })
 }
 

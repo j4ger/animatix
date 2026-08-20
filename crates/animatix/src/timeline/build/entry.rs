@@ -378,6 +378,19 @@ impl Timeline {
         if let Some(ctx) = timeline.extensions.as_ref() {
             ctx.install_functions(&mut timeline.env);
         }
+        // Seed pure user functions (`fn f(...) -> T`) so expression calls
+        // resolve against the build environment.
+        for (name, params, body) in super::fn_eval::collect_pure_fns(ast) {
+            tracing::info!("[fn-seed] pure fn '{name}'");
+            timeline.env.set(
+                &name,
+                super::Value::UserFn {
+                    name: name.clone(),
+                    params: std::sync::Arc::new(params),
+                    body: std::sync::Arc::new(body),
+                },
+            );
+        }
         timeline.apply_colorscheme(BuiltInColorscheme::DefaultDark.resolved());
         // Seed build-time environment with scene dimensions so `let` declarations
         // can reference `scene_width` / `scene_height`.

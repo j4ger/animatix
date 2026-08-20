@@ -183,8 +183,9 @@ fn expand_stmt_into(
                 span: *span,
             });
         },
-        // ComponentAction is NOT emitted into output; it's collected during instance expansion
-        Stmt::FnDecl { .. } => {},
+        // Instance functions are consumed during component expansion; module-
+        // level functions survive so the runtime can seed pure functions.
+        Stmt::FnDecl { .. } => output.push(stmt.clone()),
         Stmt::ComponentDef(..) => {},
         Stmt::Scene {
             name,

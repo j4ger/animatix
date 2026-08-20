@@ -253,6 +253,17 @@ fn substitute_action_params(
 
 fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> Stmt {
     match stmt.clone() {
+        Stmt::LetDecl {
+            is_pub,
+            name,
+            value,
+            span,
+        } => Stmt::LetDecl {
+            is_pub,
+            name,
+            value: substitute_params_in_expr(&value, bindings),
+            span,
+        },
         Stmt::Assignment {
             target,
             property,

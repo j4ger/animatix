@@ -416,6 +416,7 @@ fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
             Value::Object(name, fields) => format!("{}({:?})", name, fields),
             Value::NativeFn(_) => "<NativeFn>".to_string(),
             Value::Closure(_, _, _) => "<Closure>".to_string(),
+            Value::UserFn { name, .. } => format!("<UserFn({})>", name),
         };
         output = output.replacen("{}", &replacement, 1);
     }

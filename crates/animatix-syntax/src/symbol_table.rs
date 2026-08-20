@@ -436,6 +436,11 @@ impl SymbolTable {
                     self.collect_inline_item(child);
                 }
             },
+            Stmt::FnDecl { body, .. } | Stmt::Block { body, .. } => {
+                for stmt in body {
+                    self.collect_refs_from_stmt(stmt);
+                }
+            },
             Stmt::Action(action, ..) => {
                 for (target, index) in action.targets.iter().zip(action.target_index.iter()) {
                     if let Some(expr) = index {

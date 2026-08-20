@@ -973,6 +973,8 @@ impl Timeline {
                                         Value::List(_) => "list".to_string(),
                                         Value::NativeFn(_) => "function".to_string(),
                                         Value::Closure(_, _, _) => "closure".to_string(),
+                                        Value::UserFn { name, .. } =>
+                                            format!("user function {name}"),
                                         Value::Object(name, _) => name.clone(),
                                         Value::Bool(_) => "bool".to_string(),
                                     }

@@ -49,6 +49,7 @@ pub mod eval_shared;
 /// Filter backend and CPU image processing.
 #[cfg(feature = "render")]
 pub mod filter;
+pub(crate) mod fn_eval;
 /// Image loading utilities.
 #[cfg(feature = "render")]
 pub mod image;

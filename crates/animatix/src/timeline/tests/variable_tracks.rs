@@ -518,3 +518,95 @@ fn always_nested_object_field_writes_update_frame_environment() {
         other => panic!("Expected Point object, got {:?}", other),
     }
 }
+
+#[test]
+fn pure_fn_calls_evaluate_in_expressions() {
+    // `fn` declarations with `-> Type` are evaluated at build time when their
+    // calls appear in `let` expressions; `return` unwinds the body.
+    let source = r#"
+fn dnf(arr: List<Num>) -> List<Num> {
+  let arr = list_swap(arr, 0, 2)
+  return arr
+}
+fn total(xs: List<Num>) -> Num {
+  let a = xs[0]
+  let b = xs[1]
+  if a > b {
+    return a + b
+  } else {
+    return a * b
+  }
+}
+#0s
+let sorted = dnf({3, 2, 1})
+let summed = total(sorted)
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let sorted = timeline.variable_tracks.get("sorted").expect("sorted track");
+    assert_eq!(
+        sorted.evaluate(0),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)])),
+        "dnf should swap indices 0 and 2"
+    );
+    let summed = timeline.variable_tracks.get("summed").expect("summed track");
+    assert_eq!(
+        summed.evaluate(0),
+        Some(Value::Num(2.0)),
+        "total(1,2,3) should return 1*2 via the else branch"
+    );
+}
+
+#[test]
+fn timeline_fn_expands_with_block_scope_without_leaking_locals() {
+    // A timeline function body's local `let` must not leak into the scene
+    // after the call, and must not write scene variable tracks.
+    let source = r#"
+config { colorscheme: "editorial-dark" }
+fn pulse(strength: Num = 1.0) {
+  let local = strength * 2
+  self.scale = local [100ms]
+}
+btn: Rect, size: (100, 50), color: blue
+#0s
+fade-in btn [300ms]
+#1s
+pulse btn [strength: 1.5]
+"#;
+    // Timeline-function calls are expanded by the module system, so load
+    // through the module graph like the CLI does.
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(std::path::Path::new("fn_scope.amx"), Some(source))
+        .expect("program loads");
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    assert!(
+        !timeline.variable_tracks.contains_key("local"),
+        "function-local let must not create a scene variable track"
+    );
+    // The scale keyframe written through the fn body targets the actor;
+    // scale is stored in the transform track as [s,0,0,s,0,0].
+    let track = timeline.tracks.get("btn").expect("btn track");
+    assert_eq!(
+        track.geometry.scale.get(1100, 1.0),
+        3.0,
+        "pulse body should write scale = strength * 2 = 3.0 at t=1.1s"
+    );
+}

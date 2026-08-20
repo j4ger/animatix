@@ -139,6 +139,16 @@ pub enum Value {
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     /// User-defined closure (parameter names, compiled body, captured environment).
     Closure(Vec<String>, Box<CompiledExpr>, CapturedEnv),
+    /// User-declared pure function (`fn f(...) -> T`), evaluated at build time.
+    UserFn {
+        /// Function name.
+        name: String,
+        /// Parameter definitions (name + optional default).
+        params: std::sync::Arc<Vec<crate::ast::ParamDef>>,
+        /// Body statements; the tail expression (last non-return statement's
+        /// expression) provides the return value when no `return` fires.
+        body: std::sync::Arc<Vec<crate::ast::Stmt>>,
+    },
 }
 
 impl fmt::Debug for Value {
@@ -155,6 +165,7 @@ impl fmt::Debug for Value {
             Value::Object(name, fields) => write!(f, "{}({:?})", name, fields),
             Value::NativeFn(_) => write!(f, "<NativeFn>"),
             Value::Closure(args, _, _) => write!(f, "<Closure({:?})>", args),
+            Value::UserFn { name, .. } => write!(f, "<UserFn({name})>"),
         }
     }
 }

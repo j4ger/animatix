@@ -188,10 +188,18 @@ impl<'a> TypeEnv<'a> {
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
             | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. } => {
+            | Stmt::Stagger { body, .. } => {
                 for stmt in body {
                     self.check_stmt(stmt, diagnostics);
+                }
+            },
+            Stmt::Always { body, .. } => {
+                for stmt in body {
+                    self.check_stmt(stmt, diagnostics);
+                    // User functions execute at build time; frame-time `always`
+                    // bodies cannot call them (the IR executor is expression
+                    // based and statement bodies need the build-time machine).
+                    self.check_no_user_fn_calls(stmt, diagnostics);
                 }
             },
             Stmt::Conditional {
@@ -287,7 +295,11 @@ impl<'a> TypeEnv<'a> {
                 self.typed.pop_scope();
             },
             Stmt::FnDecl {
-                name, params, body, ..
+                name,
+                params,
+                return_type,
+                body,
+                ..
             } => {
                 if self.strict_types {
                     self.check_param_annotations(name, "action", params, diagnostics);
@@ -308,8 +320,9 @@ impl<'a> TypeEnv<'a> {
                         .unwrap_or(TypedType::Any);
                     self.typed.bind(&param.name, ty);
                 }
+                let pure = return_type.is_some();
                 for stmt in body {
-                    self.check_stmt(stmt, diagnostics);
+                    self.check_fn_body_stmt(name, stmt, pure, diagnostics);
                 }
                 self.typed.pop_scope();
             },
@@ -317,6 +330,94 @@ impl<'a> TypeEnv<'a> {
                 // Config is handled at the program level, not per-statement
             },
             _ => {},
+        }
+    }
+
+    /// Check one statement inside a function body against the purity rules.
+    ///
+    /// Pure functions (`-> Type`) allow computation only: `let`, `if`/`match`,
+    /// `for`, and `return`. Timeline functions may emit events but must not
+    /// declare scenes, keyframes, or actors.
+    fn check_fn_body_stmt(
+        &mut self,
+        name: &str,
+        stmt: &Stmt,
+        pure: bool,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let allowed = match stmt {
+            Stmt::LetDecl { .. }
+            | Stmt::Conditional { .. }
+            | Stmt::Match { .. }
+            | Stmt::ForLoop { .. }
+            | Stmt::Block { .. }
+            | Stmt::Return { .. } => true,
+            Stmt::Action { .. } | Stmt::Assignment { .. } if !pure => true,
+            _ => false,
+        };
+        if !allowed {
+            diagnostics.push(crate::diagnostics::Diagnostic::error(
+                crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!(
+                    "{}function '{}' body contains a statement that is not allowed{}",
+                    if pure { "pure " } else { "timeline " },
+                    name,
+                    if pure {
+                        "; pure functions may only compute (let/if/match/for/return)"
+                    } else {
+                        "; timeline functions cannot declare scenes, keyframes, or actors"
+                    }
+                ),
+            ));
+        }
+        // Recurse into nested statement bodies so the check is structural.
+        match stmt {
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                for s in then_branch {
+                    self.check_fn_body_stmt(name, s, pure, diagnostics);
+                }
+                if let Some(eb) = else_branch {
+                    for s in eb {
+                        self.check_fn_body_stmt(name, s, pure, diagnostics);
+                    }
+                }
+            },
+            Stmt::Match { arms, .. } => {
+                for (_, body) in arms {
+                    for s in body {
+                        self.check_fn_body_stmt(name, s, pure, diagnostics);
+                    }
+                }
+            },
+            Stmt::ForLoop { body, .. } | Stmt::Block { body, .. } => {
+                for s in body {
+                    self.check_fn_body_stmt(name, s, pure, diagnostics);
+                }
+            },
+            _ => {},
+        }
+    }
+
+    /// Reject calls to user functions inside `always` bodies: user functions
+    /// run at build time, while `always` evaluates per frame.
+    fn check_no_user_fn_calls(&mut self, stmt: &Stmt, diagnostics: &mut Vec<Diagnostic>) {
+        let mut calls = Vec::new();
+        collect_fn_calls(stmt, &mut calls);
+        for name in calls {
+            if self.module_actions.contains_key(&name) {
+                diagnostics.push(crate::diagnostics::Diagnostic::error(
+                    crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!(
+                        "user function '{name}' cannot be called inside 'always';                          functions execute at build time"
+                    ),
+                ));
+            }
         }
     }
 
@@ -1250,5 +1351,112 @@ mod tests {
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].code, DiagnosticCode::UnknownTypeAlias);
         assert!(diagnostics[0].message.contains("Missing"));
+    }
+}
+
+/// Collect `Expr::Call` names inside a statement tree.
+fn collect_fn_calls(stmt: &Stmt, out: &mut Vec<String>) {
+    match stmt {
+        Stmt::LetDecl { value, .. } => collect_fn_calls_in_expr(value, out),
+        Stmt::Assignment { value, .. } => collect_fn_calls_in_expr(value, out),
+        Stmt::Conditional {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_fn_calls_in_expr(condition, out);
+            for s in then_branch {
+                collect_fn_calls(s, out);
+            }
+            if let Some(eb) = else_branch {
+                for s in eb {
+                    collect_fn_calls(s, out);
+                }
+            }
+        },
+        Stmt::Match {
+            scrutinee, arms, ..
+        } => {
+            collect_fn_calls_in_expr(scrutinee, out);
+            for (_, body) in arms {
+                for s in body {
+                    collect_fn_calls(s, out);
+                }
+            }
+        },
+        Stmt::ForLoop { iterable, body, .. } => {
+            collect_fn_calls_in_expr(iterable, out);
+            for s in body {
+                collect_fn_calls(s, out);
+            }
+        },
+        Stmt::Block { body, .. } => {
+            for s in body {
+                collect_fn_calls(s, out);
+            }
+        },
+        Stmt::Action(action, ..) => {
+            for arg in &action.args {
+                collect_fn_calls_in_expr(arg, out);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// Collect `Expr::Call` names inside an expression tree.
+fn collect_fn_calls_in_expr(expr: &crate::ast::Expr, out: &mut Vec<String>) {
+    match expr {
+        crate::ast::Expr::Call(name, args) => {
+            out.push(name.clone());
+            for arg in args {
+                collect_fn_calls_in_expr(arg, out);
+            }
+        },
+        crate::ast::Expr::Path(_)
+        | crate::ast::Expr::Num(_)
+        | crate::ast::Expr::Percent(_)
+        | crate::ast::Expr::Str(_)
+        | crate::ast::Expr::Bool(_)
+        | crate::ast::Expr::Null
+        | crate::ast::Expr::Ident(_) => {},
+        crate::ast::Expr::Tuple(items) | crate::ast::Expr::List(items) => {
+            for item in items {
+                collect_fn_calls_in_expr(item, out);
+            }
+        },
+        crate::ast::Expr::Binary(l, _, r) => {
+            collect_fn_calls_in_expr(l, out);
+            collect_fn_calls_in_expr(r, out);
+        },
+        crate::ast::Expr::Unary(_, v) => collect_fn_calls_in_expr(v, out),
+        crate::ast::Expr::Method(receiver, _, args) => {
+            collect_fn_calls_in_expr(receiver, out);
+            for arg in args {
+                collect_fn_calls_in_expr(arg, out);
+            }
+        },
+        crate::ast::Expr::Closure(_, body) => collect_fn_calls_in_expr(body, out),
+        crate::ast::Expr::Conditional(c, t, e) => {
+            collect_fn_calls_in_expr(c, out);
+            collect_fn_calls_in_expr(t, out);
+            collect_fn_calls_in_expr(e, out);
+        },
+        crate::ast::Expr::Match(scrutinee, arms) => {
+            collect_fn_calls_in_expr(scrutinee, out);
+            for (_, arm) in arms {
+                collect_fn_calls_in_expr(arm, out);
+            }
+        },
+        crate::ast::Expr::Construct(_, props) => {
+            for prop in props {
+                collect_fn_calls_in_expr(&prop.value, out);
+            }
+        },
+        crate::ast::Expr::Index(target, index) => {
+            collect_fn_calls_in_expr(target, out);
+            collect_fn_calls_in_expr(index, out);
+        },
     }
 }
