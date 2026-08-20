@@ -1,61 +1,77 @@
+// LeetCode 75 — Sort Colors (Dutch National Flag), rebuilt as a timeline
+// function. The partition loop runs at build time inside `fn dnf_pass` and
+// emits swap actions plus pointer moves on a `step`-sequenced timeline.
+//
+// `order[k]` tracks which original bar occupies slot `k`, so each swap
+// targets the bars *currently* at the two slots being exchanged — the
+// original version swapped by value positions and mis-targeted after the
+// first move. `match values[order[i]]` drives the three-way partition.
+//
+// No per-frame mutable state is introduced — the random-access guarantee
+// holds, and the function body's locals never leak into the scene.
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
-let arr = {2, 0, 1, 2, 1, 0}
+let values = {2, 0, 1, 2, 1, 0}
 
 let colors = {(1, 0, 0, 1), (0.9, 0.9, 0.9, 1), (0, 0, 1, 1)}
 
 title: Text, text: "Sort Colors — Dutch National Flag", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
 
+caption: Text, text: "red 0 · white 1 · blue 2 — partition via zero/i/two pointers",
+  font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 84)
+
 row: Row, at: (640, 440), gap: 16, align: "center" {
-for k in {0, 1, 2, 3, 4, 5} {
-b[k]: Rect, size: (70, 60 + arr[k] * 60), color: colors[arr[k]]
+  for k in {0, 1, 2, 3, 4, 5} {
+    b[k]: Rect, size: (70, 60 + values[k] * 60), color: colors[values[k]]
   }
 }
 
 zero_p: Text, text: "▼ zero", font_size: 18, color: accent.success, at: (425, 250)
-
 i_p: Text, text: "▼ i", font_size: 18, color: accent.warning, at: (425, 218)
-
 two_p: Text, text: "▲ two", font_size: 18, color: accent.danger, at: (855, 590)
 
-#0s
-  fade-in title [500ms]
-  fade-in row [600ms, ease: ease-out]
-  fade-in zero_p [300ms]
-  fade-in i_p [300ms]
-  fade-in two_p [300ms]
-  fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
-      let arr = arr
-      let zero = zero
-      let i = i
-      let two = two
-      for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 700ms] {
-            if i <= two {
-                    zero_p.at = (425 + zero * 86, 250) [600ms]
-                    i_p.at = (425 + i * 86, 218) [600ms]
-                    two_p.at = (425 + two * 86, 590) [600ms]
-                    match arr[i] {
-                    0 => {
-                              swap row.b[zero], row.b[i] [600ms]
-                              let arr = list_swap(arr, zero, i)
-                              let zero = zero + 1
-                              let i = i + 1
-                              },
-                    1 => {
-                              let i = i + 1
-                              },
-                    2 => {
-                              swap row.b[i], row.b[two] [600ms]
-                              let arr = list_swap(arr, i, two)
-                              let two = two - 1
-                              },
-                    _ => {
-                    
-                              }
-                            }
-                  }
-          }
+// Timeline function: one DNF partition pass emitting swaps and pointer moves.
+// `order[k]` = the original bar index at slot k; the pointers `zero`, `i`,
+// `two` index slots.
+fn dnf_pass(values: List<Num>) {
+  let order = {0, 1, 2, 3, 4, 5}
+  let zero = 0
+  let i = 0
+  let two = 5
+  for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 700ms] {
+    if i <= two {
+      zero_p.at = (425 + zero * 86, 250) [600ms]
+      i_p.at = (425 + i * 86, 218) [600ms]
+      two_p.at = (425 + two * 86, 590) [600ms]
+      match values[order[i]] {
+        0 => {
+          swap row.b[order[zero]], row.b[order[i]] [600ms]
+          let order = list_swap(order, zero, i)
+          let zero = zero + 1
+          let i = i + 1
+        }
+        1 => {
+          let i = i + 1
+        }
+        2 => {
+          swap row.b[order[i]], row.b[order[two]] [600ms]
+          let order = list_swap(order, i, two)
+          let two = two - 1
+        }
+        _ => {}
+      }
     }
+  }
+}
 
-#2s
-  dnf_pass(arr, 0, 0, 5)
+#0s
+fade-in title [500ms]
+fade-in caption [400ms, delay: 200ms]
+fade-in row [600ms, ease: ease-out]
+fade-in zero_p [300ms]
+fade-in i_p [300ms]
+fade-in two_p [300ms]
+
+#1s
+dnf_pass(values)

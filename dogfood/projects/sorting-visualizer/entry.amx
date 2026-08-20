@@ -1,23 +1,30 @@
-// Dogfood project: insertion sort authored as a timeline function. The sort
-// loop runs at build time inside `fn bubble_sort`: `let` shadowing carries the
-// array state, variable-index swap targets resolve against the loop variables,
-// and `[step: ...]` advances the build-time clock so each swap lands on its
-// own keyframe. The function body is expanded into a scoped block, so its
-// local `let` bindings never leak into the scene.
+// Sorting Visualizer — insertion sort as a timeline function.
+//
+// The sort runs at build time inside `fn insertion_sort`. The function tracks
+// `order` — which original bar occupies each slot — so every `swap` targets
+// the bars *currently* at the two slots being exchanged. Swapping value
+// positions instead would silently mis-target after the first move. `let`
+// shadowing carries `order` forward and `[step: ...]` advances the build-time
+// clock so each swap lands on its own keyframe.
+//
+// The body expands into a scoped block, so function-local `let` bindings
+// never leak into the scene.
 
 import "../../../examples/lib/tokens.amx" as tokens
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 // Timeline function: precomputed insertion sort over `bars.bar__N` tracks.
-fn bubble_sort(bars, values: List<Num>) {
-  let arr = values
+// `values` is the initial array; `order[k]` is the original bar index at slot
+// `k`, so `values[order[k]]` is the value shown in slot `k`.
+fn insertion_sort(bars, values: List<Num>) {
+  let order = {0, 1, 2, 3}
   for key in {1, 2, 3} [step: 1200ms] {
-    key_note.target = bars.bar[key] [300ms]
+    key_note.target = bars.bar[order[key]] [300ms]
     for j in {0, 1, 2} [step: 300ms] {
-      if j < key && arr[key - j] < arr[key - j - 1] {
-        swap bars.bar[key - j], bars.bar[key - j - 1] [300ms]
-        let arr = list_swap(arr, key - j, key - j - 1)
+      if j < key && values[order[key - j]] < values[order[key - j - 1]] {
+        swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [300ms]
+        let order = list_swap(order, key - j, key - j - 1)
       }
     }
   }
@@ -34,6 +41,7 @@ pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440)
 // ── Scene 1: Title ──────────────────────────────────────────────────────────
 
 # Title
+config { colorscheme: "editorial-dark", dynamic_layout: true, duration: 2.5 }
 
 title: Text, text: "Insertion Sort", font_size: 56,
   color: text.primary, anchor: scene.center, offset: (0, -60)
@@ -49,13 +57,13 @@ fade-in title [700ms, ease: ease-out]
 fade-in subtitle [600ms, delay: 200ms]
 fade-in hint [500ms, delay: 350ms]
 
-#2.5s
+#2.2s
 play Steps [fade, 400ms]
 
 // ── Scene 2: Steps ──────────────────────────────────────────────────────────
 
 # Steps
-config { colorscheme: "editorial-dark" }
+config { colorscheme: "editorial-dark", dynamic_layout: true, duration: 4.5 }
 
 step_title: Text, text: "Insert 1, then 3, then 2", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 56)
@@ -81,7 +89,7 @@ fade-in bars [500ms]
 fade-in key_note [400ms, delay: 200ms]
 fade-in step_caption [400ms, delay: 300ms]
 
-bubble_sort(bars, {4, 1, 3, 2})
+insertion_sort(bars, {4, 1, 3, 2})
 
 #4s
 play Result [fade, 400ms]
@@ -89,14 +97,14 @@ play Result [fade, 400ms]
 // ── Scene 3: Result ─────────────────────────────────────────────────────────
 
 # Result
-config { colorscheme: "editorial-dark" }
+config { colorscheme: "editorial-dark", dynamic_layout: true, duration: 4 }
 
 result_title: Text, text: "Sorted", font_size: 48,
   color: text.primary, anchor: scene.top, offset: (0, 72)
 
 result_bars: Bars, values: {1, 2, 3, 4}, colors: {tokens.success, tokens.success, tokens.success, tokens.success}
 
-result_note: Text, text: "Every swap was emitted by `bubble_sort` — one timeline function, no hand-unrolled keyframes.",
+result_note: Text, text: "Every swap was emitted by `insertion_sort` — one timeline function, no hand-unrolled keyframes.",
   font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
 
 #0s

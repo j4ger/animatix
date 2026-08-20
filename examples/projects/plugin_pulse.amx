@@ -1,13 +1,15 @@
 // Plugin showcase: the `animatix-plugin-demo` native plugin.
 //
 // Demonstrates a custom `Pulse` primitive exposing:
-//   - `glow`      — keyframed `Num` property (radius factor)
-//   - `mode`      — `Enum(ring, dot, cross)` property (GUI dropdown)
-//   - `caption`   — `Str` property rendered as a text label
-//   - `origin`    — `Vec2` placement property
-//   - `image_url` — `Str` property stamped via `append_image` from the cache
-//   - `throb`     — native action that writes a `glow` keyframe
-//   - `scale()`   — native expression function
+//   - `glow`    — keyframed `Num` property (radius factor)
+//   - `mode`    — `Enum(ring, dot, cross)` property (GUI dropdown)
+//   - `origin`  — `Vec2` property; the shape is drawn at the actor's `at`,
+//                 so set both to the same spot
+//   - `throb`   — native action that writes a `glow` keyframe
+//   - `scale()` — native expression function
+//   - `caption` / `image_url` — read by the plugin; note that native text and
+//     image commands render at the actor origin, so they are exercised by the
+//     demo but not visually prominent (host placement limitation).
 //
 // Build the plugin first, then check with the manifest so the analyzer knows
 // the extension types and properties:
@@ -26,11 +28,11 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 checker: Image, url: "examples/assets/checker.png", opacity: 0
 
 title: Text, text: "Native Plugin: Pulse", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 56)
-subtitle: Text, text: "enum property · keyframed glow · throb action · scale() function · cached image", font_size: 16, color: text.muted, anchor: scene.top, offset: (0, 100)
+subtitle: Text, text: "enum property · keyframed glow · throb action · scale() function", font_size: 16, color: text.muted, anchor: scene.top, offset: (0, 100)
 
-dot:   Pulse, glow: 0.2, mode: "dot",   caption: "dot",   origin: (380, 400), image_url: "examples/assets/checker.png"
-ring:  Pulse, glow: 0.5, mode: "ring",  caption: "ring",  origin: (640, 400)
-cross: Pulse, glow: 0.8, mode: "cross", caption: "cross", origin: (900, 400)
+dot:   Pulse, glow: 0.25, mode: "dot",   caption: "dot",   at: (380, 400), origin: (380, 400), image_url: "examples/assets/checker.png"
+ring:  Pulse, glow: 0.4,  mode: "ring",  caption: "ring",  at: (640, 400), origin: (640, 400)
+cross: Pulse, glow: 0.35, mode: "cross", caption: "cross", at: (900, 400), origin: (900, 400)
 
 #0.5s
 fade-in title [500ms]
@@ -42,10 +44,14 @@ stagger [120ms] {
 }
 
 #2s
-throb dot, ring [strength: 0.9]
-dot.glow = 0.9 [400ms]
+throb dot, ring [strength: 0.8]
+dot.glow = 0.6 [400ms]
 ring.mode = "cross" [300ms]
 
 #3s
 dot.glow = scale(0.25, 2.0) [400ms]
 cross.mode = "dot" [300ms]
+
+#4s
+ring.glow = 0.6 [500ms]
+dot.mode = "ring" [300ms]

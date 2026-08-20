@@ -17,13 +17,13 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 // from the workspace root so relative asset URLs resolve.
 checker: Image, url: "examples/assets/checker.png", opacity: 0
 
-p: Pulse, glow: 0.25, mode: "dot", caption: "dot", origin: (640, 360), image_url: "examples/assets/checker.png"
+p: Pulse, glow: 0.25, mode: "dot", caption: "dot", at: (640, 360), origin: (640, 360), image_url: "examples/assets/checker.png"
 
 #0.5s
 fade-in p [500ms]
 
 #1s
-throb p [strength: 0.9]
+throb p [strength: 0.8]
 
 #2s
 p.mode = "cross" [300ms]
