@@ -476,7 +476,9 @@ type = "Num"
         let analyzer = Analyzer::new(source).with_extension_manifest(manifest);
 
         assert!(analyzer.symbols().types.contains("Gauge"));
-        assert_eq!(analyzer.symbols().properties.get("Gauge"), Some(&vec!["level".to_string()]));
+        assert!(analyzer.symbols().properties.get("Gauge").is_some_and(|props| {
+            props.contains(&"level".to_string()) && props.contains(&"opacity".to_string())
+        }));
         let diagnostics = analyzer.diagnostics();
         assert!(
             !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-type")),

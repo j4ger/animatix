@@ -197,7 +197,8 @@ impl Composition {
         let mut edges: BTreeMap<String, SceneEdge> = BTreeMap::new();
         let mut shared_prelude: Vec<Stmt> = Vec::new();
         // Temporary storage: scene_name → intermediate play target extracted from raw body.
-        let mut play_targets: BTreeMap<String, (String, Option<Transition>)> = BTreeMap::new();
+        let mut play_targets: BTreeMap<String, (String, Option<Transition>, Option<f64>)> =
+            BTreeMap::new();
         // Cache merged bodies for carry-injection rebuild (scene_name → merged AST).
         let mut merged_bodies: BTreeMap<String, Vec<Stmt>> = BTreeMap::new();
 
@@ -261,7 +262,12 @@ impl Composition {
 
                     // Check for explicit duration in scene config
                     let explicit_duration_s = Self::extract_duration_from_config(config);
-                    let duration_s = explicit_duration_s.unwrap_or(inferred_duration);
+                    let play_time_s = play_target.as_ref().and_then(|(_, _, t)| *t);
+                    let duration_s = explicit_duration_s.unwrap_or_else(|| {
+                        // The scene must run long enough for its `play` to
+                        // fire; keyframe-only inference cuts it short.
+                        play_time_s.map(|t| inferred_duration.max(t)).unwrap_or(inferred_duration)
+                    });
 
                     if let Some(target) = play_target {
                         play_targets.insert(name.clone(), target);
@@ -308,7 +314,7 @@ impl Composition {
 
         // 2. Resolve play edges from stored play_targets
         for name in &declaration_order {
-            if let Some((target, transition)) = play_targets.get(name) {
+            if let Some((target, transition, _play_time)) = play_targets.get(name) {
                 let _ = validate_play_target(target, &scenes, namespaces, &mut diagnostics, name);
                 edges.insert(
                     name.clone(),
@@ -329,7 +335,7 @@ impl Composition {
         // build a timeline from the imported scene's data and register it.
         let cross_file_targets: Vec<String> = play_targets
             .values()
-            .map(|(target, _)| target.clone())
+            .map(|(target, _, _)| target.clone())
             .filter(|t| t.contains('.') && !scenes.contains_key(t))
             .collect();
         for target in cross_file_targets {
@@ -583,31 +589,43 @@ impl Composition {
         body: &[Stmt],
         scene_name: &str,
         diagnostics: &mut Vec<Diagnostic>,
-    ) -> Option<(String, Option<Transition>)> {
-        let mut result: Option<(String, Option<Transition>)> = None;
+    ) -> Option<(String, Option<Transition>, Option<f64>)> {
+        let mut result: Option<(String, Option<Transition>, Option<f64>)> = None;
+        // The play's time comes from the keyframe marker that precedes it
+        // (`#4s` + `play Next`). The parser emits the empty keyframe and the
+        // play as sibling statements, so track the running keyframe time.
+        let mut current_time: f64 = 0.0;
         for stmt in body {
-            if let Stmt::Play {
-                scene_name: target,
-                transition,
-                ..
-            } = stmt
-            {
-                if let Some(ref prev_target) = result {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::MultiplePlayTargets,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Scene '{}' has multiple `play` statements; only the first target '{}' is used.",
-                                scene_name,
-                                prev_target.0,
-                            ),
-                        )
-                        .with_subject(scene_name),
-                    );
-                } else {
-                    result = Some((target.clone(), transition.clone()));
-                }
+            match stmt {
+                Stmt::Keyframe { time, .. } | Stmt::RelativeKeyframe { offset: time, .. } => {
+                    current_time = match time {
+                        crate::ast::Time::Seconds(s) => *s,
+                        crate::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                    };
+                },
+                Stmt::Play {
+                    scene_name: target,
+                    transition,
+                    ..
+                } => {
+                    if let Some(ref prev_target) = result {
+                        diagnostics.push(
+                            Diagnostic::error(
+                                DiagnosticCode::MultiplePlayTargets,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Scene '{}' has multiple `play` statements; only the first target '{}' is used.",
+                                    scene_name,
+                                    prev_target.0,
+                                ),
+                            )
+                            .with_subject(scene_name),
+                        );
+                    } else {
+                        result = Some((target.clone(), transition.clone(), Some(current_time)));
+                    }
+                },
+                _ => {},
             }
         }
         result

@@ -429,6 +429,24 @@ impl ExtensionManifest {
                     .insert((actor_type.clone(), property.name.clone()), property.ty.clone());
             }
         }
+        // Extension types also accept the shared common properties (at,
+        // opacity, size, ...), which the schema registers per built-in actor
+        // type. Merge those so the analyzer does not flag them as unknown.
+        for primitive in &self.primitives {
+            let actor_type = primitive.type_name.clone();
+            for spec in animatix_syntax::schema::property_specs() {
+                if spec.actor_types.len() >= 15 {
+                    let properties = table.properties.entry(actor_type.clone()).or_default();
+                    if !properties.iter().any(|existing| existing == spec.name) {
+                        properties.push(spec.name.to_string());
+                    }
+                    table
+                        .property_types
+                        .entry((actor_type.clone(), spec.name.to_string()))
+                        .or_insert_with(|| spec.ty.clone());
+                }
+            }
+        }
         for action in &self.actions {
             table.actions.insert(action.name.clone());
         }
@@ -672,7 +690,9 @@ type = "Num"
         let mut table = SymbolTable::default();
         manifest.apply_to(&mut table);
         assert!(table.types.contains("Gauge"));
-        assert_eq!(table.properties.get("Gauge"), Some(&vec!["level".to_string()]));
+        assert!(table.properties.get("Gauge").is_some_and(|props| {
+            props.contains(&"level".to_string()) && props.contains(&"at".to_string())
+        }));
         assert_eq!(
             table.property_types.get(&("Gauge".to_string(), "level".to_string())),
             Some(&Type::Num)

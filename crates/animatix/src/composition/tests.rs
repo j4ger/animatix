@@ -1015,3 +1015,39 @@ fn test_image_actor_carry() {
         "carried Image track must retain Image kind"
     );
 }
+
+#[test]
+fn sorting_visualizer_steps_scene_sorts() {
+    // Guard the demo: the insertion-sort timeline function must leave the
+    // bars in ascending order at the end of the Steps scene (the original
+    // version mis-targeted swaps after the first move).
+    let workspace = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
+    let demo = std::path::Path::new(&workspace)
+        .join("../../dogfood/projects/sorting-visualizer/entry.amx");
+    if !demo.exists() {
+        eprintln!("skip: {demo:?} missing");
+        return;
+    }
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph.load_program(&demo).expect("loads");
+    let expanded = program.expand_components(&mut Vec::new());
+    let report = crate::composition::Composition::build(&expanded, &program.namespaces);
+    assert!(
+        report.diagnostics.is_empty(),
+        "demo must build cleanly: {:?}",
+        report.diagnostics
+    );
+    let comp = report.output;
+    let steps = &comp.scenes["Steps"].timeline;
+    let track = steps.child_orders.get("bars").expect("bars child orders");
+    let final_order = track.evaluate(*track.keyframes.keys().max().expect("last keyframe"));
+    // bar3 has value 2 and bar2 has value 3, so this order is [1,2,3,4].
+    assert_eq!(
+        final_order,
+        vec!["bars.bar__1", "bars.bar__3", "bars.bar__2", "bars.bar__0"],
+        "insertion sort must leave values 1,2,3,4 left to right"
+    );
+    // Scenes must run long enough for their plays to fire.
+    assert!(comp.scenes["Steps"].duration_s >= 4.0, "Steps scene too short");
+    assert!(comp.scenes["Title"].duration_s >= 2.0, "Title scene too short");
+}
