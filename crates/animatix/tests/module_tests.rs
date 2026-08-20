@@ -342,7 +342,7 @@ fn load_program_custom_component_action_basic() {
         &library,
         r#"
 pub component Button(text: "OK") {
-    action pulse {
+    fn pulse {
         self.scale = 1.2 [100ms]
         self.scale = 1.0 [100ms]
     }
@@ -401,7 +401,7 @@ fn load_program_custom_component_action_multi_target() {
         &library,
         r#"
 pub component Button(text: "OK") {
-    action pulse {
+    fn pulse {
         self.scale = 1.2 [100ms]
         self.scale = 1.0 [100ms]
     }
@@ -494,7 +494,7 @@ pub component Bars(values: List<Num>) {
         }
     }
 
-    action pulseAt(index: Num) {
+    fn pulseAt(index: Num) {
         bar[index].scale = 1.1 [100ms]
         bar[index].scale = 1.0 [100ms]
     }
@@ -516,12 +516,10 @@ pulseAt deck [index: 1]
 
     let program = ModuleGraph::new().load_program(&entry).unwrap();
     let expanded = program.expand_components();
-    let expanded_debug = format!("{expanded:#?}");
     let timeline = Timeline::build(&expanded);
-    assert!(timeline.tracks().contains_key("deck.bar__1"));
     assert!(
-        expanded_debug.contains("deck.bar__1"),
-        "indexed custom action target should become deck.bar__1, got: {expanded_debug}"
+        timeline.tracks().contains_key("deck.bar__1"),
+        "indexed fn target should resolve to deck.bar__1 at build time"
     );
 }
 
@@ -535,7 +533,7 @@ fn load_program_custom_component_action_self_keyword() {
         &library,
         r#"
 pub component Card {
-    action glow {
+    fn glow {
         self.frame.color = accent.primary [300ms]
         self.frame.color = accent.secondary [300ms]
     }
@@ -589,7 +587,7 @@ fn load_program_custom_component_action_inside_sequence() {
         &library,
         r#"
 pub component Badge {
-    action bounce {
+    fn bounce {
         self.scale = 1.5 [100ms]
         self.scale = 1.0 [100ms]
     }
@@ -1113,7 +1111,7 @@ pub component Card(title: "Card") {
   frame: Rect, size: (200, 120), color: surface.primary, corner_radius: 8
   title_text: Text, text: title, font_size: 18, color: text.primary, at: (0, -30)
 
-  action highlight {
+  fn highlight {
     self.frame.color = accent.warning
     self.title_text.color = accent.danger
   }

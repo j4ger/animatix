@@ -58,7 +58,12 @@ impl Timeline {
         let mut env = self.env.clone();
         // Inject variable tracks so build-time `let` declarations can reference
         // previously declared variables (e.g., `let a = list_swap(a, 0, 2)`).
+        // Block-scoped (function-local) bindings shadow scene variable tracks
+        // with the same name, so they are skipped here.
         for (name, track) in &self.variable_tracks {
+            if self.block_scope.iter().any(|scope| scope.contains(name)) {
+                continue;
+            }
             if let Some(value) = track.evaluate(time_ms) {
                 env.set(name, value);
             }

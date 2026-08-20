@@ -1,66 +1,61 @@
-// LeetCode 75 — Sort Colors (Dutch National Flag), rebuilt with build-time
-// algorithm precomputation: the partition loop runs at build time and emits
-// swap actions plus pointer moves on a `step`-sequenced timeline.
-//
-// The algorithm state (`arr`, `zero`, `i`, `two`) lives in build-time `let`
-// bindings shadowed inside the loop; `list_swap` carries the array forward and
-// `swap row.b[zero], row.b[i]` targets resolve against the loop variables.
-// No per-frame mutable state is introduced — the random-access guarantee holds.
-
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
-// Partition state: values (0 = red, 1 = white, 2 = blue) and pointer indices.
 let arr = {2, 0, 1, 2, 1, 0}
-let colors = {(1.0, 0.0, 0.0, 1.0), (0.9, 0.9, 0.9, 1.0), (0.0, 0.0, 1.0, 1.0)}
+
+let colors = {(1, 0, 0, 1), (0.9, 0.9, 0.9, 1), (0, 0, 1, 1)}
 
 title: Text, text: "Sort Colors — Dutch National Flag", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
 
-// Bars generated from the initial array; colors and heights encode the value.
 row: Row, at: (640, 440), gap: 16, align: "center" {
-  for k in {0,1,2,3,4,5} {
-    b[k]: Rect, size: (70, 60 + arr[k] * 60), color: colors[arr[k]]
+for k in {0, 1, 2, 3, 4, 5} {
+b[k]: Rect, size: (70, 60 + arr[k] * 60), color: colors[arr[k]]
   }
 }
 
-// Pointer labels; positions are driven by the algorithm below.
 zero_p: Text, text: "▼ zero", font_size: 18, color: accent.success, at: (425, 250)
-i_p:    Text, text: "▼ i",    font_size: 18, color: accent.warning, at: (425, 218)
-two_p:  Text, text: "▲ two",  font_size: 18, color: accent.danger,  at: (855, 590)
+
+i_p: Text, text: "▼ i", font_size: 18, color: accent.warning, at: (425, 218)
+
+two_p: Text, text: "▲ two", font_size: 18, color: accent.danger, at: (855, 590)
 
 #0s
-fade-in title [500ms]
-fade-in row [600ms, ease: ease-out]
-fade-in zero_p [300ms]
-fade-in i_p [300ms]
-fade-in two_p [300ms]
-
-let zero = 0
-let i = 0
-let two = 5
-
-// One 700ms step per algorithm iteration; the `if i <= two` guard keeps
-// trailing no-op steps after the partition finishes.
-for step in {0,1,2,3,4,5,6,7} [step: 700ms] {
-  if i <= two {
-    zero_p.at = (425 + zero * 86, 250) [600ms]
-    i_p.at    = (425 + i * 86, 218) [600ms]
-    two_p.at  = (425 + two * 86, 590) [600ms]
-    match arr[i] {
-      0 => {
-        swap row.b[zero], row.b[i] [600ms]
-        let arr = list_swap(arr, zero, i)
-        let zero = zero + 1
-        let i = i + 1
-      }
-      1 => {
-        let i = i + 1
-      }
-      2 => {
-        swap row.b[i], row.b[two] [600ms]
-        let arr = list_swap(arr, i, two)
-        let two = two - 1
-      }
-      _ => {}
+  fade-in title [500ms]
+  fade-in row [600ms, ease: ease-out]
+  fade-in zero_p [300ms]
+  fade-in i_p [300ms]
+  fade-in two_p [300ms]
+  fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
+      let arr = arr
+      let zero = zero
+      let i = i
+      let two = two
+      for step in {0, 1, 2, 3, 4, 5, 6, 7} [step: 700ms] {
+            if i <= two {
+                    zero_p.at = (425 + zero * 86, 250) [600ms]
+                    i_p.at = (425 + i * 86, 218) [600ms]
+                    two_p.at = (425 + two * 86, 590) [600ms]
+                    match arr[i] {
+                    0 => {
+                              swap row.b[zero], row.b[i] [600ms]
+                              let arr = list_swap(arr, zero, i)
+                              let zero = zero + 1
+                              let i = i + 1
+                              },
+                    1 => {
+                              let i = i + 1
+                              },
+                    2 => {
+                              swap row.b[i], row.b[two] [600ms]
+                              let arr = list_swap(arr, i, two)
+                              let two = two - 1
+                              },
+                    _ => {
+                    
+                              }
+                            }
+                  }
+          }
     }
-  }
-}
+
+#2s
+  dnf_pass(arr, 0, 0, 5)

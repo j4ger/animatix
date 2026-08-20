@@ -29,7 +29,7 @@ Use these rules when generating `.amx` files:
 | Components | `pub component` instantiation | Yes | Runtime-real | Yes | Yes | Via `module.rs`; see `examples/components/09_components.amx` |
 | Components | parameter binding + nested-label isolation | Yes | Runtime-real | Yes | Yes | Module/timeline tests |
 | Components | dotted assignment targets / rhs property lookup | Yes | Runtime-real | Yes | Yes | Nested-label writes; nonexistent targets report diagnostics |
-| Components | custom component actions | Yes | Runtime-real | Yes | Yes | `action` blocks inside components; inlined at expansion time |
+| Components | timeline functions (`fn` in components) | Yes | Runtime-real | Yes | Yes | `fn` blocks inside components; expanded into scoped blocks at module load |
 | Modules | `pub let` exports | Yes | Runtime-real | Yes | Yes | Exported values from `.amx` files; see `examples/components/10_modules.amx`. |
 | Modules | `import ... as` namespaced imports | Yes | Runtime-real | Yes | Yes | Aliased imports create namespaces for qualified access (`theme.accent`). |
 | Modules | Re-exports (`pub let x = c.x`) | Yes | Runtime-real | Yes | Yes | Re-export chains resolved transitively through namespace imports. |
@@ -1028,13 +1028,13 @@ btn: Button, text: "Submit"
 
 **Non-existent nested targets** report `UnknownTargetPath` diagnostics and are ignored (no orphaned tracks).
 
-### Custom Component Actions
+### Timeline Functions (Custom Actions)
 
-Define reusable action sequences inside a component:
+Define reusable timeline functions inside a component (formerly `action`):
 
 ```animatix
 pub component Button(text: Str = "OK") {
-    action pulse(amount: Num = 1.2) {
+    fn pulse(amount: Num = 1.2) {
         self.scale = amount [100ms]
         self.scale = 1.0 [100ms]
     }
@@ -1112,7 +1112,7 @@ slide: SlideLayout {
 
 ## 13. Type Annotations
 
-Animatix has a **gradual type system**. Type annotations are optional and may be added to component and action parameters. When present, the type checker validates property assignments and action invocations at build time, reporting type mismatches as diagnostics.
+Animatix has a **gradual type system**. Type annotations are optional and may be added to component and function parameters. When present, the type checker validates property assignments and action invocations at build time, reporting type mismatches as diagnostics.
 
 ### 13.1 Syntax
 
@@ -1138,7 +1138,7 @@ Action parameters follow the same syntax:
 
 ```animatix
 pub component Badge(color: Color) {
-    action pulse(count: Num, intensity: Num) {
+    fn pulse(count: Num, intensity: Num) {
         // count and intensity are typed parameters
     }
 }
@@ -1297,7 +1297,7 @@ compatibility.
 
 Type annotations are **optional everywhere**. Existing code without annotations continues to work unchanged:
 
-- Component and action parameters without annotations accept any value (equivalent to `Any`).
+- Component and function parameters without annotations accept any value (equivalent to `Any`).
 - The type checker only fires on annotated parameters — unannotated code raises no type diagnostics.
 - Adding annotations to existing components is a **non-breaking change** that enables stricter validation.
 
@@ -1305,7 +1305,7 @@ This means the type system can be adopted incrementally: annotate hot spots firs
 
 ### 13.7 Strict Mode
 
-Add `strict_types: true` to a `config` block to require type annotations on all component and action parameters:
+Add `strict_types: true` to a `config` block to require type annotations on all component and function parameters:
 
 ```animatix
 config { strict_types: true }

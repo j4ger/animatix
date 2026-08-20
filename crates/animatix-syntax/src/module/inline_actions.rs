@@ -114,9 +114,10 @@ fn expand_stmt(
 }
 
 /// Expand a target-style call `pulse btn [strength: 1.3]` into a scoped block
-/// for the concrete target: parameters are substituted textually (so actor
-/// labels stay labels), `self` is rewritten to the target, and the body is
-/// wrapped in a `Stmt::Block` so body-local `let` bindings do not leak.
+/// for the concrete target: value parameters bind via `let`, label parameters
+/// (whole-target matches) substitute into target strings, `self` is rewritten
+/// to the target, and the body is wrapped in a `Stmt::Block` so local `let`
+/// bindings do not leak.
 fn expand_target_call(
     template: &ActionTemplate,
     target: &str,
@@ -124,20 +125,56 @@ fn expand_target_call(
     stack: &mut Vec<String>,
 ) -> Vec<Stmt> {
     if stack.iter().any(|name| name == &action.verb) {
-        // Recursion is not supported; leave the call for the runtime to
-        // report as unknown.
         return vec![Stmt::Action(action.clone(), None)];
     }
     stack.push(action.verb.clone());
-    let (body, unconsumed) = substitute_action_params(template, &action.modifiers);
+    // Param values come from named invocation modifiers, then defaults.
+    let mut values: HashMap<String, Expr> = HashMap::new();
+    let mut bound: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for modifier in &action.modifiers {
+        if let Some(name) = &modifier.name {
+            if template.params.iter().any(|p| p.name == *name) {
+                values.insert(name.clone(), modifier.value.clone());
+                bound.insert(name.as_str());
+            }
+        } else if is_time_expr(&modifier.value)
+            && template.params.iter().any(|p| p.name == "duration")
+        {
+            values.insert("duration".to_string(), modifier.value.clone());
+            bound.insert("duration");
+        }
+    }
+    for param in &template.params {
+        if !bound.contains(param.name.as_str()) {
+            if let Some(default) = &param.default {
+                values.insert(param.name.clone(), default.clone());
+            }
+        }
+    }
+    let unconsumed: Vec<Modifier> = action
+        .modifiers
+        .iter()
+        .filter(|m| {
+            let is_param = m
+                .name
+                .as_deref()
+                .is_some_and(|name| template.params.iter().any(|p| p.name == name))
+                || (m.name.is_none()
+                    && is_time_expr(&m.value)
+                    && template.params.iter().any(|p| p.name == "duration"));
+            !is_param
+        })
+        .cloned()
+        .collect();
+    let body = expand_with_params(template, &values, stack);
     let body = rewrite_self_targets(body, target);
     let body = apply_modifiers_to_body(body, &unconsumed);
     stack.pop();
     vec![Stmt::Block { body, span: None }]
 }
 
-/// Expand a function-style call `highlight_key(bars, key)` into a scoped block
-/// with positional arguments bound to parameters.
+/// Expand a function-style call `highlight_key(bars, key)` into a scoped block:
+/// positional arguments bind to parameters in order, defaults fill the rest.
 fn expand_arg_call(
     template: &ActionTemplate,
     action: &Action,
@@ -147,33 +184,141 @@ fn expand_arg_call(
         return vec![Stmt::Action(action.clone(), None)];
     }
     stack.push(action.verb.clone());
-    // Positional args bind to parameters in order; defaults fill the rest.
-    let mut bindings: HashMap<String, Expr> = HashMap::new();
+    let mut values: HashMap<String, Expr> = HashMap::new();
     for (index, param) in template.params.iter().enumerate() {
         match action.args.get(index) {
             Some(arg) => {
-                bindings.insert(param.name.clone(), arg.clone());
+                values.insert(param.name.clone(), arg.clone());
             },
             None => {
                 if let Some(default) = &param.default {
-                    bindings.insert(param.name.clone(), default.clone());
+                    values.insert(param.name.clone(), default.clone());
                 }
             },
         }
     }
-    let body = if bindings.is_empty() {
+    let body = expand_with_params(template, &values, stack);
+    let body = apply_modifiers_to_body(body, &action.modifiers);
+    stack.pop();
+    vec![Stmt::Block { body, span: None }]
+}
+
+/// Bind parameters into a function body.
+///
+/// Parameters whose name appears as a whole action/assignment target are
+/// treated as actor-label parameters: the target strings are substituted with
+/// the argument label and no `let` is emitted (actor labels are not values).
+/// All other parameters bind via block-scoped `let` statements, which keeps
+/// shadowing inside the body working (`let zero = zero + 1` rebinds the local).
+fn expand_with_params(
+    template: &ActionTemplate,
+    values: &HashMap<String, Expr>,
+    stack: &mut Vec<String>,
+) -> Vec<Stmt> {
+    let label_params = collect_label_params(&template.body, values);
+    let mut block = Vec::new();
+    let mut label_bindings: HashMap<String, Expr> = HashMap::new();
+    for param in &template.params {
+        if let Some(value) = values.get(&param.name) {
+            if label_params.contains(param.name.as_str()) {
+                label_bindings.insert(param.name.clone(), value.clone());
+            } else {
+                block.push(let_stmt(&param.name, value.clone()));
+            }
+        }
+    }
+    let body = if label_bindings.is_empty() {
         template.body.clone()
     } else {
         template
             .body
             .iter()
-            .map(|stmt| substitute_params_in_stmt(stmt, &bindings))
+            .map(|stmt| substitute_params_in_stmt(stmt, &label_bindings))
             .collect()
     };
-    // Unconsumed modifiers apply to the body statements (e.g. `[200ms]`).
-    let body = apply_modifiers_to_body(body, &action.modifiers);
-    stack.pop();
-    vec![Stmt::Block { body, span: None }]
+    block.extend(body);
+    block
+}
+
+fn let_stmt(name: &str, value: Expr) -> Stmt {
+    Stmt::LetDecl {
+        is_pub: false,
+        name: name.to_string(),
+        value,
+        span: None,
+    }
+}
+
+/// Find parameters used as whole action/assignment targets (actor labels).
+fn collect_label_params(
+    body: &[Stmt],
+    values: &HashMap<String, Expr>,
+) -> std::collections::HashSet<String> {
+    let mut labels = std::collections::HashSet::new();
+    fn walk(
+        stmt: &Stmt,
+        labels: &mut std::collections::HashSet<String>,
+        values: &HashMap<String, Expr>,
+    ) {
+        match stmt {
+            Stmt::Action(action, ..) => {
+                for target in &action.targets {
+                    // A dotted target (`bars.bar[j]`) still names the label
+                    // parameter through its first segment.
+                    let base = target.split('.').next().unwrap_or(target);
+                    if values.contains_key(base) {
+                        labels.insert(base.to_string());
+                    }
+                }
+            },
+            Stmt::Assignment { target, .. } | Stmt::ReactiveBinding { target, .. } => {
+                if let Some(first) = target.first() {
+                    let base = first.label_str().split('.').next().unwrap_or(first.label_str());
+                    if values.contains_key(base) {
+                        labels.insert(base.to_string());
+                    }
+                }
+            },
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Always { body, .. }
+            | Stmt::ForLoop { body, .. }
+            | Stmt::Block { body, .. }
+            | Stmt::FnDecl { body, .. } => {
+                for s in body {
+                    walk(s, labels, values);
+                }
+            },
+            Stmt::Conditional {
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                for s in then_branch {
+                    walk(s, labels, values);
+                }
+                if let Some(eb) = else_branch {
+                    for s in eb {
+                        walk(s, labels, values);
+                    }
+                }
+            },
+            Stmt::Match { arms, .. } => {
+                for (_, body) in arms {
+                    for s in body {
+                        walk(s, labels, values);
+                    }
+                }
+            },
+            _ => {},
+        }
+    }
+    for stmt in body {
+        walk(stmt, &mut labels, values);
+    }
+    labels
 }
 
 /// Rewrite `self` references in a function body to the concrete target.
@@ -657,14 +802,15 @@ mod tests {
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Block { body, .. } => {
-                // `scale` is substituted textually into the body, and `self`
-                // is rewritten to the concrete target.
+                // `scale` is a value parameter bound by `let`; `self` is
+                // rewritten to the concrete target.
+                assert!(matches!(&body[0], Stmt::LetDecl { name, .. } if name == "scale"));
                 assert!(matches!(
-                    &body[0],
+                    &body[1],
                     Stmt::Assignment { target, property, value, .. }
                         if target == &[TargetSegment::Static("btn".to_string())]
                             && property == "scale"
-                            && value == &Expr::Num(1.5)
+                            && value == &Expr::Ident("scale".to_string())
                 ));
             },
             other => panic!("expected Block, got {:?}", other),
@@ -701,13 +847,14 @@ mod tests {
         assert_eq!(result.len(), 1);
         match &result[0] {
             Stmt::Block { body, .. } => {
-                // Positional args substitute `bars` and `key` textually.
+                // Positional args bind `bars` and `key` as value parameters.
+                assert!(matches!(&body[0], Stmt::LetDecl { name, .. } if name == "bars"));
+                assert!(matches!(&body[1], Stmt::LetDecl { name, .. } if name == "key"));
                 assert!(matches!(
-                    &body[0],
-                    Stmt::Assignment { target, property, value, .. }
+                    &body[2],
+                    Stmt::Assignment { target, property, .. }
                         if target == &[TargetSegment::Static("note".to_string())]
                             && property == "target"
-                            && value == &Expr::Path(vec!["bars".to_string(), "bar".to_string()])
                 ));
             },
             other => panic!("expected Block, got {:?}", other),

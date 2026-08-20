@@ -104,7 +104,7 @@ language design gaps.
 | `projects/gradient_descent.amx` | Gradient descent explainer |
 | `projects/leetcode_climbing_stairs.amx` | Algorithm animation with probes |
 | `projects/leetcode_reverse_linked_list.amx` | Linked-list reversal with probes |
-| `projects/leetcode_sort_colors.amx` | Dutch national flag driven by build-time algorithm precomputation (`list_swap` + `[step: ...]` loops) |
+| `projects/leetcode_sort_colors.amx` | Dutch national flag as a timeline function (`fn dnf_pass` + `list_swap` + `[step: ...]` loops) |
 | `projects/plugin_pulse.amx` | Native plugin showcase: custom primitive, enum property, action, function, cached image |
 
 `projects/plugin_pulse.amx` requires the native demo plugin and its manifest:

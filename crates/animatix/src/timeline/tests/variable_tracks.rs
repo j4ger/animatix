@@ -610,3 +610,196 @@ pulse btn [strength: 1.5]
         "pulse body should write scale = strength * 2 = 3.0 at t=1.1s"
     );
 }
+
+#[test]
+fn timeline_fn_drives_algorithm_sort() {
+    // The insertion-sort loop extracted into a timeline function produces the
+    // same swap sequence as the inlined version (module expansion + fn blocks).
+    let source = r#"
+config { colorscheme: "editorial-dark", dynamic_layout: true }
+fn bubble_sort(bars, values: List<Num>) {
+  let arr = values
+  for key in {1, 2, 3} [step: 1200ms] {
+    for j in {0, 1, 2} [step: 300ms] {
+      if j < key && arr[key - j] < arr[key - j - 1] {
+        swap bars[j], bars[j+1] [300ms]
+        let arr = list_swap(arr, key - j, key - j - 1)
+      }
+    }
+  }
+}
+row: Row, at: (640, 440), gap: 16 {
+  for k in {0,1,2,3} {
+    b[k]: Rect, size: (70, 80), color: blue
+  }
+}
+#0s
+let vals = {4, 1, 3, 2}
+bubble_sort(b, vals)
+"#;
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(std::path::Path::new("fn_sort.amx"), Some(source))
+        .expect("program loads");
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    // 4 swaps (1 + 1 + 2) land on the step-sequenced timeline: times are
+    // pass_start + j*300 for the swaps in each pass.
+    let orders = timeline
+        .child_orders
+        .get("row")
+        .expect("row child_orders")
+        .keyframes
+        .keys()
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(
+        orders,
+        vec![0, 300, 1200, 1500, 2400, 2700, 3000],
+        "fn-emitted swaps must follow the step-sequenced passes"
+    );
+}
+
+#[test]
+fn timeline_fn_dnf_swaps_resolve_index_params() {
+    // DNF partition inside a timeline function: `zero`/`i`/`two` are value
+    // parameters let-bound into the block, and `swap row.b[zero], row.b[i]`
+    // target indices resolve against those locals at build time.
+    let source = r#"
+config { colorscheme: "editorial-dark", dynamic_layout: true }
+fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
+  let arr = arr
+  let zero = zero
+  let i = i
+  let two = two
+  for step in {0, 1, 2, 3, 4} [step: 700ms] {
+    if i <= two {
+      match arr[i] {
+        0 => {
+          swap row.b[zero], row.b[i] [600ms]
+          let arr = list_swap(arr, zero, i)
+          let zero = zero + 1
+          let i = i + 1
+        }
+        1 => { let i = i + 1 }
+        2 => {
+          swap row.b[i], row.b[two] [600ms]
+          let arr = list_swap(arr, i, two)
+          let two = two - 1
+        }
+        _ => {}
+      }
+    }
+  }
+}
+row: Row, at: (640, 440), gap: 16 {
+  for k in {0,1,2,3,4,5} {
+    b[k]: Rect, size: (70, 80), color: blue
+  }
+}
+#0s
+let arr = {2, 0, 1, 2, 1, 0}
+dnf_pass(arr, 0, 0, 5)
+"#;
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(std::path::Path::new("dnf_fn.amx"), Some(source))
+        .expect("program loads");
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    // Effective swaps: (0,5) at t=0 and (3,4) at t=2800; the same-index
+    // swaps are no-ops but still emit child-order keyframes.
+    let orders = timeline
+        .child_orders
+        .get("row")
+        .expect("row child_orders")
+        .keyframes
+        .keys()
+        .copied()
+        .collect::<Vec<_>>();
+    assert!(!orders.is_empty(), "dnf fn must emit swap keyframes");
+    eprintln!("[dnf-fn] orders = {orders:?}");
+    // Final child order after the swaps: [0,0,1,1,2,2] values map to slots
+    // b__0..b__5; assert the layout settles without duplicate-position chaos.
+    let track = timeline.child_orders.get("row").expect("row orders");
+    let final_order = track.evaluate(*orders.last().expect("last keyframe"));
+    assert_eq!(
+        final_order,
+        vec!["b__5", "b__1", "b__2", "b__4", "b__3", "b__0"],
+        "dnf swaps (0,5) then (3,4) must leave values 0,0,1,1,2,2 left to right"
+    );
+}
+
+#[test]
+fn timeline_fn_dotted_targets_resolve_against_instance() {
+    // Timeline function whose targets are dotted (`bars.bar[j]`) against a
+    // component instance: the label parameter substitutes into the target
+    // string and indices resolve against the loop locals.
+    let source = r#"
+config { colorscheme: "editorial-dark", dynamic_layout: true }
+fn bubble_sort(bars, values: List<Num>) {
+  let arr = values
+  for key in {1, 2, 3} [step: 1200ms] {
+    for j in {0, 1, 2} [step: 300ms] {
+      if j < key && arr[key - j] < arr[key - j - 1] {
+        swap bars.bar[key - j], bars.bar[key - j - 1] [300ms]
+        let arr = list_swap(arr, key - j, key - j - 1)
+      }
+    }
+  }
+}
+pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440)) {
+  row: Row, at: at, gap: 8 {
+    for v, i in values {
+      bar[i]: Rect, size: (60, v * 30), color: colors[i]
+    }
+  }
+}
+bars: Bars, values: {4, 1, 3, 2}, colors: {(0.4, 0.8, 1.0, 1.0), (1.0, 0.7, 0.3, 1.0), (0.4, 0.8, 1.0, 1.0), (0.4, 0.8, 1.0, 1.0)}
+#0s
+let vals = {4, 1, 3, 2}
+bubble_sort(bars, vals)
+"#;
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(std::path::Path::new("fn_dotted.amx"), Some(source))
+        .expect("program loads");
+    let expanded = program.expand_components();
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    eprintln!(
+        "[dotted-fn] child_orders keys: {:?}",
+        timeline.child_orders.keys().collect::<Vec<_>>()
+    );
+    eprintln!(
+        "[dotted-fn] tracks sample: {:?}",
+        timeline.tracks.keys().take(8).collect::<Vec<_>>()
+    );
+    // The component instance's row track receives the swaps.
+    let row_key = timeline.child_orders.keys().next().expect("row child_orders").clone();
+    let track = timeline.child_orders.get(&row_key).expect("row child_orders");
+    let times = track.keyframes.keys().copied().collect::<Vec<_>>();
+    eprintln!("[dotted-fn] times = {times:?}");
+    assert_eq!(
+        times,
+        vec![0, 300, 1200, 1500, 2400, 2700, 3000],
+        "dotted-target fn swaps must follow the insertion-sort passes"
+    );
+}

@@ -1,12 +1,27 @@
-// Dogfood project: one insertion-sort pass authored with build-time algorithm
-// precomputation. The sort loop runs at build time: `let` shadowing carries
-// the array state, variable-index swap targets resolve against the loop
-// variables, and `[step: ...]` advances the build-time clock so each swap
-// lands on its own keyframe. Findings and workarounds are tracked in notes.md.
+// Dogfood project: insertion sort authored as a timeline function. The sort
+// loop runs at build time inside `fn bubble_sort`: `let` shadowing carries the
+// array state, variable-index swap targets resolve against the loop variables,
+// and `[step: ...]` advances the build-time clock so each swap lands on its
+// own keyframe. The function body is expanded into a scoped block, so its
+// local `let` bindings never leak into the scene.
 
 import "../../../examples/lib/tokens.amx" as tokens
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Timeline function: precomputed insertion sort over `bars.bar__N` tracks.
+fn bubble_sort(bars, values: List<Num>) {
+  let arr = values
+  for key in {1, 2, 3} [step: 1200ms] {
+    key_note.target = bars.bar[key] [300ms]
+    for j in {0, 1, 2} [step: 300ms] {
+      if j < key && arr[key - j] < arr[key - j - 1] {
+        swap bars.bar[key - j], bars.bar[key - j - 1] [300ms]
+        let arr = list_swap(arr, key - j, key - j - 1)
+      }
+    }
+  }
+}
 
 pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440), gap: Num = 28, align: Str = "end") {
   row: Row, at: at, gap: gap, align: align {
@@ -26,7 +41,7 @@ title: Text, text: "Insertion Sort", font_size: 56,
 subtitle: Text, text: "4  ·  1  ·  3  ·  2  ->  1  ·  2  ·  3  ·  4",
   font_size: 22, color: text.secondary, anchor: scene.center, offset: (0, 10)
 
-hint: Text, text: "The algorithm runs at build time; the loop emits each swap", font_size: 18,
+hint: Text, text: "The sort runs in a timeline function; the loop emits each swap", font_size: 18,
   color: text.muted, anchor: scene.center, offset: (0, 70)
 
 #0s
@@ -66,18 +81,7 @@ fade-in bars [500ms]
 fade-in key_note [400ms, delay: 200ms]
 fade-in step_caption [400ms, delay: 300ms]
 
-// Build-time insertion sort: 3 key passes (1200ms each) with up to 3 compare
-// steps (300ms each) per pass. The callout follows the key bar.
-let arr = {4, 1, 3, 2}
-for key in {1, 2, 3} [step: 1200ms] {
-  key_note.target = bars.bar[key] [300ms]
-  for j in {0, 1, 2} [step: 300ms] {
-    if j < key && arr[key - j] < arr[key - j - 1] {
-      swap bars.bar[key - j], bars.bar[key - j - 1] [300ms]
-      let arr = list_swap(arr, key - j, key - j - 1)
-    }
-  }
-}
+bubble_sort(bars, {4, 1, 3, 2})
 
 #4s
 play Result [fade, 400ms]
@@ -92,7 +96,7 @@ result_title: Text, text: "Sorted", font_size: 48,
 
 result_bars: Bars, values: {1, 2, 3, 4}, colors: {tokens.success, tokens.success, tokens.success, tokens.success}
 
-result_note: Text, text: "Every swap was emitted by the build-time loop — no hand-unrolled keyframes.",
+result_note: Text, text: "Every swap was emitted by `bubble_sort` — one timeline function, no hand-unrolled keyframes.",
   font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -60)
 
 #0s

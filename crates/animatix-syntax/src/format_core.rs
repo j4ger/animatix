@@ -75,10 +75,14 @@ pub fn format_action(a: &Action) -> String {
         .join(", ");
     let mut parts = vec![a.verb.clone()];
     if !targets.is_empty() {
-        parts.push(targets);
+        parts.push(targets.clone());
     }
     if !a.args.is_empty() {
         let args = a.args.iter().map(format_expr).collect::<Vec<_>>().join(", ");
+        if targets.is_empty() {
+            // Function-style call `f(a, b)`: keep the parentheses.
+            return format!("{}({args})", a.verb);
+        }
         parts.push(args);
     }
     if !a.modifiers.is_empty() {
@@ -598,12 +602,19 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             index_var,
             iterable,
             body,
+            modifiers,
             ..
         } => {
             let body_str = format_stmts_raw(body, depth + 1, indent_size);
             let index_str = index_var.as_ref().map(|iv| format!(", {}", iv)).unwrap_or_default();
+            let mods = if modifiers.is_empty() {
+                String::new()
+            } else {
+                let inner = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
+                format!(" [{inner}]")
+            };
             format!(
-                "for {}{} in {} {{\n{}\n{}}}",
+                "for {}{} in {}{mods} {{\n{}\n{}}}",
                 var,
                 index_str,
                 format_expr(iterable),

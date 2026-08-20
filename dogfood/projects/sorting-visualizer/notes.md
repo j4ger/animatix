@@ -1,11 +1,14 @@
 # Sorting Visualizer Dogfood Notes
 
-Status: rebuilt 2026-08-20 with build-time algorithm precomputation. The
-insertion sort loop now runs at build time: `let` shadowing carries the array
-state (`list_swap`), leaf expression-indexed swap targets
+Status: rebuilt 2026-08-20 with build-time algorithm precomputation, then
+2026-08-20 refactored into a timeline function `fn bubble_sort(bars, values)`.
+The sort loop runs at build time inside the function: `let` shadowing carries
+the array state (`list_swap`), leaf expression-indexed swap targets
 (`swap bars.bar[key - j], bars.bar[key - j - 1]`) resolve against the loop
 variables, and `[step: ...]` modifiers advance the build-time clock so each
-swap lands on its own keyframe. No hand-unrolled keyframes remain.
+swap lands on its own keyframe. No hand-unrolled keyframes remain. The
+function body expands into a scoped block, so its local `let` bindings never
+leak into the scene.
 
 ## What worked
 

@@ -33,6 +33,15 @@ impl Timeline {
                 );
                 Some(parsed.delay_ms + parsed.duration_ms)
             },
+            Stmt::Block { body, .. } => {
+                // Total duration of a function-call block is the sum of its
+                // internal statements' spans (recursive).
+                let mut total = 0.0;
+                for stmt in body {
+                    total += self.sequence_statement_span_ms(stmt).unwrap_or(0.0);
+                }
+                Some(total)
+            },
             Stmt::Sequence { body, .. } => {
                 // Total duration of a nested sequence is the sum of its children's durations
                 let mut total = 0.0;
@@ -68,6 +77,32 @@ impl Timeline {
         let mut cursor_time_ms = time_ms;
 
         for stmt in body {
+            if let Stmt::Block {
+                body: block_body, ..
+            } = stmt
+            {
+                // Function-call blocks sequence their internal statements
+                // back-to-back, preserving the pre-expansion timing.
+                for inner in block_body {
+                    let Some(span_ms) = self.sequence_statement_span_ms(inner) else {
+                        self.process_body(
+                            cursor_time_ms,
+                            std::slice::from_ref(inner),
+                            parent_label,
+                            diagnostics,
+                        );
+                        continue;
+                    };
+                    self.process_body(
+                        cursor_time_ms,
+                        std::slice::from_ref(inner),
+                        parent_label,
+                        diagnostics,
+                    );
+                    cursor_time_ms += span_ms;
+                }
+                continue;
+            }
             let Some(span_ms) = self.sequence_statement_span_ms(stmt) else {
                 diagnostics.push(
                     Diagnostic::error(
@@ -108,6 +143,16 @@ impl Timeline {
         };
 
         for (index, stmt) in body.iter().enumerate() {
+            if matches!(stmt, Stmt::Block { .. }) {
+                let stagger_time_ms = time_ms + interval_ms * index as f64;
+                self.process_body(
+                    stagger_time_ms,
+                    std::slice::from_ref(stmt),
+                    parent_label,
+                    diagnostics,
+                );
+                continue;
+            }
             let Some(_) = self.sequence_statement_span_ms(stmt) else {
                 push_unsupported_stagger_statement_diagnostic(
                     diagnostics,
