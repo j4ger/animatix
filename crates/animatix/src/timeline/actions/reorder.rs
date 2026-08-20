@@ -47,11 +47,21 @@ impl BuiltinAction for Swap {
             return;
         }
 
-        let child_a = &action.targets[0];
-        let child_b = &action.targets[1];
+        // Resolve dotted paths (e.g. `row.b0`, `bars.bar__0`) to concrete
+        // track keys; container actions skip group expansion, so the handler
+        // walks the scene hierarchy itself.
+        let resolved: Vec<String> = action
+            .targets
+            .iter()
+            .map(|target| {
+                super::resolve_action_target(timeline, target).unwrap_or_else(|| target.to_string())
+            })
+            .collect();
+        let child_a = &resolved[0];
+        let child_b = &resolved[1];
 
         // Verify both targets exist
-        for target in &action.targets {
+        for target in &resolved {
             if !timeline.tracks.contains_key(target) {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -98,9 +108,12 @@ impl BuiltinAction for Swap {
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-        // Check for overlapping swap on same container
+        // Check for overlapping swap on same container. A keyframe strictly
+        // after `t_start_ms` means a previous swap is still in flight; a
+        // keyframe exactly at `t_start_ms` is that swap's end boundary, so
+        // back-to-back swaps (`step`-sequenced loops) are allowed.
         if let Some(track) = timeline.child_orders.get(&parent) {
-            if let Some((&pending_time, _)) = track.keyframes.range(t_start_ms..).next() {
+            if let Some((&pending_time, _)) = track.keyframes.range(t_start_ms + 1..).next() {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,

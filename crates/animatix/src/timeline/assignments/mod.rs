@@ -41,7 +41,7 @@ impl Timeline {
             return None;
         }
 
-        let direct_key = assignment_target_key(target);
+        let direct_key = assignment_target_key(&target);
         if self.tracks.contains_key(&direct_key) {
             return Some(direct_key);
         }
@@ -83,7 +83,52 @@ impl Timeline {
             return;
         }
         let eval_env = self.build_eval_env(time_ms as u64);
-        let assignment_subject = format!("{}.{}", assignment_target_key(target), property);
+        // Resolve `name[expr]` segments against the build environment before
+        // walking the scene hierarchy (loop variables and `let` bindings are
+        // constants at build time). Frame-time `always` assignments never pass
+        // through here — they are lowered to `AssignIndexed` IR instead.
+        let target = if target.iter().any(|s| matches!(s, TargetSegment::Indexed { .. })) {
+            target
+                .iter()
+                .map(|segment| match segment {
+                    TargetSegment::Static(s) => TargetSegment::Static(s.clone()),
+                    TargetSegment::Indexed { base, index } => {
+                        match evaluate_expr(index, &eval_env) {
+                            Ok(super::Value::Num(n)) if n >= 0.0 && n == n.floor() => {
+                                TargetSegment::Static(crate::ast::array_actor_label(
+                                    base, n as usize,
+                                ))
+                            },
+                            Ok(super::Value::Num(n)) => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Assignment target index for '{}' must be a non-negative integer, got {}",
+                                        base, n
+                                    ),
+                                ));
+                                TargetSegment::Static(base.clone())
+                            },
+                            _ => {
+                                diagnostics.push(Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "Failed to evaluate assignment target index for '{}' at build time",
+                                        base
+                                    ),
+                                ));
+                                TargetSegment::Static(base.clone())
+                            },
+                        }
+                    },
+                })
+                .collect::<Vec<_>>()
+        } else {
+            target.to_vec()
+        };
+        let assignment_subject = format!("{}.{}", assignment_target_key(&target), property);
         let ParsedTimingModifiers {
             duration_ms,
             delay_ms,
@@ -168,17 +213,17 @@ impl Timeline {
             }
         }
 
-        let target_key = match self.resolve_hierarchical_target(target) {
+        let target_key = match self.resolve_hierarchical_target(&target) {
             Some(key) => key,
             None => {
                 let suggestion = best_path_suggestion(
-                    &assignment_target_key(target),
+                    &assignment_target_key(&target),
                     self.tracks.keys().map(String::as_str),
                 );
                 push_unknown_target_path_diagnostic(
                     diagnostics,
                     &assignment_subject,
-                    &assignment_target_key(target),
+                    &assignment_target_key(&target),
                     suggestion,
                 );
                 return;

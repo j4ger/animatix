@@ -503,6 +503,7 @@ mod tests {
                         value: Expr::Ident("800ms".to_string()),
                     }],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));
@@ -546,6 +547,7 @@ mod tests {
                         value: Expr::Ident("600ms".to_string()),
                     }],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));
@@ -588,6 +590,7 @@ mod tests {
                         value: Expr::Ident("800ms".to_string()),
                     }],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));
@@ -642,6 +645,7 @@ mod tests {
                         value: Expr::Ident("800ms".to_string()),
                     }],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));
@@ -694,6 +698,7 @@ mod tests {
                         value: Expr::Ident("800ms".to_string()),
                     }],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));
@@ -763,6 +768,7 @@ mod tests {
                         },
                     ],
                     byte_span: None,
+                    target_index: vec![],
                 },
                 None,
             ));

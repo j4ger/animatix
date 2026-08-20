@@ -111,6 +111,7 @@ impl Timeline {
                     index_var,
                     iterable,
                     body,
+                    modifiers,
                     ..
                 } => {
                     self.process_for_loop_stmts(
@@ -118,6 +119,7 @@ impl Timeline {
                         index_var,
                         iterable,
                         body,
+                        modifiers,
                         time_ms,
                         parent_label,
                         diagnostics,
@@ -132,6 +134,33 @@ impl Timeline {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 },
                 Stmt::Action(action, span) => {
+                    // Resolve `name[expr]` targets against the build
+                    // environment (loop variables, `let` bindings) before
+                    // dispatch, e.g. `swap bars[j], bars[j+1]` -> concrete keys.
+                    let needs_resolution = action.target_index.iter().any(Option::is_some);
+                    let resolved_action = if needs_resolution {
+                        let mut resolved = action.clone();
+                        resolved.targets = action
+                            .targets
+                            .iter()
+                            .zip(action.target_index.iter())
+                            .map(|(target, index)| {
+                                resolve_action_target_index(
+                                    target,
+                                    index.as_ref(),
+                                    &self.env,
+                                    diagnostics,
+                                    time_ms as u64,
+                                )
+                            })
+                            .collect();
+                        resolved.target_index = vec![None; resolved.targets.len()];
+                        resolved
+                    } else {
+                        action.clone()
+                    };
+                    let action = &resolved_action;
+
                     // Record action metadata for GUI timeline visualization
                     let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
                     let category = categorize_action(&action.verb);
@@ -333,22 +362,28 @@ impl Timeline {
     /// and calling the body processor for each iteration.
     /// After the loop, loop variables are cleaned up from the environment
     /// to prevent leaks (closures already captured them at creation time).
+    ///
+    /// A `[step: 250ms]` modifier advances the build-time clock by 250ms per
+    /// iteration, so events emitted by the body land on distinct times
+    /// (algorithm visualizations precompute a sequenced event list this way).
     pub(super) fn process_for_loop_stmts(
         &mut self,
         var: &LoopPattern,
         index_var: &Option<String>,
         iterable: &Expr,
         body: &[Stmt],
+        modifiers: &[Modifier],
         time_ms: f64,
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let step_ms = parse_for_loop_step(modifiers, diagnostics);
         for (idx, value) in for_iter_values(iterable, &self.env).into_iter().enumerate() {
             self.bind_loop_var(var, value, idx, diagnostics);
             if let Some(iv) = index_var {
                 self.env.set(iv, Value::Num(idx as f64));
             }
-            self.process_body(time_ms, body, parent_label, diagnostics);
+            self.process_body(time_ms + step_ms * idx as f64, body, parent_label, diagnostics);
         }
         // Clean up loop variables after the loop exits
         remove_loop_vars(&mut self.env, var, index_var);
@@ -444,6 +479,93 @@ fn categorize_action(verb: &str) -> ActionCategory {
         "swap" | "reorder" => ActionCategory::Reorder,
         "draw-in" | "reveal-in" | "draw-out" | "reveal-out" => ActionCategory::Reveal,
         _ => ActionCategory::Motion,
+    }
+}
+
+/// Parse the `step` modifier from a for-loop header; defaults to 0ms.
+///
+/// `for i in {0, 1, 2} [step: 250ms] { ... }` advances the build-time clock by
+/// 250ms per iteration. Invalid or negative values emit a diagnostic and fall
+/// back to 0ms (no time advancement).
+fn parse_for_loop_step(modifiers: &[Modifier], diagnostics: &mut Vec<Diagnostic>) -> f64 {
+    for modifier in modifiers {
+        if modifier.name.as_deref() == Some("step") {
+            let parsed = match &modifier.value {
+                Expr::Ident(raw) | Expr::Str(raw) => parse_duration_literal(raw),
+                _ => None,
+            };
+            return match parsed {
+                Some(ms) if ms >= 0.0 => ms,
+                Some(ms) => {
+                    diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidModifierValue,
+                        DiagnosticPhase::Build,
+                        format!("For-loop 'step' must be non-negative, got {ms}ms; ignoring."),
+                    ));
+                    0.0
+                },
+                None => {
+                    diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidModifierValue,
+                        DiagnosticPhase::Build,
+                        "For-loop 'step' expects a time literal such as 250ms or 1s; ignoring."
+                            .to_string(),
+                    ));
+                    0.0
+                },
+            };
+        }
+    }
+    0.0
+}
+
+/// Resolve a `name[expr]` action target against the build environment.
+///
+/// Plain targets pass through unchanged. For an indexed target the index
+/// expression is evaluated (loop variables and `let` bindings are in scope at
+/// build time) and the last path segment is replaced with `base__N`, matching
+/// `resolve_array_index`. An unresolved or invalid index emits a diagnostic
+/// and leaves the base name in place so the normal unknown-target path
+/// reports it.
+pub(crate) fn resolve_action_target_index(
+    target: &str,
+    index: Option<&Expr>,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    time_ms: u64,
+) -> String {
+    let Some(index_expr) = index else {
+        return target.to_string();
+    };
+    let eval_env = build_eval_env_static(env, time_ms);
+    match evaluate_expr(index_expr, &eval_env) {
+        Ok(Value::Num(n)) if n >= 0.0 && n == n.floor() => {
+            let (prefix, base) = target.rsplit_once('.').unwrap_or(("", target));
+            let resolved = crate::ast::array_actor_label(base, n as usize);
+            if prefix.is_empty() {
+                resolved
+            } else {
+                format!("{prefix}.{resolved}")
+            }
+        },
+        Ok(Value::Num(n)) => {
+            diagnostics.push(Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "Action target index for '{target}' must be a non-negative integer, got {n}"
+                ),
+            ));
+            target.to_string()
+        },
+        _ => {
+            diagnostics.push(Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!("Failed to evaluate action target index for '{target}' at build time"),
+            ));
+            target.to_string()
+        },
     }
 }
 

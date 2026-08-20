@@ -230,10 +230,15 @@ fn check_stmt(
             }
 
             for target in &action.targets {
-                let is_defined = symbols.labels.contains_key(target)
-                    || is_array_member_label(target)
+                // Dotted targets (`eq.lhs`, `row.b[j]` projected to `row.b`) are
+                // resolved by walking the scene hierarchy at build time, so only
+                // the root label needs to be defined here — mirroring the
+                // assignment-target check.
+                let check_label = target.split('.').next().unwrap_or(target);
+                let is_defined = symbols.labels.contains_key(check_label)
+                    || is_array_member_label(check_label)
                         .is_some_and(|base| symbols.array_labels.contains(base))
-                    || is_component_array_member(symbols, target);
+                    || is_component_array_member(symbols, check_label);
                 if !is_defined {
                     let source_text = target_source_text(target);
                     let (tstart, tend) =
@@ -242,7 +247,7 @@ fn check_stmt(
                     diagnostics.push(range_diagnostic(
                         DiagnosticSeverity::Warning,
                         DiagnosticCode::UndefinedLabel,
-                        format!("Undefined label: {}", target),
+                        format!("Undefined label: {}", check_label),
                         tstart,
                         tend,
                     ));

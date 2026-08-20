@@ -107,30 +107,8 @@ pub(crate) fn dotted_ident_occ<'src>(
 // Indexed dotted identifier parser (for targets/assignments)
 // ---------------------------------------------------------------------------
 
-/// Parse a dotted path where each segment may carry an integer array index or
-/// a runtime index expression.
-pub(crate) fn indexed_dotted_ident<'src>()
--> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {
-    let segment = ident_occ(crate::occurrence::OccurrenceKind::Label)
-        .then(
-            token_parser::punct(crate::token::TokenKind::LBracket)
-                .ignore_then(token_parser::number().map(|n| n as usize))
-                .then_ignore(token_parser::punct(crate::token::TokenKind::RBracket))
-                .or_not(),
-        )
-        .map(|(name, idx)| match idx {
-            Some(n) => TargetSegment::Static(format!("{name}__{n}")),
-            None => TargetSegment::Static(name),
-        });
-
-    segment
-        .separated_by(token_parser::punct(crate::token::TokenKind::Dot))
-        .at_least(1)
-        .collect()
-}
-
-/// Version of [`indexed_dotted_ident`] that accepts an expression parser for
-/// runtime-indexed targets.
+/// Parse a dotted path where each segment may carry a static integer array
+/// index or a runtime index expression.
 pub(crate) fn indexed_dotted_ident_with_expr<'src>(
     expr: ExprParser<'src>,
 ) -> impl Parser<'src, StrInput<'src>, Vec<TargetSegment>, ParserExtra<'src>> + Clone {

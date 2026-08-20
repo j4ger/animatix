@@ -263,6 +263,15 @@ pub(super) fn rewrite_stmt(
                     .iter()
                     .map(|target| rewrite_label_ref(target, prefix, root_label, known_labels))
                     .collect(),
+                target_index: action
+                    .target_index
+                    .iter()
+                    .map(|index| {
+                        index.as_ref().map(|expr| {
+                            rewrite_expr(expr, prefix, root_label, known_labels, bindings)
+                        })
+                    })
+                    .collect(),
                 args: action
                     .args
                     .iter()
@@ -419,6 +428,7 @@ pub(super) fn rewrite_stmt(
             index_var,
             iterable,
             body,
+            modifiers,
             span,
             ..
         } => Stmt::ForLoop {
@@ -433,6 +443,7 @@ pub(super) fn rewrite_stmt(
             } else {
                 body.clone()
             },
+            modifiers: rewrite_modifiers(modifiers, prefix, root_label, known_labels, bindings),
             span: *span,
         },
         Stmt::ComponentDef(definition, span) => Stmt::ComponentDef(

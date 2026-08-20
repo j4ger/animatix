@@ -2225,6 +2225,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
         adapter.execute(&action, 0.0, &mut timeline, &mut diagnostics);

@@ -475,6 +475,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("1s".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
@@ -514,6 +515,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("1s".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
@@ -571,6 +573,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
@@ -592,6 +595,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
@@ -617,6 +621,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
 
@@ -668,6 +673,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
 
@@ -724,6 +730,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
         process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
@@ -739,6 +746,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics2 = Vec::new();
         process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
@@ -757,6 +765,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
         let mut timeline = Timeline::new();
         let mut diagnostics = Vec::new();
@@ -783,6 +792,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
 
@@ -841,6 +851,7 @@ mod tests {
                 },
             ],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
 
@@ -905,6 +916,7 @@ mod tests {
                 },
             ],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics = Vec::new();
         process_action(&action1, 0.0, &mut timeline, &mut diagnostics, None);
@@ -929,6 +941,7 @@ mod tests {
                 },
             ],
             byte_span: None,
+            target_index: vec![],
         };
         let mut diagnostics2 = Vec::new();
         process_action(&action2, 200.0, &mut timeline, &mut diagnostics2, None);
@@ -978,6 +991,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         process_action(&action1, 0.0, &mut timeline, &mut Vec::new(), None);
 
@@ -991,6 +1005,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         process_action(&action2, 1000.0, &mut timeline, &mut Vec::new(), None);
 
@@ -1063,6 +1078,7 @@ mod tests {
                 value: crate::ast::Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
         process_action(&action, 2000.0, &mut timeline, &mut Vec::new(), None);
 

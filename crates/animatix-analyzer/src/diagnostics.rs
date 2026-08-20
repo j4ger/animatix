@@ -257,6 +257,7 @@ mod tests {
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )];
@@ -280,6 +281,7 @@ mod tests {
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )];

@@ -221,7 +221,6 @@ pub(crate) fn parser<'src>(
             .labelled("import")
             .as_context();
 
-        let indexed_dotted_ident = common::indexed_dotted_ident();
         let indexed_dotted_ident_with_expr = common::indexed_dotted_ident_with_expr(expr.clone());
 
         let assignment = indexed_dotted_ident_with_expr
@@ -466,7 +465,31 @@ pub(crate) fn parser<'src>(
             .labelled("actor declaration")
             .as_context();
 
-        let action_target = indexed_dotted_ident.clone().map(|segments| target_segments_static_key(&segments));
+        // Action targets accept a leaf expression index: `swap bars[j], bars[j+1]`
+        // projects to targets ["bars", "bars"] + target_index [Some(j), Some(j+1)].
+        let action_target = indexed_dotted_ident_with_expr
+            .clone()
+            .try_map(|segments, span| {
+                let count = segments.len();
+                let mut key: Vec<String> = Vec::with_capacity(count);
+                let mut index = None;
+                for (pos, segment) in segments.into_iter().enumerate() {
+                    match segment {
+                        TargetSegment::Static(s) => key.push(s),
+                        TargetSegment::Indexed { base, index: index_expr } => {
+                            if pos != count - 1 {
+                                return Err(Rich::custom(
+                                    span,
+                                    "action targets only support an index on the last path segment",
+                                ));
+                            }
+                            key.push(base);
+                            index = Some(*index_expr);
+                        },
+                    }
+                }
+                Ok((key.join("."), index))
+            });
 
         let action = common::ident_occ(OccurrenceKind::Action)
             .clone()
@@ -488,10 +511,13 @@ pub(crate) fn parser<'src>(
             .map_with(
                 |(((verb, targets), args), modifiers),
                  extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
+                    let (targets, target_index) =
+                        targets.into_iter().map(|(key, index)| (key, index)).unzip();
                     Stmt::Action(
                         Action {
                             verb,
                             targets,
+                            target_index,
                             args,
                             modifiers,
                             byte_span: Some(extra.span()),
@@ -618,13 +644,15 @@ pub(crate) fn parser<'src>(
                     )
                     .then_ignore(keyword("in"))
                     .then(expr.clone())
+                    .then(modifiers.clone())
                     .then(scoped_for_loop_body),
             ))
-            .map(|(((var, index_var), iterable), body)| Stmt::ForLoop {
+            .map(|((((var, index_var), iterable), modifiers), body)| Stmt::ForLoop {
                 var,
                 index_var,
                 iterable,
                 body,
+                modifiers,
                 span: None,
             })
             .labelled("for loop")

@@ -568,6 +568,7 @@ mod tests {
                     },
                 ],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )
@@ -590,6 +591,7 @@ mod tests {
                     },
                 ],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )
@@ -612,6 +614,7 @@ mod tests {
                     },
                 ],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )
@@ -634,6 +637,7 @@ mod tests {
                     },
                 ],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )

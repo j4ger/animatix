@@ -621,6 +621,7 @@ fn test_for_loop_tuple_with_vec2_values() {
                 Expr::Tuple(vec![Expr::Num(5.0), Expr::Num(15.0)]),
                 Expr::Tuple(vec![Expr::Num(25.0), Expr::Num(35.0)]),
             ]),
+            modifiers: vec![],
             body: vec![Stmt::ActorDecl {
                 is_pub: false,
                 is_anonymous: false,

@@ -366,6 +366,7 @@ fn inline_item_to_stmt(item: InlineItem, index: usize) -> Stmt {
             var,
             index_var,
             iterable,
+            modifiers: vec![],
             body: body
                 .into_iter()
                 .enumerate()
@@ -1142,6 +1143,7 @@ btn.position = (200, 100)"#,
                 args: vec![],
                 modifiers: vec![],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )];

@@ -95,6 +95,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
             index_var,
             iterable,
             body,
+            modifiers,
             ..
         } => {
             let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
@@ -103,6 +104,7 @@ pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
                 index_var: index_var.clone(),
                 iterable: iterable.clone(),
                 body,
+                modifiers: modifiers.clone(),
                 span: None,
             })
         },

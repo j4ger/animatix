@@ -315,6 +315,104 @@ for i in {0} {
         "later statements in the same keyframe should read the shadowed value"
     );
 }
+
+#[test]
+fn build_time_for_loop_step_sequences_swap_actions() {
+    // A `[step: 300ms]` for loop advances the build-time clock per iteration,
+    // so variable-index swap actions land on distinct keyframe times instead
+    // of colliding at the loop start.
+    let source = r#"
+config { dynamic_layout: true }
+row: Row, at: (640, 440), gap: 16 {
+  for k in {0, 1, 2} {
+    b[k]: Rect, size: (70, 80), color: blue
+  }
+}
+#0s
+let arr = {3, 2, 1}
+for i in {0, 1} [step: 300ms] {
+  if arr[i] > arr[i+1] {
+    swap row.b[i], row.b[i+1] [300ms]
+    let arr = list_swap(arr, i, i+1)
+  }
+}
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    // Two swaps: t=0..300 (b0<->b1) and t=300..600 (b1<->b2).
+    let orders = timeline
+        .child_orders
+        .get("row")
+        .expect("row child_orders track")
+        .keyframes
+        .keys()
+        .copied()
+        .collect::<Vec<_>>();
+    assert_eq!(orders, vec![0, 300, 600], "swap keyframes must advance per step");
+
+    // The algorithm state carried through the loop updates per iteration:
+    // {3,2,1} -> swap(0,1) -> {2,3,1} at t=0, then swap(1,2) -> {2,1,3} at t=300.
+    let arr = timeline.variable_tracks.get("arr").expect("arr track");
+    assert_eq!(
+        arr.evaluate(0),
+        Some(Value::List(vec![Value::Num(2.0), Value::Num(3.0), Value::Num(1.0)])),
+        "the first iteration should swap indices 0 and 1"
+    );
+    assert_eq!(
+        arr.evaluate(600),
+        Some(Value::List(vec![Value::Num(2.0), Value::Num(1.0), Value::Num(3.0)])),
+        "the second iteration should swap indices 1 and 2"
+    );
+}
+
+#[test]
+fn build_time_indexed_assignment_resolves_against_loop_variables() {
+    // `row.b[j].color = red` inside a for loop resolves `j` against the build
+    // environment into the concrete `b__N` track.
+    let source = r#"
+config { dynamic_layout: true }
+row: Row, at: (640, 440), gap: 16 {
+  for k in {0, 1, 2} {
+    b[k]: Rect, size: (70, 80), color: blue
+  }
+}
+#0s
+for j in {0, 2} {
+  row.b[j].color = red [200ms]
+}
+"#;
+    let parsed = animatix_syntax::parser::parse_canonical(source);
+    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let report = Timeline::build_with_diagnostics(
+        parsed.statements.as_ref().expect("statements"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    for key in ["b__0", "b__2"] {
+        let track = timeline.tracks.get(key).unwrap_or_else(|| panic!("{key} track"));
+        assert_eq!(
+            track.style.color.get(200, [1.0, 1.0, 1.0, 1.0]),
+            [1.0, 0.0, 0.0, 1.0],
+            "indexed assignment should write the resolved actor by the end of its duration"
+        );
+    }
+}
 #[test]
 fn always_nested_object_field_writes_update_frame_environment() {
     let ast = vec![Stmt::Keyframe {

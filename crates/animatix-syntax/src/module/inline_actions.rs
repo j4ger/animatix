@@ -42,8 +42,10 @@ fn inline_stmt(
         Stmt::Action(action, span) => {
             let mut inlined = Vec::new();
             let mut remaining = Vec::new();
+            let mut remaining_index = Vec::new();
 
-            for target in &action.targets {
+            for (target_index, target) in action.targets.iter().enumerate() {
+                let index = action.target_index.get(target_index).cloned().flatten();
                 // Component instance actions are more specific than module actions.
                 if let Some(template) = registry.get(target).and_then(|m| m.get(&action.verb)) {
                     inlined.extend(inline_target_body(template, target, &action, span, false));
@@ -51,6 +53,7 @@ fn inline_stmt(
                     inlined.extend(inline_target_body(template, target, &action, span, true));
                 } else {
                     remaining.push(target.clone());
+                    remaining_index.push(index);
                 }
             }
 
@@ -59,6 +62,7 @@ fn inline_stmt(
                     Action {
                         verb: action.verb,
                         targets: remaining,
+                        target_index: remaining_index,
                         args: action.args,
                         modifiers: action.modifiers,
                         byte_span: action.byte_span,
@@ -299,12 +303,17 @@ fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> S
             index_var,
             iterable,
             body,
+            modifiers,
             span,
         } => Stmt::ForLoop {
             var,
             index_var,
             iterable: substitute_params_in_expr(&iterable, bindings),
             body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
+            modifiers: modifiers
+                .iter()
+                .map(|m| substitute_params_in_modifier(m, bindings))
+                .collect(),
             span,
         },
         other => other,
@@ -485,6 +494,7 @@ mod tests {
             Action {
                 verb: verb.to_string(),
                 targets: vec![target.to_string()],
+                target_index: vec![None],
                 args: vec![],
                 modifiers,
                 byte_span: None,
@@ -498,6 +508,7 @@ mod tests {
             Action {
                 verb: verb.to_string(),
                 targets: targets.iter().map(|t| t.to_string()).collect(),
+                target_index: targets.iter().map(|_| None).collect(),
                 args: vec![],
                 modifiers,
                 byte_span: None,

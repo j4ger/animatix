@@ -393,8 +393,26 @@ impl SymbolTable {
                 }
             },
             Stmt::Action(action, ..) => {
-                for target in &action.targets {
-                    self.referenced_labels.insert(target.clone());
+                for (target, index) in action.targets.iter().zip(action.target_index.iter()) {
+                    if let Some(expr) = index {
+                        // Indexed target (`row.b[j]`): reference the leaf base
+                        // plus the index expression's own references.
+                        let base = target.rsplit('.').next().unwrap_or(target);
+                        self.referenced_labels.insert(base.to_string());
+                        self.collect_refs_from_expr(expr);
+                    } else if target.contains('.') {
+                        // Dotted target (`eq.lhs`): reference the root (checked
+                        // for undefined-label) and the leaf (the actual actor).
+                        let root = target.split('.').next().unwrap_or(target);
+                        let leaf = target.rsplit('.').next().unwrap_or(target);
+                        self.referenced_labels.insert(root.to_string());
+                        self.referenced_labels.insert(leaf.to_string());
+                    } else {
+                        self.referenced_labels.insert(target.clone());
+                    }
+                    for arg in &action.args {
+                        self.collect_refs_from_expr(arg);
+                    }
                 }
             },
             Stmt::Assignment {
@@ -435,10 +453,12 @@ impl SymbolTable {
                 }
             },
             Stmt::Conditional {
+                condition,
                 then_branch,
                 else_branch,
                 ..
             } => {
+                self.collect_refs_from_expr(condition);
                 for stmt in then_branch {
                     self.collect_refs_from_stmt(stmt);
                 }
@@ -448,17 +468,24 @@ impl SymbolTable {
                     }
                 }
             },
-            Stmt::Match { arms, .. } => {
+            Stmt::Match {
+                scrutinee, arms, ..
+            } => {
+                self.collect_refs_from_expr(scrutinee);
                 for (_, body) in arms {
                     for stmt in body {
                         self.collect_refs_from_stmt(stmt);
                     }
                 }
             },
-            Stmt::ForLoop { body, .. } => {
+            Stmt::ForLoop { iterable, body, .. } => {
+                self.collect_refs_from_expr(iterable);
                 for stmt in body {
                     self.collect_refs_from_stmt(stmt);
                 }
+            },
+            Stmt::LetDecl { value, .. } => {
+                self.collect_refs_from_expr(value);
             },
             Stmt::ComponentDef(def, ..) => {
                 for stmt in &def.body {

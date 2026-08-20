@@ -212,6 +212,7 @@ mod tests {
                     value: Expr::Ident(format!("{duration_s}s")),
                 }],
                 byte_span: None,
+                target_index: vec![],
             },
             None,
         )
@@ -262,6 +263,7 @@ mod tests {
                             value: Expr::Ident("1s".to_string()),
                         }],
                         byte_span: None,
+                        target_index: vec![],
                     },
                     None,
                 ),

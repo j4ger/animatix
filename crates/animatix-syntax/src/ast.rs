@@ -320,7 +320,17 @@ pub struct Action {
     pub verb: String,
     /// Target labels the action applies to (e.g. `["btn"]`, `["A", "B",
     /// "C"]`).
+    ///
+    /// An indexed target like `bars[j]` stores the base projection `"bars"`
+    /// here and the index expression in [`Action::target_index`]; the runtime
+    /// resolves it to `"bars__N"` against the build environment before
+    /// dispatching the action.
     pub targets: Vec<String>,
+    /// Optional leaf index expression per target, aligned with `targets`.
+    ///
+    /// `None` for plain targets, `Some(expr)` for `name[expr]` targets. Only
+    /// the last path segment may carry an index; the parser rejects others.
+    pub target_index: Vec<Option<Expr>>,
     /// Positional arguments (e.g. `to (100, 100)`).
     pub args: Vec<Expr>,
     /// Named modifiers (e.g. `[2s, ease: bounce]`).
@@ -860,6 +870,9 @@ pub enum Stmt {
         iterable: Expr,
         /// Body statements in the loop.
         body: Vec<Stmt>,
+        /// Timing modifiers, currently `step`: advance the build-time clock by
+        /// `step` per iteration so loop-emitted events land on distinct times.
+        modifiers: Vec<Modifier>,
         /// Source span for this loop.
         span: Option<Span>,
     },

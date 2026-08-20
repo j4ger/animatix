@@ -242,6 +242,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -270,6 +271,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -297,6 +299,7 @@ mod tests {
                 value: Expr::Ident("500ms".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -322,6 +325,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -351,6 +355,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -377,6 +382,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -403,6 +409,7 @@ mod tests {
                 value: Expr::Ident("1s".to_string()),
             }],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -426,6 +433,7 @@ mod tests {
             args: vec![],
             modifiers: vec![],
             byte_span: None,
+            target_index: vec![],
         };
 
         let mut diagnostics = Vec::new();
@@ -454,6 +462,7 @@ mod tests {
                         args: vec![],
                         modifiers: vec![],
                         byte_span: None,
+                        target_index: vec![],
                     },
                     None,
                 ),
@@ -484,6 +493,7 @@ mod tests {
                             value: Expr::Ident("1s".to_string()),
                         }],
                         byte_span: None,
+                        target_index: vec![],
                     },
                     None,
                 ),

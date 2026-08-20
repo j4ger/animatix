@@ -1281,6 +1281,65 @@ mod tests {
         assert!(action.is_some(), "expected Action stmt");
         if let Stmt::Action(a, _) = action.unwrap() {
             assert_eq!(a.targets, vec!["dots__0"]);
+            assert_eq!(a.target_index, vec![None]);
+        }
+    }
+
+    #[test]
+    fn parse_indexed_action_target_with_expression() {
+        // `swap bars[j], bars[j+1] [300ms]` → base projections + index exprs
+        let src = "swap bars[j], bars[j+1] [300ms]";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "expression-indexed action target should parse");
+        let stmts = result.unwrap();
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
+        assert!(action.is_some(), "expected Action stmt");
+        if let Stmt::Action(a, _) = action.unwrap() {
+            assert_eq!(a.targets, vec!["bars", "bars"]);
+            assert_eq!(a.target_index.len(), 2);
+            assert!(matches!(a.target_index[0], Some(Expr::Ident(_))));
+            assert!(matches!(a.target_index[1], Some(Expr::Binary(..))));
+        }
+    }
+
+    #[test]
+    fn parse_dotted_indexed_action_target() {
+        // `swap row.b[j], row.b[j+1]` keeps the dotted base projection.
+        let src = "swap row.b[j], row.b[j+1] [300ms]";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "dotted expression-indexed target should parse");
+        let stmts = result.unwrap();
+        let action = stmts
+            .iter()
+            .flat_map(|s| match s {
+                Stmt::Keyframe { body, .. } => body.iter().collect::<Vec<_>>(),
+                other => vec![other],
+            })
+            .find(|s| matches!(s, Stmt::Action(..)));
+        if let Stmt::Action(a, _) = action.unwrap() {
+            assert_eq!(a.targets, vec!["row.b", "row.b"]);
+            assert!(a.target_index.iter().all(Option::is_some));
+        }
+    }
+
+    #[test]
+    fn parse_for_loop_step_modifier() {
+        // `for i in {0,1,2} [step: 250ms]` records the step modifier.
+        let src = "for i in {0, 1, 2} [step: 250ms] { let x = i }";
+        let result = parse_snippet(src);
+        assert!(result.is_some(), "for loop with step should parse");
+        let stmts = result.unwrap();
+        let for_stmt = stmts.iter().find(|s| matches!(s, Stmt::ForLoop { .. }));
+        assert!(for_stmt.is_some(), "expected ForLoop stmt");
+        if let Stmt::ForLoop { modifiers, .. } = for_stmt.unwrap() {
+            assert_eq!(modifiers.len(), 1);
+            assert_eq!(modifiers[0].name.as_deref(), Some("step"));
         }
     }
 

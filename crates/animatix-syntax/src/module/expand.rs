@@ -146,6 +146,7 @@ fn expand_stmt_into(
             index_var,
             iterable,
             body,
+            modifiers,
             span,
             ..
         } => {
@@ -156,6 +157,7 @@ fn expand_stmt_into(
                 index_var: index_var.clone(),
                 iterable: iterable.clone(),
                 body: expanded_body,
+                modifiers: modifiers.clone(),
                 span: *span,
             });
         },
