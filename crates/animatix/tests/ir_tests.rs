@@ -685,6 +685,7 @@ fn ir_for_loop_binds_index_var() {
         var: LoopPattern::Single("v".to_string()),
         index_var: Some("i".to_string()),
         iterable: Expr::List(vec![Expr::Num(10.0), Expr::Num(20.0), Expr::Num(30.0)]),
+        modifiers: vec![],
         body: vec![Stmt::LetDecl {
             name: "z".to_string(),
             value: Expr::Binary(

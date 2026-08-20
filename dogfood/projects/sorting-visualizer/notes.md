@@ -1,8 +1,11 @@
 # Sorting Visualizer Dogfood Notes
 
-Status: third pass. The Steps and Result scenes now use a reusable `Bars`
-component, check/lint/render pass, and component and hand-authored frames are
-pixel-identical.
+Status: rebuilt 2026-08-20 with build-time algorithm precomputation. The
+insertion sort loop now runs at build time: `let` shadowing carries the array
+state (`list_swap`), leaf expression-indexed swap targets
+(`swap bars.bar[key - j], bars.bar[key - j - 1]`) resolve against the loop
+variables, and `[step: ...]` modifiers advance the build-time clock so each
+swap lands on its own keyframe. No hand-unrolled keyframes remain.
 
 ## What worked
 
@@ -10,38 +13,23 @@ pixel-identical.
   real namespaced `bars.bar__N` tracks from source-level `bars.bar[i]`.
 - The same component is instantiated in two scenes with different data/colors.
 - `tokens.*` paths work as `List<Color>` values.
-- `swap bars.bar[0], bars.bar[1]` resolves against component-generated tracks.
-- A `Callout` can target `bars.bar[1]` and retarget to `bars.bar[2]`.
-- `import "../../../examples/lib/tokens.amx" as tokens` gives namespaced token
-  access across the dogfood project.
+- Variable-index action targets: `swap bars.bar[key - j], bars.bar[key - j - 1]`
+  resolves `key - j` against the build environment.
+- `[step: 1200ms]` on the outer key loop and `[step: 300ms]` on the inner
+  compare loop sequence the swaps without overlap (the swap overlap guard
+  allows back-to-back swaps at exact boundaries).
+- A `Callout` retargets to the current key bar via `key_note.target = bars.bar[key]`.
 - Multi-scene `play` transitions work across the project.
 
-## Fixed findings
+## Language notes (build-time precomputation)
 
-- Component expansion did not recurse into `# SceneName` bodies, so component
-  instances placed in the shared prelude were not expanded in multi-scene
-  files. The expander now expands scene bodies.
-- Callout actor-reference parsing only accepted bare `bar[2]`, not
-  component-namespaced `bars.bar[2]`. Both declaration and assignment target
-  parsing now support path-plus-index references and resolve them to
-  `bars.bar__2`.
-- Indexed reactive targets no longer emit `ModifierCompilationError`; the
-  bytecode VM now supports them natively.
-- The linter counts `Callout.target` references as label usage.
-- Block-style `Callout { ... }` properties are now parsed into actor props
-  instead of being silently dropped.
-- Structural containers with children no longer trigger `unused-label`.
-
-## Remaining design signal
-
-- The algorithm itself is still hand-unrolled into keyframes. There is no
-  runtime mutable array or branching timeline, so this is a recording of one
-  insertion sort pass, not the algorithm running live.
-
-## Next dogfood candidates
-
-- Probe array/group `fade-in` targets as a focused A/B run.
-- Explore reusable `Bars` actions for key highlighting and swaps.
+- Array state must be `let`-shadowed inside the loop; `list_swap` is the
+  mutation primitive and the shadowed binding is visible to later statements.
+- Loop-bound comparisons use a fixed iteration range (`for key in {1,2,3}`);
+  there is no `while`, so data-dependent termination uses an `if` guard
+  (the DNF demo guards with `if i <= two`).
+- Action target indices are leaf-only (`bars.bar[key]`); indexing a non-leaf
+  path segment is rejected by the parser.
 
 ## Verification
 

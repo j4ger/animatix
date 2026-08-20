@@ -1569,11 +1569,19 @@ overwrites the variable track at the current keyframe time, and subsequent
 statements in the same build pass read the new value. `if` and `match` bodies
 are evaluated at build time inside keyframes, so they may emit actions.
 
+Action and assignment targets accept a **leaf expression index** that resolves
+against the build environment: `swap bars[j], bars[j+1]` becomes the concrete
+`bars__N` keys for each loop iteration. A `[step: ...]` modifier on a `for`
+loop advances the build-time clock by that amount per iteration, so
+loop-emitted events land on distinct keyframe times instead of colliding.
+Nested loops compose: an inner loop's step is relative to the outer
+iteration's time.
+
 ```animatix
 #0s
 let arr = {5, 2, 8, 1, 9, 3}
-for i in {0, 1, 2, 3, 4} {
-  for j in {0, 1, 2, 3} {
+for i in {0, 1, 2, 3, 4} [step: 1200ms] {
+  for j in {0, 1, 2, 3} [step: 300ms] {
     if arr[j] > arr[j+1] {
       swap bars[j], bars[j+1] [300ms]
       let arr = list_swap(arr, j, j+1)
@@ -1585,7 +1593,8 @@ for i in {0, 1, 2, 3, 4} {
 This preserves the frame-time random-access guarantee: no per-frame mutable
 state is introduced. Frame-time branching still uses `if`/`match` inside
 `always`, and sequential algorithms are precomputed into an event list at build
-time.
+time. See `examples/projects/leetcode_sort_colors.amx` for a full Dutch
+National Flag walkthrough authored this way.
 
 ### Match
 

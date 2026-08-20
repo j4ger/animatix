@@ -136,7 +136,7 @@ concrete second-app need exists.
 |------|------------|
 | Precise shape/path/text bounds | Done for the supported path. The renderer now caches exact world-space AABBs from emitted commands, restores them on frame-cache hits, and `TargetResolver::target_bounds` prefers them for callouts/lines/arrows. Debug overlays also include evaluated text paths. Size-box bounds remain the fallback for actors not evaluated this frame. |
 | Text/Typst/Code frame-time content overrides | Done for the supported path. `always` text/content overrides recompile glyphs per frame, explicit empty strings clear stale glyphs, and primitive render errors are surfaced as runtime diagnostics. Frame-time overrides do not remeasure layout size; that remains a documented limitation. |
-| Data-dependent algorithm timelines | Closed by design. Runtime mutable state remains out of scope to preserve the random-access guarantee. Build-time algorithm precomputation via `let` shadowing + `list_swap`/`list_set` + `if`/`match` is now supported, tested, and documented. |
+| Data-dependent algorithm timelines | Done 2026-08-20. Runtime mutable state stays out of scope to preserve the random-access guarantee; the build-time path now covers the full authoring loop: `let` shadowing + `list_swap`/`list_set` + `if`/`match` precompute the algorithm, **leaf expression-indexed targets** (`swap bars[j], bars[j+1]`) resolve against the build environment, and a `[step: ...]` for-loop modifier sequences the emitted events onto distinct keyframe times. Rewrote `examples/projects/leetcode_sort_colors.amx` (Dutch National Flag) and `dogfood/projects/sorting-visualizer/entry.amx` (insertion sort) to be fully algorithm-driven. |
 
 ---
 

@@ -288,7 +288,7 @@ fn test_sequence_parse() {
                             value: Expr::Ident("500ms".to_string()),
                         }],
                         byte_span: Some(ByteSpan { start: 11, end: 32 }),
-                        target_index: vec![],
+                        target_index: vec![None; 1],
                     },
                     None
                 ),
@@ -338,7 +338,7 @@ fn test_stagger_parse() {
                             value: Expr::Ident("200ms".to_string()),
                         }],
                         byte_span: Some(ByteSpan { start: 18, end: 39 }),
-                        target_index: vec![],
+                        target_index: vec![None; 1],
                     },
                     None
                 ),
@@ -381,7 +381,7 @@ fn test_stagger_each_parse() {
                         value: Expr::Ident("200ms".to_string()),
                     }],
                     byte_span: Some(ByteSpan { start: 24, end: 45 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1210,7 +1210,7 @@ fn test_action() {
                     value: Expr::Ident("1s".to_string())
                 }],
                 byte_span: Some(ByteSpan { start: 0, end: 18 }),
-                target_index: vec![],
+                target_index: vec![None; 1],
             },
             None
         )
@@ -1388,7 +1388,7 @@ fn test_conditional() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 12, end: 22 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1412,7 +1412,7 @@ fn test_conditional_with_else() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 12, end: 23 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1423,7 +1423,7 @@ fn test_conditional_with_else() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 33, end: 45 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )]),
@@ -1441,6 +1441,7 @@ fn test_for_loop() {
             var: LoopPattern::Single("item".to_string()),
             index_var: None,
             iterable: Expr::Ident("buttons".to_string()),
+            modifiers: vec![],
             body: vec![Stmt::Action(
                 Action {
                     verb: "appear".to_string(),
@@ -1448,7 +1449,7 @@ fn test_for_loop() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 22, end: 33 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1466,6 +1467,7 @@ fn test_for_loop_with_range() {
             var: LoopPattern::Single("i".to_string()),
             index_var: None,
             iterable: Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0),]),
+            modifiers: vec![],
             body: vec![Stmt::Action(
                 Action {
                     verb: "scale".to_string(),
@@ -1476,7 +1478,7 @@ fn test_for_loop_with_range() {
                         value: Expr::Ident("0.1s".to_string()),
                     }],
                     byte_span: Some(ByteSpan { start: 21, end: 37 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1494,6 +1496,7 @@ fn test_for_loop_tuple_destructuring_basic() {
             var: LoopPattern::Tuple(vec!["x".to_string(), "y".to_string()]),
             index_var: None,
             iterable: Expr::Ident("points".to_string()),
+            modifiers: vec![],
             body: vec![Stmt::Action(
                 Action {
                     verb: "appear".to_string(),
@@ -1501,7 +1504,7 @@ fn test_for_loop_tuple_destructuring_basic() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 23, end: 33 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1519,6 +1522,7 @@ fn test_for_loop_tuple_three_elements() {
             var: LoopPattern::Tuple(vec!["r".to_string(), "g".to_string(), "b".to_string()]),
             index_var: None,
             iterable: Expr::Ident("colors".to_string()),
+            modifiers: vec![],
             body: vec![Stmt::Action(
                 Action {
                     verb: "fade-out".to_string(),
@@ -1526,7 +1530,7 @@ fn test_for_loop_tuple_three_elements() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 26, end: 39 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],
@@ -1544,6 +1548,7 @@ fn test_for_loop_tuple_with_index() {
             var: LoopPattern::Tuple(vec!["a".to_string(), "b".to_string()]),
             index_var: Some("i".to_string()),
             iterable: Expr::Ident("items".to_string()),
+            modifiers: vec![],
             body: vec![Stmt::Action(
                 Action {
                     verb: "appear".to_string(),
@@ -1551,7 +1556,7 @@ fn test_for_loop_tuple_with_index() {
                     args: vec![],
                     modifiers: vec![],
                     byte_span: Some(ByteSpan { start: 25, end: 35 }),
-                    target_index: vec![],
+                    target_index: vec![None; 1],
                 },
                 None
             )],

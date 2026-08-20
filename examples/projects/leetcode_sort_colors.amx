@@ -1,79 +1,66 @@
-// LeetCode 75 — Sort Colors (Dutch National Flag)
-// Partition [2,0,1,2,1,0] -> [0,0,1,1,2,2] with pointers zero / i / two.
-// PROBES:
-//  - `swap` action driving a real algorithmic swap sequence on Row children
-//  - for-loop actor generation (homogeneous List<Color>) + index arithmetic in `at`
-//  - pointer labels have NO follow/attach primitive; positions hardcoded from slot geometry
-//  - Row has no cross-axis bottom-align, so varying-height bars center on the row axis
-//  - cursor is a separate outline Rect because there is no "highlight bar i at runtime"
+// LeetCode 75 — Sort Colors (Dutch National Flag), rebuilt with build-time
+// algorithm precomputation: the partition loop runs at build time and emits
+// swap actions plus pointer moves on a `step`-sequenced timeline.
+//
+// The algorithm state (`arr`, `zero`, `i`, `two`) lives in build-time `let`
+// bindings shadowed inside the loop; `list_swap` carries the array forward and
+// `swap row.b[zero], row.b[i]` targets resolve against the loop variables.
+// No per-frame mutable state is introduced — the random-access guarantee holds.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
+// Partition state: values (0 = red, 1 = white, 2 = blue) and pointer indices.
+let arr = {2, 0, 1, 2, 1, 0}
+let colors = {(1.0, 0.0, 0.0, 1.0), (0.9, 0.9, 0.9, 1.0), (0.0, 0.0, 1.0, 1.0)}
+
 title: Text, text: "Sort Colors — Dutch National Flag", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 44)
 
-// Bars in a Row so `swap` can exchange their layout slots. Slot center x = 425 + k*86.
-row: Row, anchor: (640, 440), gap: 16, align: "center" {
-  b0: Rect, size: (70, 190), color: blue,                 stroke: text.muted, stroke_width: 1
-  b1: Rect, size: (70,  70), color: red,                  stroke: text.muted, stroke_width: 1
-  b2: Rect, size: (70, 130), color: (0.9, 0.9, 0.9, 1.0), stroke: text.muted, stroke_width: 1
-  b3: Rect, size: (70, 190), color: blue,                 stroke: text.muted, stroke_width: 1
-  b4: Rect, size: (70, 130), color: (0.9, 0.9, 0.9, 1.0), stroke: text.muted, stroke_width: 1
-  b5: Rect, size: (70,  70), color: red,                  stroke: text.muted, stroke_width: 1
+// Bars generated from the initial array; colors and heights encode the value.
+row: Row, at: (640, 440), gap: 16, align: "center" {
+  for k in {0,1,2,3,4,5} {
+    b[k]: Rect, size: (70, 60 + arr[k] * 60), color: colors[arr[k]]
+  }
 }
 
-cursor: Rect, size: (82, 220), fill_opacity: 0, stroke: accent.warning, stroke_width: 3, at: (425, 440)
+// Pointer labels; positions are driven by the algorithm below.
 zero_p: Text, text: "▼ zero", font_size: 18, color: accent.success, at: (425, 250)
 i_p:    Text, text: "▼ i",    font_size: 18, color: accent.warning, at: (425, 218)
 two_p:  Text, text: "▲ two",  font_size: 18, color: accent.danger,  at: (855, 590)
 
-// Color legend: for-loop generation (PROBE: index arithmetic in `at` on generated actors).
 #0s
-for c, k in {red, (0.9, 0.9, 0.9, 1.0), blue} {
-  leg[k]: Rect, size: (26, 26), color: c, stroke: text.muted, stroke_width: 1, at: (300 + k * 230, 650)
-}
-leglab0: Text, text: "0 = red",   font_size: 18, color: text.secondary, at: (332, 650)
-leglab1: Text, text: "1 = white", font_size: 18, color: text.secondary, at: (562, 650)
-leglab2: Text, text: "2 = blue",  font_size: 18, color: text.secondary, at: (792, 650)
-
-#0.5s
 fade-in title [500ms]
 fade-in row [600ms, ease: ease-out]
-fade-in cursor [300ms]
 fade-in zero_p [300ms]
 fade-in i_p [300ms]
 fade-in two_p [300ms]
 
-// i=0: nums[0]=2 (blue) -> swap with --two (slot 5); two: 5->4, i stays 0.
-#2.4s
-swap b0, b5 [700ms, ease: ease-in-out]
-two_p.at = (769, 590) [700ms, ease: ease-in-out]
+let zero = 0
+let i = 0
+let two = 5
 
-// i=0: nums[0]=0 (red, just swapped in) -> ++zero; zero: 0->1, i: 0->1.
-#3.6s
-zero_p.at = (511, 250) [300ms]
-i_p.at    = (511, 218) [300ms]
-cursor.at = (511, 440) [300ms]
-
-// i=1: nums[1]=0 -> ++zero; zero: 1->2, i: 1->2.
-#4.2s
-zero_p.at = (597, 250) [300ms]
-i_p.at    = (597, 218) [300ms]
-cursor.at = (597, 440) [300ms]
-
-// i=2: nums[2]=1 (white) -> i: 2->3.
-#4.8s
-i_p.at    = (683, 218) [300ms]
-cursor.at = (683, 440) [300ms]
-
-// i=3: nums[3]=2 (blue) -> swap with --two (slot 4); two: 4->3, i stays 3.
-#5.4s
-swap b3, b4 [700ms, ease: ease-in-out]
-two_p.at = (683, 590) [700ms, ease: ease-in-out]
-
-// i=3: nums[3]=1 (white, just swapped in) -> i: 3->4. Loop ends (i > two).
-#6.6s
-i_p.at    = (769, 218) [300ms]
-cursor.at = (769, 440) [300ms]
-
-#7.4s
-fade-out cursor [400ms]
+// One 700ms step per algorithm iteration; the `if i <= two` guard keeps
+// trailing no-op steps after the partition finishes.
+for step in {0,1,2,3,4,5,6,7} [step: 700ms] {
+  if i <= two {
+    zero_p.at = (425 + zero * 86, 250) [600ms]
+    i_p.at    = (425 + i * 86, 218) [600ms]
+    two_p.at  = (425 + two * 86, 590) [600ms]
+    match arr[i] {
+      0 => {
+        swap row.b[zero], row.b[i] [600ms]
+        let arr = list_swap(arr, zero, i)
+        let zero = zero + 1
+        let i = i + 1
+      }
+      1 => {
+        let i = i + 1
+      }
+      2 => {
+        swap row.b[i], row.b[two] [600ms]
+        let arr = list_swap(arr, i, two)
+        let two = two - 1
+      }
+      _ => {}
+    }
+  }
+}
