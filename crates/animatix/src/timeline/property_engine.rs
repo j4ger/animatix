@@ -555,13 +555,39 @@ pub fn read_property_plan_slot(
 }
 
 /// Parse an expression into the finite value kind declared by an extension.
+///
+/// When the extension property declares a precise `Enum` tooling type, bare
+/// variant identifiers (`mode: ring`) and string literals (`mode: "ring"`) are
+/// both accepted and validated against the declared variants, mirroring the
+/// built-in `ValueType::Enum` path. Without this, a bare `mode: ring` would be
+/// mis-read as a variable lookup, fail, and silently drop the property.
 pub(crate) fn parse_extension_property_value(
     kind: PropertyValueKind,
+    ty: Option<&animatix_syntax::typing::Type>,
     expr: &Expr,
     env: &Environment,
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
 ) -> Option<PropertyValue> {
+    if let Some(animatix_syntax::typing::Type::Enum(variants)) = ty {
+        let text = match expr {
+            Expr::Ident(name) | Expr::Str(name) => name.clone(),
+            _ => super::evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?
+                .as_str(),
+        };
+        if variants.iter().any(|variant| variant == &text) {
+            return Some(PropertyValue::Enum(text));
+        }
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!("'{}' expects one of {}, got '{}'", subject, variants.join(" | "), text),
+            )
+            .with_subject(subject),
+        );
+        return None;
+    }
     let value = super::evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
     let parsed = match kind {
         PropertyValueKind::F32 => match value {

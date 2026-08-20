@@ -530,8 +530,7 @@ pub(crate) fn parser<'src>(
             .map_with(
                 |(((verb, targets), args), modifiers),
                  extra: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
-                    let (targets, target_index) =
-                        targets.into_iter().map(|(key, index)| (key, index)).unzip();
+                    let (targets, target_index) = targets.into_iter().unzip();
                     Stmt::Action(
                         Action {
                             verb,
@@ -733,11 +732,8 @@ pub(crate) fn parser<'src>(
                 // means "call b", so convert `Expr(Call(b))` back to an action.
                 if return_type.is_none() {
                     let tail_call = match body.last() {
-                        Some(Stmt::Expr(expr, _)) => match expr {
-                            Expr::Call(verb, args) => {
-                                Some((verb.clone(), args.clone()))
-                            },
-                            _ => None,
+                        Some(Stmt::Expr(Expr::Call(verb, args), _)) => {
+                            Some((verb.clone(), args.clone()))
                         },
                         _ => None,
                     };

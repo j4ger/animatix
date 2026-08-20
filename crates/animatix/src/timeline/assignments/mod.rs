@@ -41,7 +41,7 @@ impl Timeline {
             return None;
         }
 
-        let direct_key = assignment_target_key(&target);
+        let direct_key = assignment_target_key(target);
         if self.tracks.contains_key(&direct_key) {
             return Some(direct_key);
         }
@@ -604,6 +604,7 @@ impl Timeline {
                     if let Some(pv) =
                         crate::timeline::property_engine::parse_extension_property_value(
                             spec.kind,
+                            spec.ty.as_ref(),
                             value,
                             &eval_env,
                             diagnostics,

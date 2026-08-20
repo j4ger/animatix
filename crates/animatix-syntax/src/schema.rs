@@ -405,6 +405,36 @@ pub fn property_specs() -> Vec<PropertySpec> {
         .collect()
 }
 
+/// Property names shared by (nearly) every built-in actor type.
+///
+/// Extension (plugin) actor types inherit these so the analyzer does not flag
+/// the standard transform/geometry/layout properties (`at`, `opacity`,
+/// `color`, `size`, ...) as unknown on a custom primitive. Kept as an explicit,
+/// reviewable list instead of a count threshold over `actor_types`; the
+/// `common_property_list_stays_in_sync` test pins it against the schema so
+/// adding a new near-universal property forces a deliberate update here.
+pub fn common_property_names() -> &'static [&'static str] {
+    &[
+        "anchor",
+        "at",
+        "color",
+        "height",
+        "legend",
+        "max_height",
+        "min_height",
+        "min_width",
+        "offset",
+        "opacity",
+        "position",
+        "rotation",
+        "scale",
+        "shift",
+        "size",
+        "transform",
+        "width",
+    ]
+}
+
 fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, PropertyValueKind)> {
     let mut specs: Vec<(&'static str, &'static [&'static str], Type, PropertyValueKind)> = vec![
         ("align", &["Row", "Col", "Grid", "Stack"], Type::Str, PropertyValueKind::String),
@@ -1251,9 +1281,44 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
 mod tests {
     use super::{
         ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
-        builtin_primitive_specs, property_specs, schema_child_processing,
+        builtin_primitive_specs, common_property_names, property_specs, schema_child_processing,
     };
     use crate::typing::Type;
+
+    #[test]
+    fn common_property_list_stays_in_sync_with_schema() {
+        // The explicit `common_property_names()` list (inherited by extension
+        // actor types) must match the properties in the schema that apply to a
+        // dominant majority of built-in actor types. If this fails, the schema
+        // gained or lost a near-universal property and the list should be
+        // updated deliberately rather than relying on a silently shifting count.
+        let specs = property_specs();
+        let names = common_property_names();
+        // Every listed name must exist in the schema.
+        for name in names {
+            let spec = specs
+                .iter()
+                .find(|spec| spec.name == *name)
+                .unwrap_or_else(|| panic!("common property '{name}' is missing from the schema"));
+            assert!(
+                spec.actor_types.len() >= 15,
+                "common property '{name}' only applies to {} built-in actor types; \
+                 it does not look universal and should be removed from common_property_names()",
+                spec.actor_types.len()
+            );
+        }
+        // The schema must not silently introduce new near-universal properties
+        // that are missing from the list.
+        for spec in specs.iter().filter(|spec| spec.actor_types.len() >= 15) {
+            assert!(
+                names.contains(&spec.name),
+                "property '{}' applies to {} built-in actor types but is not in \
+                 common_property_names(); add it deliberately",
+                spec.name,
+                spec.actor_types.len()
+            );
+        }
+    }
 
     #[test]
     fn shared_schema_contains_common_properties() {

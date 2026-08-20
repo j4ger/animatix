@@ -142,7 +142,7 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current unstable ABI snapshot is 5 and has exactly one install entry. The
+The current unstable ABI snapshot is 6 and has exactly one install entry. The
 snapshot is not a compatibility version: plugins must be rebuilt from the same
 source tree as the host whenever it changes. It can register
 external properties with full tooling metadata, native expression functions,
@@ -167,11 +167,15 @@ actor's currently loaded image. Explicit URLs are normalized against the
 document directory first and workspace root second; an explicit URL that is not
 already cached returns an error instead of silently falling back to the actor
 image. Native actions register full signatures and execute with targets, args,
-modifiers, time, and a host `write_keyframe` API. Native functions receive a
-host context that can read frame-environment values and services. Expression
-callbacks exchange `NativeValue` values: `Num`, `Bool`, `U32`, `Vec2`, `Vec3`,
-`Vec4`, `Color`, `String`, and `List`. Objects, closures, and native function
-values return a type error.
+modifiers, time, and a host `write_keyframe` API. The `write_keyframe` API (and
+the primitive assignment callback) can only keyframe *extension* properties the
+plugin itself registered; writing a built-in property returns
+`NATIVE_STATUS_UNSUPPORTED` (the primitive assignment path then falls through to
+the generic engine, while a native action surfaces it as a diagnostic). Native
+functions receive a host context that can read frame-environment values and
+services. Expression callbacks exchange `NativeValue` values: `Num`, `Bool`,
+`U32`, `Vec2`, `Vec3`, `Vec4`, `Color`, `String`, and `List`. Objects, closures,
+and native function values return a type error.
 
 ```bash
 cargo build -p animatix-plugin-demo
@@ -201,7 +205,8 @@ manifest has a `library` field, the CLI loads that native library relative to
 the manifest. Property `type` strings can use the primitive kinds (`Num`,
 `Bool`, `Color`, `Vec2`, etc.) or an enum form such as
 `Enum(left, right, top)`; enum properties render as manifest-driven dropdowns
-in the GUI inspector.
+in the GUI inspector and accept bare variant identifiers (`mode: ring`) as well
+as quoted strings (`mode: "ring"`) in declarations and assignments.
 
 Manifests can be regenerated from a native library instead of hand-maintained.
 The CLI and GUI both use `animatix-plugin-tooling::generate_manifest_toml`,

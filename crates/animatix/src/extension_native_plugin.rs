@@ -277,6 +277,17 @@ unsafe extern "C" fn native_register_property(
     let Some(kind) = native_property_kind(descriptor.kind) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    // The runtime resolves extension properties by name across the whole
+    // plugin catalog (callbacks receive only the property name plus the
+    // actor context), so a plugin that reuses one name on multiple actor
+    // types cannot be disambiguated at the callback layer. Reject it up
+    // front rather than silently overwriting the earlier `PropertyId` in
+    // `property_ids` / `property_kinds`.
+    if host.properties.iter().any(|(existing_actor, existing_name)| {
+        existing_name == &name && existing_actor != &actor_type
+    }) {
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
     let display_name = unsafe { read_c_string(descriptor.display_name) };
     let group = unsafe { read_c_string(descriptor.group) };
     let help = unsafe { read_c_string(descriptor.help) };
@@ -1255,7 +1266,14 @@ unsafe extern "C" fn native_assignment_write_keyframe(
     let Some(name) = (unsafe { read_c_string(name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    // Native plugins can only keyframe extension properties today. A built-in
+    // property is recognized but intentionally not writable through this host
+    // callback; report UNSUPPORTED so the caller falls through to the generic
+    // engine path instead of failing the whole assignment.
     let Some(id) = host.property_ids.get(&name) else {
+        if lookup_property(&name).is_some() {
+            return NATIVE_STATUS_UNSUPPORTED;
+        }
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let Some(kind) = host.property_kinds.get(&name) else {
@@ -1602,7 +1620,12 @@ unsafe extern "C" fn native_action_write_keyframe(
     let Some(track) = host.timeline.tracks.get_mut(&target) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    // Native actions can only write extension properties today; a built-in
+    // property is recognized but not writable through this host callback.
     let Some(id) = host.property_ids.get(&name) else {
+        if lookup_property(&name).is_some() {
+            return NATIVE_STATUS_UNSUPPORTED;
+        }
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let Some(kind) = host.property_kinds.get(&name) else {
@@ -1711,10 +1734,16 @@ impl BuiltinAction for NativeActionAdapter {
         };
         let status = unsafe { (self.callback)(&mut native_ctx) };
         if status != NATIVE_STATUS_OK {
+            let detail = if status == NATIVE_STATUS_UNSUPPORTED {
+                "unsupported by the current native plugin API (e.g. a built-in property, \
+                 which native actions cannot keyframe yet)"
+            } else {
+                "failed"
+            };
             diagnostics.push(crate::diagnostics::Diagnostic::error(
                 crate::diagnostics::DiagnosticCode::UnknownAction,
                 crate::diagnostics::DiagnosticPhase::Build,
-                format!("native action '{}' failed with status {status}", self.signature.name),
+                format!("native action '{}' {detail} with status {status}", self.signature.name),
             ));
         }
     }
@@ -2633,6 +2662,69 @@ mod tests {
     }
 
     #[test]
+    fn native_register_property_rejects_same_name_across_actor_types() {
+        use animatix_plugin_api::NATIVE_PROPERTY_F32;
+
+        let mut ctx = ExtensionContext::new();
+        let mut host = NativeHost {
+            ctx: &mut ctx,
+            library: Some(Arc::new(()) as Arc<dyn Any + Send + Sync>),
+            properties: Vec::new(),
+            property_ids: HashMap::new(),
+            property_kinds: HashMap::new(),
+            service_values: HashMap::new(),
+            functions: Vec::new(),
+            primitives: Vec::new(),
+            actions: Vec::new(),
+            services: Vec::new(),
+        };
+        let mut first_id = 0;
+        assert_eq!(
+            unsafe {
+                native_register_property(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    NativePropertyDescriptor {
+                        actor_type: c"Pulse".as_ptr(),
+                        name: c"glow".as_ptr(),
+                        display_name: std::ptr::null(),
+                        kind: NATIVE_PROPERTY_F32,
+                        type_info: std::ptr::null(),
+                        injectable: true,
+                        group: std::ptr::null(),
+                        help: std::ptr::null(),
+                    },
+                    &mut first_id,
+                )
+            },
+            NATIVE_STATUS_OK
+        );
+        // Reusing the same name on a different actor type must be rejected
+        // (the internal name-keyed maps could not disambiguate it).
+        let mut second_id = 0;
+        assert_eq!(
+            unsafe {
+                native_register_property(
+                    (&mut host as *mut NativeHost).cast::<c_void>(),
+                    NativePropertyDescriptor {
+                        actor_type: c"Rect".as_ptr(),
+                        name: c"glow".as_ptr(),
+                        display_name: std::ptr::null(),
+                        kind: NATIVE_PROPERTY_F32,
+                        type_info: std::ptr::null(),
+                        injectable: true,
+                        group: std::ptr::null(),
+                        help: std::ptr::null(),
+                    },
+                    &mut second_id,
+                )
+            },
+            NATIVE_STATUS_TYPE_ERROR
+        );
+        assert_eq!(host.property_ids.len(), 1);
+        assert_eq!(host.property_ids["glow"], animatix_syntax::schema::PropertyId(first_id));
+    }
+
+    #[test]
     fn native_path_commands_become_render_commands() {
         let track = crate::timeline::AnimationTrack::new("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
@@ -3473,6 +3565,72 @@ mod tests {
         assert_eq!(
             track.first_seen_ms, 0,
             "extension actors must be visible from their declaration time"
+        );
+    }
+
+    #[test]
+    fn enum_extension_property_bare_identifier_roundtrips() {
+        use animatix_syntax::schema::{PropertyId, PropertyValueKind};
+        use animatix_syntax::typing::Type;
+
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source("p: Rect, mode: ring\n#1s\n p.mode = dot");
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("parsed AST");
+
+        let mut ctx = ExtensionContext::new();
+        let id = ctx
+            .register_property_full_typed(
+                "Rect",
+                "mode",
+                PropertyValueKind::Generic,
+                Some(Type::Enum(vec!["ring".to_string(), "dot".to_string(), "cross".to_string()])),
+                true,
+                None,
+                None,
+                None,
+            )
+            .expect("register property");
+
+        let report = crate::timeline::Timeline::build_with_context(
+            &ast,
+            &std::collections::HashMap::new(),
+            Arc::new(ctx),
+        );
+        let track = report.output.tracks.get("p").expect("pulse track");
+        let slot = track.property_plan.get(PropertyId(1_000_000));
+        let t0 = slot.and_then(|s| s.track.sample(0));
+        let t1500 = slot.and_then(|s| s.track.sample(1500));
+        assert_eq!(t0, Some(crate::timeline::PropertyValue::Enum("ring".to_string())));
+        assert_eq!(t1500, Some(crate::timeline::PropertyValue::Enum("dot".to_string())));
+
+        // Read back through the native path -> must be NATIVE_VALUE_ENUM.
+        let property_ids = HashMap::from([("mode".to_string(), id)]);
+        let service_values = HashMap::new();
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let eval_ctx = sample_evaluate_ctx(track, &asset_cache);
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx: &eval_ctx,
+            property_ids: &property_ids,
+            service_values: &service_values,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let mut out = NativeValue::default();
+        let status = unsafe {
+            native_get_property(
+                (&mut host as *mut NativePrimitiveEvaluateHost).cast::<c_void>(),
+                c"mode".as_ptr(),
+                &mut out,
+            )
+        };
+        assert_eq!(status, NATIVE_STATUS_OK);
+        assert_eq!(out.tag, NATIVE_VALUE_ENUM);
+        assert_eq!(
+            unsafe { read_c_string_len(out.string, out.string_len) }.as_deref(),
+            Some("ring")
         );
     }
 }

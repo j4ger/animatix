@@ -432,19 +432,22 @@ impl ExtensionManifest {
         // Extension types also accept the shared common properties (at,
         // opacity, size, ...), which the schema registers per built-in actor
         // type. Merge those so the analyzer does not flag them as unknown.
+        let common_specs = {
+            let all = animatix_syntax::schema::property_specs();
+            let common = animatix_syntax::schema::common_property_names();
+            all.into_iter().filter(|spec| common.contains(&spec.name)).collect::<Vec<_>>()
+        };
         for primitive in &self.primitives {
             let actor_type = primitive.type_name.clone();
-            for spec in animatix_syntax::schema::property_specs() {
-                if spec.actor_types.len() >= 15 {
-                    let properties = table.properties.entry(actor_type.clone()).or_default();
-                    if !properties.iter().any(|existing| existing == spec.name) {
-                        properties.push(spec.name.to_string());
-                    }
-                    table
-                        .property_types
-                        .entry((actor_type.clone(), spec.name.to_string()))
-                        .or_insert_with(|| spec.ty.clone());
+            for spec in &common_specs {
+                let properties = table.properties.entry(actor_type.clone()).or_default();
+                if !properties.iter().any(|existing| existing == spec.name) {
+                    properties.push(spec.name.to_string());
                 }
+                table
+                    .property_types
+                    .entry((actor_type.clone(), spec.name.to_string()))
+                    .or_insert_with(|| spec.ty.clone());
             }
         }
         for action in &self.actions {

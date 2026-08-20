@@ -628,8 +628,6 @@ pub fn is_subtype(actual: &Type, expected: &Type) -> bool {
     }
 }
 
-/// Infer the type of an expression in a symbol-aware environment.
-
 /// Number of dimensions a fixed-size vector type expects (used to accept
 /// tuple literals with `auto`/computed dimensions for `size`-like props).
 fn expected_tuple_arity(expected: &Type) -> usize {

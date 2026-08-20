@@ -1127,6 +1127,7 @@ impl Timeline {
             };
             if let Some(pv) = crate::timeline::property_engine::parse_extension_property_value(
                 spec.kind,
+                spec.ty.as_ref(),
                 &prop.value,
                 &eval_env,
                 diagnostics,

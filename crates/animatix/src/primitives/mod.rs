@@ -718,7 +718,7 @@ pub trait Primitive: Send + Sync {
     /// Returns true when this primitive declares `name` from a built-in or
     /// extension property registry.
     fn declares_property(&self, name: &str) -> bool {
-        self.declared_property_names().iter().any(|declared| *declared == name)
+        self.declared_property_names().contains(&name)
     }
 
     /// Returns the corresponding `ActorKindId` variant.

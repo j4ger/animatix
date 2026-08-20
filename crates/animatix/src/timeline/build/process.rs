@@ -392,8 +392,6 @@ impl Timeline {
     // For-loop lowering helpers
     // ─────────────────────────────────────────────────────────────
 
-    /// Bind a loop iteration value according to the loop variable pattern.
-
     /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
     /// and calling the body processor for each iteration.
     /// After the loop, loop variables are cleaned up from the environment

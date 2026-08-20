@@ -15,6 +15,9 @@ use std::ffi::{c_char, c_void};
 ///
 /// This is not a compatibility version. Bump it whenever the `repr(C)` layout
 /// or callback table changes; the host rejects any other snapshot.
+///
+/// Keep `docs/extension_authoring.md` ("The current unstable ABI snapshot is N")
+/// in sync with this value whenever it is bumped.
 pub const UNSTABLE_ABI_VERSION: u32 = 6;
 
 /// Numeric runtime value tag.
@@ -100,8 +103,12 @@ pub struct NativeValue {
     /// Vector/color payload for vector and color tags.
     pub vec: [f64; 4],
     /// UTF-8 string pointer and length for string-like tags.
+    ///
+    /// The pointer is NUL-terminated and `string_len` is the byte length
+    /// *excluding* the terminating NUL. Preferred over scanning the pointer for
+    /// a NUL, since string content may itself contain embedded NUL bytes.
     pub string: *const c_char,
-    /// Byte length of `string`.
+    /// Byte length of `string` (excluding the terminating NUL).
     pub string_len: usize,
     /// Element payload for list-like tags.
     pub list: *const NativeValue,
@@ -180,6 +187,11 @@ pub struct NativeModifierValue {
 #[repr(C)]
 pub struct NativeChild {
     /// Child actor label; empty for anonymous inline items.
+    ///
+    /// Structurally-typed children use sentinel values: a `for` loop is
+    /// reported with `label == "for"` and `type_name == "ForLoop"`, and a
+    /// slot marker with `label == "@slot"` and `type_name == "Slot"`. Plugins
+    /// following a sentinel must string-match these exact values.
     pub label: *const c_char,
     /// Child actor type name.
     pub type_name: *const c_char,
