@@ -189,6 +189,16 @@ impl Timeline {
         }
 
         for (label, track) in &self.tracks {
+            // Referenced-root filtering: expressions can only reference actor
+            // labels that appear textually in the program (see
+            // build::referenced_roots), so unreferenced actors' properties are
+            // not needed in the environment. Over-injection is safe; the
+            // filter only skips work.
+            if let Some(roots) = &self.referenced_roots {
+                if !roots.contains(label.as_str()) {
+                    continue;
+                }
+            }
             // Use the centralized injector for base track values.
             crate::timeline::property_engine::inject_property_into_env(env, label, track, time_ms);
             crate::timeline::property_engine::inject_extension_properties_into_env(

@@ -545,6 +545,12 @@ pub struct Timeline {
     /// piecewise-constant functions of time, injected into the frame environment
     /// during modifier evaluation.
     pub(crate) variable_tracks: BTreeMap<String, VariableTrack>,
+    /// Actor labels referenced by any expression in the built program
+    /// (see `build::referenced_roots`). `build_eval_env` injects only these
+    /// labels' properties, turning environment construction from
+    /// O(declarations²) into O(declarations × referenced). `None` disables
+    /// filtering (inject everything) for Timelines built without an AST scan.
+    pub(crate) referenced_roots: Option<std::collections::HashSet<String>>,
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
@@ -645,6 +651,7 @@ impl Timeline {
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             eval_caches: EvalCaches::default(),
             variable_tracks: BTreeMap::new(),
+            referenced_roots: None,
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),

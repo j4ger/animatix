@@ -34,6 +34,7 @@ mod node;
 pub(crate) mod plot;
 mod process;
 mod property;
+pub(crate) mod referenced_roots;
 mod shape;
 pub(crate) mod utils;
 

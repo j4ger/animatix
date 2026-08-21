@@ -365,6 +365,10 @@ impl Timeline {
         crate::timeline::utils::clear_eval_cache();
 
         let mut timeline = Self::new_with_font_context(font_context);
+        // Pre-scan the program for actor labels referenced by expressions so
+        // build_eval_env injects only those actors' properties (see
+        // build::referenced_roots for the safety argument).
+        timeline.referenced_roots = Some(super::referenced_roots::collect_referenced_roots(ast));
         timeline.build_quality = build_quality;
         timeline.extensions = extensions;
         if let Some(registry) = primitive_registry {
