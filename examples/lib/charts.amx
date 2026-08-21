@@ -1,0 +1,17 @@
+pub component ChartPanel(title: Str, width: Num = 420, height: Num = 320, x_domain: Vec2 = (0, 10), y_domain: Vec2 = (0, 1)) {
+  frame: Rect, size: (width, height), color: surface.secondary
+  title_text: Text, text: title, font_size: 16, color: text.secondary, at: (18, 22)
+  graph: Graph, size: (width - 64, height - 100), at: (width / 2, 38 + (height - 42) / 2), x_domain: x_domain, y_domain: y_domain {
+  @slot
+  placeholder: PlotCurve, kind: "cartesian", func: (x) => 0, color: accent.primary, stroke_width: 1
+    }
+}
+
+pub component LegendItem(label: Str, color: Color = accent.primary) {
+  root: Row, gap: 8, align: "center" {
+  swatch: Rect, size: (12, 12), color: color
+  label_wrap: Group {
+  label_text: Text, text: label, font_size: 13, color: text.secondary
+      }
+    }
+}

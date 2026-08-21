@@ -60,6 +60,16 @@ Known remaining nit: bold CJK may fall back to a regular face when the chosen
 fallback family has no bold sibling in the world (one representative face per
 family is loaded). Re-check during gallery work; not blocking.
 
+### Phase 1 additional engine discoveries (while building `lib/` + `theme_studio`)
+
+| Defect | Symptom | Workaround used |
+|---|---|---|
+| Component instances ignore `anchor`/`offset`/`at` | `warning: unknown-component-property` and the instance stays at the default origin | Wrap every positioned component instance in a `Group` and put the transform on the Group |
+| `text_max_width` on Text inside a Col is auto-overridden with a collapsed width for CJK | Chinese labels wrap after 2–3 characters even with explicit `text_max_width` | Wrap each Text in a `Group` before placing it in a Col; this blocks the auto-propagation |
+| Cross-file `@slot` fills are silently ignored | Imported `Card` with `@header`/`@body` always shows its fallback children | Keep slot-based components for same-file use only; build composed mockups with local hard-coded components when cross-file reuse is needed |
+| Cross-file custom component actions are not resolved | `error[build:unknown-action]` for `pop_in`/`rise_in` defined in `lib/ui.amx` | Remove custom `fn` actions from `lib/ui.amx`; rely on built-in actions (`fade-in`, `pulse`, `shift`) for imported components |
+| Multi-scene files drop component instances after the first top-level actor | Only the first SectionHeader/Group renders; subsequent imported/local components are silently omitted | `theme_studio.amx` is implemented as a single staged scene; scheme-loop and cross-scene transitions are deferred until the bug is fixed |
+
 Style conventions live in `lib/theme.amx` comments: Chinese headline +
 English kicker, keep technical terms in English, fixed-width number
 formatting for count-ups.
@@ -127,15 +137,16 @@ animation; ③ three copies side by side morphing Path↔star↔circle under
 Capabilities: full morph system, Mask, typography props, animatable Filter,
 Image/Svg, all easing names.
 
-### G5 `theme_studio.amx` — "Theme & Component Studio" (~40s, 4 scenes)
-Beats: ① same UI mockup (login card) presented under editorial-dark /
-default-light / custom scheme (per-scene config + fade transitions);
-② exploded view of the Card component (slot contents fly out and back);
-③ strict_types scene showing typed component instantiation;
-④ `color: auto` pool carousel.
-Capabilities: Colorscheme definition/inheritance, per-scene config, slots,
-fn, type aliases, strict_types, auto color. Doubles as the acceptance demo
-for `lib/ui.amx`.
+### G5 `theme_studio.amx` — "Theme & Component Studio" (~20s, 1 scene)
+Beats: single staged scene showing ① the custom `gallery` colorscheme,
+② `TitleCard` + `MetricCard` + `Chip` with `color: auto`, ③ a login-card
+mockup built from `Button`/`InputRow`, ④ a `ChartPanel` with a sine curve.
+Originally planned as a 4-scene scheme loop; scaled back to one scene
+because multi-scene files currently drop component instances after the first
+top-level actor (see §3.1).
+Capabilities: Colorscheme definition/inheritance, components, typed params,
+`strict_types`, `color: auto`, Graph/PlotCurve, built-in actions. Doubles as
+the acceptance demo for `lib/ui.amx` + `lib/charts.amx`.
 
 ### G6 `brand_reel/` — Capstone Title Reel (~75s, 5–6 scenes, multi-file)
 Beats: ① logo draw-in + Filter sheen sweep; ② kinetic type slogan morphs;
@@ -158,7 +169,7 @@ project organization.
 | Reactive (always/anchors/map/_animating_) | G1, G2, G3 |
 | Plots (six plot kinds + function transitions + stroke_progress) | G1, G3 |
 | Annotations (Callout/Legend/Equation highlight) | G1, G3 |
-| Multi-scene (6 transitions/persist/cross-file/per-scene config) | G6, G5 |
+| Multi-scene (6 transitions/persist/cross-file/per-scene config) | G6 |
 | Components/slots/fn/type system | G5 + lib itself |
 | Generation (for/arrays/[step:]/build-time algorithms) | G2 |
 | Media (Image/Svg/Mask/Filter/Audio/typography) | G4, G6 |
@@ -168,9 +179,8 @@ project organization.
 | Module | Contents | Dogfoods |
 |---|---|---|
 | `theme.amx` | custom `Colorscheme { extends: "editorial-dark" }` + spacing/type-scale/rhythm `pub let` tokens + bilingual copy conventions | Colorscheme construct, namespace imports |
-| `ui.amx` | `TitleCard` (kicker/title/sub), `SectionHeader`, `MetricCard` (KPI), `Card` (@slot), `Chip` | `pub component`, typed params, `@slot`, `fn` |
-| `motion.amx` | `rise-in`/`pop-in`/`sweep-out`/`blur-in` fn library + standard duration/easing constants | timeline fn, invocation modifier override |
-| `charts.amx` | `PanelFrame` (titled Graph card scaffold) | nested components, Graph container |
+| `ui.amx` | `TitleCard` (kicker/title/sub), `SectionHeader`, `MetricCard` (KPI), `Card` (@slot), `Chip`, `Button` | `pub component`, typed params, `@slot` (same-file only) |
+| `charts.amx` | `ChartPanel` (titled Graph card scaffold with `@graph` slot), `LegendItem` | nested components, Graph container, `@slot` |
 
 ## 7. Tutorial Track Refurbishment (full scope — decided)
 
@@ -190,7 +200,7 @@ Constraint: teaching files stay single-purpose; polish must not bloat them.
 
 | Phase | Contents | Acceptance |
 |---|---|---|
-| 1 | rewrite `lib/` + bilingual render spike + `theme_studio.amx` | clean check + 3-frame PNG smoke |
+| 1 | rewrite `lib/` + bilingual render spike + `theme_studio.amx` | ✅ clean check + PNG smoke |
 | 2 | `motion_poster.amx` + `dashboard_story.amx` | same |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | same |
 | 4 | `brand_reel/` capstone → delete 16/20 → README points to gallery | all six transitions appear ≥1×; persist/Audio/cross-file used |
