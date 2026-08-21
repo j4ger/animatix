@@ -65,6 +65,39 @@ pub struct FontContext {
     /// Whether the plain-text fast path (bypassing Typst) is enabled.
     /// Default: true. Set `text_fast_path: false` in the config block to disable.
     pub text_fast_path: bool,
+    /// Font-environment generation this context was created under.
+    ///
+    /// Compiled-text memoization keys include this value, so every context
+    /// created after [`advance_font_env_epoch`] automatically misses the cache
+    /// instead of serving glyphs shaped with stale font data. Contexts created
+    /// under the same epoch are guaranteed to see identical font data because
+    /// the shared database is immutable after load.
+    epoch: u64,
+}
+
+/// Monotonic generation counter for the process font environment.
+static FONT_ENV_EPOCH: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn font_env_epoch() -> u64 {
+    std::sync::atomic::AtomicU64::load(&FONT_ENV_EPOCH, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Declare that the process font environment changed (e.g. fonts were reloaded
+/// or registered at runtime) and invalidate every memoized text compilation.
+///
+/// Any [`FontContext`] created *after* this call carries the new epoch, so its
+/// compilations cannot collide with entries shaped under the previous font
+/// data. Call this before creating contexts against the new font state; there
+/// is currently no in-process font mutation, so today this is only exercised
+/// by tests — it exists so a future font-reload feature has one sanctioned,
+/// hard-to-miss invalidation point wired into the cache key itself.
+pub fn advance_font_env_epoch() -> u64 {
+    use std::sync::atomic::Ordering;
+    let next = FONT_ENV_EPOCH.fetch_add(1, Ordering::Relaxed) + 1;
+    // Entries from older epochs can never be hit again; reclaim them now
+    // instead of waiting for capacity eviction.
+    clear_text_compile_cache();
+    next
 }
 
 /// Load (once) and cache the system font database for the whole process.
@@ -95,6 +128,7 @@ impl FontContext {
         Self {
             db: std::sync::Arc::clone(system_fonts_db()),
             text_fast_path: true,
+            epoch: font_env_epoch(),
         }
     }
 
@@ -103,6 +137,7 @@ impl FontContext {
         Self {
             db: std::sync::Arc::clone(system_fonts_db()),
             text_fast_path,
+            epoch: font_env_epoch(),
         }
     }
 
@@ -1568,9 +1603,10 @@ pub enum TextKind {
 ///
 /// The key must cover *every* input that can change the compiled output:
 /// content, typography, color, kind, the wrapping parameters
-/// (`max_width`/`text_align`/`overflow`), and whether the plain-text fast path
+/// (`max_width`/`text_align`/`overflow`), whether the plain-text fast path
 /// may be used (fast-path and Typst-engine output are visually equivalent but
-/// not bit-identical, so they are cached under distinct keys).
+/// not bit-identical, so they are cached under distinct keys), and the
+/// font-environment epoch (see [`advance_font_env_epoch`]).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TextCacheKey {
     content: String,
@@ -1587,6 +1623,7 @@ struct TextCacheKey {
     text_align: String,
     overflow: String,
     fast_path: bool,
+    font_epoch: u64,
 }
 
 /// Memoized output of one text compilation: centered glyph paths plus the
@@ -1703,6 +1740,7 @@ pub fn compile_text_cached(
         text_align: text_align.to_string(),
         overflow: overflow.to_string(),
         fast_path: allow_fast_path,
+        font_epoch: font_ctx.epoch,
     };
 
     if let Some(hit) = lock_compile_cache().get(&key) {
@@ -2283,6 +2321,48 @@ mod tests {
 
         clear_text_compile_cache();
         assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
+    }
+
+    #[test]
+    fn font_epoch_invalidates_cache() {
+        clear_text_compile_cache();
+        let compile_at_current_epoch = |font_ctx: &FontContext| {
+            compile_text_cached(
+                TextKind::Typst,
+                "$ e^{i\\pi} $",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                0.0,
+                "left",
+                "visible",
+                false,
+                font_ctx,
+            )
+            .expect("cached typst compile should succeed")
+        };
+
+        let before = compile_at_current_epoch(&test_font_ctx());
+
+        // A context created after the epoch advanced must not observe entries
+        // compiled under the previous font environment.
+        advance_font_env_epoch();
+        let fresh_ctx = test_font_ctx();
+        let after = compile_at_current_epoch(&fresh_ctx);
+        assert_ne!(
+            before.paths.as_ptr(),
+            after.paths.as_ptr(),
+            "entries from a previous font epoch must not be served to newer contexts"
+        );
+        // Within the new epoch, memoization still works.
+        let again = compile_at_current_epoch(&fresh_ctx);
+        assert_eq!(after.paths.as_ptr(), again.paths.as_ptr());
+        clear_text_compile_cache();
     }
 
     #[test]
