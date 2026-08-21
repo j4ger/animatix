@@ -52,13 +52,34 @@ use typst::{Library, LibraryExt, World};
 /// Owns a persistent `fontdb::Database` to avoid redundant font scanning (~45-60ms per call).
 ///
 /// Create one `FontContext` early and share it throughout the build pipeline.
+///
+/// The system font database is loaded **once per process** and shared behind an
+/// `Arc`, so every `FontContext::new()` (one per `Timeline::build`/rebuild)
+/// reuses the same scanned faces instead of re-scanning the system on each call.
+/// This turns repeated builds (e.g. per keystroke in the GUI) from O(fonts) disk
+/// + parse work into an O(1) `Arc` clone.
 #[derive(Clone, Debug)]
 pub struct FontContext {
-    /// The underlying font database.
-    db: fontdb::Database,
+    /// The underlying font database, shared process-wide (only read after load).
+    db: std::sync::Arc<fontdb::Database>,
     /// Whether the plain-text fast path (bypassing Typst) is enabled.
     /// Default: true. Set `text_fast_path: false` in the config block to disable.
     pub text_fast_path: bool,
+}
+
+/// Load (once) and cache the system font database for the whole process.
+///
+/// `fontdb::Database` is only ever read after construction in this codebase, so
+/// sharing one immutable instance across all [`FontContext`]s is safe and avoids
+/// re-scanning the system font dirs on every build.
+fn system_fonts_db() -> &'static std::sync::Arc<fontdb::Database> {
+    use std::sync::OnceLock;
+    static DB: OnceLock<std::sync::Arc<fontdb::Database>> = OnceLock::new();
+    DB.get_or_init(|| {
+        let mut db = fontdb::Database::new();
+        db.load_system_fonts();
+        std::sync::Arc::new(db)
+    })
 }
 
 impl Default for FontContext {
@@ -68,22 +89,21 @@ impl Default for FontContext {
 }
 
 impl FontContext {
-    /// Create a new font context with system fonts loaded.
+    /// Create a new font context with system fonts loaded (shared process-wide).
     /// The plain-text fast path is enabled by default.
     pub fn new() -> Self {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
         Self {
-            db,
+            db: std::sync::Arc::clone(system_fonts_db()),
             text_fast_path: true,
         }
     }
 
     /// Create a new font context with fast path explicitly enabled/disabled.
     pub fn with_fast_path(text_fast_path: bool) -> Self {
-        let mut db = fontdb::Database::new();
-        db.load_system_fonts();
-        Self { db, text_fast_path }
+        Self {
+            db: std::sync::Arc::clone(system_fonts_db()),
+            text_fast_path,
+        }
     }
 
     fn load_font(&self, family: &str) -> Option<Font> {
