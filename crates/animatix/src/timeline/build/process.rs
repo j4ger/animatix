@@ -365,6 +365,7 @@ impl Timeline {
                     if let Some(locals) = self.block_scope.pop() {
                         for name in locals {
                             self.env.overrides.remove(&name);
+                            self.env.mark_mutated();
                         }
                     }
                 },
@@ -456,15 +457,18 @@ pub(crate) fn remove_loop_vars(
     match var {
         LoopPattern::Single(name) => {
             env.overrides.remove(name);
+            env.mark_mutated();
         },
         LoopPattern::Tuple(names) => {
             for name in names {
                 env.overrides.remove(name);
+                env.mark_mutated();
             }
         },
     }
     if let Some(iv) = index_var {
         env.overrides.remove(iv);
+        env.mark_mutated();
     }
 }
 

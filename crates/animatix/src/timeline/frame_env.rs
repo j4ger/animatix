@@ -56,6 +56,10 @@ pub(crate) fn apply_override_incremental(
 impl Timeline {
     pub(super) fn build_eval_env(&self, time_ms: u64) -> Environment {
         let mut env = self.env.clone();
+        // Reserve up front: this runs once per declaration during build and
+        // injects every track's properties, so growing unreserved would rehash
+        // the override map repeatedly (O(declarations²) insert work).
+        env.reserve_overrides(self.variable_tracks.len() + self.tracks.len() * 40);
         // Inject variable tracks so build-time `let` declarations can reference
         // previously declared variables (e.g., `let a = list_swap(a, 0, 2)`).
         // Block-scoped (function-local) bindings shadow scene variable tracks

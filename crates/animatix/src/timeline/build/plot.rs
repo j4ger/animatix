@@ -1639,6 +1639,7 @@ fn eval_scalar_field_source(source: &FuncSource, env: &mut Environment, x: f64, 
             env.clear_bindings();
             for key in inserted {
                 env.overrides.remove(&key);
+                env.mark_mutated();
             }
             result
         },
@@ -1671,6 +1672,7 @@ fn eval_vec2_field_source(source: &FuncSource, env: &mut Environment, x: f64, y:
             env.clear_bindings();
             for key in inserted {
                 env.overrides.remove(&key);
+                env.mark_mutated();
             }
             result
         },

@@ -315,6 +315,7 @@ pub(crate) fn eval_source_scalar(
                 env.clear_bindings();
                 for key in inserted {
                     env.overrides.remove(&key);
+                    env.mark_mutated();
                 }
                 cache.insert(key, result.clone());
                 result
@@ -354,6 +355,7 @@ fn eval_source_vec2(
                 env.clear_bindings();
                 for key in inserted {
                     env.overrides.remove(&key);
+                    env.mark_mutated();
                 }
                 cache.insert(key, result.clone());
                 result
@@ -870,6 +872,7 @@ pub(crate) fn eval_implicit_source(
             };
             for key in inserted {
                 env.overrides.remove(&key);
+                env.mark_mutated();
             }
             result
         },

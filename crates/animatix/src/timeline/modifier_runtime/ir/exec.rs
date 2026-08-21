@@ -146,15 +146,18 @@ fn execute_stmt(
             match var {
                 LoopPattern::Single(name) => {
                     frame_env.overrides.remove(name);
+                    frame_env.mark_mutated();
                 },
                 LoopPattern::Tuple(names) => {
                     for name in names {
                         frame_env.overrides.remove(name);
+                        frame_env.mark_mutated();
                     }
                 },
             }
             if let Some(index_var) = index_var {
                 frame_env.overrides.remove(index_var);
+                frame_env.mark_mutated();
             }
         },
         ModifierIrStmt::Noop => {},

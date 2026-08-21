@@ -15,15 +15,17 @@ use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 
 // Thread-local expression evaluation cache.
 //
-// Caches `(expr_ptr, env_hash) → Value` to avoid re-evaluating the same
-// expression in the same environment during build. The cache is cleared
-// between builds via [`clear_eval_cache`] and capped so long-running GUI
-// sessions cannot grow without bound.
+// Caches `(expr_hash, env_stamp) → Value` to avoid re-evaluating the same
+// expression in the same environment during build. The stamp is O(1)
+// (instance id + mutation counter, see `EnvStamp`), so cache lookups no
+// longer hash the whole environment. The cache is cleared between builds via
+// [`clear_eval_cache`] and capped so long-running GUI sessions cannot grow
+// without bound.
 thread_local! {
-    static EVAL_CACHE: RefCell<HashMap<(usize, u64), Value>> =
+    static EVAL_CACHE: RefCell<HashMap<(u64, super::env::EnvStamp), Value>> =
         RefCell::new(HashMap::new());
     /// Flag to disable the eval cache for tight sampling loops.
-    /// When false, evaluate_expr skips env_hash() and the cache entirely.
+    /// When false, evaluate_expr skips hashing and the cache entirely.
     static EVAL_CACHE_ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
@@ -45,102 +47,6 @@ pub fn disable_eval_cache() {
 /// Re-enable the expression evaluation cache after a sampling loop.
 pub fn enable_eval_cache() {
     EVAL_CACHE_ENABLED.set(true);
-}
-
-/// Compute a hash of the environment's override entries.
-/// Skips NativeFn values (which don't implement Hash).
-fn env_hash(env: &Environment) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    // Hash the base Arc pointer identity (same base = same stdlib)
-    if let Some(ref base) = env.base {
-        let ptr = std::sync::Arc::as_ptr(base) as usize;
-        ptr.hash(&mut hasher);
-    }
-    // Hash override entries (skip NativeFn which can't be hashed)
-    let mut entries: Vec<(&String, &Value)> =
-        env.overrides.iter().filter(|(_, v)| !matches!(v, Value::NativeFn(_))).collect();
-    entries.sort_by_key(|(name, _)| *name);
-    for (key, value) in entries {
-        key.hash(&mut hasher);
-        hash_value(value, &mut hasher);
-    }
-    // Hash bindings if present
-    for binding in env.bindings.iter().flatten() {
-        binding.0.hash(&mut hasher);
-        hash_value(&binding.1, &mut hasher);
-    }
-    hasher.finish()
-}
-
-/// Hash a Value (skipping NativeFn which can't be hashed).
-fn hash_value<V: Hasher>(value: &Value, hasher: &mut V) {
-    match value {
-        Value::Num(n) => {
-            0u8.hash(hasher);
-            n.to_bits().hash(hasher);
-        },
-        Value::Str(s) => {
-            1u8.hash(hasher);
-            s.hash(hasher);
-        },
-        Value::Bool(b) => {
-            2u8.hash(hasher);
-            b.hash(hasher);
-        },
-        Value::Vec2(v) => {
-            3u8.hash(hasher);
-            v[0].to_bits().hash(hasher);
-            v[1].to_bits().hash(hasher);
-        },
-        Value::Vec3(v) => {
-            4u8.hash(hasher);
-            for x in v {
-                x.to_bits().hash(hasher);
-            }
-        },
-        Value::Vec4(v) => {
-            5u8.hash(hasher);
-            for x in v {
-                x.to_bits().hash(hasher);
-            }
-        },
-        Value::Color(c) => {
-            6u8.hash(hasher);
-            for x in c {
-                x.to_bits().hash(hasher);
-            }
-        },
-        Value::List(items) => {
-            7u8.hash(hasher);
-            items.len().hash(hasher);
-            for item in items {
-                hash_value(item, hasher);
-            }
-        },
-        Value::Object(name, fields) => {
-            8u8.hash(hasher);
-            name.hash(hasher);
-            let mut field_names: Vec<&String> = fields.keys().collect();
-            field_names.sort();
-            for field in field_names {
-                field.hash(hasher);
-                if let Some(value) = fields.get(field) {
-                    hash_value(value, hasher);
-                }
-            }
-        },
-        Value::NativeFn(_) => {
-            9u8.hash(hasher);
-        }, // pointer identity
-        Value::Closure(params, _, _) => {
-            10u8.hash(hasher);
-            params.hash(hasher);
-        },
-        Value::UserFn { name, .. } => {
-            11u8.hash(hasher);
-            name.hash(hasher);
-        },
-    }
 }
 
 /// Safe scalar division: returns 0.0 when divisor is zero.
@@ -263,29 +169,38 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
     }
 }
 
+/// True for expressions whose direct evaluation is cheaper than a cache
+/// round-trip: literals, single variable lookups, and tuples/lists built
+/// entirely from those.
+fn expr_is_trivial(expr: &Expr) -> bool {
+    match expr {
+        Expr::Num(_)
+        | Expr::Percent(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Null
+        | Expr::Ident(_) => true,
+        Expr::Tuple(items) | Expr::List(items) => items.iter().all(expr_is_trivial),
+        _ => false,
+    }
+}
+
 /// Represents a runtime value produced by evaluating an expression.
 ///
-/// Uses a thread-local cache keyed on `(expr_content_hash, env_hash)` to
-/// avoid re-evaluating the same expression in the same environment during build.
+/// Uses a thread-local cache keyed on `(expr_content_hash, env.stamp())` to
+/// avoid re-evaluating the same expression in the same environment during
+/// build. The environment stamp is O(1) — instance id plus a mutation counter
+/// (see `EnvStamp`) — so equal stamps guarantee equal contents without hashing
+/// every override entry.
 pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
-    // Fast path: when cache is disabled (e.g., inside tight plot sampling loops),
-    // skip env_hash() and cache entirely
-    if !EVAL_CACHE_ENABLED.get() {
+    // Fast path: trivial expressions and disabled caches (e.g., inside tight
+    // plot sampling loops) evaluate directly — a cache round-trip would cost
+    // more than the evaluation itself.
+    if !EVAL_CACHE_ENABLED.get() || expr_is_trivial(expr) {
         return evaluate_expr_inner(expr, env);
     }
 
-    // Check cache for a hit (only for non-trivial expressions)
-    let cache_key = match expr {
-        Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {
-            // Literals are cheap — evaluate directly without caching
-            return evaluate_expr_inner(expr, env);
-        },
-        _ => {
-            let expr_h = expr_hash(expr);
-            let env_h = env_hash(env);
-            (expr_h as usize, env_h)
-        },
-    };
+    let cache_key = (expr_hash(expr), env.stamp());
 
     // Check cache
     {
@@ -828,6 +743,51 @@ mod tests {
 
     fn compiled_body(body: Expr) -> Box<CompiledExpr> {
         Box::new(compile_expr(&body).expect("test closure body should compile"))
+    }
+
+    #[test]
+    fn eval_cache_reflects_env_mutations() {
+        // Same env instance, unmutated → cached value is reused.
+        let mut env = Environment::new();
+        env.set("x", Value::Num(2.0));
+        let expr = Expr::Call("sin".to_string(), vec![Expr::Ident("x".to_string())]);
+        let first = evaluate_expr(&expr, &env).expect("eval should succeed");
+
+        // Mutating the environment must invalidate memoized values even
+        // though the (expr, instance) pair is unchanged.
+        env.set("x", Value::Num(0.0));
+        let second = evaluate_expr(&expr, &env).expect("eval should succeed");
+        assert_eq!(first.as_num(), 2.0f64.sin());
+        assert_eq!(second.as_num(), 0.0f64.sin());
+
+        // A clone shares contents but not cache identity: mutating one side
+        // must never corrupt the other's memoized values.
+        let mut clone = env.clone();
+        clone.set("x", Value::Num(std::f64::consts::FRAC_PI_2));
+        let from_clone = evaluate_expr(&expr, &clone).expect("eval should succeed");
+        let from_original = evaluate_expr(&expr, &env).expect("eval should succeed");
+        assert_eq!(from_clone.as_num(), 1.0);
+        assert_eq!(from_original.as_num(), 0.0f64.sin());
+    }
+
+    #[test]
+    fn direct_overrides_removal_invalidates_cache() {
+        // Code paths that mutate `overrides` directly (e.g. loop-variable
+        // cleanup) must bump the stamp via mark_mutated.
+        let mut env = Environment::new();
+        env.set("loop_var", Value::Num(3.0));
+        let expr = Expr::Binary(
+            Box::new(Expr::Ident("loop_var".to_string())),
+            BinaryOp::Add,
+            Box::new(Expr::Num(1.0)),
+        );
+        let with_var = evaluate_expr(&expr, &env).expect("eval should succeed");
+        assert_eq!(with_var.as_num(), 4.0);
+
+        env.overrides.remove("loop_var");
+        env.mark_mutated();
+        let without_var = evaluate_expr(&expr, &env);
+        assert!(without_var.is_err(), "removed variable must no longer resolve");
     }
 
     #[test]

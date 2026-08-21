@@ -293,11 +293,29 @@ impl Value {
     }
 }
 
+/// Cheap content-version identity for the build-time expression cache.
+///
+/// `(instance, version)` is part of the `evaluate_expr` memoization key: two
+/// environments with equal stamps are guaranteed to be the same instance in an
+/// unmutated state, so their contents are equal and cached values can be
+/// shared. This replaces hashing every override entry on each evaluation,
+/// which cost O(env size) per expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct EnvStamp {
+    instance: u32,
+    version: u64,
+}
+
+static ENV_INSTANCE_COUNTER: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
+
+fn fresh_env_instance() -> u32 {
+    ENV_INSTANCE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Variable environment for expression evaluation.
 ///
 /// Uses an override layer over an optional shared base to avoid copying
 /// large stdlib maps on every frame.
-#[derive(Clone)]
 pub struct Environment {
     pub(crate) overrides: HashMap<String, Value>,
     /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
@@ -307,6 +325,24 @@ pub struct Environment {
     /// Avoids cloning the entire overrides HashMap for every sample point.
     /// Two slots allow setting both `x` and `y` for scalar/vector field evaluation.
     pub(crate) bindings: [Option<(String, Value)>; 2],
+    /// Memoization identity; see [`EnvStamp`]. Bumped on every mutation.
+    stamp: EnvStamp,
+}
+
+impl Clone for Environment {
+    fn clone(&self) -> Self {
+        Self {
+            overrides: self.overrides.clone(),
+            base: self.base.clone(),
+            bindings: self.bindings.clone(),
+            // A fresh instance id keeps the clone's cache entries from ever
+            // colliding with the original's, even if both sides mutate.
+            stamp: EnvStamp {
+                instance: fresh_env_instance(),
+                version: 0,
+            },
+        }
+    }
 }
 
 impl Default for Environment {
@@ -322,6 +358,10 @@ impl Environment {
             overrides: HashMap::new(),
             base: None,
             bindings: [None, None],
+            stamp: EnvStamp {
+                instance: fresh_env_instance(),
+                version: 0,
+            },
         }
     }
 
@@ -331,6 +371,10 @@ impl Environment {
             overrides: HashMap::with_capacity(capacity),
             base: None,
             bindings: [None, None],
+            stamp: EnvStamp {
+                instance: fresh_env_instance(),
+                version: 0,
+            },
         }
     }
 
@@ -340,11 +384,36 @@ impl Environment {
             overrides: HashMap::new(),
             base: Some(base),
             bindings: [None, None],
+            stamp: EnvStamp {
+                instance: fresh_env_instance(),
+                version: 0,
+            },
         }
+    }
+
+    /// Record a content mutation for cache identity (see [`EnvStamp`]).
+    ///
+    /// Must be called by every path that mutates `overrides` or `bindings`
+    /// directly instead of going through the mutating methods.
+    #[inline]
+    pub(crate) fn mark_mutated(&mut self) {
+        self.stamp.version += 1;
+    }
+
+    /// Cache identity for expression memoization (see [`EnvStamp`]).
+    #[inline]
+    pub(crate) fn stamp(&self) -> EnvStamp {
+        self.stamp
+    }
+
+    /// Reserve additional capacity in the override layer.
+    pub fn reserve_overrides(&mut self, additional: usize) {
+        self.overrides.reserve(additional);
     }
 
     /// Insert or overwrite a variable in the override layer.
     pub fn set(&mut self, name: &str, value: Value) {
+        self.mark_mutated();
         self.overrides.insert(name.to_string(), value);
     }
 
@@ -387,6 +456,7 @@ impl Environment {
     /// Extend this environment with all values from another.
     /// If other has a base, we adopt it (or merge if we already have one).
     pub fn extend_from(&mut self, other: &Environment) {
+        self.mark_mutated();
         for (k, v) in &other.overrides {
             self.overrides.insert(k.clone(), v.clone());
         }
@@ -449,6 +519,7 @@ impl Environment {
     /// Set a variable binding overlay. Uses the first available slot, or
     /// replaces an existing binding with the same name.
     pub fn set_binding(&mut self, name: &str, value: Value) {
+        self.mark_mutated();
         // Replace existing binding with same name, or fill first empty slot
         for slot in self.bindings.iter_mut() {
             match slot {
@@ -469,6 +540,7 @@ impl Environment {
 
     /// Clear all variable binding overlays.
     pub fn clear_bindings(&mut self) {
+        self.mark_mutated();
         self.bindings = [None, None];
     }
 
