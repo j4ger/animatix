@@ -242,9 +242,16 @@ it moves and the **gate** that protects it.
 ### P2 — Rebuild latency (keystroke-to-preview)
 - **Target:** `rebuild.*`, `full_pipeline.*` — target sub-10 ms for small scenes,
   bounded for large/generated scenes.
-- **Suspects:** O(n·m) work in `Timeline::build` (per-track / per-keyframe),
-  `expand_components` recursion on generated scenes, planner
-  (`property_plan_lookup_and_sample`), keyframe consolidation across scenes.
+- **Done so far:** process-wide font DB sharing (PF-5, commit `5b12b015`);
+  process-wide memoization of Text/Code/Typst compilation keyed on all inputs,
+  so unchanged declarations skip the Typst engine across rebuilds
+  (`text_rebuild/mixed_48_warm` 49.6 ms → 25.6 ms; guarded by a font-environment
+  epoch against future font reloads).
+- **Remaining suspects:** O(n·m) work in `Timeline::build` (per-track /
+  per-keyframe), build-env injection (`inject_property_into_env`),
+  `utils::hash_value`, keyframe consolidation/sorting across scenes (the
+  residual ~25 ms of a fully cached large-scene rebuild), and
+  `expand_components` recursion on generated scenes.
 - **Gate:** already partially gated; extend the `extension-bench.sh` pattern to
   the whole `rebuild.*` group.
 
