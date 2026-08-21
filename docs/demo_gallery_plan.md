@@ -40,12 +40,29 @@ what the system can produce.
 Gallery and tutorial copy is **bilingual (Chinese + English)**, e.g.
 main title Chinese + English kicker ("排序剧场 · Sorting Theatre").
 
-- Prerequisite spike (Phase 1): render one bilingual title card PNG first to
-  verify CJK glyph coverage and baseline behavior in the text pipeline. If
-  glyphs are missing or baselines break, fix font fallback before rolling out.
-- Style conventions live in `lib/theme.amx` comments: Chinese headline +
-  English kicker, keep technical terms in English, fixed-width number
-  formatting for count-ups.
+### Spike outcome (Phase 1 prerequisite — DONE)
+
+The bilingual probe (`examples/gallery/spike_bilingual.amx`, kept until
+absorbed into `theme_studio`) exposed three engine defects, all fixed on this
+branch before any demo work:
+
+| Defect | Root cause | Fix |
+|---|---|---|
+| CJK text rendered nothing | Non-Latin content always takes the Typst path, whose world bundled only mock Open Sans + Fira Math — no glyph coverage, glyphs silently dropped | Renderer collects system faces covering uncovered characters (cached per char/face) and appends them to the Typst world (`f9c4cf94`) |
+| Any line wider than ~453px silently wrapped | No `#set page` rule → Typst default A4 geometry; `compile_text` ignored max_width/align/overflow entirely | Explicit page sizing on all compile paths; `compile_text` honors the wrapping params (`f9c4cf94`) |
+| `text_max_width` property did nothing | Declaration parser only matched legacy `max_width`; spec/registry/track say `text_max_width` | Both names accepted (`a8f626e6`) |
+
+Also aligned the analyzer schema: `font_weight` accepts Num \| Str per runtime
+(`parse_font_weight`), previously flagged every `"bold"` as a type error
+(`96e19620`).
+
+Known remaining nit: bold CJK may fall back to a regular face when the chosen
+fallback family has no bold sibling in the world (one representative face per
+family is loaded). Re-check during gallery work; not blocking.
+
+Style conventions live in `lib/theme.amx` comments: Chinese headline +
+English kicker, keep technical terms in English, fixed-width number
+formatting for count-ups.
 
 ## 4. Target Layout
 

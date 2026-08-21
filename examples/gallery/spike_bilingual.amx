@@ -1,0 +1,31 @@
+// Spike — bilingual rendering probe for the gallery design system.
+// Verifies CJK glyph coverage, mixed-script baselines, wrapping, letter
+// spacing, and a Typst line with embedded CJK. Temporary file; removed or
+// absorbed into theme_studio after Phase 1 review.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+kicker: Text, text: "MOTION DESIGN · 动态设计", font_size: 20,
+  color: accent.primary, anchor: scene.top, offset: (0, 110)
+
+title: Text, text: "排序剧场 · Sorting Theatre", font_size: 72,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 155)
+
+rule: Rect, size: (460, 3), color: accent.primary, anchor: scene.top, offset: (0, 268)
+
+body: Text, text: "中英混排换行测试:the build-time pass precomputes every swap event before the first frame renders,全程零手写关键帧。",
+  font_size: 24, color: text.secondary, text_max_width: 620, line_height: 1.6,
+  anchor: scene.center, offset: (-320, 30)
+
+baseline_row: Row, anchor: scene.bottom, offset: (0, -150), gap: 18, vertical_align: "baseline" {
+  zh_big: Text, text: "谐波", font_size: 48, color: accent.warning
+  en_small: Text, text: "harmonics", font_size: 20, color: text.muted
+  mixed: Text, text: "1/k 幅度衰减", font_size: 28, color: accent.success
+}
+
+spaced: Text, text: "字距测试 letter_spacing", font_size: 28, letter_spacing: 6,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -70)
+
+formula: Typst, content: "$hat(x)(t) = sum_(k) A_k sin(2 pi f_k t)$ 方波",
+  font_size: 22, color: accent.info, anchor: scene.right, offset: (-280, 0)
