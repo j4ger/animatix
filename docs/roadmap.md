@@ -50,6 +50,24 @@ actions while the modifier section calls it shared vocabulary, and `Button` /
 |---|---|---|---|
 | Array/group `fade-in` target A/B run | Done 2026-08-14 | None | `dogfood/runs/003` accepted group-target `fade-in cards` as idiomatic; document container group-targets for entrance actions |
 
+### Performance Evaluation Framework & Backlog
+
+Design source of truth: `docs/performance_evaluation.md`. The framework is
+layered (Criterion micro-suite → scenario suite → GPU/export + GUI telemetry)
+and all performance work should be justified by a moved metric in that doc.
+
+| ID | Track | Status | Next Step |
+|----|-------|--------|-----------|
+| PF-1 | `scripts/perf-bench.sh` baseline/regression harness | Done 2026-08-21 | Statistical (combined-std) regression gate over the full Criterion suite, run locally during optimization rounds |
+| PF-2 | CI integration (`perf-report` job / persistent baselines) | Paused | Prove the harness in local optimization rounds first; re-enable CI only after the gate is stable and non-flaky |
+| PF-3 | Persist/de-dup benchmark baselines across CI runs | Open | Compare PR runs against last `main` baseline via artifacts; promote `perf-bench compare` to a gate |
+| PF-4 | P1 frame-evaluation hot path (cache-hit restore clone, per-frame `Vec`/`SceneItem` churn, allocation in `encode_scene`) | Open | Profile with DHAT on scenario suite; move `frame.*`/`scrub.*` numbers and set gates |
+| PF-5 | P2 rebuild latency for large/generated scenes (`expand_components`, planner, keyframe consolidation) | Open | Extend `extension-bench.sh` absolute-gate pattern to `rebuild.*` group |
+| PF-6 | P3 allocation / memory profile (peak RSS, per-frame clones) | Open | Add mem capture; DHAT/tracy on scenarios |
+| PF-7 | P4 GPU / export throughput (raster ms, video/GIF encode FPS) | Open | Layer-3 perf binary under `nix develop`; wire `PerformanceMetrics::set_gpu_memory` |
+| PF-8 | Shared stage tracing (`crates/animatix/src/perf.rs`, `ScopedStage`) so benches + GUI HUD measure the same stages | Open | Implement behind a default-on feature; verify it doesn't perturb bench numbers |
+| PF-9 | GUI JSONL perf sink (`--perf-log`) from `PerformanceMetrics` | Open | Add sink; collect real-authoring data |
+
 ---
 
 ## Open Questions
