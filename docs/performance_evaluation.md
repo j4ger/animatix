@@ -244,15 +244,15 @@ it moves and the **gate** that protects it.
   bounded for large/generated scenes.
 - **Done so far:** process-wide font DB sharing (PF-5, commit `5b12b015`);
   process-wide memoization of Text/Code/Typst compilation keyed on all inputs
-  (`text_rebuild/mixed_48_warm` 49.6 ms → 25.6 ms; guarded by a
-  font-environment epoch against future font reloads); O(1) environment-stamp
-  key for the build-time expression cache, replacing the per-evaluation
-  full-env hash + sort (`mixed_48_warm` → 9.5 ms; `showcase_full` −51%,
-  `build_reactive_timeline` −39%, `components_full`/`modules_full` ≈ −30%).
-- **Remaining suspects:** per-declaration full-environment injection in
-  `build_eval_env` is still O(declarations²) — reuse/incrementally update one
-  env across same-time declarations; residual allocation churn;
-  `expand_components` recursion on generated scenes.
+  (font-environment epoch guards staleness); O(1) environment-stamp key for the
+  build-time expression cache; and referenced-root filtering of build-env
+  injection (`build::referenced_roots` pre-scans the expanded AST, injecting
+  only actor labels that appear in expressions — over-injection safe,
+  under-injection fails loudly). Cumulative `text_rebuild/mixed_48_warm`:
+  49.6 ms → 0.41 ms; `components_full` −58%; lib test suite 58 s → 9 s.
+- **Remaining suspects:** `expand_components` recursion on generated scenes;
+  per-rebuild glyph `Vec` clones for text actors (store `Arc<[TextPath]>` in
+  tracks); cold-build Typst compilation cost is now the dominant term.
 - **Gate:** already partially gated; extend the `extension-bench.sh` pattern to
   the whole `rebuild.*` group.
 
