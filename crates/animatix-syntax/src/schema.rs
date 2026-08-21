@@ -579,7 +579,14 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             PropertyValueKind::F32,
         ),
         ("font_style", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
-        ("font_weight", &["Text", "Typst", "Code"], Type::Num, PropertyValueKind::F32),
+        // Runtime accepts numeric weights (100-900) and the keyword strings
+        // "normal"/"bold" (see `parse_font_weight`); it stores an F32 track.
+        (
+            "font_weight",
+            &["Text", "Typst", "Code"],
+            Type::Union(vec![Type::Num, Type::Str]),
+            PropertyValueKind::F32,
+        ),
         ("from", &["Line", "Arrow", "Callout"], Type::Vec2, PropertyValueKind::Vec2),
         (
             "func",

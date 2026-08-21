@@ -1,4 +1,6 @@
 use kurbo::{Affine, BezPath, Point, Shape};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::error::RenderError;
 pub use super::types::TextPath;
@@ -285,6 +287,154 @@ impl FontContext {
 }
 
 // ─────────────────────────────────────────────────────────────
+// System glyph-fallback fonts
+// ─────────────────────────────────────────────────────────────
+
+/// Process-wide cache: character → first installed face covering it.
+///
+/// Scan order mirrors [`FontContext::font_for_glyphs`]: normal weight and
+/// style, non-monospaced faces first. `None` caches a known-uncovered char so
+/// repeated compiles skip the scan.
+fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::ID>>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<char, Option<fontdb::ID>>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Process-wide cache: fontdb face id → shared face data.
+fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Option<Arc<[u8]>>>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Option<Arc<[u8]>>>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Process-wide cache: fontdb face id → constructed Typst font.
+fn typst_font_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Font>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Font>>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Shared copy of a system face's bytes (loaded once per process).
+fn cached_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<Arc<[u8]>> {
+    let mut cache = face_data_cache().lock().unwrap();
+    if let Some(data) = cache.get(&id) {
+        return data.clone();
+    }
+    let data = FontContext::face_data(&font_ctx.db, id).map(Arc::from);
+    cache.insert(id, data.clone());
+    data
+}
+
+/// Whether a parsed face can render `ch`.
+fn face_covers_char(data: &[u8], index: u32, ch: char) -> bool {
+    ttf_parser::Face::parse(data, index)
+        .map(|face| face.glyph_index(ch).is_some())
+        .unwrap_or(false)
+}
+
+/// Find the first installed face covering `ch`, preferring normal weight and
+/// style, non-monospaced faces. Result is cached per character.
+fn probe_char_face(font_ctx: &FontContext, ch: char) -> Option<fontdb::ID> {
+    if let Some(cached) = char_face_cache().lock().unwrap().get(&ch) {
+        return *cached;
+    }
+    let db = &font_ctx.db;
+    let mut found: Option<fontdb::ID> = None;
+    'passes: for prefer_plain in [true, false] {
+        for face in db.faces() {
+            let matches = if prefer_plain {
+                face.style == fontdb::Style::Normal
+                    && face.weight == fontdb::Weight::NORMAL
+                    && !face.monospaced
+            } else {
+                face.style == fontdb::Style::Normal && !face.monospaced
+            };
+            if !matches {
+                continue;
+            }
+            let Some(data) = cached_face_data(font_ctx, face.id) else {
+                continue;
+            };
+            if face_covers_char(data.as_ref(), face.index, ch) {
+                found = Some(face.id);
+                break 'passes;
+            }
+        }
+    }
+    char_face_cache().lock().unwrap().insert(ch, found);
+    found
+}
+
+/// Construct (or fetch from cache) a Typst font for a system face.
+fn cached_typst_font(font_ctx: &FontContext, id: fontdb::ID) -> Option<Font> {
+    let mut cache = typst_font_cache().lock().unwrap();
+    if let Some(font) = cache.get(&id) {
+        return Some(font.clone());
+    }
+    let data = cached_face_data(font_ctx, id)?;
+    let index = font_ctx.db.face(id)?.index;
+    let font = Font::new(Bytes::new(data), index)?;
+    cache.insert(id, font.clone());
+    Some(font)
+}
+
+/// Collect Typst fonts covering every character of `content` that the primary
+/// family cannot render.
+///
+/// Gives the Typst text path glyph coverage for non-Latin content (CJK,
+/// Cyrillic, ...) without requiring an explicit `font_family`. Bounded at 8
+/// distinct fallback faces per compile; results are cached per face id.
+pub(crate) fn collect_fallback_fonts(
+    font_ctx: &FontContext,
+    content: &str,
+    primary_family: &str,
+    primary_weight: f32,
+    primary_style: &str,
+) -> Vec<Font> {
+    // Resolve the primary face through shared cached data instead of
+    // `load_face`, which leaks its buffer on every call.
+    let fontdb_style = match primary_style {
+        "italic" | "oblique" => fontdb::Style::Italic,
+        _ => fontdb::Style::Normal,
+    };
+    let primary_id = font_ctx.db.query(&fontdb::Query {
+        families: &[fontdb::Family::Name(primary_family)],
+        weight: fontdb::Weight(primary_weight.round() as u16),
+        style: fontdb_style,
+        ..Default::default()
+    });
+    let primary = primary_id.and_then(|id| {
+        let index = font_ctx.db.face(id)?.index;
+        let data = cached_face_data(font_ctx, id)?;
+        Some((data, index))
+    });
+
+    let mut ids: Vec<fontdb::ID> = Vec::new();
+    for ch in content.chars() {
+        if ch.is_whitespace() {
+            continue;
+        }
+        let covered = primary
+            .as_ref()
+            .map(|(data, index)| face_covers_char(data, *index, ch))
+            .unwrap_or(false);
+        if covered {
+            continue;
+        }
+        if let Some(id) = probe_char_face(font_ctx, ch) {
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        if ids.len() >= 8 {
+            break;
+        }
+    }
+    ids.iter().filter_map(|id| cached_typst_font(font_ctx, *id)).collect()
+}
+
+// ─────────────────────────────────────────────────────────────
 // Font bundle
 // ─────────────────────────────────────────────────────────────
 
@@ -315,6 +465,7 @@ pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 fn build_world(
     source: Source,
     extra_fonts: &[&str],
+    fallback_fonts: &[Font],
     font_ctx: &FontContext,
 ) -> Result<TypstWorld, RenderError> {
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
@@ -340,6 +491,16 @@ fn build_world(
             book.push(font.info().clone());
             fonts.push(font);
         }
+    }
+
+    // Append glyph-fallback faces covering characters the requested families
+    // cannot render (CJK, Cyrillic, ...). One representative face per family.
+    for font in fallback_fonts {
+        if fonts.iter().any(|f| f.info().family == font.info().family) {
+            continue;
+        }
+        book.push(font.info().clone());
+        fonts.push(font.clone());
     }
 
     let library = typst::Library::builder().build();
@@ -431,7 +592,7 @@ pub struct TypstWorld {
 impl TypstWorld {
     /// Create a new Typst world with the given source and font context.
     pub fn new(source: Source, font_ctx: &FontContext) -> Result<Self, RenderError> {
-        build_world(source, &[], font_ctx)
+        build_world(source, &[], &[], font_ctx)
     }
 
     /// Create a new Typst world with additional font families.
@@ -440,7 +601,18 @@ impl TypstWorld {
         fonts: &[&str],
         font_ctx: &FontContext,
     ) -> Result<Self, RenderError> {
-        build_world(source, fonts, font_ctx)
+        Self::with_fonts_and_fallback(source, fonts, &[], font_ctx)
+    }
+
+    /// Create a new Typst world with additional font families plus
+    /// pre-collected glyph-fallback fonts (see [`collect_fallback_fonts`]).
+    pub fn with_fonts_and_fallback(
+        source: Source,
+        fonts: &[&str],
+        fallback_fonts: &[Font],
+        font_ctx: &FontContext,
+    ) -> Result<Self, RenderError> {
+        build_world(source, fonts, fallback_fonts, font_ctx)
     }
 }
 
@@ -527,6 +699,28 @@ fn typst_par_leading_rule(line_height: f32) -> String {
         return String::new();
     }
     format!("#set par(leading: {}em); ", leading_em)
+}
+
+/// Build a `#set page` rule sized to the content.
+///
+/// Without an explicit page rule Typst lays text out on its default A4 page
+/// (~453pt of usable width after margins), which silently wraps any line
+/// wider than that regardless of scene resolution. When `max_width` is set
+/// the page matches it so the wrapping preamble controls line breaks;
+/// otherwise the page is sized generously enough to keep the whole content on
+/// one line (worst case one em of advance per character).
+fn typst_page_preamble(
+    max_width: f32,
+    content: &str,
+    font_size: f32,
+    letter_spacing: f32,
+) -> String {
+    let width = if max_width > 0.0 {
+        max_width
+    } else {
+        (content.chars().count() as f32 + 1.0) * (font_size + letter_spacing.abs()) + 64.0
+    };
+    format!("#set page(width: {width:.2}pt, height: auto, margin: 0pt)\n")
 }
 
 /// Build a Typst wrapping preamble string for max_width, text_align, and overflow.
@@ -617,6 +811,8 @@ pub fn compile_math(
     overflow: &str,
 ) -> Result<Frame, RenderError> {
     let text_font = resolve_font_family(font_family, font_ctx);
+    let fallback = collect_fallback_fonts(font_ctx, math, &text_font, 400.0, "normal");
+    let page_preamble = typst_page_preamble(max_width, math, font_size, 0.0);
     let base_markup = format!(
         "#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"Fira Math\")); #show math.equation: set text(font: \"Fira Math\"); $ {} $",
         font_size,
@@ -625,10 +821,19 @@ pub fn compile_math(
         math
     );
 
-    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+    let markup = format!(
+        "{}{}",
+        page_preamble,
+        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
+    );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&text_font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
+    let world = TypstWorld::with_fonts_and_fallback(
+        source,
+        &[&text_font, DEFAULT_MATH_FONT_FAMILY],
+        &fallback,
+        font_ctx,
+    )?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst math document".to_string())
     })?;
@@ -653,10 +858,12 @@ pub fn compile_typst(
     overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let fallback = collect_fallback_fonts(font_ctx, typst_markup, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Include math font so that $...$ math expressions compile correctly.
     // Mirror the compile_math show-rule for math.equation font.
+    let page_preamble = typst_page_preamble(max_width, typst_markup, font_size, letter_spacing);
     let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: (\"{}\", \"{}\")); #show math.equation: set text(font: \"{}\")\n{}",
         extra_rules,
@@ -668,10 +875,21 @@ pub fn compile_typst(
         DEFAULT_MATH_FONT_FAMILY,
         typst_markup
     );
-    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+    // The page rule must stay at the document top level; only the content is
+    // wrapped in the width-constrained block.
+    let markup = format!(
+        "{}{}",
+        page_preamble,
+        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
+    );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font, DEFAULT_MATH_FONT_FAMILY], font_ctx)?;
+    let world = TypstWorld::with_fonts_and_fallback(
+        source,
+        &[&font, DEFAULT_MATH_FONT_FAMILY],
+        &fallback,
+        font_ctx,
+    )?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst document".to_string())
     })?;
@@ -691,18 +909,20 @@ pub fn compile_text(
     line_height: f32,
     letter_spacing: f32,
     word_spacing: f32,
-    _max_width: f32,
-    _text_align: &str,
-    _overflow: &str,
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let fallback = collect_fallback_fonts(font_ctx, text, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Use Typst raw block (4 backticks) to avoid markup interpretation of user text.
     // 4-backtick delimiter handles text containing up to 3 consecutive backticks.
     // Block raw also handles newlines, which inline raw cannot.
     let escaped = text.replace('\\', "\\\\");
-    let markup = format!(
+    let page_preamble = typst_page_preamble(max_width, text, font_size, letter_spacing);
+    let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         extra_rules,
         leading_rule,
@@ -711,9 +931,16 @@ pub fn compile_text(
         font,
         escaped
     );
+    // The page rule must stay at the document top level; only the content is
+    // wrapped in the width-constrained block.
+    let markup = format!(
+        "{}{}",
+        page_preamble,
+        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
+    );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let world = TypstWorld::with_fonts_and_fallback(source, &[&font], &fallback, font_ctx)?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst text document".to_string())
     })?;
@@ -738,10 +965,12 @@ pub fn compile_code(
     overflow: &str,
 ) -> Result<Frame, RenderError> {
     let font = resolve_font_family(font_family, font_ctx);
+    let fallback = collect_fallback_fonts(font_ctx, code, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
     // Use Typst raw block (4 backticks) to avoid markup interpretation of code text.
     let escaped = code.replace('\\', "\\\\");
+    let page_preamble = typst_page_preamble(max_width, code, font_size, letter_spacing);
     let base_markup = format!(
         "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
         extra_rules,
@@ -751,10 +980,16 @@ pub fn compile_code(
         font,
         escaped
     );
-    let markup = typst_wrapping_preamble(max_width, text_align, overflow, &base_markup);
+    // The page rule must stay at the document top level; only the content is
+    // wrapped in the width-constrained block.
+    let markup = format!(
+        "{}{}",
+        page_preamble,
+        typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
+    );
 
     let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
-    let world = TypstWorld::with_fonts(source, &[&font], font_ctx)?;
+    let world = TypstWorld::with_fonts_and_fallback(source, &[&font], &fallback, font_ctx)?;
     let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst code document".to_string())
     })?;
@@ -2671,6 +2906,124 @@ mod tests {
             "Heights should match: normal={:.3}, wide={:.3}",
             bbox_normal[1],
             bbox_wide[1]
+        );
+    }
+
+    /// Regression: non-Latin text must render through glyph-fallback fonts
+    /// even when the resolved primary family (bundled mock Open Sans) has no
+    /// coverage. Previously CJK glyphs silently vanished.
+    #[test]
+    fn cjk_text_renders_with_default_family() {
+        let font_ctx = test_font_ctx();
+        let frame = compile_text(
+            "排序剧场",
+            90.0,
+            typst::visualize::Color::from_u8(255, 255, 255, 255),
+            "",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .expect("CJK text should compile via glyph fallback");
+        let compiled = extract_glyphs_with_metrics(&frame);
+        assert!(
+            !compiled.glyphs.is_empty(),
+            "CJK glyphs must not vanish with the default family"
+        );
+    }
+
+    /// Regression: without an explicit page rule Typst applied its default A4
+    /// page geometry and wrapped any line wider than ~453pt.
+    #[test]
+    fn long_cjk_line_stays_single_line_without_max_width() {
+        let font_ctx = test_font_ctx();
+        let frame = compile_text(
+            "布局优先的动画描述语言中文长句样例",
+            40.0,
+            typst::visualize::Color::from_u8(255, 255, 255, 255),
+            "",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
+        let compiled = extract_glyphs_with_metrics(&frame);
+        assert!(!compiled.glyphs.is_empty());
+        let [_, half_h] = measure_text_paths(&compiled.glyphs);
+        assert!(
+            half_h * 2.0 < 40.0 * 2.0,
+            "expected one line without max_width, got ink height {:.1}",
+            half_h * 2.0
+        );
+    }
+
+    #[test]
+    fn text_max_width_wraps_long_cjk_line() {
+        let font_ctx = test_font_ctx();
+        let frame = compile_text(
+            "布局优先的动画描述语言中文长句样例",
+            40.0,
+            typst::visualize::Color::from_u8(255, 255, 255, 255),
+            "",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            160.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
+        let compiled = extract_glyphs_with_metrics(&frame);
+        assert!(!compiled.glyphs.is_empty());
+        let [_, half_h] = measure_text_paths(&compiled.glyphs);
+        assert!(
+            half_h * 2.0 >= 40.0 * 2.0,
+            "expected wrapping at max_width=160, got ink height {:.1}",
+            half_h * 2.0
+        );
+    }
+
+    #[test]
+    fn long_latin_line_stays_single_line_without_max_width() {
+        let font_ctx = test_font_ctx();
+        let frame = compile_text(
+            "The quick brown fox jumps over the lazy dog again and again",
+            24.0,
+            typst::visualize::Color::from_u8(255, 255, 255, 255),
+            "",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
+        let compiled = extract_glyphs_with_metrics(&frame);
+        assert!(!compiled.glyphs.is_empty());
+        let [_, half_h] = measure_text_paths(&compiled.glyphs);
+        assert!(
+            half_h * 2.0 < 24.0 * 2.0,
+            "Latin single-line behavior changed: ink height {:.1}",
+            half_h * 2.0
         );
     }
 }

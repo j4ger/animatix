@@ -1,0 +1,65 @@
+pub component TitleCard(title: Str, kicker: Str = "", sub: Str = "") {
+  root: Col, size: (1040, 230), gap: 10, align: "center", padding: 20 {
+  kicker_wrap: Group {
+  kicker_text: Text, text: kicker, font_size: 16, font_weight: 500, color: accent.primary, text_max_width: 1000, text_align: "center"
+      }
+  title_wrap: Group {
+  title_text: Text, text: title, font_size: 60, font_weight: "bold", color: text.primary, text_max_width: 1000, text_align: "center"
+      }
+  sub_wrap: Group {
+  sub_text: Text, text: sub, font_size: 22, color: text.secondary, text_max_width: 1000, text_align: "center", opacity: if sub == "" { 0 } else { 1 }
+      }
+  rule: Rect, size: (120, 3), color: accent.primary
+    }
+}
+
+pub component SectionHeader(title: Str, kicker: Str = "") {
+  root: Col, size: (620, 100), gap: 8, align: "start", padding: 16 {
+  kicker_wrap: Group {
+  kicker_text: Text, text: kicker, font_size: 14, font_weight: 500, color: accent.primary
+      }
+  title_wrap: Group {
+  title_text: Text, text: title, font_size: 34, font_weight: "bold", color: text.primary, text_max_width: 0
+      }
+  rule: Rect, size: (64, 3), color: accent.primary
+    }
+}
+
+pub component MetricCard(label: Str, value: Str, accent: Color = accent.primary) {
+  card: Col, size: (220, 120), gap: 6, align: "center", padding: 12 {
+  value_wrap: Group {
+  value_text: Text, text: value, font_size: 42, color: accent, text_max_width: 196, text_align: "center"
+      }
+  label_wrap: Group {
+  label_text: Text, text: label, font_size: 14, color: text.secondary, text_max_width: 196, text_align: "center"
+      }
+    }
+}
+
+pub component Card(width: Num = 240, height: Num = 150) {
+  frame: Rect, size: (width, height), color: surface.primary
+  root: Col, size: (width, height), gap: 0, align: "start" {
+  header: Col, size: (width, 44), align: "start", padding: (14, 18, 0, 18) {
+  @slot
+  header_fallback: Text, text: "Card", font_size: 16, color: text.secondary
+      }
+  body: Col, size: (width, height - 44), align: "start", padding: (8, 18, 14, 18) {
+  @slot
+  body_fallback: Rect, size: fill, color: (0, 0, 0, 0)
+      }
+    }
+}
+
+pub component Chip(label: Str, width: Num = 90, height: Num = 32, color: Color = surface.secondary, text_color: Color = text.primary) {
+  root: Stack, size: (width, height), align: "center" {
+  bg: Rect, size: fill, color: color
+  label_text: Text, text: label, font_size: 13, color: text_color
+    }
+}
+
+pub component Button(label: Str = "Button", width: Num = 120, height: Num = 40, accent: Color = accent.primary) {
+  root: Stack, size: (width, height), align: "center" {
+  bg: Rect, size: fill, color: surface.secondary
+  label_text: Text, text: label, font_size: 15, color: accent
+    }
+}

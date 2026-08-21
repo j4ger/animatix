@@ -215,7 +215,8 @@ impl Timeline {
                     .unwrap_or(super::Value::Num(0.0));
                     word_spacing = value.as_num() as f32;
                 },
-                "max_width" => {
+                // Canonical name per spec; `max_width` kept as a legacy alias.
+                "text_max_width" | "max_width" => {
                     let value = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,

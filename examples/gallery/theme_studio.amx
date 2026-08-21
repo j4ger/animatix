@@ -1,0 +1,104 @@
+import "../lib/theme.amx"
+
+import "../lib/ui.amx"
+
+import "../lib/charts.amx"
+
+config { colorscheme: "gallery", resolution: (1280, 720), strict_types: true }
+
+pub component InputRow(label: Str, width: Num = 200) {
+  root: Col, size: (width, 44), gap: 4, align: "start" {
+  label_wrap: Group {
+  label_text: Text, text: label, font_size: 12, color: text.muted
+      }
+  line: Rect, size: (width, 2), color: stroke.default
+    }
+}
+
+pub component LoginCard(accent: Color = accent.primary) {
+  frame: Rect, size: (280, 180), color: surface.primary
+  root: Col, size: (280, 180), gap: 10, align: "start", padding: 18 {
+  title_wrap: Group {
+  title: Text, text: "登录 · Login", font_size: 18, color: text.primary
+      }
+  user: InputRow, label: "用户名 Username", width: 244
+  pass: InputRow, label: "密码 Password", width: 244
+  btn_wrap: Group {
+  btn: Button, label: "Sign in", width: 244, height: 36, accent: accent
+      }
+    }
+}
+
+pub component ExplodableCard(width: Num = 420, height: Num = 220) {
+  frame: Rect, size: (width, height), color: surface.primary
+  icon: Rect, size: (48, 48), color: accent.primary, at: (28, 28)
+  title_text: Text, text: "组件拆解 · Component Anatomy", font_size: 24, color: text.primary, at: (92, 34)
+  body_text: Text, text: "Slots, typed params and actions compose reusable UI blocks.", font_size: 14, color: text.secondary, text_max_width: 360, at: (28, 96)
+  chip_wrap: Group, at: (28, 160) {
+  chip: Chip, label: "strict", color: accent.success, text_color: text.primary
+    }
+  fn explode() {
+      self.icon.at = (28 - 60, 28) [500ms]
+      self.title_text.at = (92 + 80, 34) [500ms]
+      self.body_text.at = (28, 96 + 24) [500ms]
+      self.chip_wrap.at = (28 + 80, 160) [500ms]
+    }
+  fn implode() {
+      self.icon.at = (28, 28) [400ms]
+      self.title_text.at = (92, 34) [400ms]
+      self.body_text.at = (28, 96) [400ms]
+      self.chip_wrap.at = (28, 160) [400ms]
+    }
+}
+
+#0s
+  wrap_title: Group, anchor: scene.center, offset: (0, -220) {
+  title: TitleCard, title: "Animatix Gallery", kicker: "MOTION DESIGN SYSTEM · 动态设计系统", sub: "一套可复用的双语组件库"
+    }
+  metrics: Row, anchor: scene.center, offset: (0, 80), gap: 24 {
+  m1: MetricCard, label: "比较次数", value: "17"
+  m2: MetricCard, label: "交换次数", value: "9", accent: accent.warning
+  m3: MetricCard, label: "耗时", value: "24ms", accent: accent.success
+    }
+  wrap_login: Group, anchor: scene.right, offset: (-60, 40) {
+  login: LoginCard, accent: accent.primary
+    }
+  wrap_chart: Group, anchor: scene.left, offset: (60, 40) {
+  panel: ChartPanel, title: "频谱 Spectrum", width: 420, height: 320 {
+  @graph {
+  curve: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 0.4 + 0.5, color: accent.primary, stroke_width: 2
+        }
+      }
+    }
+  chips: Row, anchor: scene.bottom, offset: (0, -50), gap: 14 {
+  c0: Chip, label: "GPU", width: 90, height: 36, color: auto
+  c1: Chip, label: "中文", width: 90, height: 36, color: auto
+  c2: Chip, label: "矢量", width: 90, height: 36, color: auto
+  c3: Chip, label: "严格类型", width: 110, height: 36, color: auto
+  c4: Chip, label: "Auto", width: 90, height: 36, color: auto
+    }
+
+#0.5s
+  fade-in title [600ms, ease: ease-out]
+
+#+0.3s
+  stagger [80ms] {
+      fade-in m1 [400ms]
+      fade-in m2 [400ms]
+      fade-in m3 [400ms]
+    }
+
+#+0.4s
+  stagger [60ms] {
+      fade-in login [400ms]
+      fade-in panel [400ms]
+    }
+
+#+0.4s
+  stagger [50ms] {
+      fade-in c0 [320ms]
+      fade-in c1 [320ms]
+      fade-in c2 [320ms]
+      fade-in c3 [320ms]
+      fade-in c4 [320ms]
+    }
