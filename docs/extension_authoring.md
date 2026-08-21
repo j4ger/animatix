@@ -119,16 +119,6 @@ atomically replace the whole context, like `DocumentPluginManager`, must not
 invoke old disposers against a new context; dropping the old context releases
 its registered capabilities.
 
-Scoped registration is also available:
-
-```rust
-{
-    let mut scope = ctx.scope();
-    scope.register_action(Box::new(MyAction));
-    // All scope registrations are disposed when `scope` drops.
-}
-```
-
 ## Native Plugins
 
 The `plugin-loading` feature in `animatix` adds a native `cdylib` loader. The

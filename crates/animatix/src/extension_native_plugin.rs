@@ -1804,41 +1804,8 @@ fn native_resize_mode(mode: u32) -> ResizeMode {
 }
 
 fn parse_native_type(ty: &str) -> Option<animatix_syntax::typing::Type> {
-    use animatix_syntax::typing::Type;
-    let trimmed = ty.trim();
-    if let Some(variants) = parse_enum_type(trimmed) {
-        return Some(Type::Enum(variants));
-    }
-    match trimmed {
-        "Num" | "U32" => Some(Type::Num),
-        "Str" | "String" => Some(Type::Str),
-        "Bool" => Some(Type::Bool),
-        "Vec2" => Some(Type::Vec2),
-        "Vec3" => Some(Type::Vec3),
-        "Vec4" => Some(Type::Vec4),
-        "Color" => Some(Type::Color),
-        "Any" => Some(Type::Any),
-        "List<Vec2>" => Some(Type::List(Box::new(Type::Vec2))),
-        _ => None,
-    }
-}
-
-fn parse_enum_type(ty: &str) -> Option<Vec<String>> {
-    let inner = ty
-        .strip_prefix("Enum<")
-        .and_then(|value| value.strip_suffix('>'))
-        .or_else(|| ty.strip_prefix("Enum(").and_then(|value| value.strip_suffix(')')))?
-        .trim();
-    if inner.is_empty() {
-        return None;
-    }
-    let variants = inner
-        .split([',', '|'])
-        .map(str::trim)
-        .filter(|variant| !variant.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    (!variants.is_empty()).then_some(variants)
+    // Strict annotation parsing: `None` for unknown/unsupported type strings.
+    animatix_syntax::typing::Type::parse(ty)
 }
 
 unsafe fn read_c_string(ptr: *const c_char) -> Option<String> {

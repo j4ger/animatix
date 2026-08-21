@@ -280,7 +280,8 @@ Acceptance:
 - Phase 5: `ExtensionContext` gained explicit removal APIs for primitives,
   actions, functions, and services; `PrimitiveRegistry::remove` backs disposal.
 - Phase 5: `ExtensionScope` automatically disposes all registrations made
-  through it when dropped.
+  through it when dropped. (Later removed as unused: no production callers, and
+  the per-name tracking duplicated `PluginDisposer`/rollback semantics.)
 - Phase 5: `ExtensionPlugin` + `PluginLoader` added; plugins install into a
   context and return disposers.
 - Phase 5: `BuildTarget::from_ast_with_context()` added; both single-scene and

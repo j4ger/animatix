@@ -164,6 +164,51 @@ impl Type {
             TypeAnnotation::Any => Type::Any,
         }
     }
+
+    /// Parse a source/manifest type annotation string into a [`Type`].
+    ///
+    /// This is the single source of truth for the annotation grammar shared by
+    /// native plugin descriptors and analyzer manifests (previously duplicated
+    /// as `parse_native_type` / `parse_manifest_type`). Unknown or malformed
+    /// strings return `None`; enum annotations
+    /// (`Enum(left, right, top)` or `Enum<...>`) are parsed into [`Type::Enum`].
+    pub fn parse(text: &str) -> Option<Type> {
+        let trimmed = text.trim();
+        if let Some(variants) = parse_enum_annotation(trimmed) {
+            return Some(Type::Enum(variants));
+        }
+        match trimmed {
+            "Num" | "U32" => Some(Type::Num),
+            "Str" | "String" => Some(Type::Str),
+            "Bool" => Some(Type::Bool),
+            "Vec2" => Some(Type::Vec2),
+            "Vec3" => Some(Type::Vec3),
+            "Vec4" => Some(Type::Vec4),
+            "Color" => Some(Type::Color),
+            "Any" => Some(Type::Any),
+            "List<Vec2>" => Some(Type::List(Box::new(Type::Vec2))),
+            _ => None,
+        }
+    }
+}
+
+/// Parse an `Enum(...)` / `Enum<...>` annotation into its variant names.
+fn parse_enum_annotation(ty: &str) -> Option<Vec<String>> {
+    let inner = ty
+        .strip_prefix("Enum<")
+        .and_then(|value| value.strip_suffix('>'))
+        .or_else(|| ty.strip_prefix("Enum(").and_then(|value| value.strip_suffix(')')))?;
+    let inner = inner.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    let variants = inner
+        .split([',', '|'])
+        .map(str::trim)
+        .filter(|variant| !variant.is_empty())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    (!variants.is_empty()).then_some(variants)
 }
 
 /// Component parameter signature.

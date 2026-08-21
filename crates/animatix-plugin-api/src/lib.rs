@@ -682,3 +682,27 @@ pub struct NativePluginApi {
 
 /// Native plugin install entry point.
 pub type NativeInstallFn = unsafe extern "C" fn(*const NativePluginApi, *mut c_void) -> i32;
+
+#[cfg(test)]
+mod tests {
+    /// The ABI snapshot id is an unstable, frequently-bumped constant that the
+    /// docs must keep in sync with. This drift-guard pins
+    /// `docs/extension_authoring.md`'s "current unstable ABI snapshot" statement
+    /// to [`UNSTABLE_ABI_VERSION`], so a bump without a doc update fails CI.
+    #[test]
+    fn abi_version_stays_in_sync_with_authoring_docs() {
+        let docs_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../docs/extension_authoring.md");
+        let source = std::fs::read_to_string(&docs_path)
+            .unwrap_or_else(|err| panic!("cannot read docs/extension_authoring.md: {err}"));
+        let needle =
+            format!("The current unstable ABI snapshot is {}", super::UNSTABLE_ABI_VERSION);
+        assert!(
+            source.contains(&needle),
+            "docs/extension_authoring.md does not state the current ABI snapshot as {} \
+             at 'The current unstable ABI snapshot is ...'; update the doc when \
+             UNSTABLE_ABI_VERSION changes",
+            super::UNSTABLE_ABI_VERSION
+        );
+    }
+}

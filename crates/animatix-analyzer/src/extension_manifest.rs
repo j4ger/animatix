@@ -604,41 +604,11 @@ fn manifest_value_kind(ty: &str) -> PropertyValueKind {
     }
 }
 
+/// Parse a manifest type annotation, falling back to [`Type::Any`] for unknown
+/// strings (manifests are lenient). The grammar itself lives in the shared
+/// [`Type::parse`]; this only provides the lenient fallback.
 fn parse_manifest_type(ty: &str) -> Type {
-    let trimmed = ty.trim();
-    if let Some(variants) = parse_enum_type(trimmed) {
-        return Type::Enum(variants);
-    }
-    match trimmed {
-        "Num" | "U32" => Type::Num,
-        "Str" | "String" => Type::Str,
-        "Bool" => Type::Bool,
-        "Vec2" => Type::Vec2,
-        "Vec3" => Type::Vec3,
-        "Vec4" => Type::Vec4,
-        "Color" => Type::Color,
-        "Any" => Type::Any,
-        "List<Vec2>" => Type::List(Box::new(Type::Vec2)),
-        _ => Type::Any,
-    }
-}
-
-fn parse_enum_type(ty: &str) -> Option<Vec<String>> {
-    let inner = ty
-        .strip_prefix("Enum<")
-        .and_then(|value| value.strip_suffix('>'))
-        .or_else(|| ty.strip_prefix("Enum(").and_then(|value| value.strip_suffix(')')))?
-        .trim();
-    if inner.is_empty() {
-        return None;
-    }
-    let variants = inner
-        .split([',', '|'])
-        .map(str::trim)
-        .filter(|variant| !variant.is_empty())
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    (!variants.is_empty()).then_some(variants)
+    Type::parse(ty).unwrap_or(Type::Any)
 }
 
 fn output_property_type(kind: PropertyValueKind) -> &'static str {

@@ -575,133 +575,6 @@ impl ExtensionRegistry {
     {
         self.services.get(name).and_then(|service| service.downcast_ref::<T>())
     }
-
-    /// Create a scoped registration guard.
-    pub fn scope(&mut self) -> ExtensionScope<'_> {
-        ExtensionScope {
-            ctx: self,
-            primitive_names: Vec::new(),
-            property_names: Vec::new(),
-            action_names: Vec::new(),
-            function_names: Vec::new(),
-            service_names: Vec::new(),
-            disposed: false,
-        }
-    }
-}
-
-/// A guard that removes all registrations made through it when dropped.
-#[must_use]
-pub struct ExtensionScope<'a> {
-    ctx: &'a mut ExtensionContext,
-    primitive_names: Vec<String>,
-    property_names: Vec<(String, String)>,
-    action_names: Vec<String>,
-    function_names: Vec<String>,
-    service_names: Vec<String>,
-    disposed: bool,
-}
-
-impl ExtensionScope<'_> {
-    /// Register a primitive and remove it when this scope is disposed.
-    pub fn register_primitive(
-        &mut self,
-        primitive: Arc<dyn Primitive>,
-    ) -> Result<(), PrimitiveRegistrationError> {
-        let name = primitive.type_name().to_string();
-        self.ctx.register_primitive(primitive)?;
-        self.primitive_names.push(name);
-        Ok(())
-    }
-
-    /// Register a property and remove it when this scope is disposed.
-    pub fn register_property(
-        &mut self,
-        actor_type: impl Into<String>,
-        name: impl Into<String>,
-        kind: PropertyValueKind,
-        injectable: bool,
-    ) -> Result<PropertyId, PropertyRegistrationError> {
-        let actor_type = actor_type.into();
-        let name = name.into();
-        let id = self.ctx.register_property(actor_type.clone(), name.clone(), kind, injectable)?;
-        self.property_names.push((actor_type, name));
-        Ok(id)
-    }
-
-    /// Register an action and remove it when this scope is disposed.
-    pub fn register_action(
-        &mut self,
-        action: Box<dyn BuiltinAction>,
-    ) -> Result<(), ExtensionRegistrationError> {
-        let name = action.signature().name.clone();
-        self.ctx.register_action(action)?;
-        self.action_names.push(name);
-        Ok(())
-    }
-
-    /// Register a function and remove it when this scope is disposed.
-    pub fn register_function<F>(
-        &mut self,
-        name: impl Into<String>,
-        call: F,
-    ) -> Result<(), ExtensionRegistrationError>
-    where
-        F: Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync + 'static,
-    {
-        let name = name.into();
-        self.ctx.register_function(name.clone(), call)?;
-        self.function_names.push(name);
-        Ok(())
-    }
-
-    /// Provide a service and remove it when this scope is disposed.
-    pub fn provide<T>(
-        &mut self,
-        name: impl Into<String>,
-        service: T,
-    ) -> Result<(), ExtensionRegistrationError>
-    where
-        T: Any + Send + Sync,
-    {
-        let name = name.into();
-        self.ctx.provide(name.clone(), service)?;
-        self.service_names.push(name);
-        Ok(())
-    }
-
-    /// Dispose all registrations in this scope.
-    pub fn dispose(mut self) {
-        self.dispose_inner();
-    }
-
-    fn dispose_inner(&mut self) {
-        if self.disposed {
-            return;
-        }
-        for name in self.primitive_names.drain(..) {
-            self.ctx.remove_primitive(&name);
-        }
-        for (actor_type, name) in self.property_names.drain(..) {
-            self.ctx.remove_property(&actor_type, &name);
-        }
-        for name in self.action_names.drain(..) {
-            self.ctx.remove_action(&name);
-        }
-        for name in self.function_names.drain(..) {
-            self.ctx.remove_function(&name);
-        }
-        for name in self.service_names.drain(..) {
-            self.ctx.remove_service(&name);
-        }
-        self.disposed = true;
-    }
-}
-
-impl Drop for ExtensionScope<'_> {
-    fn drop(&mut self) {
-        self.dispose_inner();
-    }
 }
 
 #[cfg(test)]
@@ -955,35 +828,6 @@ mod tests {
     }
 
     #[test]
-    fn scope_disposes_all_registrations_on_drop() {
-        let mut ctx = ExtensionContext::new();
-        {
-            let mut scope = ctx.scope();
-            scope.register_primitive(Arc::new(Marker)).expect("register primitive");
-            scope.register_action(Box::new(MarkAction)).expect("register action");
-            scope
-                .register_function("double", |args, _env| {
-                    let Some(Value::Num(n)) = args.first() else {
-                        return Err(crate::timeline::EvalError::TypeMismatch(
-                            "double expects one number".to_string(),
-                        ));
-                    };
-                    Ok(Value::Num(*n * 2.0))
-                })
-                .expect("register function");
-            scope.provide("threshold", 42_u32).expect("provide service");
-        }
-
-        assert!(ctx.primitive_registry().find("Marker").is_none());
-        assert!(ctx.action("mark").is_none());
-        assert!(ctx.get::<u32>("threshold").is_none());
-
-        let mut env = crate::timeline::Environment::new();
-        ctx.install_functions(&mut env);
-        assert!(env.get("double").is_none());
-    }
-
-    #[test]
     fn context_can_dispose_registered_capabilities() {
         let mut ctx = ExtensionContext::new();
         ctx.register_primitive(Arc::new(Marker)).expect("register primitive");
@@ -1134,20 +978,6 @@ mod tests {
         assert!(ctx.property_spec("Gauge", "missing").is_none());
         assert!(ctx.remove_property("Gauge", "level"));
         assert!(!ctx.remove_property("Gauge", "level"));
-        assert!(ctx.property_spec("Gauge", "level").is_none());
-    }
-
-    #[test]
-    fn scope_disposes_registered_properties() {
-        use animatix_syntax::schema::PropertyValueKind;
-
-        let mut ctx = ExtensionContext::new();
-        {
-            let mut scope = ctx.scope();
-            scope
-                .register_property("Gauge", "level", PropertyValueKind::F32, true)
-                .expect("register property");
-        }
         assert!(ctx.property_spec("Gauge", "level").is_none());
     }
 
