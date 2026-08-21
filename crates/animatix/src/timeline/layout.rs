@@ -669,68 +669,33 @@ impl Timeline {
             props.existing_max_width
         );
 
-        // Re-compile text with wrapping
-        let typst_color = typst::visualize::Color::from_u8(
-            (props.color[0] * 255.0) as u8,
-            (props.color[1] * 255.0) as u8,
-            (props.color[2] * 255.0) as u8,
-            (props.color[3] * 255.0) as u8,
-        );
+        if matches!(props.text_kind, TextKind::Math) {
+            // Math shouldn't reach here at build time, but handle gracefully
+            return;
+        }
 
-        let result = match props.text_kind {
-            TextKind::Text => crate::renderer::text::compile_text(
-                &props.content,
-                props.font_size,
-                typst_color,
-                &props.font_family,
-                self.font_context.as_ref(),
-                props.font_weight,
-                &props.font_style,
-                props.line_height,
-                props.letter_spacing,
-                props.word_spacing,
-                effective_max_width,
-                &props.text_align,
-                &props.overflow,
-            ),
-            TextKind::Typst => crate::renderer::text::compile_typst(
-                &props.content,
-                props.font_size,
-                typst_color,
-                &props.font_family,
-                self.font_context.as_ref(),
-                props.font_weight,
-                &props.font_style,
-                props.line_height,
-                props.letter_spacing,
-                props.word_spacing,
-                effective_max_width,
-                &props.text_align,
-                &props.overflow,
-            ),
-            TextKind::Code => crate::renderer::text::compile_code(
-                &props.content,
-                props.font_size,
-                typst_color,
-                &props.font_family,
-                self.font_context.as_ref(),
-                props.font_weight,
-                &props.font_style,
-                props.line_height,
-                props.letter_spacing,
-                props.word_spacing,
-                effective_max_width,
-                &props.text_align,
-                &props.overflow,
-            ),
-            TextKind::Math => {
-                // Math shouldn't reach here at build time, but handle gracefully
-                return;
-            },
-        };
-
-        let frame = match result {
-            Ok(f) => f,
+        // Re-compile through the process-wide memoized path. Width propagation
+        // re-runs on every rebuild with the same container geometry, so
+        // unchanged text children are served from the cache. The fast path
+        // stays disabled to match the previous engine routing exactly.
+        let compiled = match crate::renderer::text::compile_text_cached(
+            props.text_kind,
+            &props.content,
+            &props.font_family,
+            props.font_size,
+            props.font_weight,
+            &props.font_style,
+            props.line_height,
+            props.letter_spacing,
+            props.word_spacing,
+            props.color,
+            effective_max_width,
+            &props.text_align,
+            &props.overflow,
+            false,
+            self.font_context.as_ref(),
+        ) {
+            Ok(cached) => cached,
             Err(e) => {
                 tracing::warn!(
                     "Width propagation: failed to recompile text '{}' with max_width={}: {}",
@@ -741,9 +706,7 @@ impl Timeline {
                 return;
             },
         };
-
-        let compiled = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-        let new_half_size = crate::renderer::text::measure_text_paths(&compiled.glyphs);
+        let new_half_size = compiled.half_size;
 
         tracing::debug!(
             "Width propagation: text '{}' remeasured to half_size={:?}",
@@ -765,7 +728,7 @@ impl Timeline {
         // Update text_paths, size, layout_size, and metrics tracks
         track.text.text_paths.ensure(Vec::new()).add_keyframe(
             time_ms,
-            compiled.glyphs,
+            compiled.paths.to_vec(),
             Easing::Linear,
         );
         track

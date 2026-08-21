@@ -1565,6 +1565,12 @@ pub enum TextKind {
 
 /// Cache key for compiled text paths.
 /// Since `f32` is not `Hash`, we bit-cast it to `u32` for the key.
+///
+/// The key must cover *every* input that can change the compiled output:
+/// content, typography, color, kind, the wrapping parameters
+/// (`max_width`/`text_align`/`overflow`), and whether the plain-text fast path
+/// may be used (fast-path and Typst-engine output are visually equivalent but
+/// not bit-identical, so they are cached under distinct keys).
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TextCacheKey {
     content: String,
@@ -1577,152 +1583,179 @@ struct TextCacheKey {
     word_spacing_bits: u32,
     color: [u8; 4],
     kind: TextKind,
+    max_width_bits: u32,
+    text_align: String,
+    overflow: String,
+    fast_path: bool,
 }
 
-/// Runtime text compiler with LRU-style caching.
-///
-/// When text properties change at runtime (e.g. via `always` reactive blocks),
-/// this service recompiles glyph paths on-demand and caches them so that
-/// identical `(content, font_family, font_size, color, kind)` tuples only
-/// pay compilation cost once.
+/// Memoized output of one text compilation: centered glyph paths plus the
+/// metrics and half-size that every consumer derives from them.
 #[derive(Clone)]
-pub struct TextCompiler {
-    cache: std::collections::HashMap<TextCacheKey, std::sync::Arc<[TextPath]>>,
-    /// Whether the plain-text fast path is enabled (default: true).
-    /// Can be disabled via `config { text_fast_path: false }` for debugging.
-    pub text_fast_path: bool,
+pub struct CachedText {
+    /// Glyph paths, centered around the origin.
+    pub paths: std::sync::Arc<[TextPath]>,
+    /// Font ascent in scene units (see [`CompiledText::ascent`]).
+    pub ascent: f32,
+    /// Font descent in scene units (see [`CompiledText::descent`]).
+    pub descent: f32,
+    /// Baseline offset from center (see [`CompiledText::baseline_offset`]).
+    pub baseline_offset: f32,
+    /// Half size `[w/2, h/2]` as returned by [`measure_text_paths`].
+    pub half_size: [f32; 2],
 }
 
-impl Default for TextCompiler {
-    fn default() -> Self {
-        Self {
-            cache: std::collections::HashMap::new(),
-            text_fast_path: true,
+/// Process-wide memoization table for compiled text.
+///
+/// Entries are keyed by every compilation input, so a hit is bit-identical to
+/// recompiling. The table deliberately lives outside [`TextCompiler`] and
+/// [`Timeline`] instances: the GUI rebuilds the whole `Timeline` on every
+/// keystroke, and per-instance caches would die with each rebuild, forcing a
+/// full Typst parse + eval + layout pass for every unchanged text actor. With
+/// the shared table, an unchanged declaration's rebuild cost drops to one hash
+/// lookup. Font data is process-global and read-only after load, so it cannot
+/// invalidate entries behind the key.
+type TextCompileCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedText>>;
+
+fn compile_cache() -> &'static std::sync::Mutex<TextCompileCache> {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<std::sync::Mutex<TextCompileCache>> = OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(TextCompileCache::new()))
+}
+
+/// Lock the compile cache, recovering the map if a panic poisoned it.
+///
+/// Entries are immutable values, so a poisoned map is still structurally valid;
+/// recovery keeps the cache available instead of panicking unrelated rebuilds.
+fn lock_compile_cache() -> std::sync::MutexGuard<'static, TextCompileCache> {
+    compile_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// Upper bound on memoized compilations. When exceeded, roughly half the
+/// entries are dropped to avoid a full-clear spike (same policy as before the
+/// cache became process-wide).
+const TEXT_COMPILE_CACHE_CAP: usize = 1000;
+
+fn evict_text_compile_cache(cache: &mut TextCompileCache) {
+    if cache.len() > TEXT_COMPILE_CACHE_CAP {
+        let to_remove: Vec<_> = cache.keys().take(cache.len() / 2).cloned().collect();
+        for k in to_remove {
+            cache.remove(&k);
         }
     }
 }
 
-impl TextCompiler {
-    /// Create a new text compiler with an empty cache and fast path enabled.
-    pub fn new() -> Self {
-        Self::default()
+/// Drop every memoized text compilation.
+///
+/// Needed when the font environment changes underneath the cache (e.g. a GUI
+/// reloads system fonts) and by benchmarks measuring cold-build cost.
+pub fn clear_text_compile_cache() {
+    lock_compile_cache().clear();
+}
+
+/// Number of memoized text compilations (for tests and diagnostics).
+pub fn text_compile_cache_len() -> usize {
+    lock_compile_cache().len()
+}
+
+/// Compile text into glyph paths plus metrics, memoized process-wide.
+///
+/// All Text / Code / Typst / Math compilation should funnel through here so
+/// identical inputs — within a build, across rebuilds, and across Timelines —
+/// pay the Typst engine cost exactly once. `allow_fast_path` only affects the
+/// `TextKind::Text` plain-Latin routing; callers that previously used the Typst
+/// engine unconditionally pass `false` to preserve output-identical behavior.
+#[allow(clippy::too_many_arguments)] // Mirrors the compile_* parameter sets it dispatches to.
+pub fn compile_text_cached(
+    kind: TextKind,
+    content: &str,
+    font_family: &str,
+    font_size: f32,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+    color: [f32; 4],
+    max_width: f32,
+    text_align: &str,
+    overflow: &str,
+    allow_fast_path: bool,
+    font_ctx: &FontContext,
+) -> Result<std::sync::Arc<CachedText>, RenderError> {
+    let key = TextCacheKey {
+        content: content.to_string(),
+        font_family: font_family.to_string(),
+        font_size_bits: font_size.to_bits(),
+        font_weight_bits: font_weight.to_bits(),
+        font_style: font_style.to_string(),
+        line_height_bits: line_height.to_bits(),
+        letter_spacing_bits: letter_spacing.to_bits(),
+        word_spacing_bits: word_spacing.to_bits(),
+        color: [
+            (color[0] * 255.0) as u8,
+            (color[1] * 255.0) as u8,
+            (color[2] * 255.0) as u8,
+            (color[3] * 255.0) as u8,
+        ],
+        kind,
+        max_width_bits: max_width.to_bits(),
+        text_align: text_align.to_string(),
+        overflow: overflow.to_string(),
+        fast_path: allow_fast_path,
+    };
+
+    if let Some(hit) = lock_compile_cache().get(&key) {
+        return Ok(std::sync::Arc::clone(hit));
     }
 
-    /// Compile text into glyph paths, using the cache when possible.
-    /// P2.26: Cache hits return an `Arc<[TextPath]>` — a single refcount increment
-    /// instead of cloning the entire vector of BezPath objects.
-    pub fn compile(
-        &mut self,
-        content: &str,
-        font_family: &str,
-        font_size: f32,
-        font_weight: f32,
-        font_style: &str,
-        line_height: f32,
-        letter_spacing: f32,
-        word_spacing: f32,
-        color: [f32; 4],
-        kind: TextKind,
-        font_ctx: &FontContext,
-        max_width: f32,
-        text_align: &str,
-        overflow: &str,
-    ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
-        let key = TextCacheKey {
-            content: content.to_string(),
-            font_family: font_family.to_string(),
-            font_size_bits: font_size.to_bits(),
-            font_weight_bits: font_weight.to_bits(),
-            font_style: font_style.to_string(),
-            line_height_bits: line_height.to_bits(),
-            letter_spacing_bits: letter_spacing.to_bits(),
-            word_spacing_bits: word_spacing.to_bits(),
-            color: [
-                (color[0] * 255.0) as u8,
-                (color[1] * 255.0) as u8,
-                (color[2] * 255.0) as u8,
-                (color[3] * 255.0) as u8,
-            ],
-            kind,
-        };
-
-        if let Some(cached) = self.cache.get(&key) {
-            return Ok(std::sync::Arc::clone(cached));
-        }
-
-        // Evict cache if it grows too large to prevent unbounded memory use.
-        // Remove ~half the entries to avoid a full clear spike.
-        if self.cache.len() > 1000 {
-            let to_remove: Vec<_> = self.cache.keys().take(self.cache.len() / 2).cloned().collect();
-            for k in to_remove {
-                self.cache.remove(&k);
-            }
-        }
-
-        // Route plain text to the fast path when:
-        // 1. The text_fast_path flag is enabled (config option)
-        // 2. The kind is Text (not Code, Typst, or Math)
-        // 3. The content is plain (no Typst markup)
-        // 4. The content is LTR Latin only
-        if self.text_fast_path
-            && kind == TextKind::Text
-            && is_plain_text(content)
-            && is_latin_text(content)
-        {
-            tracing::debug!(
-                "TextCompiler: using fast path for '{}' (family={}, size={}, max_width={}, text_align={}, overflow={})",
+    let use_fast_path = allow_fast_path
+        && kind == TextKind::Text
+        && is_plain_text(content)
+        && is_latin_text(content);
+    let compiled: CompiledText = if use_fast_path {
+        tracing::debug!(
+            "text cache miss (fast path): '{}' (family={}, size={}, max_width={})",
+            content,
+            font_family,
+            font_size,
+            max_width
+        );
+        if max_width > 0.0 {
+            compile_text_fast_wrapped(
                 content,
                 font_family,
+                font_weight,
+                font_style,
                 font_size,
+                color,
+                letter_spacing,
+                word_spacing,
+                font_ctx,
                 max_width,
                 text_align,
-                overflow
-            );
-            let compiled = if max_width > 0.0 {
-                tracing::debug!("TextCompiler: wrapping at {}pt", max_width);
-                compile_text_fast_wrapped(
-                    content,
-                    font_family,
-                    font_weight,
-                    font_style,
-                    font_size,
-                    color,
-                    letter_spacing,
-                    word_spacing,
-                    font_ctx,
-                    max_width,
-                    text_align,
-                    overflow,
-                )?
-            } else {
-                compile_text_fast(
-                    content,
-                    font_family,
-                    font_weight,
-                    font_style,
-                    font_size,
-                    color,
-                    letter_spacing,
-                    word_spacing,
-                    font_ctx,
-                )?
-            };
-            let paths_vec = compiled.glyphs;
-            let paths: std::sync::Arc<[TextPath]> = paths_vec.into();
-            self.cache.insert(key, std::sync::Arc::clone(&paths));
-            return Ok(paths);
+                overflow,
+            )?
+        } else {
+            compile_text_fast(
+                content,
+                font_family,
+                font_weight,
+                font_style,
+                font_size,
+                color,
+                letter_spacing,
+                word_spacing,
+                font_ctx,
+            )?
         }
-
-        // Fall back to Typst path
+    } else {
         tracing::debug!(
-            "TextCompiler: using Typst path for '{}' (kind={:?}, plain={}, latin={}, fast_path={})",
+            "text cache miss (typst): '{}' (kind={:?}, max_width={})",
             content,
             kind,
-            is_plain_text(content),
-            content.chars().all(|c| (c as u32) <= 0x017F),
-            self.text_fast_path
+            max_width
         );
-
         let typst_color = typst::visualize::Color::from_u8(
             key.color[0],
             key.color[1],
@@ -1786,19 +1819,91 @@ impl TextCompiler {
                 overflow,
             )?,
         };
-        let paths: std::sync::Arc<[TextPath]> = extract_glyphs(&frame).into();
-        self.cache.insert(key, std::sync::Arc::clone(&paths));
-        Ok(paths)
+        extract_glyphs_with_metrics(&frame)
+    };
+
+    let half_size = measure_text_paths(&compiled.glyphs);
+    let entry = std::sync::Arc::new(CachedText {
+        paths: compiled.glyphs.into(),
+        ascent: compiled.ascent,
+        descent: compiled.descent,
+        baseline_offset: compiled.baseline_offset,
+        half_size,
+    });
+
+    {
+        let mut cache = lock_compile_cache();
+        cache.insert(key, std::sync::Arc::clone(&entry));
+        evict_text_compile_cache(&mut cache);
+    }
+    Ok(entry)
+}
+
+/// Runtime text compiler backed by the process-wide compile cache.
+///
+/// When text properties change at runtime (e.g. via `always` reactive blocks),
+/// this service recompiles glyph paths on-demand; identical inputs are served
+/// from the shared table (see [`compile_text_cached`]), which also survives
+/// `Timeline` rebuilds.
+#[derive(Clone)]
+pub struct TextCompiler {
+    /// Whether the plain-text fast path is enabled (default: true).
+    /// Can be disabled via `config { text_fast_path: false }` for debugging.
+    pub text_fast_path: bool,
+}
+
+impl Default for TextCompiler {
+    fn default() -> Self {
+        Self {
+            text_fast_path: true,
+        }
+    }
+}
+
+impl TextCompiler {
+    /// Create a new text compiler with fast path enabled.
+    pub fn new() -> Self {
+        Self::default()
     }
 
-    /// Clear the compilation cache.
-    pub fn clear_cache(&mut self) {
-        self.cache.clear();
-    }
-
-    /// Number of entries in the cache (for testing).
-    pub fn cache_len(&self) -> usize {
-        self.cache.len()
+    /// Compile text into glyph paths, using the process-wide cache when possible.
+    /// Cache hits return an `Arc<[TextPath]>` — a single refcount increment
+    /// instead of cloning the entire vector of BezPath objects.
+    pub fn compile(
+        &mut self,
+        content: &str,
+        font_family: &str,
+        font_size: f32,
+        font_weight: f32,
+        font_style: &str,
+        line_height: f32,
+        letter_spacing: f32,
+        word_spacing: f32,
+        color: [f32; 4],
+        kind: TextKind,
+        font_ctx: &FontContext,
+        max_width: f32,
+        text_align: &str,
+        overflow: &str,
+    ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
+        let cached = compile_text_cached(
+            kind,
+            content,
+            font_family,
+            font_size,
+            font_weight,
+            font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            color,
+            max_width,
+            text_align,
+            overflow,
+            self.text_fast_path,
+            font_ctx,
+        )?;
+        Ok(std::sync::Arc::clone(&cached.paths))
     }
 }
 
@@ -2130,6 +2235,93 @@ mod tests {
             .expect("Code kind should compile via Typst");
 
         assert!(!paths.is_empty(), "Should produce glyph paths");
+    }
+
+    #[test]
+    fn compile_cache_keys_on_wrapping_params() {
+        let font_ctx = test_font_ctx();
+        clear_text_compile_cache();
+
+        let common = |max_width: f32| {
+            compile_text_cached(
+                TextKind::Typst,
+                "$ x^2 $",
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                max_width,
+                "left",
+                "visible",
+                false,
+                &font_ctx,
+            )
+            .expect("cached typst compile should succeed")
+        };
+
+        let unwrapped = common(0.0);
+        let wrapped = common(200.0);
+
+        // Distinct max_width must not collide: the old per-instance key omitted
+        // wrapping parameters, which could serve the wrong layout.
+        assert_ne!(
+            unwrapped.paths.as_ptr(),
+            wrapped.paths.as_ptr(),
+            "different max_width must produce distinct cache entries"
+        );
+        // Same inputs hit the same entry.
+        let again = common(0.0);
+        assert_eq!(
+            unwrapped.paths.as_ptr(),
+            again.paths.as_ptr(),
+            "identical inputs must reuse the memoized entry"
+        );
+
+        clear_text_compile_cache();
+        assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
+    }
+
+    #[test]
+    fn compile_cache_survives_new_compiler_instances() {
+        let font_ctx = test_font_ctx();
+        clear_text_compile_cache();
+
+        let compile_with = || {
+            let mut compiler = TextCompiler::new();
+            compiler
+                .compile(
+                    "Survives Rebuild",
+                    "Open Sans",
+                    24.0,
+                    400.0,
+                    "normal",
+                    1.2,
+                    0.0,
+                    0.0,
+                    [1.0, 1.0, 1.0, 1.0],
+                    TextKind::Text,
+                    &font_ctx,
+                    0.0,
+                    "left",
+                    "visible",
+                )
+                .expect("compile should succeed")
+        };
+
+        let first = compile_with();
+        let second = compile_with();
+        // A fresh TextCompiler (as created by every Timeline rebuild) must see
+        // the entries produced by earlier instances.
+        assert_eq!(
+            first.as_ptr(),
+            second.as_ptr(),
+            "memoized results must survive across compiler instances"
+        );
+        clear_text_compile_cache();
     }
 
     #[test]

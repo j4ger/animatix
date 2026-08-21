@@ -40,6 +40,7 @@ The project already ships a mature Criterion suite under `crates/animatix/benche
 | Area | Bench | What it measures |
 |---|---|---|
 | Build/compile | `build_time.rs` | `Timeline::build` over synthetic workloads |
+| Text-heavy rebuild | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
 | Full editor path | `full_pipeline.rs` | parse → module load → typecheck → expand → build (incl. real examples) |
 | Parse-only / build-only | `full_pipeline.rs` | isolation of parse vs. build stage cost |
 | Frame evaluation | `timeline_eval.rs` | `Timeline::evaluate` at several times (cache hit) |

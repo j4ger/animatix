@@ -107,3 +107,7 @@ harness = false
 [[bench]]
 name = "full_pipeline"
 harness = false
+
+[[bench]]
+name = "text_rebuild"
+harness = false

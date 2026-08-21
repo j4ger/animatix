@@ -558,6 +558,11 @@ fn test_runtime_text_recompilation() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
+    // The compile cache is process-wide; start from a clean slate so the
+    // entry count below only reflects this test's compilations (lib tests run
+    // with --test-threads=1).
+    crate::renderer::text::clear_text_compile_cache();
+
     // Evaluate at t=0s and t=1.5s
     let _scene_0s = timeline.evaluate(
         0.0,
@@ -574,11 +579,11 @@ fn test_runtime_text_recompilation() {
         },
     );
 
-    // The text compiler should have cached entries for both times
-    let cache_len = timeline.text_compiler.borrow().cache_len();
+    // Both evaluated times should have memoized their distinct text contents
+    let cache_len = crate::renderer::text::text_compile_cache_len();
     assert!(
         cache_len >= 2,
-        "TextCompiler should have at least 2 cache entries for different times, got {}",
+        "Text compile cache should have at least 2 entries for different times, got {}",
         cache_len
     );
 }

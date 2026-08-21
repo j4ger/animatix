@@ -119,7 +119,7 @@ impl Timeline {
         let mut max_width = 0.0f32;
         let mut text_align = "left".to_string();
         let mut overflow = "visible".to_string();
-        let mut color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+        let mut color_rgba: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
         let mut initial_track_color: Option<[f32; 4]> = None;
         let mut at_expr: Option<Expr> = None;
         let mut anchor_expr: Option<Expr> = None;
@@ -275,12 +275,7 @@ impl Timeline {
 
                     if let Some(resolved_color) = resolved_color {
                         initial_track_color = Some(resolved_color);
-                        color = typst::visualize::Color::from_u8(
-                            (resolved_color[0] * 255.0) as u8,
-                            (resolved_color[1] * 255.0) as u8,
-                            (resolved_color[2] * 255.0) as u8,
-                            (resolved_color[3] * 255.0) as u8,
-                        );
+                        color_rgba = resolved_color;
                     }
                 },
                 "at" => at_expr = Some(prop.value.clone()),
@@ -300,12 +295,7 @@ impl Timeline {
             if let Some(primitive) = self.primitive_registry.find(primitive_type) {
                 if let Some(scheme_color) = self.get_default_color(primitive, "color") {
                     initial_track_color = Some(scheme_color);
-                    color = typst::visualize::Color::from_u8(
-                        (scheme_color[0] * 255.0) as u8,
-                        (scheme_color[1] * 255.0) as u8,
-                        (scheme_color[2] * 255.0) as u8,
-                        (scheme_color[3] * 255.0) as u8,
-                    );
+                    color_rgba = scheme_color;
                 }
             }
         }
@@ -450,56 +440,35 @@ impl Timeline {
             easing,
         );
 
-        let frame = match kind {
-            TextDeclarationKind::Text => crate::renderer::text::compile_text(
-                &text_content,
-                font_size,
-                color,
-                &font_family,
-                self.font_context.as_ref(),
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            )?,
-            TextDeclarationKind::Code => crate::renderer::text::compile_code(
-                &text_content,
-                font_size,
-                color,
-                &font_family,
-                self.font_context.as_ref(),
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            )?,
-            TextDeclarationKind::Typst => crate::renderer::text::compile_typst(
-                &text_content,
-                font_size,
-                color,
-                &font_family,
-                self.font_context.as_ref(),
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            )?,
+        // Compile through the process-wide memoized path so that unchanged
+        // declarations skip the Typst engine entirely on rebuild (the GUI
+        // rebuilds the whole Timeline per keystroke). The declaration build
+        // path has always used the Typst engine directly, so the plain-text
+        // fast path stays disabled here to preserve output-identical behavior.
+        let text_kind = match kind {
+            TextDeclarationKind::Text => crate::renderer::text::TextKind::Text,
+            TextDeclarationKind::Code => crate::renderer::text::TextKind::Code,
+            TextDeclarationKind::Typst => crate::renderer::text::TextKind::Typst,
         };
-        let compiled = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-        let new_paths = compiled.glyphs;
-        let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+        let compiled = crate::renderer::text::compile_text_cached(
+            text_kind,
+            &text_content,
+            &font_family,
+            font_size,
+            font_weight,
+            &font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            color_rgba,
+            0.0,
+            "left",
+            "visible",
+            false,
+            self.font_context.as_ref(),
+        )?;
+        let new_paths = compiled.paths.to_vec();
+        let new_half_size = compiled.half_size;
 
         // Store font metrics on the track for baseline alignment
         // Metrics are set at t_end_ms (when new text appears).

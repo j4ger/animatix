@@ -802,102 +802,30 @@ pub(crate) fn recompile_text_at_assignment(
             );
     }
 
-    // Compute font metrics for baseline alignment
-    // Re-compile the text to extract metrics (separate from cached paths)
-    let typst_color_for_metrics = typst::visualize::Color::from_u8(
-        (color[0] * 255.0) as u8,
-        (color[1] * 255.0) as u8,
-        (color[2] * 255.0) as u8,
-        (color[3] * 255.0) as u8,
-    );
-    let (ascent, descent, baseline_offset) = match text_kind {
-        crate::renderer::text::TextKind::Text => {
-            match crate::renderer::text::compile_text(
-                &target_text,
-                font_size,
-                typst_color_for_metrics,
-                &font_family,
-                font_ctx,
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            ) {
-                Ok(frame) => {
-                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-                    (m.ascent, m.descent, m.baseline_offset)
-                },
-                Err(_) => (0.0, 0.0, 0.0),
-            }
-        },
-        crate::renderer::text::TextKind::Typst => {
-            match crate::renderer::text::compile_typst(
-                &target_text,
-                font_size,
-                typst_color_for_metrics,
-                &font_family,
-                font_ctx,
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            ) {
-                Ok(frame) => {
-                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-                    (m.ascent, m.descent, m.baseline_offset)
-                },
-                Err(_) => (0.0, 0.0, 0.0),
-            }
-        },
-        crate::renderer::text::TextKind::Code => {
-            match crate::renderer::text::compile_code(
-                &target_text,
-                font_size,
-                typst_color_for_metrics,
-                &font_family,
-                font_ctx,
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                0.0,
-                "left",
-                "visible",
-            ) {
-                Ok(frame) => {
-                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-                    (m.ascent, m.descent, m.baseline_offset)
-                },
-                Err(_) => (0.0, 0.0, 0.0),
-            }
-        },
-        crate::renderer::text::TextKind::Math => {
-            match crate::renderer::text::compile_math(
-                &target_text,
-                font_size,
-                typst_color_for_metrics,
-                &font_family,
-                font_ctx,
-                0.0,
-                "left",
-                "visible",
-            ) {
-                Ok(frame) => {
-                    let m = crate::renderer::text::extract_glyphs_with_metrics(&frame);
-                    (m.ascent, m.descent, m.baseline_offset)
-                },
-                Err(_) => (0.0, 0.0, 0.0),
-            }
-        },
+    // Compute font metrics for baseline alignment. The inputs are identical to
+    // the `text_compiler.compile` call above, so this is a process-wide cache
+    // hit rather than a second Typst compilation.
+    let (ascent, descent, baseline_offset) = match crate::renderer::text::compile_text_cached(
+        text_kind,
+        &target_text,
+        &font_family,
+        font_size,
+        font_weight,
+        &font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        color,
+        0.0,
+        "left",
+        "visible",
+        text_compiler.text_fast_path,
+        font_ctx,
+    ) {
+        Ok(cached) => (cached.ascent, cached.descent, cached.baseline_offset),
+        // The same inputs already compiled successfully above; keep the
+        // previous behavior of defaulting metrics when that ever fails.
+        Err(_) => (0.0, 0.0, 0.0),
     };
 
     track
