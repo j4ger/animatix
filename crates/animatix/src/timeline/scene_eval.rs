@@ -1116,7 +1116,23 @@ impl Timeline {
         *self.eval_caches.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
         *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
         self.eval_caches.hit_regions.borrow_mut().clear();
-        Some(cached.program.clone())
+        // On the scene-only path (no observable item collection) hand back a thin
+        // program: only the authoritative scene is deep-copied; the per-frame
+        // items/bounds/diagnostics vectors are not re-cloned on every hit. The
+        // bounds/diagnostics are still mirrored into the caches above for any
+        // tooling, and the collect_items path below keeps the full program.
+        if collect_items {
+            Some(cached.program.clone())
+        } else {
+            Some(crate::timeline::scene_program::SceneProgram {
+                dimensions: cached.dimensions,
+                background: cached.program.background,
+                scene: cached.scene.as_ref().clone(),
+                items: Vec::new(),
+                precise_bounds: std::collections::HashMap::new(),
+                diagnostics: Vec::new(),
+            })
+        }
     }
 
     /// Evaluate the timeline into an observable [`crate::timeline::scene_program::SceneProgram`].
@@ -1355,6 +1371,7 @@ impl Timeline {
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders,
                 program: program.clone(),
+                scene: std::sync::Arc::new(program.scene.clone()),
                 collect_items,
             });
         }

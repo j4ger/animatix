@@ -569,6 +569,10 @@ pub(crate) struct FrameCacheEntry {
     has_child_orders: bool,
     /// Structured frame program, including the authoritative encoded scene.
     program: crate::timeline::scene_program::SceneProgram,
+    /// Shared handle to the authoritative encoded scene. Handed out (deep-copied)
+    /// alone on cache hits so the scene-only `evaluate` path never has to clone
+    /// the whole program (items/precise_bounds/diagnostics).
+    scene: std::sync::Arc<vello::Scene>,
     /// Whether the cached program was requested with observable item collection.
     collect_items: bool,
 }
