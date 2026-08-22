@@ -182,10 +182,10 @@ lands.
 
 | Phase | Deliverable | Status | Acceptance | Known Blockers / Notes |
 |---|---|---|---|---|
-| 1 | Shared `lib/` design system + `theme_studio.amx` | **Done** | clean `check`; PNG render smoke | Engine workarounds documented in plan: wrap positioned components in `Group`; wrap Text in `Group` inside Col; no multi-scene component composition |
+| 1 | Shared `lib/` design system + `theme_studio.amx` | **Done** | clean `check`; PNG render smoke | Engine workarounds documented in plan: wrap positioned components in `Group`; wrap Text in `Group` inside Col |
 | 2 | `motion_poster.amx` + `dashboard_story.amx` | Open | clean `check`; 3-frame PNG smoke | `dashboard_story` needs `Filter`, `Callout`, `Legend`, `stroke_progress`, swap/reorder |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | Open | clean `check`; 3-frame PNG smoke | `sorting_theatre` needs `dynamic_layout` + build-time sort precomputation + `swap` actions |
-| 4 | `brand_reel/` capstone | Open | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Blocked until multi-scene component bug is fixed; consider fixing the bug first |
+| 4 | `brand_reel/` capstone | Open | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; still need cross-file slot fills / component-instance positioning workarounds |
 | 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | Open | script green; render smoke covers all examples | Reuses new `lib/`; delete `animation/16_showcase.amx` and `composition/20_feature_reel.amx` once `brand_reel` lands |
 
 ### Engine Bugs to Fix Before Phase 4
@@ -195,7 +195,7 @@ them unlocks multi-scene gallery demos and cleaner component authoring.
 
 | Bug | Impact | Where to Reproduce | Suggested Fix Area |
 |---|---|---|---|
-| Multi-scene files drop component instances after the first top-level actor | Only the first SectionHeader/Group renders; later imported/local components are silently omitted | `dogfood/probes/multi-scene-components` (create) | Timeline scene assembly / component expansion in multi-scene programs |
+| Multi-scene files clamp playback when a scene has zero inferred duration | A scene with only actor declarations got duration 0; when it was the target of a `play` transition the composition global duration collapsed to the outgoing play time, cutting off prior-scene actions | Any multi-scene file whose last/target scene has no keyframes | **Fixed 2026-08-22**: floor inferred scene durations to `max(incoming transition duration, 1/60s)` |
 | Cross-file `@slot` fills are ignored | Imported `Card` always shows fallback children | `examples/lib/ui.amx::Card` used from another file | Module import/expand path for slot overrides |
 | Cross-file custom component `fn` actions are not resolved | `error[build:unknown-action]` for actions defined in imported component | `lib/ui.amx::MetricCard.pop_in` invoked from a scene file | Action name resolution across module boundaries |
 | Component instances ignore `anchor`/`offset`/`at` | Cannot position a component instance directly | Any component instance with `anchor:`/`offset:`/`at:` | Component-instance property validation / layout transform inheritance |
@@ -205,11 +205,11 @@ them unlocks multi-scene gallery demos and cleaner component authoring.
 
 1. Pick **Phase 2**: start with `dashboard_story.amx` (uses existing `lib/`
    components heavily) or `motion_poster.amx` (typography/morph/Filter).
-2. Before Phase 4, allocate one session to reproduce and fix the multi-scene
-   component bug; otherwise `brand_reel` and any multi-scene transition demos
-   cannot use components.
-3. Keep each phase in its own worktree, run the pre-commit gates from
+2. Keep each phase in its own worktree, run the pre-commit gates from
    `AGENTS.md`, and merge back before starting the next phase.
+3. For Phase 4, remember the remaining component workarounds: wrap imported
+   component instances in `Group` for positioning, avoid cross-file `@slot`
+   fills, and avoid custom `fn` actions on imported components.
 
 ---
 

@@ -68,7 +68,7 @@ family is loaded). Re-check during gallery work; not blocking.
 | `text_max_width` on Text inside a Col is auto-overridden with a collapsed width for CJK | Chinese labels wrap after 2–3 characters even with explicit `text_max_width` | Wrap each Text in a `Group` before placing it in a Col; this blocks the auto-propagation |
 | Cross-file `@slot` fills are silently ignored | Imported `Card` with `@header`/`@body` always shows its fallback children | Keep slot-based components for same-file use only; build composed mockups with local hard-coded components when cross-file reuse is needed |
 | Cross-file custom component actions are not resolved | `error[build:unknown-action]` for `pop_in`/`rise_in` defined in `lib/ui.amx` | Remove custom `fn` actions from `lib/ui.amx`; rely on built-in actions (`fade-in`, `pulse`, `shift`) for imported components |
-| Multi-scene files drop component instances after the first top-level actor | Only the first SectionHeader/Group renders; subsequent imported/local components are silently omitted | `theme_studio.amx` is implemented as a single staged scene; scheme-loop and cross-scene transitions are deferred until the bug is fixed |
+| Multi-scene files clamp playback when a scene has zero inferred duration | A scene with only actor declarations got duration 0; when targeted by `play` the composition global duration collapsed to the outgoing play time, cutting off prior-scene actions | **Fixed 2026-08-22**: inferred scene durations are now floored to `max(incoming transition duration, 1/60s)`; multi-scene demos can proceed |
 
 Style conventions live in `lib/theme.amx` comments: Chinese headline +
 English kicker, keep technical terms in English, fixed-width number
@@ -137,16 +137,16 @@ animation; ③ three copies side by side morphing Path↔star↔circle under
 Capabilities: full morph system, Mask, typography props, animatable Filter,
 Image/Svg, all easing names.
 
-### G5 `theme_studio.amx` — "Theme & Component Studio" (~20s, 1 scene)
-Beats: single staged scene showing ① the custom `gallery` colorscheme,
-② `TitleCard` + `MetricCard` + `Chip` with `color: auto`, ③ a login-card
-mockup built from `Button`/`InputRow`, ④ a `ChartPanel` with a sine curve.
-Originally planned as a 4-scene scheme loop; scaled back to one scene
-because multi-scene files currently drop component instances after the first
-top-level actor (see §3.1).
-Capabilities: Colorscheme definition/inheritance, components, typed params,
-`strict_types`, `color: auto`, Graph/PlotCurve, built-in actions. Doubles as
-the acceptance demo for `lib/ui.amx` + `lib/charts.amx`.
+### G5 `theme_studio.amx` — "Theme & Component Studio" (~40s, 4 scenes)
+Beats: ① same UI mockup (login card) presented under editorial-dark /
+custom `gallery` scheme (per-scene config + fade transitions); ② exploded
+view of the Card component (slot contents fly out and back); ③ `strict_types`
+scene showing typed component instantiation; ④ `color: auto` pool carousel.
+The zero-duration-scene bug that blocked multi-scene component demos was
+fixed in 2026-08-22, so the original 4-scene plan is viable again.
+Capabilities: Colorscheme definition/inheritance, per-scene config, slots,
+`fn`, type aliases, `strict_types`, `color: auto`. Doubles as the acceptance
+demo for `lib/ui.amx` + `lib/charts.amx`.
 
 ### G6 `brand_reel/` — Capstone Title Reel (~75s, 5–6 scenes, multi-file)
 Beats: ① logo draw-in + Filter sheen sweep; ② kinetic type slogan morphs;
@@ -169,7 +169,7 @@ project organization.
 | Reactive (always/anchors/map/_animating_) | G1, G2, G3 |
 | Plots (six plot kinds + function transitions + stroke_progress) | G1, G3 |
 | Annotations (Callout/Legend/Equation highlight) | G1, G3 |
-| Multi-scene (6 transitions/persist/cross-file/per-scene config) | G6 |
+| Multi-scene (6 transitions/persist/cross-file/per-scene config) | G5, G6 |
 | Components/slots/fn/type system | G5 + lib itself |
 | Generation (for/arrays/[step:]/build-time algorithms) | G2 |
 | Media (Image/Svg/Mask/Filter/Audio/typography) | G4, G6 |
