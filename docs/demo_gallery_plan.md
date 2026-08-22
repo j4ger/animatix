@@ -69,6 +69,9 @@ family is loaded). Re-check during gallery work; not blocking.
 | Cross-file `@slot` fills are silently ignored | Imported `Card` with `@header`/`@body` always shows its fallback children | Keep slot-based components for same-file use only; build composed mockups with local hard-coded components when cross-file reuse is needed |
 | Cross-file custom component actions are not resolved | `error[build:unknown-action]` for `pop_in`/`rise_in` defined in `lib/ui.amx` | Remove custom `fn` actions from `lib/ui.amx`; rely on built-in actions (`fade-in`, `pulse`, `shift`) for imported components |
 | Multi-scene files clamp playback when a scene has zero inferred duration | A scene with only actor declarations got duration 0; when targeted by `play` the composition global duration collapsed to the outgoing play time, cutting off prior-scene actions | **Fixed 2026-08-22**: inferred scene durations are now floored to `max(incoming transition duration, 1/60s)`; multi-scene demos can proceed |
+| `Path` actors do not render in `animatix image` export | Any `Path` with `stroke:`/`stroke_width:` produces a blank shape | Use `Rect`/`Polygon` bars or pre-rendered shapes instead of `Path` |
+| `BarChart` `size:`/`at:` ignored in `animatix image` export | Chart renders as a tiny cluster regardless of explicit size | Build charts from `Rect` bars inside a `Row` |
+| Transparent `Rect` overlays render opaque | `color: (0,0,0,0.6)` covers the screen with solid black | Avoid dim overlays; layer sharp cards directly on top, or use `Filter` where supported |
 
 Style conventions live in `lib/theme.amx` comments: Chinese headline +
 English kicker, keep technical terms in English, fixed-width number
@@ -117,15 +120,19 @@ Hero moment: the whole sort runs with zero hand-written keyframes.
 Division of labor vs `dogfood/projects/sorting-visualizer`: dogfood stays the
 single-pass grammar probe; the gallery version is the polished multi-scene piece.
 
-### G3 `dashboard_story.amx` — "One-Screen Data Story" (~50s, 4 scenes)
-Beats: ① Grid KPI row of `MetricCard` instances popping in with count-ups;
-② line chart traced via `stroke_progress` + Callout on the peak + auto Legend;
-③ ranking change: self-drawn Rect array reflowed with `swap/reorder`;
-④ `Filter` blur focuses one card, conclusion wipes in.
-Capabilities: Grid/percentage/`fill`/min-max, components+slots, count-up text
-override, Callout/Legend, BarChart, swap/reorder, Filter, wipe-in.
-Red lines: fixed decimal places for count-ups (text width does not reflow);
-never point a Callout at `always`-updated text.
+### G3 `dashboard_story.amx` — "One-Screen Data Story" (~50s, 5 scenes)
+**Status: implemented.** Five scenes render cleanly; see `docs/handoff_phase2.md`
+for the exact smoke times and engine workarounds used.
+
+Beats: ① KPI row of `MetricCard` instances popping in with count-up text
+override; ② weekly bar chart built from `Rect` bars + coordinate `Callout` on
+the peak + `LegendItem`; ③ ranking change with `swap` and `reorder`; ④ focus
+scene with insight card and takeaway `TitleCard`; ⑤ end card.
+Capabilities: components, count-up text override, `Row`/dynamic layout,
+`Callout`, `LegendItem`, `swap`/`reorder`, `play` transitions.
+Workarounds: `Path`/`BarChart`/`Filter` transparent overlays are not usable in
+`animatix image` export, so the chart is manual bars and the focus effect is a
+simple layered card.
 
 ### G4 `motion_poster.amx` — "Motion Poster" (~30s, pure type & shape)
 Beats: ① per-character staggered entrance (reveal-in/wipe-in + Mask);
@@ -201,7 +208,7 @@ Constraint: teaching files stay single-purpose; polish must not bloat them.
 | Phase | Contents | Acceptance |
 |---|---|---|
 | 1 | rewrite `lib/` + bilingual render spike + `theme_studio.amx` | ✅ clean check + PNG smoke |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | same |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | `dashboard_story.amx` ✅; `motion_poster.amx` pending |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | same |
 | 4 | `brand_reel/` capstone → delete 16/20 → README points to gallery | all six transitions appear ≥1×; persist/Audio/cross-file used |
 | 5 | full tutorial-track refurbishment (§7) + README matrix + smoke-script extension | `scripts/check_examples.sh` green; render smoke covers all examples |
