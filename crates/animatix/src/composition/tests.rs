@@ -1051,3 +1051,54 @@ fn sorting_visualizer_steps_scene_sorts() {
     assert!(comp.scenes["Steps"].duration_s >= 4.0, "Steps scene too short");
     assert!(comp.scenes["Title"].duration_s >= 2.0, "Title scene too short");
 }
+
+#[test]
+fn test_zero_duration_scene_does_not_collapse_composition() {
+    // Regression: a scene with only actor declarations (zero inferred timeline
+    // duration) used to receive duration 0. When it was the target of a play
+    // transition, the composition's global duration collapsed to the play time,
+    // clamping playback and cutting off actions in the outgoing scene before
+    // they finished.
+    let source = concat!(
+        "# Scene1\n",
+        "#0s\n",
+        "a: Rect, width: 100, height: 100\n",
+        "#0.2s\n",
+        "fade-in a [400ms]\n",
+        "play Scene2 [fade, 400ms]\n",
+        "\n",
+        "# Scene2\n",
+        "#0s\n",
+        "b: Rect, width: 100, height: 100\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let comp = &report.output;
+    let scene2 = comp.scenes.get("Scene2").unwrap();
+
+    // Scene2 must be long enough for the 400ms incoming transition to play out.
+    assert!(
+        scene2.duration_s >= 0.4,
+        "Scene2 duration {} must cover the 400ms transition",
+        scene2.duration_s
+    );
+
+    // Global time 0.5s must fall inside the composition, not be clamped.
+    assert!(
+        comp.global_duration_s >= 0.5,
+        "global duration {} too short; composition clamps early",
+        comp.global_duration_s
+    );
+
+    // At global 0.5s we should be in the transition, with Scene1 still running
+    // at local time >= 0.5s so the fade-in can complete.
+    let (active, local, blend) = comp.evaluate(0.5);
+    assert_eq!(active, "Scene1");
+    assert!(local >= 0.5, "Scene1 local time {} should not be clamped to play time", local);
+    assert!(blend.is_some(), "expected transition blend at t=0.5s");
+}

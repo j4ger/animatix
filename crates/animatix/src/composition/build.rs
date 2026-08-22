@@ -390,6 +390,30 @@ impl Composition {
             }
         }
 
+        // 2c. Floor inferred scene durations so a scene with no keyframes still
+        // lasts long enough for its incoming transition to complete. Without
+        // this, a zero-duration target scene collapses the composition's global
+        // timeline and clamps playback before outgoing actions can finish.
+        let mut reverse_edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for (from, edge) in &edges {
+            reverse_edges.entry(edge.to_scene.clone()).or_default().push(from.clone());
+        }
+        for scene in scenes.values_mut() {
+            if scene.explicit_duration_s.is_some() {
+                continue;
+            }
+            let incoming_s = reverse_edges
+                .get(&scene.name)
+                .and_then(|preds| preds.first())
+                .and_then(|pred| edges.get(pred))
+                .map(|edge| edge.transition.duration_ms as f64 / 1000.0)
+                .unwrap_or(0.0);
+            let floor_s = incoming_s.max(1.0 / 60.0); // at least one frame
+            if scene.duration_s < floor_s {
+                scene.duration_s = floor_s;
+            }
+        }
+
         // 3. Compute walk order (following edges, with cycle detection)
         let walk_order =
             Self::compute_walk_order(&declaration_order, &edges, &scenes, &mut diagnostics);
@@ -401,13 +425,6 @@ impl Composition {
         // injection.  Scenes without any persistent predecessor actors are
         // rebuilt identically to the first pass (carry bag is empty → fast path).
         {
-            // Reverse-edge map: to_scene → list of from_scenes (for multi-
-            // predecessor detection).
-            let mut reverse_edges: BTreeMap<String, Vec<String>> = BTreeMap::new();
-            for (from, edge) in &edges {
-                reverse_edges.entry(edge.to_scene.clone()).or_default().push(from.clone());
-            }
-
             // Default scene dimensions used for Phase 3 layout re-rooting.
             let default_dims = [
                 crate::timeline::SceneDimensions::default().width as f64,
