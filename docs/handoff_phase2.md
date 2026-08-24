@@ -2,64 +2,68 @@
 
 ## Status
 
-- **Bug fix (multi-scene zero-duration clamping)**: completed and merged to `main`.
-- **Phase 2 worktree**: `feat/demo-gallery-p2` at `/home/xiayuxuan/Documents/animatix-phase2`.
-- **`dashboard_story.amx`**: implemented and `check`-clean. Five scenes render in the
-  PNG smoke tests (see sample command below).
-- **`motion_poster.amx`**: not started.
+- **Branch**: `feat/demo-gallery-p2` at `/home/xiayuxuan/Documents/animatix-phase2`,
+  9 commits ahead of `main` (fast-forward merge ready; main has not moved).
+- **`dashboard_story.amx`**: complete, 5 scenes, smoke-rendered.
+- **`motion_poster.amx`**: complete, 4 scenes (~28s), smoke-rendered at 2.5s /
+  6.5s / 18s / 25s. Per-letter reveal, slogan cross-fade, morph strategy
+  comparison (match / path_arc / stretch), ken-burns graded zoom, easing race.
+- **Engine limitations from the previous handoff**: all six investigated.
+  Four were real bugs and are **fixed on this branch**; two were misdiagnoses
+  of documented behavior (details below). Several adjacent bugs were found and
+  fixed along the way.
 
-## What landed in this worktree
+## Engine fixes on this branch (oldest first)
 
-- `examples/gallery/dashboard_story.amx` — a 5-scene data-story demo:
-  1. `KPIs` — `MetricCard` row with staggered fade-in and count-up text override.
-  2. `Trend` — weekly bar chart built from `Rect`s inside a `Row`, with a
-     coordinate `Callout` on the peak bar.
-  3. `Ranking Shift` — 5 bars with `swap` and `reorder` actions.
-  4. `Focus` — KPI row + highlighted insight card + takeaway `TitleCard`.
-  5. `End` — closing title card.
-- `examples/lib/charts.amx` — removed the unused `LineChart` component that was
-  added experimentally; `ChartPanel` + `LegendItem` remain unchanged.
-- Regression test `test_zero_duration_scene_does_not_collapse_composition` in
-  `crates/animatix/src/composition/tests.rs` (already on `main`).
+| Commit | Fix |
+|---|---|
+| `f79beb90` | `unknown-type` false warning for statement-position instances of imported `pub component`s (semantic lint only consulted builtin types; also accepts namespaced `alias.Component`) |
+| `ff9fe429` | `draw-in` / `wipe-in` / `reveal-in` never lifted the hidden-by-default opacity seed, so targets stayed invisible forever — the real cause behind the old "Path renders blank" and "Filter with component children shows nothing" reports |
+| `8c4d916d` | Static Filter properties (`blur:` etc.) were dropped silently; only assignment-driven values applied. Declaration-time values now seed the filter tracks |
+| `3a0be20b` | `BarChart` (and other standalone plots) ignored `size:` — layout box was read from the pre-declaration track snapshot. Also wired `anchor:`/`offset:` through the plot dispatch path (previously silently dropped) |
+| `f32b0187` | CLI `image`/`video`/`gif` now default their canvas to the file's `config { resolution: .. }`; root-level `Filter` no longer post-composites on top of later siblings |
+| `8e244595` | Stroke-only `Path` (explicit `stroke:`, no `color:`) no longer emits the default scheme fill (vello implicitly closes open paths → dark dome); entrances reveal fill to the authored `fill_opacity` instead of hardcoded 1.0 |
+| `646f4238` | Component instances forward `opacity:`/`at:`/`anchor:`/`offset:` onto the expanded root actor (previously dropped; Group wrapper was the workaround) |
+| `71af4b0b` | Component-internal `always` / assignments / reactive bindings survive when the component is instantiated inside a container (previously silently dropped) |
 
-## Engine limitations discovered during Phase 2
+## Misdiagnoses in the previous handoff (no code change needed)
 
-These are real blockers for the originally planned visuals. They are **not**
-regressions introduced by this work; they are pre-existing image-export/renderer
-behaviors:
+1. **"Transparent Rect overlays are not blended"** — alpha blending is exact
+   (verified by scene-encoding decode + GPU pixel math: `(0,0,0,0.6)` over
+   content dims it to 40%). The "opaque black" frames were the hidden-by-default
+   rule: content underneath had no entrance action, so only the overlay's
+   contribution was visible over the dark background.
+2. **"Component instances have default opacity 0 until an entrance runs"** —
+   documented behavior for ALL actors declared before the first keyframe
+   (`docs/spec.md` "Pre-Keyframe Actor Declarations"); component instances
+   expand to plain actor declarations and follow the same rule. What *was* a
+   bug: instance-level `opacity: 1` was dropped instead of making the instance
+   visible — fixed in `646f4238`.
+3. **"Filter with component children does not produce visible output"** — the
+   filter backend is type-agnostic; the output was invisible because of the
+   hidden-by-default rule above. The real filter bug was different: static
+   `blur:` etc. never applied (fixed in `8c4d916d`).
 
-1. **`Path` actors do not render in `animatix image` export.**
-   - Repro: any `Path` with `stroke:` and `stroke_width:` produces a blank frame.
-   - Impact: cannot use `draw-in` on a hand-drawn line chart.
-   - Workaround in dashboard: built the chart from `Rect` bars instead.
+## Remaining known issues (candidates for Phase 3)
 
-2. **`BarChart` `size:` / `at:` properties are ignored in `animatix image`
-   export.**
-   - Repro: `examples/data/26_data_math.amx` renders the bars as a tiny cluster.
-   - Impact: cannot use the built-in `BarChart` for a large chart.
-   - Workaround in dashboard: built the chart from `Rect` bars inside a `Row`.
-
-3. **Transparent `Rect` overlays are not blended.**
-   - Repro: a full-screen `Rect` with `color: (0,0,0,0.6)` renders as opaque
-     black.
-   - Impact: cannot dim the background to focus one card.
-   - Workaround in dashboard: omitted the dim/blur effect; the focus card is
-     simply layered over the KPI row.
-
-4. **`Filter` actor with component children does not produce visible output**
-   in the image-export path (even though `examples/animation/08_effects.amx`
-   works with an `Image` child).
-   - Impact: cannot blur the background behind a focus card.
-   - Workaround: same as #3 — avoid `Filter` for this demo.
-
-5. **Component instances have default opacity `0` until an entrance action runs.**
-   - Any reused component (e.g. `MetricCard`) that appears in a later scene must
-     be explicitly `fade-in`’d, even if it represents a carried/persistent
-     background element.
-
-6. **Top-level component instances produce `unknown-type` checker warnings**
-   unless wrapped in a `Group`. Wrapping is already the documented workaround
-   for `anchor`/`offset` on component instances.
+1. **`Mask` drops `Image` children** — a Mask renders its `clip_shape` fill but
+   any `Image` child is missing (plain Image outside a Mask renders fine).
+   `motion_poster.amx` works around it with `Filter > Image` + a frame Rect.
+2. **Hosted-plot size convention** — `{graph}_size` is stored as half-size but
+   consumed as full-size by bars/curves/`.map()`, so a plot hosted in a Graph
+   occupies only the central half of the axis box. Needs a convention decision
+   (touches several call sites + GUI inspector).
+3. **Silent fallback on failed property expressions** — a name that fails to
+   resolve in a property expression (e.g. `theme.text_md` when the module was
+   imported without `as theme`) falls back to defaults with **no diagnostic**.
+   There should be a warning per the never-silently-drop rule.
+4. **Invalid easing names fall back silently** — `ease: bounce-out` (the
+   canonical names have no directional suffix) is accepted without a warning.
+5. **LSP/GUI don't call `Analyzer::merge_import_symbols`** — the CLI check/lint
+   paths now resolve imported symbols for diagnostics; wiring the same call
+   into the LSP/GUI analyzers would fix the editor experience too.
+6. **`gap` not registered for BarChart** in the runtime property registry
+   (the builder parses it; the inspector won't show it).
 
 ## How to verify the current state
 
@@ -71,55 +75,41 @@ cargo test -p animatix-syntax
 cargo test -p animatix --lib -- --test-threads=1
 
 cargo run --bin animatix -- check examples/gallery/dashboard_story.amx
+cargo run --bin animatix -- check examples/gallery/motion_poster.amx
 
 # Smoke-render a frame from each scene
-cargo run --bin animatix -- image examples/gallery/dashboard_story.amx \
-  --time 1.5 -o /tmp/dash_kpis.png
-cargo run --bin animatix -- image examples/gallery/dashboard_story.amx \
-  --time 4.5 -o /tmp/dash_trend.png
-cargo run --bin animatix -- image examples/gallery/dashboard_story.amx \
-  --time 6.5 -o /tmp/dash_ranking.png
-cargo run --bin animatix -- image examples/gallery/dashboard_story.amx \
-  --time 9.5 -o /tmp/dash_focus.png
-cargo run --bin animatix -- image examples/gallery/dashboard_story.amx \
-  --time 12.0 -o /tmp/dash_end.png
+cargo run --bin animatix -- image examples/gallery/dashboard_story.amx --time 1.5  -o /tmp/dash_kpis.png
+cargo run --bin animatix -- image examples/gallery/dashboard_story.amx --time 4.5  -o /tmp/dash_trend.png
+cargo run --bin animatix -- image examples/gallery/dashboard_story.amx --time 6.5  -o /tmp/dash_ranking.png
+cargo run --bin animatix -- image examples/gallery/dashboard_story.amx --time 9.5  -o /tmp/dash_focus.png
+cargo run --bin animatix -- image examples/gallery/dashboard_story.amx --time 12.0 -o /tmp/dash_end.png
+
+cargo run --bin animatix -- image examples/gallery/motion_poster.amx --time 2.5  -o /tmp/mp_title.png
+cargo run --bin animatix -- image examples/gallery/motion_poster.amx --time 6.5  -o /tmp/mp_morph.png
+cargo run --bin animatix -- image examples/gallery/motion_poster.amx --time 18.0 -o /tmp/mp_kenburns.png
+cargo run --bin animatix -- image examples/gallery/motion_poster.amx --time 25.0 -o /tmp/mp_easing.png
 ```
 
-Approximate scene timings (with transitions):
+`image` now defaults to each file's `config { resolution: .. }`; pass
+`--width/--height` to override.
 
-| Scene | Global start (s) | Suggested smoke time (s) |
-|-------|------------------|--------------------------|
-| KPIs  | 0.0              | 1.5                      |
-| Trend | ~2.5             | 4.5                      |
-| Ranking Shift | ~5.6       | 6.5                      |
-| Focus | ~8.7             | 9.5                      |
-| End   | ~11.2            | 12.0                     |
+Approximate motion_poster scene starts (global, with transitions):
 
-## Remaining work for Phase 2
-
-1. **Implement `motion_poster.amx`** per `docs/demo_gallery_plan.md` §G4:
-   - per-character staggered entrance,
-   - slogan morph / timed text cross-fade,
-   - Path morph strategy comparison (blocked by `Path` rendering bug — may need
-     to use `Polygon` or pre-rendered shapes),
-   - background Image ken-burns inside a `Mask`,
-   - easing family showcase.
-   - **Risk**: the `Path` rendering bug means the morph/path strategy comparison
-     will need a workaround (e.g. `Polygon` with `stroke`, or a different
-     visual treatment).
-
-2. **Polish `dashboard_story.amx`** if desired:
-   - Replace the manual `Rect` bar chart with a real `PlotCurve`/`BarChart` once
-     the renderer/export path supports it.
-   - Re-add the background dim/blur focus effect once transparent overlays or
-     `Filter` with component children work.
-
-3. **Merge `feat/demo-gallery-p2` back to `main`** after `motion_poster.amx` is
-   done (or merge now if you prefer smaller commits).
+| Scene    | Global start (s) | Suggested smoke time (s) |
+|----------|------------------|--------------------------|
+| Title    | 0.0              | 2.5                      |
+| MorphLab | ~5.5             | 6.5                      |
+| KenBurns | ~15              | 18.0                     |
+| Easing   | ~22              | 25.0                     |
 
 ## Notes for the next session
 
-- All pre-commit gates pass.
+- All pre-commit gates pass (fmt, `cargo check --workspace`, syntax 213,
+  animatix lib 706, serially).
 - No generated PNGs are committed; smoke outputs are disposable.
-- Keep using `nix develop` for full workspace checks to avoid the `alsa-sys`
-  pkg-config failure outside the shell.
+- `cog commit` cannot open a linked worktree's `.git` file — commits on this
+  branch used `git commit -m "type(scope): ..."` per AGENTS.md fallback (each
+  message says so).
+- Keep using `nix develop` for workspace checks and renders (software Vulkan
+  via lavapipe; a bare GPU adapter is unavailable outside the shell).
+- Merge `feat/demo-gallery-p2` back to `main` when ready (fast-forward).

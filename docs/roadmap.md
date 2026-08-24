@@ -183,7 +183,7 @@ lands.
 | Phase | Deliverable | Status | Acceptance | Known Blockers / Notes |
 |---|---|---|---|---|
 | 1 | Shared `lib/` design system + `theme_studio.amx` | **Done** | clean `check`; PNG render smoke | Engine workarounds documented in plan: wrap positioned components in `Group`; wrap Text in `Group` inside Col |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | Open | clean `check`; 3-frame PNG smoke | `dashboard_story` needs `Filter`, `Callout`, `Legend`, `stroke_progress`, swap/reorder |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | **Done** (on `feat/demo-gallery-p2`, pending merge) | clean `check`; PNG smoke of every scene | Engine fixes landed with it — see `docs/handoff_phase2.md` |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | Open | clean `check`; 3-frame PNG smoke | `sorting_theatre` needs `dynamic_layout` + build-time sort precomputation + `swap` actions |
 | 4 | `brand_reel/` capstone | Open | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; still need cross-file slot fills / component-instance positioning workarounds |
 | 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | Open | script green; render smoke covers all examples | Reuses new `lib/`; delete `animation/16_showcase.amx` and `composition/20_feature_reel.amx` once `brand_reel` lands |
@@ -198,8 +198,12 @@ them unlocks multi-scene gallery demos and cleaner component authoring.
 | Multi-scene files clamp playback when a scene has zero inferred duration | A scene with only actor declarations got duration 0; when it was the target of a `play` transition the composition global duration collapsed to the outgoing play time, cutting off prior-scene actions | Any multi-scene file whose last/target scene has no keyframes | **Fixed 2026-08-22**: floor inferred scene durations to `max(incoming transition duration, 1/60s)` |
 | Cross-file `@slot` fills are ignored | Imported `Card` always shows fallback children | `examples/lib/ui.amx::Card` used from another file | Module import/expand path for slot overrides |
 | Cross-file custom component `fn` actions are not resolved | `error[build:unknown-action]` for actions defined in imported component | `lib/ui.amx::MetricCard.pop_in` invoked from a scene file | Action name resolution across module boundaries |
-| Component instances ignore `anchor`/`offset`/`at` | Cannot position a component instance directly | Any component instance with `anchor:`/`offset:`/`at:` | Component-instance property validation / layout transform inheritance |
+| Component instances ignore `anchor`/`offset`/`at` | Cannot position a component instance directly | Any component instance with `anchor:`/`offset:`/`at:` | **Fixed 2026-08-24**: expansion forwards `opacity`/`at`/`anchor`/`offset` to the expanded root actor |
 | Col/Grid auto `text_max_width` overrides explicit value for CJK | Chinese labels wrap after 2–3 chars even with explicit `text_max_width` | Text directly inside a Col inside a component | Layout width propagation should not override an explicitly set `text_max_width` |
+| `Mask` drops `Image` children | Masked photo windows impossible; only the clip shape's fill renders | `Mask { clip_shape: Rect, photo: Image, .. }` | Mask child evaluation / image draw inside clip layers |
+| Hosted plots occupy only the central half of their Graph | `{graph}_size` stored as half-size but consumed as full-size by bars/curves/`.map()` | `Graph { chart: BarChart, .. }` vs the axis extent | Pick one size convention; touches plot builders + GUI inspector |
+| Failed property expressions fall back silently | `theme.text_md` with a non-aliased import renders at defaults (font size 0) with no diagnostic | `font_size: theme.text_md` after plain `import "lib/theme.amx"` | Warn in `evaluate_expr_with_lookup_diagnostic` when a path lookup fails |
+| Invalid easing names fall back silently | `ease: bounce-out` (canonical: `bounce`) animates with the default easing, no warning | `[1s, ease: bounce-out]` | Warn in `parse_timing_modifiers` on unknown easing names |
 
 ### Next Immediate Session Recommendation
 
