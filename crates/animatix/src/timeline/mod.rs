@@ -515,6 +515,9 @@ pub struct Timeline {
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
+    /// Scene resolution declared via top-level `config { resolution: (w, h) }`,
+    /// so export tooling can default its canvas to the authored size.
+    pub(crate) resolution: Option<(u32, u32)>,
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
@@ -637,6 +640,7 @@ impl Timeline {
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
             export_preset: None,
+            resolution: None,
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
@@ -1136,6 +1140,11 @@ impl Timeline {
     /// Returns the configured named export preset, if any.
     pub fn export_preset(&self) -> Option<&str> {
         self.export_preset.as_deref()
+    }
+
+    /// Returns the scene resolution declared via `config { resolution: (w, h) }`, if any.
+    pub fn resolution(&self) -> Option<(u32, u32)> {
+        self.resolution
     }
 
     /// Returns the appropriate default color for a primitive type and property,

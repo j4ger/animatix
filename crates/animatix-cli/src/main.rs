@@ -68,13 +68,13 @@ enum Commands {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
 
-        /// Output image width
-        #[arg(long, default_value_t = 1280)]
-        width: u32,
+        /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
+        #[arg(long)]
+        width: Option<u32>,
 
-        /// Output image height
-        #[arg(long, default_value_t = 720)]
-        height: u32,
+        /// Output image height (defaults to the file's `config { resolution: .. }`, else 720)
+        #[arg(long)]
+        height: Option<u32>,
 
         /// Render time in seconds
         #[arg(long, default_value_t = 0.0)]
@@ -94,13 +94,13 @@ enum Commands {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
 
-        /// Output video width
-        #[arg(long, default_value_t = 1280)]
-        width: u32,
+        /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
+        #[arg(long)]
+        width: Option<u32>,
 
-        /// Output video height
-        #[arg(long, default_value_t = 720)]
-        height: u32,
+        /// Output video height (defaults to the file's `config { resolution: .. }`, else 720)
+        #[arg(long)]
+        height: Option<u32>,
 
         /// Output framerate
         #[arg(long, default_value_t = 30)]
@@ -146,13 +146,13 @@ enum Commands {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
 
-        /// Output GIF width
-        #[arg(long, default_value_t = 640)]
-        width: u32,
+        /// Output GIF width (defaults to the file's `config { resolution: .. }`, else 640)
+        #[arg(long)]
+        width: Option<u32>,
 
-        /// Output GIF height
-        #[arg(long, default_value_t = 360)]
-        height: u32,
+        /// Output GIF height (defaults to the file's `config { resolution: .. }`, else 360)
+        #[arg(long)]
+        height: Option<u32>,
 
         /// Output framerate
         #[arg(long, default_value_t = 15)]
@@ -387,6 +387,17 @@ fn resolve_duration(
     })
 }
 
+/// Resolution declared by the file via top-level `config { resolution: (w, h) }`,
+/// used as the default export canvas when `--width`/`--height` are omitted.
+fn configured_resolution(target: &BuildTarget) -> Option<(u32, u32)> {
+    match target {
+        BuildTarget::SingleScene(timeline) => timeline.resolution(),
+        BuildTarget::MultiScene(composition) => {
+            composition.scenes.values().next().and_then(|scene| scene.timeline.resolution())
+        },
+    }
+}
+
 /// Generates a timestamped default filename when `--output` is omitted.
 #[cfg(feature = "video")]
 fn default_output_file(ext: &str) -> PathBuf {
@@ -512,8 +523,8 @@ fn main() {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
-                width = preset_values.width;
-                height = preset_values.height;
+                width = Some(preset_values.width);
+                height = Some(preset_values.height);
                 fps = preset_values.fps;
             }
             let (target, _) = load_and_build(&input, &extensions);
@@ -531,11 +542,14 @@ fn main() {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
-                    width = preset_values.width;
-                    height = preset_values.height;
+                    width = Some(preset_values.width);
+                    height = Some(preset_values.height);
                     fps = preset_values.fps;
                 }
             }
+            let configured_resolution = configured_resolution(&target);
+            let width = width.or(configured_resolution.map(|(w, _)| w)).unwrap_or(640);
+            let height = height.or(configured_resolution.map(|(_, h)| h)).unwrap_or(360);
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("gif"));
             info!(
@@ -611,8 +625,8 @@ fn main() {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
-                width = preset_values.width;
-                height = preset_values.height;
+                width = Some(preset_values.width);
+                height = Some(preset_values.height);
                 fps = preset_values.fps;
                 codec = preset_values.video_codec;
                 preset = preset_values.h264_preset;
@@ -632,13 +646,16 @@ fn main() {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
-                    width = preset_values.width;
-                    height = preset_values.height;
+                    width = Some(preset_values.width);
+                    height = Some(preset_values.height);
                     fps = preset_values.fps;
                     codec = preset_values.video_codec;
                     preset = preset_values.h264_preset;
                 }
             }
+            let configured_resolution = configured_resolution(&target);
+            let width = width.or(configured_resolution.map(|(w, _)| w)).unwrap_or(1280);
+            let height = height.or(configured_resolution.map(|(_, h)| h)).unwrap_or(720);
             let effective_duration = resolve_duration(duration, &target, hold, 0.5);
             let output_file = output.unwrap_or_else(|| default_output_file("mp4"));
             info!(
@@ -735,10 +752,13 @@ fn main() {
             debug_bounds,
         } => {
             info!("Rendering Animatix image: {}", input.display());
+            let (target, _) = load_and_build(&input, &extensions);
+            let configured_resolution = configured_resolution(&target);
+            let width = width.or(configured_resolution.map(|(w, _)| w)).unwrap_or(1280);
+            let height = height.or(configured_resolution.map(|(_, h)| h)).unwrap_or(720);
             let output_file =
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
             info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
-            let (target, _) = load_and_build(&input, &extensions);
             let result = match &target {
                 BuildTarget::MultiScene(comp) => {
                     renderer::render_image_composition(comp, width, height, time, &output_file)

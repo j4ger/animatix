@@ -255,22 +255,30 @@ impl Timeline {
             return false;
         }
 
-        // Check that at every level, the actor is the last child
+        // Check that at every level, the actor is the last child. The root
+        // node set counts as the outermost container: a root-level filter
+        // must be the last root node, or later siblings would render *under*
+        // the post-render blit instead of after it.
         for i in 0..path.len() {
             let label = &path[i];
             if !self.tracks.contains_key(label) {
                 return false;
             }
 
-            // If this is not the root, check it's the last child of its parent
-            if i > 0 {
-                let parent_label = &path[i - 1];
-                let Some(parent_track) = self.tracks.get(parent_label) else {
-                    return false;
-                };
-                if parent_track.children.last() != Some(label) {
+            if i == 0 {
+                if self.root_nodes.last() != Some(label) {
                     return false;
                 }
+                continue;
+            }
+
+            // Check it's the last child of its parent
+            let parent_label = &path[i - 1];
+            let Some(parent_track) = self.tracks.get(parent_label) else {
+                return false;
+            };
+            if parent_track.children.last() != Some(label) {
+                return false;
             }
         }
 
@@ -1796,6 +1804,41 @@ mod tests {
             timeline.eval_caches.precise_bounds_cache.borrow().get("test_box").copied(),
             Some(cached),
             "frame-cache hit should restore precise bounds"
+        );
+    }
+
+    fn make_root_track(label: &str) -> AnimationTrack {
+        let mut track = AnimationTrack::new(label.to_string());
+        track.first_seen_ms = 0;
+        track
+    }
+
+    /// A root-level filter may only take the zero-readback post-render blit
+    /// when it is the LAST root node; otherwise later siblings would render
+    /// underneath the blit. (Regression: the last-among-siblings check only
+    /// ran for i > 0, so root filters always deferred and landed on top.)
+    #[test]
+    fn root_filter_post_composite_requires_last_root_node() {
+        let mut timeline = Timeline::new();
+        timeline.tracks.insert("fx".to_string(), make_root_track("fx"));
+        timeline.tracks.insert("late".to_string(), make_root_track("late"));
+        timeline.root_nodes.push("fx".to_string());
+        timeline.root_nodes.push("late".to_string());
+
+        assert!(
+            !timeline.can_post_composite_filter("fx"),
+            "filter followed by a later sibling must not post-composite"
+        );
+
+        let mut timeline = Timeline::new();
+        timeline.tracks.insert("late".to_string(), make_root_track("late"));
+        timeline.tracks.insert("fx".to_string(), make_root_track("fx"));
+        timeline.root_nodes.push("late".to_string());
+        timeline.root_nodes.push("fx".to_string());
+
+        assert!(
+            timeline.can_post_composite_filter("fx"),
+            "a last root filter may post-composite"
         );
     }
 }

@@ -903,3 +903,19 @@ fn static_filter_properties_seed_tracks() {
     assert_eq!(track.filter.filter_blur.get(0, 0.0), 8.0);
     assert_eq!(track.filter.filter_brightness.get(0, 1.0), 0.5);
 }
+
+/// Top-level `config { resolution: (w, h) }` is recorded on the timeline so
+/// export tooling can default its canvas to the authored size.
+#[test]
+fn config_resolution_is_recorded_on_timeline() {
+    let source = r#"
+config { resolution: (960, 540) }
+r: Rect, size: (100, 100), at: (480, 270)
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert_eq!(report.output.resolution(), Some((960, 540)));
+}

@@ -178,6 +178,41 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "resolution" {
+                self.resolution = match &setting.value {
+                    Expr::Tuple(values) if values.len() == 2 => match (&values[0], &values[1]) {
+                        (Expr::Num(w), Expr::Num(h)) if *w > 0.0 && *h > 0.0 => {
+                            Some((*w as u32, *h as u32))
+                        },
+                        _ => {
+                            diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidConfigValue,
+                                        DiagnosticPhase::Build,
+                                        "Config key 'resolution' expects a positive (width, height) tuple."
+                                            .to_string(),
+                                    )
+                                    .with_subject("resolution"),
+                                );
+                            None
+                        },
+                    },
+                    _ => {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidConfigValue,
+                                DiagnosticPhase::Build,
+                                "Config key 'resolution' expects a (width, height) tuple."
+                                    .to_string(),
+                            )
+                            .with_subject("resolution"),
+                        );
+                        None
+                    },
+                };
+                continue;
+            }
+
             if setting.name != "colorscheme" {
                 continue;
             }
