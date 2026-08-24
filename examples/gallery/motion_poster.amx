@@ -134,10 +134,13 @@ header3: TitleCard, title: "Ken Burns", kicker: "FILTER + IMAGE",
 
 frame: Rect, size: (700, 380), color: surface.secondary, anchor: scene.center, offset: (0, 110)
 
-// NOTE: Mask currently drops Image children (see handoff_phase2.md), so the
-// ken-burns window is a Filter-graded Image cropped by the frame instead.
+// Ken-burns window: Mask crops the oversized, slowly zooming photo; the
+// outer Filter breathes blur/brightness over the cropped result.
 grade: Filter, brightness: 0.75, anchor: scene.center, offset: (0, 110) {
-  photo: Image, url: "examples/assets/checker.png", size: (660, 340), at: (-330, -170)
+  window: Mask, size: (660, 340) {
+    clip_shape: Rect, size: (660, 340)
+    photo: Image, url: "examples/assets/checker.png", size: (760, 420), at: (-380, -210)
+  }
 }
 
 caption: Text, text: "zoom 1.0 → 1.18 · blur + brightness breathing", font_size: theme.text_sm,

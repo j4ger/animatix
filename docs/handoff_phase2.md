@@ -46,9 +46,12 @@
 
 ## Remaining known issues (candidates for Phase 3)
 
-1. **`Mask` drops `Image` children** — a Mask renders its `clip_shape` fill but
-   any `Image` child is missing (plain Image outside a Mask renders fine).
-   `motion_poster.amx` works around it with `Filter > Image` + a frame Rect.
+1. **`Mask` clip semantics** — the engine-fixed Mask clips children to the
+   Mask's own `size` rect at the Mask's position (the clip layer used to be
+   pushed at the scene origin, hiding every child of any mask not at the
+   top-left corner — fixed). A `clip_shape` child is still just a rendered
+   child, not the clip geometry: implementing "clip takes the clip_shape
+   child's shape/size (and hides it)" is the remaining piece.
 2. **Hosted-plot size convention** — `{graph}_size` is stored as half-size but
    consumed as full-size by bars/curves/`.map()`, so a plot hosted in a Graph
    occupies only the central half of the axis box. Needs a convention decision

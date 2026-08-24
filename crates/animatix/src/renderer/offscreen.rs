@@ -524,6 +524,73 @@ mod tests {
         assert!(result.unwrap_err().contains("greater than zero"), "should give clear error");
     }
 
+    /// A Mask must clip its children to the mask's own rect AT THE MASK'S
+    /// POSITION. (Regression: the clip layer was pushed with the identity
+    /// transform, pinning the clip at the scene origin — children of any mask
+    /// not at the top-left corner were clipped away entirely, so Mask +
+    /// Image rendered nothing.)
+    #[test]
+    fn mask_clips_children_at_mask_position() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let source = r#"
+config { resolution: (400, 300) }
+
+m: Mask, size: (200, 150), at: (300, 150) {
+  clip_shape: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
+
+#0s
+fade-in m [1ms]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.5,
+                SceneDimensions {
+                    width: 400,
+                    height: 300,
+                },
+            )
+            .expect("render should succeed");
+
+        let px = |x: u32, y: u32| -> [u8; 4] {
+            let i = ((y * frame.width + x) * 4) as usize;
+            [
+                frame.rgba[i],
+                frame.rgba[i + 1],
+                frame.rgba[i + 2],
+                frame.rgba[i + 3],
+            ]
+        };
+
+        // Inside the mask rect (mask spans 200..400 x 75..225): the oversized
+        // child rect shows through, clipped to red.
+        let inside = px(300, 150);
+        assert!(
+            inside[0] > 200 && inside[1] < 80 && inside[2] < 80,
+            "mask interior should show the red child, got {inside:?}"
+        );
+        // Outside the mask rect: background, NOT the oversized child.
+        let outside = px(60, 150);
+        assert!(
+            !(outside[0] > 200 && outside[1] < 80 && outside[2] < 80),
+            "child must be clipped to the mask rect, found red outside at {outside:?}"
+        );
+    }
+
     #[test]
     fn offscreen_renderer_render_timeline_produces_frame() {
         let mut renderer = match OffscreenRenderer::new() {

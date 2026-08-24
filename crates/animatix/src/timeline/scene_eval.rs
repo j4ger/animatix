@@ -848,12 +848,16 @@ impl Timeline {
             let h = half_size[1] as f64;
             let clip_path = kurbo::Rect::new(-w, -h, w, h).into_path(1e-3);
 
-            // Push clip layer
+            // Push clip layer. The clip path is in the mask's LOCAL space, so
+            // it must be transformed into scene space — pushing it with the
+            // identity transform pinned the clip at the scene origin, clipping
+            // away every child of any mask not positioned at the top-left
+            // corner (Mask + Image children were the visible symptom).
             scene.push_layer(
                 vello::peniko::Fill::NonZero,
                 vello::peniko::BlendMode::default(),
                 1.0,
-                kurbo::Affine::IDENTITY,
+                global_transform,
                 &clip_path,
             );
 
