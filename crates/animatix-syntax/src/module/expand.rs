@@ -219,7 +219,8 @@ fn expand_stmt_into(
                 merge_registry(registry, instance_registry);
                 output.extend(instance_stmts);
             } else {
-                let expanded_children = expand_inline_items(children, components, registry, ctx);
+                let (expanded_children, hoisted) =
+                    expand_inline_items(children, components, registry, ctx);
                 output.push(Stmt::ActorDecl {
                     is_pub: *is_pub,
                     is_anonymous: false,
@@ -231,6 +232,10 @@ fn expand_stmt_into(
                     children: expanded_children,
                     span: *span,
                 });
+                // Statements hoisted from component instances among the
+                // children run right after the container declaration so their
+                // dotted targets exist.
+                output.extend(hoisted);
             }
         },
         _ => output.push(stmt.clone()),
@@ -258,13 +263,20 @@ fn expand_statements_inner(
 }
 
 /// Recursively expand component instances inside inline items (container children).
+///
+/// Returns the expanded inline items plus any statements hoisted out of the
+/// container: component bodies may contain non-declaration statements
+/// (`always`, assignments, reactive bindings, ...) which have no inline form.
+/// They are rewritten to the instance's dotted labels and must be appended to
+/// the enclosing statement list by the caller instead of being dropped.
 fn expand_inline_items(
     items: &[InlineItem],
     components: &HashMap<String, ComponentEntry>,
     registry: &mut InstanceFnRegistry,
     ctx: &mut ExpansionCtx,
-) -> Vec<InlineItem> {
+) -> (Vec<InlineItem>, Vec<Stmt>) {
     let mut result = Vec::new();
+    let mut hoisted = Vec::new();
     for item in items {
         match item {
             InlineItem::Labeled {
@@ -281,13 +293,17 @@ fn expand_inline_items(
                     );
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
-                        if let Some(inline) = stmt_to_inline_item(&stmt) {
-                            result.push(inline);
+                        match stmt_to_inline_item(&stmt) {
+                            Some(inline) => result.push(inline),
+                            // Component-internal statements (always,
+                            // assignments, ...) survive via hoisting.
+                            None => hoisted.push(stmt),
                         }
                     }
                 } else {
-                    let expanded_children =
+                    let (expanded_children, nested_hoisted) =
                         expand_inline_items(children, components, registry, ctx);
+                    hoisted.extend(nested_hoisted);
                     result.push(InlineItem::Labeled {
                         label: label.clone(),
                         array_index: array_index.clone(),
@@ -316,13 +332,15 @@ fn expand_inline_items(
                     );
                     merge_registry(registry, instance_registry);
                     for stmt in instance_stmts {
-                        if let Some(inline) = stmt_to_inline_item(&stmt) {
-                            result.push(inline);
+                        match stmt_to_inline_item(&stmt) {
+                            Some(inline) => result.push(inline),
+                            None => hoisted.push(stmt),
                         }
                     }
                 } else {
-                    let expanded_children =
+                    let (expanded_children, nested_hoisted) =
                         expand_inline_items(children, components, registry, ctx);
+                    hoisted.extend(nested_hoisted);
                     result.push(InlineItem::Anonymous {
                         ty: ty.clone(),
                         props: props.clone(),
@@ -337,7 +355,12 @@ fn expand_inline_items(
                 iterable,
                 body,
             } => {
-                let expanded_body = expand_inline_items(body, components, registry, ctx);
+                let (expanded_body, nested_hoisted) =
+                    expand_inline_items(body, components, registry, ctx);
+                // Statements hoisted from inside a for-loop body escape to the
+                // enclosing statement list (a for-loop inline item cannot hold
+                // statements); they run once at build time.
+                hoisted.extend(nested_hoisted);
                 result.push(InlineItem::ForLoop {
                     var: var.clone(),
                     index_var: index_var.clone(),
@@ -347,7 +370,9 @@ fn expand_inline_items(
             },
             InlineItem::SlotMarker => result.push(InlineItem::SlotMarker),
             InlineItem::SlotFill { slot, items } => {
-                let expanded = expand_inline_items(items, components, registry, ctx);
+                let (expanded, nested_hoisted) =
+                    expand_inline_items(items, components, registry, ctx);
+                hoisted.extend(nested_hoisted);
                 result.push(InlineItem::SlotFill {
                     slot: slot.clone(),
                     items: expanded,
@@ -355,7 +380,7 @@ fn expand_inline_items(
             },
         }
     }
-    result
+    (result, hoisted)
 }
 
 /// Convert a statement back into an inline item for container children.
@@ -642,6 +667,67 @@ mod tests {
                 "array_index must be preserved through expansion"
             );
         }
+    }
+
+    #[test]
+    fn test_component_always_survives_container_instantiation() {
+        // Regression: a component body's `always` (and other non-declaration
+        // statements) were silently dropped when the component was
+        // instantiated inside a container, because they have no inline form.
+        // They must be hoisted to the enclosing statement list with their
+        // targets rewritten to the instance's dotted labels.
+        let source = r#"
+pub component Pulsar() {
+  box: Rect, size: (40, 40)
+  always { box.rotation = sin(t() * 2) * 8 }
+}
+
+grp: Group {
+  p: Pulsar
+}
+"#;
+        let (stmts, _errors) = crate::parser::parse_source(source);
+        let stmts = stmts.unwrap();
+        let mut components = std::collections::HashMap::new();
+        for stmt in &stmts {
+            if let Stmt::ComponentDef(def, _) = stmt {
+                components.insert(
+                    def.name.clone(),
+                    super::super::ComponentEntry {
+                        definition: def.clone(),
+                        actions: Default::default(),
+                        source_path: std::path::PathBuf::new(),
+                    },
+                );
+            }
+        }
+        let (expanded, _registry) = expand_statements(&stmts, &components);
+
+        let always_count = expanded.iter().filter(|s| matches!(s, Stmt::Always { .. })).count();
+        assert_eq!(
+            always_count, 1,
+            "component-internal always must survive container instantiation"
+        );
+        // The hoisted statement must reference the rewritten target: `box`
+        // is the component root, so it renames to the instance label `p`.
+        let always = expanded.iter().find(|s| matches!(s, Stmt::Always { .. })).unwrap();
+        let Stmt::Always { body, .. } = always else {
+            panic!("expected Always");
+        };
+        let rewritten_target = body.iter().find_map(|s| match s {
+            Stmt::Assignment {
+                target, property, ..
+            } => Some((target.clone(), property.clone())),
+            _ => None,
+        });
+        assert_eq!(
+            rewritten_target,
+            Some((
+                vec![crate::ast::TargetSegment::Static("p".to_string())],
+                "rotation".to_string()
+            )),
+            "hoisted assignment must target the renamed instance root"
+        );
     }
 
     #[test]
