@@ -1,0 +1,247 @@
+// Unaliased import registers the `gallery` colorscheme globally; the aliased
+// import exposes spacing/type tokens as `theme.*` in expressions.
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+import "../lib/ui.amx"
+
+config {
+  colorscheme: "gallery",
+  resolution: (1280, 720),
+  strict_types: true,
+  dynamic_layout: true,
+}
+
+// ── Scene 1: Title — per-letter reveal + slogan cross-fade ──────────────────
+
+# Title
+config { colorscheme: "gallery" }
+
+bg_glow: Ellipse, size: (900, 900), color: surface.secondary, at: (640, 360), opacity: 0.55
+
+kicker: Text, text: "A LAYOUT-FIRST ANIMATION DSL", font_size: theme.text_sm,
+  letter_spacing: 6, color: accent.primary, anchor: scene.top, offset: (0, 150)
+
+letters: Row, anchor: scene.center, offset: (0, -30), gap: 6 {
+  m: Text, text: "M", font_size: 150, font_weight: "bold", color: text.primary
+  o: Text, text: "O", font_size: 150, font_weight: "bold", color: text.primary
+  t: Text, text: "T", font_size: 150, font_weight: "bold", color: text.primary
+  i: Text, text: "I", font_size: 150, font_weight: "bold", color: text.primary
+  o2: Text, text: "O", font_size: 150, font_weight: "bold", color: text.primary
+  n: Text, text: "N", font_size: 150, font_weight: "bold", color: accent.primary
+}
+
+rule: Rect, size: (2, 90), color: accent.primary, anchor: scene.center, offset: (0, 130)
+
+slogan_a: Text, text: "describe the timeline", font_size: 30, color: text.secondary,
+  letter_spacing: 2, anchor: scene.center, offset: (0, 190)
+slogan_b: Text, text: "ship the motion", font_size: 30, color: text.primary,
+  letter_spacing: 2, anchor: scene.center, offset: (0, 190), opacity: 0
+
+footer: Text, text: "examples/gallery · motion_poster.amx", font_size: theme.text_xs,
+  color: text.muted, anchor: scene.bottom, offset: (0, -40)
+
+#0.3s
+stagger [90ms] {
+  reveal-in m [600ms, ease: ease-out]
+  reveal-in o [600ms, ease: ease-out]
+  reveal-in t [600ms, ease: ease-out]
+  reveal-in i [600ms, ease: ease-out]
+  reveal-in o2 [600ms, ease: ease-out]
+  reveal-in n [600ms, ease: ease-out]
+}
+
+#+0.8s
+fade-in kicker [500ms]
+wipe-in rule [500ms, ease: ease-out]
+fade-in footer [500ms]
+
+#+0.5s
+fade-in slogan_a [600ms]
+slogan_a.letter_spacing = 8 [1.2s, ease: ease-out]
+
+#3.8s
+slogan_a.opacity = 0 [700ms, ease: ease-in]
+slogan_b.opacity = 1 [700ms, ease: ease-out]
+slogan_b.letter_spacing = 10 [1.4s, ease: ease-out]
+
+play MorphLab [wipe-left, 600ms]
+
+// ── Scene 2: Morph Lab — strategy comparison ────────────────────────────────
+
+# MorphLab
+config { colorscheme: "gallery" }
+
+header2: TitleCard, title: "Morph Lab", kicker: "STRATEGY COMPARISON",
+  sub: "one blob, three interpolation strategies", anchor: scene.top, offset: (0, 70)
+
+blob: Path,
+  commands: {move_to(-90, -20), curve_to(-30, -90, 60, -80, 90, -10), curve_to(110, 60, 20, 95, -40, 70), curve_to(-95, 50, -120, 30, -90, -20)},
+  color: accent.primary, at: (320, 430)
+star: Polygon,
+  points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)},
+  color: accent.success, at: (640, 430)
+ring: Ellipse, size: (150, 150), color: accent.warning, at: (960, 430)
+
+label_blob: Text, text: "match", font_size: theme.text_md, color: text.secondary, at: (320, 560)
+label_star: Text, text: "path_arc", font_size: theme.text_md, color: text.secondary, at: (640, 560)
+label_ring: Text, text: "stretch", font_size: theme.text_md, color: text.secondary, at: (960, 560)
+
+#0.3s
+stagger [120ms] {
+  fade-in header2 [500ms]
+  fade-in blob [500ms]
+  fade-in star [500ms]
+  fade-in ring [500ms]
+  fade-in label_blob [400ms]
+  fade-in label_star [400ms]
+  fade-in label_ring [400ms]
+}
+
+// Wave 1: blob → diamond (match), star → hexagon (path_arc), ring → squircle (stretch)
+#2.2s
+blob: Polygon, points: {(0, -85), (85, 0), (0, 85), (-85, 0)}, color: accent.primary, at: (320, 430) [1.1s, strategy: match]
+star: Polygon, points: {(0, -80), (45, -45), (80, 0), (45, 45), (0, 80), (-45, 45), (-80, 0), (-45, -45)}, color: accent.success, at: (640, 430) [1.1s, path_arc: 0.35]
+ring: Path, commands: {move_to(-70, -55), curve_to(0, -85, 70, -75, 72, 0), curve_to(74, 70, 10, 82, -60, 65), curve_to(-95, 55, -85, -40, -70, -55)}, color: accent.warning, at: (960, 430) [1.1s, stretch: true]
+
+// Wave 2: back to round forms — the loop closes
+#4.2s
+blob: Ellipse, size: (170, 170), color: accent.primary, at: (320, 430) [1.1s, strategy: match]
+star: Ellipse, size: (170, 170), color: accent.success, at: (640, 430) [1.1s, path_arc: 0.35]
+ring: Ellipse, size: (170, 170), color: accent.warning, at: (960, 430) [1.1s, stretch: true]
+
+// Wave 3: all three become the same star — strategies converge
+#6.2s
+blob: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.primary, at: (320, 430) [1.2s, strategy: match]
+star: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (640, 430) [1.2s, path_arc: 0.35]
+ring: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.warning, at: (960, 430) [1.2s, stretch: true]
+
+#8s
+stagger [80ms] {
+  pulse blob [500ms, intensity: 1.2]
+  pulse star [500ms, intensity: 1.2]
+  pulse ring [500ms, intensity: 1.2]
+}
+
+play KenBurns [wipe-left, 600ms]
+
+// ── Scene 3: Ken Burns — Image inside Mask, Filter breathing ────────────────
+
+# KenBurns
+config { colorscheme: "gallery" }
+
+header3: TitleCard, title: "Ken Burns", kicker: "FILTER + IMAGE",
+  sub: "framed motion with a breathing grade", anchor: scene.top, offset: (0, 40)
+
+frame: Rect, size: (700, 380), color: surface.secondary, anchor: scene.center, offset: (0, 110)
+
+// NOTE: Mask currently drops Image children (see handoff_phase2.md), so the
+// ken-burns window is a Filter-graded Image cropped by the frame instead.
+grade: Filter, brightness: 0.75, anchor: scene.center, offset: (0, 110) {
+  photo: Image, url: "examples/assets/checker.png", size: (660, 340), at: (-330, -170)
+}
+
+caption: Text, text: "zoom 1.0 → 1.18 · blur + brightness breathing", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (0, 255)
+
+#0.3s
+stagger [130ms] {
+  fade-in header3 [500ms]
+  wipe-in frame [600ms, ease: ease-out]
+  fade-in grade [600ms]
+  fade-in caption [400ms]
+}
+
+// Ken Burns: slow zoom on the graded photo
+#1s
+photo.scale = 1.18 [5s, ease: ease-in-out]
+
+// Filter breathing on the grade
+#1.5s
+grade.blur = 6 [2s, ease: ease-in-out]
+grade.brightness = 1.05 [2s, ease: ease-in-out]
+
+#3.5s
+grade.blur = 0 [2s, ease: ease-in-out]
+grade.brightness = 0.7 [2s, ease: ease-in-out]
+
+play Easing [fade, 600ms]
+
+// ── Scene 4: Easing Family — finale ─────────────────────────────────────────
+
+# Easing
+config { colorscheme: "gallery" }
+
+header4: TitleCard, title: "Easing Family", kicker: "FINALE",
+  sub: "one distance, five personalities", anchor: scene.top, offset: (0, 70)
+
+track_linear:   Rect, size: (620, 3),  color: surface.primary, anchor: scene.center, offset: (-160, -120)
+track_bounce:   Rect, size: (620, 3),  color: surface.primary, anchor: scene.center, offset: (-160, -50)
+track_elastic:  Rect, size: (620, 3),  color: surface.primary, anchor: scene.center, offset: (-160, 20)
+track_back:     Rect, size: (620, 3),  color: surface.primary, anchor: scene.center, offset: (-160, 90)
+track_expo:     Rect, size: (620, 3),  color: surface.primary, anchor: scene.center, offset: (-160, 160)
+
+dot_linear:  Ellipse, size: (34, 34), color: accent.primary, anchor: scene.center, offset: (-440, -120)
+dot_bounce:  Ellipse, size: (34, 34), color: accent.success, anchor: scene.center, offset: (-440, -50)
+dot_elastic: Ellipse, size: (34, 34), color: accent.warning, anchor: scene.center, offset: (-440, 20)
+dot_back:    Ellipse, size: (34, 34), color: accent.danger, anchor: scene.center, offset: (-440, 90)
+dot_expo:    Ellipse, size: (34, 34), color: accent.secondary, anchor: scene.center, offset: (-440, 160)
+
+name_linear:  Text, text: "linear",  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (-440, -85)
+name_bounce:  Text, text: "bounce",  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (-440, -15)
+name_elastic: Text, text: "elastic", font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (-440, 55)
+name_back:    Text, text: "back",    font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (-440, 125)
+name_expo:    Text, text: "expo",    font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (-440, 195)
+
+endnote: Text, text: "animatix — motion as a first-class citizen", font_size: theme.text_lg,
+  color: text.primary, anchor: scene.center, offset: (0, 260), opacity: 0
+
+#0.3s
+fade-in header4 [500ms]
+stagger [90ms] {
+  wipe-in track_linear [400ms]
+  wipe-in track_bounce [400ms]
+  wipe-in track_elastic [400ms]
+  wipe-in track_back [400ms]
+  wipe-in track_expo [400ms]
+  fade-in dot_linear [400ms]
+  fade-in dot_bounce [400ms]
+  fade-in dot_elastic [400ms]
+  fade-in dot_back [400ms]
+  fade-in dot_expo [400ms]
+  fade-in name_linear [400ms]
+  fade-in name_bounce [400ms]
+  fade-in name_elastic [400ms]
+  fade-in name_back [400ms]
+  fade-in name_expo [400ms]
+}
+
+// The race: same distance, same duration, five easings
+#1.2s
+dot_linear.at = (760, 240) [1.4s, ease: linear]
+dot_bounce.at = (760, 310) [1.4s, ease: bounce]
+dot_elastic.at = (760, 380) [1.4s, ease: elastic]
+dot_back.at = (760, 450) [1.4s, ease: back]
+dot_expo.at = (760, 520) [1.4s, ease: expo]
+
+#3.2s
+stagger [70ms] {
+  pulse dot_linear [450ms, intensity: 1.5]
+  pulse dot_bounce [450ms, intensity: 1.5]
+  pulse dot_elastic [450ms, intensity: 1.5]
+  pulse dot_back [450ms, intensity: 1.5]
+  pulse dot_expo [450ms, intensity: 1.5]
+}
+
+// Encore: back home with the mirrored easings
+#4.2s
+dot_linear.at = (200, 240) [1.3s, ease: linear]
+dot_bounce.at = (200, 310) [1.3s, ease: bounce]
+dot_elastic.at = (200, 380) [1.3s, ease: elastic]
+dot_back.at = (200, 450) [1.3s, ease: back]
+dot_expo.at = (200, 520) [1.3s, ease: expo]
+
+#6s
+fade-in endnote [600ms]
+
+#7s
+pulse header4 [700ms, intensity: 1.05]
