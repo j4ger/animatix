@@ -900,6 +900,7 @@ impl Timeline {
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+            track.hidden_by_default = true;
             track
                 .style
                 .opacity
@@ -1264,6 +1265,7 @@ impl Timeline {
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
             if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+                track.hidden_by_default = true;
                 track.style.opacity.ensure(1.0).add_keyframe(
                     0,
                     self.default_opacity,

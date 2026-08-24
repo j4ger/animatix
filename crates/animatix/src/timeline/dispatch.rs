@@ -76,6 +76,16 @@ pub struct AnimationTrack {
     pub visible: bool,
     /// Whether the actor is locked (preventing selection and drag in the GUI).
     pub locked: bool,
+    /// Whether the build seeded this track's opacity to `0.0` because the
+    /// actor was first declared before the first keyframe without an explicit
+    /// `opacity` (docs/spec.md "Pre-Keyframe Actor Declarations").
+    ///
+    /// Entrance actions that do not animate opacity themselves (`draw-in`,
+    /// `wipe-in`, `reveal-in`) consume this flag to lift the hide, honoring
+    /// the documented contract that *any* entrance reveals the actor. Cleared
+    /// once consumed so later actions never stomp an intentional value.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub hidden_by_default: bool,
 
     // ── Geometry tier (sub-struct) ──
     /// Geometry property tracks (position, size, rotation, scale, etc.).
@@ -197,6 +207,7 @@ impl AnimationTrack {
             parent: None,
             visible: true,
             locked: false,
+            hidden_by_default: false,
 
             // Geometry tier (sub-struct)
             geometry: GeometryTracks::default(),

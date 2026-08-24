@@ -84,6 +84,36 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
     }
 }
 
+/// Lift the build-time "hidden by default" opacity seed across an entrance
+/// action's window.
+///
+/// Actors first declared before the first keyframe are seeded `opacity = 0`
+/// (docs/spec.md "Pre-Keyframe Actor Declarations"). `fade-in` animates
+/// opacity itself, but the other entrances (`draw-in`, `wipe-in`,
+/// `reveal-in`) only animate `stroke_progress` / `fill_opacity` /
+/// `char_progress` — without this lift their target would stay fully
+/// transparent forever, contradicting the documented contract that any
+/// entrance reveals the actor. Consumes the track's `hidden_by_default` flag
+/// so the lift happens at most once and never stomps an explicit opacity.
+pub(crate) fn lift_hidden_by_default(
+    track: &mut crate::timeline::AnimationTrack,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) {
+    if !track.hidden_by_default {
+        return;
+    }
+    track.hidden_by_default = false;
+    let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
+    track
+        .style
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
+    track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+}
+
 /// Resolve a possibly-dotted action target (e.g. `"decomp_eq.f1"`) to the
 /// actual track key in `timeline.tracks`.
 ///

@@ -92,6 +92,11 @@ impl BuiltinAction for DrawIn {
                 None => continue,
             };
 
+            // Reveal pre-keyframe ("hidden by default") targets: draw-in
+            // animates stroke_progress/fill_opacity/char_progress but never
+            // opacity, so lift the seeded opacity 0 alongside the draw.
+            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+
             if is_text {
                 // Typewriter effect: animate char_progress 0→1
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
@@ -190,6 +195,11 @@ impl BuiltinAction for RevealIn {
                 Some(t) => t,
                 None => continue,
             };
+
+            // Reveal pre-keyframe ("hidden by default") targets: reveal-in
+            // animates stroke_progress/fill_opacity but never opacity, so
+            // lift the seeded opacity 0 alongside the reveal.
+            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
 
             let has_prior_stroke = track
                 .style
@@ -665,6 +675,73 @@ mod tests {
         assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
         assert_eq!(track.style.fill_opacity.get(500, 1.0), 0.0);
         assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_lifts_hidden_by_default_opacity() {
+        // Regression: a pre-keyframe declaration is seeded `opacity = 0`;
+        // draw-in animates only stroke_progress/fill_opacity, which used to
+        // leave the target fully transparent forever (the "Path renders
+        // blank in image export" report).
+        let ast = vec![
+            circle_decl("shape"),
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt("draw-in", "shape", 0.7)],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
+        assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the draw");
+        assert!(track.style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the draw");
+        assert_eq!(track.style.opacity.get(1200, 1.0), 1.0, "fully visible after the draw");
+        assert!(!track.hidden_by_default, "flag must be consumed by the lift");
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
+        // Text draw-in animates char_progress only; the opacity hide must
+        // still be lifted so the typewriter effect is visible.
+        let ast = vec![
+            text_decl("headline"),
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt("draw-in", "headline", 0.7)],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("headline").expect("headline track");
+
+        assert_eq!(track.style.opacity.get(400, 1.0), 0.0);
+        assert_eq!(track.style.opacity.get(1200, 1.0), 1.0);
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn reveal_in_lifts_hidden_by_default_opacity() {
+        let ast = vec![
+            circle_decl("shape"),
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt("reveal-in", "shape", 0.7)],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("shape").expect("shape track");
+
+        assert_eq!(track.style.opacity.get(400, 1.0), 0.0);
+        assert_eq!(track.style.opacity.get(1200, 1.0), 1.0);
+        assert!(!track.hidden_by_default);
         assert!(report.diagnostics.is_empty());
     }
 

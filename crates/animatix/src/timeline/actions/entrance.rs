@@ -62,6 +62,11 @@ impl BuiltinAction for WipeIn {
                 super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
+            // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
+            // animates stroke_progress/fill_opacity, so lift the seeded
+            // opacity 0 alongside the wipe.
+            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+
             track
                 .style
                 .stroke_progress
@@ -321,5 +326,59 @@ mod tests {
                 .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedActionTarget),
             "wipe-in on text should not report unsupported target"
         );
+    }
+
+    #[test]
+    fn wipe_in_lifts_hidden_by_default_opacity() {
+        // Regression: a pre-keyframe declaration is seeded `opacity = 0`;
+        // wipe-in animates only stroke_progress/fill_opacity, which used to
+        // leave the target fully transparent forever.
+        let ast = vec![
+            rect_decl("panel"),
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt("wipe-in", "panel", 0.7)],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("panel").expect("panel track");
+
+        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
+        assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
+        assert!(track.style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the wipe");
+        assert_eq!(track.style.opacity.get(1200, 1.0), 1.0, "fully visible after the wipe");
+        assert!(!track.hidden_by_default, "flag must be consumed by the lift");
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn wipe_in_does_not_stomp_explicit_opacity() {
+        // An explicit `opacity` on the declaration means the actor is not
+        // hidden-by-default; the entrance must preserve the authored value.
+        let mut declared = rect_decl("panel");
+        if let Stmt::ActorDecl { props, .. } = &mut declared {
+            props.push(Property {
+                name: "opacity".to_string(),
+                value: Expr::Num(0.3),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        let ast = vec![
+            declared,
+            Stmt::Keyframe {
+                time: Time::Seconds(0.5),
+                body: vec![action_stmt("wipe-in", "panel", 0.7)],
+                span: None,
+            },
+        ];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("panel").expect("panel track");
+
+        assert!(!track.hidden_by_default);
+        assert_eq!(track.style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");
     }
 }

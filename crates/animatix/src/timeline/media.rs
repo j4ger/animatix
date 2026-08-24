@@ -150,6 +150,7 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
+            track.hidden_by_default = true;
             track
                 .style
                 .opacity
