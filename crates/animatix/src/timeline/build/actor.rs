@@ -758,6 +758,40 @@ impl Timeline {
             }
         }
 
+        // Filter properties (blur/brightness/contrast/saturate/hue_rotate/sepia)
+        // have no legacy local variable in the props loop above and used to be
+        // dropped silently there, so a static `blur: 8` never reached the track
+        // and only `#0s`-style assignments applied. Write them through the
+        // registry so declaration-time values behave identically.
+        for prop in props {
+            if matches!(
+                prop.name.as_str(),
+                "blur" | "brightness" | "contrast" | "saturate" | "hue_rotate" | "sepia"
+            ) {
+                let prop_subject = format!("{label}.{}", prop.name);
+                if let Some(schema) =
+                    crate::timeline::property_registry::lookup_property(&prop.name)
+                    && let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                        schema.value_type,
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                {
+                    crate::timeline::property_engine::write_property_field(
+                        track,
+                        schema.field,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                    );
+                }
+            }
+        }
+
         // Callout annotation properties that live outside the tagged storage map.
         // These are handled by the generic build path now; the primitive no longer
         // re-implements keyframe writing for them.
