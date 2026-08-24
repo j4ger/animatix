@@ -2401,8 +2401,12 @@ pub(crate) fn build_bar_chart_paths(
         bp.line_to(kurbo::Point::new(bar_x_start, bar_top_y));
         bp.close_path();
 
-        // Per-bar color (cycle from list or use default)
-        let bar_c = if !bar_colors_auto && i < bar_colors.len() {
+        // Per-bar color: a single `bar_colors` value is uniform across all
+        // bars (documented at the parse site); a list assigns per bar, with
+        // bars past the end of the list falling back to the actor color.
+        let bar_c = if !bar_colors_auto && bar_colors.len() == 1 {
+            bar_colors[0]
+        } else if !bar_colors_auto && i < bar_colors.len() {
             bar_colors[i]
         } else {
             color

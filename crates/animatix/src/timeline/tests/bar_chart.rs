@@ -359,6 +359,38 @@ fn max_value_with_variable() {
     );
 }
 
+/// A single `bar_colors` value must color EVERY bar uniformly. (Regression:
+/// only bar 0 was colored; bars past the one-element list fell back to the
+/// actor default color, contradicting the documented uniform-color intent.)
+#[test]
+fn single_bar_colors_value_is_uniform() {
+    let source = r#"
+        chart: BarChart,
+          data: {("A", 10), ("B", 40), ("C", 25)},
+          bar_colors: accent.primary,
+          show_labels: false
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.tracks.get("chart").expect("chart track");
+    let paths = track.evaluate_vector_paths(0);
+    let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
+    assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
+    let first = fills[0];
+    assert!(
+        fills.iter().all(|f| *f == first),
+        "single bar_colors value must color all bars identically, got {fills:?}"
+    );
+}
+
 /// `size:` must drive the baked bar-chart geometry. (Regression: the layout
 /// box was read from the pre-declaration track snapshot, so every fresh
 /// build — always the case for CLI export — laid bars out in the default
