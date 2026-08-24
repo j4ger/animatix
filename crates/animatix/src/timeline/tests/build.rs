@@ -977,3 +977,24 @@ r.at = (320, 180) [500ms, ease: bounce-out]
         report.diagnostics
     );
 }
+
+/// A multi-segment property expression that fails to resolve must produce a
+/// diagnostic naming the full dotted path. (Regression: only the base segment
+/// was reported as the undefined variable, which slipped through the
+/// dotless-key filter — `font_size: theme.text_md` without an aliased import
+/// rendered invisibly with a clean `check`.)
+#[test]
+fn unresolved_path_property_warns_with_full_dotted_path() {
+    let source = r#"
+t: Text, text: "hello", font_size: theme.text_md, color: accent.primary
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| d.message.contains("theme.text_md")),
+        "expected a diagnostic naming 'theme.text_md', got: {:?}",
+        report.diagnostics
+    );
+}

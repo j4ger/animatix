@@ -56,12 +56,13 @@
    consumed as full-size by bars/curves/`.map()`, so a plot hosted in a Graph
    occupies only the central half of the axis box. Needs a convention decision
    (touches several call sites + GUI inspector).
-3. **Silent fallback on failed property expressions** — a name that fails to
-   resolve in a property expression (e.g. `theme.text_md` when the module was
-   imported without `as theme`) falls back to defaults with **no diagnostic**.
-   There should be a warning per the never-silently-drop rule.
-4. **Invalid easing names fall back silently** — `ease: bounce-out` (the
-   canonical names have no directional suffix) is accepted without a warning.
+3. ~~Silent fallback on failed property expressions~~ **Fixed** — multi-segment
+   path failures now report the full dotted path, producing an
+   `unknown-lookup-path` diagnostic (with "did you mean" suggestions) instead
+   of silently defaulting.
+4. ~~Invalid easing names fall back silently~~ **Fixed** — the parser no longer
+   consumes unresolvable `ease:` modifiers, so the build layer's
+   `Unsupported ease value` warning fires.
 5. **LSP/GUI don't call `Analyzer::merge_import_symbols`** — the CLI check/lint
    paths now resolve imported symbols for diagnostics; wiring the same call
    into the LSP/GUI analyzers would fix the editor experience too.

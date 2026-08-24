@@ -332,8 +332,12 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             }
             // Multi-part path: try walking through object fields.
             if parts.len() > 1 {
+                // Report the FULL dotted path as the undefined variable so
+                // lookup diagnostics can suggest alternatives (reporting only
+                // the base segment made `theme.text_md` failures — base not
+                // seeded — look like a dotless key and slip through silently).
                 let base =
-                    env.get(&parts[0]).ok_or(EvalError::UndefinedVariable(parts[0].clone()))?;
+                    env.get(&parts[0]).ok_or(EvalError::UndefinedVariable(dotted.clone()))?;
                 let mut current = base;
                 for segment in &parts[1..] {
                     match current {
