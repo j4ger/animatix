@@ -331,7 +331,13 @@ fn check_stmt(
         } => {
             let (line, col, _end_line, end_col) = span_positions(span);
 
-            if !symbols.types.contains(ty) {
+            // Component instances are valid actor types too: accept local and
+            // imported (`pub component`) components as well as namespaced ones
+            // (`import as` + `alias.Component`), not just builtin/primitive types.
+            let ty_known = symbols.types.contains(ty)
+                || symbols.components.contains_key(ty)
+                || symbols.resolve_namespaced_component(ty).is_some();
+            if !ty_known {
                 diagnostics.push(span_diagnostic(
                     DiagnosticSeverity::Warning,
                     DiagnosticCode::UnknownType,
@@ -462,5 +468,95 @@ mod tests {
         }];
         let labels = unused_labels(&stmts);
         assert!(labels.iter().any(|m| m.contains("wrapper")));
+    }
+
+    fn unknown_types(stmts: &[Stmt], symbols: &SymbolTable) -> Vec<String> {
+        collect_semantic_diagnostics(stmts, symbols, &[], "")
+            .into_iter()
+            .filter(|d| d.code == DiagnosticCode::UnknownType)
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    fn actor_decl_of_type(ty: &str) -> Stmt {
+        Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: "instance".to_string(),
+            array_index: None,
+            ty: ty.to_string(),
+            props: vec![],
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }
+    }
+
+    #[test]
+    fn imported_component_instance_is_not_unknown_type() {
+        // Regression: a statement-position instance of an imported `pub
+        // component` used to warn `unknown-type` because only builtin types
+        // were consulted; Group-wrapping "fixed" it only by escaping the lint.
+        let mut symbols = SymbolTable::build_from_ast(&[]);
+        symbols.components.insert(
+            "MetricCard".to_string(),
+            crate::symbol_table::ComponentInfo {
+                name: "MetricCard".to_string(),
+                is_pub: true,
+                params: vec![],
+                line: 1,
+                col: 1,
+                span: None,
+            },
+        );
+        let stmts = vec![actor_decl_of_type("MetricCard")];
+        let diags = unknown_types(&stmts, &symbols);
+        assert!(
+            diags.is_empty(),
+            "imported component instance must not warn unknown-type: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn namespaced_component_instance_is_not_unknown_type() {
+        // `import "lib/ui.amx" as ui` + `ui.MetricCard` resolves through the
+        // namespace tables, not `types`.
+        let mut symbols = SymbolTable::build_from_ast(&[]);
+        symbols.namespaces.insert(
+            "ui".to_string(),
+            SymbolTable {
+                components: [(
+                    "MetricCard".to_string(),
+                    crate::symbol_table::ComponentInfo {
+                        name: "MetricCard".to_string(),
+                        is_pub: true,
+                        params: vec![],
+                        line: 1,
+                        col: 1,
+                        span: None,
+                    },
+                )]
+                .into_iter()
+                .collect(),
+                ..Default::default()
+            },
+        );
+        let stmts = vec![actor_decl_of_type("ui.MetricCard")];
+        let diags = unknown_types(&stmts, &symbols);
+        assert!(
+            diags.is_empty(),
+            "namespaced component instance must not warn unknown-type: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn genuinely_unknown_type_still_warns() {
+        let symbols = SymbolTable::build_from_ast(&[]);
+        let stmts = vec![actor_decl_of_type("NotAType")];
+        let diags = unknown_types(&stmts, &symbols);
+        assert!(
+            diags.iter().any(|m| m.contains("NotAType")),
+            "bogus type must still warn unknown-type: {diags:?}"
+        );
     }
 }
