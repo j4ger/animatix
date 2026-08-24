@@ -1028,7 +1028,16 @@ impl Timeline {
 
         let default_size = DEFAULT_LAYOUT_HALF_SIZE;
         let default_arc = [0.0, std::f32::consts::PI];
-        let size = existing_track.geometry.size.last(default_size);
+        // Prefer the size parsed from this declaration. On first declaration
+        // the pre-declaration track snapshot below still holds the [50, 50]
+        // default, which made standalone plot builders (BarChart, VectorField,
+        // Heatmap, ContourSet, NumberPlane) lay out in a ~40x40 box regardless
+        // of `size:`. Re-declarations keep inheriting the stored track size.
+        let size = if existing_track.geometry.size.last(default_size) != default_size {
+            existing_track.geometry.size.last(default_size)
+        } else {
+            initial_size
+        };
         let line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
         let line_to = existing_track.shape.line_to.last([50.0, 0.0]);
         let arc_angles = existing_track.shape.arc_angles.last(default_arc);
@@ -1073,14 +1082,8 @@ impl Timeline {
             let label_x = tick_labels_has_axis(&tick_labels, 'x');
             let label_y = tick_labels_has_axis(&tick_labels, 'y');
 
-            // Use initial_size for axis paths so they match the parsed size
-            let axis_size = if size != default_size {
-                size
-            } else {
-                initial_size
-            };
             vello_paths = build_graph_axis_paths(
-                axis_size,
+                size,
                 x_domain,
                 y_domain,
                 stroke_color,
@@ -1095,8 +1098,8 @@ impl Timeline {
             // Compute tick label positions (same logic as build_graph_axis_paths ticks section).
             // Uses padded coordinate mapping so labels align with padded axes.
             let tick_label_offset = 14.0;
-            let hw = axis_size[0] as f64;
-            let hh = axis_size[1] as f64;
+            let hw = size[0] as f64;
+            let hh = size[1] as f64;
             let plot_fw = 2.0 * hw - graph_padding[0] - graph_padding[1];
             let plot_fh = 2.0 * hh - graph_padding[2] - graph_padding[3];
             let shift_x = (graph_padding[0] - graph_padding[1]) / 2.0;

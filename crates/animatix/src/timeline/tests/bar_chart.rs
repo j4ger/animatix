@@ -358,3 +358,85 @@ fn max_value_with_variable() {
         report.diagnostics
     );
 }
+
+/// `size:` must drive the baked bar-chart geometry. (Regression: the layout
+/// box was read from the pre-declaration track snapshot, so every fresh
+/// build — always the case for CLI export — laid bars out in the default
+/// ~40x40 box regardless of `size:`.)
+#[test]
+fn size_property_drives_bar_chart_geometry() {
+    let source = r#"
+        chart: BarChart,
+          data: {("A", 10), ("B", 40), ("C", 25)},
+          show_axis: false,
+          show_labels: false,
+          size: (800, 380),
+          at: (640, 400)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.tracks.get("chart").expect("chart track");
+    assert_eq!(track.geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
+    assert_eq!(track.geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
+
+    // Baked bar paths must span roughly the declared box (800x380 minus
+    // hardcoded axis-label margins), not the legacy 40x40 cluster.
+    let paths = track.evaluate_vector_paths(0);
+    assert!(!paths.is_empty(), "bar paths should be baked");
+    use kurbo::Shape as _;
+    let mut min = [f64::INFINITY; 2];
+    let mut max = [f64::NEG_INFINITY; 2];
+    for path in &paths {
+        let bbox = path.path.bounding_box();
+        min[0] = min[0].min(bbox.x0);
+        min[1] = min[1].min(bbox.y0);
+        max[0] = max[0].max(bbox.x1);
+        max[1] = max[1].max(bbox.y1);
+    }
+    let width = max[0] - min[0];
+    let height = max[1] - min[1];
+    assert!(width > 600.0, "bars should span most of the 800px box, got width {width}");
+    assert!(height > 250.0, "bars should span most of the 380px box, got height {height}");
+}
+
+/// `anchor:`/`offset:` on a BarChart must produce a scene-relative position
+/// binding like on any other actor, instead of being silently dropped.
+#[test]
+fn bar_chart_anchor_offset_produce_scene_binding() {
+    let source = r#"
+        chart: BarChart,
+          data: {("A", 10), ("B", 20)},
+          anchor: scene.top,
+          offset: (0, 60)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.tracks.get("chart").expect("chart track");
+    match track
+        .geometry
+        .position_binding
+        .get(0, crate::timeline::PositionBinding::Absolute)
+    {
+        crate::timeline::PositionBinding::SceneAnchor { anchor, offset } => {
+            assert_eq!(anchor, crate::timeline::SceneAnchor::Top);
+            assert_eq!(offset, [0.0, 60.0]);
+        },
+        other => panic!("expected SceneAnchor binding, got {other:?}"),
+    }
+}

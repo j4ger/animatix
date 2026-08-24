@@ -1243,6 +1243,31 @@ impl Timeline {
                     }
                 }
             }
+
+            // Resolve `anchor`/`offset` (and scene-relative `at`) exactly like
+            // the generic actor path below. The plot builder only consumed
+            // absolute `at`/`position`, which silently dropped scene anchoring
+            // on plot actors even though the registry marks anchor/offset
+            // applicable to them.
+            let mut at_expr: Option<&Expr> = None;
+            let mut anchor_expr: Option<&Expr> = None;
+            let mut offset_expr: Option<&Expr> = None;
+            for prop in props {
+                match prop.name.as_str() {
+                    "at" | "position" => at_expr = Some(&prop.value),
+                    "anchor" => anchor_expr = Some(&prop.value),
+                    "offset" => offset_expr = Some(&prop.value),
+                    _ => {}, // Not a position property.
+                }
+            }
+            let position_binding = resolve_position_binding_with_lookup_diagnostic(
+                at_expr,
+                anchor_expr,
+                offset_expr,
+                &eval_env,
+                diagnostics,
+                label,
+            );
             let size = initial_size;
             let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
             let is_first_decl = !self.tracks.contains_key(label);
@@ -1305,6 +1330,15 @@ impl Timeline {
                     self.default_opacity,
                     Easing::Linear,
                 );
+            }
+
+            if let Some((binding, bound_position)) = position_binding {
+                preserve_discrete_position_state_before(track, t_start_ms);
+                set_track_position_binding(track, t_start_ms, binding);
+                if let Some(bound_position) = bound_position {
+                    position = bound_position;
+                }
+                mark_track_manual_position(track, t_start_ms);
             }
 
             // === Keyframe Insertion ===
