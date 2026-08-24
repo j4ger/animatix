@@ -2,7 +2,7 @@
 //! component collection, and namespace resolution.
 
 pub mod discovery;
-mod expand;
+pub(crate) mod expand;
 mod inline_actions;
 mod rewrite;
 pub mod source_map;

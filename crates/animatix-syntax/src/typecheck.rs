@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 use crate::ast::{ComponentDef, Expr, MatchPattern, Modifier, ParamDef, Property, Stmt};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::module::expand::INSTANCE_FORWARDED_PROPS;
 use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
 
 /// Type-checking environment.
@@ -601,8 +602,13 @@ impl<'a> TypeEnv<'a> {
         }
 
         // Warn on extra properties that don't match any defined parameter.
+        // Universal actor properties (opacity/at/anchor/offset) are exempt:
+        // expansion forwards them onto the root actor, so they do have an
+        // effect.
         for prop in props {
-            if !param_map.contains_key(prop.name.as_str()) {
+            if !param_map.contains_key(prop.name.as_str())
+                && !INSTANCE_FORWARDED_PROPS.contains(&prop.name.as_str())
+            {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::UnknownComponentProperty,

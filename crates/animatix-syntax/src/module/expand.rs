@@ -381,6 +381,13 @@ fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
     }
 }
 
+/// Universal actor properties that may be written directly on a component
+/// instance. They are forwarded onto the expanded root actor (which carries
+/// the instance label) so instance-level placement and visibility work
+/// without wrapping the instance in a `Group`. Props sharing a name with a
+/// component parameter remain template bindings, not forwards.
+pub(crate) const INSTANCE_FORWARDED_PROPS: &[&str] = &["opacity", "at", "anchor", "offset"];
+
 fn expand_component_instance(
     instance_label: &str,
     instance_props: &[Property],
@@ -422,6 +429,30 @@ fn expand_component_instance(
             rewrite_stmt(stmt, instance_label, root_label.as_deref(), &known_labels, &bindings)
         })
         .collect::<Vec<_>>();
+
+    // Forward universal actor properties from the instance onto the expanded
+    // root actor. The root carries the instance label after rewriting, and
+    // later duplicate props win during the build, so appended forwards
+    // override the component's internal defaults.
+    let forwarded: Vec<Property> = instance_props
+        .iter()
+        .filter(|p| {
+            INSTANCE_FORWARDED_PROPS.contains(&p.name.as_str())
+                && !component.definition.params.iter().any(|param| param.name == p.name)
+        })
+        .cloned()
+        .collect();
+    let mut rewritten = rewritten;
+    if !forwarded.is_empty() {
+        for stmt in rewritten.iter_mut() {
+            if let Stmt::ActorDecl { label, props, .. } = stmt {
+                if label == instance_label {
+                    props.extend(forwarded.iter().cloned());
+                    break;
+                }
+            }
+        }
+    }
 
     // Collect timeline functions from rewritten statements
     let mut instance_actions: HashMap<String, crate::module::FnTemplate> = HashMap::new();
@@ -611,6 +642,87 @@ mod tests {
                 "array_index must be preserved through expansion"
             );
         }
+    }
+
+    #[test]
+    fn test_instance_universal_props_forward_to_root() {
+        // opacity/at/anchor/offset written on a component instance must land
+        // on the expanded root actor, not be dropped.
+        let source = r#"
+pub component Badge(text: Str) {
+  box: Rect, size: (160, 70)
+}
+
+b: Badge, text: "hi", opacity: 1, at: (320, 240)
+"#;
+        let (stmts, _errors) = crate::parser::parse_source(source);
+        let stmts = stmts.unwrap();
+        let mut components = std::collections::HashMap::new();
+        for stmt in &stmts {
+            if let Stmt::ComponentDef(def, _) = stmt {
+                components.insert(
+                    def.name.clone(),
+                    super::super::ComponentEntry {
+                        definition: def.clone(),
+                        actions: Default::default(),
+                        source_path: std::path::PathBuf::new(),
+                    },
+                );
+            }
+        }
+        let (expanded, _registry) = expand_statements(&stmts, &components);
+        let root = expanded
+            .iter()
+            .find_map(|s| match s {
+                Stmt::ActorDecl { label, props, .. } if label == "b" => Some(props),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("expanded root actor 'b' not found"));
+        for name in ["opacity", "at"] {
+            assert!(
+                root.iter().any(|p| p.name == name),
+                "instance prop '{name}' must be forwarded to the root actor"
+            );
+        }
+    }
+
+    #[test]
+    fn test_param_named_like_universal_prop_stays_binding() {
+        // A component param that shares a name with a forwarded prop (e.g.
+        // `opacity` as a template parameter) must remain a binding, not be
+        // double-applied as an actor prop.
+        let source = r#"
+pub component Tint(opacity: Num = 1) {
+  box: Rect, size: (40, 40), opacity: opacity
+}
+
+t: Tint, opacity: 0.5
+"#;
+        let (stmts, _errors) = crate::parser::parse_source(source);
+        let stmts = stmts.unwrap();
+        let mut components = std::collections::HashMap::new();
+        for stmt in &stmts {
+            if let Stmt::ComponentDef(def, _) = stmt {
+                components.insert(
+                    def.name.clone(),
+                    super::super::ComponentEntry {
+                        definition: def.clone(),
+                        actions: Default::default(),
+                        source_path: std::path::PathBuf::new(),
+                    },
+                );
+            }
+        }
+        let (expanded, _registry) = expand_statements(&stmts, &components);
+        let root = expanded
+            .iter()
+            .find_map(|s| match s {
+                Stmt::ActorDecl { label, props, .. } if label == "t" => Some(props),
+                _ => None,
+            })
+            .expect("expanded root actor 't'");
+        let opacity_count = root.iter().filter(|p| p.name == "opacity").count();
+        assert_eq!(opacity_count, 1, "param-bound opacity must not be forwarded a second time");
     }
 
     #[test]
