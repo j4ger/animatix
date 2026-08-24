@@ -59,6 +59,10 @@ pub struct Analyzer {
     tokens: Vec<Token>,
     occurrences: Vec<animatix_syntax::occurrence::Occurrence>,
     symbols: SymbolTable,
+    /// Resolved symbols from this file's imports, cached between symbol
+    /// rebuilds. Populated by [`Analyzer::merge_import_symbols`]; edits to the
+    /// file itself reuse the cache so per-keystroke rebuilds stay cheap.
+    import_symbols: Option<SymbolTable>,
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
     extension_manifest: ExtensionManifest,
@@ -80,6 +84,7 @@ impl Analyzer {
             tokens: Vec::new(),
             occurrences: Vec::new(),
             symbols: SymbolTable::default(),
+            import_symbols: None,
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
             extension_manifest: ExtensionManifest::default(),
@@ -106,11 +111,12 @@ impl Analyzer {
     /// The per-file table only knows the file's own definitions, so semantic
     /// diagnostics (e.g. `unknown-type`) would flag instances of imported
     /// `pub component` types. This loads the module graph for the analyzer's
-    /// file path and merges the resolved table (local definitions win). Best
-    /// effort: silently does nothing without a path or when imports fail to
-    /// resolve. Opt-in because it re-reads imports from disk — call sites that
-    /// already hold a [`Workspace`] can merge its `resolve_symbols` output
-    /// instead.
+    /// file path, caches the resolved table, and merges it (local definitions
+    /// win). Later [`Analyzer::update`] / `set_extension_manifest` rebuilds
+    /// reuse the cache, so editors can call this once per opened file without
+    /// per-keystroke disk reads. Best effort: silently does nothing without a
+    /// path or when imports fail to resolve. Call
+    /// [`Analyzer::clear_import_symbols`] when known imports change on disk.
     pub fn merge_import_symbols(&mut self) {
         let Some(path) = self.path.clone() else {
             return;
@@ -119,8 +125,15 @@ impl Analyzer {
         if graph.load_program(&path).is_err() {
             return;
         }
-        let resolved = graph.resolve_symbols(&path);
-        self.symbols.merge(&resolved);
+        self.import_symbols = Some(graph.resolve_symbols(&path));
+        self.rebuild_symbols();
+    }
+
+    /// Drop the cached import symbols (e.g. when an imported file changed on
+    /// disk) and rebuild without them.
+    pub fn clear_import_symbols(&mut self) {
+        self.import_symbols = None;
+        self.rebuild_symbols();
     }
 
     /// Update the source text. Re-parses if changed.
@@ -171,6 +184,11 @@ impl Analyzer {
         };
 
         let mut table = table;
+        // Re-merge cached import symbols so rebuilds triggered by edits or
+        // manifest updates keep the cross-file view.
+        if let Some(resolved) = &self.import_symbols {
+            table.merge(resolved);
+        }
         self.extension_manifest.apply_to(&mut table);
 
         self.symbols = table;

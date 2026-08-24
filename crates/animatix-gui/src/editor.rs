@@ -42,8 +42,11 @@ pub struct EditorBuffer {
 
 impl EditorBuffer {
     pub fn new(path: &Path, text: String) -> Self {
-        let mut analyzer = Analyzer::new(&text);
+        let mut analyzer = Analyzer::new_with_path(&text, Some(path.to_path_buf()));
         analyzer.set_extension_manifest(crate::document::extension_manifest_for_path(path));
+        // Cache imported symbols once per opened buffer so diagnostics know
+        // about imported `pub component` types; edits reuse the cache.
+        analyzer.merge_import_symbols();
         let cells = parse_cells(&text);
         Self {
             text: text.clone(),

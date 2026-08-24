@@ -81,6 +81,12 @@ impl Backend {
             });
             analyzer.update(&text);
             analyzer.set_extension_manifest(manifest);
+            // Populate the import-symbol cache once per opened document so
+            // diagnostics see imported `pub component` types. Later edits
+            // reuse the cache (see Analyzer::merge_import_symbols).
+            if is_new {
+                analyzer.merge_import_symbols();
+            }
         }
 
         if is_new {

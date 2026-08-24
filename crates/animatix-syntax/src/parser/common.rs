@@ -323,17 +323,27 @@ pub(crate) fn modifiers<'src>(
 // ---------------------------------------------------------------------------
 
 /// Scan modifiers for `ease: ...` and extract the easing value.
+///
+/// Only a *resolvable* easing name is consumed (and its modifier removed).
+/// Unknown names stay in the list so the build layer's
+/// `parse_timing_modifiers` can report them — the parse layer has no
+/// diagnostics, so dropping them here would silence the typo forever.
 pub(crate) fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing> {
     let mut easing = None;
     modifiers.retain(|m| {
         if m.name.as_deref() == Some("ease") {
             if let Expr::Ident(raw) = &m.value {
-                easing = parse_easing_name(raw);
+                if let Some(parsed) = parse_easing_name(raw) {
+                    easing = Some(parsed);
+                    return false;
+                }
+                // Unknown easing identifier: keep for the build-layer warning.
+                return true;
             }
-            false
-        } else {
-            true
+            // Non-identifier ease value: keep for the build-layer warning.
+            return true;
         }
+        true
     });
     easing
 }

@@ -953,3 +953,27 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
     let track = report.output.tracks.get("p").expect("path track");
     assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.5);
 }
+
+/// An invalid easing name on an assignment must produce a diagnostic.
+/// (Regression: the parser consumed `ease:` modifiers unconditionally, so
+/// unknown names were silently replaced by the default easing.)
+#[test]
+fn invalid_easing_name_warns_on_assignment() {
+    let source = r#"
+r: Rect, size: (100, 100), color: accent.primary
+#0s
+r.at = (320, 180) [500ms, ease: bounce-out]
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::InvalidModifierValue
+                && d.message.contains("bounce-out")
+        }),
+        "expected an InvalidModifierValue diagnostic naming 'bounce-out', got: {:?}",
+        report.diagnostics
+    );
+}

@@ -63,7 +63,13 @@
    paths now resolve imported symbols for diagnostics; wiring the same call
    into the LSP/GUI analyzers would fix the editor experience too.
 6. **`gap` not registered for BarChart** in the runtime property registry
-   (the builder parses it; the inspector won't show it).
+   (the builder parses it, so charts work; the GUI inspector just won't list
+   it). The registry is keyed by property name and `gap` is owned by the
+   `ContainerLayoutGroup` schema — exposing it for BarChart needs either a
+   per-actor schema variant or group-handler support, not a one-line change.
+   Invalid easing names DO warn now (the parser no longer consumes
+   unresolvable `ease:` modifiers), and the CLI check/lsp/gui analyzers
+   resolve imported symbols.
 
 ## How to verify the current state
 
