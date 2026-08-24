@@ -863,7 +863,7 @@ fn main() {
             }
 
             // Run semantic analysis (mirrors lint command behavior)
-            let analyzer = animatix_analyzer::Analyzer::new_with_path(
+            let mut analyzer = animatix_analyzer::Analyzer::new_with_path(
                 &source,
                 if file_label == "-" {
                     None
@@ -872,6 +872,7 @@ fn main() {
                 },
             )
             .with_extension_manifest(extensions.merged_manifest());
+            analyzer.merge_import_symbols();
             let lint_config = animatix_analyzer::LintConfig::from_source(&source);
             let semantic = analyzer.diagnostics_with_config(&lint_config);
 
@@ -1001,9 +1002,10 @@ fn main() {
                         },
                     };
 
-                    let analyzer =
+                    let mut analyzer =
                         animatix_analyzer::Analyzer::new_with_path(&source, Some(file.clone()))
                             .with_extension_manifest(extensions.merged_manifest());
+                    analyzer.merge_import_symbols();
                     // Merge inline config with file config
                     let mut config = animatix_analyzer::LintConfig::from_source(&source);
                     config.merge(&file_config);

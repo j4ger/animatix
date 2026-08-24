@@ -101,6 +101,28 @@ impl Analyzer {
         self.rebuild_symbols();
     }
 
+    /// Merge symbols resolved from this file's imports into the symbol table.
+    ///
+    /// The per-file table only knows the file's own definitions, so semantic
+    /// diagnostics (e.g. `unknown-type`) would flag instances of imported
+    /// `pub component` types. This loads the module graph for the analyzer's
+    /// file path and merges the resolved table (local definitions win). Best
+    /// effort: silently does nothing without a path or when imports fail to
+    /// resolve. Opt-in because it re-reads imports from disk — call sites that
+    /// already hold a [`Workspace`] can merge its `resolve_symbols` output
+    /// instead.
+    pub fn merge_import_symbols(&mut self) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        let mut graph = animatix_syntax::module::ModuleGraph::new();
+        if graph.load_program(&path).is_err() {
+            return;
+        }
+        let resolved = graph.resolve_symbols(&path);
+        self.symbols.merge(&resolved);
+    }
+
     /// Update the source text. Re-parses if changed.
     pub fn update(&mut self, source: &str) {
         if self.source == source {
