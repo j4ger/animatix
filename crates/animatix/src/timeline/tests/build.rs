@@ -919,3 +919,37 @@ r: Rect, size: (100, 100), at: (480, 270)
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     assert_eq!(report.output.resolution(), Some((960, 540)));
 }
+
+/// A stroke-only Path (explicit `stroke:`, no `color:`) must not emit the
+/// default scheme fill: vello implicitly closes open paths, so the fill
+/// rendered a hand-drawn line as a dark dome. (Regression test.)
+#[test]
+fn stroke_only_path_suppresses_default_fill() {
+    let source = "p: Path, commands: {move_to(-50, 0), line_to(50, 0)}, stroke: accent.primary, stroke_width: 4";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+
+    let track = report.output.tracks.get("p").expect("path track");
+    assert_eq!(
+        track.style.fill_opacity.get(0, 1.0),
+        0.0,
+        "stroke-only Path must default to no fill"
+    );
+}
+
+/// An authored `fill_opacity` on a stroke-only Path is preserved.
+#[test]
+fn stroke_only_path_keeps_authored_fill_opacity() {
+    let source = "p: Path, commands: {move_to(-50, 0), line_to(50, 0)}, stroke: accent.primary, stroke_width: 4, fill_opacity: 0.5";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+
+    let track = report.output.tracks.get("p").expect("path track");
+    assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.5);
+}

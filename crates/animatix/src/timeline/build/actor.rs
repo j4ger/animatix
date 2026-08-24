@@ -589,6 +589,20 @@ impl Timeline {
             stroke_width = 0.0;
         }
 
+        // A stroke-only Path (explicit `stroke:`, no explicit `color:`) is
+        // line-like: suppress the default scheme fill. Vello implicitly closes
+        // open paths when filling, so the fill otherwise renders a hand-drawn
+        // line as a dark filled dome. Closed shapes (Rect/Ellipse/Polygon),
+        // paths with an authored color, and paths with an authored
+        // `fill_opacity` keep their fill.
+        if has_explicit_stroke
+            && !has_explicit_color
+            && !props.iter().any(|p| p.name == "fill_opacity")
+            && matches!(kind_id, super::ActorKindId::Shape(super::ShapeKind::Path))
+        {
+            fill_opacity = 0.0;
+        }
+
         // G6: Detect actor-anchor refs in `from`/`to` property declarations.
         // Store them in the track's side-channel so the primitive's frame-time
         // `evaluate` method can resolve them each frame.

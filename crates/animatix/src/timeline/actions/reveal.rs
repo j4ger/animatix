@@ -118,6 +118,11 @@ impl BuiltinAction for DrawIn {
                     super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
                 }
 
+                // Reveal the fill to its authored value, not blindly to 1.0: a
+                // stroke-only Path (fill_opacity seeded 0) must stay unfilled
+                // after the draw completes.
+                let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+
                 track.style.stroke_progress.ensure(1.0).add_keyframe(
                     t_start_ms,
                     0.0,
@@ -138,7 +143,11 @@ impl BuiltinAction for DrawIn {
                 }
 
                 track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-                track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                track
+                    .style
+                    .fill_opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_end_ms, authored_fill, easing);
             }
         }
     }
@@ -215,6 +224,11 @@ impl BuiltinAction for RevealIn {
 
             ensure_reveal_stroke(track, t_start_ms);
 
+            // Reveal the fill to its authored value, not blindly to 1.0: a
+            // stroke-only Path (fill_opacity seeded 0) must stay unfilled
+            // after the reveal completes.
+            let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+
             if duration_ms > 0.0 {
                 track.style.stroke_progress.ensure(1.0).add_keyframe(
                     t_start_ms,
@@ -239,7 +253,11 @@ impl BuiltinAction for RevealIn {
                 super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
             }
 
-            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, Easing::Linear);
+            track.style.fill_opacity.ensure(1.0).add_keyframe(
+                t_end_ms,
+                authored_fill,
+                Easing::Linear,
+            );
             track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
         }
     }

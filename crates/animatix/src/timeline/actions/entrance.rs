@@ -67,6 +67,11 @@ impl BuiltinAction for WipeIn {
             // opacity 0 alongside the wipe.
             super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
 
+            // Reveal the fill to its authored value, not blindly to 1.0: a
+            // stroke-only Path (fill_opacity seeded 0) must stay unfilled
+            // after the wipe.
+            let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+
             track
                 .style
                 .stroke_progress
@@ -79,7 +84,11 @@ impl BuiltinAction for WipeIn {
                 .add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
             track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            track
+                .style
+                .fill_opacity
+                .ensure(1.0)
+                .add_keyframe(t_end_ms, authored_fill, easing);
         }
     }
 }
