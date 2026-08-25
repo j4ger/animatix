@@ -1,0 +1,49 @@
+// brand_reel/mascot.amx — scene ⑤: the persisted mascot takes focus.
+// Position/color continuity from the previous scenes; the feature closes
+// with `remove mascot` so the finale starts clean.
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+
+mascot_title: Text, text: "Meet the dot", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+// The mascot takes center stage: grows, shifts color, does a lap.
+mascot.at = (640, 380) [1.2s, ease: ease-in-out]
+
+mascot_caption: Text, text: "persisted across four scenes — position, color, identity",
+  font_size: theme.text_sm, color: text.secondary,
+  anchor: scene.center, offset: (0, 120)
+
+mascot_note: Text, text: "`persist` carries it here; `remove` lets it go",
+  font_size: theme.text_sm, color: text.muted,
+  anchor: scene.center, offset: (0, 165)
+
+#0.4s
+fade-in mascot_title [500ms]
+
+#0.6s
+mascot.scale = 1.6 [900ms, ease: ease-out]
+mascot.color = accent.success [900ms]
+fade-in mascot_caption [500ms, delay: 400ms]
+
+#2.4s
+mascot.at = (420, 320) [800ms, ease: ease-in-out]
+
+#3.4s
+mascot.at = (860, 320) [800ms, ease: ease-in-out]
+
+#4.4s
+mascot.at = (640, 380) [800ms, ease: ease-in-out]
+fade-in mascot_note [500ms, delay: 300ms]
+
+#6.2s
+pulse mascot [500ms, intensity: 1.4]
+
+#8.4s
+remove mascot [600ms]
+
+#9.2s
+play finale.Finale [wipe-down, 500ms]

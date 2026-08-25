@@ -1,0 +1,39 @@
+// brand_reel/logo.amx — scene ①: logo draw-in + sheen sweep.
+// Introduces the mascot dot (persisted across the whole reel).
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 8 }
+
+logo_text: Text, text: "animatix", font_size: 88, font_weight: "bold",
+  color: text.primary, anchor: scene.center, offset: (0, -30)
+
+tagline: Text, text: "layout-first animation", font_size: 22,
+  letter_spacing: 6, color: text.secondary, anchor: scene.center, offset: (0, 60)
+
+// Sheen sweep: a soft rotated band crossing the wordmark once.
+sheen: Rect, size: (90, 320), color: (1, 1, 1, 0.10), rotation: -20,
+  at: (-200, -30), opacity: 0
+
+// The mascot: a small warning-colored dot in the top-right corner.
+mascot: Ellipse, size: (44, 44), color: accent.warning, at: (1150, 110)
+
+#0.3s
+fade-in logo_text [400ms]
+draw-in logo_text [1.2s, ease: ease-out]
+
+#1.6s
+fade-in tagline [600ms]
+fade-in mascot [500ms, ease: ease-out]
+
+// Sheen sweep across the wordmark.
+#2.2s
+sheen.opacity = 0.9 [200ms]
+sheen.at = (1280, -30) [1.4s, ease: ease-in-out]
+
+#3.8s
+sheen.opacity = 0 [300ms]
+
+#7.4s
+persist mascot
+
+#7.6s
+play slogan.Slogan [wipe-left, 500ms]

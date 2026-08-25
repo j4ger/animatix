@@ -1,0 +1,41 @@
+// brand_reel/slogan.amx — scene ②: kinetic type slogan morphs.
+// Text re-declaration triggers morph transitions; letter_spacing breathes.
+// The persisted mascot rides along (re-persisted at scene end).
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+
+slogan_kicker: Text, text: "THE BIG IDEA", font_size: theme.text_sm,
+  letter_spacing: 6, color: accent.primary, anchor: scene.top, offset: (0, 130)
+
+slogan: Text, text: "ANIMATE EVERYTHING",
+  font_size: 88, font_weight: "bold", color: text.primary,
+  anchor: scene.center, letter_spacing: 4
+
+#0.4s
+fade-in slogan_kicker [400ms]
+fade-in slogan [700ms, ease: ease-out]
+
+// The persisted mascot travels to a new corner (position continuity).
+#0.8s
+mascot.at = (110, 590) [1.2s, ease: ease-in-out]
+
+#2.2s
+slogan.letter_spacing = 14 [1.6s, ease: ease-in-out]
+
+// Kinetic morph: the slogan re-words itself (morph transition).
+#4.4s
+slogan: Text, text: "RENDER MEANING",
+  font_size: 88, font_weight: "bold", color: text.primary,
+  anchor: scene.center, letter_spacing: 4
+
+#6.6s
+slogan.letter_spacing = 4 [1.4s, ease: ease-in-out]
+
+#8.8s
+persist mascot
+
+#9.2s
+play grid.Grid [wipe-up, 500ms]

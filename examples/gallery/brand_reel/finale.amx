@@ -1,0 +1,56 @@
+// brand_reel/finale.amx — scene ⑥: staggered regroup, Audio-beat-synced
+// pulses, fade back to the logo. The reel closes where it opened.
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
+
+// Audio bed: mixed during export; the pulses below are timed to its beats.
+bed: Audio, source: "examples/assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
+
+beat_row: Row, gap: 26, anchor: scene.center, align: "center" {
+  beat0: Ellipse, size: (26, 26), color: accent.primary
+  beat1: Ellipse, size: (26, 26), color: accent.success
+  beat2: Ellipse, size: (26, 26), color: accent.warning
+  beat3: Ellipse, size: (26, 26), color: accent.danger
+  beat4: Ellipse, size: (26, 26), color: accent.secondary
+}
+
+// Audio-beat-synced pulses (track BPM ≈ 120 → one beat every 500ms).
+always {
+  beat0.scale = 1.0 + 0.35 * max(0.0, sin(2 * pi * t / 1.0))
+  beat1.scale = 1.0 + 0.35 * max(0.0, sin(2 * pi * t / 1.0 - 0.6))
+  beat2.scale = 1.0 + 0.35 * max(0.0, sin(2 * pi * t / 1.0 - 1.2))
+  beat3.scale = 1.0 + 0.35 * max(0.0, sin(2 * pi * t / 1.0 - 1.8))
+  beat4.scale = 1.0 + 0.35 * max(0.0, sin(2 * pi * t / 1.0 - 2.4))
+}
+
+finale_word: Text, text: "animatix", font_size: 76, font_weight: "bold",
+  color: text.primary, anchor: scene.center, offset: (0, 130)
+
+#0.4s
+fade-in beat_row [500ms, ease: ease-out]
+
+#1.2s
+fade-in finale_word [800ms, ease: ease-out]
+
+// Staggered regroup: the beats march inward and hold.
+#4s
+stagger [120ms] {
+  pulse beat0 [400ms, intensity: 1.5]
+  pulse beat1 [400ms, intensity: 1.5]
+  pulse beat2 [400ms, intensity: 1.5]
+  pulse beat3 [400ms, intensity: 1.5]
+  pulse beat4 [400ms, intensity: 1.5]
+}
+
+#6s
+beat_row.at = (640, 430) [1.2s, ease: ease-in-out]
+
+#8s
+beat_row.at = (640, 370) [1.2s, ease: ease-in-out]
+
+#10.6s
+fade-out beat_row [700ms]
+fade-out finale_word [700ms]

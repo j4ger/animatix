@@ -1,0 +1,74 @@
+// brand_reel/grid.amx — scene ③: six-capability Grid card wall.
+// Each card breathes via its own analytic always line; `reorder` promotes
+// the featured capability. The mascot re-persisted at scene end.
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 14 }
+
+grid_title: Text, text: "Six capabilities, one timeline", font_size: 36,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+
+wall: Grid, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
+  cap_layout: Rect, size: (300, 128), color: surface.secondary
+  cap_actions: Rect, size: (300, 128), color: surface.secondary
+  cap_morph: Rect, size: (300, 128), color: surface.secondary
+  cap_plots: Rect, size: (300, 128), color: surface.secondary
+  cap_components: Rect, size: (300, 128), color: surface.secondary
+  cap_media: Rect, size: (300, 128), color: surface.secondary
+}
+
+cap_labels: Grid, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
+  cap_layout_label: Text, text: "Layout", font_size: theme.text_lg, color: text.primary
+  cap_actions_label: Text, text: "Actions", font_size: theme.text_lg, color: text.primary
+  cap_morph_label: Text, text: "Morph", font_size: theme.text_lg, color: text.primary
+  cap_plots_label: Text, text: "Plots", font_size: theme.text_lg, color: text.primary
+  cap_components_label: Text, text: "Components", font_size: theme.text_lg, color: text.primary
+  cap_media_label: Text, text: "Media", font_size: theme.text_lg, color: text.primary
+}
+
+// Per-card breathing: each card glows on its own phase.
+always {
+  cap_layout.opacity = 0.72 + 0.18 * sin(1.3 * t + 0.0)
+  cap_actions.opacity = 0.72 + 0.18 * sin(1.3 * t + 1.1)
+  cap_morph.opacity = 0.72 + 0.18 * sin(1.3 * t + 2.2)
+  cap_plots.opacity = 0.72 + 0.18 * sin(1.3 * t + 3.3)
+  cap_components.opacity = 0.72 + 0.18 * sin(1.3 * t + 4.4)
+  cap_media.opacity = 0.72 + 0.18 * sin(1.3 * t + 5.5)
+}
+
+#0.4s
+fade-in grid_title [500ms]
+stagger [110ms] {
+  fade-in cap_layout [400ms]
+  fade-in cap_actions [400ms]
+  fade-in cap_morph [400ms]
+  fade-in cap_plots [400ms]
+  fade-in cap_components [400ms]
+  fade-in cap_media [400ms]
+  fade-in cap_layout_label [300ms]
+  fade-in cap_actions_label [300ms]
+  fade-in cap_morph_label [300ms]
+  fade-in cap_plots_label [300ms]
+  fade-in cap_components_label [300ms]
+  fade-in cap_media_label [300ms]
+}
+
+// The mascot drops in for a visit over the Media card.
+#3s
+mascot.at = (1010, 330) [1.2s, ease: ease-in-out]
+
+// Promote Components: it moves to the front of the wall.
+#6s
+reorder wall [order: {cap_components, cap_layout, cap_actions, cap_morph, cap_plots, cap_media}, 900ms, ease: ease-in-out]
+reorder cap_labels [order: {cap_components_label, cap_layout_label, cap_actions_label, cap_morph_label, cap_plots_label, cap_media_label}, 900ms, ease: ease-in-out]
+
+#8.4s
+pulse cap_components [500ms, intensity: 1.12]
+
+#12.8s
+persist mascot
+
+#13.2s
+play kpi.Kpi [wipe-right, 500ms]

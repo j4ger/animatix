@@ -1,0 +1,36 @@
+// brand_reel/main.amx — capstone entry: imports every scene file and plays
+// them in order, using each of the six play transitions exactly once.
+//
+// Scenes (each its own file, played via alias.Scene):
+//   logo.Logo     — cut        (hard open)
+//   slogan.Slogan — wipe-left
+//   grid.Grid     — wipe-up
+//   kpi.Kpi       — wipe-right
+//   mascot.Mascot — fade      (the persisted mascot takes focus)
+//   finale.Finale — wipe-down (Audio-beat pulse, fade back to logo)
+//
+// The mascot dot is introduced in Logo and `persist`ed across every scene
+// until the Mascot feature scene closes it with `remove`.
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+import "logo.amx" as logo
+import "slogan.amx" as slogan
+import "grid.amx" as grid
+import "kpi.amx" as kpi
+import "mascot.amx" as mascot
+import "finale.amx" as finale
+
+config { colorscheme: "gallery", resolution: (1280, 720), dynamic_layout: true }
+
+# Hub
+config { colorscheme: "gallery", duration: 2 }
+
+hub_mark: Text, text: "animatix", font_size: 40, font_weight: "bold",
+  color: text.primary, anchor: scene.center
+
+#0.2s
+fade-in hub_mark [300ms]
+
+#1.4s
+play logo.Logo [cut, 0ms]

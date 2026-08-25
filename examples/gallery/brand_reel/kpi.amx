@@ -1,0 +1,66 @@
+// brand_reel/kpi.amx — scene ④: KPI flash montage.
+// Four numbers flash in with count-up text overrides; the mascot re-persisted.
+
+import "../../lib/theme.amx" as theme
+import "../../lib/theme.amx"
+
+config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+
+kpi_title: Text, text: "Numbers that move", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+kpi_a: Text, text: "0", font_size: 72, font_weight: "bold",
+  color: accent.primary, anchor: scene.center, offset: (-330, -80)
+kpi_a_label: Text, text: "scenes rewritten", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (-330, -10)
+
+kpi_b: Text, text: "0", font_size: 72, font_weight: "bold",
+  color: accent.success, anchor: scene.center, offset: (-110, -80)
+kpi_b_label: Text, text: "engine bugs fixed", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (-110, -10)
+
+kpi_c: Text, text: "0", font_size: 72, font_weight: "bold",
+  color: accent.warning, anchor: scene.center, offset: (110, -80)
+kpi_c_label: Text, text: "lines of DSL", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (110, -10)
+
+kpi_d: Text, text: "0", font_size: 72, font_weight: "bold",
+  color: accent.danger, anchor: scene.center, offset: (330, -80)
+kpi_d_label: Text, text: "hand-written keyframes here", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (330, -10)
+
+#0.4s
+fade-in kpi_title [500ms]
+
+// Flash montage: each KPI pops in with a count-up text override.
+#1s
+fade-in kpi_a [300ms]
+kpi_a.text = "12" [600ms]
+
+#1.8s
+fade-in kpi_b [300ms]
+kpi_b.text = "9" [600ms]
+
+#2.6s
+fade-in kpi_c [300ms]
+kpi_c.text = "2900" [600ms]
+
+#3.4s
+fade-in kpi_d [300ms]
+kpi_d.text = "0" [600ms]
+
+#4.6s
+fade-in kpi_a_label [300ms]
+fade-in kpi_b_label [300ms]
+fade-in kpi_c_label [300ms]
+fade-in kpi_d_label [300ms]
+
+// The mascot swings by.
+#5.6s
+mascot.at = (640, 130) [1s, ease: ease-in-out]
+
+#8.8s
+persist mascot
+
+#9.2s
+play mascot.Mascot [fade, 500ms]
