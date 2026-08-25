@@ -1,6 +1,9 @@
 // 09 — Components: Slots, Custom Actions, Typed Params
 // pub component, @slot markers, action blocks, typed params, dotted assignment.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 pub component MetricCard(title: Str = "Metric", value: Str = "0") {

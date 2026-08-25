@@ -1,6 +1,7 @@
 // 10 — Modules, Imports, and Re-export Chains
 // import ... as, pub let exports, dotted access, re-export chains, design tokens.
 
+import "../lib/theme.amx"
 import "../lib/palette.amx" as palette
 import "../lib/tokens.amx" as tokens
 import "../lib/reexport.amx" as theme
