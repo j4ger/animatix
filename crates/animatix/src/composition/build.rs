@@ -334,8 +334,12 @@ impl Composition {
                 continue;
             };
             if let Some(scene_data) = ns.scenes.get(scene_name) {
-                // Build timeline from the cross-file scene's prelude + body
-                let mut merged = scene_data.file_prelude.clone();
+                // Build timeline from the cross-file scene's prelude + body.
+                // The entry's shared prelude is prepended too so imported
+                // theme modules (colorscheme declarations) register for
+                // cross-file scenes, matching entry-declared scenes.
+                let mut merged = shared_prelude.clone();
+                merged.extend(scene_data.file_prelude.clone());
                 // Insert scene config as a Stmt::Config before the scene body
                 merged.push(Stmt::Config {
                     settings: scene_data.config.clone(),

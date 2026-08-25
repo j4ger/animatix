@@ -11,7 +11,7 @@ config { colorscheme: "gallery", dynamic_layout: true, duration: 14 }
 grid_title: Text, text: "Six capabilities, one timeline", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
 
-wall: Grid, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
+wall: Grid, cols: 3, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
   cap_layout: Rect, size: (300, 128), color: surface.secondary
   cap_actions: Rect, size: (300, 128), color: surface.secondary
   cap_morph: Rect, size: (300, 128), color: surface.secondary
@@ -20,7 +20,7 @@ wall: Grid, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
   cap_media: Rect, size: (300, 128), color: surface.secondary
 }
 
-cap_labels: Grid, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
+cap_labels: Grid, cols: 3, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
   cap_layout_label: Text, text: "Layout", font_size: theme.text_lg, color: text.primary
   cap_actions_label: Text, text: "Actions", font_size: theme.text_lg, color: text.primary
   cap_morph_label: Text, text: "Morph", font_size: theme.text_lg, color: text.primary
