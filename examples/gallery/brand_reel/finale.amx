@@ -6,6 +6,7 @@ import "../../lib/theme.amx"
 
 config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
 
+# Finale
 // Audio bed: mixed during export; the pulses below are timed to its beats.
 bed: Audio, source: "examples/assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
 
@@ -36,15 +37,6 @@ fade-in beat_row [500ms, ease: ease-out]
 fade-in finale_word [800ms, ease: ease-out]
 
 // Staggered regroup: the beats march inward and hold.
-#4s
-stagger [120ms] {
-  pulse beat0 [400ms, intensity: 1.5]
-  pulse beat1 [400ms, intensity: 1.5]
-  pulse beat2 [400ms, intensity: 1.5]
-  pulse beat3 [400ms, intensity: 1.5]
-  pulse beat4 [400ms, intensity: 1.5]
-}
-
 #6s
 beat_row.at = (640, 430) [1.2s, ease: ease-in-out]
 

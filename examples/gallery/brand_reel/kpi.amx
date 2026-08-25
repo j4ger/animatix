@@ -6,6 +6,7 @@ import "../../lib/theme.amx"
 
 config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
 
+# Kpi
 kpi_title: Text, text: "Numbers that move", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
 

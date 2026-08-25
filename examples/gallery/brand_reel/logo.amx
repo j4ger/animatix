@@ -3,6 +3,7 @@
 
 config { colorscheme: "gallery", dynamic_layout: true, duration: 8 }
 
+# Logo
 logo_text: Text, text: "animatix", font_size: 88, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -30)
 

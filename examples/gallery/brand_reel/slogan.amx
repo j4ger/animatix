@@ -7,6 +7,7 @@ import "../../lib/theme.amx"
 
 config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
 
+# Slogan
 slogan_kicker: Text, text: "THE BIG IDEA", font_size: theme.text_sm,
   letter_spacing: 6, color: accent.primary, anchor: scene.top, offset: (0, 130)
 
