@@ -1,37 +1,35 @@
-// 07 — Data Viz: Graph, PlotCurve, VectorField, Heatmap
+// 07 — Data Viz: One Question, Three Views
+// The scalar field sin(x)·cos(y) seen three ways: curve, gradient field, heatmap.
+
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "Data Visualization", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)
+title: Text, text: "One Question, Three Views", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 50)
+sub: Text, text: "f(x, y) = sin(x)·cos(y) — curve · gradient field · heatmap", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 95)
 
+// View 1 — a cartesian cross-section of the same field (f(x, 0) = sin(x))
 main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (520, 400), at: (640, 360) {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3
-  damped: PlotCurve, kind: "cartesian", func: (x) => sin(x) * exp(-0.3 * x), color: accent.danger, stroke_width: 2
 }
 
-field: VectorField, func: (x, y) => (y * 0.4, -x * 0.4), density: 12, color: accent.success, x_domain: (-4, 4), y_domain: (-4, 4), at: (140, 160), size: (220, 220)
+// View 2 — the gradient field ∇f = (cos x·cos y, −sin x·sin y)
+field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)), density: 12, color: accent.success, x_domain: (-4, 4), y_domain: (-4, 4), at: (140, 160), size: (220, 220)
 
+// View 3 — the scalar field itself as a heatmap
 heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 28, color: accent.warning, x_domain: (-pi, pi), y_domain: (-pi, pi), at: (1140, 160), size: (220, 220)
 
-kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (320, 220), at: (640, 610) {
-  rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: accent.primary, stroke_width: 2
-  lissajous: PlotCurve, kind: "parametric", func: (t) => (2.2 * sin(3 * t), 1.4 * cos(2 * t)), color: accent.success, stroke_width: 2
-  circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 3.0, color: accent.danger, stroke_width: 2
-}
-
+// Staged reveals — one question, three views
 #0.5s
 fade-in title [600ms, ease: ease-out]
+fade-in sub [400ms, delay: 200ms]
 
-#+0.3s
-stagger [100ms] {
-  fade-in main [500ms]
-  fade-in field [400ms]
-  fade-in heat [400ms]
-  fade-in kinds [400ms]
-}
+#1.2s
+fade-in main [600ms, ease: ease-out]
 
-#3s
-main.size = (570, 440) [1.2s, ease: ease-in-out]
-field.size = (240, 240) [1.2s, ease: ease-in-out]
-heat.size = (240, 240) [1.2s, ease: ease-in-out]
-kinds.size = (350, 240) [1.2s, ease: ease-in-out]
+#2.5s
+fade-in field [500ms, delay: 100ms]
+
+#3.5s
+fade-in heat [500ms, delay: 100ms]

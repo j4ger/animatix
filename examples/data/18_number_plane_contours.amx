@@ -1,6 +1,9 @@
 // 18 — NumberPlane + ContourSet: grid backdrop and level-set curves
 // Demonstrates NumberPlane grid, ContourSet contour lines, and VectorField.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Number Plane & Contours", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 50)

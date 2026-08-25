@@ -2,6 +2,9 @@
 // Demonstrates animated transitions between curve functions across three kinds
 // (cartesian, polar, parametric) and cascading multi-step transitions.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 # Cartesian
