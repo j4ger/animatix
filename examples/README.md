@@ -25,6 +25,22 @@ cargo run --bin animatix -- gif examples/gallery/brand_reel/main.amx -o reel.gif
 cargo run --bin animatix -- ast examples/components/09_components.amx --compact
 ```
 
+## Gallery
+
+Real-content capstones demonstrating the full language. Start here.
+
+| File | What it shows |
+|------|---------------|
+| `gallery/dashboard_story.amx` | Three-scene data story: Grid/% sizing, count-up text, `swap`/`reorder`, morph transitions |
+| `gallery/motion_poster.amx` | Single-poster motion piece: stagger choreography, path morph, Filter sweeps |
+| `gallery/epicycles.amx` | Fourier story: Graph-hosted PlotCurves, `stroke_progress` reveals, always-driven pen |
+| `gallery/sorting_theatre.amx` | Insertion-sort theatre: `for` loops, build-time `if`, `[step:]` clocks, `list_swap` |
+| `gallery/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
+| `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias.Scene`) |
+
+Shared library the gallery builds on lives in [`lib/`](lib/) (`theme.amx`
+tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
+
 ## Basics
 
 | File | Description |
