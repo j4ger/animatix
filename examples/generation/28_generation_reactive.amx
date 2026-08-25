@@ -5,6 +5,9 @@
 //   - Array-indexed actors via `for item, i in list` with tuple destructuring
 //   - Advanced always: analytical motion, staggered opacity, _animating_* flag guard
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Generation & Reactive", font_size: 44, color: text.primary, anchor: scene.top, offset: (0, 56)

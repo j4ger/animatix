@@ -1,6 +1,9 @@
 // 17 — Audio Reactive: embedded soundtrack & waveform visualizer
 // Demonstrates Audio (non-visual) + always-driven sine bar animation.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 // Non-visual audio actor — mixed during export, no runtime beat detection.
@@ -10,54 +13,24 @@ title: Text, text: "Audio Reactive", font_size: 40, color: text.primary, anchor:
 sub: Text, text: "Audio primitive + waveform visualizer (always-driven)", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 105)
 
 #0s
-// Waveform bars laid out in a Row
+// Waveform bars generated with a for-loop (array-indexed actors) inside a Row.
 bars: Row, anchor: scene.center, offset: (0, 40), gap: 6, align: "center" {
-  b0: Rect, size: (8, 16), color: accent.primary
-  b1: Rect, size: (8, 16), color: accent.primary
-  b2: Rect, size: (8, 16), color: accent.primary
-  b3: Rect, size: (8, 16), color: accent.primary
-  b4: Rect, size: (8, 16), color: accent.primary
-  b5: Rect, size: (8, 16), color: accent.primary
-  b6: Rect, size: (8, 16), color: accent.primary
-  b7: Rect, size: (8, 16), color: accent.primary
+  for i in {0, 1, 2, 3, 4, 5, 6, 7} {
+    bar[i]: Rect, size: (8, 16), color: accent.primary
+  }
 }
 
-// Continuous waveform animation
+// Continuous waveform — runtime-indexed bar[i] driven by always.
 always {
   let amp = 70.0
   let freq = 4.0
-  b0.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 0.0)))
-  b1.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 0.8)))
-  b2.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 1.6)))
-  b3.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 2.4)))
-  b4.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 3.1)))
-  b5.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 3.9)))
-  b6.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 4.7)))
-  b7.size = (8, 16 + amp * (0.5 + 0.5 * sin(freq * t + 5.5)))
+  for i in {0, 1, 2, 3, 4, 5, 6, 7} {
+    let h = 16.0 + amp * (0.5 + 0.5 * sin(freq * t + i * 0.8))
+    bar[i].size = (8, h)
+  }
 }
 
-// Color morph overlay — re-declare with different hue
-#1s
-b0.color = accent.success [800ms]
-b1.color = accent.warning [800ms]
-b2.color = accent.danger [800ms]
-b3.color = accent.success [800ms]
-b4.color = accent.warning [800ms]
-b5.color = accent.danger [800ms]
-b6.color = accent.success [800ms]
-b7.color = accent.warning [800ms]
-
-// Entrance
 #0.5s
 fade-in title [600ms, ease: ease-out]
 fade-in sub [400ms, delay: 100ms]
-stagger [60ms] {
-  fade-in b0 [300ms]
-  fade-in b1 [300ms]
-  fade-in b2 [300ms]
-  fade-in b3 [300ms]
-  fade-in b4 [300ms]
-  fade-in b5 [300ms]
-  fade-in b6 [300ms]
-  fade-in b7 [300ms]
-}
+fade-in bars [500ms, delay: 200ms]

@@ -203,17 +203,25 @@ All numbered files adopt the new lib: title cards → `TitleCard`, colors →
 
 Constraint: teaching files stay single-purpose; polish must not bloat them.
 
-> Status (2026-08-25): `examples/basics/`, `examples/layout/`, and
-> `examples/animation/` migrated — every numbered file adds the dual `theme.amx`
-> import (`import "../lib/theme.amx"` + `as theme`); `00_hello` swaps its
-> hand-rolled card for the shared `TitleCard` (also importing `ui.amx`). These
-> files already used semantic colorscheme tokens, so no raw colors were replaced;
-> the only raw literals — `22_expressions`' `rgb`/`rgba` (its teaching point) and
-> `08_effects`' translucent `(0.1, 0.1, 0.12, 0.85)` card overlay (no matching
-> opaque token) — were left intact. No `TitleCard` was added in layout/animation:
-> their title+subtitle openers are annotation headers over richer demos, not
-> standalone cards, and the 1040×230 component would overlap the content
-> (bloat). Remaining track directories pending.
+> Status (2026-08-25): the full tutorial track has adopted the new lib —
+> `examples/basics/`, `layout/`, `animation/`, `data/`, `components/`, and
+> `generation/` every numbered file carries the dual `theme.amx` import
+> (`import "../lib/theme.amx"` + `as theme`); `00_hello` swaps its hand-rolled
+> card for the shared `TitleCard` (also importing `ui.amx`). Teaching-focused
+> rewrites landed per §7: `data/07_plots` became a micro-story ("one question,
+> three views" — a scalar field seen as a curve, gradient field, and heatmap,
+> revealed sequentially); `generation/17_audio_reactive` replaced its hand-written
+> `b0..b7` bars + 8-line `always` block with a `for`-generated `bar[i]` array and
+> a runtime-indexed `always` (≈62 → 36 lines). These files already used semantic
+> colorscheme tokens, so no raw colors were replaced; raw literals kept as the
+> teaching point are `22_expressions`' `rgb`/`rgba`, `08_effects`' translucent
+> `(0.1, 0.1, 0.12, 0.85)` card overlay (no matching opaque token),
+> `26_data_math`'s per-bar `bar_colors` (incl. a non-token purple), and
+> `29_strict_types`' `rgb(...)` typed-argument values. No `TitleCard` was added
+> outside basics: every other opener is a single title heading or an annotation
+> header over a richer demo, not a standalone card, and the 1040×230 component
+> would overlap the content (bloat). `components/10_modules` keeps only the
+> unaliased import (its `theme` alias is already bound to `reexport.amx`).
 
 ## 8. Phases
 
