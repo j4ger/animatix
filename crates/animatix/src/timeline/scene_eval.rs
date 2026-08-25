@@ -1878,10 +1878,7 @@ mod tests {
         // A fragment starting with '+' used to render as a Typst enum marker
         // ("1.") once fragments became separate #box() markup blocks.
         assert_eq!(equation_markup_escaped("+ sin(3x)/3"), "\\+ sin(3x)/3");
-        assert_eq!(
-            equation_markup_escaped("  + 0.55 dot "),
-            "  \\+ 0.55 dot "
-        );
+        assert_eq!(equation_markup_escaped("  + 0.55 dot "), "  \\+ 0.55 dot ");
         assert_eq!(equation_markup_escaped("- b"), "\\- b");
         assert_eq!(equation_markup_escaped("sin(x)"), "sin(x)");
         assert_eq!(equation_markup_escaped("y(x) = "), "y(x) = ");

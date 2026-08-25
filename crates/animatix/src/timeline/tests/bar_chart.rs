@@ -416,6 +416,37 @@ fn hosted_bar_chart_spans_graph_axis() {
     );
 }
 
+/// A cross-file `@slot` fill must reach the expanded component even when
+/// the slot container sits DEEPER than the component body's top level
+/// (e.g. ui.amx's Card nests its header/body slots inside a root Col).
+/// Regression: resolve_slots only handled top-level slots, so nested
+/// slots kept their fallbacks and ignored the fill entirely.
+#[test]
+fn cross_file_slot_fill_applies_at_any_depth() {
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let mut program = graph
+        .load_program_with_source(std::path::Path::new("/tmp/amxrepro/repro_slot.amx"), None)
+        .expect("load program");
+    let _diagnostics = program.typecheck();
+    let mut expansion_errors = Vec::new();
+    let expanded = program.expand_components(&mut expansion_errors);
+    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let has_track = |needle: &str| report.output.tracks.keys().any(|k| k.contains(needle));
+    let has_fill_text = report
+        .output
+        .tracks
+        .iter()
+        .any(|(_k, t)| t.text.text_content.get(0, String::new()).contains("SLOT FILLED"));
+
+    assert!(has_fill_text, "slot fill content must reach the build");
+
+    assert!(has_track("card.header"), "header container should exist (with the fill inside)");
+    assert!(!has_track("card.header_fallback"), "filled slot must drop its fallback");
+    assert!(has_track("card.body_fallback"), "unfilled slot keeps its fallback");
+}
+
 /// A hosted PlotCurve's declared `color:` must drive its baked stroke —
 /// including tuple and colorscheme-token values. (Regression: the plot props
 /// loop matched only `Value::Color`, so `accent.primary` (Vec4) and tuples

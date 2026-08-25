@@ -616,10 +616,70 @@ fn resolve_slots(stmts: &[Stmt], slot_fills: &HashMap<String, Vec<InlineItem>>) 
                         span: None,
                     }
                 } else {
-                    stmt.clone()
+                    // Slots may sit deeper inside nested containers (e.g. a
+                    // Col inside a Col inside the component body) — recurse.
+                    let mut cloned = stmt.clone();
+                    if let Stmt::ActorDecl { children, .. } = &mut cloned {
+                        *children = resolve_slots_in_items(children, slot_fills);
+                    }
+                    cloned
                 }
             },
             _ => stmt.clone(),
+        })
+        .collect()
+}
+
+/// Resolve `@slot` fills in container children at any nesting depth. A
+/// container whose direct children contain a slot marker is replaced by its
+/// fill (or its non-marker defaults when unfilled); other containers are
+/// recursed into.
+fn resolve_slots_in_items(
+    items: &[InlineItem],
+    slot_fills: &HashMap<String, Vec<InlineItem>>,
+) -> Vec<InlineItem> {
+    items
+        .iter()
+        .flat_map(|item| match item {
+            InlineItem::Labeled {
+                label,
+                array_index,
+                ty,
+                props,
+                modifiers,
+                children,
+            } => {
+                if has_slot_marker(children) {
+                    // Keep the container (label + props); swap its children for
+                    // the fill — or the non-marker defaults when unfilled.
+                    let replacement = slot_fills.get(label).cloned().unwrap_or_else(|| {
+                        children
+                            .iter()
+                            .filter(|i| !matches!(i, InlineItem::SlotMarker))
+                            .cloned()
+                            .collect()
+                    });
+                    vec![InlineItem::Labeled {
+                        label: label.clone(),
+                        array_index: array_index.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children: replacement,
+                    }]
+                } else {
+                    let children = resolve_slots_in_items(children, slot_fills);
+                    vec![InlineItem::Labeled {
+                        label: label.clone(),
+                        array_index: array_index.clone(),
+                        ty: ty.clone(),
+                        props: props.clone(),
+                        modifiers: modifiers.clone(),
+                        children,
+                    }]
+                }
+            },
+            other => vec![other.clone()],
         })
         .collect()
 }
