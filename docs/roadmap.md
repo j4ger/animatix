@@ -70,12 +70,6 @@ and all performance work should be justified by a moved metric in that doc.
 
 ---
 
-## Known Issues (2026-08-25)
-
-| Issue | Detail | Repro | Next Step |
-|---|---|---|---|
-| `graph.map(...)` inside `always` silently breaks the scene | An always block calling a Graph's `.map()` NativeFn kills the scene's other frame updates (hosted PlotCurve trail vanishes; no diagnostic in single-scene builds; composition builds report "Undefined variable" for the graph label). Affects gradient_descent's live ball/loss readout | /tmp/amxrepro/repro_gd.amx (marker + trail scene) | Investigate modifier-IR lowering of `.map` receiver expressions in build_frame_env / execute_modifier_ir |
-
 ## Open Questions
 
 ### Comment Directives

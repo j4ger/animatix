@@ -209,6 +209,20 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             Ok(CompiledExpr::Index(Box::new(container), Box::new(index)))
         },
         Expr::Method(receiver, name, args) => {
+            // `{label}.map(x, y)` resolves against the env's dotted
+            // NativeFn keys ("{label}.map"), so a plain path receiver
+            // lowers to a joined env call instead of a bare receiver
+            // lookup (which would fail with UndefinedVariable).
+            let receiver_parts: Option<Vec<String>> = match &**receiver {
+                Expr::Path(parts) => Some(parts.clone()),
+                Expr::Ident(name) => Some(vec![name.clone()]),
+                _ => None,
+            };
+            if let Some(mut key_parts) = receiver_parts {
+                key_parts.push(name.clone());
+                let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
+                return Ok(CompiledExpr::CallEnv(key_parts.join("."), args));
+            }
             let receiver = compile_expr(receiver)?;
             let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
             Ok(CompiledExpr::Method(Box::new(receiver), name.clone(), args))
