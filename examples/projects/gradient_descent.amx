@@ -180,6 +180,7 @@ fade-in contours_dim [600ms]
 #1.0s
 fade-in ball [400ms]
 fade-in live_loss [400ms]
+fade-in trail [400ms]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
 
 #5.7s
