@@ -70,5 +70,4 @@ pulse cap_components [500ms, intensity: 1.12]
 #12.8s
 persist mascot
 
-#13.2s
 play kpi.Kpi [wipe-right, 500ms]

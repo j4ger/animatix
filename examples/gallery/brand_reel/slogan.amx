@@ -37,5 +37,4 @@ slogan.letter_spacing = 4 [1.4s, ease: ease-in-out]
 #8.8s
 persist mascot
 
-#9.2s
 play grid.Grid [wipe-up, 500ms]

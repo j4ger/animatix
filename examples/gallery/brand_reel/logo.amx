@@ -35,5 +35,4 @@ sheen.opacity = 0 [300ms]
 #7.4s
 persist mascot
 
-#7.6s
 play slogan.Slogan [wipe-left, 500ms]

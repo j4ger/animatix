@@ -62,5 +62,4 @@ mascot.at = (640, 130) [1s, ease: ease-in-out]
 #8.8s
 persist mascot
 
-#9.2s
 play mascot.Mascot [fade, 500ms]
