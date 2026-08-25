@@ -312,33 +312,20 @@ impl Composition {
             }
         }
 
-        // 2. Resolve play edges from stored play_targets
-        for name in &declaration_order {
-            if let Some((target, transition, _play_time)) = play_targets.get(name) {
-                let _ = validate_play_target(target, &scenes, namespaces, &mut diagnostics, name);
-                edges.insert(
-                    name.clone(),
-                    SceneEdge {
-                        to_scene: target.clone(),
-                        transition: transition.clone().unwrap_or(Transition {
-                            id: "cut".into(),
-                            duration_ms: 0,
-                            easing: crate::easing::Easing::Linear,
-                        }),
-                    },
-                );
-            }
-        }
-
-        // 2b. Collect cross-file scenes from namespaces.
+        // 2b. Collect cross-file scenes from namespaces, transitively.
         // When a play target references an imported scene (e.g. "play alias.SceneName"),
-        // build a timeline from the imported scene's data and register it.
-        let cross_file_targets: Vec<String> = play_targets
+        // build a timeline from the imported scene's data and register it — then
+        // process the newly registered scene's OWN play target so multi-hop
+        // chains (Hub -> logo.Logo -> slogan.Slogan -> ...) resolve fully.
+        // (The collection used to be single-hop: chains broke after one hop.)
+        let mut cross_queue: Vec<String> = play_targets
             .values()
             .map(|(target, _, _)| target.clone())
             .filter(|t| t.contains('.') && !scenes.contains_key(t))
             .collect();
-        for target in cross_file_targets {
+        let mut queued: std::collections::HashSet<String> =
+            cross_queue.iter().cloned().collect();
+        while let Some(target) = cross_queue.pop() {
             let parts: Vec<&str> = target.split('.').collect();
             if parts.len() < 2 {
                 continue;
@@ -387,6 +374,42 @@ impl Composition {
                     },
                 );
                 declaration_order.push(target.clone());
+
+                // Chain: queue the newly registered scene's own play target.
+                if let Some((next_target, next_transition, next_play_time)) =
+                    Self::extract_play_stmt(&scene_data.body, &target, &mut diagnostics)
+                {
+                    play_targets.insert(
+                        target.clone(),
+                        (next_target.clone(), next_transition, next_play_time),
+                    );
+                    if next_target.contains('.')
+                        && !scenes.contains_key(&next_target)
+                        && !queued.contains(&next_target)
+                    {
+                        queued.insert(next_target.clone());
+                        cross_queue.push(next_target);
+                    }
+                }
+            }
+        }
+
+        // 2c-edges. Resolve play edges from stored play_targets (entry scenes
+        // and every cross-file scene registered above).
+        for name in &declaration_order {
+            if let Some((target, transition, _play_time)) = play_targets.get(name) {
+                let _ = validate_play_target(target, &scenes, namespaces, &mut diagnostics, name);
+                edges.insert(
+                    name.clone(),
+                    SceneEdge {
+                        to_scene: target.clone(),
+                        transition: transition.clone().unwrap_or(Transition {
+                            id: "cut".into(),
+                            duration_ms: 0,
+                            easing: crate::easing::Easing::Linear,
+                        }),
+                    },
+                );
             }
         }
 
