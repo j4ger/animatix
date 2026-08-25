@@ -447,6 +447,75 @@ fn cross_file_slot_fill_applies_at_any_depth() {
     assert!(has_track("card.body_fallback"), "unfilled slot keeps its fallback");
 }
 
+/// A component fn defined in an IMPORTED module must resolve when invoked
+/// cross-file (`pulse_twice p`): the build inlines it and the analyzer's
+/// semantic check accepts it via the merged action set. (Regression: the
+/// invocation fell through to unknown-action cross-file.)
+#[test]
+fn cross_file_component_fn_resolves() {
+    use animatix_syntax::module::{ModuleGraph, SourceAccess};
+    use std::path::Path;
+
+    let lib = r#"
+pub component Pulsar {
+  box: Rect, size: (120, 80), color: accent.primary
+  fn pulse_twice {
+    pulse box [300ms, intensity: 1.5]
+  }
+}
+"#;
+    let main = r#"
+import "fnlib.amx"
+
+config { resolution: (640, 360) }
+
+p: Pulsar
+
+#0s
+fade-in p [200ms]
+
+#0.5s
+pulse_twice p
+"#;
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(Path::new("/proj/fnlib.amx").to_path_buf(), lib.to_string());
+    graph.upsert_source(Path::new("/proj/main.amx").to_path_buf(), main.to_string());
+    let _ = graph.load_file_standalone(Path::new("/proj/fnlib.amx"));
+    let _ = graph.load_file_standalone(Path::new("/proj/main.amx"));
+
+    let mut program = graph
+        .load_program_with_source(Path::new("/proj/main.amx"), None)
+        .expect("load program");
+    let _diagnostics = program.typecheck();
+    let mut expansion_errors = Vec::new();
+    let expanded = program.expand_components(&mut expansion_errors);
+    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+    let unknown: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::UnknownAction)
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "cross-file component fn must not report unknown-action, got: {unknown:?}"
+    );
+    // The fn body must inline with the component child rewritten to the
+    // instance label: #0.5s { Block { pulse p [300ms, intensity: 1.5] } }.
+    let pulse_inlined = expanded.iter().any(|s| {
+        matches!(s, Stmt::Keyframe { body, .. } if body.iter().any(|inner| matches!(
+            inner,
+            Stmt::Block { body, .. } if body.iter().any(|a| matches!(
+                a,
+                Stmt::Action(crate::ast::Action { verb, targets, .. }, _)
+                    if verb == "pulse" && targets.iter().any(|t| t == "p")
+            ))
+        )))
+    });
+    assert!(pulse_inlined, "fn body must inline with the instance target");
+}
+
 /// A hosted PlotCurve's declared `color:` must drive its baked stroke —
 /// including tuple and colorscheme-token values. (Regression: the plot props
 /// loop matched only `Value::Color`, so `accent.primary` (Vec4) and tuples

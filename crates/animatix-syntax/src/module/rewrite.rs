@@ -78,6 +78,9 @@ fn stmt_needs_rewrite(
         Stmt::Stagger { modifiers, .. } => modifiers
             .iter()
             .any(|m| expr_needs_rewrite(&m.value, root_label, known_labels, bindings)),
+        Stmt::Action(action, ..) => action.targets.iter().any(|t| {
+            t == "self" || root_label == Some(t.as_str()) || known_labels.contains(t.as_str())
+        }),
         Stmt::Conditional { condition, .. } => {
             expr_needs_rewrite(condition, root_label, known_labels, bindings)
         },

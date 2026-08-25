@@ -811,6 +811,12 @@ impl SymbolTable {
                 }
             }
         }
+        // Union known action names (timeline fns defined in the imported
+        // file) so semantic checks accept invocations of component fns
+        // across file boundaries.
+        for name in &other.actions {
+            self.actions.insert(name.clone());
+        }
     }
 
     /// Return a table containing only exports visible through an aliased
