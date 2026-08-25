@@ -190,8 +190,18 @@ impl LanguageServer for Backend {
     async fn initialize(&self, _: InitializeParams) -> Result<InitializeResult> {
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
-                text_document_sync: Some(TextDocumentSyncCapability::Kind(
-                    TextDocumentSyncKind::FULL,
+                text_document_sync: Some(TextDocumentSyncCapability::Options(
+                    TextDocumentSyncOptions {
+                        open_close: Some(true),
+                        change: Some(TextDocumentSyncKind::FULL),
+                        // Receive did_save: the natural point to re-resolve
+                        // imports from disk (imported files may have changed
+                        // since this document was opened).
+                        save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                            include_text: Some(true),
+                        })),
+                        ..Default::default()
+                    },
                 )),
                 completion_provider: Some(CompletionOptions {
                     resolve_provider: Some(false),
@@ -269,6 +279,25 @@ impl LanguageServer for Backend {
         if let Some(change) = params.content_changes.into_iter().next() {
             self.update_analyzer(uri.clone(), change.text).await;
             self.publish_diagnostics(&uri).await;
+        }
+    }
+
+    async fn did_save(&self, params: DidSaveTextDocumentParams) {
+        let _saved_uri = params.text_document.uri;
+        // A save is the natural point to re-resolve imports from disk:
+        // imported files may have changed since each document was opened.
+        // merge_import_symbols refreshes the cached import table and rebuilds.
+        {
+            let mut analyzers = self.analyzers.lock().await;
+            for analyzer in analyzers.values_mut() {
+                analyzer.merge_import_symbols();
+            }
+        }
+        // Republish every open document: the saved file's diagnostics may have
+        // changed, and so may those of files importing it.
+        let uris: Vec<String> = self.analyzers.lock().await.keys().cloned().collect();
+        for open_uri in uris {
+            self.publish_diagnostics(&open_uri).await;
         }
     }
 
