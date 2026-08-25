@@ -32,5 +32,4 @@ hub_mark: Text, text: "animatix", font_size: 40, font_weight: "bold",
 #0.2s
 fade-in hub_mark [300ms]
 
-#1.4s
-play logo.Logo [cut, 0ms]
+play logo.Logo [cut, 100ms]
