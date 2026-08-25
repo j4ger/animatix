@@ -440,11 +440,90 @@ fn cross_file_slot_fill_applies_at_any_depth() {
         .iter()
         .any(|(_k, t)| t.text.text_content.get(0, String::new()).contains("SLOT FILLED"));
 
+    // Scene-hierarchy regression: a multi-statement component body must expand
+    // into ONE root node with the whole subtree linked under it, not orphan the
+    // instance wrapper (empty children) with the expanded siblings as
+    // independent roots. Before the fix this was:
+    //   CHILDREN card: []   / ROOT NODES: ["card", "card.root"]
+    assert_eq!(
+        report.output.root_nodes,
+        vec!["card".to_string()],
+        "a multi-statement component instance must be a single root node"
+    );
+    let card = report.output.tracks.get("card").expect("card track exists");
+    assert!(
+        !card.children.is_empty(),
+        "the instance wrapper 'card' must contain the expanded body as children"
+    );
+    // The expanded body must stay nested under the instance (not ride the
+    // scene-root list alongside it).
+    assert!(
+        !report.output.root_nodes.iter().any(|r| r.starts_with("card.")),
+        "expanded body children must not become separate root nodes"
+    );
+
     assert!(has_fill_text, "slot fill content must reach the build");
 
     assert!(has_track("card.header"), "header container should exist (with the fill inside)");
     assert!(!has_track("card.header_fallback"), "filled slot must drop its fallback");
     assert!(has_track("card.body_fallback"), "unfilled slot keeps its fallback");
+}
+
+/// Scene-hierarchy regression for the same-file slot demo: each multi-statement
+/// `MetricCard` instance inside the `row` container must expand to a single
+/// component node (`card1`/`card2`/`card3`) whose expanded body stays nested
+/// under it, and the row must contain exactly those three nodes. Before the fix
+/// each instance's three body statements were spread as separate row children
+/// (nine cells in the row) and no per-card node existed.
+#[test]
+fn components_gallery_instances_form_single_nodes() {
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let mut program = graph
+        .load_program_with_source(
+            std::path::Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../examples/components/09_components.amx"
+            )),
+            None,
+        )
+        .expect("load 09");
+    let _diagnostics = program.typecheck();
+    let mut expansion_errors = Vec::new();
+    let expanded = program.expand_components(&mut expansion_errors);
+    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
+    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
+
+    let row = report.output.tracks.get("row").expect("row container exists");
+    assert_eq!(
+        row.children,
+        vec![
+            "card1".to_string(),
+            "card2".to_string(),
+            "card3".to_string()
+        ],
+        "each MetricCard instance must be a single node in the row, not three spread cells"
+    );
+    for card in ["card1", "card2", "card3"] {
+        let track = report.output.tracks.get(card).expect("card node exists");
+        assert!(
+            track.children.len() == 3,
+            "{card} must contain its expanded body (frame, header, value_text), got {:?}",
+            track.children
+        );
+    }
+    // The slot fills (a/b/c) must live inside each card's header, not ride the
+    // scene root. (The `parent` back-reference is not always back-filled for
+    // first-declaration children, so assert on the authoritative children list
+    // and on the root-node set instead.)
+    let header = report.output.tracks.get("card1.header").expect("card1.header track");
+    assert!(
+        header.children.contains(&"a".to_string()),
+        "slot fill 'a' must be nested under the owning component's header"
+    );
+    assert!(
+        !report.output.root_nodes.contains(&"a".to_string()),
+        "slot fill 'a' must not be an independent root node"
+    );
 }
 
 /// A component fn defined in an IMPORTED module must resolve when invoked

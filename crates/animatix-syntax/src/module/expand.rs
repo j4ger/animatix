@@ -455,10 +455,13 @@ fn expand_component_instance(
         })
         .collect::<Vec<_>>();
 
-    // Forward universal actor properties from the instance onto the expanded
-    // root actor. The root carries the instance label after rewriting, and
-    // later duplicate props win during the build, so appended forwards
-    // override the component's internal defaults.
+    // Universal actor properties (opacity/at/anchor/offset) written on the
+    // instance. These are forwarded onto the expanded root actor (single-root
+    // body) or the wrapper Group (multi-root body) so instance-level
+    // placement/visibility works without an extra hand-written wrapper. The
+    // Group/root carries the instance label, and later duplicate props win
+    // during the build, so appended forwards override the component's
+    // internal defaults.
     let forwarded: Vec<Property> = instance_props
         .iter()
         .filter(|p| {
@@ -467,17 +470,6 @@ fn expand_component_instance(
         })
         .cloned()
         .collect();
-    let mut rewritten = rewritten;
-    if !forwarded.is_empty() {
-        for stmt in rewritten.iter_mut() {
-            if let Stmt::ActorDecl { label, props, .. } = stmt {
-                if label == instance_label {
-                    props.extend(forwarded.iter().cloned());
-                    break;
-                }
-            }
-        }
-    }
 
     // Collect timeline functions from rewritten statements
     let mut instance_actions: HashMap<String, crate::module::FnTemplate> = HashMap::new();
@@ -509,9 +501,98 @@ fn expand_component_instance(
     if !instance_actions.is_empty() {
         registry.insert(instance_label.to_string(), instance_actions);
     }
-
     ctx.depth -= 1;
-    (expanded_stmts, registry)
+
+    // Split the expanded body into actor declarations (which can become
+    // container children) and behavior statements (`always`, assignments, ...)
+    // that must stay at the enclosing statement list.
+    let mut actors: Vec<Stmt> = Vec::new();
+    let mut hoisted: Vec<Stmt> = Vec::new();
+    for stmt in expanded_stmts {
+        if stmt_to_inline_item(&stmt).is_some() {
+            actors.push(stmt);
+        } else {
+            hoisted.push(stmt);
+        }
+    }
+
+    // Multi-statement component bodies previously expanded into sibling
+    // top-level statements, orphaning the instance wrapper: the build created
+    // the instance track (e.g. `card`) as a root node with an empty children
+    // list while the remaining `card.*` statements became independent roots
+    // (each seeded with the hidden-by-default pre-keyframe opacity). Wrap the
+    // top-level actors in a Group labeled with the instance label so the build
+    // links them under one parent — a single root, with opacity and transform
+    // context shared across the whole subtree. The Group (not merely nesting
+    // under the first actor) is required because a shape root (e.g. a `Rect`
+    // frame) does not render children as a group; a generic Group container
+    // does. It also receives the instance root's authored `size` so a parent
+    // layout container sizes the instance cell correctly instead of collapsing
+    // a zero-sized wrapper.
+    if actors.len() > 1 {
+        let mut children: Vec<InlineItem> = Vec::new();
+        let mut root_size: Option<Property> = None;
+        for mut stmt in actors {
+            if let Stmt::ActorDecl { label, props, .. } = &mut stmt {
+                if label == instance_label {
+                    // The component's first (root) statement carries the bare
+                    // instance label after rewriting. Move that label onto a
+                    // dotted child name so the wrapper Group can own the
+                    // instance label without a duplicate-track collision.
+                    // References to the instance root now resolve to the Group
+                    // (the whole component), which is the correct target after
+                    // the wrap.
+                    if let Some(root) = &root_label {
+                        *label = format!("{}.{}", instance_label, root);
+                    }
+                    // Snapshot the instance root's authored size so the wrapper
+                    // Group carries the component's bounds for layout parents.
+                    root_size = props.iter().find(|p| p.name == "size").cloned();
+                }
+            }
+            if let Some(inline) = stmt_to_inline_item(&stmt) {
+                children.push(inline);
+            } else {
+                hoisted.push(stmt);
+            }
+        }
+        let mut group_props = forwarded;
+        if let Some(size) = root_size {
+            group_props.push(size);
+        }
+        let group = Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: instance_label.to_string(),
+            array_index: None,
+            ty: "Group".to_string(),
+            props: group_props,
+            modifiers: vec![],
+            children,
+            span: None,
+        };
+        let mut out = vec![group];
+        out.extend(hoisted);
+        return (out, registry);
+    }
+
+    // Single-root (or no-actor) body: the instance label lives on the root
+    // actor. Forward the universal instance props onto it so instance-level
+    // placement/visibility works without wrapping.
+    if !forwarded.is_empty() {
+        for stmt in actors.iter_mut().chain(hoisted.iter_mut()) {
+            if let Stmt::ActorDecl { label, props, .. } = stmt {
+                if label == instance_label {
+                    props.extend(forwarded.iter().cloned());
+                    break;
+                }
+            }
+        }
+    }
+
+    let mut out = actors;
+    out.extend(hoisted);
+    (out, registry)
 }
 
 fn component_bindings(params: &[ParamDef], instance_props: &[Property]) -> HashMap<String, Expr> {
