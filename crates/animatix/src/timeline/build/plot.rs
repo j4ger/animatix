@@ -690,27 +690,22 @@ impl Timeline {
                     }
                 },
                 "color" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Color(c) = v {
-                        color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                    // resolve_color_in_env handles colorscheme tokens (Vec4),
+                    // named colors, and tuples — the old `if let Value::Color`
+                    // match silently rejected every token reference.
+                    if let Ok(Some(c)) = resolve_color_in_env(&prop.value, &initial_eval_env) {
+                        color = c;
+                        // Plot curves draw with their stroke: an authored
+                        // `color:` drives the stroke too (mirrors the generic
+                        // actor pipeline's plot-curve linkage).
+                        if primitive.is_plot_curve() {
+                            stroke_color = c;
+                        }
                     }
                 },
                 "stroke" | "stroke_color" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Color(c) = v {
-                        stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+                    if let Ok(Some(c)) = resolve_color_in_env(&prop.value, &initial_eval_env) {
+                        stroke_color = c;
                     }
                 },
                 "stroke_width" | "width" => {

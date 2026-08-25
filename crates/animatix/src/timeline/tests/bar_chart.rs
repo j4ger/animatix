@@ -416,6 +416,42 @@ fn hosted_bar_chart_spans_graph_axis() {
     );
 }
 
+/// A hosted PlotCurve's declared `color:` must drive its baked stroke —
+/// including tuple and colorscheme-token values. (Regression: the plot props
+/// loop matched only `Value::Color`, so `accent.primary` (Vec4) and tuples
+/// were silently rejected and every curve rendered the default white.)
+#[test]
+fn plot_curve_color_drives_stroke() {
+    let source = r#"
+        g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
+          curve: PlotCurve, kind: "cartesian", func: (x) => x * 10,
+            color: (0.2, 0.4, 0.8, 1.0), stroke_width: 3
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let track = report.output.tracks.get("curve").expect("curve track");
+    let paths = track.evaluate_vector_paths(0);
+    let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
+    assert!(!strokes.is_empty(), "curve strokes should be baked");
+    for (color, width) in strokes {
+        assert_eq!(width, 3.0);
+        let c = color.components;
+        assert!(
+            (c[0] - 0.2).abs() < 0.02 && (c[1] - 0.4).abs() < 0.02 && (c[2] - 0.8).abs() < 0.02,
+            "stroke should carry the declared color, got {c:?}"
+        );
+    }
+}
+
 /// A single `bar_colors` value must color EVERY bar uniformly. (Regression:
 /// only bar 0 was colored; bars past the one-element list fell back to the
 /// actor default color, contradicting the documented uniform-color intent.)
