@@ -380,14 +380,6 @@ fn hosted_bar_chart_spans_graph_axis() {
         report.diagnostics
     );
 
-    let keys: Vec<String> = report
-        .output
-        .env()
-        .all_keys()
-        .into_iter()
-        .filter(|k| k.starts_with("g_"))
-        .collect();
-    println!("ENV KEYS with g.: {keys:?}");
     // The env side-channel carries the declared full-pixel size.
     match report.output.env().get("g_size") {
         Some(crate::timeline::Value::Vec2(sz)) => {
