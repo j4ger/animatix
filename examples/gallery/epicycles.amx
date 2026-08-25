@@ -11,11 +11,9 @@ config {
 // Fourier series of a square wave: y(x) = (4/pi) * sum over odd k of sin(k x)/k
 // Epicycle radii (screen px, base 110): r_k = 110 * 4 / (pi * k) for odd k.
 //
-// KNOWN ISSUE (tracked in docs/roadmap.md): the PlotCurve wave trails render
-// as flat/invisible in this demo — a Graph-hosted PlotCurve with a
-// `stroke_progress` track appears to draw nothing regardless of the assigned
-// progress. Everything else (epicycle chain, connectors, callouts, ticks)
-// works; investigate plot stroke_progress before polishing this demo.
+// NOTE: two known engine bugs touch this demo (docs/roadmap.md): declared
+// PlotCurve stroke colors render white, and Equation Fragments render a
+// leading '+' as '1.'. Both pre-date this demo (fft_explain is affected too).
 
 // ── Scene 1: Goal — the finished square wave draws itself ───────────────────
 
@@ -38,6 +36,9 @@ goal_hint: Text, text: "the destination — a square wave built from circles",
 #0.5s
 fade-in goal_title [600ms, ease: ease-out]
 fade-in goal_graph [600ms, ease: ease-out]
+
+#1.2s
+fade-in goal_wave [400ms]
 
 #1.5s
 goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
@@ -82,9 +83,8 @@ fade-in one_title [500ms]
 fade-in one_circle [500ms]
 fade-in pen [400ms, delay: 200ms]
 fade-in one_graph [500ms, delay: 300ms]
+fade-in sine [400ms, delay: 400ms]
 
-#1s
-sine.stroke_progress = 1.0 [12s, ease: linear]
 
 always {
   let th = 2 * pi * clamp(t - 1.0, 0.0, 12.0) / 12.0
@@ -148,7 +148,8 @@ fade-in c1 [500ms]
 fade-in c2 [500ms]
 fade-in tip [400ms, delay: 200ms]
 fade-in hero_graph [500ms, delay: 300ms]
-fade-in wave_tip [400ms, delay: 400ms]
+fade-in hero_wave [400ms, delay: 400ms]
+fade-in wave_tip [400ms, delay: 500ms]
 fade-in hero_eq [500ms, delay: 500ms]
 
 #1s
