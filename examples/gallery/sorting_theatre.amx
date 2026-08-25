@@ -1,0 +1,159 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+import "../lib/ui.amx"
+
+config {
+  colorscheme: "gallery",
+  resolution: (1280, 720),
+  dynamic_layout: true,
+}
+
+// Timeline function: precomputed insertion sort over eight bars. `order[k]`
+// tracks which ORIGINAL bar occupies slot k, so every `swap` targets the bars
+// currently at the two slots being exchanged. Each comparison lights a tick in
+// `comp_row`; each swap lights one in `swap_row` — the counters count up with
+// zero hand-written keyframes. `[step:]` advances the build-time clock.
+fn insertion_sort(bars, values: List<Num>, comp_ticks, swap_ticks) {
+  let order = {0, 1, 2, 3, 4, 5, 6, 7}
+  let ci = 0
+  let si = 0
+  for key in {1, 2, 3, 4, 5, 6, 7} [step: 2400ms] {
+    key_note.target = bars.bar[order[key]] [300ms]
+    for j in {0, 1, 2, 3, 4, 5, 6} [step: 300ms] {
+      if j < key {
+        fade-in comp_ticks.t[ci] [120ms]
+        let ci = ci + 1
+        if values[order[key - j]] < values[order[key - j - 1]] {
+          swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [260ms]
+          let order = list_swap(order, key - j, key - j - 1)
+          fade-in swap_ticks.t[si] [120ms]
+          let si = si + 1
+        }
+      }
+    }
+  }
+}
+
+pub component Ticks(count: List<Num>, color: Color) {
+  row: Row, gap: 6 {
+    for v, i in count {
+      t[i]: Rect, size: (14, 22), color: color, opacity: 0.15
+    }
+  }
+}
+
+pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
+  row: Row, at: at, gap: gap, align: "end" {
+    for v, i in values {
+      bar[i]: Rect, size: (bar_w, v * scale), color: color
+    }
+  }
+}
+
+// ── Scene 1: Overture ───────────────────────────────────────────────────────
+
+# Overture
+config { colorscheme: "gallery", dynamic_layout: true, duration: 6 }
+
+title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
+  color: text.primary, anchor: scene.center, offset: (0, -70)
+
+subtitle: Text, text: "insertion sort · eight bars · one timeline function",
+  font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 10)
+
+hint: Text, text: "every comparison and swap below is emitted at build time",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.center, offset: (0, 70)
+
+#0s
+fade-in title [700ms, ease: ease-out]
+fade-in subtitle [600ms, delay: 250ms]
+fade-in hint [500ms, delay: 450ms]
+
+#5.4s
+play TheSort [fade, 500ms]
+
+// ── Scene 2: The Sort ───────────────────────────────────────────────────────
+
+# TheSort
+config { colorscheme: "gallery", dynamic_layout: true, duration: 21 }
+
+sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+bars: Bars, values: {42, 17, 93, 5, 68, 31, 76, 12}, color: accent.info
+
+key_note: Callout {
+  from: (240, 150),
+  target: bars.bar[1],
+  place: top,
+  standoff: 10,
+  label: "key",
+  label_at: (0, -18),
+  color: accent.warning
+}
+
+comp_label: Text, text: "comparisons", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (-430, 235)
+comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}, color: accent.info, anchor: scene.center, offset: (-300, 243)
+
+swap_label: Text, text: "swaps", font_size: theme.text_sm,
+  color: text.secondary, anchor: scene.center, offset: (-430, 285)
+swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, color: accent.warning, anchor: scene.center, offset: (-300, 293)
+
+sort_caption: Text, text: "the key slides left past every larger neighbor",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+
+#0s
+fade-in sort_title [500ms]
+fade-in bars [600ms, ease: ease-out]
+fade-in key_note [400ms, delay: 300ms]
+stagger [80ms] {
+  fade-in comp_label [300ms]
+  fade-in swap_label [300ms]
+  fade-in sort_caption [300ms]
+}
+
+// The whole sort runs here — one call, zero hand-written swaps.
+#1.2s
+insertion_sort(bars, {42, 17, 93, 5, 68, 31, 76, 12}, comp_ticks, swap_ticks)
+
+#19.5s
+play Finale [fade, 500ms]
+
+// ── Scene 3: Finale ─────────────────────────────────────────────────────────
+
+# Finale
+config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+
+finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 64)
+
+finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.success
+
+footnote: Typst, content: "insertion sort: \$O(n^2)\$ comparisons · \$O(1)\$ extra memory",
+  font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
+
+endnote: Text, text: "one timeline function emitted every beat you just watched",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+
+#0s
+fade-in finale_title [500ms]
+fade-in finale_bars [600ms, ease: ease-out]
+
+#0.8s
+stagger [90ms] {
+  pulse finale_bars.bar[0] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[1] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[2] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[3] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[4] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[5] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[6] [420ms, intensity: 1.18]
+  pulse finale_bars.bar[7] [420ms, intensity: 1.18]
+}
+
+#2.2s
+fade-in footnote [700ms, ease: ease-out]
+
+#3.2s
+fade-in endnote [600ms]
