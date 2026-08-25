@@ -62,6 +62,22 @@ fn transform_rect_bbox(transform: &kurbo::Affine, rect: kurbo::Rect) -> kurbo::R
     kurbo::Rect::new(x0, y0, x1, y1)
 }
 
+/// Escape a Fragment's content for embedding in one #box() markup block.
+///
+/// Typst parses a leading '+' as an enum item and a leading '-' as a bullet,
+/// so a term fragment like "+ sin(3x)/3" otherwise renders as the list marker
+/// "1." — escape the marker so equations read as written.
+pub(crate) fn equation_markup_escaped(content: &str) -> String {
+    let trimmed = content.trim_start();
+    if trimmed.starts_with('+') || trimmed.starts_with('-') {
+        // Keep any leading whitespace, escape the marker itself.
+        let cut = content.len() - trimmed.len();
+        format!("{}\\{}", &content[..cut], trimmed)
+    } else {
+        content.to_string()
+    }
+}
+
 impl Timeline {
     /// Evaluate position, size, and transform for a node.
     ///
@@ -975,9 +991,9 @@ impl Timeline {
                 // produce separate Groups in the output frame.
                 let typst_body: String = frags
                     .iter()
-                    .map(|f| format!("#box()[{}]", f.content))
+                    .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
                     .collect::<Vec<_>>()
-                    .join("");
+                    .join(" ");
 
                 // Use equation-level font_size and color from the Equation track.
                 let font_size = track.text.font_size.get(time_ms, 48.0);
@@ -1855,6 +1871,20 @@ mod tests {
             Some(cached),
             "frame-cache hit should restore precise bounds"
         );
+    }
+
+    #[test]
+    fn equation_fragment_leading_marker_is_escaped() {
+        // A fragment starting with '+' used to render as a Typst enum marker
+        // ("1.") once fragments became separate #box() markup blocks.
+        assert_eq!(equation_markup_escaped("+ sin(3x)/3"), "\\+ sin(3x)/3");
+        assert_eq!(
+            equation_markup_escaped("  + 0.55 dot "),
+            "  \\+ 0.55 dot "
+        );
+        assert_eq!(equation_markup_escaped("- b"), "\\- b");
+        assert_eq!(equation_markup_escaped("sin(x)"), "sin(x)");
+        assert_eq!(equation_markup_escaped("y(x) = "), "y(x) = ");
     }
 
     fn make_root_track(label: &str) -> AnimationTrack {
