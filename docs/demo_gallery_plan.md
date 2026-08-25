@@ -209,8 +209,8 @@ Constraint: teaching files stay single-purpose; polish must not bloat them.
 |---|---|---|
 | 1 | rewrite `lib/` + bilingual render spike + `theme_studio.amx` | ✅ clean check + PNG smoke |
 | 2 | `motion_poster.amx` + `dashboard_story.amx` | ✅ both (2026-08-24, on `feat/demo-gallery-p2`; see `docs/handoff_phase2.md`) |
-| 3 | `epicycles.amx` + `sorting_theatre.amx` | same |
-| 4 | `brand_reel/` capstone → delete 16/20 → README points to gallery | all six transitions appear ≥1×; persist/Audio/cross-file used |
+| 3 | `epicycles.amx` + `sorting_theatre.amx` | ✅ both (2026-08-25; epicycles wave-reveal polish pending) |
+| 4 | `brand_reel/` capstone → delete 16/20 → README points to gallery | ✅ WIP complete (2026-08-25): all six transitions, persist chain, Audio, cross-file scenes; polish pending |
 | 5 | full tutorial-track refurbishment (§7) + README matrix + smoke-script extension | `scripts/check_examples.sh` green; render smoke covers all examples |
 
 ## 9. Authoring Red-Line Checklist (verify per demo)
