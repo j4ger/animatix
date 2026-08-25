@@ -990,9 +990,17 @@ impl Timeline {
         if primitive.is_graph_host() {
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
             self.env.set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
+            // Store the DECLARED (full-pixel) size. Every consumer of this env
+            // key (math_to_screen_padded, hosted BarChart math mode,
+            // .map()/.map_inverse via GraphGeometry) treats it as full size;
+            // seeding the half-size here made hosted plots occupy only the
+            // central half of the axis box.
             self.env.set(
                 &format!("{}_size", label),
-                Value::Vec2([initial_size[0] as f64, initial_size[1] as f64]),
+                Value::Vec2([
+                    (initial_size[0] * 2.0) as f64,
+                    (initial_size[1] * 2.0) as f64,
+                ]),
             );
             // Store graph axis settings so they survive size-assignment rebuilds
             self.env.set(&format!("{}_grid", label), Value::Bool(grid));

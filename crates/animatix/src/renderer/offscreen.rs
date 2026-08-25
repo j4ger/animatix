@@ -536,15 +536,17 @@ mod tests {
             Err(_) => return, // Skip if no GPU
         };
 
+        // The oversized red child must show through the Mask's clip rect and
+        // be clipped outside it. (Regression: the clip layer was pushed at the
+        // scene origin, clipping away every child of any Mask not positioned
+        // at the top-left corner.)
         let source = r#"
 config { resolution: (400, 300) }
 
-m: Mask, size: (200, 150), at: (300, 150) {
-  clip_shape: Rect, size: (400, 300), color: (1, 0, 0, 1)
-}
-
 #0s
-fade-in m [1ms]
+m: Mask, size: (200, 150), at: (300, 150) {
+  big: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
 "#;
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
@@ -589,6 +591,62 @@ fade-in m [1ms]
             !(outside[0] > 200 && outside[1] < 80 && outside[2] < 80),
             "child must be clipped to the mask rect, found red outside at {outside:?}"
         );
+    }
+
+    /// A `clip_shape` child defines the clip geometry (ellipse here) and is
+    /// not rendered itself: an oversized red child shows only inside the
+    /// ellipse, and the mask-rect corners outside the ellipse stay background.
+    #[test]
+    fn mask_clip_shape_ellipse_defines_clip_region() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let source = r#"
+config { resolution: (400, 300) }
+
+m: Mask, size: (200, 150), at: (300, 150) {
+  clip_shape: Ellipse, size: (100, 100)
+  big: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
+
+#0s
+fade-in m [1ms]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.5,
+                SceneDimensions {
+                    width: 400,
+                    height: 300,
+                },
+            )
+            .expect("render should succeed");
+
+        let is_red = |x: u32, y: u32| -> bool {
+            let i = ((y * frame.width + x) * 4) as usize;
+            let px = [frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2]];
+            px[0] > 200 && px[1] < 80 && px[2] < 80
+        };
+
+        // Mask center: inside the ellipse → red child visible.
+        assert!(is_red(300, 150), "ellipse center should show the red child");
+        // Mask-rect corner (inside the mask size, outside the ellipse):
+        // clipped away → background, and the clip_shape itself must NOT paint.
+        assert!(!is_red(215, 85), "outside the ellipse must stay background");
+        // Far outside the mask entirely.
+        assert!(!is_red(60, 150), "far outside the mask must stay background");
     }
 
     #[test]

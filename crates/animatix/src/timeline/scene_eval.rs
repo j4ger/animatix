@@ -843,10 +843,51 @@ impl Timeline {
         {
             let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
-            // Build a rectangle clip path from -half_size to +half_size
-            let w = half_size[0] as f64;
-            let h = half_size[1] as f64;
-            let clip_path = kurbo::Rect::new(-w, -h, w, h).into_path(1e-3);
+            // Resolve the clip geometry. A child labelled `clip_shape` defines
+            // the clip (its shape + size at its local position) and is NOT
+            // rendered itself; without one the clip is a rect covering the
+            // Mask's own size.
+            let clip_shape_track =
+                track.children.iter().filter_map(|c| self.tracks.get(c)).find(|c| {
+                    c.label == "clip_shape"
+                        && matches!(
+                            c.kind,
+                            ActorKindId::Shape(
+                                crate::timeline::ShapeKind::Rect
+                                    | crate::timeline::ShapeKind::Ellipse
+                            )
+                        )
+                });
+            let clip_path: kurbo::BezPath = match clip_shape_track {
+                Some(child) => {
+                    let child_half = child.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+                    let pos = child.geometry.position.last([0.0, 0.0]);
+                    let center = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
+                    let size = kurbo::Size::new(
+                        (child_half[0] * 2.0) as f64,
+                        (child_half[1] * 2.0) as f64,
+                    );
+                    if matches!(child.kind, ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse))
+                    {
+                        // Ellipse::new takes RADII (half-extents); child_half
+                        // already stores half the declared size.
+                        kurbo::Ellipse::new(
+                            center,
+                            kurbo::Vec2::new(child_half[0] as f64, child_half[1] as f64),
+                            0.0,
+                        )
+                        .to_path(1e-3)
+                    } else {
+                        kurbo::Rect::from_center_size(center, size).to_path(1e-3)
+                    }
+                },
+                None => {
+                    let w = half_size[0] as f64;
+                    let h = half_size[1] as f64;
+                    kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
+                },
+            };
+            let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
 
             // Push clip layer. The clip path is in the mask's LOCAL space, so
             // it must be transformed into scene space — pushing it with the
@@ -864,6 +905,11 @@ impl Timeline {
             // Render all children normally inside the clip
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             for child in children {
+                if clip_child_label == Some(child) {
+                    // The clip shape defines the clip geometry; it does not
+                    // render itself.
+                    continue;
+                }
                 self.evaluate_node(
                     child,
                     time_ms,

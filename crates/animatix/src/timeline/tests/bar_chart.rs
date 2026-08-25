@@ -359,6 +359,63 @@ fn max_value_with_variable() {
     );
 }
 
+/// A BarChart hosted inside a Graph must span the graph's declared axis box.
+/// (Regression: `{graph}_size` was seeded as the HALF size while every
+/// consumer treated it as full, so hosted plots occupied only the central
+/// half of the axis.)
+#[test]
+fn hosted_bar_chart_spans_graph_axis() {
+    let source = r#"
+        g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
+          chart: BarChart, data: {("A", 10), ("B", 40), ("C", 25)}
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+
+    let keys: Vec<String> = report
+        .output
+        .env()
+        .all_keys()
+        .into_iter()
+        .filter(|k| k.starts_with("g_"))
+        .collect();
+    println!("ENV KEYS with g.: {keys:?}");
+    // The env side-channel carries the declared full-pixel size.
+    match report.output.env().get("g_size") {
+        Some(crate::timeline::Value::Vec2(sz)) => {
+            assert_eq!(sz, [800.0, 360.0], "env size must be the declared full size");
+        },
+        other => panic!("expected g_size in env, got {other:?}"),
+    }
+
+    // Hosted bars must span most of the 800px axis box (math-mode layout
+    // reserves padding), not the legacy central half.
+    let track = report.output.tracks.get("chart").expect("chart track");
+    let paths = track.evaluate_vector_paths(0);
+    assert!(!paths.is_empty(), "hosted bars should be baked");
+    use kurbo::Shape as _;
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    for path in &paths {
+        let bbox = path.path.bounding_box();
+        min_x = min_x.min(bbox.x0);
+        max_x = max_x.max(bbox.x1);
+    }
+    let width = max_x - min_x;
+    assert!(
+        width > 600.0,
+        "hosted bars should span most of the 800px graph, got width {width}"
+    );
+}
+
 /// A single `bar_colors` value must color EVERY bar uniformly. (Regression:
 /// only bar 0 was colored; bars past the one-element list fell back to the
 /// actor default color, contradicting the documented uniform-color intent.)
