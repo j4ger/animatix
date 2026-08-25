@@ -362,7 +362,17 @@ impl Composition {
                         .map(|d| d.with_subject(format!("scene '{}'", target))),
                 );
                 let timeline = build_report.output;
-                let explicit_duration_s = Self::extract_duration_from_config(&scene_data.config);
+                // Scene files declare their config at file level (it lands in
+                // the prelude), so also look there for an explicit duration.
+                let explicit_duration_s = Self::extract_duration_from_config(&scene_data.config)
+                    .or_else(|| {
+                        scene_data.file_prelude.iter().find_map(|s| match s {
+                            Stmt::Config { settings, .. } => {
+                                Self::extract_duration_from_config(settings)
+                            },
+                            _ => None,
+                        })
+                    });
                 let duration_s = explicit_duration_s.unwrap_or_else(|| timeline.duration_seconds());
                 scenes.insert(
                     target.clone(),

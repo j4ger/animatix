@@ -12,21 +12,24 @@ grid_title: Text, text: "Six capabilities, one timeline", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
 
 wall: Grid, cols: 3, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
-  cap_layout: Rect, size: (300, 128), color: surface.secondary
-  cap_actions: Rect, size: (300, 128), color: surface.secondary
-  cap_morph: Rect, size: (300, 128), color: surface.secondary
-  cap_plots: Rect, size: (300, 128), color: surface.secondary
-  cap_components: Rect, size: (300, 128), color: surface.secondary
-  cap_media: Rect, size: (300, 128), color: surface.secondary
-}
-
-cap_labels: Grid, cols: 3, size: (980, 420), gap: 18, anchor: scene.center, offset: (0, 40) {
-  cap_layout_label: Text, text: "Layout", font_size: theme.text_lg, color: text.primary
-  cap_actions_label: Text, text: "Actions", font_size: theme.text_lg, color: text.primary
-  cap_morph_label: Text, text: "Morph", font_size: theme.text_lg, color: text.primary
-  cap_plots_label: Text, text: "Plots", font_size: theme.text_lg, color: text.primary
-  cap_components_label: Text, text: "Components", font_size: theme.text_lg, color: text.primary
-  cap_media_label: Text, text: "Media", font_size: theme.text_lg, color: text.primary
+  cap_layout: Rect, size: (300, 128), color: surface.secondary {
+    cap_layout_label: Text, text: "Layout", font_size: theme.text_lg, color: text.primary
+  }
+  cap_actions: Rect, size: (300, 128), color: surface.secondary {
+    cap_actions_label: Text, text: "Actions", font_size: theme.text_lg, color: text.primary
+  }
+  cap_morph: Rect, size: (300, 128), color: surface.secondary {
+    cap_morph_label: Text, text: "Morph", font_size: theme.text_lg, color: text.primary
+  }
+  cap_plots: Rect, size: (300, 128), color: surface.secondary {
+    cap_plots_label: Text, text: "Plots", font_size: theme.text_lg, color: text.primary
+  }
+  cap_components: Rect, size: (300, 128), color: surface.secondary {
+    cap_components_label: Text, text: "Components", font_size: theme.text_lg, color: text.primary
+  }
+  cap_media: Rect, size: (300, 128), color: surface.secondary {
+    cap_media_label: Text, text: "Media", font_size: theme.text_lg, color: text.primary
+  }
 }
 
 // Per-card breathing: each card glows on its own phase. The always block
@@ -59,7 +62,6 @@ mascot.at = (1010, 330) [1.2s, ease: ease-in-out]
 // Promote Components: it moves to the front of the wall.
 #6s
 reorder wall [order: {cap_components, cap_layout, cap_actions, cap_morph, cap_plots, cap_media}, 900ms, ease: ease-in-out]
-reorder cap_labels [order: {cap_components_label, cap_layout_label, cap_actions_label, cap_morph_label, cap_plots_label, cap_media_label}, 900ms, ease: ease-in-out]
 
 #8.4s
 pulse cap_components [500ms, intensity: 1.12]
