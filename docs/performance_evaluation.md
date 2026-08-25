@@ -134,7 +134,7 @@ parameterized to stress the expensive paths:
 | Scenario | Stresses |
 |---|---|
 | `sorting-visualizer/entry.amx` | generated actors, many tracks, sequence/stagger actions |
-| `examples/animation/16_showcase.amx` | feature density, mixed primitives |
+| `examples/gallery/fft_explain.amx` | feature density, mixed primitives |
 | `examples/data/23_plot_kinds.amx` | plot path generation (vector paths) |
 | `examples/generation/*` | reactive `always` blocks → frame env + modifier runtime |
 | a synthetic `N`-actor generated scene (scaling sweep) | planner, layout, scene flatten |

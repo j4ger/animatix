@@ -344,7 +344,7 @@ Tasks:
 
 Exit criteria:
 
-- `cargo run --bin animatix -- eval examples/animation/16_showcase.amx --times 0.2,1.0,2.2 --json report.json --storyboard frames/` works.
+- `cargo run --bin animatix -- eval examples/gallery/fft_explain.amx --times 0.2,1.0,2.2 --json report.json --storyboard frames/` works.
 - The report contains actor bounds, opacity, keyframe times, and overlap events.
 - No model or external service is required.
 

@@ -19,7 +19,7 @@ cargo run --bin animatix -- check examples/basics/00_hello.amx
 cargo run --bin animatix -- image examples/basics/00_hello.amx
 
 # Export GIF
-cargo run --bin animatix -- gif examples/composition/20_feature_reel.amx -o reel.gif --fps 15
+cargo run --bin animatix -- gif examples/gallery/brand_reel/main.amx -o reel.gif --fps 15
 
 # View AST
 cargo run --bin animatix -- ast examples/components/09_components.amx --compact

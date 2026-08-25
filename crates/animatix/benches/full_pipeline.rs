@@ -100,7 +100,7 @@ fn bench_full_pipeline(c: &mut Criterion) {
     // Load real example files
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let showcase =
-        std::fs::read_to_string(examples_dir.join("animation/16_showcase.amx")).unwrap_or_default();
+        std::fs::read_to_string(examples_dir.join("gallery/fft_explain.amx")).unwrap_or_default();
     let components = std::fs::read_to_string(examples_dir.join("components/09_components.amx"))
         .unwrap_or_default();
     let _modules =

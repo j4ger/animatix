@@ -17,22 +17,22 @@ If you use Nix, `nix develop` sets up Rust, FFmpeg, Tree-sitter, and graphics de
 
 ```bash
 # Inspect parsed AST
-cargo run --bin animatix -- ast examples/animation/16_showcase.amx
-cargo run --bin animatix -- ast examples/animation/16_showcase.amx --compact
+cargo run --bin animatix -- ast examples/gallery/fft_explain.amx
+cargo run --bin animatix -- ast examples/gallery/fft_explain.amx --compact
 
 # Live preview
-cargo run --bin animatix -- render examples/animation/16_showcase.amx
-cargo run --bin animatix -- render examples/animation/16_showcase.amx --loop
+cargo run --bin animatix -- render examples/gallery/fft_explain.amx
+cargo run --bin animatix -- render examples/gallery/fft_explain.amx --loop
 
 # Frame export
-cargo run --bin animatix -- image examples/animation/16_showcase.amx --time 1.5 --output frame.png
+cargo run --bin animatix -- image examples/gallery/fft_explain.amx --time 1.5 --output frame.png
 
 # Video/GIF export (requires the `video` feature, see AGENTS.md)
-cargo run --features animatix/video --bin animatix -- video examples/animation/16_showcase.amx --fps 30 --duration 5 --output demo.mp4
-cargo run --features animatix/video --bin animatix -- gif examples/animation/16_showcase.amx --fps 15 --duration 5 --output out.gif
+cargo run --features animatix/video --bin animatix -- video examples/gallery/fft_explain.amx --fps 30 --duration 5 --output demo.mp4
+cargo run --features animatix/video --bin animatix -- gif examples/gallery/fft_explain.amx --fps 15 --duration 5 --output out.gif
 
 # GUI
-cargo run --bin animatix-gui -- examples/animation/16_showcase.amx
+cargo run --bin animatix-gui -- examples/gallery/fft_explain.amx
 ```
 
 ### Tokenizer/Tooling Validation
