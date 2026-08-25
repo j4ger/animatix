@@ -202,14 +202,6 @@ impl Composition {
         // Cache merged bodies for carry-injection rebuild (scene_name → merged AST).
         let mut merged_bodies: BTreeMap<String, Vec<Stmt>> = BTreeMap::new();
 
-        println!(
-            "DEBUG NS: namespaces={:?}",
-            namespaces
-                .iter()
-                .map(|(k, ns)| (k.clone(), ns.scenes.keys().cloned().collect::<Vec<_>>()))
-                .collect::<Vec<_>>()
-        );
-
         // 1. Separate shared prelude from scene blocks
         let mut in_scene = false;
 
@@ -276,20 +268,6 @@ impl Composition {
                         // fire; keyframe-only inference cuts it short.
                         play_time_s.map(|t| inferred_duration.max(t)).unwrap_or(inferred_duration)
                     });
-
-                    println!(
-                        "DEBUG HUB PLAY: scene={name} play={:?} body={:?}",
-                        play_target.as_ref().map(|(t, _, _)| t),
-                        body.iter()
-                            .map(|s| match s {
-                                Stmt::Play { .. } => "Play",
-                                Stmt::ActorDecl { label, .. } => "Actor",
-                                Stmt::Keyframe { .. } => "Kf",
-                                Stmt::Config { .. } => "Config",
-                                _ => "?",
-                            })
-                            .collect::<Vec<_>>()
-                    );
                     if let Some(target) = play_target {
                         play_targets.insert(name.clone(), target);
                     }
@@ -356,11 +334,6 @@ impl Composition {
                 continue;
             };
             if let Some(scene_data) = ns.scenes.get(scene_name) {
-                println!(
-                    "DEBUG CHAIN: target={target} play_extract={:?}",
-                    Self::extract_play_stmt(&scene_data.body, &target, &mut diagnostics)
-                        .map(|(t, _, _)| t)
-                );
                 // Build timeline from the cross-file scene's prelude + body
                 let mut merged = scene_data.file_prelude.clone();
                 // Insert scene config as a Stmt::Config before the scene body
