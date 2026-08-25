@@ -1,5 +1,8 @@
 // 27_layout_text.amx — Percentage sizing, constraints, typography, and text wrapping
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { resolution: (1280, 720) }
 
 // =============================================================================

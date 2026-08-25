@@ -1,6 +1,9 @@
 // 12 — Reorder & Swap: Polished Grid
 // Dynamic container reordering with swap and reorder actions.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
 
 title: Text, text: "Dynamic Reorder", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)

@@ -1,6 +1,9 @@
 // 02 — Layout: Containers & Grid
 // Row, Col, Grid, and Stack with animated layout properties.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 row: Row, anchor: scene.top, offset: (0, 60), gap: 16, align: "center" {

@@ -1,6 +1,9 @@
 // 11 — Color System: Semantic Tokens, Auto, Constants, Colorscheme Extends
 // Scheme tokens, color: auto, built-in constants, Colorscheme with extends.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "forest", resolution: (1280, 720) }
 
 heading: Text, text: "Color System", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 50)

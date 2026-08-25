@@ -1,6 +1,9 @@
 // 13 — Paths & Transforms
 // Path commands, polygon morphing, and affine transform matrices.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Paths & Transforms", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
