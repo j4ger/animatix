@@ -1,6 +1,9 @@
 // 03 — Timing: Sequence, Stagger & Easing
 // Composing actions with sequence and stagger, plus the easing vocabulary.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 a: Rect, size: (70, 70), color: accent.primary, at: (250, 360)

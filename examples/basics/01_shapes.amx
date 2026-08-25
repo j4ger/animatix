@@ -1,6 +1,9 @@
 // 01 — Primitives: Shapes, Media & Code
 // Built-in primitive types in an elegant gallery.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {

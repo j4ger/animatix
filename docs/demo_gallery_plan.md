@@ -203,6 +203,13 @@ All numbered files adopt the new lib: title cards → `TitleCard`, colors →
 
 Constraint: teaching files stay single-purpose; polish must not bloat them.
 
+> Status (2026-08-25): `examples/basics/` migrated — every numbered file adds the
+> dual `theme.amx` import (`import "../lib/theme.amx"` + `as theme`); `00_hello`
+> swaps its hand-rolled card for the shared `TitleCard` (also importing
+> `ui.amx`). These files already used semantic colorscheme tokens, so no raw
+> colors were replaced; `22_expressions` keeps its raw `rgb`/`rgba` because they
+> are that file's teaching point. Remaining track directories pending.
+
 ## 8. Phases
 
 | Phase | Contents | Acceptance |

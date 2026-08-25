@@ -1,6 +1,9 @@
 // 22 — Expressions: Constructs, Colors & Math
 // rgb/rgba, lerp, clamp, rand, percentages, index access.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 let width = lerp(120.0, 260.0, clamp(seeded_rand(22), 0.0, 1.0))
