@@ -1,6 +1,9 @@
 // 08 — Filters & Effects Composition
 // Filter primitive + effect actions (shake, pulse, bounce).
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 bg_mark: Svg, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08

@@ -1,6 +1,9 @@
 // 06 — Reactive: Live Focus Reticle
 // Uses always + _animating_* flag to detect keyframe-driven motion.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Live Focus Reticle", font_size: 32, color: text.primary, anchor: scene.top, offset: (0, 60)

@@ -1,6 +1,9 @@
 // 05 — Morph: Shape Transformation
 // Re-declaration triggers automatic interpolation between shapes.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)

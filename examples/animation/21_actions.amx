@@ -1,6 +1,9 @@
 // 21 — Actions: Entrances, Motion & Exits
 // Compact sampler for leaf vector reveal actions.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 title: Text, text: "Action Surface", font_size: 36, color: text.primary, anchor: scene.top, offset: (0, 64)

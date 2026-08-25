@@ -1,6 +1,9 @@
 // 04 — Motion: Actions & Expressions
 // Built-in motion actions and reactive expressions with always.
 
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 actor: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
