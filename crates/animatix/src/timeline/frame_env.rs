@@ -21,7 +21,7 @@ pub(crate) fn apply_override_incremental(
     property: &str,
     value: Value,
 ) {
-    let key = format!("{label}.{property}");
+    let key = crate::timeline::env_keys::property(label, property);
     env.set(&key, value.clone());
 
     // Inject typed sub-keys for known compound types
@@ -43,12 +43,12 @@ pub(crate) fn apply_override_incremental(
     // an explicit radius override.
     if property == "size" {
         if let Value::Vec2([w, h]) = value {
-            let radius_key = format!("{label}.radius");
+            let radius_key = crate::timeline::env_keys::property(label, "radius");
             if env.get_ref(&radius_key).is_none() {
                 env.set(&radius_key, Value::Num(w.min(h) / 2.0));
             }
-            env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
-            env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
+            env.set(&crate::timeline::env_keys::property(label, "radius_x"), Value::Num(w / 2.0));
+            env.set(&crate::timeline::env_keys::property(label, "radius_y"), Value::Num(h / 2.0));
         }
     }
 }
@@ -213,15 +213,24 @@ impl Timeline {
             let node_overrides = overrides.and_then(|map| map.get(label));
             if let Some(overrides) = node_overrides {
                 for (key, val) in overrides {
-                    env.set(&format!("{label}.{key}"), val.clone());
+                    env.set(&crate::timeline::env_keys::property(label, key), val.clone());
                     // Also inject typed sub-keys for known properties
                     match val {
                         Value::Vec2([x, y]) => {
-                            env.set(&format!("{label}.{key}.x"), Value::Num(*x));
-                            env.set(&format!("{label}.{key}.y"), Value::Num(*y));
+                            env.set(
+                                &crate::timeline::env_keys::property(label, &format!("{key}.x")),
+                                Value::Num(*x),
+                            );
+                            env.set(
+                                &crate::timeline::env_keys::property(label, &format!("{key}.y")),
+                                Value::Num(*y),
+                            );
                         },
                         Value::Color([r, g, b, a]) => {
-                            env.set(&format!("{label}.{key}.r"), Value::Num(*r));
+                            env.set(
+                                &crate::timeline::env_keys::property(label, &format!("{key}.r")),
+                                Value::Num(*r),
+                            );
                             env.set(&format!("{label}.{key}.g"), Value::Num(*g));
                             env.set(&format!("{label}.{key}.b"), Value::Num(*b));
                             env.set(&format!("{label}.{key}.a"), Value::Num(*a));
