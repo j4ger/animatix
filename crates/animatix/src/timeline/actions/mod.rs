@@ -488,11 +488,14 @@ mod tests {
         registry.register(Arc::new(FlexContainer)).expect("register FlexContainer");
         let report =
             Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
-        assert!(
-            report.diagnostics.is_empty(),
-            "unexpected diagnostics: {:?}",
-            report.diagnostics
-        );
+        let build_unexpected: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed)
+            })
+            .collect();
+        assert!(build_unexpected.is_empty(), "unexpected diagnostics: {build_unexpected:?}");
         let mut timeline = report.output;
         assert_eq!(timeline.tracks.get("root").expect("root").children, vec!["a", "b"]);
 
@@ -509,7 +512,13 @@ mod tests {
         };
         let mut diagnostics = Vec::new();
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
-        assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
+        let unexpected: Vec<_> = diagnostics
+            .iter()
+            .filter(|d| {
+                !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed)
+            })
+            .collect();
+        assert!(unexpected.is_empty(), "unexpected diagnostics: {unexpected:?}");
         assert!(
             timeline.tracks.get("root").expect("root").style.opacity.is_none(),
             "layout container itself should not receive the leaf action"

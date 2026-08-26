@@ -55,18 +55,30 @@ play CutCard [cut, 0ms]
 # CutCard
 config { colorscheme: "editorial-dark" }
 cut_label: Text, text: "cut", font_size: 64, color: accent.danger, anchor: scene.center
+
+#0s
+fade-in cut_label [300ms]
 play WipeRight [wipe-right, 400ms]
 
 # WipeRight
 config { colorscheme: "editorial-dark" }
 right_label: Text, text: "wipe-right", font_size: 64, color: accent.primary, anchor: scene.center
+
+#0s
+fade-in right_label [300ms]
 play WipeUp [wipe-up, 400ms]
 
 # WipeUp
 config { colorscheme: "editorial-dark" }
 up_label: Text, text: "wipe-up", font_size: 64, color: accent.success, anchor: scene.center
+
+#0s
+fade-in up_label [300ms]
 play WipeDown [wipe-down, 400ms]
 
 # WipeDown
 config { colorscheme: "editorial-dark" }
 down_label: Text, text: "wipe-down", font_size: 64, color: accent.warning, anchor: scene.center
+
+#0s
+fade-in down_label [300ms]

@@ -1,6 +1,17 @@
 use super::*;
 use crate::ast::{BinaryOp, LoopPattern};
 
+/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
+/// actors have no entrance actions — they are about demo content, not the
+/// feature under test, so assertions exclude them.
+fn without_content_lints(
+    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+) -> impl Iterator<Item = &animatix_syntax::diagnostics::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|d| !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed))
+}
+
 #[test]
 fn test_reactive_binding_desugars_to_modifier() {
     let ast = vec![Stmt::Keyframe {
@@ -68,7 +79,7 @@ fn test_reactive_binding_desugars_to_modifier() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -133,7 +144,7 @@ fn test_hierarchical_assignment_target() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no build diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -172,7 +183,7 @@ fn explicit_opacity_before_keyframe_is_honored() {
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no build diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -338,7 +349,7 @@ fn pointlist_literal_tuples() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -358,7 +369,7 @@ fn pointlist_with_variable() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -374,7 +385,7 @@ fn graph_padding_stored_in_env() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -400,7 +411,7 @@ fn graph_padding_defaults_to_zero() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -440,7 +451,11 @@ fn graph_map_inverse_registered_as_native_fn() {
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
     match report.output.env().get("g.map_inverse") {
         Some(Value::NativeFn(_)) => {},
         other => panic!("expected NativeFn for g.map_inverse, got {other:?}"),
@@ -897,7 +912,11 @@ fn static_filter_properties_seed_tracks() {
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
 
     let track = report.output.tracks.get("f").expect("filter track");
     assert_eq!(track.filter.filter_blur.get(0, 0.0), 8.0);
@@ -916,7 +935,11 @@ r: Rect, size: (100, 100), at: (480, 270)
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
     assert_eq!(report.output.resolution(), Some((960, 540)));
 }
 
@@ -930,7 +953,11 @@ fn stroke_only_path_suppresses_default_fill() {
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
 
     let track = report.output.tracks.get("p").expect("path track");
     assert_eq!(
@@ -948,7 +975,11 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
 
     let track = report.output.tracks.get("p").expect("path track");
     assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.5);

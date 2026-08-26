@@ -710,6 +710,17 @@ mod tests {
         }
     }
 
+    /// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
+    /// actors have no entrance actions — they are about demo content, not the
+    /// feature under test, so assertions exclude them.
+    fn without_content_lints(
+        diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+    ) -> impl Iterator<Item = &animatix_syntax::diagnostics::Diagnostic> {
+        diagnostics.iter().filter(|d| {
+            !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed)
+        })
+    }
+
     #[test]
     fn context_registers_capabilities() {
         let mut ctx = ExtensionContext::new();
@@ -787,7 +798,7 @@ mod tests {
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -873,7 +884,7 @@ mod tests {
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -904,7 +915,7 @@ mod tests {
             Arc::new(ctx),
         );
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -938,7 +949,7 @@ mod tests {
             Arc::new(ctx),
         );
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -999,7 +1010,7 @@ mod tests {
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -1044,7 +1055,7 @@ mod tests {
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
@@ -1105,7 +1116,7 @@ mod tests {
         let report =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
         assert!(
-            report.diagnostics.is_empty(),
+            without_content_lints(&report.diagnostics).next().is_none(),
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );

@@ -1,5 +1,16 @@
 use super::*;
 
+/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
+/// actors have no entrance actions — they are about demo content, not the
+/// feature under test, so assertions exclude them.
+fn without_content_lints(
+    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+) -> impl Iterator<Item = &animatix_syntax::diagnostics::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|d| !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed))
+}
+
 #[test]
 fn bar_colors_scheme_token_single() {
     let source = r#"
@@ -10,7 +21,7 @@ fn bar_colors_scheme_token_single() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -27,7 +38,7 @@ fn bar_colors_scheme_token_list() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -43,7 +54,7 @@ fn bar_colors_mixed_list() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -59,7 +70,7 @@ fn bar_colors_auto() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -96,7 +107,7 @@ fn bar_width_with_variable() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -112,7 +123,7 @@ fn show_axis_bool() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -128,7 +139,7 @@ fn show_axis_string() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -175,7 +186,7 @@ fn show_labels_bool_creates_child_label_tracks() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -199,7 +210,7 @@ fn show_labels_string() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -239,7 +250,7 @@ fn bar_width_auto_string_is_valid() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -335,7 +346,7 @@ fn tuple_list_still_works_with_no_diagnostics() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     // Normal tuple list should produce no diagnostics
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -353,7 +364,7 @@ fn max_value_with_variable() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -375,7 +386,7 @@ fn hosted_bar_chart_spans_graph_axis() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -604,7 +615,7 @@ fn plot_curve_color_drives_stroke() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -639,7 +650,7 @@ fn single_bar_colors_value_is_uniform() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -674,7 +685,7 @@ fn size_property_drives_bar_chart_geometry() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -718,7 +729,7 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );

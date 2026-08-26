@@ -113,6 +113,9 @@ pub enum DiagnosticCode {
     /// A `play` statement sits inside a keyframe body where the composition
     /// builder never sees it.
     PlayInsideKeyframe,
+    /// An actor is seeded hidden (pre-keyframe) and no entrance action ever
+    /// lifted it — it will never be visible.
+    NeverRevealed,
     /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
     OrphanScene,
     /// Scene persistence: `persist` was given a duration argument, which is ignored.
@@ -212,6 +215,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
             DiagnosticCode::MultiplePlayTargets => write!(f, "multiple-play-targets"),
             DiagnosticCode::PlayInsideKeyframe => write!(f, "play-inside-keyframe"),
+            DiagnosticCode::NeverRevealed => write!(f, "never-revealed"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
             DiagnosticCode::PersistIgnoresDuration => write!(f, "persist-ignores-duration"),
             DiagnosticCode::PersistLayoutManagedChild => write!(f, "persist-layout-managed-child"),

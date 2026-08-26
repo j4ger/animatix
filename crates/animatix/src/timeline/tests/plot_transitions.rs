@@ -164,6 +164,18 @@ impl Primitive for PlotExt {
 
 /// Verify that a `FuncTransition` is created with the correct timing, easing,
 /// and arity when a `curve.func = ...` assignment is processed.
+
+/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
+/// actors have no entrance actions — they are about demo content, not the
+/// feature under test, so assertions exclude them.
+fn without_content_lints(
+    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+) -> impl Iterator<Item = &animatix_syntax::diagnostics::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|d| !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed))
+}
+
 #[test]
 fn basic_func_transition_cartesian() {
     let source = r#"
@@ -178,7 +190,7 @@ fn basic_func_transition_cartesian() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -332,7 +344,7 @@ fn record_and_chain_overlapping_transitions() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -391,7 +403,7 @@ fn cascading_transitions() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -471,7 +483,7 @@ fn polar_mode_transition() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -524,7 +536,7 @@ fn parametric_mode_transition() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -609,7 +621,7 @@ fn static_plot_no_transitions() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -647,7 +659,7 @@ fn always_bare_variable_assignment_updates_plot_closure() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -923,7 +935,7 @@ fn implicit_transition_simple() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1064,7 +1076,7 @@ fn implicit_cascading() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1477,7 +1489,7 @@ fn vector_field_func_transition() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1516,7 +1528,7 @@ fn heatmap_func_transition() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1551,7 +1563,7 @@ fn contour_set_func_transition() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1587,7 +1599,7 @@ fn opacity_crossfade_blend_mode() {
     "#;
     let report = build_from_source(source);
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Unexpected diagnostics: {:?}",
         report.diagnostics
     );
@@ -1713,7 +1725,7 @@ fn extension_plot_capability_enables_func_assignments() {
         Arc::new(registry),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );

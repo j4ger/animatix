@@ -32,6 +32,8 @@ callout2: Callout {
 
 // Animate the target position of callout2
 #0s
+fade-in callout1 [400ms]
+fade-in callout2 [400ms]
 callout2.to = (200, 300)
 
 #2s
@@ -42,11 +44,14 @@ callout2.to = (200, 300) [2s, ease: ease-in-out]
 
 // ── Targeted mode ──────────────────────────────────────────────────────────
 // The actor being annotated
-box1: Rect {
+box1: Rect, at: (300, 200) {
     at: (700, 200),
     size: (120, 60),
     color: (0.2, 0.6, 0.9, 1.0),
 }
+
+#1s
+fade-in box1 [400ms]
 
 // Callout that tracks `box1` automatically.
 // `place: bottom` puts the arrow tip on the bottom edge.

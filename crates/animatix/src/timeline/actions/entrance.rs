@@ -142,9 +142,17 @@ impl BuiltinAction for FadeIn {
                 super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
             }
 
-            track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            // Reveal hidden-by-default targets through the lift: it adds the
+            // same (start, 0) → (end, 1) pair AND clears the
+            // `hidden_by_default` flag, keeping the flag trustworthy for
+            // later entrance actions and diagnostics.
+            let was_hidden = track.hidden_by_default;
+            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            if !was_hidden {
+                track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
-            track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            }
         }
     }
 }

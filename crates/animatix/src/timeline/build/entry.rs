@@ -498,6 +498,54 @@ impl Timeline {
             }
         }
 
+        // Never-revealed: tracks still flagged `hidden_by_default` at the
+        // end of the build were seeded hidden and no entrance action (fade-in,
+        // wipe-in, ...) ever lifted them — they will never be visible. The
+        // flag is maintained by lift_hidden_by_default, which every entrance
+        // action routes through.
+        // child label -> parent label, from the authoritative children lists.
+        // Generated sub-actors (graph ticks, bar labels) render through their
+        // parent primitive, so an ancestor's reveal counts as their own.
+        let parent_of: std::collections::HashMap<&String, &String> = timeline
+            .tracks
+            .iter()
+            .flat_map(|(label, t)| t.children.iter().map(move |c| (c, label)))
+            .collect();
+        let revealed_via_ancestor = |label: &str| -> bool {
+            let mut current = parent_of.get(&label.to_string());
+            while let Some(parent) = current {
+                if let Some(pt) =
+                    timeline.tracks.get(*parent).and_then(|t| t.style.opacity.as_ref())
+                {
+                    if pt.keyframes.values().any(|(v, _)| *v > 0.0) {
+                        return true;
+                    }
+                }
+                current = parent_of.get(*parent);
+            }
+            false
+        };
+        for (label, track) in &timeline.tracks {
+            if !track.hidden_by_default {
+                continue;
+            }
+            if revealed_via_ancestor(label) {
+                continue;
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::NeverRevealed,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Actor `{label}` is declared before any keyframe (hidden by default) and \
+                         no entrance action ever reveals it, so it will never be visible. Add a \
+                         `fade-in` (or another entrance action) targeting it."
+                    ),
+                )
+                .with_subject(label),
+            );
+        }
+
         // Check for always-blocks overriding keyframed properties.
         for stmt in &timeline.modifiers {
             if let crate::ast::Stmt::Assignment {

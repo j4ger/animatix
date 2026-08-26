@@ -84,6 +84,7 @@ fade-in one_circle [500ms]
 fade-in pen [400ms, delay: 200ms]
 fade-in one_graph [500ms, delay: 300ms]
 fade-in sine [400ms, delay: 400ms]
+fade-in wave_dot [400ms, delay: 400ms]
 
 #1s
 sine.stroke_progress = 1.0 [12s, ease: linear]
