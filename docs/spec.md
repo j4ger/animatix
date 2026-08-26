@@ -1736,6 +1736,27 @@ animatix gif examples/composition/19_cross_file_scenes.amx --width 640 --height 
 
 > **Status:** Parser, composition engine, CLI export, transition blending, cross-file scene composition, GUI scene list, composition scene track, and scene editing are shipped.
 
+### Composition Invariants
+
+These rules are enforced (or warned) by the composition builder:
+
+1. **`play` placement.** A `play` statement is only recognized at the **top
+   level of a scene body**. A `play` inside a keyframe body is ignored and
+   produces a `play-inside-keyframe` warning — move it to the scene's top
+   level (its transition fires when the scene's duration elapses).
+2. **Config scope.** A `config` block inside a scene applies to that scene;
+   a file-level `config` (before the first scene) is the file prelude. For
+   **cross-file scenes** (`import "file.amx" as alias` + `play alias.Scene`),
+   the entry's shared prelude is prepended to the imported scene's own
+   prelude — so theme imports and colorscheme declarations from the entry
+   apply — and an explicit `duration:` is read from either config.
+3. **Duration precedence.** Per scene: explicit `duration:` (scene-block
+   config, then file-level config for cross-file scenes) → keyframe-derived
+   inference → a floor of the incoming transition's duration (so a scene is
+   never shorter than its own entrance).
+
+Inspect the resolved scene graph with `animatix timeline <file>`.
+
 ### Scene Declarations
 
 Scenes are declared using `# SceneName` at the top level:

@@ -63,6 +63,61 @@ pub struct Composition {
     pub scene_start_times: BTreeMap<String, f64>,
 }
 
+/// Read-only summary of a composition's scene graph — the data a human (or
+/// tooling) needs to answer "what plays when, and how do scenes connect".
+/// Powers the `animatix timeline` command and composition unit tests.
+#[derive(Clone, Debug)]
+pub struct CompositionSummary {
+    /// Scenes in walk order: (name, start_time_s, duration_s, explicit_duration_s).
+    pub scenes: Vec<(String, f64, f64, Option<f64>)>,
+    /// Play edges in walk order: (from_scene, to_scene, transition_id, duration_ms).
+    pub edges: Vec<(String, String, String, u64)>,
+    /// Total duration of the composition in seconds.
+    pub total_duration_s: f64,
+}
+
+impl Composition {
+    /// Build a [`CompositionSummary`] from this composition's scene graph.
+    pub fn summary(&self) -> CompositionSummary {
+        // Playback order = scenes sorted by their global start time.
+        let mut by_start: Vec<(&String, f64)> = self
+            .scene_start_times
+            .iter()
+            .map(|(name, t)| (name, *t))
+            .collect();
+        by_start.sort_by(|a, b| a.1.total_cmp(&b.1));
+        let scenes = by_start
+            .iter()
+            .filter_map(|(name, start)| {
+                let scene = self.scenes.get(*name)?;
+                Some((
+                    (*name).clone(),
+                    *start,
+                    scene.duration_s,
+                    scene.explicit_duration_s,
+                ))
+            })
+            .collect();
+        let edges = by_start
+            .iter()
+            .filter_map(|(name, _)| {
+                let edge = self.edges.get(*name)?;
+                Some((
+                    (*name).clone(),
+                    edge.to_scene.clone(),
+                    edge.transition.id.clone(),
+                    edge.transition.duration_ms,
+                ))
+            })
+            .collect();
+        CompositionSummary {
+            scenes,
+            edges,
+            total_duration_s: self.global_duration_s,
+        }
+    }
+}
+
 /// Per-frame evaluation result in global time space.
 pub struct CompositionFrame {
     /// Name of the currently active scene.

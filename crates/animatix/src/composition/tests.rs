@@ -1102,3 +1102,37 @@ fn test_zero_duration_scene_does_not_collapse_composition() {
     assert!(local >= 0.5, "Scene1 local time {} should not be clamped to play time", local);
     assert!(blend.is_some(), "expected transition blend at t=0.5s");
 }
+
+/// `Composition::summary()` reports scenes in playback order with their start
+/// times, durations, and the play edges between them.
+#[test]
+fn test_summary_reports_playback_order_and_edges() {
+    let source = concat!(
+        "# A\n",
+        "a: Text, text: \"A\", at: (100, 100)\n",
+        "#2s\n",
+        "play B [fade, 400ms]\n",
+        "# B\n",
+        "b: Text, text: \"B\", at: (200, 100)\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+    let BuildTarget::MultiScene(comp) = report.output else {
+        panic!("expected MultiScene");
+    };
+    let summary = comp.summary();
+
+    let names: Vec<&str> = summary.scenes.iter().map(|(n, ..)| n.as_str()).collect();
+    assert_eq!(names, vec!["A", "B"], "playback order must follow start times");
+
+    let (a_name, a_start, a_dur, _) = &summary.scenes[0];
+    assert_eq!(a_name, "A");
+    assert!((a_start - 0.0).abs() < 1e-9);
+    assert!(*a_dur >= 2.0, "scene A must cover its #2s play marker");
+
+    assert_eq!(summary.edges.len(), 1);
+    let (from, to, id, ms) = &summary.edges[0];
+    assert_eq!((from.as_str(), to.as_str(), id.as_str(), *ms), ("A", "B", "fade", 400));
+
+    assert!(summary.total_duration_s >= 2.0);
+}
