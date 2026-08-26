@@ -78,6 +78,17 @@ and all performance work should be justified by a moved metric in that doc.
 
 ## Open Questions
 
+### Language revision candidates (from the 2026-08 systems review)
+
+- **Theme dual-import**: the idiom (unaliased import registers the
+  colorscheme + aliased import exposes tokens) works but is non-obvious.
+  Options: (a) keep as the documented idiom (chosen for now — spec.md
+  documents it), (b) make the unaliased import expose tokens directly,
+  (c) a dedicated `theme "name"` statement.
+- **Grid auto-columns**: `Grid` without `cols` is single-column; auto-fitting
+  columns from child sizes would remove a foot-gun (spec.md documents the
+  default meanwhile).
+
 ### Comment Directives
 
 Presenterm uses HTML-comment directives because it must extend markdown without

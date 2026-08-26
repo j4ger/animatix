@@ -1,3 +1,4 @@
+// lint-disable: unknown-property
 import "../lib/theme.amx"
 
 import "../lib/ui.amx"

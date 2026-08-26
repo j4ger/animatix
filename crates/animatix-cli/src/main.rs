@@ -735,10 +735,9 @@ fn main() {
                 },
             };
             let mut module_graph = ModuleGraph::new();
-            let (ast, namespaces) = match module_graph.load_program_with_source(
-                std::path::Path::new(&input),
-                Some(&source),
-            ) {
+            let (ast, namespaces) = match module_graph
+                .load_program_with_source(std::path::Path::new(&input), Some(&source))
+            {
                 Ok(mut program) => {
                     let _ = program.typecheck();
                     let mut expansion_errors = Vec::new();
@@ -778,7 +777,11 @@ fn main() {
                             start,
                             dur,
                             next,
-                            if explicit.is_some() { "" } else { " (inferred)" }
+                            if explicit.is_some() {
+                                ""
+                            } else {
+                                " (inferred)"
+                            }
                         );
                     }
                     println!("total: {:.2}s", summary.total_duration_s);

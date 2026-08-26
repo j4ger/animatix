@@ -20,10 +20,7 @@ WARN_TOTAL=0
 #   unused-label        — actors/curves declared for visual content, never re-referenced
 #   always-overrides    — `always` deliberately overrides keyframes in reactive demos
 #   unknown-type        — analyzer is single-file; imported/plugin types are unresolved
-#   unknown-colorscheme — colorscheme registered by the imported theme module; per-file
-#                         builds resolve it via the module graph but the lint pass may not
-#   unknown-property    — info-level: valid but uncommon props (theme_studio)
-ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|unknown-colorscheme|unknown-property'
+ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type'
 
 for amx in $(find "$PROJECT_DIR/examples" -name '*.amx' -not -path '*/lib/*' -not -path '*/scenes/*' | sort); do
     # Multi-file project directories (e.g. gallery/brand_reel/) are checked

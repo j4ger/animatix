@@ -558,6 +558,10 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
+> **Grid `cols`:** a `Grid` without an explicit `cols` lays its children out
+> in a **single column**. Always set `cols` for multi-column walls (e.g.
+> `cols: 3` for six cards in two rows).
+
 **Text shorthand:**
 ```animatix
 title: "Hello"                    // desugars to: title: Text, text: "Hello"
@@ -981,6 +985,20 @@ panel: Rect, color: theme.accent
 ```
 
 Re-export chains are resolved transitively. Nested aliased imports are available through arbitrary-depth paths such as `lib.inner.export_name`. Values are evaluated at build time in the importing scene's environment.
+
+**The theme dual-import idiom.** A theme module typically carries BOTH a
+colorscheme declaration (`pub let gallery = Colorscheme { ... }`) and token
+exports (`pub let text_sm = ...`). The two halves travel differently:
+
+- the **unaliased** import (`import "../lib/theme.amx"`) flattens the
+  module's statements into the importing file — this is what registers the
+  colorscheme;
+- the **aliased** import (`import "../lib/theme.amx" as theme`) exposes the
+  tokens as `theme.text_sm` without flattening.
+
+Gallery demos therefore open with both lines. If a file already binds the
+alias `theme` to another module, add only the unaliased form (two aliases
+with the same name collide).
 
 **Current limitations:**
 - Text/Typst/Code content can be overridden inside `always`; glyph paths are recompiled per frame and explicit empty strings clear the previous content. The actor's `geometry.size`/layout size is not remeasured from the frame-time override, so callout/line anchors and managed-layout slots still use the authored size box.
