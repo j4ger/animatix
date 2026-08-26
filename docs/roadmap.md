@@ -74,7 +74,9 @@ and all performance work should be justified by a moved metric in that doc.
 
 | Issue | Detail | Next Step |
 |---|---|---|
-| `hidden_by_default` flag does not reliably predict rendered visibility | Several demos (06_reactive, 04_motion, 08_effects) have tracks flagged hidden-by-default whose actors render visible — the reveal chain is more varied than the flag models (scene_eval first-seen logic, parent opacity, re-declarations). A sound never-revealed diagnostic was attempted and reverted (false positives on legitimate demos) | Model the full reveal chain before retrying the diagnostic |
+| BarChart `gap` registry visibility (unverified) | An early-session note flagged the BarChart `gap` property's registry visibility as a known issue; status unknown after the subsequent build refactor | Verify whether `gap` is registered/typed for BarChart; fix or close |
+| Track `parent` back-reference is not always back-filled | First-declaration children inside containers can lack the parent pointer (noted during the component Group fix), so parent-chain queries cannot trust the stored field. The children lists ARE authoritative (regression-tested) | Derive parentage from children lists — add `Timeline::parent_of(label)` and route all parent-chain queries through it |
+| `hidden_by_default` flag does not reliably predict rendered visibility | Several demos (06_reactive, 04_motion, 08_effects) have tracks flagged hidden-by-default whose actors render visible — the reveal chain is more varied than the flag models. Known reveal paths: entrance actions (modeled), re-declarations (a morph re-decl is itself an appearance), scene_eval first-seen logic (uninvestigated), parent opacity inheritance. A sound never-revealed diagnostic was attempted and reverted (false positives on legitimate demos) | Trace one minimal case (06_reactive's `ring`: no fade-in, no re-decl, yet visible) through build → evaluate → render; if the mechanism is localized, redo the diagnostic on a sound model; else move the capability to the GUI inspector (show effective visibility at the playhead) |
 
 ## Open Questions
 
@@ -85,9 +87,15 @@ and all performance work should be justified by a moved metric in that doc.
   Options: (a) keep as the documented idiom (chosen for now — spec.md
   documents it), (b) make the unaliased import expose tokens directly,
   (c) a dedicated `theme "name"` statement.
+  **Open premise for (b)**: if the unaliased flatten already brings `pub let`
+  tokens into scope, the aliased line is redundant for tokens and the idiom
+  collapses to one import — verify with a two-line experiment before
+  choosing.
 - **Grid auto-columns**: `Grid` without `cols` is single-column; auto-fitting
   columns from child sizes would remove a foot-gun (spec.md documents the
-  default meanwhile).
+  default meanwhile). Interim option: warn when `cols` is absent and the
+  Grid has more than one child (nudge without breaking single-column
+  users); decide on auto-fit based on the warning hit rate.
 
 ### Comment Directives
 
