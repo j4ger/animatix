@@ -221,6 +221,8 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             if let Some(mut key_parts) = receiver_parts {
                 key_parts.push(name.clone());
                 let args: Vec<_> = args.iter().map(compile_expr).collect::<Result<Vec<_>, _>>()?;
+                // The joined key must match the registration shape in
+                // timeline::env_keys::native_fn.
                 return Ok(CompiledExpr::CallEnv(key_parts.join("."), args));
             }
             let receiver = compile_expr(receiver)?;

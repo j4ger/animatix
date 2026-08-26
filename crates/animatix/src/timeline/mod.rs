@@ -45,6 +45,7 @@ pub mod colorscheme;
 mod declarations_text;
 /// Evaluation environment for expressions.
 pub mod env;
+pub(crate) mod env_keys;
 pub mod eval_shared;
 /// Filter backend and CPU image processing.
 #[cfg(feature = "render")]

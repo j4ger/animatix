@@ -991,7 +991,7 @@ impl Timeline {
             // seeding the half-size here made hosted plots occupy only the
             // central half of the axis box.
             self.env.set(
-                &format!("{}_size", label),
+                &crate::timeline::env_keys::side_channel(&label, "size"),
                 Value::Vec2([
                     (initial_size[0] * 2.0) as f64,
                     (initial_size[1] * 2.0) as f64,
@@ -1020,11 +1020,12 @@ impl Timeline {
                 x_scale,
                 y_scale,
             );
-            self.env.set(&format!("{}.map", label), nf);
+            self.env.set(&crate::timeline::env_keys::native_fn(label, "map"), nf);
 
             // Inject {label}.map_inverse as a NativeFn that converts screen coords to math coords.
             let nf_inv = make_graph_map_inverse_fn(map_label, x_domain, y_domain, x_scale, y_scale);
-            self.env.set(&format!("{}.map_inverse", label), nf_inv);
+            self.env
+                .set(&crate::timeline::env_keys::native_fn(label, "map_inverse"), nf_inv);
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);
@@ -1241,12 +1242,12 @@ impl Timeline {
         } else if is_bar_chart {
             // Determine parent graph context (if any)
             let p_label = parent_label.unwrap_or("").to_string();
-            let parent_size =
-                if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
-                    Some(sz)
-                } else {
-                    None
-                };
+            let size_key = crate::timeline::env_keys::side_channel(&p_label, "size");
+            let parent_size = if let Some(Value::Vec2(sz)) = self.env.get(size_key.as_str()) {
+                Some(sz)
+            } else {
+                None
+            };
             let p_x_domain =
                 if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
                     xd
@@ -1287,7 +1288,8 @@ impl Timeline {
             if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
                 p_y_domain = yd;
             }
-            if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+            let size_key = crate::timeline::env_keys::side_channel(&p_label, "size");
+            if let Some(Value::Vec2(sz)) = self.env.get(size_key.as_str()) {
                 p_size = sz;
             }
 
@@ -2488,7 +2490,7 @@ fn make_graph_map_inverse_fn(
             // Read size, at, padding from runtime env for animation support.
             // These are set during build with underscore-prefixed keys.
             let size = env
-                .get(&format!("{}_size", label))
+                .get(crate::timeline::env_keys::side_channel(&label, "size").as_str())
                 .and_then(|v| match v {
                     Value::Vec2(s) => Some(s),
                     _ => None,
