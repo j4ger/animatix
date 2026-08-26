@@ -331,9 +331,40 @@ impl Composition {
             let (namespace_parts, scene_name) = parts.split_at(parts.len() - 1);
             let scene_name = scene_name[0];
             let Some(ns) = resolve_namespace(namespaces, namespace_parts) else {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::PlayTargetNotFound,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Play target '{target}' references namespace '{}' which was not found; \
+                             the scene is skipped.",
+                            namespace_parts.join(".")
+                        ),
+                    )
+                    .with_subject(target),
+                );
                 continue;
             };
-            if let Some(scene_data) = ns.scenes.get(scene_name) {
+            // Legacy/test namespaces may carry no scenes at all — accept any
+            // name there (same rule as validate_play_target).
+            if !ns.scenes.is_empty() && ns.scenes.get(scene_name).is_none() {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::PlayTargetNotFound,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Play target '{target}' references scene '{scene_name}' which the \
+                             imported module does not declare; the scene is skipped."
+                        ),
+                    )
+                    .with_subject(target),
+                );
+                continue;
+            }
+            let Some(scene_data) = ns.scenes.get(scene_name) else {
+                continue;
+            };
+            {
                 // Build timeline from the cross-file scene's prelude + body.
                 // The entry's shared prelude is prepended too so imported
                 // theme modules (colorscheme declarations) register for
@@ -647,6 +678,29 @@ impl Composition {
         // (`#4s` + `play Next`). The parser emits the empty keyframe and the
         // play as sibling statements, so track the running keyframe time.
         let mut current_time: f64 = 0.0;
+        // Plays nested inside keyframe bodies never reach the composition's
+        // scene graph — warn so authors move them to the scene top level.
+        for stmt in body {
+            if let Stmt::Keyframe { body: kf_body, .. }
+            | Stmt::RelativeKeyframe { body: kf_body, .. } = stmt
+            {
+                for inner in kf_body {
+                    if matches!(inner, Stmt::Play { .. }) {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::PlayInsideKeyframe,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Scene '{scene_name}' has a `play` inside a keyframe body; \
+                                     it is ignored. Move the `play` to the scene's top level."
+                                ),
+                            )
+                            .with_subject(scene_name),
+                        );
+                    }
+                }
+            }
+        }
         for stmt in body {
             match stmt {
                 Stmt::Keyframe { time, .. } | Stmt::RelativeKeyframe { offset: time, .. } => {

@@ -87,7 +87,26 @@ fn stmt_needs_rewrite(
         Stmt::Match { scrutinee, .. } => {
             expr_needs_rewrite(scrutinee, root_label, known_labels, bindings)
         },
-        _ => false,
+        Stmt::Expr(expr, ..) => expr_needs_rewrite(expr, root_label, known_labels, bindings),
+        Stmt::Return { value, .. } => value
+            .as_ref()
+            .is_some_and(|v| expr_needs_rewrite(v, root_label, known_labels, bindings)),
+        // Variants whose bodies are checked by the shared recursion below:
+        // their immediate check is intentionally false.
+        Stmt::Keyframe { .. }
+        | Stmt::RelativeKeyframe { .. }
+        | Stmt::Sequence { .. }
+        | Stmt::Always { .. }
+        | Stmt::ForLoop { .. }
+        | Stmt::Block { .. }
+        | Stmt::Scene { .. } => false,
+        // Variants that never need label rewriting:
+        Stmt::Import { .. } | Stmt::TypeAlias { .. } | Stmt::Play { .. } => false,
+        // Component bodies are rewritten at instance-expansion time with
+        // their own gate (see rewrite_stmt's ComponentDef handling).
+        Stmt::ComponentDef(..) => false,
+        Stmt::Comment(..) => false,
+        Stmt::FnDecl { .. } => false, // its body gate lives in rewrite_stmt's FnDecl arm
     };
 
     if immediate {

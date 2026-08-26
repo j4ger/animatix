@@ -238,7 +238,22 @@ fn expand_stmt_into(
                 output.extend(hoisted);
             }
         },
-        _ => output.push(stmt.clone()),
+        // Pass-through variants: carried into the expanded output unchanged.
+        // (Actions and let-decls can reference instance labels but never
+        // need child expansion; Keyframe/Always/etc. reach here via
+        // expand_statements' own recursion into scene bodies; Import/
+        // TypeAlias/Play are structural and never contain instances.)
+        Stmt::Action(..)
+        | Stmt::LetDecl { .. }
+        | Stmt::Assignment { .. }
+        | Stmt::Block { .. }
+        | Stmt::Return { .. }
+        | Stmt::Expr(..)
+        | Stmt::Config { .. }
+        | Stmt::Comment(..)
+        | Stmt::Import { .. }
+        | Stmt::TypeAlias { .. }
+        | Stmt::Play { .. } => output.push(stmt.clone()),
     }
 }
 
@@ -402,6 +417,9 @@ fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
             modifiers: modifiers.clone(),
             children: children.clone(),
         }),
+        // Intentional: only actor declarations have an inline form. Callers
+        // filter_map over this, so non-actor statements (actions, lets,
+        // keyframes, ...) simply do not participate in inline-item contexts.
         _ => None,
     }
 }
@@ -634,6 +652,9 @@ fn collect_labels(body: &[Stmt]) -> HashSet<String> {
                 labels.insert(label.clone());
             }
         },
+        // Intentional: only actor declarations and reactive-binding targets
+        // introduce component-body labels. `let` bindings resolve through the
+        // bindings map, not known_labels; other statements introduce none.
         _ => {},
     });
     labels
@@ -706,7 +727,30 @@ fn resolve_slots(stmts: &[Stmt], slot_fills: &HashMap<String, Vec<InlineItem>>) 
                     cloned
                 }
             },
-            _ => stmt.clone(),
+            // Non-container variants cannot hold slot markers.
+            Stmt::Action(..)
+            | Stmt::LetDecl { .. }
+            | Stmt::Assignment { .. }
+            | Stmt::ReactiveBinding { .. }
+            | Stmt::Keyframe { .. }
+            | Stmt::RelativeKeyframe { .. }
+            | Stmt::Always { .. }
+            | Stmt::Conditional { .. }
+            | Stmt::Match { .. }
+            | Stmt::ForLoop { .. }
+            | Stmt::Sequence { .. }
+            | Stmt::Stagger { .. }
+            | Stmt::FnDecl { .. }
+            | Stmt::Block { .. }
+            | Stmt::Return { .. }
+            | Stmt::Expr(..)
+            | Stmt::Config { .. }
+            | Stmt::Import { .. }
+            | Stmt::TypeAlias { .. }
+            | Stmt::Play { .. }
+            | Stmt::Comment(..)
+            | Stmt::Scene { .. }
+            | Stmt::ComponentDef(..) => stmt.clone(),
         })
         .collect()
 }

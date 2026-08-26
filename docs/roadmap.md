@@ -70,6 +70,12 @@ and all performance work should be justified by a moved metric in that doc.
 
 ---
 
+## Known Issues (2026-08-26)
+
+| Issue | Detail | Next Step |
+|---|---|---|
+| `hidden_by_default` flag does not reliably predict rendered visibility | Several demos (06_reactive, 04_motion, 08_effects) have tracks flagged hidden-by-default whose actors render visible — the reveal chain is more varied than the flag models (scene_eval first-seen logic, parent opacity, re-declarations). A sound never-revealed diagnostic was attempted and reverted (false positives on legitimate demos) | Model the full reveal chain before retrying the diagnostic |
+
 ## Open Questions
 
 ### Comment Directives

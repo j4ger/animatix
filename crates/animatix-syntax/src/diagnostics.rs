@@ -110,6 +110,9 @@ pub enum DiagnosticCode {
     PlayCycleDetected,
     /// Multi-scene composition: a scene has multiple `play` statements (only the first is used).
     MultiplePlayTargets,
+    /// A `play` statement sits inside a keyframe body where the composition
+    /// builder never sees it.
+    PlayInsideKeyframe,
     /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
     OrphanScene,
     /// Scene persistence: `persist` was given a duration argument, which is ignored.
@@ -208,6 +211,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),
             DiagnosticCode::MultiplePlayTargets => write!(f, "multiple-play-targets"),
+            DiagnosticCode::PlayInsideKeyframe => write!(f, "play-inside-keyframe"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
             DiagnosticCode::PersistIgnoresDuration => write!(f, "persist-ignores-duration"),
             DiagnosticCode::PersistLayoutManagedChild => write!(f, "persist-layout-managed-child"),
