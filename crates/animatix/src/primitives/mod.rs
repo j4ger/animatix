@@ -305,6 +305,8 @@ mod text;
 pub use text::TEXT;
 mod code;
 pub use code::CODE;
+mod math;
+pub use math::MATH;
 #[cfg(feature = "render")]
 mod image;
 #[cfg(feature = "render")]
@@ -888,6 +890,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     // Text
     &TEXT,
     &CODE,
+    &MATH,
     &TYPST,
     // Media
     &IMAGE,
@@ -1172,6 +1175,7 @@ mod tests {
             ActorKindId::Text,
             ActorKindId::Code,
             ActorKindId::Typst,
+            ActorKindId::Math,
             ActorKindId::Image,
             ActorKindId::Svg,
             ActorKindId::Graph,

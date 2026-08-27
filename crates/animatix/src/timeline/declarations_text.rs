@@ -17,6 +17,7 @@ enum TextDeclarationKind {
     Text,
     Code,
     Typst,
+    Math,
 }
 
 impl TextDeclarationKind {
@@ -25,6 +26,7 @@ impl TextDeclarationKind {
             Self::Text => "unnamed_text",
             Self::Code => "unnamed_code",
             Self::Typst => "unnamed_typst",
+            Self::Math => "unnamed_math",
         }
     }
 
@@ -32,14 +34,14 @@ impl TextDeclarationKind {
         match self {
             Self::Text => ModifierHost::Text,
             Self::Code => ModifierHost::Code,
-            Self::Typst => ModifierHost::Typst,
+            Self::Typst | Self::Math => ModifierHost::Typst,
         }
     }
 
     fn default_font_size(self) -> f32 {
         match self {
             Self::Code => 24.0,
-            Self::Text | Self::Typst => 48.0,
+            Self::Text | Self::Typst | Self::Math => 48.0,
         }
     }
 
@@ -52,6 +54,7 @@ impl TextDeclarationKind {
             Self::Text => matches!(property_name, "text" | "content"),
             Self::Code => matches!(property_name, "code" | "text" | "content"),
             Self::Typst => matches!(property_name, "content" | "text" | "latex" | "math" | "code"),
+            Self::Math => matches!(property_name, "text" | "content" | "math" | "latex"),
         }
     }
 
@@ -65,6 +68,9 @@ impl TextDeclarationKind {
             },
             Self::Typst => {
                 "Morph-specific modifiers on typst declaration require a re-declaration with non-zero duration; ignoring them for now."
+            },
+            Self::Math => {
+                "Morph-specific modifiers on math declaration require a re-declaration with non-zero duration; ignoring them for now."
             },
         }
     }
@@ -296,6 +302,7 @@ impl Timeline {
                 TextDeclarationKind::Text => "Text",
                 TextDeclarationKind::Code => "Code",
                 TextDeclarationKind::Typst => "Typst",
+                TextDeclarationKind::Math => "Math",
             };
             if let Some(primitive) = self.primitive_registry.find(primitive_type) {
                 if let Some(scheme_color) = self.get_default_color(primitive, "color") {
@@ -320,6 +327,7 @@ impl Timeline {
             TextDeclarationKind::Text => super::ActorKindId::Text,
             TextDeclarationKind::Code => super::ActorKindId::Code,
             TextDeclarationKind::Typst => super::ActorKindId::Typst,
+            TextDeclarationKind::Math => super::ActorKindId::Math,
         };
 
         // Record first declaration time so scene evaluation can hide
@@ -455,6 +463,7 @@ impl Timeline {
             TextDeclarationKind::Text => crate::renderer::text::TextKind::Text,
             TextDeclarationKind::Code => crate::renderer::text::TextKind::Code,
             TextDeclarationKind::Typst => crate::renderer::text::TextKind::Typst,
+            TextDeclarationKind::Math => crate::renderer::text::TextKind::Math,
         };
         let compiled = crate::renderer::text::compile_text_cached(
             text_kind,
@@ -531,7 +540,7 @@ impl Timeline {
         Ok(())
     }
 
-    /// Process a text actor declaration (Text, Math, Code) and add it to the timeline.
+    /// Process a text actor declaration (Text, Math, Code, Typst) and add it to the timeline.
     pub fn process_text_actor_decl(
         &mut self,
         actor_type: &str,
@@ -542,62 +551,21 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
-        let (kind, is_deprecated) = match actor_type {
-            "Text" => (TextDeclarationKind::Text, false),
-            "Math" => (TextDeclarationKind::Typst, true),
-            "Code" => (TextDeclarationKind::Code, false),
-            "Typst" => (TextDeclarationKind::Typst, false),
+        let kind = match actor_type {
+            "Text" => TextDeclarationKind::Text,
+            "Math" => TextDeclarationKind::Math,
+            "Code" => TextDeclarationKind::Code,
+            "Typst" => TextDeclarationKind::Typst,
             _ => return Ok(()),
         };
-
-        if is_deprecated {
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::DeprecatedPrimitive,
-                    DiagnosticPhase::Build,
-                    "'Math' is deprecated. Use 'Typst, content: \"$...$\"' instead for math expressions.".to_string(),
-                )
-                .with_subject(label),
-            );
-
-            // Wrap `math`/`latex`/`text` property content in $...$ Typst math delimiters
-            let mut processed_props = Vec::new();
-            for prop in props {
-                if matches!(prop.name.as_str(), "math" | "latex" | "text") {
-                    let wrapped = match &prop.value {
-                        Expr::Str(s) => Expr::Str(format!("${}$", s)),
-                        other => other.clone(),
-                    };
-                    processed_props.push(Property {
-                        name: "content".to_string(),
-                        value: wrapped,
-                        value_span: prop.value_span,
-                        trailing_comment: prop.trailing_comment.clone(),
-                    });
-                } else {
-                    processed_props.push(prop.clone());
-                }
-            }
-
-            self.process_text_declaration(
-                kind,
-                Some(label),
-                &processed_props,
-                modifiers,
-                time_ms,
-                parent_label,
-                diagnostics,
-            )
-        } else {
-            self.process_text_declaration(
-                kind,
-                Some(label),
-                props,
-                modifiers,
-                time_ms,
-                parent_label,
-                diagnostics,
-            )
-        }
+        self.process_text_declaration(
+            kind,
+            Some(label),
+            props,
+            modifiers,
+            time_ms,
+            parent_label,
+            diagnostics,
+        )
     }
 }

@@ -143,16 +143,6 @@ impl FontContext {
         }
     }
 
-    fn load_font(&self, family: &str) -> Option<Font> {
-        let id = self.db.query(&fontdb::Query {
-            families: &[fontdb::Family::Name(family)],
-            ..Default::default()
-        })?;
-        let data = Self::face_data(&self.db, id)?;
-        let face = self.db.face(id)?;
-        Font::new(Bytes::new(data), face.index)
-    }
-
     /// Load the bold/italic emphasis faces of a family into the Typst world.
     ///
     /// `with_fonts_and_fallback` loads only the default regular face per family,

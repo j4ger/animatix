@@ -44,6 +44,7 @@ pub const TYPES: &[&str] = &[
     // Text
     "Text",
     "Code",
+    "Math",
     "Typst",
     // Media
     "Image",

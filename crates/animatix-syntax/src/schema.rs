@@ -7,8 +7,8 @@
 
 use crate::icon_glyphs::{
     ARROW_RIGHT, ARROWS_OUT_CARDINAL, ARTICLE, CHART_BAR, CHART_DONUT, CHART_LINE_UP, CIRCLE_NOTCH,
-    CODE, COLUMNS, FILTERS, FOLDER, GRADIENT, HIGHLIGHTER, IMAGE, MASK_HAPPY, MINUS, PEN, POLYGON,
-    ROWS, SIGMA, SPEAKER_HIGH, SQUARE, SQUARES_FOUR, STACK, TEXT_T, VECTOR_THREE,
+    CODE, COLUMNS, FILTERS, FOLDER, FUNCTION, GRADIENT, HIGHLIGHTER, IMAGE, MASK_HAPPY, MINUS, PEN,
+    POLYGON, ROWS, SIGMA, SPEAKER_HIGH, SQUARE, SQUARES_FOUR, STACK, TEXT_T, VECTOR_THREE,
 };
 use crate::typing::{Type, transform_type};
 
@@ -273,6 +273,7 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
         ("Path", "Path", PEN, PrimitiveCategory::Shape, false),
         ("Text", "Text", TEXT_T, PrimitiveCategory::Text, false),
         ("Code", "Code", CODE, PrimitiveCategory::Text, true),
+        ("Math", "Math", FUNCTION, PrimitiveCategory::Text, true),
         ("Typst", "Typst", ARTICLE, PrimitiveCategory::Text, true),
         ("Image", "Image", IMAGE, PrimitiveCategory::Media, false),
         ("Svg", "SVG", VECTOR_THREE, PrimitiveCategory::Media, true),

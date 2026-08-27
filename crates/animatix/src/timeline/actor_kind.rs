@@ -80,6 +80,8 @@ pub enum ActorKindId {
     Code,
     /// Typst document actor.
     Typst,
+    /// Math formula actor (Typst math, no `$...$` wrapper needed).
+    Math,
     /// Raster image actor.
     Image,
     /// SVG graphic actor.
