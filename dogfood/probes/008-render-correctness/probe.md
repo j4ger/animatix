@@ -41,19 +41,23 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 ### ⚠ Notes (verify / human review)
 | Issue | Note |
 |---|---|
-| Typst `text:` property silently renders blank | `text:` is accepted by the property guard but does not feed the content track; use `content:`. Footgun worth flagging. |
-| Typst markup emphasis `*bold*`/`_italic_` not applied | Content renders at regular weight with delimiters stripped. |
+| Typst `text:` property silently renders blank | **Fixed 2026-08-27**: the uniform `text:` content property now feeds the content track for `Text`/`Code`/`Typst` (declarations_text.rs `content_matches`); canonical names (`content`/`code`) remain aliases. |
+| Typst math `mc^2`-style content fails to compile | Some Typst math content with implicit multi-letter coefficients (`$mc^2$`, `$E = mc^2$`) fails with a generic "failed to compile Typst document" while simpler math (`$x^2+y$`) works. Pre-existing Typst-integration parse issue, **not caused by the above fixes**; recorded for follow-up (better error message + investigate the parse case). |
 | CJK `font_weight` bold may fall back to a regular face | Documented limitation (one representative face per family is loaded). |
+| First-class `Math` primitive | **Added 2026-08-27**: `Math` renders Typst math without the `$...$` wrapper (compiles via `compile_math`); registered in the primitive registry, analyzer built-in types, and schema. |
 | Filter `blur` not visibly applied in `animatix image` export | The GPU filter backend path looks correct (ping-pong WGSL blur passes), but `blur: 10` on a high-contrast source stays sharp. Smoke tests only assert `is_ok()` + size, never that content is actually blurred. Could be a software-Vulkan (lavapipe) compute limitation or a latent shader/pipeline bug. **See `dogfood/probes/009-filter-gpu-deferred` (open, human review).** Also note the Filter scene-eval branch silently falls back to unfiltered rendering when the backend is unavailable. |
 | Equation fragment content with spaces around an operator (`" = "`) drops the operator | `#box()[ = ]` loses the `=`. Use `"="` without surrounding spaces, or trim content. |
 | Stack `gap` is ignored | Documented (Stack is an overlap container); a `tracing::warn!` fires. |
 | Legend auto-includes every color-bearing actor | Expected auto-scan; can be noisy on multi-actor scenes. |
 
 ## Open follow-ups
-- Filter-blink/fallback on software GPU (verify + decide whether the silent
-  fallback should surface a diagnostic).
-- Typst `text:` alias should either work or be rejected with a clear error.
+- Filter blur/fallback on software GPU (verify + decide whether the silent
+  fallback should surface a diagnostic) — see probe 009.
+- Typst math `mc^2`-style content compile failure (investigate the Typst parse
+  case + improve the generic error message).
 - Equation fragment whitespace handling around operators.
+- Default bundled "Open Sans" mock font is single-weight: consider whether it
+  should gain bold/italic faces so rich text works without a `font_family`.
 - Add a render-level pixel-assertion test for Mask clip / BarChart axis span /
   hosted-plot full-axis (currently verified visually; deterministic enough to
   assert programmatically).
