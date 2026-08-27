@@ -1,0 +1,23 @@
+// render-correctness probe — text breadth (EN / CJK / wrap / weight / align)
+config { resolution: (1280, 720) }
+
+#0s
+en:    Text, at: (320,  120), text: "Hello Animatix", font_size: 40, color: (1,1,1,1)
+cj:    Text, at: (320,  240), text: "中文排版测试", font_size: 40, color: (1,1,1,1)
+wrap:  Text, at: (320,  380), text: "This is a fairly long line of English text that should wrap at the given max width of 240 points, demonstrating overflow handling.",
+       font_size: 28, color: (1,0.9,0.6,1), text_max_width: 240, text_align: "left"
+bold:  Text, at: (900,  120), text: "Bold 粗体", font_size: 40, font_weight: 700, color: (0.6,0.9,1,1)
+cjkw:  Text, at: (900,  300), text: "显式宽度下的中文自动换行测试内容应当按设置宽度折行而不是塌缩成两三个字", font_size: 28, color: (1,0.7,0.8,1), text_max_width: 260, text_align: "left"
+code:  Code, at: (640,  520), code: "fn animate() { let x = 5; x + 1 }", font_size: 28, color: (0.4,1,0.7,1)
+typst: Typst, at: (1000, 520), text: "$x^2 + \\sqrt{y}$", font_size: 40, color: (0.8,0.7,1,1)
+
+#0s
+stagger [60ms] {
+  fade-in en [200ms]
+  fade-in cj [200ms]
+  fade-in wrap [200ms]
+  fade-in bold [200ms]
+  fade-in cjkw [200ms]
+  fade-in code [200ms]
+  fade-in typst [200ms]
+}

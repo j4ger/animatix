@@ -1,0 +1,10 @@
+// focus: Typst primitive — confirm it emits glyphs (plain + inline math)
+config { resolution: (1280, 720) }
+
+#0s
+plain: Typst, at: (400, 200), content: "Typst markup: *bold* and _italic_", font_size: 44, color: (1,1,1,1)
+math:  Typst, at: (400, 420), content: "$x^2 + sqrt(y) = z$", font_size: 44, color: (0.8,0.7,1,1)
+
+#0s
+fade-in plain [200ms]
+fade-in math [200ms]

@@ -1,0 +1,38 @@
+// render-correctness probe — plots (breadth): hosted curve, BarChart (pixel),
+// NumberPlane, VectorField, Heatmap, ContourSet.
+config { resolution: (1280, 720) }
+
+#0s
+// Graph-hosted cartesian curves (math coords)
+graph: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (420, 300), at: (260, 190) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: (0.3, 0.8, 1, 1), stroke_width: 3
+  line2: PlotCurve, kind: "cartesian", func: (x) => x / 2, color: (1, 0.7, 0.2, 1), stroke_width: 2
+}
+
+// Standalone BarChart (pixel-space coords + explicit size)
+chart: BarChart, at: (760, 190), size: (360, 260),
+  data: {("A", 42), ("B", 65), ("C", 58), ("D", 80), ("E", 91)},
+  bar_colors: {(1, 0.4, 0.4, 1), (1, 0.7, 0.3, 1), (1, 0.9, 0.3, 1), (0.4, 0.85, 0.4, 1), (0.4, 0.6, 1, 1)},
+  show_labels: true
+
+// NumberPlane grid + labeled axes
+plane: NumberPlane, x_domain: (-6, 6), y_domain: (-4, 4), size: (300, 200), at: (300, 520)
+
+// VectorField
+field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)), density: 10, color: (0.4, 1, 0.6, 1), x_domain: (-4, 4), y_domain: (-4, 4), at: (680, 520), size: (200, 200)
+
+// Heatmap
+heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 22, color: (1, 0.6, 0.3, 1), x_domain: (-3.14, 3.14), y_domain: (-3.14, 3.14), at: (1000, 520), size: (200, 200)
+
+// ContourSet
+contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9}, color: (0.9, 0.4, 0.9, 1), x_domain: (-5, 5), y_domain: (-5, 5), at: (1180, 520), size: (170, 170)
+
+#0s
+stagger [60ms] {
+  fade-in graph [250ms]
+  fade-in chart [250ms]
+  fade-in plane [250ms]
+  fade-in field [250ms]
+  fade-in heat [250ms]
+  fade-in contours [250ms]
+}

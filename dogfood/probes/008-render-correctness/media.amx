@@ -1,0 +1,10 @@
+// render-correctness probe — media (Image, Svg)
+config { resolution: (1280, 720) }
+
+#0s
+img:  Image, at: (400, 240), url: "examples/assets/checker.png", size: (200, 160)
+svg:  Svg,   at: (900, 240), url: "examples/assets/animatix-mark.svg", size: (200, 200)
+img2: Image, at: (400, 520), url: "examples/assets/checker.png", size: (400, 320)
+
+#0s
+stagger [60ms] { fade-in img [180ms] fade-in svg [180ms] fade-in img2 [180ms] }

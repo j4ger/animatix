@@ -1,0 +1,8 @@
+// focus: VectorField — standalone; test with explicit stroke (the builder uses stroke)
+config { resolution: (1280, 720) }
+
+#0s
+field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)), density: 18, color: (0.4, 1, 0.6, 1), stroke_color: (0.4, 1, 0.6, 1), stroke_width: 2, x_domain: (-4, 4), y_domain: (-4, 4), at: (400, 360), size: (360, 360)
+
+#0s
+fade-in field [200ms]

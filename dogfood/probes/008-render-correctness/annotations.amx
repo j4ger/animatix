@@ -1,0 +1,35 @@
+// render-correctness probe — annotations (Callout, Legend, Equation + Fragment)
+config { resolution: (1280, 720) }
+
+#0s
+callout1: Callout { from: (150, 150), to: (400, 150), label: "Important Point", label_at: (10, -10), color: (0.9, 0.3, 0.3, 1) }
+target: Rect, at: (700, 150), size: (120, 80), color: (0.2, 0.6, 0.9, 1)
+callout2: Callout { target: target, place: "top", label: "Targeted", label_at: (0, -14), color: (0.3, 0.9, 0.5, 1) }
+
+line_a: Line, from: (900, 220), to: (1050, 220), color: (1, 0, 0, 1), stroke_width: 4, legend: "Series A"
+line_b: Line, from: (900, 250), to: (1050, 250), color: (0, 1, 0, 1), stroke_width: 4, legend: "Series B"
+line_c: Line, from: (900, 280), to: (1050, 280), color: (0, 0, 1, 1), stroke_width: 4, legend: "Series C"
+legend: Legend, at: (1000, 130), title: "Series", swatch_size: 16, gap: 8, text_max_width: 240
+
+eq: Equation, at: (520, 470), font_size: 44, color: (1, 1, 1, 1) {
+  lhs: Fragment, content: "E"
+  eq_sign: Fragment, content: " = "
+  mass: Fragment, content: "m"
+  c2: Fragment, content: "c^2"
+}
+
+#0s
+stagger [40ms] {
+  fade-in callout1 [120ms]
+  fade-in target [120ms]
+  fade-in callout2 [120ms]
+  fade-in line_a [120ms]
+  fade-in line_b [120ms]
+  fade-in line_c [120ms]
+  fade-in legend [120ms]
+  fade-in eq [120ms]
+  fade-in lhs [120ms]
+  fade-in eq_sign [120ms]
+  fade-in mass [120ms]
+  fade-in c2 [120ms]
+}

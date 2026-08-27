@@ -1,0 +1,15 @@
+// focus: Equation — fragment rendering; test `=` and math-mode content
+config { resolution: (1280, 720) }
+
+#0s
+eq1: Equation, at: (400, 200), font_size: 46, color: (1, 1, 1, 1) {
+  a: Fragment, content: "a"
+  op: Fragment, content: "="
+  b: Fragment, content: "b"
+}
+eq2: Equation, at: (400, 420), font_size: 46, color: (1, 1, 1, 1) {
+  x: Fragment, content: "$x^2 + y$"
+}
+
+#0s
+stagger [60ms] { fade-in eq1 [180ms] fade-in a [180ms] fade-in op [180ms] fade-in b [180ms] fade-in eq2 [180ms] fade-in x [180ms] }

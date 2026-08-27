@@ -1,0 +1,53 @@
+// render-correctness probe — containers (breadth): Row, Grid, Stack, Group, Mask, Filter
+config { resolution: (1280, 720) }
+
+#0s
+row: Row, at: (280, 180), gap: 14, padding: 10 {
+  r1: Rect, size: (70, 70), color: (0.9, 0.2, 0.2, 1)
+  r2: Rect, size: (70, 70), color: (0.2, 0.6, 0.9, 1)
+  r3: Rect, size: (70, 70), color: (0.9, 0.7, 0.1, 1)
+}
+grid: Grid, cols: 3, at: (720, 180), gap: 10 {
+  g1: Rect, size: (55, 55), color: (0.4, 0.85, 0.4, 1)
+  g2: Rect, size: (55, 55), color: (0.75, 0.3, 0.9, 1)
+  g3: Rect, size: (55, 55), color: (0.2, 0.8, 0.9, 1)
+  g4: Rect, size: (55, 55), color: (1, 0.6, 0.3, 1)
+}
+mask: Mask, at: (1050, 180), size: (200, 150) {
+  big: Rect, size: (400, 300), color: (0.9, 0.2, 0.2, 1)
+  clip_shape: Ellipse, size: (120, 100)
+}
+stack: Stack, at: (300, 480), gap: 8 {
+  s1: Rect, size: (140, 40), color: (0.4, 0.85, 0.4, 1)
+  s2: Rect, size: (90, 40), color: (0.75, 0.3, 0.9, 1)
+}
+group: Group, at: (700, 480) {
+  gp1: Rect, size: (80, 60), color: (1, 0.6, 0.3, 1), at: (-45, 0)
+  gp2: Rect, size: (80, 60), color: (0.2, 0.8, 0.9, 1), at: (45, 0)
+}
+filter: Filter, at: (1050, 480), size: (200, 200), blur: 6 {
+  fchild: Rect, size: (200, 200), color: (0.2, 0.6, 0.9, 1)
+}
+
+#0s
+stagger [40ms] {
+  fade-in row [120ms]
+  fade-in r1 [120ms]
+  fade-in r2 [120ms]
+  fade-in r3 [120ms]
+  fade-in grid [120ms]
+  fade-in g1 [120ms]
+  fade-in g2 [120ms]
+  fade-in g3 [120ms]
+  fade-in g4 [120ms]
+  fade-in mask [120ms]
+  fade-in big [120ms]
+  fade-in stack [120ms]
+  fade-in s1 [120ms]
+  fade-in s2 [120ms]
+  fade-in group [120ms]
+  fade-in gp1 [120ms]
+  fade-in gp2 [120ms]
+  fade-in filter [120ms]
+  fade-in fchild [120ms]
+}
