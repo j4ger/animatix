@@ -1,0 +1,10 @@
+// focus: Filter blur on a high-contrast source (checkerboard) — blur is unmistakable if applied
+config { resolution: (1280, 720) }
+
+#0s
+filter: Filter, at: (400, 300), size: (320, 320), blur: 10 {
+  img: Image, url: "examples/assets/checker.png", size: (300, 300)
+}
+#0s
+fade-in filter [200ms]
+fade-in img [200ms]
