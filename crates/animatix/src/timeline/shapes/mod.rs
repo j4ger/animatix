@@ -342,7 +342,13 @@ pub fn default_stroke_width(kind: ActorKindId) -> f32 {
     match kind {
         ActorKindId::Shape(ShapeKind::Line | ShapeKind::Arrow)
         | ActorKindId::Callout
-        | ActorKindId::PlotCurve => 2.0,
+        | ActorKindId::PlotCurve
+        // Stroke-drawn plots: VectorField/ContourSet draw arrows/contours via
+        // `stroke`, so a zero default width makes them invisible when the user
+        // sets only `color:`. `color` is used as their stroke color, so a
+        // non-zero default renders them as authored.
+        | ActorKindId::VectorField
+        | ActorKindId::ContourSet => 2.0,
         _ => 0.0,
     }
 }
@@ -820,5 +826,17 @@ mod tests {
         assert!(vector_shape_uses_custom_path(ShapeType::Polygon));
         assert!(vector_shape_uses_custom_path(ShapeType::Path));
         assert!(!vector_shape_uses_custom_path(ShapeType::Rect));
+    }
+
+    #[test]
+    fn stroke_drawn_plots_get_a_default_width() {
+        // Regression: VectorField/ContourSet draw arrows/contours via `stroke`,
+        // so a zero default stroke width made them invisible when the user set
+        // only `color:` (which is used as their stroke color).
+        assert_eq!(default_stroke_width(ActorKindId::VectorField), 2.0);
+        assert_eq!(default_stroke_width(ActorKindId::ContourSet), 2.0);
+        // Filled shapes stay stroke-less by default.
+        assert_eq!(default_stroke_width(ActorKindId::Shape(ShapeKind::Rect)), 0.0);
+        assert_eq!(default_stroke_width(ActorKindId::Shape(ShapeKind::Ellipse)), 0.0);
     }
 }
