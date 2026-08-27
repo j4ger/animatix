@@ -44,10 +44,14 @@ impl TextDeclarationKind {
     }
 
     fn content_matches(self, property_name: &str) -> bool {
+        // Uniform content property across text-like kinds: `text`. Each kind
+        // also accepts its canonical/legacy name so existing declarations keep
+        // working. This makes e.g. `Typst, text: "..."` render instead of being
+        // silently dropped (the previous build path only read `content`).
         match self {
-            Self::Text => property_name == "text",
-            Self::Code => property_name == "code",
-            Self::Typst => property_name == "content",
+            Self::Text => matches!(property_name, "text" | "content"),
+            Self::Code => matches!(property_name, "code" | "text" | "content"),
+            Self::Typst => matches!(property_name, "content" | "text" | "latex" | "math" | "code"),
         }
     }
 

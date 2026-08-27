@@ -989,6 +989,36 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
 /// (Regression: the parser consumed `ease:` modifiers unconditionally, so
 /// unknown names were silently replaced by the default easing.)
 #[test]
+fn typst_and_code_accept_uniform_text_content_property() {
+    use crate::timeline::TrackAccessor;
+
+    // Regression: the uniform `text:` content property should feed the content
+    // track for the non-`Text` text kinds too. Previously `Typst`/`Code` only
+    // read `content`/`code` at build time, so `Typst, text: "..."` was accepted
+    // (no error) yet rendered blank.
+    let source = r#"
+a: Typst, text: "hello typst"
+b: Code, text: "hello code"
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let typst_track = report.output.tracks.get("a").expect("a track");
+    assert_eq!(
+        typst_track.text.text_content.get(0, String::new()),
+        "hello typst",
+        "Typst should read content from `text:`"
+    );
+    let code_track = report.output.tracks.get("b").expect("b track");
+    assert_eq!(
+        code_track.text.text_content.get(0, String::new()),
+        "hello code",
+        "Code should read content from `text:`"
+    );
+}
+
+#[test]
 fn invalid_easing_name_warns_on_assignment() {
     let source = r#"
 r: Rect, size: (100, 100), color: accent.primary
