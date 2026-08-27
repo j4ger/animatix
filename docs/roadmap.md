@@ -76,6 +76,7 @@ and all performance work should be justified by a moved metric in that doc.
 |---|---|---|
 | BarChart `gap` registry visibility (unverified) | An early-session note flagged the BarChart `gap` property's registry visibility as a known issue; status unknown after the subsequent build refactor | **Verified 2026-08-26**: `gap` is parsed by the shared plot props loop (handles `auto` or numeric), and BarChart delegates to `process_plot_actor_dispatch` — the only signal is an info-level `unknown-property` ("may still be valid"), same class as theme_studio. No fix needed. |
 | Track `parent` back-reference is not always back-filled | First-declaration children inside containers can lack the parent pointer (noted during the component Group fix), so parent-chain queries cannot trust the stored field. The children lists ARE authoritative (regression-tested) | **Done 2026-08-26**: `Timeline::parent_of()` (derives child→parent from the children lists) added in `crates/animatix/src/timeline/mod.rs`; the never-revealed diagnostic routes its query through it. |
+| ~~`descent_graph` cross-scene modifier warning~~ | ~~Symptom of the graph.map bug: 06_reactive/gradient_descent's `descent_graph.map` call couldn't resolve the receiver and the modifier IR logged `Undefined variable: descent_graph`.~~ | **Resolved by the dotted-NativeFn IR fix (env_keys module + lower.rs CallEnv join) — verified: 0 warnings at t=14 in gradient_descent.** |
 | `hidden_by_default` flag goes STALE when reveals bypass lift_hidden_by_default | **Root cause found (probe, 2026-08-26)**: 06_reactive's title/ring carry staggered fade keyframes `[(0,0),(500,0),(1000,1)]` (authored fade-ins beyond the file's 40th line) yet the flag stays `true` — the fade keyframes were added without routing through `lift_hidden_by_default`, so the flag is a stale "never revealed" signal. The SOUND signal is keyframe-based: warn only when the opacity keyframes are all zero AND no ancestor's opacity lifts (parent chain derived from children lists) AND the actor is not a generated sub-actor. The earlier attempt's false positives were generated sub-actors (ticks/labels) whose visibility inherits from parents | Re-implement the diagnostic on the keyframe+parent-chain+generated-sub-actor-exclusion model; verify against the 42-example corpus |
 
 ## Open Questions
@@ -93,9 +94,10 @@ and all performance work should be justified by a moved metric in that doc.
   access; option (a) is the correct final choice.
 - **Grid auto-columns**: `Grid` without `cols` is single-column; auto-fitting
   columns from child sizes would remove a foot-gun (spec.md documents the
-  default meanwhile). Interim option: warn when `cols` is absent and the
-  Grid has more than one child (nudge without breaking single-column
-  users); decide on auto-fit based on the warning hit rate.
+  default meanwhile). **Interim nudge shipped (2026-08-26)**: `missing-grid-cols`
+  build warning when `cols` is absent (in `crates/animatix/src/primitives/grid.rs`).
+  Decide on full auto-fit later based on the warning's hit rate across the 42
+  examples.
 
 ### Comment Directives
 
