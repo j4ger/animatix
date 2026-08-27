@@ -153,6 +153,53 @@ impl FontContext {
         Font::new(Bytes::new(data), face.index)
     }
 
+    /// Load the bold/italic emphasis faces of a family into the Typst world.
+    ///
+    /// `with_fonts_and_fallback` loads only the default regular face per family,
+    /// so `*bold*`/`_italic_`/`font_weight` selected by Typst markup or the
+    /// `font_weight`/`font_style` properties had no matching face and fell back
+    /// to regular. This returns the regular + bold + italic + bold-italic faces
+    /// so those variants actually render. Empty if the family has none.
+    fn load_font_emphasis_faces(&self, family: &str) -> Vec<Font> {
+        let combos = [
+            (fontdb::Weight::NORMAL, fontdb::Style::Normal),
+            (fontdb::Weight::BOLD, fontdb::Style::Normal),
+            (fontdb::Weight::NORMAL, fontdb::Style::Italic),
+            (fontdb::Weight::BOLD, fontdb::Style::Italic),
+        ];
+        let mut out = Vec::with_capacity(combos.len());
+        for (weight, style) in combos {
+            let id = self.db.query(&fontdb::Query {
+                families: &[fontdb::Family::Name(family)],
+                weight,
+                style,
+                ..Default::default()
+            });
+            let Some(id) = id else {
+                continue;
+            };
+            let Some(data) = Self::face_data(&self.db, id) else {
+                continue;
+            };
+            let Some(face) = self.db.face(id) else {
+                continue;
+            };
+            let Some(font) = Font::new(Bytes::new(data), face.index) else {
+                continue;
+            };
+            // De-dup by (family, weight, style) so repeated variants aren't re-imported.
+            if out.iter().any(|f: &Font| {
+                f.info().family == font.info().family
+                    && f.info().variant.weight == font.info().variant.weight
+                    && f.info().variant.style == font.info().variant.style
+            }) {
+                continue;
+            }
+            out.push(font);
+        }
+        out
+    }
+
     fn has_family(&self, family: &str) -> bool {
         self.db
             .query(&fontdb::Query {
@@ -483,11 +530,20 @@ fn build_world(
     // Load requested extra fonts via persistent FontContext.
     // Skip fonts that are already available as bundled fonts to avoid
     // override with potentially different metrics (e.g. system vs mock).
+    // Load the full emphasis set (regular/bold/italic/bold-italic) so Typst
+    // can honor `*bold*`/`_italic_`/`font_weight`/`font_style` for the family.
     for family in extra_fonts {
         if fonts.iter().any(|f| f.info().family == *family) {
             continue;
         }
-        if let Some(font) = font_ctx.load_font(family) {
+        for font in font_ctx.load_font_emphasis_faces(family) {
+            if fonts.iter().any(|f| {
+                f.info().family == font.info().family
+                    && f.info().variant.weight == font.info().variant.weight
+                    && f.info().variant.style == font.info().variant.style
+            }) {
+                continue;
+            }
             book.push(font.info().clone());
             fonts.push(font);
         }
@@ -2191,6 +2247,30 @@ mod tests {
     /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
     fn test_font_ctx() -> FontContext {
         FontContext::with_fast_path(true)
+    }
+
+    #[test]
+    fn emphasis_faces_load_bold_when_family_has_it() {
+        // Regression: the Typst world used to load only one regular face per
+        // family, so `*bold*`/`_italic_`/`font_weight` rendered at regular weight
+        // even when the system font had bold/italic faces. `load_font_emphasis_faces`
+        // must include a bold face whenever the family exposes one.
+        let ctx = test_font_ctx();
+        let bold_family = ctx.db.faces().find_map(|face| {
+            if face.weight == fontdb::Weight::BOLD {
+                face.families.first().map(|f| f.0.clone())
+            } else {
+                None
+            }
+        });
+        if let Some(family) = bold_family {
+            let faces = ctx.load_font_emphasis_faces(&family);
+            assert!(
+                faces.iter().any(|f| f.info().variant.weight.to_number() >= 700),
+                "expected a bold emphasis face for a family that has bold ({family})"
+            );
+        }
+        // No assertion if no bold family exists (defensive: CI font sets vary).
     }
 
     #[test]
