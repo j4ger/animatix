@@ -92,8 +92,8 @@ impl GraphScaleConfig {
 /// These values change when the graph is animated (size, position, padding).
 #[derive(Clone, Debug)]
 pub(crate) struct GraphGeometry {
-    /// Full size of the graph actor in screen units (half-extents in the same coordinate space
-    /// used by `at`).
+    /// Full size of the graph actor in screen units (width × height in the same
+    /// pixel space used by `at`).
     pub size: [f64; 2],
     /// Position of the graph actor in screen coordinates.
     pub at: [f64; 2],

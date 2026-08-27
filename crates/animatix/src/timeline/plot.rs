@@ -795,7 +795,7 @@ pub(crate) fn sample_recursive_parametric(
 
 /// Convert math coordinates to screen coordinates relative to the graph actor center.
 ///
-/// `p_size` is the half-extent of the graph `[hw, hh]`.  `padding` is `[left, right, top, bottom]`
+/// `p_size` is the full width and height of the graph `[w, h]`.  `padding` is `[left, right, top, bottom]`
 /// in the same pixel units.  Returns coordinates in the local (relative-to-center) space.
 pub(crate) fn math_to_screen_padded(
     math_x: f64,
