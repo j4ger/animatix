@@ -7,7 +7,9 @@ cargo build
 cargo test
 ```
 
-If you use Nix, `nix develop` sets up Rust, FFmpeg, Tree-sitter, and graphics dependencies.
+If you use Nix, `nix develop` sets up Rust, FFmpeg, Tree-sitter, graphics
+dependencies, and **Cocogitto** (`cog`, used for conventional commits). Run
+`cog commit`/`cog check` inside the dev shell; outside it `cog` is not on `PATH`.
 
 ---
 

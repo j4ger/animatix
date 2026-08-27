@@ -30,7 +30,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    > **Why `--workspace`?** Ensures all crates (including GUI, analyzer, LSP) compile. Prevents silent drift between core and tooling crates.
 4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items).
 5. Ask on unclear design choices and call out design flaws you notice.
-6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is unavailable/blocked, and mention it.
+6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). `cog` is provided by the flake dev shell (cocogitto), so **run the commit while inside `nix develop`**; outside the shell it's not on `PATH`. Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is genuinely unavailable/blocked, and mention it.
 7. Conventional commit scopes come from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
 
 ## Common Pitfalls
@@ -38,6 +38,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - **GUI drift**: The GUI crate is excluded from `cargo check` (no `-p` flag), so errors can accumulate silently. Always run `cargo check --workspace` before committing to catch GUI, analyzer, and LSP compilation issues.
 - **Single tokenizer**: Syntax tokens are defined once in `crates/animatix-syntax/src/token.rs`. The parser consumes that token stream, the analyzer and LSP use it for positions, and the GUI uses it for syntax highlighting. Do not add a second lexer or grammar.
 - **Evaluation paths**: Build-time expressions use the AST tree-walker (`evaluate_expr`); frame-time modifier code and plot closures are lowered to IR and interpreted by the single IR executor (`execute_modifier_ir` / `evaluate_compiled_expr`). Leaf operators and builtins are shared through `eval_shared`, so new operators/builtins are added there to keep both paths in sync.
+- **`cog` is inside the dev shell**: `nix develop` provides `cog` (cocogitto). If `cog` isn't found, you're outside the shell — re-enter `nix develop` before committing. Do not preemptively fall back to `git commit -m`; use it only when cog is genuinely blocked (e.g., the linked-worktree `.git` quirk for cross-worktree commits).
 
 ## Optional Features
 

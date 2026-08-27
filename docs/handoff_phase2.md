@@ -117,9 +117,10 @@ Approximate motion_poster scene starts (global, with transitions):
 - All pre-commit gates pass (fmt, `cargo check --workspace`, syntax 213,
   animatix lib 706, serially).
 - No generated PNGs are committed; smoke outputs are disposable.
-- `cog commit` cannot open a linked worktree's `.git` file — commits on this
-  branch used `git commit -m "type(scope): ..."` per AGENTS.md fallback (each
-  message says so).
+- `cog commit` works inside `nix develop` (cocogitto is on the shell `PATH`). It
+  cannot, however, open a *linked worktree's* `.git` file — when committing on a
+  branch checked out in another worktree, either commit from the main repo or use
+  the `git commit -m "type(scope): ..."` fallback (and note it, per AGENTS.md).
 - Keep using `nix develop` for workspace checks and renders (software Vulkan
   via lavapipe; a bare GPU adapter is unavailable outside the shell).
 - Merge `feat/demo-gallery-p2` back to `main` when ready (fast-forward).
