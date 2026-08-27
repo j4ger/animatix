@@ -116,6 +116,8 @@ pub enum DiagnosticCode {
     /// An actor is seeded hidden (pre-keyframe) and no entrance action ever
     /// lifted it — it will never be visible.
     NeverRevealed,
+    /// A Grid lacks an explicit `cols` and will lay out in a single column.
+    MissingGridCols,
     /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
     OrphanScene,
     /// Scene persistence: `persist` was given a duration argument, which is ignored.
@@ -216,6 +218,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::MultiplePlayTargets => write!(f, "multiple-play-targets"),
             DiagnosticCode::PlayInsideKeyframe => write!(f, "play-inside-keyframe"),
             DiagnosticCode::NeverRevealed => write!(f, "never-revealed"),
+            DiagnosticCode::MissingGridCols => write!(f, "missing-grid-cols"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
             DiagnosticCode::PersistIgnoresDuration => write!(f, "persist-ignores-duration"),
             DiagnosticCode::PersistLayoutManagedChild => write!(f, "persist-layout-managed-child"),

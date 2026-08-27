@@ -74,7 +74,7 @@ and all performance work should be justified by a moved metric in that doc.
 
 | Issue | Detail | Next Step |
 |---|---|---|
-| BarChart `gap` registry visibility (unverified) | An early-session note flagged the BarChart `gap` property's registry visibility as a known issue; status unknown after the subsequent build refactor | Verify whether `gap` is registered/typed for BarChart; fix or close |
+| BarChart `gap` registry visibility (unverified) | An early-session note flagged the BarChart `gap` property's registry visibility as a known issue; status unknown after the subsequent build refactor | **Verified 2026-08-26**: `gap` is parsed by the shared plot props loop (handles `auto` or numeric), and BarChart delegates to `process_plot_actor_dispatch` — the only signal is an info-level `unknown-property` ("may still be valid"), same class as theme_studio. No fix needed. |
 | Track `parent` back-reference is not always back-filled | First-declaration children inside containers can lack the parent pointer (noted during the component Group fix), so parent-chain queries cannot trust the stored field. The children lists ARE authoritative (regression-tested) | Derive parentage from children lists — add `Timeline::parent_of(label)` and route all parent-chain queries through it |
 | `hidden_by_default` flag goes STALE when reveals bypass lift_hidden_by_default | **Root cause found (probe, 2026-08-26)**: 06_reactive's title/ring carry staggered fade keyframes `[(0,0),(500,0),(1000,1)]` (authored fade-ins beyond the file's 40th line) yet the flag stays `true` — the fade keyframes were added without routing through `lift_hidden_by_default`, so the flag is a stale "never revealed" signal. The SOUND signal is keyframe-based: warn only when the opacity keyframes are all zero AND no ancestor's opacity lifts (parent chain derived from children lists) AND the actor is not a generated sub-actor. The earlier attempt's false positives were generated sub-actors (ticks/labels) whose visibility inherits from parents | Re-implement the diagnostic on the keyframe+parent-chain+generated-sub-actor-exclusion model; verify against the 42-example corpus |
 
@@ -87,10 +87,10 @@ and all performance work should be justified by a moved metric in that doc.
   Options: (a) keep as the documented idiom (chosen for now — spec.md
   documents it), (b) make the unaliased import expose tokens directly,
   (c) a dedicated `theme "name"` statement.
-  **Open premise for (b)**: if the unaliased flatten already brings `pub let`
-  tokens into scope, the aliased line is redundant for tokens and the idiom
-  collapses to one import — verify with a two-line experiment before
-  choosing.
+  **Premise for (b) tested (2026-08-26): FALSE** — with only the unaliased
+  import, `theme.text_lg` does not resolve (falls back to the default with
+  an unknown-lookup-path warning). The aliased line is required for token
+  access; option (a) is the correct final choice.
 - **Grid auto-columns**: `Grid` without `cols` is single-column; auto-fitting
   columns from child sizes would remove a foot-gun (spec.md documents the
   default meanwhile). Interim option: warn when `cols` is absent and the

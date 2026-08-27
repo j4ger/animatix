@@ -132,6 +132,20 @@ impl Primitive for GridPrimitive {
             }
         }
 
+        if cols.is_none() {
+            ctx.diagnostics.push(
+                crate::diagnostics::Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::MissingGridCols,
+                    animatix_syntax::diagnostics::DiagnosticPhase::Build,
+                    format!(
+                        "Grid '{label}' has no explicit `cols`; it lays out in a single \
+                         column. Set `cols: N` for a multi-column layout."
+                    ),
+                )
+                .with_subject(label),
+            );
+        }
+
         ctx.timeline.register_container_metadata_and_apply_layout(
             label,
             self.type_name(),
