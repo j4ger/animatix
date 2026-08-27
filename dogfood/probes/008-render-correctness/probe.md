@@ -44,7 +44,7 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 | Typst `text:` property silently renders blank | `text:` is accepted by the property guard but does not feed the content track; use `content:`. Footgun worth flagging. |
 | Typst markup emphasis `*bold*`/`_italic_` not applied | Content renders at regular weight with delimiters stripped. |
 | CJK `font_weight` bold may fall back to a regular face | Documented limitation (one representative face per family is loaded). |
-| Filter `blur` not visibly applied in `animatix image` export | Likely the GPU filter backend falling back to unfiltered rendering on software Vulkan (`scene_eval` has a silent fallback). Verify whether the filter works on real GPUs / whether the fallback should warn louder. |
+| Filter `blur` not visibly applied in `animatix image` export | The GPU filter backend path looks correct (ping-pong WGSL blur passes), but `blur: 10` on a high-contrast source stays sharp. Smoke tests only assert `is_ok()` + size, never that content is actually blurred. Could be a software-Vulkan (lavapipe) compute limitation or a latent shader/pipeline bug. **See `dogfood/probes/009-filter-gpu-deferred` (open, human review).** Also note the Filter scene-eval branch silently falls back to unfiltered rendering when the backend is unavailable. |
 | Equation fragment content with spaces around an operator (`" = "`) drops the operator | `#box()[ = ]` loses the `=`. Use `"="` without surrounding spaces, or trim content. |
 | Stack `gap` is ignored | Documented (Stack is an overlap container); a `tracing::warn!` fires. |
 | Legend auto-includes every color-bearing actor | Expected auto-scan; can be noisy on multi-actor scenes. |

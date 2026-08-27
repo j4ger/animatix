@@ -1,0 +1,11 @@
+// repro.amx — GPU filter blur is not visually applied in `animatix image` export.
+// A `Filter` with `blur:` over a high-contrast source renders SHARP, not blurred.
+config { resolution: (1280, 720) }
+
+#0s
+filter: Filter, at: (400, 300), size: (320, 320), blur: 10 {
+  img: Image, url: "examples/assets/checker.png", size: (300, 300)
+}
+#0s
+fade-in filter [200ms]
+fade-in img [200ms]
