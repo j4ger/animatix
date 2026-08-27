@@ -1010,6 +1010,19 @@ impl Timeline {
         &mut self.tracks
     }
 
+    /// Map each child label to its parent label, derived from the
+    /// authoritative children lists. The stored `parent` back-reference
+    /// on first-declaration children can be missing (noted during the
+    /// component Group fix), so all parent-chain queries should go through
+    /// this helper instead of reading the stored field.
+    pub fn parent_of(&self) -> std::collections::HashMap<&String, &String> {
+        self
+            .tracks
+            .iter()
+            .flat_map(|(label, t)| t.children.iter().map(move |c| (c, label)))
+            .collect()
+    }
+
     /// Returns a reference to the container metadata map.
     pub fn container_metadata(&self) -> &BTreeMap<String, ContainerMetadata> {
         &self.container_metadata

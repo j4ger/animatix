@@ -503,14 +503,11 @@ impl Timeline {
         // wipe-in, ...) ever lifted them — they will never be visible. The
         // flag is maintained by lift_hidden_by_default, which every entrance
         // action routes through.
-        // child label -> parent label, from the authoritative children lists.
-        // Generated sub-actors (graph ticks, bar labels) render through their
-        // parent primitive, so an ancestor's reveal counts as their own.
-        let parent_of: std::collections::HashMap<&String, &String> = timeline
-            .tracks
-            .iter()
-            .flat_map(|(label, t)| t.children.iter().map(move |c| (c, label)))
-            .collect();
+        // Generated sub-actors (graph ticks, bar labels) render through
+        // their parent primitive, so an ancestor's reveal counts as their
+        // own. `parent_of` is derived from the children lists rather than
+        // trusting the stored `parent` back-reference.
+        let parent_of = timeline.parent_of();
         let revealed_via_ancestor = |label: &str| -> bool {
             let mut current = parent_of.get(&label.to_string());
             while let Some(parent) = current {
