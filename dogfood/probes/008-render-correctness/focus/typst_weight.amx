@@ -1,0 +1,10 @@
+// focus: does Typst honor font_weight at all (weight faces loaded into world)?
+config { resolution: (1280, 720) }
+
+#0s
+a: Typst, at: (400, 200), content: "normal weight", font_size: 40, color: (1, 1, 1, 1)
+b: Typst, at: (400, 400), content: "bold weight", font_size: 40, font_weight: 700, color: (1, 1, 1, 1)
+c: Text,  at: (900, 400), text: "Text bold", font_size: 40, font_weight: 700, color: (1, 1, 1, 1)
+
+#0s
+stagger [60ms] { fade-in a [120ms] fade-in b [120ms] fade-in c [120ms] }

@@ -1,0 +1,10 @@
+// focus: first-class Math primitive (no $...$ wrapper needed)
+config { resolution: (1280, 720) }
+
+#0s
+m1: Math,  at: (400, 200), text: "x^2 + y^2", font_size: 46, color: (1, 1, 1, 1)
+m2: Math,  at: (400, 420), text: "sqrt(x) + 1", font_size: 46, color: (0.8, 0.7, 1, 1)
+m3: Math,  at: (900, 200), text: "sin(theta) cos(theta)", font_size: 46, color: (0.6, 0.9, 1, 1)
+
+#0s
+stagger [60ms] { fade-in m1 [120ms] fade-in m2 [120ms] fade-in m3 [120ms] }

@@ -1,0 +1,11 @@
+// focus: Typst vs Text markup semantics — does Text interpret markup? Does Typst?
+config { resolution: (1280, 720) }
+
+#0s
+t1: Text,  at: (400, 130), text: "Text: *bold* _italic_", font_size: 40, color: (1, 1, 1, 1)
+t2: Typst, at: (400, 280), content: "Typst: *bold* _italic_", font_size: 40, color: (1, 1, 1, 1)
+t3: Text,  at: (400, 430), text: "Text literal: x^2 + y", font_size: 40, color: (1, 1, 1, 1)
+t4: Typst, at: (400, 580), content: "Typst: $x^2 + y$", font_size: 40, color: (1, 1, 1, 1)
+
+#0s
+stagger [60ms] { fade-in t1 [120ms] fade-in t2 [120ms] fade-in t3 [120ms] fade-in t4 [120ms] }

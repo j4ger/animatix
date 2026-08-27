@@ -1,0 +1,8 @@
+config { resolution: (1280, 720) }
+
+#0s
+t1: Typst, at: (400, 200), content: "$E = mc^2$", font_size: 46, color: (1, 1, 1, 1)
+t2: Typst, at: (400, 420), content: "$x^2 + y$", font_size: 46, color: (1, 1, 1, 1)
+
+#0s
+stagger [60ms] { fade-in t1 [120ms] fade-in t2 [120ms] }

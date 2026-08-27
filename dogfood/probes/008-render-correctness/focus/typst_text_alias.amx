@@ -1,0 +1,9 @@
+// focus: does the uniform `text:` content property work for Typst and Code?
+config { resolution: (1280, 720) }
+
+#0s
+a: Typst, at: (400, 200), text: "Typst via text: x^2 + y", font_size: 40, color: (1, 1, 1, 1)
+b: Code,  at: (400, 400), text: "code via text: fn()", font_size: 40, color: (1, 1, 1, 1)
+
+#0s
+stagger [60ms] { fade-in a [120ms] fade-in b [120ms] }

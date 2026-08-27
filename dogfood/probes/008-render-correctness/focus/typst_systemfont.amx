@@ -1,0 +1,9 @@
+// focus: does Typst emphasis work with a SYSTEM font that actually has bold/italic?
+config { resolution: (1280, 720) }
+
+#0s
+a: Typst, at: (400, 200), font_family: "DejaVu Sans", content: "*bold* _italic_", font_size: 40, color: (1, 1, 1, 1)
+b: Typst, at: (400, 400), font_family: "DejaVu Sans", content: "weight 700", font_size: 40, font_weight: 700, color: (1, 1, 1, 1)
+
+#0s
+stagger [60ms] { fade-in a [120ms] fade-in b [120ms] }
