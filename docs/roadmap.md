@@ -77,35 +77,32 @@ and all performance work should be justified by a moved metric in that doc.
 | BarChart `gap` registry visibility (unverified) | An early-session note flagged the BarChart `gap` property's registry visibility as a known issue; status unknown after the subsequent build refactor | **Verified 2026-08-26**: `gap` is parsed by the shared plot props loop (handles `auto` or numeric), and BarChart delegates to `process_plot_actor_dispatch` — the only signal is an info-level `unknown-property` ("may still be valid"), same class as theme_studio. No fix needed. |
 | Track `parent` back-reference is not always back-filled | First-declaration children inside containers can lack the parent pointer (noted during the component Group fix), so parent-chain queries cannot trust the stored field. The children lists ARE authoritative (regression-tested) | **Done 2026-08-26**: `Timeline::parent_of()` (derives child→parent from the children lists) added in `crates/animatix/src/timeline/mod.rs`; the never-revealed diagnostic routes its query through it. |
 | ~~`descent_graph` cross-scene modifier warning~~ | ~~Symptom of the graph.map bug: 06_reactive/gradient_descent's `descent_graph.map` call couldn't resolve the receiver and the modifier IR logged `Undefined variable: descent_graph`.~~ | **Resolved by the dotted-NativeFn IR fix (env_keys module + lower.rs CallEnv join) — verified: 0 warnings at t=14 in gradient_descent.** |
-| `hidden_by_default` flag goes STALE when reveals bypass lift_hidden_by_default | **Root cause found (probe, 2026-08-26)**: 06_reactive's title/ring carry staggered fade keyframes `[(0,0),(500,0),(1000,1)]` (authored fade-ins beyond the file's 40th line) yet the flag stays `true` — the fade keyframes were added without routing through `lift_hidden_by_default`, so the flag is a stale "never revealed" signal. The SOUND signal is keyframe-based: warn only when the opacity keyframes are all zero AND no ancestor's opacity lifts (parent chain derived from children lists) AND the actor is not a generated sub-actor. The earlier attempt's false positives were generated sub-actors (ticks/labels) whose visibility inherits from parents | Re-implement the diagnostic on the keyframe+parent-chain+generated-sub-actor-exclusion model; verify against the 42-example corpus |
+| `hidden_by_default` flag goes STALE when reveals bypass lift_hidden_by_default | **Root cause found (probe, 2026-08-26)**: 06_reactive's title/ring carry staggered fade keyframes `[(0,0),(500,0),(1000,1)]` (authored fade-ins beyond the file's 40th line) yet the flag stays `true` — the fade keyframes were added without routing through `lift_hidden_by_default`, so the flag is a stale "never revealed" signal. The SOUND signal is keyframe-based: warn only when the opacity keyframes are all zero AND no ancestor's opacity lifts (parent chain derived from children lists) AND the actor is not a generated sub-actor. The earlier attempt's false positives were generated sub-actors (ticks/labels) whose visibility inherits from parents | **Resolved 2026-08-26**: the diagnostic was re-implemented on the keyframe + parent-chain + generated-sub-actor-exclusion model (`151c02f5`); `Timeline::parent_of()` supplies the parent chain and `FadeIn::execute` now routes its reveal through `lift_hidden_by_default`. Verified against the 42-example corpus. |
 
-## Open Questions
+## Resolved Open Questions (2026-08-26)
 
-### Language revision candidates (from the 2026-08 systems review)
+The language-revision candidates from the 2026-08 systems review are now
+**resolved** (no further decision needed). Booked where they landed:
 
-- **Theme dual-import**: the idiom (unaliased import registers the
-  colorscheme + aliased import exposes tokens) works but is non-obvious.
-  Options: (a) keep as the documented idiom (chosen for now — spec.md
-  documents it), (b) make the unaliased import expose tokens directly,
-  (c) a dedicated `theme "name"` statement.
-  **Premise for (b) tested (2026-08-26): FALSE** — with only the unaliased
-  import, `theme.text_lg` does not resolve (falls back to the default with
-  an unknown-lookup-path warning). The aliased line is required for token
-  access; option (a) is the correct final choice.
-- **Grid auto-columns**: `Grid` without `cols` is single-column; auto-fitting
-  columns from child sizes would remove a foot-gun (spec.md documents the
-  default meanwhile). **Interim nudge shipped (2026-08-26)**: `missing-grid-cols`
-  build warning when `cols` is absent (in `crates/animatix/src/primitives/grid.rs`).
-  Decide on full auto-fit later based on the warning's hit rate across the 42
-  examples.
-
-### Comment Directives
-
-Presenterm uses HTML-comment directives because it must extend markdown without
-creating a second DSL. Animatix already owns a semantic DSL, so comment
-directives are likely the wrong mechanism. The recommendation is to map valuable
-commands to native `.amx` features and add first-class metadata (for example
-speaker notes or export presets) only when a concrete user story appears.
+- **Theme dual-import — closed (option (a))**: the idiom (unaliased import
+  registers the colorscheme + aliased import exposes tokens) is the documented
+  final choice; `spec.md` documents it. The premise for (b) ("make the unaliased
+  import expose tokens directly") was tested and is **FALSE** (2026-08-26): with
+  only the unaliased import, `theme.text_lg` does not resolve (falls back with an
+  unknown-lookup-path warning). The aliased line is required for token access, so
+  the two-import idiom stands.
+- **Grid auto-columns — closed (keep the nudge, defer auto-fit)**: a `Grid`
+  without `cols` is single-column; auto-fitting columns from child sizes would
+  remove a foot-gun. A `missing-grid-cols` build warning now fires when `cols` is
+  absent (`crates/animatix/src/primitives/grid.rs`). A corpus census (2026-08-26)
+  shows every real `Grid` in `examples/` already sets `cols` (hit rate ≈ 0), so
+  the nudge is retained and full auto-fit is **deferred** until a concrete
+  foot-gun appears.
+- **Comment Directives — closed as a recommendation**: presenterm-style HTML
+  comment directives are the wrong mechanism for Animatix, which owns a
+  semantic DSL. Valuable commands should map to native `.amx` features; add
+  first-class metadata (speaker notes, export presets) only when a concrete user
+  story appears.
 
 ---
 
@@ -210,40 +207,41 @@ lands.
 | Phase | Deliverable | Status | Acceptance | Known Blockers / Notes |
 |---|---|---|---|---|
 | 1 | Shared `lib/` design system + `theme_studio.amx` | **Done** | clean `check`; PNG render smoke | Engine workarounds documented in plan: wrap positioned components in `Group`; wrap Text in `Group` inside Col |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | **Done** (on `feat/demo-gallery-p2`, pending merge) | clean `check`; PNG smoke of every scene | Engine fixes landed with it — see `docs/handoff_phase2.md` |
-| 3 | `epicycles.amx` + `sorting_theatre.amx` | Open | clean `check`; 3-frame PNG smoke | `sorting_theatre` needs `dynamic_layout` + build-time sort precomputation + `swap` actions |
-| 4 | `brand_reel/` capstone | Open | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; still need cross-file slot fills / component-instance positioning workarounds |
-| 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | Open | script green; render smoke covers all examples | Reuses new `lib/`; delete `animation/16_showcase.amx` and `composition/20_feature_reel.amx` once `brand_reel` lands |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | **Done** 2026-08-24 (merged) | clean `check`; PNG smoke of every scene | Engine fixes landed with it — see `docs/handoff_phase2.md` |
+| 3 | `epicycles.amx` + `sorting_theatre.amx` | **Done** 2026-08-25 (merged) | clean `check`; 3-frame PNG smoke | Epicycles wave-reveal polish noted but merged; `sorting_theatre` uses `dynamic_layout` + build-time sort precomputation + `swap` actions |
+| 4 | `brand_reel/` capstone | **Done** 2026-08-25 (merged) | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; cross-file slot fills / component-instance positioning workarounds landing with it |
+| 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | **Done** 2026-08-25 | script green; render smoke covers all examples | Reuses new `lib/`; `animation/16_showcase.amx` and `composition/20_feature_reel.amx` are superseded by the gallery |
 
-### Engine Bugs to Fix Before Phase 4
+### Resolved Engine Bugs (gallery-era)
 
-These were discovered during Phase 1 and are currently worked around. Fixing
-them unlocks multi-scene gallery demos and cleaner component authoring.
+These were discovered during the demo-gallery work and are now all **resolved**
+in code; they are kept as evidence. The remaining genuinely-open roadmap items
+are the deferred performance backlog (PF-3/6/7/8/9) and the deferred Grid
+auto-fit, per the 2026-08-26 session decision.
 
-| Bug | Impact | Where to Reproduce | Suggested Fix Area |
-|---|---|---|---|
-| Multi-scene files clamp playback when a scene has zero inferred duration | A scene with only actor declarations got duration 0; when it was the target of a `play` transition the composition global duration collapsed to the outgoing play time, cutting off prior-scene actions | Any multi-scene file whose last/target scene has no keyframes | **Fixed 2026-08-22**: floor inferred scene durations to `max(incoming transition duration, 1/60s)` |
-| ~~Cross-file `@slot` fills are ignored~~ | **Fixed 2026-08-25 (build level)**: resolve_slots only handled top-level slots — nested ones (Card's header/body inside root Col) kept fallbacks. Now recursive at any depth | — | Follow-up: the filled Text still doesn't RENDER inside the nested transparent containers (same class as the old Mask+Image issue) — investigate nested-container draw traversal |
-| ~~Cross-file custom component `fn` actions are not resolved~~ | **Fixed 2026-08-25**: two stacked causes — (1) `stmt_needs_rewrite` had no `Stmt::Action` arm, so a fn body whose only statement was an action skipped the instance rewrite entirely (gate fix); (2) the analyzer's semantic check only knew builtin action names — `SymbolTable::merge` now unions action names from imported files | — | — |
-| Cross-file custom component `fn` actions are not resolved | Two stacked failures, both confirmed with `examples/gallery`-style repros: (1) `expand_target_call` rewrites only `self` targets in the inlined fn body — sibling child labels (`pulse box` inside the component) stay unprefixed and fail with "not declared yet"; (2) the invocation itself can fall through to unknown-action when the InstanceFnRegistry lookup misses | `fn pulse_twice { pulse box ... }` in an imported component, invoked as `pulse_twice p` cross-file | inline_actions.rs: extend rewrite_self_targets to prefix all component-body labels with the instance label; verify the registry carries cross-file instance fns through expand_components |
-| Component instances ignore `anchor`/`offset`/`at` | Cannot position a component instance directly | Any component instance with `anchor:`/`offset:`/`at:` | **Fixed 2026-08-24**: expansion forwards `opacity`/`at`/`anchor`/`offset` to the expanded root actor |
-| Col/Grid auto `text_max_width` overrides explicit value for CJK | Chinese labels wrap after 2–3 chars even with explicit `text_max_width` | Text directly inside a Col inside a component | Layout width propagation should not override an explicitly set `text_max_width` |
-| `Mask` children clipped at the scene origin | Every child of a Mask not positioned at the top-left corner was clipped away entirely (Mask + Image rendered nothing) | `Mask { .. }` with `at:` away from origin | **Fixed 2026-08-24**: clip layer now transforms with the Mask; `clip_shape` child is still decorative (clip = Mask `size` rect) — making it define the clip geometry is the follow-up |
-| Hosted plots occupy only the central half of their Graph | `{graph}_size` stored as half-size but consumed as full-size by bars/curves/`.map()` | `Graph { chart: BarChart, .. }` vs the axis extent | Pick one size convention; touches plot builders + GUI inspector |
-| Failed property expressions fall back silently | `theme.text_md` with a non-aliased import renders at defaults (font size 0) with no diagnostic | `font_size: theme.text_md` after plain `import "lib/theme.amx"` | **Fixed 2026-08-24**: multi-segment path failures now report the full dotted path, which the lookup diagnostic turns into an `unknown-lookup-path` error with suggestions |
-| ~~Graph-hosted PlotCurve stroke color ignored~~ | **Fixed 2026-08-25**: plot props loop matched only `Value::Color` (rejecting Vec4 tokens/tuples) and never linked `color:` to the stroke; now uses `resolve_color_in_env` + plot-curve color→stroke linkage | — | — |
-| ~~Equation Fragment leading `+` renders as `1.`~~ | **Fixed 2026-08-25**: each Fragment becomes its own #box() markup block, so a leading `+`/`-` parsed as an enum/bullet marker; fragments are now marker-escaped (after leading whitespace) and joined with spaces so inter-fragment spacing survives | — | — |
-| Invalid easing names fall back silently | `ease: bounce-out` (canonical: `bounce`) animates with the default easing, no warning | `[1s, ease: bounce-out]` | Warn in `parse_timing_modifiers` on unknown easing names |
+| Bug | Resolution |
+|---|---|
+| Multi-scene clamp on zero-inferred-duration scenes | Fixed 2026-08-22: floor inferred scene durations to `max(transition duration, 1/60s)` |
+| Cross-file `@slot` fills ignored | Fixed 2026-08-25: `resolve_slots` is recursive at any depth. Render follow-up **closed 2026-08-26**: the renderer recurses into container children unconditionally, so the hypothesized traversal-skip does not exist and the Mask+Image clip parallel was already fixed. Residual non-traversal suspects (opacity inheritance / layout) are noted; re-open only with a concrete repro. |
+| Cross-file custom component `fn` actions | Fixed 2026-08-25 (`d8bea5b1`): `stmt_needs_rewrite` gained a `Stmt::Action` arm so fn bodies are instance-prefixed at expansion, and `SymbolTable::merge` unions imported action names |
+| Component instances ignore `anchor`/`offset`/`at` | Fixed 2026-08-24: expansion forwards `opacity`/`at`/`anchor`/`offset` to the expanded root actor |
+| Col/Grid auto `text_max_width` overrides explicit value for CJK | **Fixed 2026-08-26**: width propagation now treats any explicitly set `text_max_width` as authoritative (no longer overrides with the container's propagated width); regression test in `timeline/tests/layout.rs` |
+| `Mask` children clipped at the scene origin | Fixed 2026-08-24: clip layer now transforms with the Mask. `clip_shape` defining the clip geometry (and not painting) landed separately |
+| Hosted plots occupy central half of their Graph | Fixed 2026-08-25 (`24da1f9bd`): `{graph}_size` stored and consumed as FULL size, with a regression test. Residual non-runtime footguns (stale `math_to_screen_padded` doc, `GraphGeometry` doc wording, `ProceduralPlot.p_size` FULL/HALF overload, `.map` vs `.map_inverse` key-name asymmetry) are noted; behavior is correct, only comments/docs were corrected |
+| Failed property expressions fall back silently | Fixed 2026-08-24: multi-segment path failures report the full dotted path → `unknown-lookup-path` diagnostic |
+| Graph-hosted PlotCurve stroke color ignored | Fixed 2026-08-25: plot props loop now resolves color tokens/tuples and links `color:` to the stroke |
+| Equation Fragment leading `+` renders as `1.` | Fixed 2026-08-25: fragments are marker-escaped and joined with spaces |
+| Invalid easing names fall back silently | Fixed 2026-08-24 (`4e8a607d`): unknown `ease:` names are retained for a build-layer `InvalidModifierValue` warning (regression test `invalid_easing_name_warns_on_assignment`) |
 
 ### Next Immediate Session Recommendation
 
-1. Pick **Phase 2**: start with `dashboard_story.amx` (uses existing `lib/`
-   components heavily) or `motion_poster.amx` (typography/morph/Filter).
-2. Keep each phase in its own worktree, run the pre-commit gates from
-   `AGENTS.md`, and merge back before starting the next phase.
-3. For Phase 4, remember the remaining component workarounds: wrap imported
-   component instances in `Group` for positioning, avoid cross-file `@slot`
-   fills, and avoid custom `fn` actions on imported components.
+The demo-gallery suite is complete and the gallery-era engine bugs are resolved.
+The remaining open roadmap work is the **performance backlog** (PF-3 baseline
+de-dup, PF-6 memory profile, PF-7 GPU throughput, PF-8 shared stage tracing,
+PF-9 GUI perf sink) plus the deferred **Grid auto-fit**. Recommended next pass:
+(PF-8 shared stage tracing behind a default-on feature, then PF-9 GUI perf sink)
+so bench and GUI HUD measure the same stages before gating them in CI. Track
+the rest as normal, commit-gated work per `AGENTS.md`.
 
 ---
 
