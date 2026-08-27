@@ -643,8 +643,14 @@ impl Timeline {
     ) {
         use crate::timeline::TrackAccessor;
 
-        // Check if max_width is already explicitly set and tighter than available width
-        if props.existing_max_width > 0.0 && props.existing_max_width <= available_width {
+        // An explicitly set max_width is authoritative: never override it with
+        // the container's propagated width. The previous guard only honored an
+        // explicit value when it was tighter than (or equal to) available_width,
+        // so a value looser than a collapsed container width (the CJK "wraps
+        // after 2-3 chars" case) was overwritten. Honoring any explicit value
+        // matches the roadmap's intent ("width propagation should not override
+        // an explicitly set text_max_width"); overflow is the author's choice.
+        if props.existing_max_width > 0.0 {
             tracing::debug!(
                 "Width propagation: child '{}' has explicit max_width={}, not overriding with available_width={}",
                 child_label,
@@ -654,12 +660,8 @@ impl Timeline {
             return;
         }
 
-        let effective_max_width =
-            if props.existing_max_width > 0.0 && props.existing_max_width < available_width {
-                props.existing_max_width
-            } else {
-                available_width
-            };
+        // No explicit value: propagate the container's available width.
+        let effective_max_width = available_width;
 
         tracing::debug!(
             "Width propagation: recompiling text '{}' with max_width={} (container width={}, existing={})",

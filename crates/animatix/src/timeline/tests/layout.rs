@@ -97,6 +97,36 @@ fn test_baseline_alignment_via_layout_engine() {
 }
 
 #[test]
+fn explicit_text_max_width_not_overridden_by_col_width() {
+    use crate::timeline::TrackAccessor;
+
+    // Regression: an explicitly set `text_max_width` on a Text directly inside a
+    // Col must NOT be overridden by the container's propagated (collapsed) width.
+    // Before the fix, the guard only honored an explicit value tighter than (or
+    // equal to) the container width, so a value LOOSER than a collapsed CJK width
+    // was replaced by the propagated width — the "Chinese labels wrap after 2-3
+    // chars" symptom. Make the Col far narrower than the explicit value so the
+    // bug is actually exercised, then assert the explicit value survives.
+    let source = r#"
+panel:
+  Col, size: (200, 300), anchor: scene.center {
+    label: Text, text: "中文测试", text_max_width: 10000, font_size: 24
+  }
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let track = report.output.tracks.get("label").expect("label track exists");
+    let width = track.text.text_max_width.get(0, 0.0);
+    assert!(
+        (width - 10000.0).abs() < 0.01,
+        "explicit text_max_width should be preserved by width propagation, got {width}, want 10000"
+    );
+}
+
+#[test]
 fn test_fixed_size_layout_still_works() {
     use crate::timeline::layout::ChildExtent;
     // Backward compatibility: fixed-size layout should work unchanged
