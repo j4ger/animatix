@@ -880,8 +880,8 @@ pub fn compile_math(
         &fallback,
         font_ctx,
     )?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
-        RenderError::TextCompilation("failed to compile Typst math document".to_string())
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
+        RenderError::TextCompilation(format!("failed to compile Typst math document: {e:?}"))
     })?;
 
     Ok(document.pages[0].frame.clone())
@@ -936,8 +936,8 @@ pub fn compile_typst(
         &fallback,
         font_ctx,
     )?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
-        RenderError::TextCompilation("failed to compile Typst document".to_string())
+    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
+        RenderError::TextCompilation(format!("failed to compile Typst document: {e:?}"))
     })?;
 
     Ok(document.pages[0].frame.clone())
