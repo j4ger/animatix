@@ -54,8 +54,17 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 - Filter blur/fallback on software GPU (verify + decide whether the silent
   fallback should surface a diagnostic) — see probe 009.
 - Equation fragment whitespace handling around operators.
-- Default bundled "Open Sans" mock font is single-weight: consider whether it
-  should gain bold/italic faces so rich text works without a `font_family`.
 - Add a render-level pixel-assertion test for Mask clip / BarChart axis span /
-  hosted-plot full-axis (currently verified visually; deterministic enough to
-  assert programmatically).
+  hosted-plot full-axis (currently verified via ink-diff + visual review;
+  deterministic enough to assert programmatically).
+
+### Resolved (2026-08-28)
+- Default bundled "Open Sans" was a single-weight mock (no emphasis). **Replaced
+  with four real static Open Sans faces** (Regular/Bold/Italic/BoldItalic,
+  Apache-2.0, vendored in `crates/animatix/assets/fonts/` with SHA-256 provenance
+  + `scripts/refresh-fonts.sh` integrity check). `DEFAULT_FONT_FAMILY` stays
+  "Open Sans"; bold/italic/font_weight now work with the default family
+  (pixel-verified: bold ink 0.385 vs regular 0.332; regression test
+  `bundled_default_font_covers_bold_and_italic`). Static faces are used rather
+  than upstream variable fonts because typst 0.14 does not consume variable
+  axes (that landed in typst 0.15).

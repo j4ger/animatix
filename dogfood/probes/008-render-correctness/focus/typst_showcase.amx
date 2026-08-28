@@ -3,8 +3,8 @@ config { resolution: (1280, 720) }
 
 #0s
 t1: Text,  at: (320, 120), text: "Text (literal): *no* markup", font_size: 32, color: (1, 1, 1, 1)
-t2: Typst, at: (320, 260), font_family: "DejaVu Sans", content: "Typst: *bold* _italic_", font_size: 36, color: (1, 1, 1, 1)
-t3: Typst, at: (320, 400), font_family: "DejaVu Sans", content: "weight 700", font_size: 36, font_weight: 700, color: (1, 1, 1, 1)
+t2: Typst, at: (320, 260), content: "Typst: *bold* _italic_", font_size: 36, color: (1, 1, 1, 1)
+t3: Typst, at: (320, 400), content: "weight 700", font_size: 36, font_weight: 700, color: (1, 1, 1, 1)
 m1: Math,  at: (900, 260), text: "x^2 + y^2", font_size: 40, color: (0.7, 0.9, 1, 1)
 m2: Typst, at: (900, 400), content: "$sqrt(x) + 1$", font_size: 40, color: (0.8, 0.7, 1, 1)
 

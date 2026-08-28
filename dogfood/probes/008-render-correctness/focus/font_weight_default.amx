@@ -1,0 +1,11 @@
+// focus: verify bold renders with the DEFAULT bundled Open Sans (pixel-diff A/B)
+config { resolution: (1280, 720) }
+
+#0s
+reg: Typst, at: (300, 240), content: "BOLDCHECK", font_size: 64, color: (1, 1, 1, 1)
+bol: Typst, at: (780, 240), content: "BOLDCHECK", font_size: 64, font_weight: 700, color: (1, 1, 1, 1)
+ital: Typst, at: (300, 480), content: "ITALCHECK", font_size: 64, font_style: "italic", color: (1, 1, 1, 1)
+reg2: Typst, at: (780, 480), content: "ITALCHECK", font_size: 64, color: (1, 1, 1, 1)
+
+#0s
+stagger [50ms] { fade-in reg [100ms] fade-in bol [100ms] fade-in ital [100ms] fade-in reg2 [100ms] }

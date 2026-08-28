@@ -483,9 +483,27 @@ struct BundledFont {
 
 /// Fonts embedded at compile time. Add new fonts here.
 static BUNDLED_FONTS: &[BundledFont] = &[
+    // Open Sans static faces (Apache-2.0; see assets/fonts/README.md for
+    // provenance + SHA-256). Static faces are bundled rather than variable
+    // because typst 0.14 loads one face per weight/style and does not consume
+    // variable font axes (variable-font support landed in typst 0.15). Having
+    // the full regular/bold/italic/bold-italic set bundled makes bold/italic
+    // and font_weight work out of the box for the default family.
     BundledFont {
         family: "Open Sans",
-        data: include_bytes!("../../assets/mock_font.ttf"),
+        data: include_bytes!("../../assets/fonts/OpenSans-Regular.ttf"),
+    },
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../../assets/fonts/OpenSans-Bold.ttf"),
+    },
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../../assets/fonts/OpenSans-Italic.ttf"),
+    },
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../../assets/fonts/OpenSans-BoldItalic.ttf"),
     },
     BundledFont {
         family: "Fira Math",
@@ -2275,6 +2293,34 @@ mod tests {
         assert!(!is_plain_text("`code`"));
         assert!(!is_plain_text("Hello_World"));
         assert!(!is_plain_text("a/b"));
+    }
+
+    #[test]
+    fn bundled_default_font_covers_bold_and_italic() {
+        // Regression: the default family ("Open Sans") used to be a single
+        // bundled mock face, so `*bold*`/`_italic_`/`font_weight`/`font_style`
+        // fell back to regular. Now four static faces are bundled; verify the
+        // world can select regular, bold, italic, and bold-italic.
+        use typst::foundations::Bytes;
+        use typst::text::Font;
+
+        let mut sigs = std::collections::HashSet::new();
+        for bf in BUNDLED_FONTS.iter().filter(|bf| bf.family == "Open Sans") {
+            let font = Font::new(Bytes::new(bf.data), 0).expect("bundled face parses");
+            let info = font.info();
+            // (weight, style-debug) uniquely identifies a face variant.
+            sigs.insert(format!(
+                "{}:{}",
+                info.variant.weight.to_number(),
+                format!("{:?}", info.variant.style)
+            ));
+        }
+        assert_eq!(sigs.len(), 4, "expected regular+bold+italic+bold-italic, got {sigs:?}");
+        assert!(
+            sigs.iter().any(|s| s.starts_with("700:"))
+                || sigs.iter().any(|s| s.starts_with("800:")),
+            "expected a bold (>700) face, got {sigs:?}"
+        );
     }
 
     #[test]

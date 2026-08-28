@@ -92,8 +92,14 @@ visual evidence):
 - **Bold/italic/weight render** for system fonts: `load_font_emphasis_faces`
   loads regular + bold + italic + bold-italic per family (the Typst world
   previously loaded only one regular face, so emphasis fell back to regular).
-  Default bundled "Open Sans" is single-weight, so rich text still needs a
-  `font_family` — noted as a follow-up.
+- **Default font made full-featured (2026-08-28)**: the single-weight mock
+  "Open Sans" was replaced with four real static faces (Regular/Bold/Italic/
+  BoldItalic, Apache-2.0) vendored under `crates/animatix/assets/fonts/` with
+  SHA-256 provenance and `scripts/refresh-fonts.sh` integrity checks.
+  `DEFAULT_FONT_FAMILY` stays "Open Sans", so bold/italic/font_weight now work
+  with the default family (no `font_family` needed). Static faces are used
+  rather than upstream variable fonts because typst 0.14 does not consume
+  variable axes (that landed in typst 0.15).
 - **First-class `Math` primitive** (`Math, text: "x^2 + y^2"` compiles Typst
   math without the `$...$` wrapper), registered in the primitive registry,
   analyzer built-in types, and schema; the deprecated `Math`→`Typst` remap was
