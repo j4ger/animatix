@@ -42,7 +42,7 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 | Issue | Note |
 |---|---|
 | Typst `text:` property silently renders blank | **Fixed 2026-08-27**: the uniform `text:` content property now feeds the content track for `Text`/`Code`/`Typst` (declarations_text.rs `content_matches`); canonical names (`content`/`code`) remain aliases. |
-| Typst math `mc^2`-style content fails to compile | Some Typst math content with implicit multi-letter coefficients (`$mc^2$`, `$E = mc^2$`) fails with a generic "failed to compile Typst document" while simpler math (`$x^2+y$`) works. Pre-existing Typst-integration parse issue, **not caused by the above fixes**; recorded for follow-up (better error message + investigate the parse case). |
+| Typst math with implicit multi-letter coefficients ("mc^2") | **Resolved 2026-08-28 — correct Typst semantics, error surfaced**: `$mc^2$`/`$E=mc^2$` fail because Typst parses `mc` as a single multi-letter *variable*, not `m*c` (a Typst math gotcha). This is correct behavior, not a bug. **Fix**: the compile error now surfaces Typst's real message ("unknown variable: mc" + hints instead of an opaque "failed to compile Typst document"). For a multi-letter product, write `$m c^2$` (spaces) or `$"mc"$`. |
 | CJK `font_weight` bold may fall back to a regular face | Documented limitation (one representative face per family is loaded). |
 | First-class `Math` primitive | **Added 2026-08-27**: `Math` renders Typst math without the `$...$` wrapper (compiles via `compile_math`); registered in the primitive registry, analyzer built-in types, and schema. |
 | Filter `blur` not visibly applied in `animatix image` export | The GPU filter backend path looks correct (ping-pong WGSL blur passes), but `blur: 10` on a high-contrast source stays sharp. Smoke tests only assert `is_ok()` + size, never that content is actually blurred. Could be a software-Vulkan (lavapipe) compute limitation or a latent shader/pipeline bug. **See `dogfood/probes/009-filter-gpu-deferred` (open, human review).** Also note the Filter scene-eval branch silently falls back to unfiltered rendering when the backend is unavailable. |
@@ -53,8 +53,6 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 ## Open follow-ups
 - Filter blur/fallback on software GPU (verify + decide whether the silent
   fallback should surface a diagnostic) — see probe 009.
-- Typst math `mc^2`-style content compile failure (investigate the Typst parse
-  case + improve the generic error message).
 - Equation fragment whitespace handling around operators.
 - Default bundled "Open Sans" mock font is single-weight: consider whether it
   should gain bold/italic faces so rich text works without a `font_family`.
