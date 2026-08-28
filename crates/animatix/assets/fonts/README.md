@@ -14,12 +14,12 @@ fonts are still used as glyph fallback for scripts the bundled set cannot cover
   license of the packaged Open Sans these faces came from. (Upstream releases
   have also been distributed under SIL OFL 1.1; either license permits
   redistribution with attribution.)
-- **Why static faces, not variable**: the current upstream Open Sans on Google
-  Fonts ships only as variable fonts (`OpenSans[wdth,wght].ttf`), but this
-  crate pins **typst 0.14**, which loads one face per weight/style and does not
-  consume variable font axes (variable-font support landed in typst 0.15).
-  Within the Bundled-Fonts title, only static faces give working
-  bold/italic/font_weight for the default family.
+- **Why static faces, not variable**: typst 0.15 (the version this crate pins)
+  does support variable font axes, but the upstream Open Sans variable pair
+  (`OpenSans[wdth,wght].ttf` + italic, ≈1.1 MB) is *larger* than the four
+  static faces (≈850 KB), and the static set is proven and simpler. If a future
+  default wants one file per weight-range, the variable pair can be swapped in
+  (update these hashes + `BUNDLED_FONTS`).
 - **SHA-256** (verify with `scripts/refresh-fonts.sh`):
 
   | File | SHA-256 |

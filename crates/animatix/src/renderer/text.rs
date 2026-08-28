@@ -42,7 +42,7 @@ pub struct CompiledText {
 
 use typst::foundations::{Bytes, Datetime};
 use typst::layout::{Frame, FrameItem, Transform};
-use typst::syntax::{FileId, Source, VirtualPath};
+use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
 use typst::text::{Font, FontBook};
 use typst::utils::LazyHash;
 use typst::{Library, LibraryExt, World};
@@ -697,19 +697,19 @@ impl World for TypstWorld {
         if id == self.source.id() {
             Ok(self.source.clone())
         } else {
-            Err(typst::diag::FileError::NotFound(id.vpath().as_rootless_path().into()))
+            Err(typst::diag::FileError::NotFound(id.vpath().get_without_slash().into()))
         }
     }
 
     fn file(&self, id: FileId) -> typst::diag::FileResult<Bytes> {
-        Err(typst::diag::FileError::NotFound(id.vpath().as_rootless_path().into()))
+        Err(typst::diag::FileError::NotFound(id.vpath().get_without_slash().into()))
     }
 
     fn font(&self, index: usize) -> Option<Font> {
         self.fonts.get(index).cloned()
     }
 
-    fn today(&self, _offset: Option<i64>) -> Option<Datetime> {
+    fn today(&self, _offset: Option<typst::foundations::Duration>) -> Option<Datetime> {
         None
     }
 }
@@ -891,18 +891,20 @@ pub fn compile_math(
         typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
     );
 
-    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let vpath = VirtualPath::new("main.typ")
+        .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
+    let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
     let world = TypstWorld::with_fonts_and_fallback(
         source,
         &[&text_font, DEFAULT_MATH_FONT_FAMILY],
         &fallback,
         font_ctx,
     )?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
+    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
         RenderError::TextCompilation(format!("failed to compile Typst math document: {e:?}"))
     })?;
 
-    Ok(document.pages[0].frame.clone())
+    Ok(document.pages()[0].frame.clone())
 }
 
 /// Compile Typst markup into a frame.
@@ -947,18 +949,20 @@ pub fn compile_typst(
         typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
     );
 
-    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let vpath = VirtualPath::new("main.typ")
+        .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
+    let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
     let world = TypstWorld::with_fonts_and_fallback(
         source,
         &[&font, DEFAULT_MATH_FONT_FAMILY],
         &fallback,
         font_ctx,
     )?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
+    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|e| {
         RenderError::TextCompilation(format!("failed to compile Typst document: {e:?}"))
     })?;
 
-    Ok(document.pages[0].frame.clone())
+    Ok(document.pages()[0].frame.clone())
 }
 
 /// Compile plain text into a Typst frame.
@@ -1003,13 +1007,15 @@ pub fn compile_text(
         typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
     );
 
-    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let vpath = VirtualPath::new("main.typ")
+        .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
+    let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
     let world = TypstWorld::with_fonts_and_fallback(source, &[&font], &fallback, font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst text document".to_string())
     })?;
 
-    Ok(document.pages[0].frame.clone())
+    Ok(document.pages()[0].frame.clone())
 }
 
 /// Compile code text into a Typst frame.
@@ -1052,13 +1058,15 @@ pub fn compile_code(
         typst_wrapping_preamble(max_width, text_align, overflow, &base_markup)
     );
 
-    let source = Source::new(FileId::new(None, VirtualPath::new("main.typ")), markup);
+    let vpath = VirtualPath::new("main.typ")
+        .map_err(|e| RenderError::TextCompilation(format!("invalid virtual path: {e}")))?;
+    let source = Source::new(RootedPath::new(VirtualRoot::Project, vpath).intern(), markup);
     let world = TypstWorld::with_fonts_and_fallback(source, &[&font], &fallback, font_ctx)?;
-    let document: typst::layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
+    let document: typst_layout::PagedDocument = typst::compile(&world).output.map_err(|_| {
         RenderError::TextCompilation("failed to compile Typst code document".to_string())
     })?;
 
-    Ok(document.pages[0].frame.clone())
+    Ok(document.pages()[0].frame.clone())
 }
 
 /// Extract font ascent and descent from a Typst frame (uses the first text item found).
