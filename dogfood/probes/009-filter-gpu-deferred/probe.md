@@ -1,8 +1,9 @@
 # Probe 009 — GPU Filter: blur is not visually applied (image export)
 
-**Status: OPEN — needs human review on real GPU / GUI.** Could not be
-definitively root-caused in the `nix develop` software-Vulkan (lavapipe)
-environment; the code path looks correct but the blur is not visibly applied.
+**Status: CONFIRMED REAL BUG (2026-08-31) — root-caused to the blur compute
+passes writing nothing; the surrounding machinery works.** No longer awaiting
+human review: a backend-level test with a color-matrix control proves this is a
+code bug, not a software-Vulkan limitation.
 
 ## Repro
 
@@ -17,48 +18,41 @@ cargo run --bin animatix -- image dogfood/probes/009-filter-gpu-deferred/repro.a
 **Expected**: the checkerboard squares are smoothly blurred (soft edges).
 **Actual**: the checkerboard is fully sharp — the blur is not applied.
 
-## Why this is in code
+## Why this is NOT the earlier "environment vs bug" ambiguity (2026-08-31)
 
-`GpuFilterBackend` (crates/animatix/src/renderer/filter_backend.rs) has a WGSL
-compute blur shader and a ping-pong horizontal/vertical pass:
+Two new backend tests in `crates/animatix/src/renderer/filter_backend.rs` isolate
+the fault:
 
-- `render_and_filter_scene_to_view` renders the sub-scene to a texture, then
-  runs two `dispatch_blur` passes (horizontal, then vertical) with `radius =
-  blur` (e.g. 10) — `filter_backend.rs:616-700`.
-- `dispatch_blur` writes `BlurParams { radius, direction, tex_size }` to a
-  uniform buffer and dispatches the compute pass — `filter_backend.rs:430-478`.
-- The blur shader samples a Gaussian window of `ceil(radius)` px on each side
-  (sigma = radius/3) — `filter_backend.rs:34-77`.
-- The final (blurred) texture is either returned to the caller
-  (`render_scene_to_image_gpu_filtered`) or kept as a **pending composite** and
-  blitted onto the rendered scene afterward (`offscreen.rs:147-164`).
+- `color_matrix_actually_desaturates` (active, passes): a red rectangle through
+  `saturate: 0` with `blur: 0` **desaturates to gray** — so in the SAME
+  `GpuFilterBackend`, on the SAME lavapipe device, the scene renders, the
+  compute pipeline dispatches, and the readback works. The machinery is fine.
+- `gpu_filter_blur_softens_a_hard_boundary` (**`#[ignore]`, known bug**): a
+  sharp black/white boundary through `blur: 8` stays **perfectly hard**
+  (255|0, no intermediate pixels). The blur passes effectively write nothing —
+  the result is the unblurred copy.
 
-All of this looks correct by inspection, and `GpuFilterBackend::new` succeeds
-here (compute is supported by lavapipe). Yet the output is unblurred.
+Conclusion: the blur WGSL shader / horizontal+vertical ping-pong chain
+(specifically the two chained `dispatch_blur` passes — single-pass color
+matrix works) does not write its result. Suspects, in order:
 
-## Answers needed / hypotheses
+1. Uniform / `BlurParams` layout read as `radius < 0.5` → the shader takes its
+   copy-branch (produces an unblurred copy). The Rust `BlurParams` is
+   `repr(C)` and matches the WGSL offsets, so this is listed for completeness.
+2. Chained compute passes writing/reading the same ping-pong textures in one
+   encoder (barrier / bind-group reuse issue) — most plausible since a
+   single-pass control works.
+3. A bug in the Gaussian loop (clamp/textureLoad bounds).
 
-1. **Is this a real GPU bug or a software-Vulkan limitation?** The smoke tests
-   (`filter_backend.rs:911-978`) only assert the backend returns a `SceneImage`
-   of the right size (`result.is_ok()`); **they never assert the content is
-   actually blurred**. So the blur pipeline has never been verified to produce a
-   blurred image on any backend. Test on a real GPU adapter (or via the GUI
-   preview) to see whether `blur` works there.
-2. If blur **does not** work on real GPUs either, suspect the WGSL shader or the
-   texture bindings (e.g., the `texture_storage_2d<rgba8unorm, write>` view
-   vs. the sampled `texture_2d<f32>` view), or the blur radius being effectively
-   tiny.
-3. **Silent fallback**: in the Filter scene-eval branch there is a fallback that
-   renders children unfiltered without surfacing a warning when the GPU filter
-   backend is unavailable. Even if a real GPU works, the silent fallback on a
-   machine without a usable filter backend is worth making louder (diagnostic).
+The smoke tests only asserted `is_ok()` + size, which is why this never
+surfaced. Fix target: `dispatch_blur` / the ping-pong in
+`render_and_filter_scene_to_view` (`filter_backend.rs` 430-700); after fixing,
+enable the `#[ignore]` blur test as the regression guard.
 
-## Ask (human)
+## Resolution notes
 
-- Run `repro.amx` on a real GPU adapter and/or in the GUI preview: does `blur`
-  (and `brightness`/`contrast`/`sepia`) visibly apply?
-- If yes (works on GPU, not on lavapipe): close this as environment-specific, or
-  add a "filter backend unavailable" diagnostic to avoid silent fallback.
-- If no (broken on GPU too): the blur shader/pipeline or its verification needs a
-  fix; add a content-level regression test that renders a two-color scene through
-  the filter and asserts the boundary is not a hard edge.
+The original "Ask (human)" — run on a real GPU to decide bug-vs-environment —
+is resolved by the color-matrix control: since the same device runs the
+color-matrix compute correctly, the blur no-op is a code bug that would also
+fail on a real GPU. No further human review needed for the diagnosis; a GPU is
+only useful to double-check the eventual fix.

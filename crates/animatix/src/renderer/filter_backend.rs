@@ -976,4 +976,107 @@ mod tests {
             assert_eq!(image.natural_size[1], 64.0);
         }
     }
+
+    /// Content-level check that blur actually softens a hard boundary.
+    ///
+    /// The smoke tests above only assert the backend returns a correctly sized
+    /// image; this one reads the pixels back and verifies a sharp black/white
+    /// edge becomes a gradient (intermediate alpha) inside the blur radius.
+    /// Known bug (probe 009): the blur compute passes write nothing — the
+    /// result is the unblurred copy (verified: the color-matrix pass in the
+    /// SAME backend works, so it is not an environment limitation). The test
+    /// is kept #[ignore] as runnable evidence until the blur shader/pass chain
+    /// is fixed.
+    #[test]
+    #[ignore = "known bug: blur compute no-ops (probe 009)"]
+    fn gpu_filter_blur_softens_a_hard_boundary() {
+        let maybe_device = pollster::block_on(create_headless_device());
+        if let Some((device, queue)) = maybe_device {
+            let dims = SceneDimensions {
+                width: 64,
+                height: 64,
+            };
+            let mut backend = GpuFilterBackend::new(device, queue, dims)
+                .expect("GpuFilterBackend should initialise");
+
+            // Sharp boundary at x=0: left half white, right half empty.
+            let mut scene = vello::Scene::new();
+            use kurbo::Shape;
+            let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                kurbo::Affine::IDENTITY,
+                vello::peniko::Color::WHITE,
+                None,
+                &rect,
+            );
+
+            let image = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, 8.0, 1.0, 1.0, 1.0, 0.0, 0.0)
+                .expect("GPU blur path should succeed");
+            let w = image.natural_size[0] as usize;
+            let blob = &image.data.data;
+            let raw = blob.data();
+            // Middle row: within ±8px of the boundary (x=32), expect an
+            // intermediate alpha (soft edge), not a hard 0/255 step.
+            let y = 32usize;
+            let mut soft = false;
+            let mut rowvals = Vec::new();
+            for x in 20..44usize {
+                let a = raw[(y * w + x) * 4 + 3];
+                eprintln!("blur-debug x={x} a={a}");
+                rowvals.push(a);
+                if a > 40 && a < 215 {
+                    soft = true;
+                    break;
+                }
+            }
+            assert!(
+                soft,
+                "blur should soften the boundary at x=32, but all sampled pixels look hard"
+            );
+        }
+    }
+
+    /// Check whether ANY compute-filter path mutates pixels in this
+    /// environment. A red rectangle through `saturate: 0` must desaturate to
+    /// gray; if it stays red, the compute passes are not executing at all
+    /// (a strong signal for an environment limitation).
+    #[test]
+    fn color_matrix_actually_desaturates() {
+        let maybe_device = pollster::block_on(create_headless_device());
+        if let Some((device, queue)) = maybe_device {
+            let dims = SceneDimensions {
+                width: 64,
+                height: 64,
+            };
+            let mut backend = GpuFilterBackend::new(device, queue, dims)
+                .expect("GpuFilterBackend should initialise");
+
+            let mut scene = vello::Scene::new();
+            use kurbo::Shape;
+            let rect = kurbo::Rect::new(16.0, 16.0, 48.0, 48.0).to_path(1e-3);
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                kurbo::Affine::IDENTITY,
+                vello::peniko::Color::from_rgba8(255, 0, 0, 255),
+                None,
+                &rect,
+            );
+
+            let image = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0)
+                .expect("color-matrix path should succeed");
+            let w = image.natural_size[0] as usize;
+            let blob = &image.data.data;
+            let raw = blob.data();
+            let (r, g, b) =
+                (raw[(32 * w + 32) * 4], raw[(32 * w + 32) * 4 + 1], raw[(32 * w + 32) * 4 + 2]);
+            // Desaturated red → channels roughly equal (gray).
+            assert!(
+                (r as i32 - g as i32).abs() < 40 && (r as i32 - b as i32).abs() < 40,
+                "saturate=0 should desaturate red to gray, got r={r} g={g} b={b}"
+            );
+        }
+    }
 }
