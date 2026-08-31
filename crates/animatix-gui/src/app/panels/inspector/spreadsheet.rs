@@ -237,7 +237,7 @@ pub(crate) fn render_property_spreadsheet(
                     }
 
                     // Actor icon + label text
-                    let icon = crate::app::icons::actor_icon_str(track.kind);
+                    let icon = crate::app::icons::actor_icon_for_track(track, timeline);
                     let label_color = if is_selected {
                         theme.accent.primary
                     } else {

@@ -470,14 +470,7 @@ impl GuiShell {
                         .filter(|sel| {
                             self.document_store.source.document.active_timeline().is_some_and(|t| {
                                 t.get_track(sel).is_some_and(|tr| {
-                                    matches!(
-                                        tr.kind,
-                                        animatix::timeline::ActorKindId::Row
-                                            | animatix::timeline::ActorKindId::Col
-                                            | animatix::timeline::ActorKindId::Grid
-                                            | animatix::timeline::ActorKindId::Stack
-                                            | animatix::timeline::ActorKindId::Group
-                                    )
+                                    crate::app::actions::track_is_nestable_container(t, tr)
                                 })
                             })
                         }),
@@ -689,14 +682,7 @@ impl GuiShell {
                 .filter(|sel| {
                     self.document_store.source.document.active_timeline().is_some_and(|t| {
                         t.get_track(sel).is_some_and(|tr| {
-                            matches!(
-                                tr.kind,
-                                animatix::timeline::ActorKindId::Row
-                                    | animatix::timeline::ActorKindId::Col
-                                    | animatix::timeline::ActorKindId::Grid
-                                    | animatix::timeline::ActorKindId::Stack
-                                    | animatix::timeline::ActorKindId::Group
-                            )
+                            crate::app::actions::track_is_nestable_container(t, tr)
                         })
                     })
                 }),

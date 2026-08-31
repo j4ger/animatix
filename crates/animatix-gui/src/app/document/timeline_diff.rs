@@ -444,13 +444,19 @@ mod tests {
         let document =
             load_session("# A\n#0s\nbox: Rect\n# B\n#0s\nbox: Rect\n#2s\nbox.color = red\n");
 
-        // Global keyframe positions are A=0s and B=start+2s. A playhead beyond
-        // the new duration should land on a real global keyframe, not active
-        // scene-local time.
+        // Global keyframe positions are A=0s and B=start+2s where B's start is
+        // scene A's duration. Scene A has only a `#0s` declaration, so its
+        // inferred duration is floored to one frame (1/60 s —
+        // `composition::build` keeps zero-duration scenes alive long enough for
+        // incoming transitions), and the engine also pre-seeds the instant `2s`
+        // color assignment 1 ms early. The real global keyframe therefore sits
+        // at ≈2.0167 s. A playhead beyond the composition duration must land on
+        // that real global keyframe, not on active scene-local time.
         let preserved = preserved_time_s(5.0, &document);
+        assert!(preserved > 2.0, "expected a global keyframe after 2s, got {preserved}");
         assert!(
-            (preserved - 2.0).abs() < 0.001,
-            "expected global keyframe time, got {preserved}"
+            preserved <= 2.0 + 1.0 / 60.0 + 0.01,
+            "expected the ~2.0167s global keyframe, got {preserved}"
         );
     }
 

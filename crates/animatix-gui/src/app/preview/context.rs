@@ -86,15 +86,27 @@ impl PreviewContext<'_> {
     }
 
     /// Get the text content property name for a text-type actor.
-    /// Returns `Some(property_name)` for Text, Math, Code, Typst actors.
+    /// Returns `Some(property_name)` for Text, Math, Code, Typst actors;
+    /// extension primitives that emit text paths default to `"content"`.
     pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         match track.kind {
-            ActorKindId::Text => Some("text"),
+            ActorKindId::Text | ActorKindId::Math => Some("text"),
             ActorKindId::Code => Some("code"),
             ActorKindId::Typst => Some("content"),
-            _ => None,
+            _ => {
+                // Extension text primitives: inline editing uses the registry
+                // capability and the conventional `content` alias. Keep the
+                // snapshot Arc alive while `find` borrows from it.
+                let registry = timeline.primitive_registry_snapshot();
+                track
+                    .actor_type
+                    .as_deref()
+                    .and_then(|ty| registry.find(ty))
+                    .filter(|p| p.capabilities().text_paths)
+                    .map(|_| "content")
+            },
         }
     }
 

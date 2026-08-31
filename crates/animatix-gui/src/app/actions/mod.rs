@@ -897,10 +897,18 @@ fn apply_property_edit_to_track(
 // ─────────────────────────────────────────────────────────────
 
 /// Generate default properties for a new actor.
+///
+/// `registry` is the active timeline's [`PrimitiveRegistry`]; it is consulted
+/// first so extension primitives contribute their own `default_props()`
+/// instead of being treated as unknown types. Built-ins fall back to the
+/// static registry lookup. When no primitive provides a non-empty default
+/// set (e.g. `Group`), a scene-centered `at` is emitted so the actor is
+/// inserted at a visible position.
 pub fn default_props_for_actor(
     ty: &str,
     _position: [f32; 2],
     _scene_dimensions: animatix::timeline::SceneDimensions,
+    registry: Option<&animatix::primitives::PrimitiveRegistry>,
 ) -> Vec<animatix_syntax::ast::Property> {
     use animatix_syntax::ast::{Expr, Property};
     let scene = animatix::timeline::SceneDimensions {
@@ -908,17 +916,65 @@ pub fn default_props_for_actor(
         height: _scene_dimensions.height,
     };
 
-    if let Some(primitive) = animatix::primitives::find_primitive(ty) {
-        primitive.default_props(&scene)
-    } else {
-        vec![Property {
-            name: "at".into(),
-            value: Expr::Tuple(vec![
-                Expr::Num(scene.width as f64 / 2.0),
-                Expr::Num(scene.height as f64 / 2.0),
-            ]),
-            value_span: None,
-            trailing_comment: None,
-        }]
+    let primitive = registry
+        .and_then(|r| r.find(ty))
+        .or_else(|| animatix::primitives::find_primitive(ty));
+    if let Some(primitive) = primitive {
+        let props = primitive.default_props(&scene);
+        if !props.is_empty() {
+            return props;
+        }
     }
+
+    vec![Property {
+        name: "at".into(),
+        value: Expr::Tuple(vec![
+            Expr::Num(scene.width as f64 / 2.0),
+            Expr::Num(scene.height as f64 / 2.0),
+        ]),
+        value_span: None,
+        trailing_comment: None,
+    }]
+}
+
+// ─────────────────────────────────────────────────────────────
+// Track capability helpers (registry-driven)
+// ─────────────────────────────────────────────────────────────
+
+/// Whether the GUI may offer to nest a new actor inside `track`.
+///
+/// Registry-first so extension containers with generic child processing
+/// participate (their `ActorKindId::Extension` matches nothing else); falls
+/// back to the built-in container kinds for hand-built tracks without an
+/// `actor_type` string.
+pub(crate) fn track_is_nestable_container(
+    timeline: &animatix::timeline::Timeline,
+    track: &animatix::timeline::AnimationTrack,
+) -> bool {
+    if let Some(ty) = track.actor_type.as_deref() {
+        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
+            return primitive.is_nestable_container();
+        }
+    }
+    matches!(
+        track.kind,
+        animatix::timeline::ActorKindId::Row
+            | animatix::timeline::ActorKindId::Col
+            | animatix::timeline::ActorKindId::Grid
+            | animatix::timeline::ActorKindId::Stack
+            | animatix::timeline::ActorKindId::Group
+    )
+}
+
+/// Whether `track` is a plain structural group (the ungroup action target).
+pub(crate) fn track_is_group_like(
+    timeline: &animatix::timeline::Timeline,
+    track: &animatix::timeline::AnimationTrack,
+) -> bool {
+    if let Some(ty) = track.actor_type.as_deref() {
+        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
+            return primitive.is_group_like();
+        }
+    }
+    track.kind == animatix::timeline::ActorKindId::Group
 }

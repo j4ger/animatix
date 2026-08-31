@@ -658,8 +658,9 @@ pub fn handle_ungroup_selected_actors(
                 .source
                 .document
                 .active_timeline()
-                .and_then(|tl| tl.get_track(a))
-                .map(|t| t.kind == animatix::timeline::ActorKindId::Group)
+                .and_then(|tl| {
+                    tl.get_track(a).map(|t| crate::app::actions::track_is_group_like(tl, t))
+                })
                 .unwrap_or(false)
         })
         .cloned()

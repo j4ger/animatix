@@ -15,7 +15,6 @@ use crate::app::components::{easing_curve_editor, layout, timeline};
 use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::icons::actor_icon_str;
 use crate::app::panels::panel_frame;
 use crate::app::utils::text as app_text;
 
@@ -611,7 +610,7 @@ pub(super) fn inspector_ui(
 
         // Single-actor selection
         ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            render_actor_header(ui, track, current_time_s, commands);
+            render_actor_header(ui, timeline, track, current_time_s, commands);
             ui.add_space(sp.base.space_3);
 
             // ── Parent ──
@@ -991,6 +990,7 @@ fn render_property_stream(
 
 fn render_actor_header(
     ui: &mut egui::Ui,
+    timeline: &Timeline,
     track: &AnimationTrack,
     current_time_s: f64,
     commands: &mut ActionQueue,
@@ -1011,7 +1011,7 @@ fn render_actor_header(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(actor_icon_str(track.kind))
+                        RichText::new(crate::app::icons::actor_icon_for_track(track, timeline))
                             .size(TextRole::Heading.size())
                             .color(theme.status.warning),
                     )

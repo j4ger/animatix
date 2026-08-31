@@ -52,10 +52,18 @@ impl DocumentController<'_> {
         position: [f32; 2],
         extra_props: Vec<animatix_syntax::ast::Property>,
     ) {
+        let registry = self
+            .document_store
+            .source
+            .document
+            .timeline
+            .as_ref()
+            .map(animatix::timeline::Timeline::primitive_registry_snapshot);
         let mut props = crate::app::actions::default_props_for_actor(
             ty,
             position,
             self.document_store.source.document.scene_dimensions,
+            registry.as_deref(),
         );
         props.extend(extra_props);
 
@@ -63,16 +71,8 @@ impl DocumentController<'_> {
         let container =
             self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
                 self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
-                    t.get_track(sel).is_some_and(|tr| {
-                        matches!(
-                            tr.kind,
-                            animatix::timeline::ActorKindId::Row
-                                | animatix::timeline::ActorKindId::Col
-                                | animatix::timeline::ActorKindId::Grid
-                                | animatix::timeline::ActorKindId::Stack
-                                | animatix::timeline::ActorKindId::Group
-                        )
-                    })
+                    t.get_track(sel)
+                        .is_some_and(|tr| crate::app::actions::track_is_nestable_container(t, tr))
                 })
             });
 

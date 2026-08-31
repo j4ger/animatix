@@ -5,15 +5,36 @@
 
 // Re-export the language-level metadata so callers don't need a second import.
 pub use animatix::primitives::actor_kind_meta;
-use animatix::timeline::ActorKindId;
+use animatix::timeline::{ActorKindId, AnimationTrack, Timeline};
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 
 // ── Primary API ─────────────────────────────────────────────────────────
 
 /// Shorthand that returns only the icon string.
+///
+/// `ActorKindId::Extension` has no static metadata; a generic extension glyph
+/// is returned instead of an empty string (the plugin's own `icon_id()` is
+/// only reachable through the live registry — see [`actor_icon_for_track`]).
 pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
-    actor_kind_meta(kind).map(|m| m.icon_id).unwrap_or("")
+    match kind {
+        ActorKindId::Extension => egui_phosphor::regular::PUZZLE_PIECE,
+        _ => actor_kind_meta(kind).map(|m| m.icon_id).unwrap_or(""),
+    }
+}
+
+/// Icon for a track, honoring extension primitives whose
+/// `ActorKindId::Extension` has no static [`ActorKindMeta`] entry: their
+/// `icon_id()` comes from the live timeline registry instead. Falls back to
+/// the static metadata for built-ins and an empty string when nothing
+/// matches.
+pub fn actor_icon_for_track(track: &AnimationTrack, timeline: &Timeline) -> String {
+    if let Some(ty) = track.actor_type.as_deref() {
+        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
+            return primitive.icon_id().to_string();
+        }
+    }
+    actor_icon_str(track.kind).to_string()
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────

@@ -18,7 +18,6 @@ use crate::app::components::context_menu::{MenuEntry, render_menu};
 use crate::app::components::{anim, layout, row, text_tooltip};
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::icons::actor_icon_str;
 use crate::app::panels::SidebarTab;
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
@@ -757,7 +756,7 @@ fn render_actor_tree(
     let (icon, display_label, label_color) = if is_anonymous {
         (Some(egui_phosphor::regular::GHOST), "anon", Some(t.text.muted))
     } else {
-        let icon = Some(actor_icon_str(track.kind));
+        let icon = Some(crate::app::icons::actor_icon_str(track.kind));
         (icon, label, None)
     };
 
