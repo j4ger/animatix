@@ -520,7 +520,12 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ("baseline", &[], Type::Num, PropertyValueKind::F32),
         ("blur", &["Filter"], Type::Num, PropertyValueKind::F32),
         ("brightness", &["Filter"], Type::Num, PropertyValueKind::F32),
-        ("char_progress", &["Text", "Code", "Typst"], Type::Num, PropertyValueKind::F32),
+        (
+            "char_progress",
+            &["Text", "Math", "Code", "Typst"],
+            Type::Num,
+            PropertyValueKind::F32,
+        ),
         ("code", &["Code"], Type::Str, PropertyValueKind::String),
         (
             "color",
@@ -532,6 +537,7 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
                 "Polygon",
                 "Path",
                 "Text",
+                "Math",
                 "Typst",
                 "Code",
                 "BarChart",
@@ -572,19 +578,29 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("font_family", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
+        (
+            "font_family",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Str,
+            PropertyValueKind::String,
+        ),
         (
             "font_size",
-            &["Text", "Typst", "Code", "Equation"],
+            &["Text", "Math", "Typst", "Code", "Equation"],
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("font_style", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
+        (
+            "font_style",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Str,
+            PropertyValueKind::String,
+        ),
         // Runtime accepts numeric weights (100-900) and the keyword strings
         // "normal"/"bold" (see `parse_font_weight`); it stores an F32 track.
         (
             "font_weight",
-            &["Text", "Typst", "Code"],
+            &["Text", "Math", "Typst", "Code"],
             Type::Union(vec![Type::Num, Type::Str]),
             PropertyValueKind::F32,
         ),
@@ -693,7 +709,9 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ),
         (
             "letter_spacing",
-            &["Text", "Typst", "Code", "Row", "Col", "Grid", "Stack"],
+            &[
+                "Text", "Math", "Typst", "Code", "Row", "Col", "Grid", "Stack",
+            ],
             Type::Num,
             PropertyValueKind::F32,
         ),
@@ -704,7 +722,12 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::U32,
         ),
-        ("line_height", &["Text", "Typst", "Code"], Type::Num, PropertyValueKind::F32),
+        (
+            "line_height",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Num,
+            PropertyValueKind::F32,
+        ),
         (
             "line_join",
             &["Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path"],
@@ -742,7 +765,9 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ("max_value", &["BarChart"], Type::Num, PropertyValueKind::F32),
         (
             "max_width",
-            &["Text", "Typst", "Code", "Row", "Col", "Grid", "Stack"],
+            &[
+                "Text", "Math", "Typst", "Code", "Row", "Col", "Grid", "Stack",
+            ],
             Type::Num,
             PropertyValueKind::F32,
         ),
@@ -872,7 +897,12 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("overflow", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
+        (
+            "overflow",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Str,
+            PropertyValueKind::String,
+        ),
         (
             "padding",
             &["Graph", "Row", "Col", "Grid", "Stack"],
@@ -1132,8 +1162,13 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ("swatch_size", &["Legend"], Type::Num, PropertyValueKind::F32),
         ("t_domain", &["PlotCurve"], Type::Vec2, PropertyValueKind::Vec2),
         ("target", &["Callout"], Type::Any, PropertyValueKind::Generic),
-        ("text", &["Text"], Type::Str, PropertyValueKind::String),
-        ("text_align", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
+        ("text", &["Text", "Math"], Type::Str, PropertyValueKind::String),
+        (
+            "text_align",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Str,
+            PropertyValueKind::String,
+        ),
         ("text_max_width", &["Legend"], Type::Num, PropertyValueKind::F32),
         ("tick_labels", &["Graph"], Type::Str, PropertyValueKind::String),
         ("ticks", &["Graph"], Type::Str, PropertyValueKind::String),
@@ -1207,7 +1242,12 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("word_spacing", &["Text", "Typst", "Code"], Type::Num, PropertyValueKind::F32),
+        (
+            "word_spacing",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Num,
+            PropertyValueKind::F32,
+        ),
         (
             "x_domain",
             &[
@@ -1254,7 +1294,12 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
 
     // Accepted source aliases that are not separate runtime storage entries.
     let aliases: Vec<(&'static str, &'static [&'static str], Type, PropertyValueKind)> = vec![
-        ("content", &["Text", "Typst", "Code"], Type::Str, PropertyValueKind::String),
+        (
+            "content",
+            &["Text", "Math", "Typst", "Code"],
+            Type::Str,
+            PropertyValueKind::String,
+        ),
         ("language", &["Code"], Type::Str, PropertyValueKind::String),
         (
             "fill",
@@ -1339,6 +1384,31 @@ mod tests {
         assert!(specs.iter().any(|spec| {
             spec.name == "text" && spec.actor_types.contains(&"Text") && spec.ty == Type::Str
         }));
+    }
+
+    #[test]
+    fn math_matches_text_like_property_coverage() {
+        // `Math` is a first-class Text-like primitive since 2026-08-28; every
+        // property a text actor can receive must also list `Math` so the
+        // analyzer and the GUI inspector do not flag `Math { text: ... }`.
+        let specs = property_specs();
+        for name in [
+            "text",
+            "content",
+            "font_size",
+            "font_family",
+            "line_height",
+            "color",
+        ] {
+            let spec = specs
+                .iter()
+                .find(|spec| spec.name == name)
+                .unwrap_or_else(|| panic!("property '{name}' is missing from the schema"));
+            assert!(
+                spec.actor_types.contains(&"Math"),
+                "property '{name}' must cover Math (first-class Text-like primitive)"
+            );
+        }
     }
 
     #[test]
