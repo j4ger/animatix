@@ -2,20 +2,31 @@
 
 use std::sync::Arc;
 
-use super::{
-    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, PRIMITIVES,
-    Primitive, RenderCommand, RenderCtx, TextCompileCtx, VectorShapeState, VelloPath,
-};
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::renderer::error::RenderError;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions};
+use super::{PRIMITIVES, Primitive};
+
+/// Storage for a registered primitive: compiled-in built-ins keep their
+/// `&'static` identity, extension/plugin primitives own an `Arc` allocation.
+#[derive(Clone)]
+enum RegisteredPrimitive {
+    /// A built-in primitive from [`PRIMITIVES`].
+    Builtin(&'static dyn Primitive),
+    /// A runtime-registered (extension / plugin) primitive.
+    Extension(Arc<dyn Primitive>),
+}
+
+impl RegisteredPrimitive {
+    fn as_ref(&self) -> &dyn Primitive {
+        match self {
+            Self::Builtin(primitive) => *primitive,
+            Self::Extension(primitive) => primitive.as_ref(),
+        }
+    }
+}
 
 /// A registry that stores built-in and extension primitives in one list.
 #[derive(Clone, Default)]
 pub struct PrimitiveRegistry {
-    primitives: Vec<Arc<dyn Primitive>>,
-    builtin_count: usize,
+    primitives: Vec<RegisteredPrimitive>,
 }
 
 impl PrimitiveRegistry {
@@ -23,15 +34,12 @@ impl PrimitiveRegistry {
     pub fn new() -> Self {
         let mut registry = Self::default();
         for primitive in PRIMITIVES {
-            registry
-                .register(Arc::new(BuiltinPrimitive(*primitive)))
-                .expect("built-in primitive names are unique");
+            registry.primitives.push(RegisteredPrimitive::Builtin(*primitive));
         }
-        registry.builtin_count = registry.primitives.len();
         registry
     }
 
-    /// Register a primitive through the same path used by extensions.
+    /// Register a runtime (extension/plugin) primitive.
     pub fn register(
         &mut self,
         primitive: Arc<dyn Primitive>,
@@ -40,16 +48,20 @@ impl PrimitiveRegistry {
         if self.find(name).is_some() {
             return Err(PrimitiveRegistrationError::Duplicate(name.to_string()));
         }
-        self.primitives.push(primitive);
+        self.primitives.push(RegisteredPrimitive::Extension(primitive));
         Ok(())
     }
 
     /// Remove a non-built-in registered primitive by type name.
     pub fn remove(&mut self, name: &str) -> bool {
-        let Some(index) = self.primitives.iter().position(|p| p.type_name() == name) else {
+        let Some(index) = self
+            .primitives
+            .iter()
+            .position(|registered| registered.as_ref().type_name() == name)
+        else {
             return false;
         };
-        if index < self.builtin_count {
+        if matches!(&self.primitives[index], RegisteredPrimitive::Builtin(_)) {
             return false;
         }
         self.primitives.remove(index);
@@ -60,21 +72,21 @@ impl PrimitiveRegistry {
     pub fn find(&self, name: &str) -> Option<&dyn Primitive> {
         self.primitives
             .iter()
-            .find(|primitive| primitive.type_name() == name)
-            .map(|primitive| primitive.as_ref())
+            .find(|registered| registered.as_ref().type_name() == name)
+            .map(RegisteredPrimitive::as_ref)
     }
 
     /// Return whether `name` belongs to the built-in prefix of this registry.
     pub fn is_builtin(&self, name: &str) -> bool {
-        self.primitives
-            .iter()
-            .take(self.builtin_count)
-            .any(|primitive| primitive.type_name() == name)
+        self.primitives.iter().any(|registered| {
+            matches!(registered, RegisteredPrimitive::Builtin(_))
+                && registered.as_ref().type_name() == name
+        })
     }
 
     /// Iterate all primitives in registration order.
     pub fn iter(&self) -> impl Iterator<Item = &dyn Primitive> {
-        self.primitives.iter().map(|primitive| primitive.as_ref())
+        self.primitives.iter().map(RegisteredPrimitive::as_ref)
     }
 
     /// Number of registered primitives.
@@ -114,149 +126,6 @@ impl PrimitiveRegistry {
                 }
             })
             .collect()
-    }
-}
-
-/// Adapter that lets static built-ins live in the same `Arc<dyn Primitive>`
-/// storage as extension primitives.
-struct BuiltinPrimitive(&'static dyn Primitive);
-
-impl Primitive for BuiltinPrimitive {
-    fn type_name(&self) -> &str {
-        self.0.type_name()
-    }
-
-    fn display_name(&self) -> &str {
-        self.0.display_name()
-    }
-
-    fn category(&self) -> ActorCategory {
-        self.0.category()
-    }
-
-    fn icon_id(&self) -> &str {
-        self.0.icon_id()
-    }
-
-    fn is_advanced(&self) -> bool {
-        self.0.is_advanced()
-    }
-
-    fn is_container(&self) -> bool {
-        self.0.is_container()
-    }
-
-    fn is_shape(&self) -> bool {
-        self.0.is_shape()
-    }
-
-    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-        self.0.capabilities()
-    }
-
-    fn child_processing(&self) -> ChildProcessing {
-        self.0.child_processing()
-    }
-
-    fn declared_property_names(&self) -> Vec<&str> {
-        self.0.declared_property_names()
-    }
-
-    fn declares_property(&self, name: &str) -> bool {
-        self.0.declares_property(name)
-    }
-
-    fn kind_id(&self) -> ActorKindId {
-        self.0.kind_id()
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        self.0.build(ctx, label, props, modifiers, children)
-    }
-
-    fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        self.0.render(ctx)
-    }
-
-    fn apply_defaults(&self, state: &mut VectorShapeState) {
-        self.0.apply_defaults(state);
-    }
-
-    fn apply_property(
-        &self,
-        name: &str,
-        value: &Expr,
-        env: &Environment,
-        diagnostics: &mut Vec<Diagnostic>,
-        subject: &str,
-        state: &mut VectorShapeState,
-    ) -> bool {
-        self.0.apply_property(name, value, env, diagnostics, subject, state)
-    }
-
-    fn finalize_state(&self, state: &mut VectorShapeState) {
-        self.0.finalize_state(state);
-    }
-
-    fn uses_custom_path(&self) -> bool {
-        self.0.uses_custom_path()
-    }
-
-    fn exposes_tip_size(&self) -> bool {
-        self.0.exposes_tip_size()
-    }
-
-    fn supports_fill(&self) -> bool {
-        self.0.supports_fill()
-    }
-
-    fn default_color_key(&self, property: &str) -> Option<&'static str> {
-        self.0.default_color_key(property)
-    }
-
-    fn resize_mode(&self) -> crate::timeline::ResizeMode {
-        self.0.resize_mode()
-    }
-
-    fn default_props(&self, scene_dimensions: &SceneDimensions) -> Vec<Property> {
-        self.0.default_props(scene_dimensions)
-    }
-
-    fn handle_assignment(
-        &self,
-        track: &mut AnimationTrack,
-        property: &str,
-        value: &Expr,
-        ctx: &mut AssignmentCtx,
-        env: &Environment,
-        diagnostics: &mut Vec<Diagnostic>,
-        subject: &str,
-    ) -> bool {
-        self.0.handle_assignment(track, property, value, ctx, env, diagnostics, subject)
-    }
-
-    fn finalize_container_build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-    ) -> Result<(), Vec<Diagnostic>> {
-        self.0.finalize_container_build(ctx, label, props)
-    }
-
-    fn evaluate(
-        &self,
-        ctx: &EvaluateCtx,
-        text_ctx: Option<&mut TextCompileCtx>,
-    ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        self.0.evaluate(ctx, text_ctx)
     }
 }
 

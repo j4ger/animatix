@@ -549,8 +549,11 @@ impl Timeline {
         // (which may extend back into view) are correctly evaluated.
         if is_visible {
             // ── Phase 10b.3: Trait-dispatch scene evaluation ──
-            // Try the primitive's evaluate() first. If it returns commands,
-            // execute them and skip the legacy manual rendering path.
+            // The primitive's evaluate() is the only render path (the legacy
+            // manual `ActorKindId` match no longer exists). `Some(commands)`
+            // draws the commands and records a hit region; `None` means
+            // "no drawable content" — nothing is drawn and no hit region or
+            // precise bounds are recorded for it.
             let primitive_dispatch = {
                 let meta = crate::primitives::actor_kind_meta(track.kind);
                 let primitive = track
@@ -595,28 +598,15 @@ impl Timeline {
                     None
                 }
             };
-            if let Some(commands) = primitive_dispatch {
-                for cmd in &commands {
-                    cmd.execute(scene, &local_transform, opacity);
-                }
-                if let Some(items) = program_items.as_mut() {
-                    items.push(crate::timeline::scene_program::SceneItem {
-                        transform: local_transform,
-                        opacity,
-                        commands: commands.clone(),
-                    });
-                }
-                // Hit region — compute from commands, not stale vector_paths
-                let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
-                let mut local_bounds: Option<kurbo::Rect> = None;
-                for cmd in &commands {
-                    if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                        local_bounds = Some(match local_bounds {
-                            Some(existing) => existing.union(cmd_bounds),
-                            None => cmd_bounds,
-                        });
-                    }
-                }
+            // Record the hit region for this actor (used by GUI picking and
+            // precise-bounds consumers). Command-derived bounds when commands
+            // exist; otherwise the actor's layout half-size box — this keeps
+            // container shells (which return `Some(vec![])`) clickable at the
+            // box they occupy. Actors whose `evaluate()` returned `None` have
+            // no drawable content (e.g. empty text), so they intentionally
+            // record nothing (semantics pinned by
+            // `runtime_empty_text_override_clears_stale_glyphs`).
+            let mut record_hit_region = |local_bounds: Option<kurbo::Rect>| {
                 let world_bounds = if let Some(lb) = local_bounds {
                     transform_rect_bbox(&local_transform, lb)
                 } else {
@@ -633,23 +623,53 @@ impl Timeline {
                     .precise_bounds_cache
                     .borrow_mut()
                     .insert(node_label.to_string(), world_bounds);
+            };
+            match primitive_dispatch {
+                Some(commands) => {
+                    for cmd in &commands {
+                        cmd.execute(scene, &local_transform, opacity);
+                    }
+                    if let Some(items) = program_items.as_mut() {
+                        items.push(crate::timeline::scene_program::SceneItem {
+                            transform: local_transform,
+                            opacity,
+                            commands: commands.clone(),
+                        });
+                    }
+                    // Hit region — compute from commands, not stale vector_paths
+                    let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
+                    let mut local_bounds: Option<kurbo::Rect> = None;
+                    for cmd in &commands {
+                        if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                            local_bounds = Some(match local_bounds {
+                                Some(existing) => existing.union(cmd_bounds),
+                                None => cmd_bounds,
+                            });
+                        }
+                    }
+                    record_hit_region(local_bounds);
 
-                // Debug overlays
-                if debug_options.draw_bounds {
-                    let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
-                    let text_paths = track.evaluate_text_paths(time_ms);
-                    let _ = self.add_node_debug_overlays(
-                        &svg_paths,
-                        half_size,
-                        &local_transform,
-                        scene,
-                        &vector_paths,
-                        &text_paths,
-                        image_size.is_some(),
-                    );
-                }
+                    // Debug overlays
+                    if debug_options.draw_bounds {
+                        let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
+                        let text_paths = track.evaluate_text_paths(time_ms);
+                        let _ = self.add_node_debug_overlays(
+                            &svg_paths,
+                            half_size,
+                            &local_transform,
+                            scene,
+                            &vector_paths,
+                            &text_paths,
+                            image_size.is_some(),
+                        );
+                    }
 
-                return (local_transform, opacity);
+                    return (local_transform, opacity);
+                },
+                // No drawable content: nothing is drawn and no hit region /
+                // precise bounds are recorded (empty text/image actors stay
+                // un-pickable until they have content).
+                None => {},
             }
         }
 
@@ -705,7 +725,15 @@ impl Timeline {
             std::collections::BTreeMap::new()
         };
 
-        if self.primitive_child_processing(track) == crate::primitives::ChildProcessing::Filter {
+        // ── Special child-rendering strategies ──
+        // `Filter`, `Mask`, and `Equation` children render through dedicated
+        // off-screen/aggregation pipelines below, dispatched on the
+        // primitive's `child_processing()` capability. Adding a new
+        // `ChildProcessing` variant requires a new branch here plus the
+        // matching `ChildProcessingKind` in the shared schema.
+        let child_processing = self.primitive_child_processing(track);
+
+        if child_processing == crate::primitives::ChildProcessing::Filter {
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
             if children.is_empty() {
                 return;
@@ -855,8 +883,7 @@ impl Timeline {
                     },
                 }
             }
-        } else if self.primitive_child_processing(track) == crate::primitives::ChildProcessing::Mask
-        {
+        } else if child_processing == crate::primitives::ChildProcessing::Mask {
             let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
             // Resolve the clip geometry. A child labelled `clip_shape` defines
@@ -946,9 +973,7 @@ impl Timeline {
 
             // Pop clip layer
             scene.pop_layer();
-        } else if self.primitive_child_processing(track)
-            == crate::primitives::ChildProcessing::Equation
-        {
+        } else if child_processing == crate::primitives::ChildProcessing::Equation {
             // ── Equation: compile all child Fragments as one Typst document ──
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
 
@@ -1095,8 +1120,10 @@ impl Timeline {
                 }
             }
 
-            // Render Fragment children (they return None from evaluate, so
-            // no visual output, but hit regions and debug overlays still work).
+            // Render Fragment children. They return `None` from evaluate (no
+            // visual output of their own), so they draw nothing here and
+            // record no hit region; the parent Equation aggregates their
+            // content into one document.
             for child in children {
                 self.evaluate_node(
                     child,
@@ -1746,6 +1773,69 @@ mod tests {
         // The bounds should be valid rectangles (x0 < x1, y0 < y1)
         assert!(bounds.x0 < bounds.x1, "hit region x0 should be less than x1");
         assert!(bounds.y0 < bounds.y1, "hit region y0 should be less than y1");
+    }
+
+    #[test]
+    fn hit_regions_cover_actors_without_draw_commands() {
+        // Container shells return `Some(vec![])` and stay hit-testable at
+        // their layout box; empty-content leaf actors (empty Text) return
+        // `None` and intentionally record no hit region (see
+        // `runtime_empty_text_override_clears_stale_glyphs`).
+        let mut timeline = Timeline::new();
+
+        // A Group container: evaluate() -> Some(vec![]) (empty command list).
+        let mut group = AnimationTrack::new("grp".to_string());
+        group.first_seen_ms = 0;
+        group.kind = crate::timeline::ActorKindId::Group;
+        group.actor_type = Some("Group".to_string());
+        group.geometry.size = {
+            let mut t = PropertyTrack::new([40.0, 30.0]);
+            t.add_keyframe(0, [40.0, 30.0], Easing::Linear);
+            Some(t)
+        };
+        timeline.tracks.insert("grp".to_string(), group);
+
+        // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
+        let mut empty_text = AnimationTrack::new("empty".to_string());
+        empty_text.first_seen_ms = 0;
+        empty_text.kind = crate::timeline::ActorKindId::Text;
+        empty_text.actor_type = Some("Text".to_string());
+        empty_text.geometry.size = {
+            let mut t = PropertyTrack::new([60.0, 20.0]);
+            t.add_keyframe(0, [60.0, 20.0], Easing::Linear);
+            Some(t)
+        };
+        timeline.tracks.insert("empty".to_string(), empty_text);
+
+        timeline.root_nodes.push("grp".to_string());
+        timeline.root_nodes.push("empty".to_string());
+
+        let _scene = timeline.evaluate_with_debug(
+            0.0,
+            SceneDimensions {
+                width: 800,
+                height: 600,
+            },
+            DebugRenderOptions {
+                draw_bounds: false,
+                compute_hit_regions: true,
+                ..Default::default()
+            },
+            &mut None,
+        );
+
+        let regions = timeline.eval_caches.hit_regions.borrow();
+        let (found_grp, bounds_grp) = regions
+            .iter()
+            .find(|(l, _)| l == "grp")
+            .expect("container shell should keep its hit region");
+        assert_eq!(found_grp, "grp");
+        assert!(bounds_grp.x0 < bounds_grp.x1, "grp hit region x0 < x1");
+        assert!(bounds_grp.y0 < bounds_grp.y1, "grp hit region y0 < y1");
+        assert!(
+            !regions.iter().any(|(l, _)| l == "empty"),
+            "empty-content actors must not record a hit region"
+        );
     }
 
     #[test]

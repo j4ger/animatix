@@ -91,10 +91,6 @@ impl Primitive for PolygonPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn supports_fill(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -156,9 +152,5 @@ impl Primitive for PolygonPrimitive {
             },
             _ => false,
         }
-    }
-
-    fn uses_custom_path(&self) -> bool {
-        true
     }
 }

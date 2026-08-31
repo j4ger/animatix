@@ -1905,6 +1905,18 @@ pub enum TextKind {
     Typst,
 }
 
+/// Default font size used when a text primitive has no `font_size` property.
+///
+/// Single source of truth so build-time and frame-time default sizes cannot
+/// drift apart. Code is rendered smaller than prose by convention; Typst
+/// markup and math default to the prose size.
+pub fn default_font_size(kind: TextKind) -> f32 {
+    match kind {
+        TextKind::Code => 24.0,
+        TextKind::Text | TextKind::Math | TextKind::Typst => 48.0,
+    }
+}
+
 /// Cache key for compiled text paths.
 /// Since `f32` is not `Hash`, we bit-cast it to `u32` for the key.
 ///

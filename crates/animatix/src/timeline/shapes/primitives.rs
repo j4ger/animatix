@@ -1,7 +1,5 @@
 // ── Tests ───────────────────────────────────────────────────────────────
 
-// ── Tests ───────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use crate::timeline::VectorShapeState;
@@ -22,16 +20,18 @@ mod tests {
 
     #[test]
     fn line_reports_tip_lookup_support() {
-        use crate::primitives::Primitive;
-        assert!(crate::primitives::LINE.exposes_tip_size());
-        assert!(!crate::primitives::RECT.exposes_tip_size());
+        use crate::timeline::ShapeType;
+        use crate::timeline::shapes::vector_shape_exposes_tip_size;
+        assert!(vector_shape_exposes_tip_size(ShapeType::Line));
+        assert!(!vector_shape_exposes_tip_size(ShapeType::Rect));
     }
 
     #[test]
     fn polygon_shapes_report_custom_path_usage() {
-        use crate::primitives::Primitive;
-        assert!(crate::primitives::POLYGON.uses_custom_path());
-        assert!(crate::primitives::PATH.uses_custom_path());
-        assert!(!crate::primitives::RECT.uses_custom_path());
+        use crate::timeline::ShapeType;
+        use crate::timeline::shapes::vector_shape_uses_custom_path;
+        assert!(vector_shape_uses_custom_path(ShapeType::Polygon));
+        assert!(vector_shape_uses_custom_path(ShapeType::Path));
+        assert!(!vector_shape_uses_custom_path(ShapeType::Rect));
     }
 }

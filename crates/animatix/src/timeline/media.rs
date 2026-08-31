@@ -137,9 +137,15 @@ impl Timeline {
             .or_insert_with(|| AnimationTrack::new(label.to_string()));
 
         // Ensure the track kind matches the declaration type.
-        track.kind = match actor_type {
-            "Svg" => super::ActorKindId::Svg,
-            "Image" => super::ActorKindId::Image,
+        // Resolved via `ActorKindId::from_type_name` instead of string
+        // comparisons so the mapping cannot drift from the registry.
+        let is_svg =
+            super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Svg);
+        let is_image =
+            super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Image);
+        track.kind = match (is_svg, is_image) {
+            (true, _) => super::ActorKindId::Svg,
+            (_, true) => super::ActorKindId::Image,
             _ => track.kind,
         };
 
@@ -223,7 +229,7 @@ impl Timeline {
         for prop in props {
             let already_handled = match prop.name.as_str() {
                 "url" | "size" => true,
-                "scale" if actor_type == "Svg" => true, // Pre-parse scale, not transform scale
+                "scale" if is_svg => true, // Pre-parse scale, not transform scale
                 "at" | "anchor" | "offset" => true,
                 _ => false,
             };
@@ -254,8 +260,8 @@ impl Timeline {
 
         let seed_time_ms = (time_ms as u64).saturating_add(delay_ms as u64);
 
-        match actor_type {
-            "Svg" => seed_svg_track(
+        match (is_svg, is_image) {
+            (true, _) => seed_svg_track(
                 track,
                 std::sync::Arc::make_mut(&mut self.asset_cache),
                 diagnostics,
@@ -264,7 +270,7 @@ impl Timeline {
                 scale,
                 seed_time_ms,
             ),
-            "Image" => seed_image_track(
+            (_, true) => seed_image_track(
                 track,
                 std::sync::Arc::make_mut(&mut self.asset_cache),
                 diagnostics,

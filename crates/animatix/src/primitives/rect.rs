@@ -81,18 +81,6 @@ impl Primitive for RectPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn uses_custom_path(&self) -> bool {
-        false
-    }
-
-    fn exposes_tip_size(&self) -> bool {
-        false
-    }
-
-    fn supports_fill(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,

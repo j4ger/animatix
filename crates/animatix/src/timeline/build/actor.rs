@@ -47,9 +47,19 @@ impl Timeline {
         }
 
         // VectorField, Heatmap, ContourSet, and NumberPlane are handled by
-        // process_plot_actor. Vector/Heatmap/Contour plots are re-sampled at
-        // frame time when dynamic or transitioning.
-        if ty == "VectorField" || ty == "Heatmap" || ty == "ContourSet" || ty == "NumberPlane" {
+        // process_plot_actor (without build-time path generation — vector/
+        // heatmap/contour plots are re-sampled at frame time when dynamic or
+        // transitioning). Resolved via `kind_id()` so the branch is
+        // compiler-checked against `ActorKindId`.
+        if matches!(
+            self.primitive_registry.find(ty).map(|p| p.kind_id()),
+            Some(
+                super::ActorKindId::VectorField
+                    | super::ActorKindId::Heatmap
+                    | super::ActorKindId::ContourSet
+                    | super::ActorKindId::NumberPlane
+            )
+        ) {
             return vec![];
         }
 

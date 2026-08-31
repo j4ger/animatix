@@ -212,6 +212,9 @@ impl Primitive for CalloutPrimitive {
             let offset_y = (to[1] + label_at[1]) as f64;
 
             if let Some(text_ctx) = text_ctx {
+                // Callout labels intentionally default smaller (24pt) than the
+                // shared prose default (`renderer::text::default_font_size`),
+                // so keep the explicit size here.
                 let paths = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
 
                 // Translate text paths to the label position using kurbo Affine
@@ -257,18 +260,6 @@ impl Primitive for CalloutPrimitive {
     }
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
-
-    fn uses_custom_path(&self) -> bool {
-        false
-    }
-
-    fn exposes_tip_size(&self) -> bool {
-        false
-    }
-
-    fn supports_fill(&self) -> bool {
-        false
-    }
 
     fn default_color_key(&self, property: &str) -> Option<&'static str> {
         match property {

@@ -19,7 +19,11 @@ impl Timeline {
     ) -> VectorShapeState {
         let eval_env = self.build_eval_env(time_ms as u64);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
-        let mut vector_shape_state = if ty == "Callout" {
+        // Callout has its own state struct; resolve via kind instead of a
+        // type-name string.
+        let is_callout =
+            super::ActorKindId::from_type_name(ty) == Some(super::ActorKindId::Callout);
+        let mut vector_shape_state = if is_callout {
             VectorShapeState::Callout(crate::timeline::shapes::CalloutState::default())
         } else {
             VectorShapeState::new(shape_type, size)

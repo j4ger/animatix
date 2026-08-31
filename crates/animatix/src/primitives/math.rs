@@ -111,7 +111,12 @@ impl Primitive for MathPrimitive {
         use crate::renderer::text::TextKind;
 
         let paths = if let Some(text_ctx) = text_ctx {
-            evaluate_text_paths(ctx, text_ctx, TextKind::Math, 48.0)
+            evaluate_text_paths(
+                ctx,
+                text_ctx,
+                TextKind::Math,
+                crate::renderer::text::default_font_size(TextKind::Math),
+            )
         } else {
             Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
         }?;

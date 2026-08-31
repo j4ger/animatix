@@ -358,25 +358,25 @@ mod primitives;
 
 /// Map an actor type string to its corresponding `ShapeType`, if any.
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
-    if let Some(primitive) = crate::primitives::find_primitive(ty) {
-        if primitive.is_shape() {
-            return match ty {
-                "Rect" => Some(ShapeType::Rect),
-                "Ellipse" => Some(ShapeType::Ellipse),
-                "Line" => Some(ShapeType::Line),
-                "Polygon" => Some(ShapeType::Polygon),
-                "Path" => Some(ShapeType::Path),
-                "Arrow" => Some(ShapeType::Arrow),
-                _ => None,
-            };
-        }
-    }
-
-    match ty {
-        "Graph" => Some(ShapeType::Graph),
-        "NumberPlane" => Some(ShapeType::Graph),
-        "PlotCurve" => Some(ShapeType::Plot),
+    // Resolve through the primitive's `kind_id()` instead of a parallel
+    // string table, so the mapping cannot drift from `ActorKindId`.
+    match crate::primitives::find_primitive(ty).map(|p| p.kind_id()) {
+        Some(ActorKindId::Shape(kind)) => Some(shape_kind_to_shape_type(kind)),
+        // Plot-host kinds reuse the Graph command geometry for edit handles.
+        Some(ActorKindId::Graph | ActorKindId::NumberPlane) => Some(ShapeType::Graph),
+        Some(ActorKindId::PlotCurve) => Some(ShapeType::Plot),
         _ => None,
+    }
+}
+
+fn shape_kind_to_shape_type(kind: ShapeKind) -> ShapeType {
+    match kind {
+        ShapeKind::Rect => ShapeType::Rect,
+        ShapeKind::Ellipse => ShapeType::Ellipse,
+        ShapeKind::Line => ShapeType::Line,
+        ShapeKind::Polygon => ShapeType::Polygon,
+        ShapeKind::Path => ShapeType::Path,
+        ShapeKind::Arrow => ShapeType::Arrow,
     }
 }
 

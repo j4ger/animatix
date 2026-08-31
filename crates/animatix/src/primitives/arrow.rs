@@ -160,18 +160,6 @@ impl Primitive for ArrowPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn uses_custom_path(&self) -> bool {
-        false
-    }
-
-    fn exposes_tip_size(&self) -> bool {
-        false
-    }
-
-    fn supports_fill(&self) -> bool {
-        false
-    }
-
     fn default_color_key(&self, property: &str) -> Option<&'static str> {
         match property {
             "stroke" | "stroke_color" => Some("stroke.default"),

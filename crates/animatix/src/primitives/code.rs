@@ -111,7 +111,12 @@ impl Primitive for CodePrimitive {
         use crate::renderer::text::TextKind;
 
         let paths = if let Some(text_ctx) = text_ctx {
-            evaluate_text_paths(ctx, text_ctx, TextKind::Code, 24.0)
+            evaluate_text_paths(
+                ctx,
+                text_ctx,
+                TextKind::Code,
+                crate::renderer::text::default_font_size(TextKind::Code),
+            )
         } else {
             Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
         }?;

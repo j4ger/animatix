@@ -19,13 +19,25 @@
 //!
 //! 1. Create `primitives/<name>.rs` implementing `Primitive`
 //! 2. Add `&<name>::CONST` to the `PRIMITIVES` array below
-//! 3. Add variant to `ActorKindId` in `timeline/track.rs`
-//! 4. If it's a shape, add variant to `ShapeKind` in `timeline/track.rs`
+//! 3. Add a variant to `ActorKindId` in `timeline/actor_kind.rs`
+//!    (and to `ShapeKind` there too if it's a shape)
+//! 4. Register tooling metadata: `animatix-syntax/src/schema.rs`
+//!    `builtin_primitive_specs()` entry (type/display/icon/category/advanced)
+//!    and `animatix-syntax/src/builtins.rs::TYPES` + `type_documentation`
+//! 5. If the primitive has properties, add them to BOTH
+//!    `animatix-syntax/src/schema.rs::raw_property_specs()` (actor types +
+//!    type) and `timeline/property_registry.rs::PROPERTY_REGISTRY` (storage
+//!    semantics); the `property_registry_stays_in_sync_with_shared_schema`
+//!    test pins the two tables together
+//! 6. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region
+//!    coverage if it draws
 //!
-//! Steps 3-4 are required because enums are used in match arms across
-//! the codebase and cannot be auto-generated from a static array.
-//! However, the metadata registry (`ActorKindMeta`) IS auto-generated
-//! from `PRIMITIVES`, so you never need to touch the registry manually.
+//! Steps 3-4 are required because enums and tooling tables are used in match
+//! arms across the codebase and cannot be auto-generated from a static array.
+//! The metadata registry (`ActorKindMeta`) IS auto-generated from
+//! `PRIMITIVES`, and `registry_specs_match_shared_schema_for_builtins` pins
+//! the runtime metadata to the schema table, so you never touch the registry
+//! manually — but the schema table itself is still hand-maintained.
 //!
 //! ## Current primitives
 //!
@@ -64,9 +76,11 @@ pub(crate) fn actor_category_to_primitive_category(
 
 /// Evaluate text paths for a text primitive at frame time.
 ///
-/// This replicates the logic in `scene_eval.rs::evaluate_text_node` so that
-/// text primitives can dispatch via `Primitive::evaluate()` instead of the
-/// legacy path.
+/// This is the single frame-time text compile path: every text-like
+/// primitive (Text, Math, Code, Typst) dispatches through
+/// [`Primitive::evaluate`] into this function. It supersedes the former
+/// inline `evaluate_text_node` logic in `scene_eval.rs` (removed during the
+/// trait-dispatch migration).
 pub fn evaluate_text_paths(
     ctx: &EvaluateCtx,
     text_ctx: &mut TextCompileCtx,
@@ -284,6 +298,16 @@ pub(crate) fn evaluate_shape_render(
             time_ms: ctx.time_ms,
         })
         .unwrap_or_default();
+    if paths.is_empty() {
+        // A shape producing no paths means "nothing to draw" — not an error.
+        // Log at debug so a silently invisible shape is observable in trace
+        // output without spamming per-frame warn logs.
+        tracing::debug!(
+            "shape primitive '{}' produced no paths at t={}ms",
+            primitive.type_name(),
+            ctx.time_ms
+        );
+    }
     Ok(Some(vec![RenderCommand::Paths { paths }]))
 }
 
@@ -438,7 +462,17 @@ pub struct TextCompileCtx<'a> {
 /// These commands are executed by `scene_eval.rs` into a Vello scene.
 /// Separating command generation from execution lets primitives stay
 /// independent of the scene evaluation loop.
+///
+/// # Extension boundary
+///
+/// The set of commands a plugin can emit is currently fixed to the four
+/// variants below (the plugin ABI exposes one `append_*` callback per
+/// variant). Adding a new variant requires updating the ABI
+/// (`animatix-plugin-api`), [`RenderCommand::execute`], and
+/// [`RenderCommand::local_bounds`] together. The enum is `#[non_exhaustive]`
+/// so external code must already handle unknown variants.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub enum RenderCommand {
     /// Draw a set of vector paths, each with its own fill and stroke.
     Paths {
@@ -707,6 +741,21 @@ pub trait Primitive: Send + Sync {
         ChildProcessing::Generic
     }
 
+    /// Returns true when the GUI should offer to nest new actors inside this
+    /// container: it is a container AND children render through the generic
+    /// scene-graph recursion (not Mask/Filter/Equation aggregation).
+    fn is_nestable_container(&self) -> bool {
+        self.is_container() && self.child_processing() == ChildProcessing::Generic
+    }
+
+    /// Returns true for plain structural groups (a container without layout
+    /// semantics) that the GUI's group/ungroup actions apply to.
+    fn is_group_like(&self) -> bool {
+        self.is_container()
+            && !self.capabilities().layout_container
+            && self.child_processing() == ChildProcessing::Generic
+    }
+
     /// Property names this primitive declares from the built-in or extension
     /// property registries.
     ///
@@ -768,20 +817,11 @@ pub trait Primitive: Send + Sync {
     /// Finalize the shape state after all properties have been applied.
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    /// Returns true if this shape uses a custom path (Polygon, Path).
-    fn uses_custom_path(&self) -> bool {
-        false
-    }
-
-    /// Returns true if this shape exposes tip size properties (Line with arrows).
-    fn exposes_tip_size(&self) -> bool {
-        false
-    }
-
-    /// Returns true if this shape supports fill.
-    fn supports_fill(&self) -> bool {
-        true
-    }
+    // Shape-kind questions (`uses_custom_path`, `exposes_tip_size`,
+    // `supports_fill`) intentionally live as `ShapeType`-based free functions
+    // in `timeline/shapes/mod.rs` (`vector_shape_uses_custom_path`,
+    // `vector_shape_exposes_tip_size`) rather than on this trait: they are
+    // answered by the GUI edit-vertices layer which only has a `ShapeType`.
 
     /// Returns the colorscheme key for default color lookup.
     /// For example, "Text" returns "text.primary", shapes return "accent.primary".
@@ -857,13 +897,21 @@ pub trait Primitive: Send + Sync {
 
     /// Evaluate this primitive at frame time and return render commands.
     ///
-    /// When this returns `Some(commands)`, `scene_eval.rs` will execute the
-    /// commands directly and skip the legacy manual `ActorKindId` match for
-    /// this actor.  When it returns `None`, the legacy path is used.
+    /// This is the only scene-evaluation render path — the legacy manual
+    /// `ActorKindId` match in `scene_eval.rs` no longer exists. Every drawable
+    /// primitive implements this method (`Ok(None)` is the default for
+    /// non-visual primitives).
     ///
-    /// This is the migration path away from the 1000+ line `scene_eval.rs`
-    /// match blocks.  New primitives should implement this method; existing
-    /// primitives will be migrated incrementally.
+    /// Semantics of the return value:
+    /// - `Ok(Some(commands))` — `scene_eval.rs` executes the commands with the
+    ///   actor's local transform and inherited opacity, and records a hit
+    ///   region derived from their local bounds.
+    /// - `Ok(None)` — "no drawable content" (e.g. empty text, missing image).
+    ///   Nothing is drawn and no hit region / precise bounds are recorded
+    ///   (empty-content actors stay un-pickable until they have content;
+    ///   pinned by `runtime_empty_text_override_clears_stale_glyphs`).
+    /// - `Err(e)` — the actor does not render and a `RenderFailure` runtime
+    ///   diagnostic is recorded.
     fn evaluate(
         &self,
         _ctx: &EvaluateCtx,
@@ -974,48 +1022,12 @@ pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
 }
 
 /// Expose built-in primitive metadata through the shared schema model.
+///
+/// Single conversion implementation lives on [`PrimitiveRegistry::specs`];
+/// this free function is a thin wrapper over the built-in registry so the
+/// spec-building logic is not duplicated.
 pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
-    actor_kind_registry()
-        .iter()
-        .map(|meta| {
-            let capabilities = crate::primitives::find_primitive(meta.type_name)
-                .map(|primitive| primitive.capabilities())
-                .unwrap_or_default();
-            animatix_syntax::schema::PrimitiveSpec {
-                type_name: meta.type_name.to_string(),
-                display_name: meta.display_name.to_string(),
-                category: match meta.category {
-                    ActorCategory::Shape => animatix_syntax::schema::PrimitiveCategory::Shape,
-                    ActorCategory::Text => animatix_syntax::schema::PrimitiveCategory::Text,
-                    ActorCategory::Media => animatix_syntax::schema::PrimitiveCategory::Media,
-                    ActorCategory::Plot => animatix_syntax::schema::PrimitiveCategory::Plot,
-                    ActorCategory::Container => {
-                        animatix_syntax::schema::PrimitiveCategory::Container
-                    },
-                    ActorCategory::Annotation => {
-                        animatix_syntax::schema::PrimitiveCategory::Annotation
-                    },
-                },
-                icon_id: meta.icon_id.to_string(),
-                advanced: meta.advanced,
-                capabilities: animatix_syntax::schema::PrimitiveCapabilities {
-                    text_paths: capabilities.text_paths,
-                    vector_paths: capabilities.vector_paths,
-                    image_payload: capabilities.image_payload,
-                    layout_container: capabilities.layout_container,
-                    morphable_paths: capabilities.morphable_paths,
-                    vector_reveal_target: capabilities.vector_reveal_target,
-                    plot_geometry: capabilities.plot_geometry,
-                    plot_host: capabilities.plot_host,
-                    is_container: meta.category == ActorCategory::Container,
-                    is_shape: meta.category == ActorCategory::Shape,
-                },
-                child_processing: crate::primitives::find_primitive(meta.type_name)
-                    .map(|primitive| primitive.child_processing())
-                    .unwrap_or_default(),
-            }
-        })
-        .collect()
+    builtin_primitive_registry().specs()
 }
 
 // ── Dispatch helpers ────────────────────────────────────────────────────

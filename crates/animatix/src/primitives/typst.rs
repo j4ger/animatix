@@ -112,7 +112,12 @@ impl Primitive for TypstPrimitive {
         use crate::timeline::TrackAccessor;
 
         let paths = if let Some(text_ctx) = text_ctx {
-            evaluate_text_paths(ctx, text_ctx, TextKind::Typst, 48.0)
+            evaluate_text_paths(
+                ctx,
+                text_ctx,
+                TextKind::Typst,
+                crate::renderer::text::default_font_size(TextKind::Typst),
+            )
         } else {
             Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
         }?;

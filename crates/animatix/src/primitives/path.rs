@@ -79,10 +79,6 @@ impl Primitive for PathPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn supports_fill(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -130,10 +126,6 @@ impl Primitive for PathPrimitive {
             return false;
         }
         path.custom_path = parse_path_commands_expr(value, env);
-        true
-    }
-
-    fn uses_custom_path(&self) -> bool {
         true
     }
 }

@@ -67,45 +67,24 @@ impl PrimitiveFamilyDescriptor {
             }
         };
 
-        let capabilities = match family {
-            PrimitiveFamily::TextLike => PrimitiveCapabilities {
-                text_paths: caps.text_paths,
-                morphable_paths: caps.morphable_paths,
-                vector_reveal_target: caps.vector_reveal_target,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::VectorShape => PrimitiveCapabilities {
-                vector_paths: caps.vector_paths,
-                morphable_paths: caps.morphable_paths,
-                vector_reveal_target: caps.vector_reveal_target,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::Media if caps.image_payload => PrimitiveCapabilities {
-                image_payload: true,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::Media => PrimitiveCapabilities {
-                vector_paths: caps.vector_paths,
-                morphable_paths: caps.morphable_paths,
-                vector_reveal_target: caps.vector_reveal_target,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::Plot => PrimitiveCapabilities {
-                vector_paths: caps.vector_paths,
-                morphable_paths: caps.morphable_paths,
-                vector_reveal_target: caps.vector_reveal_target,
-                plot_geometry: caps.plot_geometry,
-                plot_host: caps.plot_host,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::Container => PrimitiveCapabilities {
+        // Keep the primitive's own capability flags (shared-schema defaults
+        // for built-ins, plugin ABI flags for extensions) instead of rebuilding
+        // a family-inferred second set that can silently drift. The only
+        // normalization is a fallback for sloppy plugins that declare a
+        // category without any container capability, mirroring the previous
+        // per-family default rows.
+        let capabilities = if family == PrimitiveFamily::Container && !caps.layout_container {
+            PrimitiveCapabilities {
                 layout_container: true,
-                ..PrimitiveCapabilities::default()
-            },
-            PrimitiveFamily::Group => PrimitiveCapabilities {
+                ..caps
+            }
+        } else if family == PrimitiveFamily::Group && !caps.is_container {
+            PrimitiveCapabilities {
                 is_container: true,
-                ..PrimitiveCapabilities::default()
-            },
+                ..caps
+            }
+        } else {
+            caps
         };
         Self {
             family,
@@ -199,5 +178,66 @@ mod tests {
         let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
         assert_eq!(descriptor.family, PrimitiveFamily::VectorShape);
         assert!(descriptor.capabilities.vector_paths);
+    }
+
+    #[test]
+    fn capabilities_pass_through_untouched_for_builtins() {
+        // The full schema capability set is preserved instead of being
+        // stripped down to a family-inferred subset.
+        let rect = find_primitive("Rect").expect("Rect built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_primitive(rect);
+        assert!(descriptor.capabilities.vector_paths);
+        assert!(descriptor.capabilities.is_shape);
+
+        let curve = find_primitive("PlotCurve").expect("PlotCurve built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_primitive(curve);
+        assert!(descriptor.capabilities.plot_geometry);
+        assert!(descriptor.capabilities.morphable_paths);
+        assert!(!descriptor.capabilities.is_shape);
+    }
+
+    #[test]
+    fn sloppy_container_category_gets_layout_defaults() {
+        use crate::ast::{InlineItem, Modifier, Property};
+        use crate::primitives::BuildCtx;
+        use crate::timeline::{ActorCategory, ActorKindId};
+
+        // A plugin that declares only a Container category inherits the
+        // schema's container capability defaults (layout_container +
+        // is_container), so it must classify as a layout container even
+        // without explicit ABI capability flags.
+        struct SloppyContainer;
+        impl crate::primitives::Primitive for SloppyContainer {
+            fn type_name(&self) -> &str {
+                "Sloppy"
+            }
+            fn display_name(&self) -> &str {
+                "Sloppy"
+            }
+            fn category(&self) -> ActorCategory {
+                ActorCategory::Container
+            }
+            fn icon_id(&self) -> &str {
+                "sloppy"
+            }
+            fn kind_id(&self) -> ActorKindId {
+                ActorKindId::Group
+            }
+            fn build(
+                &self,
+                _ctx: &mut BuildCtx,
+                _label: &str,
+                _props: &[Property],
+                _modifiers: &[Modifier],
+                _children: &[InlineItem],
+            ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
+                Ok(())
+            }
+        }
+
+        let descriptor = PrimitiveFamilyDescriptor::from_primitive(&SloppyContainer);
+        assert_eq!(descriptor.family, PrimitiveFamily::Container);
+        assert!(descriptor.is_layout_container());
+        assert!(descriptor.is_recursive_container());
     }
 }
