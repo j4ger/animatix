@@ -53,11 +53,32 @@ always {
 }
 
 /// Full pipeline: parse + typecheck + expand + build.
-/// Uses a temp file in the examples dir so relative imports resolve.
+///
+/// Synthetic sources have no imports, so a temp file directly in `examples/`
+/// is fine here. For sources with relative imports use [`full_pipeline_like`].
 fn full_pipeline(source: &str) {
     let mut graph = ModuleGraph::new();
     let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let path = examples_dir.join("_bench_temp.amx");
+    std::fs::write(&path, source).unwrap();
+
+    let mut program =
+        graph.load_program_with_source(&path, Some(source)).expect("module load failed");
+    let _type_diags = program.typecheck();
+    let expanded = program.expand_components(&mut Vec::new());
+    let _timeline = Timeline::build(&expanded);
+
+    // Clean up
+    let _ = std::fs::remove_file(&path);
+}
+
+/// Full pipeline variant anchored to a real example file: writes the source to
+/// a temp file *next to `anchor`* so that relative imports
+/// (`../lib/theme.amx`) resolve exactly as they do for the real file, then
+/// removes it.
+fn full_pipeline_like(anchor: &Path, source: &str) {
+    let mut graph = ModuleGraph::new();
+    let path = anchor.with_file_name("_bench_temp.amx");
     std::fs::write(&path, source).unwrap();
 
     let mut program =
@@ -121,11 +142,17 @@ fn bench_full_pipeline(c: &mut Criterion) {
     group.bench_function("reactive_full", |b| b.iter(|| full_pipeline(&reactive)));
 
     if !showcase.is_empty() {
-        group.bench_function("showcase_full", |b| b.iter(|| full_pipeline(&showcase)));
+        let showcase_path = examples_dir.join("gallery/fft_explain.amx");
+        group.bench_function("showcase_full", |b| {
+            b.iter(|| full_pipeline_like(&showcase_path, &showcase))
+        });
     }
 
     if !components.is_empty() {
-        group.bench_function("components_full", |b| b.iter(|| full_pipeline(&components)));
+        let components_path = examples_dir.join("components/09_components.amx");
+        group.bench_function("components_full", |b| {
+            b.iter(|| full_pipeline_like(&components_path, &components))
+        });
     }
 
     let modules_path = examples_dir.join("components/10_modules.amx");
