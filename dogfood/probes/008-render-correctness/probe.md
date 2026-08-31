@@ -54,9 +54,13 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 - Filter blur/fallback on software GPU (verify + decide whether the silent
   fallback should surface a diagnostic) — see probe 009.
 - Equation fragment whitespace handling around operators.
-- Add a render-level pixel-assertion test for Mask clip / BarChart axis span /
-  hosted-plot full-axis (currently verified via ink-diff + visual review;
-  deterministic enough to assert programmatically).
+- **Hosted BarChart bars overhang ~49px below the Graph's bottom axis**
+  (2026-08-31): a render-level pixel scan shows the bars span the full axis
+  width (fine), but their baseline paints at screen y≈399 while the Graph's
+  bottom axis is at y≈350 — every bar sticks out below the chart box. Likely in
+  the graph-hosted baseline math (`build_bar_chart_paths` uses the full height
+  where the axis uses the half-height convention). Not fixed yet; a focused fix
+  + pixel regression are needed.
 
 ### Resolved (2026-08-28)
 - Default bundled "Open Sans" was a single-weight mock (no emphasis). **Replaced
@@ -65,6 +69,13 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
   + `scripts/refresh-fonts.sh` integrity check). `DEFAULT_FONT_FAMILY` stays
   "Open Sans"; bold/italic/font_weight now work with the default family
   (pixel-verified: bold ink 0.385 vs regular 0.332; regression test
-  `bundled_default_font_covers_bold_and_italic`). Static faces are used rather
-  than upstream variable fonts because typst 0.14 does not consume variable
-  axes (that landed in typst 0.15).
+  `bundled_default_font_covers_bold_and_italic`). Static faces are kept rather
+  than upstream variable fonts because they are smaller (≈850KB vs ≈1.1MB) and
+  simpler; typst was upgraded to 0.15 which does support variable axes.
+- **Render-level pixel-assertion tests** (2026-08-31): added
+  `hosted_bar_chart_paints_bars_across_the_full_graph_axis`
+  (`renderer/offscreen.rs`) — a rasterized-frame check that hosted BarChart
+  bars span the full Graph axis (left third → right third, guarding the old
+  central-half regression). Mask clip pixel tests already exist in the same
+  module; the geometry-level `hosted_bar_chart_spans_graph_axis` remains a
+  complement.

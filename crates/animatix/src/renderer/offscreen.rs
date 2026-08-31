@@ -650,6 +650,79 @@ fade-in m [1ms]
     }
 
     #[test]
+    fn hosted_bar_chart_paints_bars_across_the_full_graph_axis() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        // Regression: hosted plots used to occupy only the central half of the
+        // Graph axis (the `{graph}_size` env key was seeded half but consumed
+        // as full). Bars must visibly paint from the left third to the right
+        // third of the axis box, not cluster in the middle. (The geometry-level
+        // assertion `hosted_bar_chart_spans_graph_axis` only checks the env/
+        // paths; this one checks the rasterized frame.)
+        let source = r#"
+config { resolution: (800, 400) }
+
+#0s
+g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100) {
+  bars: BarChart,
+    data: {("A", 80), ("B", 60), ("C", 85), ("D", 90)},
+    bar_colors: {(1, 0.5, 0.2, 1), (1, 0.5, 0.2, 1), (1, 0.5, 0.2, 1), (1, 0.5, 0.2, 1)}
+}
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.5,
+                SceneDimensions {
+                    width: 800,
+                    height: 400,
+                },
+            )
+            .expect("render should succeed");
+
+        let px = |x: u32, y: u32| -> [u8; 4] {
+            let i = ((y * frame.width + x) * 4) as usize;
+            [
+                frame.rgba[i],
+                frame.rgba[i + 1],
+                frame.rgba[i + 2],
+                frame.rgba[i + 3],
+            ]
+        };
+
+        // Scan a horizontal strip through the upper-middle of the bars. The
+        // Graph spans ~x 100..700; with values 60-90 of a 0..100 domain every
+        // bar paints at screen y=330 here. Ancestral "central half" behavior
+        // would leave bars within ~250..550 only (see also the vertical-overhang
+        // note in probe 008 — a separate hosted-BarChart baseline issue).
+        let is_bar = |c: [u8; 4]| c[0] > 150 && c[1] < 180 && c[2] < 130;
+        let mut min_x = u32::MAX;
+        let mut max_x = 0u32;
+        for x in 110..690u32 {
+            if is_bar(px(x, 330)) {
+                min_x = min_x.min(x);
+                max_x = max_x.max(x);
+            }
+        }
+        assert!(
+            min_x < 280 && max_x > 520,
+            "bars should span the full axis (left third to right third), got min_x={min_x} max_x={max_x}"
+        );
+    }
+
+    #[test]
     fn offscreen_renderer_render_timeline_produces_frame() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
