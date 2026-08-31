@@ -18,7 +18,7 @@ use std::ffi::{c_char, c_void};
 ///
 /// Keep `docs/extension_authoring.md` ("The current unstable ABI snapshot is N")
 /// in sync with this value whenever it is bumped.
-pub const UNSTABLE_ABI_VERSION: u32 = 6;
+pub const UNSTABLE_ABI_VERSION: u32 = 7;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -537,6 +537,33 @@ pub struct NativePrimitiveEvaluateCtx {
 /// Native primitive evaluate callback.
 pub type NativePrimitiveEvaluateFn = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtx) -> i32;
 
+/// Context passed to a native primitive default-props callback.
+#[repr(C)]
+pub struct NativeDefaultPropsCtx {
+    /// `size_of::<NativeDefaultPropsCtx>()`.
+    pub size: usize,
+    /// Scene width in logical pixels.
+    pub scene_width: f64,
+    /// Scene height in logical pixels.
+    pub scene_height: f64,
+    /// Opaque host handle passed back to [`Self::append_property`].
+    pub host: *mut c_void,
+    /// Append one default property (name + value) to the actor's defaults.
+    pub append_property:
+        Option<unsafe extern "C" fn(*mut c_void, *const c_char, NativeValue) -> i32>,
+}
+
+/// Native primitive default-props callback: emitted properties become the
+/// actor's declaration defaults when the actor is created from the GUI.
+pub type NativeDefaultPropsFn = unsafe extern "C" fn(*mut NativeDefaultPropsCtx) -> i32;
+
+/// Native primitive default-colorscheme-key callback: maps a property name to
+/// a colorscheme key (e.g. `"accent.primary"`, `"text.primary"`) so the
+/// primitive participates in scheme-based default colors, or returns
+/// [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
+pub type NativeDefaultColorKeyFn =
+    unsafe extern "C" fn(property: *const c_char, out_key: *mut *const c_char) -> i32;
+
 /// One action parameter or modifier descriptor.
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -656,6 +683,10 @@ pub struct NativePrimitive {
     pub handle_assignment: Option<NativeAssignmentFn>,
     /// Optional post-children finalize callback.
     pub finalize_container_build: Option<NativeFinalizeFn>,
+    /// Optional default-props callback for GUI actor creation.
+    pub default_props: Option<NativeDefaultPropsFn>,
+    /// Optional default colorscheme-key callback.
+    pub default_color_key: Option<NativeDefaultColorKeyFn>,
 }
 
 /// Host callbacks available to a native plugin during install.

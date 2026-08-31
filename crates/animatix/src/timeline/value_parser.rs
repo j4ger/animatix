@@ -344,6 +344,42 @@ fn union_type_name(types: &[ValueType]) -> String {
     types.iter().map(|ty| value_type_name(*ty)).collect::<Vec<_>>().join(" | ")
 }
 
+/// Convert a runtime `Value` back to a declarative AST expression.
+///
+/// This is the inverse of the general `Expr → PropertyValue` parsing and is
+/// used to translate plugin-provided default property values into source
+/// defaults. Returns `None` for values that cannot be authored as a scalar
+/// property expression (functions, closures, objects).
+#[cfg_attr(
+    not(feature = "plugin-loading"),
+    allow(dead_code) // Consumed by the native-plugin adapter's `default_props`
+                     // (extension_native_plugin.rs) only when the
+                     // `plugin-loading` feature is enabled.
+)]
+pub fn value_to_expr(value: &crate::timeline::Value) -> Option<Expr> {
+    use crate::timeline::Value;
+    match value {
+        Value::Num(n) => Some(Expr::Num(*n)),
+        Value::Str(s) => Some(Expr::Str(s.clone())),
+        Value::Bool(b) => Some(Expr::Bool(*b)),
+        Value::Vec2(v) => Some(Expr::Tuple(vec![Expr::Num(v[0]), Expr::Num(v[1])])),
+        Value::Vec3(v) => {
+            Some(Expr::Tuple(vec![Expr::Num(v[0]), Expr::Num(v[1]), Expr::Num(v[2])]))
+        },
+        Value::Vec4(v) | Value::Color(v) => Some(Expr::Tuple(vec![
+            Expr::Num(v[0]),
+            Expr::Num(v[1]),
+            Expr::Num(v[2]),
+            Expr::Num(v[3]),
+        ])),
+        Value::List(items) => {
+            items.iter().map(value_to_expr).collect::<Option<Vec<_>>>().map(Expr::List)
+        },
+        // Functions/closures/objects cannot be authored as scalar defaults.
+        Value::NativeFn(_) | Value::Closure(..) | Value::UserFn { .. } | Value::Object(..) => None,
+    }
+}
+
 fn value_type_name(value_type: ValueType) -> &'static str {
     match value_type {
         ValueType::F32 => "Num",
@@ -372,6 +408,38 @@ fn value_type_name(value_type: ValueType) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn value_to_expr_roundtrips_scalars_and_tuples() {
+        use crate::timeline::Value;
+        assert_eq!(value_to_expr(&Value::Num(7.0)), Some(Expr::Num(7.0)));
+        assert_eq!(value_to_expr(&Value::Str("hi".to_string())), Some(Expr::Str("hi".to_string())));
+        assert_eq!(value_to_expr(&Value::Bool(true)), Some(Expr::Bool(true)));
+        assert_eq!(
+            value_to_expr(&Value::Vec2([1.0, 2.0])),
+            Some(Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]))
+        );
+        assert_eq!(
+            value_to_expr(&Value::Color([0.2, 0.4, 0.6, 1.0])),
+            Some(Expr::Tuple(vec![
+                Expr::Num(0.2),
+                Expr::Num(0.4),
+                Expr::Num(0.6),
+                Expr::Num(1.0)
+            ]))
+        );
+    }
+
+    #[test]
+    fn value_to_expr_rejects_non_scalar_values() {
+        use crate::timeline::Value;
+        let env_closure = Value::Closure(
+            Vec::new(),
+            Box::new(crate::ir::CompiledExpr::Const(crate::timeline::Value::Num(0.0))),
+            crate::timeline::CapturedEnv::default(),
+        );
+        assert!(value_to_expr(&env_closure).is_none());
+    }
 
     #[test]
     fn enum_parses_allowed_choice() {

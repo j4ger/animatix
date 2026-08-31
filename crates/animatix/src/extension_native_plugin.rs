@@ -26,9 +26,10 @@ use animatix_plugin_api::{
     NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32,
     NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction,
     NativeActionContext, NativeActionExecuteFn, NativeActionParam, NativeAssignmentContext,
-    NativeAssignmentFn, NativeChild, NativeFinalizeContext, NativeFinalizeFn,
-    NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand,
-    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
+    NativeAssignmentFn, NativeChild, NativeDefaultColorKeyFn, NativeDefaultPropsCtx,
+    NativeDefaultPropsFn, NativeFinalizeContext, NativeFinalizeFn, NativeFunctionContext,
+    NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand, NativeInstallFn,
+    NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
     NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
     NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
     NativeTextCommand, NativeValue, UNSTABLE_ABI_VERSION,
@@ -550,6 +551,8 @@ struct NativePrimitiveAdapter {
     evaluate: Option<NativePrimitiveEvaluateFn>,
     handle_assignment: Option<NativeAssignmentFn>,
     finalize_container_build: Option<NativeFinalizeFn>,
+    default_props: Option<NativeDefaultPropsFn>,
+    default_color_key: Option<NativeDefaultColorKeyFn>,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
@@ -592,8 +595,35 @@ impl NativePrimitiveAdapter {
             evaluate: primitive.evaluate,
             handle_assignment: primitive.handle_assignment,
             finalize_container_build: primitive.finalize_container_build,
+            default_props: primitive.default_props,
+            default_color_key: primitive.default_color_key,
             _library: library,
         })
+    }
+}
+
+/// Host collection for a native `default_props` callback.
+struct NativeDefaultPropsHost {
+    props: Vec<(String, crate::timeline::Value)>,
+}
+
+unsafe extern "C" fn native_default_props_append(
+    host: *mut c_void,
+    name: *const c_char,
+    value: NativeValue,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeDefaultPropsHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(name) = (unsafe { read_c_string(name) }) else {
+        return NATIVE_STATUS_UNSUPPORTED;
+    };
+    match native_to_value(value) {
+        Ok(value) => {
+            host.props.push((name, value));
+            NATIVE_STATUS_OK
+        },
+        Err(_) => NATIVE_STATUS_TYPE_ERROR,
     }
 }
 
@@ -644,6 +674,58 @@ impl Primitive for NativePrimitiveAdapter {
 
     fn resize_mode(&self) -> ResizeMode {
         self.resize_mode
+    }
+
+    fn default_props(&self, scene_dimensions: &crate::timeline::SceneDimensions) -> Vec<Property> {
+        let Some(callback) = self.default_props else {
+            return Vec::new();
+        };
+        let mut host = NativeDefaultPropsHost { props: Vec::new() };
+        let mut native_ctx = NativeDefaultPropsCtx {
+            size: std::mem::size_of::<NativeDefaultPropsCtx>(),
+            scene_width: scene_dimensions.width as f64,
+            scene_height: scene_dimensions.height as f64,
+            host: (&mut host as *mut NativeDefaultPropsHost).cast(),
+            append_property: Some(native_default_props_append),
+        };
+        let status = unsafe { callback(&mut native_ctx) };
+        let mut props = Vec::new();
+        for (name, value) in host.props {
+            match crate::timeline::value_parser::value_to_expr(&value) {
+                Some(expr) => props.push(Property::new(name, expr)),
+                None => {
+                    tracing::warn!(
+                        "native primitive '{}' default property '{name}' has a value that \
+                         cannot be expressed as a source default; skipping",
+                        self.type_name
+                    );
+                },
+            }
+        }
+        if status != NATIVE_STATUS_OK {
+            tracing::warn!(
+                "native primitive '{}' default-props callback failed with status {status}",
+                self.type_name
+            );
+        }
+        props
+    }
+
+    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+        let callback = self.default_color_key?;
+        let property_c = std::ffi::CString::new(property).ok()?;
+        let mut out: *const c_char = std::ptr::null();
+        let status = unsafe { callback(property_c.as_ptr(), &mut out) };
+        if status != NATIVE_STATUS_OK || out.is_null() {
+            return None;
+        }
+        // Contract: plugins return a pointer valid for the plugin library's
+        // lifetime (a `static` string), so extending the borrow to `'static`
+        // matches that guarantee.
+        unsafe {
+            let text = std::ffi::CStr::from_ptr(out).to_str().ok()?;
+            Some(std::mem::transmute::<&str, &'static str>(text))
+        }
     }
 
     fn kind_id(&self) -> ActorKindId {
@@ -2419,6 +2501,8 @@ mod tests {
             evaluate: Some(pulse_evaluate),
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         assert_eq!(
             unsafe {
@@ -2573,6 +2657,8 @@ mod tests {
             evaluate: None,
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         assert_eq!(
             unsafe {
@@ -3244,7 +3330,7 @@ mod tests {
             NATIVE_PRIMITIVE_CATEGORY_CONTAINER, NATIVE_PRIMITIVE_CHILD_GENERIC,
         };
 
-        let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse { kid: Rect }");
+        let (ast, errors) = animatix_syntax::parser::parse_source("#0s\np: Pulse { kid: Rect }");
         assert!(errors.is_empty(), "parse errors: {errors:?}");
         let ast = ast.expect("parsed AST");
 
@@ -3263,6 +3349,8 @@ mod tests {
             evaluate: None,
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3312,6 +3400,8 @@ mod tests {
             evaluate: Some(pulse_evaluate),
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3328,6 +3418,99 @@ mod tests {
         let commands =
             adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
         assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));
+    }
+
+    #[test]
+    fn native_primitive_default_props_and_color_key_flow_through_adapter() {
+        use crate::primitives::Primitive;
+        use animatix_plugin_api::{
+            NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NativeDefaultPropsCtx,
+        };
+
+        unsafe extern "C" fn pulse_default_props(ctx: *mut NativeDefaultPropsCtx) -> i32 {
+            let Some(ctx) = (unsafe { (ctx as *mut NativeDefaultPropsCtx).as_mut() }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let Some(append) = ctx.append_property else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let mut arena = NativeValueArena::default();
+            let color_name = std::ffi::CString::new("color").unwrap();
+            let color =
+                value_to_native(&crate::timeline::Value::Color([1.0, 0.5, 0.25, 1.0]), &mut arena)
+                    .expect("color value");
+            let status = unsafe { append(ctx.host, color_name.as_ptr(), color) };
+            if status != NATIVE_STATUS_OK {
+                return status;
+            }
+            let size_name = std::ffi::CString::new("size").unwrap();
+            let size = value_to_native(&crate::timeline::Value::Vec2([120.0, 80.0]), &mut arena)
+                .expect("size value");
+            unsafe { append(ctx.host, size_name.as_ptr(), size) }
+        }
+
+        unsafe extern "C" fn pulse_default_color_key(
+            property: *const c_char,
+            out: *mut *const c_char,
+        ) -> i32 {
+            let Some(property) = (unsafe { read_c_string(property) }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            if property == "color" {
+                // A `'static` pointer owned by the test binary — matches the
+                // callback contract (plugin-lifetime-valid strings).
+                unsafe { *out = c"accent.primary".as_ptr() };
+                NATIVE_STATUS_OK
+            } else {
+                NATIVE_STATUS_UNSUPPORTED
+            }
+        }
+
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
+            build: None,
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+            default_props: Some(pulse_default_props),
+            default_color_key: Some(pulse_default_color_key),
+        };
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
+        .expect("adapter");
+
+        let dims = crate::timeline::SceneDimensions {
+            width: 640,
+            height: 480,
+        };
+        let props = adapter.default_props(&dims);
+        let color = props.iter().find(|p| p.name == "color").expect("color default");
+        assert!(
+            matches!(&color.value, crate::ast::Expr::Tuple(items) if items.len() == 4),
+            "color default should be a 4-tuple"
+        );
+        let size = props.iter().find(|p| p.name == "size").expect("size default");
+        assert!(
+            matches!(&size.value, crate::ast::Expr::Tuple(items) if items.len() == 2),
+            "size default should be a 2-tuple"
+        );
+
+        assert_eq!(adapter.default_color_key("color"), Some("accent.primary"));
+        assert_eq!(adapter.default_color_key("stroke"), None);
     }
 
     #[test]
@@ -3440,6 +3623,8 @@ mod tests {
             evaluate: None,
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3503,6 +3688,8 @@ mod tests {
             evaluate: None,
             handle_assignment: None,
             finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
