@@ -132,13 +132,13 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current unstable ABI snapshot is 6 and has exactly one install entry. The
+The current unstable ABI snapshot is 7 and has exactly one install entry. The
 snapshot is not a compatibility version: plugins must be rebuilt from the same
 source tree as the host whenever it changes. It can register
 external properties with full tooling metadata, native expression functions,
 primitives, actions, and service values with optional destructors. Native
 primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property
-names, and a `NATIVE_RESIZE_MODE_*` value so the GUI, actions, and generic
+names, a `NATIVE_RESIZE_MODE_*` value so the GUI, actions, and generic
 property writer can route them without string matching. Native primitives have
 optional `build`, `evaluate`, `handle_assignment`, and
 `finalize_container_build` callbacks. The host builds children through the same

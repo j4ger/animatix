@@ -679,7 +679,10 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 
 ## 15. Primitive Architecture
 
-Adding a new primitive requires **3 touch points** via the `Primitive` trait:
+Adding a new built-in primitive requires these touch points (rendering is
+trait-dispatched; the remaining steps exist because `ActorKindId` variants and
+tooling tables are matched across the codebase and cannot be auto-generated
+from the `PRIMITIVES` array):
 
 ```rust
 // primitives/triangle.rs
@@ -710,7 +713,19 @@ impl Primitive for TrianglePrimitive {
 Steps:
 1. Create `primitives/<name>.rs` implementing `Primitive`.
 2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add variants to `ActorKindId` / `ShapeKind` enums in `timeline/actor_kind.rs` (still needed for built-in match arms).
+3. Add a variant to `ActorKindId` (and `ShapeKind` for shapes) in `timeline/actor_kind.rs`.
+4. Add an entry to `animatix-syntax::schema::builtin_primitive_specs()` and to
+   `animatix-syntax::builtins::TYPES` + `type_documentation`.
+5. If the primitive declares properties, add them to BOTH
+   `animatix-syntax::schema::raw_property_specs()` and the runtime
+   `timeline::property_registry::PROPERTY_REGISTRY` (pinned by a sync test).
+6. Document in `docs/primitives.md` / `docs/spec.md`; add render/hit-region
+   tests if the primitive draws.
+
+The metadata registry (`ActorKindMeta`) is auto-generated from `PRIMITIVES`,
+and `registry_specs_match_shared_schema_for_builtins` pins the runtime
+metadata to the schema table — so built-ins and tooling cannot silently drift,
+but the schema table itself remains hand-maintained.
 
 Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
 
