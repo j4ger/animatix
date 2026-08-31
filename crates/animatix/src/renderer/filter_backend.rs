@@ -682,59 +682,64 @@ impl GpuFilterBackend {
             },
         );
 
-        let mut src_view = tex_a_view;
-        let mut dst_view = tex_b_view;
-        let mut active = FilteredSource::TexA;
-
-        // Blur passes
+        // Blur + color-matrix passes. Each compute pass gets its OWN encoder +
+        // submit: back-to-back compute passes sharing the ping-pong textures in
+        // a single encoder do not make one pass's storage write visible to the
+        // next on every driver (verified by probe 009 — the blur ping-pong
+        // returned the untouched copy until the passes were split). A submit
+        // boundary is a synchronization point, so this is robust everywhere.
         if needs_blur {
+            // Horizontal pass (copy + h): tex_a → tex_b.
             self.dispatch_blur(
                 &mut encoder,
-                src_view,
-                dst_view,
+                &tex_a_view,
+                &tex_b_view,
                 blur,
-                0, // horizontal
+                0,
                 dimensions.width,
                 dimensions.height,
             );
-            std::mem::swap(&mut src_view, &mut dst_view);
+        }
+        self.queue.submit(std::iter::once(encoder.finish()));
 
+        if needs_blur {
+            // Vertical pass: tex_b → tex_a.
+            let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Filter Vertical Blur Encoder"),
+            });
             self.dispatch_blur(
-                &mut encoder,
-                src_view,
-                dst_view,
+                &mut enc,
+                &tex_b_view,
+                &tex_a_view,
                 blur,
-                1, // vertical
+                1,
                 dimensions.width,
                 dimensions.height,
             );
-            std::mem::swap(&mut src_view, &mut dst_view);
+            self.queue.submit(std::iter::once(enc.finish()));
         }
 
-        // Color matrix pass
         if needs_color_matrix {
             let matrix = crate::timeline::filter::compose_color_matrix(
                 brightness, contrast, saturate, hue_rotate, sepia,
             );
-            self.dispatch_color_matrix(&mut encoder, src_view, dst_view, &matrix);
-            std::mem::swap(&mut src_view, &mut dst_view);
-            active = match active {
-                FilteredSource::TexA => FilteredSource::TexB,
-                FilteredSource::TexB => FilteredSource::TexA,
-                FilteredSource::Render => {
-                    unreachable!("render texture is never swapped in ping-pong")
-                },
-            };
+            let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Filter Color Matrix Encoder"),
+            });
+            self.dispatch_color_matrix(&mut enc, &tex_a_view, &tex_b_view, &matrix);
+            self.queue.submit(std::iter::once(enc.finish()));
         }
 
-        // After all swaps, src_view holds the final result
-        self.queue.submit(std::iter::once(encoder.finish()));
-
-        // Determine which texture view is the final result
+        // The final result: tex_b after a color matrix, otherwise tex_a.
+        let active = if needs_color_matrix {
+            FilteredSource::TexB
+        } else {
+            FilteredSource::TexA
+        };
         let final_view = match active {
             FilteredSource::TexA => tex_a_view.clone(),
             FilteredSource::TexB => tex_b_view.clone(),
-            FilteredSource::Render => unreachable!("render texture is never swapped in ping-pong"),
+            FilteredSource::Render => unreachable!("render texture is never a ping-pong result"),
         };
 
         self.last_filtered_view = Some(final_view);
@@ -988,7 +993,6 @@ mod tests {
     /// is kept #[ignore] as runnable evidence until the blur shader/pass chain
     /// is fixed.
     #[test]
-    #[ignore = "known bug: blur compute no-ops (probe 009)"]
     fn gpu_filter_blur_softens_a_hard_boundary() {
         let maybe_device = pollster::block_on(create_headless_device());
         if let Some((device, queue)) = maybe_device {
@@ -1074,8 +1078,8 @@ mod tests {
                 (raw[(32 * w + 32) * 4], raw[(32 * w + 32) * 4 + 1], raw[(32 * w + 32) * 4 + 2]);
             // Desaturated red → channels roughly equal (gray).
             assert!(
-                (r as i32 - g as i32).abs() < 40 && (r as i32 - b as i32).abs() < 40,
-                "saturate=0 should desaturate red to gray, got r={r} g={g} b={b}"
+                r > 30 && (r as i32 - g as i32).abs() < 40 && (r as i32 - b as i32).abs() < 40,
+                "saturate=0 should desaturate red to gray (Rec.709 luma ≈54, not empty), got r={r} g={g} b={b}"
             );
         }
     }
