@@ -1118,7 +1118,12 @@ impl Timeline {
     /// of returning a stale cached one. Public mutable track/metadata/env
     /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
-        *self.eval_caches.frame_cache.borrow_mut() = None;
+        // Recycle the invalidated entry's encoded scene into the scene buffer
+        // so the next evaluation reuses its allocation instead of starting
+        // from an empty encoding (PF-4: every GUI edit calls this).
+        if let Some(entry) = self.eval_caches.frame_cache.borrow_mut().take() {
+            *self.eval_caches.scene_buffer.borrow_mut() = Some(entry.program.scene);
+        }
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();

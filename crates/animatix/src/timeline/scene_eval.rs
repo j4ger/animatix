@@ -1277,8 +1277,26 @@ impl Timeline {
         // Clear stale runtime diagnostics from previous frame.
         self.clear_runtime_diagnostics();
 
-        // P2.25: Reuse vello scene buffer to avoid allocating fresh encoding buffers.
-        let mut scene = self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default();
+        // PF-4: Reuse a previously encoded scene buffer instead of allocating.
+        // On a plain miss the replaced frame-cache entry is stale by
+        // definition (restore_frame_cache just rejected it), so its encoded
+        // scene is moved out — no clone — and becomes this frame's encode
+        // buffer. Filter/debug frames bypass the frame cache (its entry stays
+        // valid), so they recycle via scene_buffer instead.
+        let debug_or_filter =
+            filter_backend.is_some() || debug_options != DebugRenderOptions::default();
+        let mut scene = if debug_or_filter {
+            self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
+        } else {
+            self.eval_caches
+                .frame_cache
+                .borrow_mut()
+                .take()
+                .map(|entry| entry.program.scene)
+                .unwrap_or_else(|| {
+                    self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
+                })
+        };
         scene.reset();
         // Precise bounds are only valid for the frame that computed them.
         self.eval_caches.precise_bounds_cache.borrow_mut().clear();
@@ -1458,7 +1476,8 @@ impl Timeline {
             self.eval_caches.hit_regions.borrow_mut().clear();
         }
 
-        // The program owns the encoded scene; scene_buffer keeps a reusable copy.
+        // The program owns the encoded scene; the frame cache keeps a clone
+        // for restore, and filter/debug frames park their copy in scene_buffer.
         let program = crate::timeline::scene_program::SceneProgram {
             dimensions: scene_dimensions,
             background: bg_color,
@@ -1477,8 +1496,12 @@ impl Timeline {
                 program: program.clone(),
                 collect_items,
             });
+        } else {
+            // Filter/debug frames bypass the frame cache (its entry stays
+            // valid for later default-option frames); hand the encoded scene
+            // back to the buffer so the next such frame can reuse it.
+            *self.eval_caches.scene_buffer.borrow_mut() = Some(program.scene.clone());
         }
-        *self.eval_caches.scene_buffer.borrow_mut() = Some(program.scene.clone());
 
         program
     }
