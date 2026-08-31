@@ -160,6 +160,15 @@ reusing `common.rs`, so they get baselines for free.
   can be collected without a synthetic driver. `PerformanceMetrics` already has
   the fields; this only adds a sink.
 
+  > **Status (PF-9, 2026-08-31): implemented** as
+  > `crates/animatix-gui/src/app/perf_log.rs` (`PerfLogSink`). Each line also
+  > carries a `stages` map drained from the shared stage tracer
+  > (`animatix::perf::take_measurements()`), so collected data uses the exact
+  > stage names the bench suite gates on. Threading note: stage durations are
+  > UI-thread only (the `rebuild` stage runs on the worker thread and is
+  > covered by the top-level `rebuild_ms` field instead). The sink disables
+  > itself with a single warning after the first I/O error.
+
 ### 3.5 Shared stage tracing (recommended, cross-cutting)
 
 Introduce a lightweight, always-on (in debug/bench) instrumentation layer so the
@@ -299,7 +308,7 @@ it moves and the **gate** that protects it.
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
-| GUI JSONL perf sink | `animatix-gui` `--perf-log` | add (PF-9) |
+| GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
 | Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9) |
 
 ---

@@ -12,6 +12,7 @@ pub(crate) mod icons;
 pub(crate) mod insertion;
 pub(crate) mod interaction;
 pub(crate) mod panels;
+mod perf_log;
 mod persistence;
 pub(crate) mod preview;
 pub(crate) mod review;

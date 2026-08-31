@@ -13,7 +13,14 @@ use crate::app::persistence::{
 #[cfg(feature = "theme-json")]
 use eparts::{ThemeRegistry, ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 
-pub fn run_gui(path: Option<PathBuf>) {
+pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>) {
+    // Open the optional JSONL perf sink (PF-9) before the event loop starts; a
+    // bad path must not take the GUI down — log and continue without telemetry.
+    let perf_log = perf_log_path.and_then(|p| {
+        crate::app::perf_log::PerfLogSink::open(&p)
+            .map_err(|e| tracing::error!("--perf-log: cannot open {}: {e}", p.display()))
+            .ok()
+    });
     let (initial_path, show_welcome) = match path {
         Some(p) => (p, false),
         None => match load_app_state() {
@@ -46,7 +53,7 @@ pub fn run_gui(path: Option<PathBuf>) {
         "Animatix",
         options,
         Box::new(move |cc| {
-            let app = AnimatixApp::new(cc, initial_path, show_welcome)?;
+            let app = AnimatixApp::new(cc, initial_path, show_welcome, perf_log)?;
             Ok(Box::new(app))
         }),
     ) {
@@ -80,6 +87,8 @@ struct AnimatixApp {
     /// Last theme registry error, surfaced in Settings.
     #[cfg(feature = "theme-json")]
     theme_error: Option<String>,
+    /// Opt-in JSONL perf telemetry sink (`--perf-log`, PF-9).
+    perf_log: Option<crate::app::perf_log::PerfLogSink>,
 }
 
 /// Probe the OS light/dark appearance via the `dark-light` crate.
@@ -99,6 +108,7 @@ impl AnimatixApp {
         cc: &eframe::CreationContext<'_>,
         initial_path: PathBuf,
         show_welcome: bool,
+        perf_log: Option<crate::app::perf_log::PerfLogSink>,
     ) -> Result<Self, String> {
         let render_state = cc
             .wgpu_render_state
@@ -165,6 +175,7 @@ impl AnimatixApp {
             theme_registry_watcher,
             #[cfg(feature = "theme-json")]
             theme_error,
+            perf_log,
         })
     }
 
@@ -704,6 +715,28 @@ impl eframe::App for AnimatixApp {
 
         // Record frame tick for performance HUD
         self.shell.preview_store.performance_metrics.record_tick();
+
+        // PF-9: drain shared stage measurements and append the JSONL perf line
+        // when the sink is active. Stages execute on this UI thread; the
+        // end-to-end rebuild time arrives separately via record_rebuild.
+        if let Some(sink) = self.perf_log.as_mut() {
+            let stages = animatix::perf::take_measurements();
+            let actor_count = self
+                .shell
+                .document_store
+                .source
+                .document
+                .active_timeline()
+                .map(|timeline| timeline.actor_labels().count())
+                .unwrap_or(0);
+            let dims = self.preview_surface.dimensions();
+            sink.record_frame(
+                &self.shell.preview_store.performance_metrics,
+                stages,
+                actor_count,
+                [dims.width as f64, dims.height as f64],
+            );
+        }
 
         // Update stale flag and GPU memory estimate
         self.shell
