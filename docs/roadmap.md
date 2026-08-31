@@ -65,7 +65,7 @@ and all performance work should be justified by a moved metric in that doc.
 | PF-5 | P2 rebuild latency (font load, expand/typecheck, planner) | Partly done | System font DB shared process-wide (commit `5b12b015`); Text/Code/Typst compilations memoized process-wide keyed on all inputs (font-environment epoch guards staleness); build-time expression cache keys on an O(1) environment stamp; and `build_eval_env` now injects only actor labels referenced by the program (`build::referenced_roots` AST pre-scan), turning environment construction from O(declarations²) into O(declarations × referenced). `text_rebuild/mixed_48_warm`: 49.6ms→0.41ms (~120×); `components_full` −58%, `modules_full` −15%; lib test suite 58s→9s. Remaining: `expand_components` recursion on generated scenes; gate `rebuild.*` |
 | PF-6 | P3 allocation / memory profile (peak RSS, per-frame clones) | Open | Add mem capture; DHAT/tracy on scenarios |
 | PF-7 | P4 GPU / export throughput (raster ms, video/GIF encode FPS) | Open | Layer-3 perf binary under `nix develop`; wire `PerformanceMetrics::set_gpu_memory` |
-| PF-8 | Shared stage tracing (`crates/animatix/src/perf.rs`, `ScopedStage`) so benches + GUI HUD measure the same stages | Open | Implement behind a default-on feature; verify it doesn't perturb bench numbers |
+| PF-8 | Shared stage tracing (`crates/animatix/src/perf.rs`, `ScopedStage`) so benches + GUI HUD measure the same stages | Done 2026-08-31 | Thread-local ring/ledger tracer behind the default-on `perf-tracing` feature; instrumented `rebuild`, `build_frame_env`, `sample`, `layout`, `modifier_exec`, `rasterize`; `encode_scene`/`export` seams reserved for PF-7. No-op stubs keep the CI `--no-default-features` build identical |
 | PF-9 | GUI JSONL perf sink (`--perf-log`) from `PerformanceMetrics` | Open | Add sink; collect real-authoring data |
 
 ---
@@ -266,11 +266,13 @@ auto-fit, per the 2026-08-26 session decision.
 
 The demo-gallery suite is complete and the gallery-era engine bugs are resolved.
 The remaining open roadmap work is the **performance backlog** (PF-3 baseline
-de-dup, PF-6 memory profile, PF-7 GPU throughput, PF-8 shared stage tracing,
-PF-9 GUI perf sink) plus the deferred **Grid auto-fit**. Recommended next pass:
-(PF-8 shared stage tracing behind a default-on feature, then PF-9 GUI perf sink)
-so bench and GUI HUD measure the same stages before gating them in CI. Track
-the rest as normal, commit-gated work per `AGENTS.md`.
+de-dup, PF-6 memory profile, PF-7 GPU throughput, PF-9 GUI perf sink) plus the
+deferred **Grid auto-fit**. PF-8 shared stage tracing is done (2026-08-31), so
+the recommended next pass is: (1) save a `perf-bench.sh` baseline on a
+known-good commit, (2) PF-9 GUI perf sink draining `perf::take_measurements()`
+so the HUD reports the same stages the benches gate on, then (3) evidence-based
+PF-4/PF-6 hot-path work using the shared stage names. Track the rest as normal,
+commit-gated work per `AGENTS.md`.
 
 ---
 

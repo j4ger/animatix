@@ -8,11 +8,15 @@ rust-version = "1.85"
 # `--no-default-features` is intentionally not a supported animatix target.
 # The core runtime assumes render/text/svg; CI builds and tests with
 # `--no-default-features --features render,text,svg` to verify that combination.
-default = ["render", "text", "svg"]
+default = ["render", "text", "svg", "perf-tracing"]
 render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["render", "dep:rsmpeg"]
 text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
 svg = ["dep:usvg", "dep:roxmltree"]
+# Shared stage tracing (`crate::perf`, PF-8). Default-on so benches and the GUI
+# HUD measure the same stages; compile out with --no-default-features to
+# eliminate the (already tiny) hot-path cost.
+perf-tracing = []
 serde = ["dep:serde", "animatix-syntax/serde"]
 plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 

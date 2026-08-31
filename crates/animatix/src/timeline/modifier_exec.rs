@@ -17,6 +17,7 @@ impl Timeline {
         frame_env: &mut super::Environment,
         overrides: &mut std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Result<(), EvalError> {
+        let _stage = crate::perf::ScopedStage::new(crate::perf::stage::MODIFIER_EXEC);
         execute_modifier_ir(program, frame_env, overrides)
     }
 }

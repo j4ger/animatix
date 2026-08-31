@@ -14,6 +14,8 @@ pub use extension_context::ExtensionRegistry;
 pub mod extension_plugin;
 /// Intermediate representation module.
 pub mod ir;
+/// Shared hierarchical stage tracing (PF-8); see `docs/performance_evaluation.md`.
+pub mod perf;
 /// Primitive shape and media types.
 pub mod primitives;
 /// Unified property descriptors shared by built-in and extension properties.

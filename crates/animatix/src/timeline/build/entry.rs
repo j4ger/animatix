@@ -361,6 +361,7 @@ impl Timeline {
         primitive_registry: Option<std::sync::Arc<crate::primitives::PrimitiveRegistry>>,
         extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
     ) -> BuildReport<Self> {
+        let _rebuild_stage = crate::perf::ScopedStage::new(crate::perf::stage::REBUILD);
         // Clear expression evaluation cache at the start of each build.
         crate::timeline::utils::clear_eval_cache();
 

@@ -184,6 +184,16 @@ Stages to cover (reuse the exact same names in benches and HUD):
 production hot path pays only a thread-local push/pop unless compiled out (see
 `7. Cost of instrumentation`).
 
+> **Status (PF-8, 2026-08-31): implemented** as
+> `crates/animatix/src/perf.rs` behind the default-on `perf-tracing` feature.
+> Instrumented seams today: `rebuild` (`Timeline::build_impl`),
+> `build_frame_env`, `modifier_exec`, `sample` (the root-node evaluation loop —
+> scene encoding is interleaved, so `encode_scene` is not yet split out),
+> `layout` (taffy linear layout), and `rasterize`
+> (`Renderer::render_vello_scene_with_background`). `encode_scene` and `export`
+> seams remain reserved until PF-7 splits them. Bench/GUI consumers drain via
+> `perf::take_measurements()` per frame/iteration.
+
 ### 3.6 Result ledger & reporting
 
 Criterion already writes `target/criterion/*/estimates.json`. `perf-report.sh`
@@ -233,10 +243,15 @@ it moves and the **gate** that protects it.
 - **Target:** `frame.*`, `scrub.*` — get steady-state eval well under the 16.7 ms
   frame budget at 1080p for typical scenes; get first-frame eval (no-cache) into
   single-digit ms.
-- **Suspects:** per-frame `Vec`/`SceneItem` clones, allocation churn in
-  `encode_scene`, redundant re-encoding on cache-hit restore
-  (`restore_frame_cache` currently `clone()`s the whole `SceneProgram`), layout
-  re-computation, and `property_plan_lookup_and_sample`.
+- **Suspects:** per-frame `Vec`/`SceneItem` clones, allocation churn in the
+  scene-encode path (currently interleaved with sampling in
+  `Timeline::evaluate_node`), layout re-computation, and
+  `property_plan_lookup_and_sample`. (2026-08-31 refresh: the earlier suspect
+  "cache-hit restore clones the whole `SceneProgram`" is resolved — PF-4 made
+  `restore_frame_cache` return a thin program that deep-copies only the scene;
+  remaining cost there is the no-cache miss path, ~33 µs.) Use the
+  `perf-tracing` stages (`crate::perf::stage`) plus `perf record` on a
+  `[profile.bench]` (debug symbols) build to rank these with evidence.
 - **Gate:** `frame.*`, `scrub.*` baselines in CI.
 
 ### P2 — Rebuild latency (keystroke-to-preview)
@@ -281,7 +296,7 @@ it moves and the **gate** that protects it.
 | CI perf-report job (runs suite, uploads Criterion report + baseline artifacts) | `.github/workflows/ci.yml` | **paused** — CI integration deliberately deferred; prove the harness in local optimization rounds first, then re-enable (PF-2) |
 | Result merge/report | `scripts/perf-report.sh` | add |
 | Persistent cross-run baselines + hard relative gate | artifacts / `perf-bench compare` in CI | add (PF-3) |
-| Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | add (PF-8) |
+| Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | add (PF-9) |
@@ -303,6 +318,17 @@ not let it perturb the very numbers it reports:
   it ever shows up in the numbers. Benchmark the benchmarks: compare
   `evaluate` with and without the tracer on one scene in `cost_breakdown` before
   trusting timings.
+- **Profiling profiles (added 2026-08-31):** the workspace root `Cargo.toml`
+  now sets `[profile.bench] debug = true` (so `perf record`/flamegraph resolve
+  frames on bench binaries without changing optimization) and defines
+  `[profile.profiling]` (inherits `release`, `debug = true`) for profiling the
+  GUI/CLI via `cargo build --profile profiling`.
+- **Measured tracer cost (2026-08-31, `cost_breakdown`):** the enabled tracer
+  adds ~35 ns absolute on `frame_env_only` (~240 → ~276 ns, the finest seam)
+  and is invisible within noise on `full_evaluate` (~940–1000 ns). Per frame
+  this is one push/pop per stage — negligible against the 16.7 ms budget.
+  Baselines are saved with the tracer on, so gate comparisons remain
+  like-for-like.
 
 ---
 

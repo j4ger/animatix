@@ -86,6 +86,7 @@ impl RendererCore {
         scene: &Scene,
         base_color: Color,
     ) -> Result<(), RenderError> {
+        let _stage = crate::perf::ScopedStage::new(crate::perf::stage::RASTERIZE);
         let render_params = RenderParams {
             base_color,
             width,

@@ -315,6 +315,7 @@ pub fn compute_taffy_linear_layout_with_baselines(
     child_baselines: &[f32],
     vertical_align: &str,
 ) -> TaffyLayoutOutput {
+    let _stage = crate::perf::ScopedStage::new(crate::perf::stage::LAYOUT);
     // Stack is handled separately - all children at origin
     debug_assert!(layout_type == LayoutType::Row || layout_type == LayoutType::Col);
 

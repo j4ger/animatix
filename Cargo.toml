@@ -31,3 +31,14 @@ kurbo           = "0.13.0"
 serde           = { version = "1", features = ["derive"] }
 thiserror       = "2.0"
 tracing         = "0.1"
+
+# Profiling support (docs/performance_evaluation.md §7): bench builds keep
+# debug symbols so `perf record`/flamegraph can resolve frames without changing
+# the optimization level. `cargo build --profile profiling` gives the GUI/CLI a
+# release-equivalent build with symbols for the same purpose.
+[profile.bench]
+debug = true
+
+[profile.profiling]
+inherits = "release"
+debug = true

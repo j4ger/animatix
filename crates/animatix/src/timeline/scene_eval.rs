@@ -1356,6 +1356,9 @@ impl Timeline {
         } else {
             None
         };
+        // `sample` covers per-frame property sampling and node evaluation; the
+        // vello encoding is currently interleaved inside it (see `stage::ENCODE_SCENE`).
+        let _sample_stage = crate::perf::ScopedStage::new(crate::perf::stage::SAMPLE);
         for root in &self.root_nodes {
             // P2.17: Static subtree cache — fully-static subtrees are evaluated once
             // and their vello encoding is reused on subsequent frames. Dimensions

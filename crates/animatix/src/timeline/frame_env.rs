@@ -83,6 +83,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
+        let _stage = crate::perf::ScopedStage::new(crate::perf::stage::BUILD_FRAME_ENV);
         // Estimate capacity: base env + t/scene_width/scene_height + variable tracks +
         // ~35 properties per actor (only if modifiers are present).
         let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
