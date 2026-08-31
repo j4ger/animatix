@@ -1228,7 +1228,7 @@ impl Timeline {
             Some(crate::timeline::scene_program::SceneProgram {
                 dimensions: cached.dimensions,
                 background: cached.program.background,
-                scene: cached.scene.as_ref().clone(),
+                scene: cached.program.scene.clone(),
                 items: Vec::new(),
                 precise_bounds: std::collections::HashMap::new(),
                 diagnostics: Vec::new(),
@@ -1475,7 +1475,6 @@ impl Timeline {
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders,
                 program: program.clone(),
-                scene: std::sync::Arc::new(program.scene.clone()),
                 collect_items,
             });
         }

@@ -241,6 +241,17 @@ would either false-flag noisy build benches (seen empirically: `build_time` sway
 ±15–20% run-to-run on the same machine) or go blind on tight leaves — hence the
 standard-deviation rule, which adapts to each bench's own noise.
 
+**Known limitation (observed 2026-08-31):** sub-100ns leaf benches
+(`timeline_evaluate_*`) can drift **+5–8% between benchmark sessions** on the
+same machine while staying internally consistent within a session (all three
+`timeline_evaluate_*` moved from ~90.5 ns to ~97 ns together — CPU frequency /
+code-layout shift, not a code change). Protocol when the gate flags such a leaf:
+(1) re-run the bench *filtered* — if the whole session level shifted, siblings
+move too and the flag is environmental; (2) only treat it as real if the
+filtered re-run reproduces the delta against a same-session comparison. A
+verified optimization lands with a re-saved baseline, which also resets the
+session level.
+
 ---
 
 ## 5. Optimization plan (first targets, evidence-backed)

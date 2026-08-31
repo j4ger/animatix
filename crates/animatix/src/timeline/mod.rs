@@ -578,11 +578,9 @@ pub(crate) struct FrameCacheEntry {
     has_dynamic_layout: bool,
     has_child_orders: bool,
     /// Structured frame program, including the authoritative encoded scene.
+    /// Scene-only cache hits clone `program.scene` directly; the full program
+    /// is only cloned back on the observable (collect_items) restore path.
     program: crate::timeline::scene_program::SceneProgram,
-    /// Shared handle to the authoritative encoded scene. Handed out (deep-copied)
-    /// alone on cache hits so the scene-only `evaluate` path never has to clone
-    /// the whole program (items/precise_bounds/diagnostics).
-    scene: std::sync::Arc<vello::Scene>,
     /// Whether the cached program was requested with observable item collection.
     collect_items: bool,
 }
