@@ -115,3 +115,7 @@ harness = false
 [[bench]]
 name = "text_rebuild"
 harness = false
+
+[[bench]]
+name = "stage_breakdown"
+harness = false

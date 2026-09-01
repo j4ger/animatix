@@ -203,6 +203,17 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > seams remain reserved until PF-7 splits them. Bench/GUI consumers drain via
 > `perf::take_measurements()` per frame/iteration.
 
+> **Bench consumer (2026-08-31):** `crates/animatix/benches/stage_breakdown.rs`
+> gates the shared stage names: for a generated 60-actor dynamic scene
+> (modifiers + container) it reports the per-frame miss cost of
+> `build_frame_env`, `modifier_exec`, and `sample`, plus `rebuild`, and the
+> wall-time miss total via `iter_custom`. Measured split (60 actors,
+> 1080p, every frame a cache miss): `sample` ≈ 47 µs (~88% of the 53 µs miss
+> budget), `build_frame_env` ≈ 7.4 µs, `modifier_exec` ≈ 1.2 µs — so per-node
+> evaluation + scene encoding (`sample`) is the dominant PF-4 remaining cost.
+> `layout` fires only on the first frame for this scene (static layout is
+> cached), so it is skipped by the multi-frame warmup guard.
+
 ### 3.6 Result ledger & reporting
 
 Criterion already writes `target/criterion/*/estimates.json`. `perf-report.sh`
