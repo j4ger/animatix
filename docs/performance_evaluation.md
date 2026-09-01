@@ -52,6 +52,7 @@ The project already ships a mature Criterion suite under `crates/animatix/benche
 | Visibility | `visibility_culling.rs` | culling passes |
 | Static scene | `static_scene.rs`, `static_scene_item_collection.rs` | scene-only eval + item collection |
 | Scrubbing | `scrubbing.rs` | interactive scrub pattern (GUI-adjacent) |
+| Equation frames | `equation_frame.rs` | per-frame Typst recompilation of an `Equation`/`Fragment` subtree (dynamic scene, so the static-subtree cache does not apply) |
 
 ### 2.2 CI gate today
 
@@ -262,6 +263,22 @@ move too and the flag is environmental; (2) only treat it as real if the
 filtered re-run reproduces the delta against a same-session comparison. A
 verified optimization lands with a re-saved baseline, which also resets the
 session level.
+
+**Known limitation (observed 2026-09-01):** that drift is not confined to
+sub-100ns leaves — on 45–55 µs benches a whole session can shift **2–3.5%**,
+the same order as a worthwhile optimization. Two techniques made A/Bs
+trustworthy. (1) Run the comparison **adjacently** (`git stash` → bench →
+`git stash pop` → bench) instead of against a baseline saved earlier in the day.
+(2) Include an **untouched stage in the same process** as a control and
+normalize against it: `stage/build_frame_env` and `stage/rebuild` are ideal
+because no frame-evaluation candidate touches them, so their delta *is* the
+session drift. Applying both, per-node allocation cleanups in `sample` measured
+−1.2% (i.e. noise) even though they strictly remove work — they were kept, but
+not claimed as a win. Separately, `many_actors_evaluate` and
+`many_actors_cache_hit` (both `scene_costs.rs`) exercise what should be
+identical frame-cache-hit work, yet moved ±9–17% in *opposite* directions
+across identical A/Bs; do not read a regression off either one in isolation
+until PF-3/PF-6 makes the harness robust.
 
 ---
 

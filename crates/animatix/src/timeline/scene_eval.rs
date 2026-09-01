@@ -418,29 +418,21 @@ impl Timeline {
         // properties when the same (time, parent_transform) is evaluated again.
         let parent_coeffs = parent_transform.as_coeffs();
         let node_transform = {
-            let cache = self.eval_caches.transform_cache.borrow();
-            if let Some((cached_time, cached_parent, cached_transform)) = cache.get(node_label) {
-                if *cached_time == time_ms && *cached_parent == parent_coeffs {
-                    *cached_transform
-                } else {
-                    drop(cache);
-                    let t = self.evaluate_node_transform(
-                        track,
-                        time_ms,
-                        parent_opacity,
-                        parent_transform,
-                        scene_dimensions,
-                        layout_pos,
-                        node_overrides,
-                    );
-                    self.eval_caches
-                        .transform_cache
-                        .borrow_mut()
-                        .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
-                    t
-                }
+            // Copy the hit out first so the borrow ends before the recompute
+            // below. A miss frame must not allocate a fresh `String` key per
+            // node on every insert.
+            let hit = self
+                .eval_caches
+                .transform_cache
+                .borrow()
+                .get(node_label)
+                .filter(|(cached_time, cached_parent, _)| {
+                    *cached_time == time_ms && *cached_parent == parent_coeffs
+                })
+                .map(|(_, _, cached_transform)| *cached_transform);
+            if let Some(transform) = hit {
+                transform
             } else {
-                drop(cache);
                 let t = self.evaluate_node_transform(
                     track,
                     time_ms,
@@ -450,10 +442,14 @@ impl Timeline {
                     layout_pos,
                     node_overrides,
                 );
-                self.eval_caches
-                    .transform_cache
-                    .borrow_mut()
-                    .insert(node_label.to_string(), (time_ms, parent_coeffs, t));
+                let mut cache = self.eval_caches.transform_cache.borrow_mut();
+                // Labels are stable across frames, so refresh the existing slot
+                // in place rather than re-inserting an owned key.
+                if let Some(slot) = cache.get_mut(node_label) {
+                    *slot = (time_ms, parent_coeffs, t);
+                } else {
+                    cache.insert(node_label.to_string(), (time_ms, parent_coeffs, t));
+                }
                 t
             }
         };
@@ -542,8 +538,6 @@ impl Timeline {
             }
         }
 
-        let node_overrides = overrides.get(node_label);
-
         // P2.19: Only sample properties and render if actor is visible on screen.
         // For off-screen actors we still return transform/opacity so children
         // (which may extend back into view) are correctly evaluated.
@@ -555,12 +549,17 @@ impl Timeline {
             // "no drawable content" — nothing is drawn and no hit region or
             // precise bounds are recorded for it.
             let primitive_dispatch = {
-                let meta = crate::primitives::actor_kind_meta(track.kind);
+                // The kind→type-name scan is the fallback path only: when the
+                // track carries an explicit `actor_type` it always resolves
+                // first, so avoid paying for the scan on every node.
                 let primitive = track
                     .actor_type
                     .as_deref()
                     .and_then(|ty| self.primitive_registry.find(ty))
-                    .or_else(|| meta.and_then(|m| self.primitive_registry.find(m.type_name)));
+                    .or_else(|| {
+                        crate::primitives::actor_kind_meta(track.kind)
+                            .and_then(|m| self.primitive_registry.find(m.type_name))
+                    });
                 if let Some(primitive) = primitive {
                     let ctx = crate::primitives::EvaluateCtx {
                         track,
@@ -618,7 +617,12 @@ impl Timeline {
                     );
                     transform_rect_bbox(&local_transform, default_bounds)
                 };
-                hit_regions.push((node_label.to_string(), world_bounds));
+                // `hit_regions` is only read back when picking was requested
+                // (`evaluate_program_inner` discards it otherwise), so building
+                // the owned label per node per frame is wasted allocation.
+                if debug_options.compute_hit_regions {
+                    hit_regions.push((node_label.to_string(), world_bounds));
+                }
                 self.eval_caches
                     .precise_bounds_cache
                     .borrow_mut()
@@ -1030,18 +1034,14 @@ impl Timeline {
                 let letter_spacing = track.text.letter_spacing.get(time_ms, 0.0);
                 let word_spacing = track.text.word_spacing.get(time_ms, 0.0);
 
-                let typst_color = typst::visualize::Color::from_u8(
-                    (eq_color[0] * 255.0) as u8,
-                    (eq_color[1] * 255.0) as u8,
-                    (eq_color[2] * 255.0) as u8,
-                    (eq_color[3] * 255.0) as u8,
-                );
-
-                // Compile the Typst markup.
-                match crate::renderer::text::compile_typst(
+                // Compile the Typst markup. Memoized process-wide: fragment
+                // content and font properties rarely change between frames, so
+                // scrubbing an equation-heavy scene reuses one compilation
+                // instead of re-running Typst every frame.
+                match crate::renderer::text::compile_typst_grouped_cached(
                     &typst_body,
                     font_size,
-                    typst_color,
+                    eq_color,
                     &font_family,
                     self.font_context.as_ref(),
                     font_weight,
@@ -1049,16 +1049,15 @@ impl Timeline {
                     line_height,
                     letter_spacing,
                     word_spacing,
-                    0.0,
-                    "left",
-                    "visible",
                 ) {
-                    Ok(frame) => {
-                        // Extract grouped glyphs — one group per #box() wrapper.
-                        let (all_glyphs, ranges) =
-                            crate::renderer::text::extract_glyphs_grouped(&frame);
+                    Ok(compiled) => {
+                        // One glyph group per #box() wrapper, resolved at
+                        // compile time and shared through the memo.
+                        let all_glyphs: &[TextPath] = &compiled.glyphs;
+                        let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
 
-                        // Compute highlight bounding boxes BEFORE moving glyphs into Arc.
+                        // Compute highlight bounding boxes from the shared
+                        // glyph groups before drawing them.
                         let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
                         for (frag_idx, frag) in frags.iter().enumerate() {
                             if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
@@ -1102,10 +1101,13 @@ impl Timeline {
                             }
                         }
 
-                        // Render all glyphs as a single text command.
+                        // Render all glyphs as a single text command. The memo
+                        // owns the glyph slice, so share it by refcount instead
+                        // of re-wrapping a freshly built Vec.
                         if !all_glyphs.is_empty() {
-                            let arc_glyphs: std::sync::Arc<[TextPath]> = all_glyphs.into();
-                            let cmd = crate::primitives::RenderCommand::Text { paths: arc_glyphs };
+                            let cmd = crate::primitives::RenderCommand::Text {
+                                paths: std::sync::Arc::clone(&compiled.glyphs),
+                            };
                             cmd.execute(scene, &global_transform, global_opacity);
                         }
 

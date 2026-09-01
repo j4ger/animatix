@@ -1961,6 +1961,19 @@ pub struct CachedText {
     pub half_size: [f32; 2],
 }
 
+/// Memoized output of one *grouped* Typst compilation (the `Equation` path).
+///
+/// The Equation primitive wraps every `Fragment` in a `#box()` so the frame
+/// exposes one group per fragment. The flat glyph list alone cannot recover
+/// those boundaries, so this shape keeps them alongside the glyphs.
+#[derive(Clone)]
+pub struct CachedGroupedText {
+    /// Glyph paths in draw order, as returned by [`extract_glyphs_grouped`].
+    pub glyphs: std::sync::Arc<[TextPath]>,
+    /// One range per `#box()` wrapper, indexing into [`Self::glyphs`].
+    pub ranges: std::sync::Arc<[std::ops::Range<usize>]>,
+}
+
 /// Process-wide memoization table for compiled text.
 ///
 /// Entries are keyed by every compilation input, so a hit is bit-identical to
@@ -1987,12 +2000,38 @@ fn lock_compile_cache() -> std::sync::MutexGuard<'static, TextCompileCache> {
     compile_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
+/// Process-wide memo for grouped (Equation) Typst compilations.
+///
+/// A separate table from [`TextCompileCache`] because the value shape differs,
+/// but keyed by the same [`TextCacheKey`] so font-epoch invalidation applies
+/// identically to both.
+type GroupedTextCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedGroupedText>>;
+
+fn grouped_compile_cache() -> &'static std::sync::Mutex<GroupedTextCache> {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<std::sync::Mutex<GroupedTextCache>> = OnceLock::new();
+    CACHE.get_or_init(|| std::sync::Mutex::new(GroupedTextCache::new()))
+}
+
+/// Lock the grouped compile cache, recovering the map if a panic poisoned it.
+fn lock_grouped_cache() -> std::sync::MutexGuard<'static, GroupedTextCache> {
+    grouped_compile_cache()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 /// Upper bound on memoized compilations. When exceeded, roughly half the
 /// entries are dropped to avoid a full-clear spike (same policy as before the
 /// cache became process-wide).
 const TEXT_COMPILE_CACHE_CAP: usize = 1000;
 
-fn evict_text_compile_cache(cache: &mut TextCompileCache) {
+/// Halve a memo table once it exceeds [`TEXT_COMPILE_CACHE_CAP`].
+///
+/// Generic so the flat and grouped tables share one eviction policy.
+fn evict_text_compile_cache<K, V>(cache: &mut std::collections::HashMap<K, V>)
+where
+    K: Clone + Eq + std::hash::Hash,
+{
     if cache.len() > TEXT_COMPILE_CACHE_CAP {
         let to_remove: Vec<_> = cache.keys().take(cache.len() / 2).cloned().collect();
         for k in to_remove {
@@ -2004,14 +2043,22 @@ fn evict_text_compile_cache(cache: &mut TextCompileCache) {
 /// Drop every memoized text compilation.
 ///
 /// Needed when the font environment changes underneath the cache (e.g. a GUI
-/// reloads system fonts) and by benchmarks measuring cold-build cost.
+/// reloads system fonts) and by benchmarks measuring cold-build cost. Clears
+/// the grouped table too — it is keyed on the same font-epoch-guarded inputs
+/// and would otherwise serve frames laid out with the old fonts.
 pub fn clear_text_compile_cache() {
     lock_compile_cache().clear();
+    lock_grouped_cache().clear();
 }
 
 /// Number of memoized text compilations (for tests and diagnostics).
 pub fn text_compile_cache_len() -> usize {
     lock_compile_cache().len()
+}
+
+/// Number of memoized grouped (Equation) compilations (for tests and diagnostics).
+pub fn grouped_text_compile_cache_len() -> usize {
+    lock_grouped_cache().len()
 }
 
 /// Compile text into glyph paths plus metrics, memoized process-wide.
@@ -2190,6 +2237,89 @@ pub fn compile_text_cached(
 
     {
         let mut cache = lock_compile_cache();
+        cache.insert(key, std::sync::Arc::clone(&entry));
+        evict_text_compile_cache(&mut cache);
+    }
+    Ok(entry)
+}
+
+/// Compile Typst markup into per-`#box()` glyph groups, memoized process-wide.
+///
+/// This is the `Equation` / `Fragment` frame path: it recompiles on every frame
+/// because fragments are aggregated at frame time, and without a memo each
+/// frame pays a full Typst parse + eval + layout even when no fragment content
+/// or font property changed — which is the norm while scrubbing or playing
+/// back. Measured at ~2.5ms per frame per Equation before memoization
+/// (`benches/equation_frame.rs`).
+///
+/// Keyed on the same inputs as [`compile_text_cached`] (including the font
+/// epoch), so a hit is bit-identical to recompiling.
+#[allow(clippy::too_many_arguments)] // Mirrors the compile_typst parameter set it wraps.
+pub fn compile_typst_grouped_cached(
+    typst_markup: &str,
+    font_size: f32,
+    color: [f32; 4],
+    font_family: &str,
+    font_ctx: &FontContext,
+    font_weight: f32,
+    font_style: &str,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+) -> Result<std::sync::Arc<CachedGroupedText>, RenderError> {
+    let key = TextCacheKey {
+        content: typst_markup.to_string(),
+        font_family: font_family.to_string(),
+        font_size_bits: font_size.to_bits(),
+        font_weight_bits: font_weight.to_bits(),
+        font_style: font_style.to_string(),
+        line_height_bits: line_height.to_bits(),
+        letter_spacing_bits: letter_spacing.to_bits(),
+        word_spacing_bits: word_spacing.to_bits(),
+        color: [
+            (color[0] * 255.0) as u8,
+            (color[1] * 255.0) as u8,
+            (color[2] * 255.0) as u8,
+            (color[3] * 255.0) as u8,
+        ],
+        kind: TextKind::Typst,
+        // The Equation path always compiles unwrapped, left-aligned, visible.
+        max_width_bits: 0.0f32.to_bits(),
+        text_align: "left".to_string(),
+        overflow: "visible".to_string(),
+        fast_path: false,
+        font_epoch: font_ctx.epoch,
+    };
+
+    if let Some(hit) = lock_grouped_cache().get(&key) {
+        return Ok(std::sync::Arc::clone(hit));
+    }
+
+    let typst_color =
+        typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
+    let frame = compile_typst(
+        typst_markup,
+        font_size,
+        typst_color,
+        font_family,
+        font_ctx,
+        font_weight,
+        font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        0.0,
+        "left",
+        "visible",
+    )?;
+    let (glyphs, ranges) = extract_glyphs_grouped(&frame);
+    let entry = std::sync::Arc::new(CachedGroupedText {
+        glyphs: glyphs.into(),
+        ranges: ranges.into(),
+    });
+
+    {
+        let mut cache = lock_grouped_cache();
         cache.insert(key, std::sync::Arc::clone(&entry));
         evict_text_compile_cache(&mut cache);
     }
@@ -2692,6 +2822,55 @@ mod tests {
 
         clear_text_compile_cache();
         assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
+    }
+
+    #[test]
+    fn grouped_typst_compile_is_memoized() {
+        let font_ctx = test_font_ctx();
+        clear_text_compile_cache();
+
+        // Mirrors the Equation frame path: every `Fragment` is wrapped in a
+        // `#box()` so the frame exposes one group per fragment.
+        let compile = || {
+            compile_typst_grouped_cached(
+                "#box()[E] #box()[ = ] #box()[m] #box()[c^2]",
+                48.0,
+                [1.0, 1.0, 1.0, 1.0],
+                "",
+                &font_ctx,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+            )
+            .expect("grouped typst compile should succeed")
+        };
+
+        let first = compile();
+        assert_eq!(grouped_text_compile_cache_len(), 1, "first compile memoizes");
+        let second = compile();
+        assert_eq!(
+            grouped_text_compile_cache_len(),
+            1,
+            "identical inputs must reuse the memoized entry, not add one"
+        );
+        assert!(
+            std::sync::Arc::ptr_eq(&first, &second),
+            "memo hit must hand back the same entry"
+        );
+        // The grouped shape keeps the per-fragment boundaries the Equation
+        // renderer needs to place its highlight overlays: one range per
+        // `#box()` group that actually produced glyphs.
+        assert!(!first.glyphs.is_empty(), "compile should emit glyphs");
+        assert!(
+            !first.ranges.is_empty() && first.ranges.len() <= 4,
+            "one range per non-empty #box() group, got {}",
+            first.ranges.len()
+        );
+
+        clear_text_compile_cache();
+        assert_eq!(grouped_text_compile_cache_len(), 0, "clear must empty the grouped cache");
     }
 
     #[test]

@@ -600,6 +600,51 @@ fn test_runtime_text_recompilation() {
 }
 
 #[test]
+fn equation_frames_reuse_one_typst_compilation() {
+    // The Equation path aggregates its Fragment children into one Typst
+    // document on *every* frame. Nothing about that body changes while
+    // scrubbing, so all frames must collapse onto one compilation instead of
+    // re-running Typst per frame (see benches/equation_frame.rs).
+    let (stmts, errors) = animatix_syntax::parser::parse_source(
+        r#"
+config { colorscheme: "editorial-dark" }
+
+#0s
+eq: Equation, font_size: 48, color: text.primary, at: (960, 540) {
+  lhs: Fragment, content: "E"
+  eq_sign: Fragment, content: " = "
+  mass: Fragment, content: "m"
+  c2: Fragment, content: "c^2"
+}
+
+// Without this the subtree is static and the static-subtree cache serves
+// every frame, so the assertion below would pass without memoizing anything.
+always {
+  eq.at = (960 + 40 * sin(t), 540)
+}
+"#,
+    );
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+
+    crate::renderer::text::clear_text_compile_cache();
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    for i in 0..8 {
+        let _ = timeline.evaluate(i as f64 * 0.05, dims);
+    }
+
+    assert_eq!(
+        crate::renderer::text::grouped_text_compile_cache_len(),
+        1,
+        "eight frames with identical fragment content must memoize to one compilation"
+    );
+}
+
+#[test]
 fn runtime_empty_text_override_clears_stale_glyphs() {
     let ast = vec![Stmt::Keyframe {
         time: crate::ast::Time::Seconds(0.0),

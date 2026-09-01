@@ -119,3 +119,7 @@ harness = false
 [[bench]]
 name = "stage_breakdown"
 harness = false
+
+[[bench]]
+name = "equation_frame"
+harness = false
