@@ -601,6 +601,9 @@ struct EvalCaches {
             StaticSubtreeEntry,
         >,
     >,
+    /// Memoized `is_static_subtree` answers, cleared whenever the timeline is
+    /// mutated. Keyed by subtree root label.
+    static_subtree_flags: std::cell::RefCell<std::collections::HashMap<String, bool>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
     precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
@@ -1095,6 +1098,24 @@ impl Timeline {
     /// and the timeline has no modifiers that could affect them.
     /// Fully-static subtrees can have their rendered output cached (P2.17).
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
+        // Memoized: `compute_static_subtree` walks the property registry and the
+        // whole subtree, and the frame path asks once per root *per frame*. That
+        // scan measured ~78% of a scrub frame, so the answer is cached until the
+        // timeline is mutated (see `invalidate_frame_cache`).
+        if let Some(cached) = self.eval_caches.static_subtree_flags.borrow().get(label).copied() {
+            return cached;
+        }
+        let is_static = self.compute_static_subtree(label);
+        self.eval_caches
+            .static_subtree_flags
+            .borrow_mut()
+            .insert(label.to_string(), is_static);
+        is_static
+    }
+
+    /// Uncached static-subtree computation ([`Self::is_static_subtree`] wraps
+    /// this in a memo).
+    fn compute_static_subtree(&self, label: &str) -> bool {
         // Conservative: if any modifiers exist, we can't safely cache because
         // modifiers might change actor properties at frame time. Child-order
         // animations live outside `AnimationTrack` keyframe detection and can
@@ -1108,7 +1129,12 @@ impl Timeline {
         if track.has_any_keyframes() || track.procedural_plot.is_some() {
             return false;
         }
-        track.children.iter().all(|child| self.is_static_subtree(child))
+        track.children.iter().all(|child| {
+            // Release the memo borrow before recursing: `is_static_subtree`
+            // writes to the same RefCell.
+            let memo = self.eval_caches.static_subtree_flags.borrow().get(child.as_str()).copied();
+            memo.unwrap_or_else(|| self.is_static_subtree(child))
+        })
     }
 
     /// Invalidate the frame evaluation cache.
@@ -1125,6 +1151,7 @@ impl Timeline {
             *self.eval_caches.scene_buffer.borrow_mut() = Some(entry.program.scene);
         }
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
+        *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
         self.layout_engine.invalidate_cache();

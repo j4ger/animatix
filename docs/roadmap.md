@@ -80,8 +80,20 @@ across three runs. `perf-bench.sh compare` flagged `modules_full`,
 `full_50/100/200` and `evaluate_25_actors`; none reproduce under adjacent
 high-power A/B (all ≤1.7%, and `evaluate_25_actors` is −1.7%) — those benches
 drift 2–4% between runs against a 5% gate threshold, so **a full-suite FAIL
-needs targeted re-measurement before it is believed**. Measured and **rejected
-as not bottlenecks** (adjacent high-power A/B normalized against an untouched control
+needs targeted re-measurement before it is believed**. `is_static_subtree` is
+now memoized in `EvalCaches::static_subtree_flags`, cleared by
+`invalidate_frame_cache` (2026-09-02): the uncached computation walks the whole
+`PROPERTY_REGISTRY` per track (`has_any_keyframes`) plus the subtree, and the
+frame path asked once per root *per frame* — lesioning the scan measured −72%
+to −81% on the scrub benches, and the memo recovers all of it: 
+`scrub_many_actors_100frames` −86.0%, `scrub_layout_scene_100frames` −82.5%,
+`scrub_text_scene_100frames` −72.1%, `static_50/100/200_actors` −86/−88/−89%,
+`visible_100_actors` −87.9%, `many_actors_evaluate_no_cache` −86.5%. The only
+flagged cache-hit bench (`many_actors_cache_hit` +17.5%) does not reproduce as a
+real cost: its sibling `many_actors_evaluate` runs the identical operation at
++1.1%, and `is_static_subtree` is unreachable on the frame-cache-hit path
+(`restore_frame_cache` returns before it) — codegen/layout noise on the known
+unstable pair. Measured and **rejected as not bottlenecks** (adjacent high-power A/B normalized against an untouched control
 stage, 2026-09-01): (a) indexing `PrimitiveRegistry::find` — an O(1) hash
 instead of a 31-entry linear scan with string compares, hit at least twice per
 actor per frame — and (b) moving per-frame vector-path / procedural-plot
