@@ -311,7 +311,7 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
@@ -364,7 +364,7 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         scene: &mut vello::Scene,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        layout_positions: &std::collections::BTreeMap<String, [f32; 2]>,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
@@ -726,7 +726,7 @@ impl Timeline {
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_label, time_ms)
         } else {
-            std::collections::BTreeMap::new()
+            crate::timeline::layout::LayoutPositions::new()
         };
 
         // ── Special child-rendering strategies ──
@@ -1424,7 +1424,7 @@ impl Timeline {
                         debug_options,
                         &mut temp_scene,
                         &overrides,
-                        &std::collections::BTreeMap::new(),
+                        &crate::timeline::layout::LayoutPositions::new(),
                         &mut hit_regions,
                         frame_env.as_ref(),
                         filter_backend,
@@ -1460,7 +1460,7 @@ impl Timeline {
                     debug_options,
                     &mut scene,
                     &overrides,
-                    &std::collections::BTreeMap::new(), // empty for roots
+                    &crate::timeline::layout::LayoutPositions::new(), // empty for roots
                     &mut hit_regions,
                     frame_env.as_ref(),
                     filter_backend,

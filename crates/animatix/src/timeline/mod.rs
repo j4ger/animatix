@@ -847,7 +847,7 @@ impl Timeline {
         metadata: &ContainerMetadata,
         order: &[String],
         time_ms: u64,
-    ) -> std::collections::BTreeMap<String, [f32; 2]> {
+    ) -> layout::LayoutPositions {
         use crate::timeline::layout::ChildExtent;
 
         let child_extents: Vec<ChildExtent> = order
@@ -867,7 +867,7 @@ impl Timeline {
 
         let positions = LayoutEngine::compute_positions(metadata, &child_extents);
 
-        let mut result = std::collections::BTreeMap::new();
+        let mut result = layout::LayoutPositions::new();
         for (i, child) in child_extents.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
                 result.insert(child.label.clone(), positions[i]);
@@ -883,9 +883,9 @@ impl Timeline {
         &self,
         container_label: &str,
         time_ms: u64,
-    ) -> std::collections::BTreeMap<String, [f32; 2]> {
+    ) -> layout::LayoutPositions {
         let Some(metadata) = self.container_metadata.get(container_label) else {
-            return std::collections::BTreeMap::new();
+            return layout::LayoutPositions::new();
         };
 
         // Check for child_orders track
@@ -902,7 +902,7 @@ impl Timeline {
                     let pos1 = self.compute_layout_positions_for_order(metadata, order1, time_ms);
                     let pos2 = self.compute_layout_positions_for_order(metadata, order2, time_ms);
 
-                    let mut result = std::collections::BTreeMap::new();
+                    let mut result = layout::LayoutPositions::new();
                     for label in order1.iter().chain(order2.iter()) {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
@@ -926,7 +926,7 @@ impl Timeline {
                     );
                     let pos2 = self.compute_layout_positions_for_order(metadata, order, time_ms);
 
-                    let mut result = std::collections::BTreeMap::new();
+                    let mut result = layout::LayoutPositions::new();
                     for label in track.default_value.iter().chain(order.iter()) {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
@@ -1187,7 +1187,7 @@ impl Timeline {
         let path = self.find_path_to_actor(label)?;
 
         let mut parent_transform = kurbo::Affine::IDENTITY;
-        let mut current_layout_positions: BTreeMap<String, [f32; 2]> = BTreeMap::new();
+        let mut current_layout_positions: layout::LayoutPositions = layout::LayoutPositions::new();
 
         for node_label in &path {
             let track = self.tracks.get(node_label)?;
@@ -1231,7 +1231,7 @@ impl Timeline {
                         &self.tracks,
                     );
                 } else {
-                    current_layout_positions = BTreeMap::new();
+                    current_layout_positions = layout::LayoutPositions::new();
                 }
             }
         }
