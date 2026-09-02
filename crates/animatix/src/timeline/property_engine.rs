@@ -39,7 +39,6 @@ use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::extension_context::ExtensionContext;
-use crate::timeline::dispatch::read_property_value;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{AnimationTrack, Interpolate, PropertyTrack, ShapeType, TrackAccessor};
@@ -1115,6 +1114,25 @@ fn inject_value(
 // Override-aware property reads
 // ─────────────────────────────────────────────────────────────
 
+/// Read a property value using a pre-resolved schema / plan-slot pair.
+///
+/// Same semantics as `dispatch::read_property_value`, including the fallback to
+/// the track's own field, but skips the name → id lookup that
+/// `property_registry::resolve_property` has already done for this call.
+pub(crate) fn read_property_value_resolved(
+    track: &AnimationTrack,
+    schema: &crate::timeline::property_registry::PropertySchema,
+    slot: Option<animatix_syntax::schema::PropertyId>,
+    time_ms: u64,
+) -> Option<PropertyValue> {
+    if let Some(id) = slot
+        && let Some(value) = read_property_plan_slot(track, id, time_ms)
+    {
+        return Some(value);
+    }
+    track.field_ref(schema.field).and_then(|f| f.evaluate_value(time_ms))
+}
+
 /// Read an effective f32 property value, preferring modifier overrides
 /// over track keyframes. Uses the property registry to map `name` to its
 /// storage field for the track fallback.
@@ -1128,8 +1146,8 @@ pub(crate) fn effective_f32(
     if let Some(Value::Num(v)) = overrides.and_then(|ov| ov.get(name)) {
         return *v as f32;
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
-        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::F32(v) = pv
     {
         return v;
@@ -1149,8 +1167,8 @@ pub(crate) fn effective_vec2(
     if let Some(Value::Vec2(v)) = overrides.and_then(|ov| ov.get(name)) {
         return [v[0] as f32, v[1] as f32];
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
-        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
         return v;
@@ -1176,8 +1194,8 @@ pub(crate) fn effective_transform(
             return t;
         }
     }
-    if let Some(schema) = crate::timeline::property_registry::lookup_property(name)
-        && let Some(pv) = read_property_value(track, schema.field, time_ms)
+    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::Transform(v) = pv
     {
         return v;

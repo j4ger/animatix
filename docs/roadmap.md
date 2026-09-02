@@ -69,8 +69,19 @@ hash map recovers all of it — `sample` −4.6%, `scrub_text_scene_100frames`
 −5.1%, `scrub_many_actors_100frames` −3.5%, `reactive_evaluate_100frames`
 −3.7%, full 64-bench gate 0 regressions; drift-corrected `sample` ≈ −3.4%,
 reproduced across two adjacent A/Bs. Consumers only ever do point lookups, so
-no ordered iteration was lost. Measured and **rejected as not
-bottlenecks** (adjacent high-power A/B normalized against an untouched control
+no ordered iteration was lost. Property reads now resolve once per process:
+`property_registry::resolve_property` returns the schema *and* the runtime
+plan-slot id from one table, where `effective_*` previously paid a binary
+search over the sorted registry **plus** a separate hash into the id map — at
+least five times per actor per frame (2026-09-02). `sample` −18.0%,
+`eval_total` −14.7% (−20.6% / −16.7% once normalised against the untouched
+`build_frame_env` control, which moved +3.7% *against* the change), reproduced
+across three runs. `perf-bench.sh compare` flagged `modules_full`,
+`full_50/100/200` and `evaluate_25_actors`; none reproduce under adjacent
+high-power A/B (all ≤1.7%, and `evaluate_25_actors` is −1.7%) — those benches
+drift 2–4% between runs against a 5% gate threshold, so **a full-suite FAIL
+needs targeted re-measurement before it is believed**. Measured and **rejected
+as not bottlenecks** (adjacent high-power A/B normalized against an untouched control
 stage, 2026-09-01): (a) indexing `PrimitiveRegistry::find` — an O(1) hash
 instead of a 31-entry linear scan with string compares, hit at least twice per
 actor per frame — and (b) moving per-frame vector-path / procedural-plot

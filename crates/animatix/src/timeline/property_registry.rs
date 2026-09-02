@@ -1747,6 +1747,49 @@ pub fn property_id(name: &str) -> Option<animatix_syntax::schema::PropertyId> {
     schema_property_ids().get(name).copied()
 }
 
+/// Resolve a property name to its schema *and* the runtime plan slot id in one
+/// lookup.
+///
+/// `effective_*` needs both on every property read — at least five per actor
+/// per frame — and each used to cost its own lookup (a binary search over the
+/// sorted registry, then a hash into the id map). Folding them into one
+/// process-wide table removes a repeat lookup from the frame path.
+pub fn resolve_property(
+    name: &str,
+) -> Option<(&'static PropertySchema, Option<animatix_syntax::schema::PropertyId>)> {
+    let (index, slot) = *resolved_properties().get(name)?;
+    Some((&PROPERTY_REGISTRY[index], slot))
+}
+
+/// The plan-slot id for a property's storage field, or `None` when the field is
+/// not a tagged slot the runtime plan can serve.
+///
+/// Mirrors the guard in `dispatch::read_property_value`: `legend` and
+/// `callout_place` are tagged but deliberately excluded from plan reads.
+fn plan_slot_id(field: &ActorField) -> Option<animatix_syntax::schema::PropertyId> {
+    let ActorField::Tagged(name) = field else {
+        return None;
+    };
+    if *name == "legend" || *name == "callout_place" {
+        return None;
+    }
+    property_id(name)
+}
+
+type ResolvedProperty = (usize, Option<animatix_syntax::schema::PropertyId>);
+
+fn resolved_properties() -> &'static std::collections::HashMap<&'static str, ResolvedProperty> {
+    static CACHE: std::sync::OnceLock<std::collections::HashMap<&'static str, ResolvedProperty>> =
+        std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        PROPERTY_REGISTRY
+            .iter()
+            .enumerate()
+            .map(|(index, schema)| (schema.name, (index, plan_slot_id(&schema.field))))
+            .collect()
+    })
+}
+
 fn schema_property_ids()
 -> &'static std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId> {
     static CACHE: std::sync::OnceLock<
