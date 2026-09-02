@@ -342,8 +342,8 @@ it moves and the **gate** that protects it.
 | This design doc | `docs/performance_evaluation.md` | **added** |
 | Bench harness + baseline/regression script | `scripts/perf-bench.sh` | **added** |
 | CI perf-report job (runs suite, uploads Criterion report + baseline artifacts) | `.github/workflows/ci.yml` | **paused** — CI integration deliberately deferred; prove the harness in local optimization rounds first, then re-enable (PF-2) |
-| Result merge/report | `scripts/perf-report.sh` | add |
-| Persistent cross-run baselines + hard relative gate | artifacts / `perf-bench compare` in CI | add (PF-3) |
+| Result merge/report | `scripts/perf-report.sh` | **added (PF-3 foundation)**; emits `target/perf/latest.json` |
+| Persistent cross-run baselines + hard relative gate | `PERF_BASELINE_DIR` + `perf-bench compare` | **added (PF-3 foundation)**; CI artifact upload/download remains PF-2 |
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |

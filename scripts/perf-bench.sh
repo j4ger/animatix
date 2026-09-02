@@ -10,6 +10,10 @@
 #   scripts/perf-bench.sh compare [FILTER] [--thresh PCT]  # rerun and fail if any bench regressed >PCT% (default 5)
 #   scripts/perf-bench.sh run [FILTER]             # just run the suite (no guard); FILTER is a Criterion filter
 #
+#   PERF_BASELINE_DIR=/path/to/artifact scripts/perf-bench.sh save
+#   PERF_BASELINE_DIR=/path/to/artifact scripts/perf-bench.sh compare
+#     Use an explicit directory to persist baselines between CI runs.
+#
 # Thresholds:
 #   --thresh PCT  percentage (mean) a bench may regress before `compare` fails, e.g. 5 => +5%.
 #   Absolute guardrails are handled separately by scripts/extension-bench.sh.
@@ -20,8 +24,9 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 PKG="animatix"
-BASELINE_DIR="target/perf/baseline"
-LOG_DIR="target/perf/latest"
+BASELINE_DIR="${PERF_BASELINE_DIR:-target/perf/baseline}"
+LOG_DIR="${PERF_LOG_DIR:-target/perf/latest}"
+RUN_MARKER="target/perf/.run-start"
 
 MODE="${1:-compare}"
 shift || true
@@ -47,6 +52,8 @@ mkdir -p "$BASELINE_DIR" "$LOG_DIR"
 # We run ALL benches in one `cargo bench` invocation (more efficient).
 run_suite() {
     local filter="${1:-}"
+    mkdir -p "$LOG_DIR"
+    touch "$RUN_MARKER"
     if [[ -n "$filter" ]]; then
         cargo bench -p "$PKG" -- "$filter"
     else
@@ -57,17 +64,21 @@ run_suite() {
 # Collect fresh `new/estimates.json` -> a flat directory of <bench>__<func>.json
 collect_new() {
     local dest="$1"
+    local filter="${2:-}"
     rm -rf "$dest"
     mkdir -p "$dest"
     # Criterion writes target/criterion/<bench-id>/new/estimates.json; bench-id
     # is the benchmark function name (e.g. timeline_evaluate_0s).
-    find target/criterion -name estimates.json -path "*/new/*" 2>/dev/null | while read -r f; do
+    find target/criterion -name estimates.json -path "*/new/*" -newer "$RUN_MARKER" 2>/dev/null | while read -r f; do
         local id
         id="$(basename "$(dirname "$(dirname "$f")")")"
+        if [[ -n "$filter" && "$id" != *"$filter"* ]]; then
+            continue
+        fi
         cp "$f" "$dest/${id}.json"
     done
     # Guard: did anything get collected?
-    if ! find "$dest" -name "*.json" | grep -q .; then
+    if [[ -z "$(find "$dest" -name "*.json" -print -quit)" ]]; then
         echo "perf-bench: no new estimates collected under target/criterion — did the suite run?" >&2
         return 1
     fi
@@ -106,7 +117,7 @@ case "$MODE" in
     save)
         echo "perf-bench: running full suite and recording baseline..."
         run_suite "$FILTER"
-        collect_new "$BASELINE_DIR"
+        collect_new "$BASELINE_DIR" "$FILTER"
         echo "perf-bench: baseline saved to $BASELINE_DIR ($(find "$BASELINE_DIR" -name '*.json' | wc -l) benches)"
         ;;
 
@@ -116,14 +127,14 @@ case "$MODE" in
         ;;
 
     compare)
-        if ! find "$BASELINE_DIR" -name "*.json" | grep -q .; then
+        if [[ -z "$(find "$BASELINE_DIR" -name "*.json" -print -quit)" ]]; then
             echo "perf-bench: no baseline found under $BASELINE_DIR." >&2
             echo "  Run 'scripts/perf-bench.sh save' first (ideally on a known-good commit)." >&2
             exit 3
         fi
         echo "perf-bench: running suite and comparing against baseline (regression beyond combined-noise bound or +${THRESH}% floor fails)..."
         run_suite "$FILTER"
-        collect_new "$LOG_DIR"
+        collect_new "$LOG_DIR" "$FILTER"
 
         failures=0
         total=0
