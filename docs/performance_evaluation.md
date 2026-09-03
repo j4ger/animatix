@@ -286,6 +286,24 @@ identical frame-cache-hit work, yet moved ±9–17% in *opposite* directions
 across identical A/Bs; do not read a regression off either one in isolation
 until PF-3/PF-6 makes the harness robust.
 
+**Known limitation (observed 2026-09-03, `stage_breakdown`):** the drift is
+**process-state / order-dependent**, and two common mitigations were tested and
+rejected: (a) CPU pinning via `taskset -c 0` did **not** change the mean (pinned
+spread was actually worse than unpinned); (b) raising Criterion's
+`--warm-up-time` to 8 s did **not** close the gap (full-suite `stage/sample`
+stayed ~35 µs vs the ~30.4 µs filtered value at any warm-up). The same code
+measures differently because of allocator/code-layout/CPU state left behind by
+the *preceding* benches running in the same process — `eval_total` runs ~24 s of
+sustained `evaluate` before `stage/sample`. Within-run variance is genuinely tiny
+(`stage/sample` std ≈ 0.7%), so more samples / longer measurement does not help.
+The only reliable handling remains the **control-normalization** and
+**adjacent-A/B** techniques above (measure an untouched control like
+`build_frame_env` in the same run and diff it away), plus re-saving the baseline
+after each verified optimization. Do not attempt to "fix" this with pinning,
+longer warm-ups, or an auto-re-run-in-isolation gate recheck: the last is biased
+because an isolated re-run is compared against a full-suite baseline and will
+dismiss genuine regressions.
+
 ---
 
 ## 5. Optimization plan (first targets, evidence-backed)
