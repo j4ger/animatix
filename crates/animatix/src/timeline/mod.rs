@@ -581,6 +581,12 @@ pub(crate) struct FrameCacheEntry {
     /// Scene-only cache hits clone `program.scene` directly; the full program
     /// is only cloned back on the observable (collect_items) restore path.
     program: crate::timeline::scene_program::SceneProgram,
+    /// Per-frame world-space bounds, stored so a scene-only cache hit can
+    /// restore `precise_bounds_cache` without re-encoding the scene. These are
+    /// kept separate from `program.precise_bounds` (which stays empty on the
+    /// scene-only path) so a miss frame only clones the bounds table once
+    /// instead of twice (program field + `program.clone()` for the cache).
+    precise_bounds: std::collections::HashMap<String, kurbo::Rect>,
     /// Whether the cached program was requested with observable item collection.
     collect_items: bool,
 }

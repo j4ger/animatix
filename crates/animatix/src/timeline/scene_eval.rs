@@ -1216,7 +1216,15 @@ impl Timeline {
         {
             return None;
         }
-        *self.eval_caches.precise_bounds_cache.borrow_mut() = cached.program.precise_bounds.clone();
+        // Restore bounds from the source that owns them: the observable path
+        // carries them on the cached program; the scene-only path stashes them
+        // on the entry so the returned program can stay thin.
+        let restored_bounds = if collect_items {
+            cached.program.precise_bounds.clone()
+        } else {
+            cached.precise_bounds.clone()
+        };
+        *self.eval_caches.precise_bounds_cache.borrow_mut() = restored_bounds;
         *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
         self.eval_caches.hit_regions.borrow_mut().clear();
         // On the scene-only path (no observable item collection) hand back a thin
@@ -1484,12 +1492,26 @@ impl Timeline {
 
         // The program owns the encoded scene; the frame cache keeps a clone
         // for restore, and filter/debug frames park their copy in scene_buffer.
+        // Split the per-frame bounds so a miss frame clones the table exactly
+        // once: on the scene-only path the returned program stays thin (its
+        // precise_bounds are always rebuilt on demand and discarded by
+        // `evaluate`), and the bounds are stashed in the frame-cache entry so a
+        // later hit can restore `precise_bounds_cache`. On the observable
+        // (collect_items) path the full program carries the bounds for tooling
+        // and the cache relies on `program.precise_bounds`.
+        let (program_bounds, cached_bounds) = if collect_items {
+            let b = self.eval_caches.precise_bounds_cache.borrow().clone();
+            (b, std::collections::HashMap::new())
+        } else {
+            let b = self.eval_caches.precise_bounds_cache.borrow().clone();
+            (std::collections::HashMap::new(), b)
+        };
         let program = crate::timeline::scene_program::SceneProgram {
             dimensions: scene_dimensions,
             background: bg_color,
             scene,
             items: program_items.take().unwrap_or_default(),
-            precise_bounds: self.eval_caches.precise_bounds_cache.borrow().clone(),
+            precise_bounds: program_bounds,
             diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };
         if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
@@ -1500,6 +1522,7 @@ impl Timeline {
                 has_dynamic_layout: self.dynamic_layout,
                 has_child_orders,
                 program: program.clone(),
+                precise_bounds: cached_bounds,
                 collect_items,
             });
         } else {
