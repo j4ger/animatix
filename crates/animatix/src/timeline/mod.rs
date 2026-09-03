@@ -250,6 +250,7 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
 }
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
 pub use vello_path::VelloPath;
@@ -377,12 +378,12 @@ impl ContainerMetadata {
 /// when children's layout sizes haven't changed between frames.
 #[derive(Clone, Debug)]
 pub struct LayoutEngine {
-    /// Per-container layout cache keyed by all layout inputs.
+    /// Per-container cache bucket keyed by container label (PF-4: the label is
+    /// borrowed for lookup — no `String` is allocated per frame). Static layout
+    /// inputs are implied by the bucket; only per-frame dynamic inputs
+    /// (`layout_size`, baselines) are compared inside it.
     pub(crate) cache: std::cell::RefCell<
-        std::collections::HashMap<
-            crate::timeline::layout::LayoutCacheKey,
-            crate::timeline::layout::LayoutCacheEntry,
-        >,
+        std::collections::HashMap<String, crate::timeline::layout::LayoutContainerCache>,
     >,
 }
 
@@ -522,6 +523,11 @@ pub struct Timeline {
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
+    /// Memoized layout-admitted children per container (see
+    /// `Timeline::layout_children_for`). Cleared by `invalidate_frame_cache`
+    /// alongside the layout engine cache, whose admission contract it shares.
+    pub(crate) layout_children_cache:
+        std::cell::RefCell<std::collections::HashMap<String, Arc<Vec<ContainerLayoutChild>>>>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
@@ -657,6 +663,7 @@ impl Timeline {
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
+            layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
@@ -832,7 +839,27 @@ impl Timeline {
 
     /// Compute layout-admitted children for a container on demand.
     /// Filters `child_order` by `has_layout_size()` and captures placement mode.
-    pub fn layout_children_for(&self, container_label: &str) -> Vec<ContainerLayoutChild> {
+    ///
+    /// PF-4: memoized per container. Admission derives from `child_order` +
+    /// `has_layout_size()` + `placement_mode.last(..)`, all fixed at build time,
+    /// so the computed list is stable until the timeline is rebuilt or a frame
+    /// cache invalidation clears it (same contract as the layout engine cache).
+    /// The hot per-frame caller (`render_node_children` under `dynamic_layout`)
+    /// previously re-ran N `tracks.get` BTreeMap lookups and N `String` clones
+    /// here on every frame for every container.
+    pub fn layout_children_for(&self, container_label: &str) -> Arc<Vec<ContainerLayoutChild>> {
+        if let Some(cached) = self.layout_children_cache.borrow().get(container_label) {
+            return Arc::clone(cached);
+        }
+        let computed = Arc::new(self.compute_layout_children(container_label));
+        self.layout_children_cache
+            .borrow_mut()
+            .insert(container_label.to_string(), Arc::clone(&computed));
+        computed
+    }
+
+    /// Uncached admission computation behind [`Timeline::layout_children_for`].
+    fn compute_layout_children(&self, container_label: &str) -> Vec<ContainerLayoutChild> {
         let Some(metadata) = self.container_metadata.get(container_label) else {
             return Vec::new();
         };
@@ -897,9 +924,9 @@ impl Timeline {
         &self,
         container_label: &str,
         time_ms: u64,
-    ) -> layout::LayoutPositions {
+    ) -> Arc<layout::LayoutPositions> {
         let Some(metadata) = self.container_metadata.get(container_label) else {
-            return layout::LayoutPositions::new();
+            return Arc::new(layout::LayoutPositions::new());
         };
 
         // Check for child_orders track
@@ -922,11 +949,13 @@ impl Timeline {
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         result.insert(label.clone(), p1.interpolate(&p2, eased_t));
                     }
-                    return result;
+                    return Arc::new(result);
                 },
                 (Some((_, (order, _))), _) => {
                     // At or after a keyframe (or at the only keyframe): use it directly
-                    return self.compute_layout_positions_for_order(metadata, order, time_ms);
+                    return Arc::new(
+                        self.compute_layout_positions_for_order(metadata, order, time_ms),
+                    );
                 },
                 (None, Some((&t, (order, easing)))) => {
                     // Before the first keyframe: interpolate from default_value to first keyframe
@@ -946,7 +975,7 @@ impl Timeline {
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         result.insert(label.clone(), p1.interpolate(&p2, eased_t));
                     }
-                    return result;
+                    return Arc::new(result);
                 },
                 (None, None) => {
                     // Empty track — should not happen, but fall through
@@ -1165,6 +1194,7 @@ impl Timeline {
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
+        self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
     }
 
@@ -1225,7 +1255,8 @@ impl Timeline {
         let path = self.find_path_to_actor(label)?;
 
         let mut parent_transform = kurbo::Affine::IDENTITY;
-        let mut current_layout_positions: layout::LayoutPositions = layout::LayoutPositions::new();
+        let mut current_layout_positions: Arc<layout::LayoutPositions> =
+            Arc::new(layout::LayoutPositions::new());
 
         for node_label in &path {
             let track = self.tracks.get(node_label)?;
@@ -1269,7 +1300,7 @@ impl Timeline {
                         &self.tracks,
                     );
                 } else {
-                    current_layout_positions = layout::LayoutPositions::new();
+                    current_layout_positions = Arc::new(layout::LayoutPositions::new());
                 }
             }
         }

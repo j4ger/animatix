@@ -220,6 +220,16 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > reserved for a collect-then-encode split (PF-7). `stage/sample` also drifts
 > ±12% run-to-run on this fixture (31 µs → 35 µs on unchanged code), so
 > treat its `change:` line as noise, not a gate.
+>
+> **Attribution caveat (2026-09-03):** the `layout` skip means the
+> dynamic-layout *hit* path (`compute_animated_layout`: admission lookup +
+> key build + positions clone per container per frame) is invisible to every
+> stage name — probes put it at ~14.6 µs/frame, ~40% of `sample`, and the
+> "property sampling ≈14 µs" figure above was actually dominated by it. After
+> the allocation-free layout cache (PF-4, 2026-09-03) `stage/sample` measured
+> 34.7 → 26.2 µs (−24%, reproduced 3×, `build_frame_env` control flat). When a
+> stage bench reports an unexplained residue, probe the paths OUTSIDE the
+> instrumented stage names before trusting a sub-stage attribution.
 
 ### 3.6 Result ledger & reporting
 

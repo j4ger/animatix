@@ -272,103 +272,49 @@ use super::{ContainerMetadata, LayoutEngine};
 pub type LayoutPositions = std::collections::HashMap<String, [f32; 2]>;
 
 /// Cached layout computation result for a single container.
+///
+/// Positions are shared through an `Arc` so a cache hit hands back a
+/// refcount bump instead of cloning the whole per-child `String`-keyed map
+/// (PF-4: the clone was one heap allocation per child per frame).
 #[derive(Clone, Debug)]
 pub(crate) struct LayoutCacheEntry {
     /// Cached output positions.
-    positions: LayoutPositions,
+    positions: std::sync::Arc<LayoutPositions>,
 }
 
-/// Deterministic cache key for a dynamic layout call.
+/// Per-frame dynamic layout inputs for one container, compared by exact value.
 ///
-/// Floats are converted to their bit representation so exact authored inputs
-/// map to one entry without requiring `Hash` on every layout value type.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub(crate) struct LayoutCacheKey {
-    /// Container label, used to avoid collisions between containers whose
-    /// authored child-order strings happen to be identical.
-    container: String,
-    /// Layout type plus authored configuration values.
-    layout_type: u8,
-    gap: [u32; 2],
-    padding: [u32; 4],
-    align: String,
-    vertical_align: String,
-    cols: Option<usize>,
-    /// Child labels, so membership/order changes invalidate the entry.
-    child_labels: Vec<String>,
-    /// Child size/placement fingerprints.
-    child_fingerprints: Vec<([u32; 2], u8)>,
-    /// Baseline alignment values.
-    child_baselines: Vec<u32>,
-    /// Size specs and constraints used by percentage/grid layouts.
-    size_specs: Vec<[u32; 4]>,
-    constraints: Vec<[u32; 4]>,
-    /// Parent content box size for percentage resolution.
-    parent_content_size: [u32; 2],
+/// Only these inputs vary between frames: child `layout_size` fingerprints and
+/// baselines. Everything else that the previous structured
+/// [`LayoutCacheKey`](..) carried (container identity, metadata strings, child
+/// membership/order) is fixed at build time and therefore implied by the
+/// per-container cache bucket this key lives in — carrying it here again cost
+/// 3N+3 `String` allocations per container per frame purely to look up a
+/// cached result.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct LayoutDynKey {
+    /// Child size/placement fingerprints, in admitted order.
+    fingerprints: Vec<([u32; 2], u8)>,
+    /// Baseline alignment values (bit representation), in admitted order.
+    baselines: Vec<u32>,
+}
+
+/// Per-container cache bucket: memoized admitted children plus the results
+/// computed for the dynamic input states seen since the last invalidation.
+///
+/// The container label is the bucket key and the static identity: metadata
+/// (`gap`/`padding`/`align`/`cols`), admitted membership, and child order are
+/// fixed between invalidations — every public mutable accessor funnels through
+/// `invalidate_frame_cache`, which clears this cache. Child `layout_size` MAY
+/// change per frame and stays in the dynamic key.
+#[derive(Clone, Debug)]
+pub(crate) struct LayoutContainerCache {
+    /// Cached results per dynamic input state (usually one).
+    entries: Vec<(LayoutDynKey, LayoutCacheEntry)>,
 }
 
 fn f32_bits(v: f32) -> u32 {
     v.to_bits()
-}
-
-fn size_spec_fingerprint(spec: Option<super::taffy_layout::ChildSizeSpec>) -> [u32; 4] {
-    use super::taffy_layout::SizeSpec;
-    fn dimension(spec: SizeSpec) -> [u32; 2] {
-        match spec {
-            SizeSpec::Fixed(v) => [0, f32_bits(v)],
-            SizeSpec::Percent(v) => [1, f32_bits(v)],
-            SizeSpec::Auto => [2, 0],
-            SizeSpec::Fill => [3, 0],
-            SizeSpec::Fit => [4, 0],
-        }
-    }
-    match spec {
-        Some(s) => {
-            let w = dimension(s.width);
-            let h = dimension(s.height);
-            [w[0], w[1], h[0], h[1]]
-        },
-        None => [0, 0, 0, 0],
-    }
-}
-
-fn constraints_fingerprint(c: super::taffy_layout::SizeConstraints) -> [u32; 4] {
-    [
-        c.min_width.map(f32_bits).unwrap_or(0),
-        c.max_width.map(f32_bits).unwrap_or(0),
-        c.min_height.map(f32_bits).unwrap_or(0),
-        c.max_height.map(f32_bits).unwrap_or(0),
-    ]
-}
-
-fn layout_cache_key(
-    container: &str,
-    metadata: &ContainerMetadata,
-    child_labels: &[String],
-    fingerprints: &[([f32; 2], u8)],
-    baselines: &[f32],
-    size_specs: Vec<Option<super::taffy_layout::ChildSizeSpec>>,
-    constraints: Vec<super::taffy_layout::SizeConstraints>,
-    parent_content_size: [f32; 2],
-) -> LayoutCacheKey {
-    LayoutCacheKey {
-        container: container.to_string(),
-        layout_type: metadata.layout_type as u8,
-        gap: metadata.gap.map(f32_bits),
-        padding: metadata.padding.map(f32_bits),
-        align: metadata.align.clone(),
-        vertical_align: metadata.vertical_align.clone(),
-        cols: metadata.cols,
-        child_labels: child_labels.to_vec(),
-        child_fingerprints: fingerprints
-            .iter()
-            .map(|&(size, mode)| (size.map(f32_bits), mode))
-            .collect(),
-        child_baselines: baselines.iter().map(|v| f32_bits(*v)).collect(),
-        size_specs: size_specs.into_iter().map(size_spec_fingerprint).collect(),
-        constraints: constraints.into_iter().map(constraints_fingerprint).collect(),
-        parent_content_size: parent_content_size.map(f32_bits),
-    }
 }
 
 impl LayoutEngine {
@@ -485,11 +431,44 @@ impl LayoutEngine {
         &self,
         container_label: &str,
         metadata: &ContainerMetadata,
-        layout_children: &[ContainerLayoutChild],
+        layout_children: &[super::ContainerLayoutChild],
         time_ms: u64,
         tracks: &BTreeMap<String, AnimationTrack>,
-    ) -> LayoutPositions {
-        // Sample child extents at current time
+    ) -> std::sync::Arc<LayoutPositions> {
+        // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
+        // the hit path needs no child labels at all, so no `String` is
+        // allocated here. Baselines keep the legacy shape: one entry per
+        // `layout_children` element (0.0 when the track is missing), while
+        // fingerprints cover only admitted children.
+        let mut fingerprints: Vec<([u32; 2], u8)> = Vec::with_capacity(layout_children.len());
+        let mut baselines: Vec<f32> = Vec::with_capacity(layout_children.len());
+        for child in layout_children {
+            let Some(track) = tracks.get(&child.label) else {
+                baselines.push(0.0);
+                continue;
+            };
+            baselines.push(track.baseline_get(time_ms));
+            if let Some(half_size) = track.layout_size_get(time_ms) {
+                fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
+            }
+        }
+        let dyn_key = LayoutDynKey {
+            fingerprints,
+            baselines: baselines.iter().map(|v| f32_bits(*v)).collect(),
+        };
+
+        {
+            let cache = self.cache.borrow();
+            if let Some(bucket) = cache.get(container_label) {
+                if let Some((_, entry)) = bucket.entries.iter().find(|(key, _)| *key == dyn_key) {
+                    // Hit: share the cached positions (refcount bump, no clone
+                    // of the child-label-keyed map).
+                    return std::sync::Arc::clone(&entry.positions);
+                }
+            }
+        }
+
+        // Miss: rebuild extents with owned labels and compute.
         let child_extents: Vec<ChildExtent> = layout_children
             .iter()
             .filter_map(|child| {
@@ -503,38 +482,8 @@ impl LayoutEngine {
             })
             .collect();
 
-        // Build fingerprint for cache lookup
-        let fingerprints: Vec<([f32; 2], u8)> =
-            child_extents.iter().map(|c| (c.half_size, c.placement_mode as u8)).collect();
-
-        // Sample child baselines for baseline alignment
-        let child_baselines: Vec<f32> = layout_children
-            .iter()
-            .map(|child| tracks.get(&child.label).map(|t| t.baseline_get(time_ms)).unwrap_or(0.0))
-            .collect();
-
-        // The dynamic path uses baseline layout today; build a deterministic key
-        // from every layout input so a metadata or track change cannot reuse a
-        // stale result.
-        let cache_key = layout_cache_key(
-            container_label,
-            metadata,
-            &child_extents.iter().map(|c| c.label.clone()).collect::<Vec<_>>(),
-            &fingerprints,
-            &child_baselines,
-            Vec::new(),
-            Vec::new(),
-            [0.0, 0.0],
-        );
-        {
-            let cache = self.cache.borrow();
-            if let Some(entry) = cache.get(&cache_key) {
-                return entry.positions.clone();
-            }
-        }
-
         let positions =
-            Self::compute_positions_with_baselines(metadata, &child_extents, &child_baselines);
+            Self::compute_positions_with_baselines(metadata, &child_extents, &baselines);
 
         // Build result map, only including LayoutManaged children
         let mut result = LayoutPositions::new();
@@ -543,16 +492,24 @@ impl LayoutEngine {
                 result.insert(child.label.clone(), positions[i]);
             }
         }
+        let positions = std::sync::Arc::new(result);
 
         // Store in cache
-        self.cache.borrow_mut().insert(
-            cache_key,
+        let mut cache = self.cache.borrow_mut();
+        let bucket =
+            cache
+                .entry(container_label.to_string())
+                .or_insert_with(|| LayoutContainerCache {
+                    entries: Vec::new(),
+                });
+        bucket.entries.push((
+            dyn_key,
             LayoutCacheEntry {
-                positions: result.clone(),
+                positions: std::sync::Arc::clone(&positions),
             },
-        );
+        ));
 
-        result
+        positions
     }
 }
 

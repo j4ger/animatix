@@ -424,11 +424,43 @@ fn hosted_bar_chart_spans_graph_axis() {
 /// (e.g. ui.amx's Card nests its header/body slots inside a root Col).
 /// Regression: resolve_slots only handled top-level slots, so nested
 /// slots kept their fallbacks and ignored the fill entirely.
+///
+/// The fixture is an in-memory source (previously a scratch file under
+/// `/tmp/amxrepro/` that was never committed, so the test failed on any
+/// machine without it).
 #[test]
 fn cross_file_slot_fill_applies_at_any_depth() {
+    // Mirrors examples/lib/ui.amx's Card: the component body is a multi-statement
+    // Col whose header/body slot containers sit ONE LEVEL DEEPER than the body's
+    // top level, and the instance fills only `@header`.
+    const REPRO_SLOT: &str = r#"
+pub component Card(width: Num = 240, height: Num = 150) {
+  frame: Rect, size: (width, height), color: surface.primary
+  root: Col, size: (width, height), gap: 0, align: "start" {
+  header: Col, size: (width, 44), align: "start", padding: (14, 18, 0, 18) {
+  @slot
+  header_fallback: Text, text: "Card", font_size: 16, color: text.secondary
+      }
+  body: Col, size: (width, height - 44), align: "start", padding: (8, 18, 14, 18) {
+  @slot
+  body_fallback: Rect, size: fill, color: (0, 0, 0, 0)
+      }
+    }
+}
+
+#0s
+card: Card, width: 240, height: 150 {
+  @header {
+    filled: Text, text: "SLOT FILLED", font_size: 16, color: accent.primary
+  }
+}
+"#;
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let mut program = graph
-        .load_program_with_source(std::path::Path::new("/tmp/amxrepro/repro_slot.amx"), None)
+        .load_program_with_source(
+            std::path::Path::new("virtual:///slot_repro.amx"),
+            Some(REPRO_SLOT),
+        )
         .expect("load program");
     let _diagnostics = program.typecheck();
     let mut expansion_errors = Vec::new();

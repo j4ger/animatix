@@ -1138,7 +1138,7 @@ pub fn layout_debug_ops(
         );
 
         let layout_children = timeline.layout_children_for(container_label);
-        for child in &layout_children {
+        for child in layout_children.iter() {
             let Some(child_track) = timeline.get_track(&child.label) else {
                 continue;
             };

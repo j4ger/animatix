@@ -726,7 +726,7 @@ impl Timeline {
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_label, time_ms)
         } else {
-            crate::timeline::layout::LayoutPositions::new()
+            std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
 
         // ── Special child-rendering strategies ──
