@@ -608,6 +608,11 @@ struct EvalCaches {
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
     precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
+    /// The scene's evaluated background color for the current frame. Sampled
+    /// once per frame in `evaluate_program_inner` and read by the primitive
+    /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling
+    /// the constant background track once per node.
+    background_color: std::cell::Cell<[f32; 4]>,
 }
 
 impl Clone for EvalCaches {

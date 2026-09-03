@@ -213,7 +213,13 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > budget), `build_frame_env` ≈ 7.4 µs, `modifier_exec` ≈ 1.2 µs — so per-node
 > evaluation + scene encoding (`sample`) is the dominant PF-4 remaining cost.
 > `layout` fires only on the first frame for this scene (static layout is
-> cached), so it is skipped by the multi-frame warmup guard.
+> cached), so it is skipped by the multi-frame warmup guard. 2026-09-03 note:
+> a per-node `encode_scene` `ScopedStage` was **tried and rejected** — it adds
+> ~2 µs to every `evaluate`-based bench and violates the §7 "a per-actor
+> tracing event is not acceptable" rule, so the `encode_scene` seam stays
+> reserved for a collect-then-encode split (PF-7). `stage/sample` also drifts
+> ±12% run-to-run on this fixture (31 µs → 35 µs on unchanged code), so
+> treat its `change:` line as noise, not a gate.
 
 ### 3.6 Result ledger & reporting
 

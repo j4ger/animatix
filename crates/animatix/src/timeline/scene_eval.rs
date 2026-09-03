@@ -567,7 +567,7 @@ impl Timeline {
                         local_transform,
                         opacity,
                         scene_dimensions,
-                        background_color: self.background_color.evaluate(time_ms),
+                        background_color: self.eval_caches.background_color.get(),
                         overrides: node_overrides,
                         vector_paths: &vector_paths,
                         asset_cache: &self.asset_cache,
@@ -1303,6 +1303,10 @@ impl Timeline {
         // Precise bounds are only valid for the frame that computed them.
         self.eval_caches.precise_bounds_cache.borrow_mut().clear();
         let bg_color = self.background_color.evaluate_copy(time_ms);
+        // Share the frame's background color with the per-node primitive
+        // EvaluateCtx (legend label-contrast) without re-sampling the constant
+        // background track once per node.
+        self.eval_caches.background_color.set(bg_color);
 
         // Collect actor world-space bounding boxes for click-to-select
         let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();
