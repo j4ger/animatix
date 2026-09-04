@@ -249,6 +249,78 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > `stage/sample` sits at 22.2 µs (cumulative 34.7 → 22.2 = −36% over three
 > rounds).
 
+> **Steady-state allocation driver (2026-09-04, PF-6):**
+> `crates/animatix/examples/alloc_driver.rs` runs the same scenario under the
+> dhat allocator and installs the profiler *after* the settle phase, so
+> `dhat-heap.json` ranks exactly the steady-state `evaluate` loop by bytes /
+> allocation count. Build with `RUSTFLAGS="-C force-frame-pointers=yes"`
+> (frame pointers keep the backtraces resolvable in a release build) and
+> `--profile profiling`. Allocation counts are deterministic — unlike the
+> ±5–12% timing drift documented in §4 — so this is the preferred ranking
+> metric for allocation-class work; timing A/Bs remain the regression gate.
+>
+> First capture (60-actor dynamic scenario, 10k frames): **600 allocations
+> and ≈500 KB churn per frame, live set ≈ 0** (pure churn), peak 443 KB.
+> Ranked by first animatix frame in the backtrace:
+>
+> 1. **`build_frame_env_internal` overrides `reserve` — one ≈430 KB table
+>    allocation per frame (86% of churn bytes).** The estimate sized from
+>    `self.env.len()`, but `Environment::with_base` shares the base layer and
+>    `inject_runtime_lookup_values` only injects referenced-roots-filtered
+>    tracks: the map held 131 entries while being reserved for ~2600.
+>    **Fixed (2026-09-04):** the estimate now sizes from the injected-actor
+>    count × 120 (measured inserts per Rect track = 117; the ×35 constant
+>    previously assumed per actor was itself too small — under-reserving
+>    triggered SipHash rehashes that cost +60% on `stage/build_frame_env`,
+>    which is why the multiplier must err generous). Two implementation
+>    lessons landed with it: (a) a first version added a *second*
+>    `has_procedural_plots()` call — an O(tracks) scan — and that alone
+>    regressed the `env_50`/`env_200` micro-benches +13/+25%; computing
+>    `has_runtime_injection` once and reusing it in the fast-path condition
+>    restored them (env_50 −8.0% vs baseline). (b) Result: churn
+>    500 → 96.6 KB/frame (−81%), peak 443 → 39.8 KB (−91%), allocation count
+>    flat at 600; `stage/build_frame_env` unchanged (6.13 → 6.22 µs vs an
+>    untouched-code baseline, within drift), `stage/eval_total` −2.5% on the
+>    miss-frame spot check, and the full 64-bench gate passed with **0
+>    regressions** — the time gain itself stays *not* gateable (kept per the
+>    "strictly removes work" precedent, §4).
+> 2. **`KurboShape::to_path` → `BezPath::from_iter`** — ~70 blocks,
+>    23.5 KB/frame: every shape actor re-converts its geometry to a bezpath
+>    every frame even when size is frame-constant (candidate: share/cache the
+>    path and let the transform vary).
+> 3. **`Environment::set` `String` keys + `format!`-built env keys** —
+>    ~208 `to_string` blocks/frame across property injection, env-key
+>    helpers, and `apply_override_incremental` (candidate: pooled/reused
+>    keys, or pooling the whole frame env per §5 P1).
+> 4. **`morph::evaluate_paths_with_options` via `evaluate_vector_paths`** —
+>    ~61 blocks, 4.9 KB/frame cloning the path `Vec` per actor per frame even
+>    when the track is at a constant value (candidate: `Arc<[VelloPath]>`
+>    sharing when no morph/keyframes).
+> 5. **Dynamic-layout residues** — `compute_animated_layout` Box/Table
+>    allocations ~60 blocks + ~10 KB/frame despite the allocation-free hit
+>    path (probe the key-build and `compute_layout_for_time` internals).
+> 6. **`precise_bounds_cache` clone** — one ≈3.7 KB table clone/frame at
+>    `scene_eval.rs` `evaluate_program_inner` (candidate: `Arc`-share like
+>    the layout positions).
+
+> **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
+> unreliable for hot-path attribution twice — one-time setup (fontdb scans,
+> roxmltree/chumsky parse) and suite neighbours contaminate the capture, and
+> per-node probe push/pops (~55–90 ns each) swamp sub-5 µs stages.
+> `crates/animatix/examples/perf_driver.rs` runs the stage_breakdown scenario
+> in a tight loop with a settle phase:
+> `perf record -e cycles:u -c 50001 -- taskset -c 0 target/release/examples/perf_driver`
+> yields a clean function-level ranking (604k samples). With the layout cache
+> fixed (PF-4), the closed attribution for the evaluate loop is: string-keyed
+> map machinery ≈30%, allocator ≈18%, scene_eval inlined bodies ≈13%,
+> `resolve_property` 3.6% (→2.0% after the pre-resolved transform reads),
+> property-track sampling ≈6%, layout 2.6%, `evaluate_vector_paths` 1.4%
+> (→ early-out), vello encode ≈2.8%. After round 3 (pre-resolved
+> `size`/`transform` reads + pooled `precise_bounds_cache` label keys),
+> `resolve_property` no longer appears in the profile at all and
+> `stage/sample` sits at 22.2 µs (cumulative 34.7 → 22.2 = −36% over three
+> rounds).
+
 ### 3.6 Result ledger & reporting
 
 Criterion already writes `target/criterion/*/estimates.json`. `perf-report.sh`
@@ -376,6 +448,12 @@ it moves and the **gate** that protects it.
   `Vec` clones (cache-hit restore, `SceneItem` collection, hit regions).
 - **Approach:** add `perf` memory capture, profile with DHAT/tracy on the
   scenario suite, eliminate steady-state allocation in the hot path.
+- **Status (2026-09-04, first pass done):** `alloc_driver` + dhat capture is
+  the memory instrument (see the driver note in §3.5); the frame-env reserve
+  fix landed as the first reduction (−81% steady-state churn bytes, −91%
+  peak). Remaining ranked candidates live in the same note; next cheapest:
+  pooled env keys, shared static bezpaths, `Arc`-shared constant vector
+  paths.
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
@@ -398,6 +476,8 @@ it moves and the **gate** that protects it.
 | Persistent cross-run baselines + hard relative gate | `PERF_BASELINE_DIR` + `perf-bench compare` | **added (PF-3 foundation)**; CI artifact upload/download remains PF-2 |
 | Shared stage tracing | `crates/animatix/src/perf.rs` + `ScopedStage` | **added** (PF-8, 2026-08-31; `perf-tracing` default-on feature) |
 | Scenario suite benches | `crates/animatix/benches/` | add |
+| Steady-state time driver | `crates/animatix/examples/perf_driver.rs` | **added** (2026-09-03; §3.5 note) |
+| Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `examples/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
 | Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9) |
