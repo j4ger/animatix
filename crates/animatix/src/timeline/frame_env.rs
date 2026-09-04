@@ -84,14 +84,32 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
         let _stage = crate::perf::ScopedStage::new(crate::perf::stage::BUILD_FRAME_ENV);
-        // Estimate capacity: base env + t/scene_width/scene_height + variable tracks +
-        // ~35 properties per actor (only if modifiers are present).
+        // Estimate capacity: t/scene_width/scene_height + scene anchors +
+        // variable tracks + ~120 properties per *injected* actor. The build
+        // env is shared through `with_base` and never copied into `overrides`,
+        // so sizing from `self.env.len()` massively over-reserved: the
+        // 2026-09-04 allocation profile (`alloc_driver`, PF-6) measured one
+        // ~430 KB hashbrown table allocation per frame on a 60-actor scene
+        // whose overrides hold 131 entries, because referenced-roots filtering
+        // skips 59 of the 60 tracks inside `inject_runtime_lookup_values`.
+        // 120 = measured inserts for one Rect track (registry properties with
+        // defaults + `_animating_` flags + override sub-keys, 117 in total)
+        // rounded up; under-estimating triggers a SipHash rehash that costs
+        // more than the mmap it avoids, so err on the generous side while
+        // staying ~30× below the old `env.len()`-sized reservation.
         let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
-        let estimated_capacity = if has_modifiers {
-            self.env.len() + 3 + self.variable_tracks.len() + self.tracks.len() * 35
+        let has_runtime_injection = has_modifiers || self.has_procedural_plots();
+        let injected_actors = if has_runtime_injection {
+            match &self.referenced_roots {
+                Some(roots) => {
+                    roots.iter().filter(|label| self.tracks.contains_key(label.as_str())).count()
+                },
+                None => self.tracks.len(),
+            }
         } else {
-            self.env.len() + 3 + self.variable_tracks.len()
+            0
         };
+        let estimated_capacity = 16 + self.variable_tracks.len() + injected_actors * 120;
         let mut env = Environment::with_base(std::sync::Arc::clone(&self.env_base));
         env.overrides.reserve(estimated_capacity);
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
@@ -107,10 +125,10 @@ impl Timeline {
         // lookups at frame time. Skip the per-track property evaluation entirely.
         // Procedural plots still need actor property keys (e.g. `curve.freq`)
         // injected so their closures can resolve runtime parameters.
-        if self.modifier_programs.is_empty()
-            && self.modifiers.is_empty()
-            && !self.has_procedural_plots()
-        {
+        // `has_runtime_injection` is computed once above and reused here:
+        // `has_procedural_plots` walks every track, and a second call was a
+        // measurable regression on the env_50/100/200 benches (2026-09-04).
+        if !has_runtime_injection {
             for (label, track) in &self.tracks {
                 crate::timeline::property_engine::inject_extension_properties_into_env(
                     &mut env,
