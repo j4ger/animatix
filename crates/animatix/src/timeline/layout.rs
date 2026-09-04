@@ -271,6 +271,19 @@ use super::{ContainerMetadata, LayoutEngine};
 /// needs, which measured ~5% of the `sample` stage for a 60-child container.
 pub type LayoutPositions = std::collections::HashMap<String, [f32; 2]>;
 
+/// One shared empty `Arc<LayoutPositions>`.
+///
+/// "This actor has no layout-managed children" paths used to allocate a fresh
+/// empty map per call — once per non-container node per frame on typical
+/// scenes (~60 allocations/frame on a 60-actor scene, `alloc_driver`
+/// 2026-09-04). Callers only ever read through the `Arc`, so sharing one
+/// instance is equivalent and allocation-free.
+pub(crate) fn empty_layout_positions() -> std::sync::Arc<LayoutPositions> {
+    use std::sync::{Arc, OnceLock};
+    static EMPTY: OnceLock<Arc<LayoutPositions>> = OnceLock::new();
+    Arc::clone(EMPTY.get_or_init(|| Arc::new(LayoutPositions::new())))
+}
+
 /// Cached layout computation result for a single container.
 ///
 /// Positions are shared through an `Arc` so a cache hit hands back a

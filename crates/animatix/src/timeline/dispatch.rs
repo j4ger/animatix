@@ -372,7 +372,46 @@ impl AnimationTrack {
     /// per-node overhead on the frame path. Returning early is exactly
     /// equivalent: the empty track's evaluation is `default_value.clone()`,
     /// which is an empty `Vec`.
-    pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
+    ///
+    /// PF-6 (2026-09-04): the result is returned as a shared `Arc` — when the
+    /// track is time-independent (no keyframes, or `time_ms` past the last
+    /// keyframe, where the evaluator returns the frozen `last_value`), the
+    /// value is memoized on the track and re-clones become refcount bumps.
+    /// `alloc_driver` measured ~61 allocations / ~21 KB per frame on a
+    /// 60-actor scene from every static shape actor cloning its whole path
+    /// list per frame. The memo is guarded by `vector_paths_epoch` (bumped by
+    /// `invalidate_frame_cache`, the funnel every mutation goes through) and
+    /// must never observe a track mutated without that bump.
+    pub fn evaluate_vector_paths(&self, time_ms: u64) -> std::sync::Arc<Vec<VelloPath>> {
+        use std::sync::Arc;
+        if let Some(paths_track) = self.shape.vector_paths.as_ref() {
+            let constant = paths_track
+                .keyframes
+                .keys()
+                .next_back()
+                .map(|&last| time_ms > last)
+                .unwrap_or(true);
+            if constant {
+                let epoch = self.shape.vector_paths_epoch.get();
+                if let Some((memo_epoch, shared)) = self.shape.vector_paths_memo.borrow().as_ref() {
+                    if *memo_epoch == epoch {
+                        return Arc::clone(shared);
+                    }
+                }
+                let computed = Arc::new(self.evaluate_vector_paths_value(time_ms));
+                *self.shape.vector_paths_memo.borrow_mut() = Some((epoch, Arc::clone(&computed)));
+                return computed;
+            }
+        }
+        Arc::new(self.evaluate_vector_paths_value(time_ms))
+    }
+
+    /// Unmemoized single evaluation of the vector-path track.
+    ///
+    /// Build-time callers (`insert_start_keyframes`, assignment rewrites) use
+    /// this so they observe values they have just written instead of a memo
+    /// captured before the write.
+    pub(crate) fn evaluate_vector_paths_value(&self, time_ms: u64) -> Vec<VelloPath> {
         let Some(paths_track) = self.shape.vector_paths.as_ref() else {
             return Vec::new();
         };

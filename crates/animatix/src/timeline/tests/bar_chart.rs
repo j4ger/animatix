@@ -407,7 +407,7 @@ fn hosted_bar_chart_spans_graph_axis() {
     use kurbo::Shape as _;
     let mut min_x = f64::INFINITY;
     let mut max_x = f64::NEG_INFINITY;
-    for path in &paths {
+    for path in paths.iter() {
         let bbox = path.path.bounding_box();
         min_x = min_x.min(bbox.x0);
         max_x = max_x.max(bbox.x1);
@@ -733,7 +733,7 @@ fn size_property_drives_bar_chart_geometry() {
     use kurbo::Shape as _;
     let mut min = [f64::INFINITY; 2];
     let mut max = [f64::NEG_INFINITY; 2];
-    for path in &paths {
+    for path in paths.iter() {
         let bbox = path.path.bounding_box();
         min[0] = min[0].min(bbox.x0);
         min[1] = min[1].min(bbox.y0);

@@ -1,5 +1,6 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 use super::property_track::{Interpolate, PropertyTrack};
@@ -426,6 +427,16 @@ pub struct ShapeTracks {
     /// Pre-built vector paths for shape rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+    /// Shared memo of the last `evaluate_vector_paths` result (PF-4/PF-6:
+    /// a static track re-clones its whole path `Vec` every frame; this shares
+    /// it as an `Arc` instead). Guarded by [`Self::vector_paths_epoch`], which
+    /// `invalidate_frame_cache` bumps because every keyframe/assignment/action
+    /// mutation funnels through it. Never serialized (recomputed on demand).
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub vector_paths_memo: std::cell::RefCell<Option<(u64, Arc<Vec<VelloPath>>)>>,
+    /// Mutation counter matched with the memo; see [`Self::vector_paths_memo`].
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub vector_paths_epoch: std::cell::Cell<u64>,
 
     // ── Actor-anchor refs for `from`/`to` (G6) ──
     /// When set, `line_from` / `from` is resolved each frame from this

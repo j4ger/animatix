@@ -198,7 +198,7 @@ pub(super) fn rebuild_vector_paths(
             );
 
             if has_duration {
-                let start_paths = track.evaluate_vector_paths(t_start_ms);
+                let start_paths = track.evaluate_vector_paths_value(t_start_ms);
                 track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
                     t_start_ms,
                     start_paths,
@@ -293,7 +293,7 @@ pub(super) fn rebuild_vector_paths(
     });
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths(t_start_ms);
+        let start_paths = track.evaluate_vector_paths_value(t_start_ms);
         track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
             t_start_ms,
             start_paths,
@@ -327,7 +327,7 @@ pub(super) fn scale_plot_curve_paths(
     }
 
     let has_duration = t_end_ms > t_start_ms;
-    let current_paths = track.evaluate_vector_paths(t_end_ms);
+    let current_paths = track.evaluate_vector_paths_value(t_end_ms);
     if current_paths.is_empty() {
         return;
     }
@@ -342,7 +342,7 @@ pub(super) fn scale_plot_curve_paths(
         .collect();
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths(t_start_ms);
+        let start_paths = track.evaluate_vector_paths_value(t_start_ms);
         track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
             t_start_ms,
             start_paths,

@@ -303,6 +303,45 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 >    `scene_eval.rs` `evaluate_program_inner` (candidate: `Arc`-share like
 >    the layout positions).
 
+> **Round 2 (2026-09-04, later the same day): items 4/5 fixed + a real leak
+> found.** (a) **Vector-path Arc memo**: `evaluate_vector_paths` returns
+> `Arc<Vec<VelloPath>>` and memoizes the time-independent region (no
+> keyframes, or past the last keyframe where the evaluator returns the frozen
+> `last_value`) per track, guarded by a `vector_paths_epoch` bumped by
+> `invalidate_frame_cache` — the funnel every mutation goes through. Build
+> callers use the unmemoized `evaluate_vector_paths_value`. (b) **Shared
+> empty `Arc<LayoutPositions>`** replaces the per-node `Arc::new(empty map)`
+> in `compute_animated_layout`'s missing-metadata early return and the
+> `actor_world_affine` reset sites. Combined: 600 → **420 blocks** and
+> 96.6 → **71.0 KB** per frame (cumulative −86% bytes vs the pre-PF-6
+> 500 KB); `stage/sample` 22.2 → **20.34 µs (−8.3%)** and `eval_total`
+> −5.6% — a real time win this round, because the 60 per-frame deep clones
+> were CPU work, not just allocator churn.
+>
+> **The leak (found by the same instrument, pre-existing):** running the
+> `scene_costs` benches ballooned to ~21 GB RSS with dhat showing **15M live
+> blocks at exit — 50 per frame, one per actor — all retained inside
+> `restore_frame_cache`'s `bounds_key_pool` extend**. Root cause: every cache
+> hit drains the bounds map into the pool and re-extends, but a pure
+> cache-hit workload never *pops*, so the pool grew by one key per node per
+> hit forever (introduced with the pool itself, `01cb616c`, 2026-09-03).
+> Fix: `EvalCaches::recycle_bounds_keys` caps the pool at 512 keys. Same
+> workload after the fix: `curr_bytes` flat at 0.12 MB, RSS flat at ~15 MB,
+> bench-binary peak 22.8 GB → **60 MB**. Corollaries recorded here because
+> they revise earlier entries: (1) the "22 GB" observed during suites was
+> **the leak, not rustc's debuginfo linker spike** (that spike exists but is
+> transient and smaller); (2) the §4 note that `many_actors_evaluate` /
+> `many_actors_cache_hit` "contradict each other run-to-run (±9–17%)" was
+> almost certainly **leak-driven memory pressure**, not bench instability —
+> after the fix those benches measured 1.39/1.40 µs with
+> `timeline_evaluate_1s/2s` collapsing −43% (176.5 → 100.0 ns) in the full
+> gate. Treat those two as reliable again; re-baseline them.
+>
+> `examples/leak_probe.rs` is the diagnostic template for "leak vs
+> fragmentation": sample `dhat::HeapStats` (`curr_bytes` = live set) and
+> process RSS over a fixed-time evaluate loop — live growing with total is a
+> leak, total growing with live flat is churn/fragmentation.
+
 > **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
 > unreliable for hot-path attribution twice — one-time setup (fontdb scans,
 > roxmltree/chumsky parse) and suite neighbours contaminate the capture, and
@@ -385,6 +424,14 @@ not claimed as a win. Separately, `many_actors_evaluate` and
 identical frame-cache-hit work, yet moved ±9–17% in *opposite* directions
 across identical A/Bs; do not read a regression off either one in isolation
 until PF-3/PF-6 makes the harness robust.
+>
+> **Update (2026-09-04, resolved):** the contradiction was
+> **leak-driven memory pressure**, not bench instability — see the Round-2
+> note in §3.5. `restore_frame_cache`'s unbounded `bounds_key_pool` grew on
+> every cache hit, and the swap thrash it caused explains the ±9–17%
+> inversions. With the pool capped, the pair measured 1.39/1.40 µs on
+> back-to-back runs and `timeline_evaluate_1s/2s` collapsed −43% in the full
+> gate. Read those benches normally again; re-baseline before gate use.
 
 **Known limitation (observed 2026-09-03, `stage_breakdown`):** the drift is
 **process-state / order-dependent**, and two common mitigations were tested and

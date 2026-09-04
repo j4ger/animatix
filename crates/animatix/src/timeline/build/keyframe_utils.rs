@@ -6,7 +6,7 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, std::f32::consts::PI];
 
-    let start_vector_paths = track.evaluate_vector_paths(t_start_ms);
+    let start_vector_paths = track.evaluate_vector_paths_value(t_start_ms);
     let start_position = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
     let start_size = track.geometry.size.get(t_start_ms, default_size);
     let start_line_from = track.shape.line_from.get(t_start_ms, [-50.0, 0.0]);

@@ -500,8 +500,9 @@ impl Timeline {
         );
         let is_visible = viewport.intersect(actor_bounds).area() > 0.0;
 
+        // PF-6: shared Arc — the common static-track case returns a refcount
+        // bump instead of a full path-list clone per node per frame.
         let mut vector_paths = track.evaluate_vector_paths(time_ms);
-
         // Re-sample procedural plots at frame time so they can reference `t`.
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).
@@ -545,12 +546,13 @@ impl Timeline {
                     }
                 }
 
-                vector_paths = crate::timeline::plot::sample_procedural_plot_at(
-                    procedural_plot,
-                    &mut local_env,
-                    time_ms,
-                    &track.func_transitions,
-                );
+                vector_paths =
+                    std::sync::Arc::new(crate::timeline::plot::sample_procedural_plot_at(
+                        procedural_plot,
+                        &mut local_env,
+                        time_ms,
+                        &track.func_transitions,
+                    ));
             }
         }
 
@@ -1251,7 +1253,7 @@ impl Timeline {
         {
             let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
             let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+            self.eval_caches.recycle_bounds_keys(keys);
             *bounds = restored_bounds;
         }
         *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
@@ -1343,7 +1345,7 @@ impl Timeline {
         {
             let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
             let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+            self.eval_caches.recycle_bounds_keys(keys);
         }
         let bg_color = self.background_color.evaluate_copy(time_ms);
         // Share the frame's background color with the per-node primitive

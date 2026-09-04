@@ -634,6 +634,37 @@ struct EvalCaches {
     background_color: std::cell::Cell<[f32; 4]>,
 }
 
+impl EvalCaches {
+    /// Maximum pooled-key budget for [`Self::recycle_bounds_keys`]. A miss
+    /// frame pops at most one key per node, so a few hundred keys cover any
+    /// real scene. The cap matters because pure cache-hit workloads drain and
+    /// re-extend the pool every frame without ever popping: unbounded, the
+    /// pool grew by one key per node per hit — `restore_frame_cache` on a
+    /// 50-actor scene accumulated 15M live blocks / ~700 MB over 300k frames
+    /// (`examples/leak_probe.rs`, found 2026-09-04; the leak predates the
+    /// vector-path and empty-layout changes and explains the suite's
+    /// intermittent OOM deaths around the `scene_costs` benches).
+    const BOUNDS_KEY_POOL_CAP: usize = 512;
+
+    /// Return drained bounds-map keys to [`Self::bounds_key_pool`], keeping at
+    /// most [`Self::BOUNDS_KEY_POOL_CAP`] pooled keys. Surplus keys are
+    /// dropped: a miss frame only pops one key per node, so keys beyond the
+    /// cap would never be consumed anyway — and pure cache-hit workloads drain
+    /// + re-extend the pool every frame, which made an unbounded pool grow by
+    /// one key per node per hit forever.
+    fn recycle_bounds_keys<I>(&self, keys: I)
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let mut pool = self.bounds_key_pool.borrow_mut();
+        if pool.len() >= Self::BOUNDS_KEY_POOL_CAP {
+            return;
+        }
+        let room = Self::BOUNDS_KEY_POOL_CAP - pool.len();
+        pool.extend(keys.into_iter().take(room));
+    }
+}
+
 impl Clone for EvalCaches {
     fn clone(&self) -> Self {
         Self::default()
@@ -933,7 +964,11 @@ impl Timeline {
         time_ms: u64,
     ) -> Arc<layout::LayoutPositions> {
         let Some(metadata) = self.container_metadata.get(container_label) else {
-            return Arc::new(layout::LayoutPositions::new());
+            // Shared empty table: this early return fires once per
+            // non-container node per frame (alloc_driver 2026-09-04 measured
+            // ~60 fresh empty `LayoutPositions` allocations per frame on a
+            // 60-actor scene), and callers only ever read through the Arc.
+            return layout::empty_layout_positions();
         };
 
         // Check for child_orders track
@@ -1205,10 +1240,19 @@ impl Timeline {
             // per-frame clear in `evaluate_program_inner`).
             let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
             let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+            self.eval_caches.recycle_bounds_keys(keys);
         }
         self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
+        // Per-track hot-path memos (vector-path Arc sharing) key on this
+        // epoch: every mutation funnels through this invalidation, so the
+        // bump is the single memo-invalidation point.
+        for track in self.tracks.values() {
+            track
+                .shape
+                .vector_paths_epoch
+                .set(track.shape.vector_paths_epoch.get().wrapping_add(1));
+        }
     }
 
     /// Returns a reference to the audio segments collected during build.
@@ -1269,7 +1313,7 @@ impl Timeline {
 
         let mut parent_transform = kurbo::Affine::IDENTITY;
         let mut current_layout_positions: Arc<layout::LayoutPositions> =
-            Arc::new(layout::LayoutPositions::new());
+            layout::empty_layout_positions();
 
         for node_label in &path {
             let track = self.tracks.get(node_label)?;
@@ -1313,7 +1357,7 @@ impl Timeline {
                         &self.tracks,
                     );
                 } else {
-                    current_layout_positions = Arc::new(layout::LayoutPositions::new());
+                    current_layout_positions = layout::empty_layout_positions();
                 }
             }
         }
