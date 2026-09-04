@@ -342,6 +342,35 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > process RSS over a fixed-time evaluate loop — live growing with total is a
 > leak, total growing with live flat is churn/fragmentation.
 
+> **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
+> "allocation-free hot path" candidate.** The override-layer key set is
+> identical frame-to-frame (labels × registry properties are build-time
+> fixed), so `evaluate_program_inner` hands the finished environment back to
+> a one-slot `Timeline::env_pool` and `build_frame_env_internal` takes it
+> back for the next frame. Two supporting changes: `Environment::set` now
+> overwrites in place via `get_mut`-first (a pooled env's keys already
+> exist — no key copy at all; `set_owned` moves caller-built keys), and
+> `reset_for_reuse` re-stamps the memoization identity and clears plot
+> bindings on take. Invariants: (1) `invalidate_frame_cache` drops the pool
+> — every mutation funnels there, so fresh-build semantics return whenever
+> the injection key set may change; (2) the only cross-frame key-set
+> variance is a variable track evaluating to `None` before its first
+> keyframe, handled by removing the stale key on the pooled path; (3) only
+> the scene-eval path pools (the public `build_frame_env` hands ownership to
+> callers the pool cannot see; the plot path's `local_env` clones are
+> unaffected). Measured: 403.8 → **271.8 blocks**, 70.8 → **41.8 KB** per
+> frame, peak 39.8 → **10.7 KB** (−73%); cumulative vs pre-PF-6:
+> **−55% blocks, −92% bytes**. Time follows: `stage/build_frame_env`
+> 6.15 → **5.23 µs (−15%)**, `stage/sample` 19.6 µs, and the full gate's
+> `evaluate_25/50_actors` **−94/−92%**, `evaluate_100_actors` −61%,
+> `reactive_playback_100frames` −52%, `mixed_scene_evaluate` −50%.
+> Three benches flagged (`reactive_parse_only` +93%, `reactive_build_only`
+> +84%, `rebuild` +11.5%) — all three **failed to reproduce in isolation**
+> (68.7 µs / 265.0 µs / 2.007 ms vs baselines 68.2 / 261.5 / 2003.8), the
+> §4 process-state contamination again; none of these stages is touched by
+> pooling. The flag-then-isolate protocol from §4 is what kept this round
+> honest.
+
 > **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
 > unreliable for hot-path attribution twice — one-time setup (fontdb scans,
 > roxmltree/chumsky parse) and suite neighbours contaminate the capture, and
