@@ -1133,27 +1133,8 @@ pub(crate) fn read_property_value_resolved(
     track.field_ref(schema.field).and_then(|f| f.evaluate_value(time_ms))
 }
 
-/// Read an effective f32 property value, preferring modifier overrides
-/// over track keyframes. Uses the property registry to map `name` to its
-/// storage field for the track fallback.
-pub(crate) fn effective_f32(
-    track: &AnimationTrack,
-    overrides: Option<&std::collections::HashMap<String, Value>>,
-    time_ms: u64,
-    name: &str,
-    default: f32,
-) -> f32 {
-    effective_f32_resolved(
-        track,
-        overrides,
-        time_ms,
-        name,
-        crate::timeline::property_registry::resolve_property(name),
-        default,
-    )
-}
-
-/// [`effective_f32`] with the registry entry pre-resolved by the caller.
+/// Read an effective f32 property value, preferring modifier overrides over
+/// track keyframes, with the registry entry pre-resolved by the caller.
 ///
 /// The registry lookup is a process-constant string hash; the transform path
 /// reads the same five properties on every node every frame and resolves them
@@ -1180,19 +1161,20 @@ pub(crate) fn effective_f32_resolved(
     default
 }
 
-/// Read an effective Vec2 property value, preferring modifier overrides
-/// over track keyframes.
-pub(crate) fn effective_vec2(
+/// Read an effective Vec2 property value, preferring modifier overrides over
+/// track keyframes, with the registry entry pre-resolved by the caller.
+pub(crate) fn effective_vec2_resolved(
     track: &AnimationTrack,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
+    resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 2],
 ) -> [f32; 2] {
     if let Some(Value::Vec2(v)) = overrides.and_then(|ov| ov.get(name)) {
         return [v[0] as f32, v[1] as f32];
     }
-    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+    if let Some((schema, slot)) = resolved
         && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
@@ -1208,6 +1190,7 @@ pub(crate) fn effective_transform(
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
+    resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 6],
 ) -> [f32; 6] {
     if let Some(Value::List(items)) = overrides.and_then(|ov| ov.get(name)) {
@@ -1219,7 +1202,7 @@ pub(crate) fn effective_transform(
             return t;
         }
     }
-    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+    if let Some((schema, slot)) = resolved
         && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::Transform(v) = pv
     {
@@ -1227,10 +1210,6 @@ pub(crate) fn effective_transform(
     }
     default
 }
-
-// ─────────────────────────────────────────────────────────────
-// Tests
-// ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

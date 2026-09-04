@@ -1792,7 +1792,6 @@ pub(crate) fn transform_property_reads() -> &'static TransformPropertyReads {
         transform: resolve_property("transform"),
     })
 }
-
 /// The plan-slot id for a property's storage field, or `None` when the field is
 /// not a tagged slot the runtime plan can serve.
 ///

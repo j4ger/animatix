@@ -96,7 +96,7 @@ impl Timeline {
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
     ) -> NodeTransform {
         use crate::timeline::property_engine::{
-            effective_f32_resolved, effective_transform, effective_vec2,
+            effective_f32_resolved, effective_transform, effective_vec2_resolved,
         };
 
         // ── Position: special handling for anchor/binding ──
@@ -150,14 +150,21 @@ impl Timeline {
                 as f64;
         let opacity =
             effective_f32_resolved(track, node_overrides, time_ms, "opacity", reads.opacity, 1.0);
-        let half_size =
-            effective_vec2(track, node_overrides, time_ms, "size", DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = effective_vec2_resolved(
+            track,
+            node_overrides,
+            time_ms,
+            "size",
+            reads.size,
+            DEFAULT_LAYOUT_HALF_SIZE,
+        );
 
         let transform = effective_transform(
             track,
             node_overrides,
             time_ms,
             "transform",
+            reads.transform,
             [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         );
         let transform_affine = kurbo::Affine::new([
@@ -632,10 +639,14 @@ impl Timeline {
                 if debug_options.compute_hit_regions {
                     hit_regions.push((node_label.to_string(), world_bounds));
                 }
-                self.eval_caches
-                    .precise_bounds_cache
-                    .borrow_mut()
-                    .insert(node_label.to_string(), world_bounds);
+                // PF-4: reuse a pooled key instead of allocating a fresh
+                // `String` per node per frame. The map is emptied at frame
+                // start, so the pooled key is always rewritten before insert.
+                let mut key =
+                    self.eval_caches.bounds_key_pool.borrow_mut().pop().unwrap_or_default();
+                key.clear();
+                key.push_str(node_label);
+                self.eval_caches.precise_bounds_cache.borrow_mut().insert(key, world_bounds);
             };
             match primitive_dispatch {
                 Some(commands) => {
@@ -1233,7 +1244,16 @@ impl Timeline {
         } else {
             cached.precise_bounds.clone()
         };
-        *self.eval_caches.precise_bounds_cache.borrow_mut() = restored_bounds;
+        // PF-4: a cache hit REPLACES the whole bounds map. Return the current
+        // map's keys to the pool before overwriting, so the restored clone
+        // allocates fresh keys but the pool keeps its budget for the next
+        // miss frame's per-node inserts.
+        {
+            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
+            let keys = bounds.drain().map(|(key, _)| key);
+            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+            *bounds = restored_bounds;
+        }
         *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
         self.eval_caches.hit_regions.borrow_mut().clear();
         // On the scene-only path (no observable item collection) hand back a thin
@@ -1318,7 +1338,13 @@ impl Timeline {
         };
         scene.reset();
         // Precise bounds are only valid for the frame that computed them.
-        self.eval_caches.precise_bounds_cache.borrow_mut().clear();
+        // PF-4: drain the keys into the pool instead of dropping them — the
+        // per-node inserts below re-use the allocations.
+        {
+            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
+            let keys = bounds.drain().map(|(key, _)| key);
+            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+        }
         let bg_color = self.background_color.evaluate_copy(time_ms);
         // Share the frame's background color with the per-node primitive
         // EvaluateCtx (legend label-contrast) without re-sampling the constant

@@ -243,7 +243,11 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > map machinery ≈30%, allocator ≈18%, scene_eval inlined bodies ≈13%,
 > `resolve_property` 3.6% (→2.0% after the pre-resolved transform reads),
 > property-track sampling ≈6%, layout 2.6%, `evaluate_vector_paths` 1.4%
-> (→ early-out), vello encode ≈2.8%.
+> (→ early-out), vello encode ≈2.8%. After round 3 (pre-resolved
+> `size`/`transform` reads + pooled `precise_bounds_cache` label keys),
+> `resolve_property` no longer appears in the profile at all and
+> `stage/sample` sits at 22.2 µs (cumulative 34.7 → 22.2 = −36% over three
+> rounds).
 
 ### 3.6 Result ledger & reporting
 

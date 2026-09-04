@@ -619,6 +619,13 @@ struct EvalCaches {
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
     precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
+    /// Reused `String` keys drained from `precise_bounds_cache` (PF-4). The
+    /// bounds map is emptied and rebuilt every frame; pooling the keys turns
+    /// one alloc+free per node per frame into a `Vec` pop/push. Pure allocation
+    /// reuse — keys are always cleared and rewritten before insert, and the
+    /// map itself is still emptied every frame, so no stale entry can ever be
+    /// observed.
+    bounds_key_pool: std::cell::RefCell<Vec<String>>,
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
@@ -1193,7 +1200,13 @@ impl Timeline {
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
-        *self.eval_caches.precise_bounds_cache.borrow_mut() = std::collections::HashMap::new();
+        {
+            // Drain the bounds keys into the pool (same allocation reuse as the
+            // per-frame clear in `evaluate_program_inner`).
+            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
+            let keys = bounds.drain().map(|(key, _)| key);
+            self.eval_caches.bounds_key_pool.borrow_mut().extend(keys);
+        }
         self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
     }
