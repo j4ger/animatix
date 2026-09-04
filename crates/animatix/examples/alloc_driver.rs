@@ -27,7 +27,7 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-#[path = "scenario_60actors.rs"]
+#[path = "common/scenario_60actors.rs"]
 mod scenario;
 
 fn main() {

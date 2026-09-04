@@ -19,7 +19,7 @@
 
 use std::time::Duration;
 
-#[path = "scenario_60actors.rs"]
+#[path = "common/scenario_60actors.rs"]
 mod scenario;
 
 fn main() {
