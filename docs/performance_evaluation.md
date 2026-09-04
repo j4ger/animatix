@@ -390,7 +390,17 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > `git checkout HEAD -- src` between the flag and the re-measure discarded
 > the first copy of this change; it was replayed from the recorded edits
 > and verified against the pre-loss alloc numbers (204.2 blocks) before
-> committing.
+> committing. A second full-suite run flagged five more build-path benches
+> (`rebuild` +12%, `simple_build_only` +7.7%, `modules_full` +6.9%,
+> `frame_env_only` +6.1%, `components_full` +5.8%); isolation results:
+> `rebuild` 2.026 ms (+1.1%), `frame_env_only` 299.9 ns (**bit-identical**),
+> `modules_full`/`components_full` matching the adjacent A/B (session
+> drift) — only `simple_build_only` +2.8% may be a real per-declaration
+> memo/RefCell overhead on the declaration path, accepted against the
+> evaluate-path wins and far below any keystroke-latency concern. Note:
+> `Environment::set`'s get_mut-first ordering double-hashes keys on a
+> *fresh* environment (pool-cold paths) — measured invisible at this
+> scale; revisit only if a build-path regression reproduces.
 
 > **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
 > unreliable for hot-path attribution twice — one-time setup (fontdb scans,
