@@ -96,7 +96,7 @@ impl Timeline {
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
     ) -> NodeTransform {
         use crate::timeline::property_engine::{
-            effective_f32, effective_transform, effective_vec2,
+            effective_f32_resolved, effective_transform, effective_vec2,
         };
 
         // ── Position: special handling for anchor/binding ──
@@ -138,9 +138,18 @@ impl Timeline {
             } else {
                 track.geometry.motion_offset.get(time_ms, [0.0, 0.0])
             };
-        let rotation = effective_f32(track, node_overrides, time_ms, "rotation", 0.0) as f64;
-        let scale = effective_f32(track, node_overrides, time_ms, "scale", 1.0) as f64;
-        let opacity = effective_f32(track, node_overrides, time_ms, "opacity", 1.0);
+        // PF-4: the three scalar reads resolve their registry entries once per
+        // process instead of hashing the property name on every node every
+        // frame; semantics are unchanged (see `effective_f32_resolved`).
+        let reads = crate::timeline::property_registry::transform_property_reads();
+        let rotation =
+            effective_f32_resolved(track, node_overrides, time_ms, "rotation", reads.rotation, 0.0)
+                as f64;
+        let scale =
+            effective_f32_resolved(track, node_overrides, time_ms, "scale", reads.scale, 1.0)
+                as f64;
+        let opacity =
+            effective_f32_resolved(track, node_overrides, time_ms, "opacity", reads.opacity, 1.0);
         let half_size =
             effective_vec2(track, node_overrides, time_ms, "size", DEFAULT_LAYOUT_HALF_SIZE);
 

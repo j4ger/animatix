@@ -230,6 +230,20 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > 34.7 → 26.2 µs (−24%, reproduced 3×, `build_frame_env` control flat). When a
 > stage bench reports an unexplained residue, probe the paths OUTSIDE the
 > instrumented stage names before trusting a sub-stage attribution.
+>
+> **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
+> unreliable for hot-path attribution twice — one-time setup (fontdb scans,
+> roxmltree/chumsky parse) and suite neighbours contaminate the capture, and
+> per-node probe push/pops (~55–90 ns each) swamp sub-5 µs stages.
+> `crates/animatix/examples/perf_driver.rs` runs the stage_breakdown scenario
+> in a tight loop with a settle phase:
+> `perf record -e cycles:u -c 50001 -- taskset -c 0 target/release/examples/perf_driver`
+> yields a clean function-level ranking (604k samples). With the layout cache
+> fixed (PF-4), the closed attribution for the evaluate loop is: string-keyed
+> map machinery ≈30%, allocator ≈18%, scene_eval inlined bodies ≈13%,
+> `resolve_property` 3.6% (→2.0% after the pre-resolved transform reads),
+> property-track sampling ≈6%, layout 2.6%, `evaluate_vector_paths` 1.4%
+> (→ early-out), vello encode ≈2.8%.
 
 ### 3.6 Result ledger & reporting
 

@@ -1143,10 +1143,35 @@ pub(crate) fn effective_f32(
     name: &str,
     default: f32,
 ) -> f32 {
+    effective_f32_resolved(
+        track,
+        overrides,
+        time_ms,
+        name,
+        crate::timeline::property_registry::resolve_property(name),
+        default,
+    )
+}
+
+/// [`effective_f32`] with the registry entry pre-resolved by the caller.
+///
+/// The registry lookup is a process-constant string hash; the transform path
+/// reads the same five properties on every node every frame and resolves them
+/// once instead (PF-4). Semantics are identical: the modifier override wins
+/// first — so an override still applies even if the property were somehow
+/// unregistered — then the schema/slot read, then `default`.
+pub(crate) fn effective_f32_resolved(
+    track: &AnimationTrack,
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+    time_ms: u64,
+    name: &str,
+    resolved: crate::timeline::property_registry::ResolvedPropertyRead,
+    default: f32,
+) -> f32 {
     if let Some(Value::Num(v)) = overrides.and_then(|ov| ov.get(name)) {
         return *v as f32;
     }
-    if let Some((schema, slot)) = crate::timeline::property_registry::resolve_property(name)
+    if let Some((schema, slot)) = resolved
         && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::F32(v) = pv
     {

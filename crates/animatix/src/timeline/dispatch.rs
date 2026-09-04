@@ -364,9 +364,18 @@ impl AnimationTrack {
     }
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
+    ///
+    /// PF-4: when the actor has no `vector_paths` track (every geometric shape
+    /// whose path the primitive derives from `shape_type` + size), the previous
+    /// code constructed two throwaway `PropertyTrack`s per call, fed them
+    /// through the morph evaluator, and got an empty `Vec` back — measurable
+    /// per-node overhead on the frame path. Returning early is exactly
+    /// equivalent: the empty track's evaluation is `default_value.clone()`,
+    /// which is an empty `Vec`.
     pub fn evaluate_vector_paths(&self, time_ms: u64) -> Vec<VelloPath> {
-        let default_paths = PropertyTrack::new(Vec::new());
-        let paths_track = self.shape.vector_paths.as_ref().unwrap_or(&default_paths);
+        let Some(paths_track) = self.shape.vector_paths.as_ref() else {
+            return Vec::new();
+        };
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
         morph::evaluate_paths_with_options(

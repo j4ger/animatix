@@ -1761,6 +1761,38 @@ pub fn resolve_property(
     Some((&PROPERTY_REGISTRY[index], slot))
 }
 
+/// A registry entry pre-resolved to its schema and plan-slot id.
+pub(crate) type ResolvedPropertyRead =
+    Option<(&'static PropertySchema, Option<animatix_syntax::schema::PropertyId>)>;
+
+/// Pre-resolved registry entries for the fixed transform-path property set
+/// (`rotation`, `scale`, `opacity`, `size`, `transform`).
+///
+/// `evaluate_node_transform` reads these five per node per frame; resolving
+/// them once per process removes a string-hash lookup per property per node
+/// while leaving the read itself (`read_property_value_resolved`) and the
+/// modifier-override check untouched. `None` (property absent from the
+/// registry) is preserved verbatim so behavior matches a failed
+/// `resolve_property` exactly.
+pub(crate) struct TransformPropertyReads {
+    pub rotation: ResolvedPropertyRead,
+    pub scale: ResolvedPropertyRead,
+    pub opacity: ResolvedPropertyRead,
+    pub size: ResolvedPropertyRead,
+    pub transform: ResolvedPropertyRead,
+}
+
+pub(crate) fn transform_property_reads() -> &'static TransformPropertyReads {
+    static CACHE: std::sync::OnceLock<TransformPropertyReads> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| TransformPropertyReads {
+        rotation: resolve_property("rotation"),
+        scale: resolve_property("scale"),
+        opacity: resolve_property("opacity"),
+        size: resolve_property("size"),
+        transform: resolve_property("transform"),
+    })
+}
+
 /// The plan-slot id for a property's storage field, or `None` when the field is
 /// not a tagged slot the runtime plan can serve.
 ///
