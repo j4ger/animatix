@@ -412,9 +412,45 @@ impl Environment {
     }
 
     /// Insert or overwrite a variable in the override layer.
+    ///
+    /// PF-6: on a pooled environment (see
+    /// [`Timeline::build_frame_env_internal`]) the key already exists, so
+    /// `get_mut`-first overwrites the stored value in place — no key copy at
+    /// all. The `insert` path only fires for keys the pool has not seen.
     pub fn set(&mut self, name: &str, value: Value) {
         self.mark_mutated();
-        self.overrides.insert(name.to_string(), value);
+        match self.overrides.get_mut(name) {
+            Some(slot) => *slot = value,
+            None => {
+                self.overrides.insert(name.to_string(), value);
+            },
+        }
+    }
+
+    /// [`Self::set`] taking an owned key (PF-6: callers that already built a
+    /// `String` key move it in instead of paying a second copy inside `set`).
+    pub fn set_owned(&mut self, name: String, value: Value) {
+        self.mark_mutated();
+        match self.overrides.get_mut(name.as_str()) {
+            Some(slot) => *slot = value,
+            None => {
+                self.overrides.insert(name, value);
+            },
+        }
+    }
+
+    /// Reset a pooled environment so it is indistinguishable from a freshly
+    /// built one: a new memoization identity (see [`EnvStamp`]) and cleared
+    /// plot-sampling bindings. The overrides map is deliberately *not*
+    /// cleared — its table capacity and key `String` allocations are the
+    /// whole point of pooling; the frame-env rebuild overwrites every key it
+    /// needs in place via `set`'s `get_mut` fast path.
+    pub(crate) fn reset_for_reuse(&mut self) {
+        self.stamp = EnvStamp {
+            instance: fresh_env_instance(),
+            version: 0,
+        };
+        self.bindings = [None, None];
     }
 
     /// Update one field on a frame-local `Value::Object` variable.

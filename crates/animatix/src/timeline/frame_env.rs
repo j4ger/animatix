@@ -21,20 +21,33 @@ pub(crate) fn apply_override_incremental(
     property: &str,
     value: Value,
 ) {
-    let key = crate::timeline::env_keys::property(label, property);
-    env.set(&key, value.clone());
+    // Build the base key once and mutate it in place for the sub-keys
+    // (PF-6: every `format!` here was a fresh per-override allocation; the
+    // final sub-key moves the base buffer instead of copying it).
+    let mut key = crate::timeline::env_keys::property(label, property);
+    env.set_owned(key.clone(), value.clone());
 
     // Inject typed sub-keys for known compound types
     match &value {
         Value::Vec2([x, y]) => {
-            env.set(&format!("{key}.x"), Value::Num(*x));
-            env.set(&format!("{key}.y"), Value::Num(*y));
+            key.push_str(".x");
+            env.set_owned(key.clone(), Value::Num(*x));
+            key.pop();
+            key.push('y');
+            env.set_owned(key, Value::Num(*y));
         },
         Value::Color([r, g, b, a]) => {
-            env.set(&format!("{key}.r"), Value::Num(*r));
-            env.set(&format!("{key}.g"), Value::Num(*g));
-            env.set(&format!("{key}.b"), Value::Num(*b));
-            env.set(&format!("{key}.a"), Value::Num(*a));
+            key.push_str(".r");
+            env.set_owned(key.clone(), Value::Num(*r));
+            key.pop();
+            key.push('g');
+            env.set_owned(key.clone(), Value::Num(*g));
+            key.pop();
+            key.push('b');
+            env.set_owned(key.clone(), Value::Num(*b));
+            key.pop();
+            key.push('a');
+            env.set_owned(key, Value::Num(*a));
         },
         _ => {},
     }
@@ -45,10 +58,16 @@ pub(crate) fn apply_override_incremental(
         if let Value::Vec2([w, h]) = value {
             let radius_key = crate::timeline::env_keys::property(label, "radius");
             if env.get_ref(&radius_key).is_none() {
-                env.set(&radius_key, Value::Num(w.min(h) / 2.0));
+                env.set_owned(radius_key, Value::Num(w.min(h) / 2.0));
             }
-            env.set(&crate::timeline::env_keys::property(label, "radius_x"), Value::Num(w / 2.0));
-            env.set(&crate::timeline::env_keys::property(label, "radius_y"), Value::Num(h / 2.0));
+            env.set_owned(
+                crate::timeline::env_keys::property(label, "radius_x"),
+                Value::Num(w / 2.0),
+            );
+            env.set_owned(
+                crate::timeline::env_keys::property(label, "radius_y"),
+                Value::Num(h / 2.0),
+            );
         }
     }
 }
@@ -110,15 +129,48 @@ impl Timeline {
             0
         };
         let estimated_capacity = 16 + self.variable_tracks.len() + injected_actors * 120;
-        let mut env = Environment::with_base(std::sync::Arc::clone(&self.env_base));
-        env.overrides.reserve(estimated_capacity);
+        // PF-6 pool: the override-layer key set is identical frame-to-frame
+        // (actor labels × registry properties are build-time-fixed), so the
+        // environment is retained and its keys overwritten in place via
+        // `set`'s `get_mut` fast path; the only cross-frame key-set variance
+        // is a variable track evaluating to `None` before its first keyframe,
+        // which removes the stale key below. `invalidate_frame_cache` drops
+        // the pool on every mutation, and capacity is re-checked as cheap
+        // insurance against a mismatched pooled environment.
+        let mut env = match self.env_pool.borrow_mut().take() {
+            Some(mut pooled) if pooled.overrides.capacity() >= estimated_capacity => {
+                pooled.reset_for_reuse();
+                pooled
+            },
+            Some(stale) => {
+                drop(stale);
+                let mut env = Environment::with_base(std::sync::Arc::clone(&self.env_base));
+                env.overrides.reserve(estimated_capacity);
+                env
+            },
+            None => {
+                let mut env = Environment::with_base(std::sync::Arc::clone(&self.env_base));
+                env.overrides.reserve(estimated_capacity);
+                env
+            },
+        };
+        let env_is_pooled = self.env_pool.borrow().is_none();
         env.set("t", Value::Num(time_ms as f64 / 1000.0));
         env.set("scene_width", Value::Num(scene_dimensions.width as f64));
         env.set("scene_height", Value::Num(scene_dimensions.height as f64));
         // Inject keyframe-scoped variable tracks into the frame environment.
+        // A pooled env may carry a key from a frame where the track still
+        // evaluated to a value; once it returns `None` (before its first
+        // keyframe) that key must be removed so the environment is
+        // indistinguishable from a fresh build.
         for (name, track) in &self.variable_tracks {
-            if let Some(value) = track.evaluate(time_ms) {
-                env.set(name, value);
+            match track.evaluate(time_ms) {
+                Some(value) => env.set(name, value),
+                None => {
+                    if env_is_pooled {
+                        env.overrides.remove(name);
+                    }
+                },
             }
         }
         // Fast path: no modifiers and no procedural plots means no property
@@ -203,7 +255,12 @@ impl Timeline {
                 ("bottom_right", SceneAnchor::BottomRight),
             ] {
                 let point = scene_anchor_point(anchor, dimensions);
-                set_lookup_vec2(env, &format!("scene.{}", suffix), [point.x, point.y]);
+                // PF-6: one key buffer per anchor, mutated in place — three
+                // `format!`-built keys per anchor were three allocations.
+                let mut key = String::with_capacity(8 + suffix.len());
+                key.push_str("scene.");
+                key.push_str(suffix);
+                set_lookup_vec2(env, &key, [point.x, point.y]);
             }
         }
 

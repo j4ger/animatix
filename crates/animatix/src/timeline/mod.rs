@@ -511,6 +511,14 @@ pub struct Timeline {
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
+    /// PF-6: pooled frame environment handed back by the scene-eval path after
+    /// each frame (see `build_frame_env_internal`). Retaining the environment
+    /// keeps the overrides map's table capacity and every key `String`
+    /// allocation alive across frames, so a steady-state evaluate loop builds
+    /// its environment allocation-free. `invalidate_frame_cache` drops it —
+    /// every timeline mutation funnels through that method, which restores
+    /// fresh-build semantics whenever the injection key set may have changed.
+    env_pool: std::cell::RefCell<Option<crate::timeline::Environment>>,
     pub(crate) modifiers: Vec<Stmt>,
     /// Lowered modifier IR programs. Populated during build.
     pub modifier_programs: Vec<ModifierIrProgram>,
@@ -692,6 +700,7 @@ impl Timeline {
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
             extensions: None,
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),
+            env_pool: std::cell::RefCell::new(None),
             modifiers: Vec::new(),
             modifier_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
@@ -1244,6 +1253,11 @@ impl Timeline {
         }
         self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
+        // Drop the pooled frame environment: timeline mutation may change the
+        // injected key set (referenced roots, variable tracks, modifiers), and
+        // every mutation funnels through here, so this single line restores
+        // fresh-build semantics for the PF-6 env pool.
+        *self.env_pool.borrow_mut() = None;
         // Per-track hot-path memos (vector-path Arc sharing) key on this
         // epoch: every mutation funnels through this invalidation, so the
         // bump is the single memo-invalidation point.

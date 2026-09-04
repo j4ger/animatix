@@ -1569,6 +1569,15 @@ impl Timeline {
             *self.eval_caches.scene_buffer.borrow_mut() = Some(program.scene.clone());
         }
 
+        // PF-6: hand the finished frame environment back to the pool — its
+        // overrides map keeps the table capacity and every key `String` alive
+        // for the next frame's in-place rebuild. Only the plain evaluate path
+        // pools; callers that received a cloned env (`local_env` in the plot
+        // path) or built one on demand return nothing here.
+        if let Some(env) = frame_env {
+            *self.env_pool.borrow_mut() = Some(env);
+        }
+
         program
     }
 }
