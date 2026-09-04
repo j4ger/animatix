@@ -371,6 +371,27 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > pooling. The flag-then-isolate protocol from §4 is what kept this round
 > honest.
 
+> **Round 4 (2026-09-04, same day): shared shape bezpaths + a render-path
+> memo.** `VelloPath.path` is now `Arc<BezPath>` (morph/path-list clones
+> become refcount bumps; `Arc::make_mut` preserves the two in-place affine
+> edit sites), and the shape→path conversion is memoized per track:
+> `AnimationTrack::shape_path_memoized(&KurboShape)` keys on the sampled
+> shape (self-validating — geometry change misses and rebuilds; the default
+> tolerance is fixed), with the memo living on `ShapeTracks` and reached
+> through a new `RenderCtx.track` field. rect/ellipse/line/polygon use it;
+> the build-time helper (`build_vector_shape_vello_path`) uses a
+> thread-local scratch track — a throwaway `AnimationTrack::new` per call
+> showed up in the gate as a rebuild regression. Measured: 271.8 →
+> **204.2 blocks**, 41.8 → **18.2 KB** per frame (cumulative vs pre-PF-6:
+> **−66% blocks, −96% bytes**); `stage/sample` 19.6 → **18.0 µs**.
+> Gate flags `rebuild`/`modules_full`/`components_full` (all build-path)
+> failed to reproduce in isolation — adjacent A/B with/without the change
+> measured 4.98 vs 4.98 ms on `modules_full`. Round-trip note: an unforced
+> `git checkout HEAD -- src` between the flag and the re-measure discarded
+> the first copy of this change; it was replayed from the recorded edits
+> and verified against the pre-loss alloc numbers (204.2 blocks) before
+> committing.
+
 > **Steady-state profiling driver (2026-09-03):** Criterion profiles proved
 > unreliable for hot-path attribution twice — one-time setup (fontdb scans,
 > roxmltree/chumsky parse) and suite neighbours contaminate the capture, and
