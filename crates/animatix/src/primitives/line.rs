@@ -50,11 +50,12 @@ impl Primitive for LinePrimitive {
         let VectorShapeState::Line(state) = ctx.state else {
             return None;
         };
-        let path = KurboShape::Line {
+        // PF-6: static endpoints share one memoized BezPath per track.
+        let shape = KurboShape::Line {
             p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
             p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
-        }
-        .to_path_default();
+        };
+        let path = ctx.track.shape_path_memoized(&shape);
         // Line is stroke-only; override fill_opacity to 0
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,

@@ -52,13 +52,14 @@ impl Primitive for RectPrimitive {
         let VectorShapeState::Rect(state) = ctx.state else {
             return None;
         };
-        let path = KurboShape::Rect {
+        // PF-6: static-size rects share one memoized BezPath per track.
+        let shape = KurboShape::Rect {
             x0: -(state.size[0] as f64),
             y0: -(state.size[1] as f64),
             x1: state.size[0] as f64,
             y1: state.size[1] as f64,
-        }
-        .to_path_default();
+        };
+        let path = ctx.track.shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,

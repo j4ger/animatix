@@ -48,21 +48,23 @@ impl Primitive for PolygonPrimitive {
         let VectorShapeState::Polygon(state) = ctx.state else {
             return None;
         };
-        let path = if !state.points.is_empty() {
+        // PF-6: each branch memoizes through the track — the sampled shape is
+        // the key, so static polygons share one BezPath across frames.
+        let shape = if !state.points.is_empty() {
             let points = state
                 .points
                 .iter()
                 .map(|p| kurbo::Point::new(p[0] as f64, p[1] as f64))
                 .collect();
-            KurboShape::Polygon { points }.to_path_default()
+            KurboShape::Polygon { points }
         } else if let Some(custom_path) = &state.custom_path {
             KurboShape::Path {
                 path: custom_path.clone(),
             }
-            .to_path_default()
         } else {
-            KurboShape::Polygon { points: Vec::new() }.to_path_default()
+            KurboShape::Polygon { points: Vec::new() }
         };
+        let path = ctx.track.shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,
@@ -113,7 +115,7 @@ impl Primitive for PolygonPrimitive {
             size: half_size,
             regular_polygon_sides: 0,
             regular_polygon_radius: half_size[0],
-            custom_path: vector_paths.first().map(|vp| vp.path.clone()),
+            custom_path: vector_paths.first().map(|vp| vp.path.as_ref().clone()),
             rotation: if rot != 0.0 { rot } else { 0.0 },
             points,
         };

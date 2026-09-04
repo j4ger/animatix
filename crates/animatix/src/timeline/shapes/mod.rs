@@ -463,10 +463,23 @@ pub fn build_vector_shape_vello_path(
     };
     crate::primitives::find_primitive(type_name)
         .and_then(|primitive| {
-            primitive.render(&crate::primitives::RenderCtx {
-                state,
-                style,
-                time_ms: 0,
+            // Build-time helper (vector-path assignments): a thread-local scratch
+            // track provides the memo home. `AnimationTrack::new` allocates a
+            // dozen property tracks, and this runs inside `Timeline::build` —
+            // allocating one per call showed up as a rebuild regression in the
+            // 2026-09-04 full-suite gate. The memo is self-validating (keyed on
+            // the sampled `KurboShape`), so cross-call reuse is safe.
+            thread_local! {
+                static SCRATCH_TRACK: crate::timeline::AnimationTrack =
+                    crate::timeline::AnimationTrack::new(String::new());
+            }
+            SCRATCH_TRACK.with(|scratch| {
+                primitive.render(&crate::primitives::RenderCtx {
+                    state,
+                    style,
+                    time_ms: 0,
+                    track: scratch,
+                })
             })
         })
         .and_then(|paths| paths.into_iter().next())
@@ -699,7 +712,7 @@ pub fn shape_stroke(
 /// Set `force_stroke` to `true` for stroke-only shapes (Line, Arc) that need
 /// a visible stroke even when the user hasn't explicitly set one.
 pub fn build_vello_path(
-    path: kurbo::BezPath,
+    path: std::sync::Arc<kurbo::BezPath>,
     color: [f32; 4],
     stroke_color: [f32; 4],
     stroke_width: f32,
@@ -781,8 +794,9 @@ pub fn build_shape_vello_path(
         }),
         _ => {
             return VelloPath {
-                path: build_shape(shape_type, size, line_from, line_to, arc_angles)
-                    .to_path_default(),
+                path: std::sync::Arc::new(
+                    build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
+                ),
                 fill: shape_fill_color(shape_type, color, fill_opacity),
                 stroke: shape_stroke(stroke_color, stroke_width),
                 line_cap: 0,
@@ -803,7 +817,9 @@ pub fn build_shape_vello_path(
         },
     )
     .unwrap_or_else(|| VelloPath {
-        path: build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
+        path: std::sync::Arc::new(
+            build_shape(shape_type, size, line_from, line_to, arc_angles).to_path_default(),
+        ),
         fill: shape_fill_color(shape_type, color, fill_opacity),
         stroke: shape_stroke(stroke_color, stroke_width),
         line_cap: 0,

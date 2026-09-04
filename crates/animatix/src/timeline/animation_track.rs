@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
+use super::kurbo_shapes::KurboShape;
 use super::property_track::{Interpolate, PropertyTrack};
 use crate::easing::Easing;
 use crate::renderer::types::{TextPath, VelloPath};
@@ -427,6 +428,13 @@ pub struct ShapeTracks {
     /// Pre-built vector paths for shape rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
+    /// Memoized shape→path conversion for the render path (PF-6): the key is
+    /// the sampled `KurboShape` (self-validating — any geometry change misses
+    /// and rebuilds; the fixed default tolerance is part of the conversion),
+    /// the value is the shared `Arc<BezPath>` the render wraps with fresh
+    /// style. Never serialized (recomputed on demand).
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub shape_path_memo: std::cell::RefCell<Option<(KurboShape, Arc<kurbo::BezPath>)>>,
     /// Shared memo of the last `evaluate_vector_paths` result (PF-4/PF-6:
     /// a static track re-clones its whole path `Vec` every frame; this shares
     /// it as an `Arc` instead). Guarded by [`Self::vector_paths_epoch`], which

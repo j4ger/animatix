@@ -166,7 +166,7 @@ impl Primitive for CalloutPrimitive {
         let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
 
         let arrow_vello = VelloPath {
-            path,
+            path: std::sync::Arc::new(path),
             fill: Some(vello::peniko::Color::from_rgba8(
                 (style.stroke_color[0] * 255.0) as u8,
                 (style.stroke_color[1] * 255.0) as u8,

@@ -839,8 +839,8 @@ pub fn interpolate_vello_paths(
         return result;
     }
 
-    let source_paths: Vec<_> = source.iter().map(|path| path.path.clone()).collect();
-    let target_paths: Vec<_> = target.iter().map(|path| path.path.clone()).collect();
+    let source_paths: Vec<_> = source.iter().map(|path| path.path.as_ref().clone()).collect();
+    let target_paths: Vec<_> = target.iter().map(|path| path.path.as_ref().clone()).collect();
     let aligned_lists =
         align_path_lists_with_strategy(&source_paths, &target_paths, options.strategy);
     aligned_lists
@@ -850,7 +850,12 @@ pub fn interpolate_vello_paths(
             let source_element = source.get(index);
             let target_element = target.get(index);
             VelloPath {
-                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                path: std::sync::Arc::new(morph_paths_with_options(
+                    &source_path,
+                    &target_path,
+                    t as f64,
+                    options,
+                )),
                 fill: match (
                     source_element.and_then(|e| e.fill),
                     target_element.and_then(|e| e.fill),
@@ -1225,14 +1230,14 @@ mod tests {
     #[test]
     fn fade_vello_paths_at_start_returns_only_source() {
         let source = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
             stroke: None,
             line_cap: 0,
             line_join: 0,
         }];
         let target = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
             stroke: None,
             line_cap: 0,
@@ -1255,14 +1260,14 @@ mod tests {
     #[test]
     fn fade_vello_paths_at_end_returns_only_target() {
         let source = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
             stroke: None,
             line_cap: 0,
             line_join: 0,
         }];
         let target = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
             stroke: None,
             line_cap: 0,
@@ -1285,14 +1290,14 @@ mod tests {
     #[test]
     fn fade_vello_paths_at_midpoint_returns_both_halved() {
         let source = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
             stroke: Some((vello::peniko::Color::from_rgba8(255, 255, 255, 100), 2.0)),
             line_cap: 0,
             line_join: 0,
         }];
         let target = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
             stroke: None,
             line_cap: 0,
@@ -1350,7 +1355,7 @@ mod tests {
     fn fade_vello_paths_empty_source() {
         let source: Vec<VelloPath> = vec![];
         let target = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
             stroke: None,
             line_cap: 0,
@@ -1373,7 +1378,7 @@ mod tests {
     #[test]
     fn fade_vello_paths_empty_target() {
         let source = vec![VelloPath {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
             stroke: None,
             line_cap: 0,

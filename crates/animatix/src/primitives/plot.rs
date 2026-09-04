@@ -124,7 +124,7 @@ impl Primitive for PlotCurvePrimitive {
                 .iter()
                 .map(|vp| {
                     let mut trimmed = vp.clone();
-                    trimmed.path = trim_path_by_progress(&vp.path, progress);
+                    trimmed.path = std::sync::Arc::new(trim_path_by_progress(&vp.path, progress));
                     if progress <= 0.0 {
                         // At zero progress, also hide the stroke entirely
                         trimmed.stroke = None;

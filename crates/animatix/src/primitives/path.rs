@@ -48,7 +48,8 @@ impl Primitive for PathPrimitive {
         let VectorShapeState::Path(state) = ctx.state else {
             return None;
         };
-        let path = state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new);
+        let path =
+            std::sync::Arc::new(state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new));
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,
@@ -97,7 +98,7 @@ impl Primitive for PathPrimitive {
 
         let mut state = PathState {
             size: half_size,
-            custom_path: vector_paths.first().map(|vp| vp.path.clone()),
+            custom_path: vector_paths.first().map(|vp| vp.path.as_ref().clone()),
         };
 
         if let Some(overrides) = ctx.overrides {

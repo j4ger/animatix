@@ -1582,7 +1582,7 @@ fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::
         None
     };
     Some(crate::timeline::VelloPath {
-        path,
+        path: std::sync::Arc::new(path),
         fill: Some(fill),
         stroke,
         line_cap: command.line_cap,

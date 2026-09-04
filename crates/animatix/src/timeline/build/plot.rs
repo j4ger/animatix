@@ -126,7 +126,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 &params.p_padding,
             );
             vello_paths.push(VelloPath {
-                path,
+                path: std::sync::Arc::new(path),
                 fill: None,
                 stroke: if params.stroke_width > 0.0 {
                     Some((
@@ -282,7 +282,7 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
                 }
             }
             vello_paths.push(VelloPath {
-                path,
+                path: std::sync::Arc::new(path),
                 fill: None,
                 stroke: if params.stroke_width > 0.0 {
                     Some((
@@ -419,7 +419,7 @@ pub(crate) fn build_graph_axis_paths(
 
     if !axis_path.elements().is_empty() {
         paths.push(VelloPath {
-            path: axis_path,
+            path: std::sync::Arc::new(axis_path),
             fill: None,
             stroke: Some((
                 vello::peniko::Color::from_rgba8(
@@ -461,7 +461,7 @@ pub(crate) fn build_graph_axis_paths(
 
         if !grid_path.elements().is_empty() {
             paths.push(VelloPath {
-                path: grid_path,
+                path: std::sync::Arc::new(grid_path),
                 fill: None,
                 stroke: Some((
                     vello::peniko::Color::from_rgba8(
@@ -507,7 +507,7 @@ pub(crate) fn build_graph_axis_paths(
 
         if !tick_path.elements().is_empty() {
             paths.push(VelloPath {
-                path: tick_path,
+                path: std::sync::Arc::new(tick_path),
                 fill: None,
                 stroke: Some((
                     vello::peniko::Color::from_rgba8(
@@ -1540,7 +1540,7 @@ pub(crate) fn build_number_plane_paths(
 
     if !grid_path.elements().is_empty() {
         paths.push(VelloPath {
-            path: grid_path,
+            path: std::sync::Arc::new(grid_path),
             fill: None,
             stroke: Some((grid_c, 1.0)),
             line_cap: 0,
@@ -1572,7 +1572,7 @@ pub(crate) fn build_number_plane_paths(
 
     if has_axis {
         paths.push(VelloPath {
-            path: axis_path,
+            path: std::sync::Arc::new(axis_path),
             fill: None,
             stroke: Some((axis_c, 2.0)),
             line_cap: 0,
@@ -1614,7 +1614,7 @@ pub(crate) fn build_number_plane_paths(
 
     if !tick_path.elements().is_empty() {
         paths.push(VelloPath {
-            path: tick_path,
+            path: std::sync::Arc::new(tick_path),
             fill: None,
             stroke: Some((axis_c, 1.5)),
             line_cap: 0,
@@ -1786,7 +1786,7 @@ pub(crate) fn build_vector_field_paths(
     );
 
     vec![VelloPath {
-        path,
+        path: std::sync::Arc::new(path),
         fill: None,
         stroke: if stroke_width > 0.0 {
             Some((c, stroke_width))
@@ -1863,7 +1863,7 @@ pub(crate) fn build_heatmap_paths(
             bp.close_path();
 
             vello_paths.push(VelloPath {
-                path: bp,
+                path: std::sync::Arc::new(bp),
                 fill: Some(vello::peniko::Color::from_rgba8(cr, cg, cb, alpha)),
                 stroke: None,
                 line_cap: 0,
@@ -1912,7 +1912,7 @@ pub(crate) fn build_contour_set_paths(
 
         if !bez_path.elements().is_empty() {
             paths.push(VelloPath {
-                path: bez_path,
+                path: std::sync::Arc::new(bez_path),
                 fill: None,
                 stroke: if stroke_width > 0.0 {
                     Some((c, stroke_width))
@@ -2376,7 +2376,7 @@ pub(crate) fn build_bar_chart_paths(
             (stroke_color[3] * 255.0) as u8,
         );
         paths.push(VelloPath {
-            path: axis,
+            path: std::sync::Arc::new(axis),
             fill: None,
             stroke: Some((c, stroke_width.max(1.0))),
             line_cap: 0,
@@ -2428,7 +2428,7 @@ pub(crate) fn build_bar_chart_paths(
         );
 
         paths.push(VelloPath {
-            path: bp,
+            path: std::sync::Arc::new(bp),
             fill: Some(fill_c),
             stroke: if stroke_width > 0.0 {
                 let sc = vello::peniko::Color::from_rgba8(

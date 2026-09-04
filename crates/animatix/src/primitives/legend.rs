@@ -400,7 +400,7 @@ impl Primitive for LegendPrimitive {
             );
             commands.push(RenderCommand::Paths {
                 paths: vec![crate::timeline::VelloPath {
-                    path: swatch_path,
+                    path: std::sync::Arc::new(swatch_path),
                     fill: Some(fill_color),
                     stroke: None,
                     line_cap: 0,
@@ -435,7 +435,7 @@ impl Primitive for LegendPrimitive {
                 );
                 commands.push(RenderCommand::Paths {
                     paths: vec![crate::timeline::VelloPath {
-                        path: fallback_rect.to_path(0.1),
+                        path: std::sync::Arc::new(fallback_rect.to_path(0.1)),
                         fill: Some(Color::from_rgba8(
                             (color_rgba[0] * 255.0) as u8,
                             (color_rgba[1] * 255.0) as u8,

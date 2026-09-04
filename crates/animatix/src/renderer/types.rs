@@ -13,10 +13,17 @@ pub struct TextPath {
 }
 
 /// A path ready for Vello rendering, with optional fill and stroke.
+///
+/// PF-6: the geometry is shared as an `Arc` — morph/track evaluation clones
+/// whole path lists every frame, and cloning 20+ `BezPath`s per actor per
+/// frame was the largest remaining byte churn (alloc_driver 2026-09-04);
+/// with the `Arc` those clones become refcount bumps. Consumers only ever
+/// read the geometry (deref through `Arc` keeps `&path.path` call sites
+/// source-compatible).
 #[derive(Debug, Clone)]
 pub struct VelloPath {
     /// The bezier path geometry.
-    pub path: BezPath,
+    pub path: std::sync::Arc<BezPath>,
     /// Optional fill color.
     pub fill: Option<Color>,
     /// Optional stroke color and width.
@@ -30,7 +37,7 @@ pub struct VelloPath {
 impl Default for VelloPath {
     fn default() -> Self {
         Self {
-            path: BezPath::new(),
+            path: std::sync::Arc::new(BezPath::new()),
             fill: None,
             stroke: None,
             line_cap: 0,

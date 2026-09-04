@@ -336,7 +336,9 @@ pub(super) fn scale_plot_curve_paths(
     let scaled_paths: Vec<VelloPath> = current_paths
         .into_iter()
         .map(|mut vp| {
-            vp.path = scale_transform * vp.path;
+            // Owned geometry (unique Arc here): apply the scale in place
+            // instead of building a second BezPath per path per edit.
+            std::sync::Arc::make_mut(&mut vp.path).apply_affine(scale_transform);
             vp
         })
         .collect();

@@ -113,7 +113,7 @@ impl Primitive for ArrowPrimitive {
         // Arrow is stroke-only (shaft) with a filled arrowhead.
         // The shaft uses stroke_color, the arrowhead triangle is filled with stroke_color.
         Some(vec![VelloPath {
-            path,
+            path: std::sync::Arc::new(path),
             fill: Some(vello::peniko::Color::from_rgba8(
                 (ctx.style.stroke_color[0] * 255.0) as u8,
                 (ctx.style.stroke_color[1] * 255.0) as u8,

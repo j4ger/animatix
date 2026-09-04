@@ -40,7 +40,7 @@ fn seed_svg_track(
             if scale != 1.0 {
                 let affine = kurbo::Affine::scale(scale as f64);
                 for path in &mut parsed_paths {
-                    path.path.apply_affine(affine);
+                    std::sync::Arc::make_mut(&mut path.path).apply_affine(affine);
                 }
             }
             let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);

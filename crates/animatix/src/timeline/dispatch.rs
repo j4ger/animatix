@@ -26,6 +26,7 @@ use super::animation_track::{
     CalloutPlace, FilterTracks, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding,
     ShapeTracks, StyleTracks, TextTracks,
 };
+use super::kurbo_shapes::KurboShape;
 use super::morph;
 use super::property_track::{PropertyTrack, TrackAccessor};
 use crate::easing::Easing;
@@ -404,6 +405,28 @@ impl AnimationTrack {
             }
         }
         Arc::new(self.evaluate_vector_paths_value(time_ms))
+    }
+
+    /// Memoized `KurboShape → BezPath` conversion for the render path (PF-6).
+    ///
+    /// `render()` rebuilds identical geometry every frame for any actor whose
+    /// geometry is static while a sibling animates (forcing a frame-cache
+    /// miss). The memo compares the sampled `KurboShape` — an allocation-free
+    /// equality check — and shares the converted path as an `Arc`, so a
+    /// 60-actor scene with one animated actor stops rebuilding 59 identical
+    /// `Rect` paths per frame (alloc_driver 2026-09-04: ~70 blocks /
+    /// 23.5 KB per frame). The shape value fully determines the path (fixed
+    /// default tolerance), so the memo is self-validating and needs no epoch.
+    pub fn shape_path_memoized(&self, shape: &KurboShape) -> std::sync::Arc<kurbo::BezPath> {
+        use std::sync::Arc;
+        if let Some((cached_shape, shared)) = self.shape.shape_path_memo.borrow().as_ref() {
+            if cached_shape == shape {
+                return Arc::clone(shared);
+            }
+        }
+        let built = Arc::new(shape.to_path_default());
+        *self.shape.shape_path_memo.borrow_mut() = Some((shape.clone(), Arc::clone(&built)));
+        built
     }
 
     /// Unmemoized single evaluation of the vector-path track.

@@ -296,6 +296,7 @@ pub(crate) fn evaluate_shape_render(
             state,
             style,
             time_ms: ctx.time_ms,
+            track: ctx.track,
         })
         .unwrap_or_default();
     if paths.is_empty() {
@@ -417,6 +418,9 @@ pub struct RenderCtx<'a> {
     pub style: VectorShapeStyle,
     /// Current time in milliseconds.
     pub time_ms: u64,
+    /// The actor's track — memoization home for the shape→path conversion
+    /// (PF-6); see `AnimationTrack::shape_path_memoized`.
+    pub track: &'a AnimationTrack,
 }
 
 /// Context passed to `Primitive::evaluate()`.
@@ -555,7 +559,13 @@ impl RenderCommand {
                 for path in paths {
                     if let Some(mut fc) = path.fill {
                         fc = fc.with_alpha(fc.components[3] * opacity);
-                        scene.fill(vello::peniko::Fill::NonZero, *transform, fc, None, &path.path);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            fc,
+                            None,
+                            path.path.as_ref(),
+                        );
                     }
                     if let Some((mut sc, sw)) = path.stroke {
                         sc = sc.with_alpha(sc.components[3] * opacity);
@@ -578,7 +588,7 @@ impl RenderCommand {
                             dash_pattern: Default::default(),
                             dash_offset: 0.0,
                         };
-                        scene.stroke(&stroke, *transform, sc, None, &path.path);
+                        scene.stroke(&stroke, *transform, sc, None, path.path.as_ref());
                     }
                 }
             },

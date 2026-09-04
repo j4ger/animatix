@@ -1353,7 +1353,7 @@ fn sample_curve_plot_source(
             &plot.padding,
         );
         vello_paths.push(VelloPath {
-            path,
+            path: std::sync::Arc::new(path),
             fill: None,
             stroke: if plot.stroke_width > 0.0 {
                 Some((
@@ -1496,7 +1496,7 @@ fn sample_curve_plot_source(
         }
     }
     vello_paths.push(VelloPath {
-        path,
+        path: std::sync::Arc::new(path),
         fill: None,
         stroke: if plot.stroke_width > 0.0 {
             Some((

@@ -50,12 +50,13 @@ impl Primitive for EllipsePrimitive {
         let VectorShapeState::Ellipse(state) = ctx.state else {
             return None;
         };
-        let path = KurboShape::Ellipse {
+        // PF-6: static-size ellipses share one memoized BezPath per track.
+        let shape = KurboShape::Ellipse {
             center: kurbo::Point::new(0.0, 0.0),
             radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
             rotation: state.rotation as f64,
-        }
-        .to_path_default();
+        };
+        let path = ctx.track.shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,

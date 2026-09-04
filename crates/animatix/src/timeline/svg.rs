@@ -50,7 +50,7 @@ pub fn center_svg_paths(paths: &mut [VelloPath]) {
         let offset = kurbo::Affine::translate((-center_x, -center_y));
 
         for path in paths.iter_mut() {
-            path.path.apply_affine(offset);
+            std::sync::Arc::make_mut(&mut path.path).apply_affine(offset);
         }
     }
 }
@@ -134,7 +134,7 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
                     let bez_path = affine * bez_path;
 
                     paths.push(VelloPath {
-                        path: bez_path,
+                        path: std::sync::Arc::new(bez_path),
                         fill: fill_color,
                         stroke: stroke_opts,
                         line_cap: 0,

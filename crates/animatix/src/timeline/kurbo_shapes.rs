@@ -16,7 +16,11 @@ use kurbo::{Arc, BezPath, Ellipse, Line, Point, Rect, Shape, Vec2};
 pub const DEFAULT_TOLERANCE: f64 = 0.1;
 
 /// Enum representing all supported kurbo shapes
-#[derive(Clone, Debug)]
+///
+/// `PartialEq` exists for the per-track shape→path memo (PF-6): comparing the
+/// sampled `KurboShape` fingerprint is allocation-free, and inequality means
+/// the memoized `Arc<BezPath>` must be rebuilt.
+#[derive(Clone, Debug, PartialEq)]
 pub enum KurboShape {
     /// Axis-aligned rectangle defined by min and max coordinates
     Rect {
