@@ -1467,15 +1467,16 @@ impl Timeline {
             // and their vello encoding is reused on subsequent frames. Dimensions
             // and item collection are part of the key so different canvas sizes or
             // observable-program requests cannot reuse an incompatible entry.
-            // Hit-region evaluation is never cached because a cache hit would
-            // skip the per-node bounds collection.
-            if filter_backend.is_none()
-                && !debug_options.compute_hit_regions
-                && self.is_static_subtree(root)
-            {
+            // PF-11: hit regions no longer opt out — the entry captures the
+            // subtree's (label, rect) pairs once and restores them on hits, so
+            // the GUI (which always requests `compute_hit_regions` for picking)
+            // keeps its static-subtree reuse.
+            if filter_backend.is_none() && self.is_static_subtree(root) {
                 let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
                 let cache = self.eval_caches.static_subtree_cache.borrow_mut();
-                if let Some((cached_scene, cached_bounds, cached_items)) = cache.get(&cache_key) {
+                if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
+                    cache.get(&cache_key)
+                {
                     // Fast path: append cached encoding directly and restore the
                     // precise bounds that were computed for this subtree.
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
@@ -1484,6 +1485,9 @@ impl Timeline {
                         for &(slot, rect) in cached_bounds {
                             table.write(slot, rect);
                         }
+                    }
+                    if debug_options.compute_hit_regions {
+                        hit_regions.extend(cached_hit_regions.iter().cloned());
                     }
                     if let Some(items) = program_items.as_mut() {
                         items.extend(cached_items.iter().cloned());
@@ -1502,6 +1506,7 @@ impl Timeline {
                     } else {
                         None
                     };
+                    let subtree_hits_before = hit_regions.len();
                     self.evaluate_node(
                         root,
                         time_ms,
@@ -1522,14 +1527,18 @@ impl Timeline {
                     if let Some(items) = program_items.as_mut() {
                         items.extend(subtree_items.iter().cloned());
                     }
+                    // Capture the subtree's hit regions once (only collected
+                    // when requested; see the cache-key's debug_options).
+                    let new_hit_regions: Vec<(String, kurbo::Rect)> =
+                        hit_regions[subtree_hits_before..].to_vec();
                     // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
                     let new_bounds: Vec<(u32, kurbo::Rect)> =
                         self.eval_caches.precise_bounds.borrow().pairs_from(subtree_written_before);
-                    self.eval_caches
-                        .static_subtree_cache
-                        .borrow_mut()
-                        .insert(cache_key, (temp_scene, new_bounds, subtree_items));
+                    self.eval_caches.static_subtree_cache.borrow_mut().insert(
+                        cache_key,
+                        (temp_scene, new_bounds, subtree_items, new_hit_regions),
+                    );
                 }
             } else {
                 self.evaluate_node(

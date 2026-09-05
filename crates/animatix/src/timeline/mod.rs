@@ -491,6 +491,9 @@ type StaticSubtreeEntry = (
     // Bounds captured for this subtree as `(bounds_slot, rect)` pairs.
     Vec<(u32, kurbo::Rect)>,
     Vec<crate::timeline::scene_program::SceneItem>,
+    // Hit regions captured for this subtree (only populated when the cache
+    // key's `compute_hit_regions` was set — the GUI always sets it).
+    Vec<(String, kurbo::Rect)>,
 );
 
 /// Compiled animation package containing the full scene graph, tracks, and

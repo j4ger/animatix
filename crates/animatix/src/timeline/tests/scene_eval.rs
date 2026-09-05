@@ -256,7 +256,7 @@ fn static_scene_only_cache_does_not_collect_items() {
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
     let scene_only_key = ("box1".to_string(), dims, false, DebugRenderOptions::default());
-    let (_, _, items) =
+    let (_, _, items, _) =
         cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
     assert!(items.is_empty(), "scene-only evaluation must not collect SceneItems");
     assert!(
@@ -313,7 +313,7 @@ fn static_program_after_scene_only_still_collects_items() {
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
     let program_key = ("box1".to_string(), dims, true, DebugRenderOptions::default());
-    let (_, _, items) = cache
+    let (_, _, items, _) = cache
         .get(&program_key)
         .expect("program static subtree should be cached separately");
     assert!(!items.is_empty());
