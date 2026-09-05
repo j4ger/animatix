@@ -49,5 +49,5 @@ pub use encode::{
     render_video_timeline_with_settings,
 };
 #[cfg(feature = "render")]
-pub use offscreen::{OffscreenRenderer, RenderedFrame};
+pub use offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
 pub use transition::TransitionCompositor;

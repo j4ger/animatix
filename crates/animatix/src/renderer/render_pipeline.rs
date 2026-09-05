@@ -11,7 +11,7 @@ use tracing::info;
 
 use crate::composition::Composition;
 use crate::renderer::encode::ExportError;
-use crate::renderer::offscreen::{OffscreenRenderer, RenderedFrame};
+use crate::renderer::offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// Fill an `AVFrame` with a borrowed RGBA buffer.
@@ -97,18 +97,38 @@ where
 
         handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
             let mut renderer = renderer;
-            for frame in start..end {
-                let time = (frame as f64) / (fps as f64);
+            let dims = SceneDimensions { width, height };
+            // PF-7 pipelined readback: queue frame N+1's GPU work BEFORE
+            // waiting on frame N's pixels, so the GPU renders while the CPU
+            // copies/sends/encodes. One frame of latency, wall time drops
+            // from CPU+GPU to ~max(CPU, GPU).
+            let times: Vec<f64> = (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
+            let mut pending = Some(
+                renderer
+                    .begin_frame_with_debug(&timeline, times[0], dims, debug_options)
+                    .map_err(|e| ExportError::FrameRender {
+                        frame: start,
+                        message: e,
+                    })?,
+            );
+            for (offset, &time) in times.iter().enumerate().skip(1) {
+                let frame = start + offset;
+                let next = renderer
+                    .begin_frame_with_debug(&timeline, time, dims, debug_options)
+                    .map_err(|e| ExportError::FrameRender { frame, message: e })?;
                 let rendered = renderer
-                    .render_timeline_with_debug(
-                        &timeline,
-                        time,
-                        SceneDimensions { width, height },
-                        debug_options,
-                    )
+                    .wait_frame(pending.take().expect("pending consumed exactly once"))
                     .map_err(|e| ExportError::FrameRender { frame, message: e })?;
                 sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
+                pending = Some(next);
             }
+            let rendered = renderer
+                .wait_frame(pending.take().expect("pending consumed exactly once"))
+                .map_err(|e| ExportError::FrameRender {
+                    frame: end,
+                    message: e,
+                })?;
+            sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
             Ok(())
         }));
     }
@@ -211,12 +231,17 @@ where
         handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
             let mut renderer = renderer;
             let dims = SceneDimensions { width, height };
-            for frame in start..end {
-                let global_time = (frame as f64) / (fps as f64);
+            let global_times: Vec<f64> =
+                (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
+            // PF-7 pipelined readback: queue frame N+1's GPU work BEFORE
+            // waiting on frame N's pixels (see the single-scene loop).
+            let queue_frame = |renderer: &mut OffscreenRenderer,
+                               frame: usize,
+                               global_time: f64|
+             -> Result<PendingFrame, ExportError> {
                 let (scene_name, local_time_s, transition_blend) =
                     composition.evaluate(global_time);
-
-                let rendered = if let Some(blend) = transition_blend {
+                if let Some(blend) = transition_blend {
                     // Phase 7: transition blending — composite two scenes
                     let from_scene =
                         composition.scenes.get(&blend.from_scene).ok_or_else(|| {
@@ -238,7 +263,7 @@ where
                         }
                     })?;
                     renderer
-                        .render_transition(
+                        .begin_transition(
                             &from_scene.timeline,
                             blend.from_local,
                             &to_scene.timeline,
@@ -249,7 +274,7 @@ where
                             dims,
                             debug_options,
                         )
-                        .map_err(|e| ExportError::FrameRender { frame, message: e })?
+                        .map_err(|e| ExportError::FrameRender { frame, message: e })
                 } else {
                     // Single active scene — no transition
                     let scene_timeline = composition.scenes.get(&scene_name).ok_or_else(|| {
@@ -260,17 +285,33 @@ where
                     })?;
 
                     renderer
-                        .render_timeline_with_debug(
+                        .begin_frame_with_debug(
                             &scene_timeline.timeline,
                             local_time_s,
                             dims,
                             debug_options,
                         )
-                        .map_err(|e| ExportError::FrameRender { frame, message: e })?
-                };
+                        .map_err(|e| ExportError::FrameRender { frame, message: e })
+                }
+            };
 
+            let mut pending = Some(queue_frame(&mut renderer, start, global_times[0])?);
+            for (offset, &global_time) in global_times.iter().enumerate().skip(1) {
+                let frame = start + offset;
+                let next = queue_frame(&mut renderer, frame, global_time)?;
+                let rendered = renderer
+                    .wait_frame(pending.take().expect("pending consumed exactly once"))
+                    .map_err(|e| ExportError::FrameRender { frame, message: e })?;
                 sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
+                pending = Some(next);
             }
+            let rendered = renderer
+                .wait_frame(pending.take().expect("pending consumed exactly once"))
+                .map_err(|e| ExportError::FrameRender {
+                    frame: end,
+                    message: e,
+                })?;
+            sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
             Ok(())
         }));
     }

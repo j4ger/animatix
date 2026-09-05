@@ -30,7 +30,10 @@ pub struct OffscreenRenderer {
     core: RendererCore,
     output_texture: Option<wgpu::Texture>,
     output_view: Option<wgpu::TextureView>,
-    output_buffer: Option<wgpu::Buffer>,
+    /// Two rotating MAP_READ buffers for the pipelined readback (PF-7): while
+    /// frame N's copy is mapped/encoded, frame N+1's copy lands in the other
+    /// buffer — one-frame GPU/CPU overlap without corrupting a mapped buffer.
+    readback_buffers: [Option<wgpu::Buffer>; 2],
     texture_a: Option<wgpu::Texture>,
     view_a: Option<wgpu::TextureView>,
     texture_b: Option<wgpu::Texture>,
@@ -45,6 +48,22 @@ pub struct OffscreenRenderer {
     /// handed out again once the encoder drops its reference — the 720p RGBA
     /// readback was 3.7 MB allocated per frame (93% of export-path churn).
     readback_buffer: Option<std::sync::Arc<Vec<u8>>>,
+    /// Next `readback_buffers` slot for `queue_readback`.
+    readback_slot: usize,
+}
+
+/// A frame whose GPU readback copy has been queued but not yet waited on.
+///
+/// Plain data — the renderer stays free between `begin_frame` and
+/// `wait_frame`, which is what makes the one-frame overlap possible
+/// (`begin(t1)` before `wait(t0)` keeps the GPU busy while the CPU handles
+/// frame t0's pixels).
+#[derive(Debug)]
+pub struct PendingFrame {
+    buffer: wgpu::Buffer,
+    submission: wgpu::SubmissionIndex,
+    dims: SceneDimensions,
+    bytes_per_row: u32,
 }
 
 impl OffscreenRenderer {
@@ -87,7 +106,7 @@ impl OffscreenRenderer {
             core,
             output_texture: None,
             output_view: None,
-            output_buffer: None,
+            readback_buffers: [None, None],
             texture_a: None,
             view_a: None,
             texture_b: None,
@@ -101,6 +120,7 @@ impl OffscreenRenderer {
             },
             bytes_per_row: 0,
             readback_buffer: None,
+            readback_slot: 0,
         })
     }
 
@@ -123,6 +143,74 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
+        self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
+        self.readback_output(dimensions)
+    }
+
+    /// PF-7 pipelined variant of [`Self::render_timeline_with_debug`]:
+    /// evaluate, render, and queue the readback copy WITHOUT blocking. Pair
+    /// with [`Self::wait_frame`], submitting the NEXT frame before waiting on
+    /// this one, so the GPU renders while the CPU copies/encodes:
+    ///
+    /// ```text
+    /// let mut pending = renderer.begin_frame_with_debug(&t, 0.0, dims, opts)?;
+    /// for time in rest {
+    ///     let next = renderer.begin_frame_with_debug(&t, time, dims, opts)?;
+    ///     let frame = renderer.wait_frame(pending)?;   // overlaps with `time`'s GPU work
+    ///     encode(frame);
+    ///     pending = next;
+    /// }
+    /// let frame = renderer.wait_frame(pending)?;
+    /// ```
+    pub fn begin_frame_with_debug(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<PendingFrame, String> {
+        self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
+        self.begin_readback(dimensions)
+    }
+
+    /// Pipelined variant of [`Self::render_transition`] (see
+    /// [`Self::begin_frame_with_debug`]).
+    pub fn begin_transition(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_id: String,
+        easing: crate::easing::Easing,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<PendingFrame, String> {
+        self.render_transition_to_output(
+            from_timeline,
+            from_time,
+            to_timeline,
+            to_time,
+            progress,
+            transition_id,
+            easing,
+            dimensions,
+            debug_options,
+        )?;
+        self.begin_readback(dimensions)
+    }
+
+    /// Shared tail of `render_timeline_with_debug` / `begin_frame_with_debug`:
+    /// evaluate, render the scene, and blit pending filter composites onto
+    /// the output texture. Leaves the GPU work queued (no readback).
+    fn render_to_output_texture(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<(), String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -174,8 +262,7 @@ impl OffscreenRenderer {
                 composite.alpha,
             );
         }
-
-        self.readback_output(dimensions)
+        Ok(())
     }
 
     /// Render a timeline to the primary offscreen texture (texture_a).
@@ -258,6 +345,36 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
+        self.render_transition_to_output(
+            from_timeline,
+            from_time,
+            to_timeline,
+            to_time,
+            progress,
+            transition_id,
+            easing,
+            dimensions,
+            debug_options,
+        )?;
+        self.readback_output(dimensions)
+    }
+
+    /// Shared tail of `render_transition` / `begin_transition`: render both
+    /// scenes to the intermediate textures, composite onto the output texture.
+    /// Leaves the GPU work queued (no readback).
+    #[allow(clippy::too_many_arguments)]
+    fn render_transition_to_output(
+        &mut self,
+        from_timeline: &Timeline,
+        from_time: f64,
+        to_timeline: &Timeline,
+        to_time: f64,
+        progress: f32,
+        transition_id: String,
+        easing: crate::easing::Easing,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<(), String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -333,22 +450,22 @@ impl OffscreenRenderer {
             )
             .map_err(|e| e.to_string())?;
 
-        self.readback_output(dimensions)
+        Ok(())
     }
 
-    /// Copy the output texture to the output buffer and read back CPU-visible RGBA data.
-    pub fn readback_output(
-        &mut self,
-        dimensions: SceneDimensions,
-    ) -> Result<RenderedFrame, String> {
+    /// Copy the output texture into the rotating readback buffer, submit, and
+    /// return the in-flight frame handle. Does NOT block — pair with
+    /// [`Self::wait_frame`] (or call [`Self::readback_output`] for the
+    /// blocking one-shot).
+    pub fn begin_readback(&mut self, dimensions: SceneDimensions) -> Result<PendingFrame, String> {
         let output_texture = self
             .output_texture
             .as_ref()
             .ok_or_else(|| "Missing offscreen output texture".to_string())?;
-        let output_buffer = self
-            .output_buffer
+        let slot = self.readback_slot;
+        let output_buffer = self.readback_buffers[slot]
             .as_ref()
-            .ok_or_else(|| "Missing offscreen output buffer".to_string())?;
+            .ok_or_else(|| "Missing offscreen readback buffer".to_string())?;
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Offscreen Readback Encoder"),
@@ -376,16 +493,30 @@ impl OffscreenRenderer {
             },
         );
 
-        self.queue.submit(std::iter::once(encoder.finish()));
+        let submission = self.queue.submit(std::iter::once(encoder.finish()));
+        self.readback_slot = (slot + 1) % self.readback_buffers.len();
 
-        let buffer_slice = output_buffer.slice(..);
+        Ok(PendingFrame {
+            buffer: output_buffer.clone(),
+            submission,
+            dims: dimensions,
+            bytes_per_row: self.bytes_per_row,
+        })
+    }
+
+    /// Block until `pending`'s readback copy completed and copy the pixels
+    /// into CPU memory. Waits only for THIS frame's submission — work queued
+    /// after it (e.g. the next `begin_frame`) keeps running on the GPU.
+    pub fn wait_frame(&mut self, pending: PendingFrame) -> Result<RenderedFrame, String> {
+        let dimensions = pending.dims;
+        let buffer_slice = pending.buffer.slice(..);
         let (tx, rx) = std::sync::mpsc::channel();
         buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
             tx.send(result).ok();
         });
         self.device
             .poll(wgpu::PollType::Wait {
-                submission_index: None,
+                submission_index: Some(pending.submission),
                 timeout: None,
             })
             .map_err(|err| format!("Failed to poll GPU device: {err}"))?;
@@ -409,15 +540,15 @@ impl OffscreenRenderer {
         {
             let rgba_mut = std::sync::Arc::make_mut(&mut rgba);
             for y in 0..dimensions.height as usize {
-                let src_row = &data[y * self.bytes_per_row as usize
-                    ..y * self.bytes_per_row as usize + dimensions.width as usize * 4];
+                let src_row = &data[y * pending.bytes_per_row as usize
+                    ..y * pending.bytes_per_row as usize + dimensions.width as usize * 4];
                 let dst_row = &mut rgba_mut
                     [y * dimensions.width as usize * 4..(y + 1) * dimensions.width as usize * 4];
                 dst_row.copy_from_slice(src_row);
             }
         }
         drop(data);
-        output_buffer.unmap();
+        pending.buffer.unmap();
 
         // Park the buffer for the next frame's readback. The parked copy and
         // the returned frame share one allocation: if the consumer still
@@ -430,6 +561,15 @@ impl OffscreenRenderer {
             height: dimensions.height,
             rgba,
         })
+    }
+
+    /// Blocking one-shot readback (queue + wait).
+    pub fn readback_output(
+        &mut self,
+        dimensions: SceneDimensions,
+    ) -> Result<RenderedFrame, String> {
+        let pending = self.begin_readback(dimensions)?;
+        self.wait_frame(pending)
     }
 
     fn ensure_targets(&mut self, dimensions: SceneDimensions) {
@@ -465,12 +605,16 @@ impl OffscreenRenderer {
         self.output_texture = Some(output_texture);
         self.output_view = Some(output_view);
 
-        self.output_buffer = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
-            size: (self.bytes_per_row * dimensions.height) as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            label: Some("Animatix Offscreen Output Buffer"),
-            mapped_at_creation: false,
-        }));
+        // PF-7: two rotating MAP_READ buffers — frame N's pixels are read
+        // (mapped) from slot A while frame N+1's copy lands in slot B.
+        for (i, slot) in self.readback_buffers.iter_mut().enumerate() {
+            *slot = Some(self.device.create_buffer(&wgpu::BufferDescriptor {
+                size: (self.bytes_per_row * dimensions.height) as wgpu::BufferAddress,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                label: Some(&format!("Animatix Offscreen Readback Buffer {i}")),
+                mapped_at_creation: false,
+            }));
+        }
 
         // Texture A (primary intermediate target)
         let texture_a = self.device.create_texture(&wgpu::TextureDescriptor {
@@ -612,6 +756,45 @@ mod readback_reuse_tests {
         // And the held frame's pixels are untouched by the second render.
         let mid = ((60 * held.width + 80) * 4) as usize;
         assert!(held.rgba[mid] > 200, "held frame was clobbered by the next render");
+    }
+
+    /// PF-7: the pipelined begin/wait pair must produce pixels identical to
+    /// the blocking path, across the rotating buffer pair (frame A in slot 0,
+    /// frame B in slot 1, frame C back in slot 0 after A was unmapped).
+    #[test]
+    fn pipelined_frames_match_blocking_path() {
+        let mut pipelined = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let mut blocking = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let timeline = solid_rect_timeline();
+        let dims = SceneDimensions {
+            width: 200,
+            height: 160,
+        };
+
+        // Three in-flight frames exercise the slot rotation.
+        let pending_a = pipelined
+            .begin_frame_with_debug(&timeline, 0.0, dims, DebugRenderOptions::default())
+            .expect("begin a");
+        let pending_b = pipelined
+            .begin_frame_with_debug(&timeline, 0.0, dims, DebugRenderOptions::default())
+            .expect("begin b");
+        let frame_a = pipelined.wait_frame(pending_a).expect("wait a");
+        let pending_c = pipelined
+            .begin_frame_with_debug(&timeline, 0.0, dims, DebugRenderOptions::default())
+            .expect("begin c");
+        let frame_b = pipelined.wait_frame(pending_b).expect("wait b");
+        let frame_c = pipelined.wait_frame(pending_c).expect("wait c");
+
+        let reference = blocking.render_timeline(&timeline, 0.0, dims).expect("blocking");
+        for (name, frame) in [("a", &frame_a), ("b", &frame_b), ("c", &frame_c)] {
+            assert_eq!(frame.rgba.as_ref(), reference.rgba.as_ref(), "frame {name} diverged");
+        }
     }
 }
 
