@@ -362,6 +362,49 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > save this session (two of them flagged build-path benches that failed
 > isolation; this one flagged evaluate-path benches that reproduced).
 
+> **Round 6 (2026-09-05): dense slot-id bounds table — the Round-5
+> prescription, implemented.** The string-keyed `precise_bounds_cache`
+> (plus the `bounds_key_pool` that existed only to feed its keys) is gone.
+> Each `AnimationTrack` carries a `Cell<u32>` slot stamped by a lazily
+> rebuilt sorted-label registry (`invalidate_frame_cache` clears it; the
+> established single-funnel invariant covers every track mutation, and
+> `EvalCaches` resets to `Default` on `Clone`, forcing a re-stamp). The
+> per-frame table is `BoundsTable { slots: Vec<Option<Rect>>, written:
+> Vec<u32> }`: the per-node write is a `Vec` store (no hashing, no key
+> write), the frame-start clear touches only written slots, and the
+> frame-cache entry stashes flat `(slot, rect)` pairs — the scene-only
+> restore is a plain copy with zero per-key allocation. The observable
+> (`collect_items`) path builds `SceneProgram.precise_bounds` (the public
+> label-keyed map) from the table in one pass and leaves the entry pairs
+> empty; its rare hits re-derive slots by binary search — **do not stash
+> pairs there too**: the first cut built both representations per
+> observable miss and measured +24% on `static_50_actors_with_items`
+> (adjacent A/B); the single-representation split is +12–15%, accepted
+> below. Two latent issues fixed along the way: the static-subtree bounds
+> snapshot used a count-based `skip` over *unordered* HashMap iteration
+> (the `written` offset replaces it with exact per-subtree slots), and
+> `pairs_from` needs an explicit `with_capacity` — the filter-map collect
+> otherwise churns ~5 KB/frame in doubling growth. Measured (adjacent A/B,
+> same session/machine): **alloc_driver 204.2 → 168.2 blocks (−17.6%),
+> 18,233 → 15,832 B/frame (−13.2%)**; **perf_driver 474k → 498k frames/12s
+> (+5.1%, reproduced 3×)**; full-gate wins `timeline_evaluate_0s/1s/2s`
+> −53/−50/−51%, `scrub_layout_scene_100frames` −47%, `static_*_actors`
+> −9…−13%, `sample` −22.5%. All 7 gate flags dispositioned by isolation:
+> 5 failed to reproduce (`rebuild`/`simple_full`/`reactive_build_only`/
+> `simple_build_only`/`property_track_evaluate` — build-path or sub-ns
+> benches, §4 contamination again; adjacent A/Bs flat or change-faster);
+> `sample_all_tracks` +4.3% isolated (below the 5% gate — the track struct
+> grew one `Cell<u32>`; 13 ns absolute); `static_50_actors_with_items`
+> +12–15% isolated — **accepted**: the tooling-only path now re-derives the
+> public label map through the slot table (one SipHash per label per
+> observable miss) instead of memcpy-cloning the previous frame's map;
+> GUI/export/CLI never request items, and the same fixture's scene-only
+> twin (`static_50_actors`) improved −12.9%. A zero-hash design was
+> explored and rejected: a persistent map + slot-order vec breaks after
+> `retain` removes entries (bucket order diverges from the order vec).
+> Cumulative vs pre-PF-6: **−72% blocks, −96.8% bytes** per frame.
+
+
 > **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
 > "allocation-free hot path" candidate.** The override-layer key set is
 > identical frame-to-frame (labels × registry properties are build-time
@@ -575,7 +618,8 @@ it moves and the **gate** that protects it.
   `Vec` clones (cache-hit restore, `SceneItem` collection, hit regions).
 - **Approach:** add `perf` memory capture, profile with DHAT/tracy on the
   scenario suite, eliminate steady-state allocation in the hot path.
-- **Status (2026-09-04, five rounds done):** `alloc_driver` + dhat capture
+- **Status (2026-09-04, five rounds done; 2026-09-05 round 6):**
+  `alloc_driver` + dhat capture
   is the memory instrument (see the driver note in §3.5). Ledger: round 1
   frame-env reserve (−81% churn bytes) + the unbounded `bounds_key_pool`
   leak fix (21 GB → 60 MB on `scene_costs`); round 2 vector-path Arc memo +
@@ -583,7 +627,15 @@ it moves and the **gate** that protects it.
   bezpaths — cumulative **−66% blocks / −96% bytes**, `stage/sample`
   −48% (34.7 → 18.0 µs). Round 5 (`precise_bounds` Arc sharing) was
   measured and REVERTED — see the §3.5 Round-5 note; allocation savings do
-  not pay for per-node Arc indirection in the render path.
+  not pay for per-node Arc indirection in the render path. Round 6
+  (2026-09-05) implemented Round 5's prescribed slot-id design: the string
+  map and the key pool are gone entirely (`BoundsTable` + `Cell<u32>`
+  slots, flat pair stash/restore) — **204.2 → 168.2 blocks (−17.6%),
+  18,233 → 15,832 B/frame (−13.2%), perf_driver +5.1%**; cumulative vs
+  pre-PF-6 **−72% blocks / −96.8% bytes**. Remaining: DHAT/peak-RSS on real
+  scenarios (GUI/export); the alloc-lens re-ranking (§3.5 Round-4 list) is
+  the source of truth for what is left in the evaluate loop (env-key
+  `format!` churn is the largest measured residue).
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
