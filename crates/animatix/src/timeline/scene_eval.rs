@@ -641,14 +641,10 @@ impl Timeline {
                 if debug_options.compute_hit_regions {
                     hit_regions.push((node_label.to_string(), world_bounds));
                 }
-                // PF-4: reuse a pooled key instead of allocating a fresh
-                // `String` per node per frame. The map is emptied at frame
-                // start, so the pooled key is always rewritten before insert.
-                let mut key =
-                    self.eval_caches.bounds_key_pool.borrow_mut().pop().unwrap_or_default();
-                key.clear();
-                key.push_str(node_label);
-                self.eval_caches.precise_bounds_cache.borrow_mut().insert(key, world_bounds);
+                // PF-6 slot-id bounds: the frame start stamped every track's
+                // slot, so the write is a `Vec` store — no string key, no hash.
+                let slot = track.bounds_slot.get();
+                self.record_precise_bounds(slot, node_label, world_bounds);
             };
             match primitive_dispatch {
                 Some(commands) => {
@@ -1238,23 +1234,43 @@ impl Timeline {
         {
             return None;
         }
-        // Restore bounds from the source that owns them: the observable path
-        // carries them on the cached program; the scene-only path stashes them
-        // on the entry so the returned program can stay thin.
-        let restored_bounds = if collect_items {
-            cached.program.precise_bounds.clone()
-        } else {
-            cached.precise_bounds.clone()
-        };
-        // PF-4: a cache hit REPLACES the whole bounds map. Return the current
-        // map's keys to the pool before overwriting, so the restored clone
-        // allocates fresh keys but the pool keeps its budget for the next
-        // miss frame's per-node inserts.
+        // Restore bounds from the frame-cache entry. Scene-only entries stash
+        // flat `(slot, rect)` pairs, so the restore is a plain `Vec` copy into
+        // the slot table — no string keys, no per-key allocation. Observable
+        // (collect_items) entries leave the pairs empty (as before, the bounds
+        // live on the cloned program); their rare hits re-derive slots from the
+        // label map by binary search over the registry.
         {
-            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
-            let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.recycle_bounds_keys(keys);
-            *bounds = restored_bounds;
+            let mut table = self.eval_caches.precise_bounds.borrow_mut();
+            table.clear_frame();
+            if collect_items {
+                drop(table);
+                self.ensure_bounds_registry();
+                let pairs: Vec<(u32, kurbo::Rect)> = {
+                    let registry = self.eval_caches.bounds_registry.borrow();
+                    cached
+                        .program
+                        .precise_bounds
+                        .iter()
+                        .filter_map(|(label, rect)| {
+                            let slot = registry
+                                .as_ref()?
+                                .labels
+                                .binary_search_by(|probe| probe.as_str().cmp(label.as_str()))
+                                .ok()? as u32;
+                            Some((slot, *rect))
+                        })
+                        .collect()
+                };
+                let mut table = self.eval_caches.precise_bounds.borrow_mut();
+                for (slot, rect) in pairs {
+                    table.write(slot, rect);
+                }
+            } else {
+                for &(slot, rect) in &cached.precise_bounds {
+                    table.write(slot, rect);
+                }
+            }
         }
         *self.eval_caches.runtime_diagnostics.borrow_mut() = cached.program.diagnostics.clone();
         self.eval_caches.hit_regions.borrow_mut().clear();
@@ -1340,13 +1356,11 @@ impl Timeline {
         };
         scene.reset();
         // Precise bounds are only valid for the frame that computed them.
-        // PF-4: drain the keys into the pool instead of dropping them — the
-        // per-node inserts below re-use the allocations.
-        {
-            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
-            let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.recycle_bounds_keys(keys);
-        }
+        // PF-6 slot-id table: sparse clear of the previous frame's slots, then
+        // stamp every track's slot for this frame (registry rebuilds lazily
+        // after invalidation).
+        self.eval_caches.precise_bounds.borrow_mut().clear_frame();
+        self.ensure_bounds_registry();
         let bg_color = self.background_color.evaluate_copy(time_ms);
         // Share the frame's background color with the per-node primitive
         // EvaluateCtx (legend label-contrast) without re-sampling the constant
@@ -1445,11 +1459,11 @@ impl Timeline {
                     // Fast path: append cached encoding directly and restore the
                     // precise bounds that were computed for this subtree.
                     scene.encoding_mut().append(cached_scene.encoding(), &None);
-                    for (label, bounds) in cached_bounds {
-                        self.eval_caches
-                            .precise_bounds_cache
-                            .borrow_mut()
-                            .insert(label.clone(), *bounds);
+                    {
+                        let mut table = self.eval_caches.precise_bounds.borrow_mut();
+                        for &(slot, rect) in cached_bounds {
+                            table.write(slot, rect);
+                        }
                     }
                     if let Some(items) = program_items.as_mut() {
                         items.extend(cached_items.iter().cloned());
@@ -1457,8 +1471,12 @@ impl Timeline {
                 } else {
                     drop(cache);
                     let mut temp_scene = vello::Scene::new();
-                    let subtree_bounds_before =
-                        self.eval_caches.precise_bounds_cache.borrow().len();
+                    // Snapshot offset into the frame's `written` list: entries
+                    // appended during this subtree's evaluation are exactly its
+                    // bounds (deterministic, unlike the old count-based skip
+                    // over unordered HashMap iteration).
+                    let subtree_written_before =
+                        self.eval_caches.precise_bounds.borrow().written.len();
                     let mut subtree_items_slot = if collect_items {
                         Some(Vec::new())
                     } else {
@@ -1486,14 +1504,8 @@ impl Timeline {
                     }
                     // Append to main scene and cache for next time.
                     scene.encoding_mut().append(temp_scene.encoding(), &None);
-                    let new_bounds: Vec<(String, kurbo::Rect)> = self
-                        .eval_caches
-                        .precise_bounds_cache
-                        .borrow()
-                        .iter()
-                        .skip(subtree_bounds_before)
-                        .map(|(label, rect)| (label.clone(), *rect))
-                        .collect();
+                    let new_bounds: Vec<(u32, kurbo::Rect)> =
+                        self.eval_caches.precise_bounds.borrow().pairs_from(subtree_written_before);
                     self.eval_caches
                         .static_subtree_cache
                         .borrow_mut()
@@ -1529,18 +1541,31 @@ impl Timeline {
 
         // The program owns the encoded scene; the frame cache keeps a clone
         // for restore, and filter/debug frames park their copy in scene_buffer.
-        // Split the per-frame bounds so a miss frame clones the table exactly
-        // once: on the scene-only path the returned program stays thin (its
-        // precise_bounds are always rebuilt on demand and discarded by
-        // `evaluate`), and the bounds are stashed in the frame-cache entry so a
-        // later hit can restore `precise_bounds_cache`. On the observable
-        // (collect_items) path the full program carries the bounds for tooling
-        // and the cache relies on `program.precise_bounds`.
+        // The slot table builds `program.precise_bounds` (label-keyed, for the
+        // public `SceneProgram` surface) only on the observable path — it has
+        // no production reader outside tooling/tests (checked 2026-09-05), so
+        // the scene-only path skips the label materialization entirely. On the
+        // scene-only path the frame cache gets the flat `(slot, rect)` pairs;
+        // on the observable path the pairs stay empty (the cloned program
+        // carries the label map, and its rare hits re-derive slots from it —
+        // avoids allocating both representations per observable miss).
         let (program_bounds, cached_bounds) = if collect_items {
-            let b = self.eval_caches.precise_bounds_cache.borrow().clone();
-            (b, std::collections::HashMap::new())
+            // One pass over the written slots builds the label-keyed map; the
+            // pre-sized map avoids rehash growth. Registry borrowed in place.
+            let table = self.eval_caches.precise_bounds.borrow();
+            let registry = self.eval_caches.bounds_registry.borrow();
+            let labels = registry.as_ref().map(|r| r.labels.as_slice());
+            let mut b = std::collections::HashMap::with_capacity(table.written.len());
+            for &slot in &table.written {
+                if let Some(rect) = table.slots[slot as usize] {
+                    if let Some(label) = labels.and_then(|l| l.get(slot as usize)) {
+                        b.insert(label.clone(), rect);
+                    }
+                }
+            }
+            (b, Vec::new())
         } else {
-            let b = self.eval_caches.precise_bounds_cache.borrow().clone();
+            let b = self.eval_caches.precise_bounds.borrow().pairs_from(0);
             (std::collections::HashMap::new(), b)
         };
         let program = crate::timeline::scene_program::SceneProgram {
@@ -2015,11 +2040,13 @@ mod tests {
         let timeline = make_minimal_timeline();
         // The declared size box is 100x100 centered at (0,0), but the precise
         // command bounds describe a different world AABB.
+        timeline.ensure_bounds_registry();
+        let slot = timeline.tracks.get("test_box").expect("track").bounds_slot.get();
         timeline
             .eval_caches
-            .precise_bounds_cache
+            .precise_bounds
             .borrow_mut()
-            .insert("test_box".to_string(), kurbo::Rect::new(50.0, 40.0, 100.0, 80.0));
+            .write(slot, kurbo::Rect::new(50.0, 40.0, 100.0, 80.0));
         let (centre, half) = crate::timeline::callout_geometry::TargetResolver::target_bounds(
             &timeline,
             "test_box",
@@ -2043,21 +2070,12 @@ mod tests {
         };
 
         let _scene = timeline.evaluate(0.0, dimensions);
-        assert!(
-            timeline.eval_caches.precise_bounds_cache.borrow().contains_key("test_box"),
-            "precise bounds should be populated after evaluation"
-        );
-
         let cached = timeline
-            .eval_caches
-            .precise_bounds_cache
-            .borrow()
-            .get("test_box")
-            .copied()
-            .expect("cached bounds");
+            .precise_bounds_for("test_box")
+            .expect("precise bounds should be populated after evaluation");
         let _scene = timeline.evaluate(0.0, dimensions);
         assert_eq!(
-            timeline.eval_caches.precise_bounds_cache.borrow().get("test_box").copied(),
+            timeline.precise_bounds_for("test_box"),
             Some(cached),
             "frame-cache hit should restore precise bounds"
         );

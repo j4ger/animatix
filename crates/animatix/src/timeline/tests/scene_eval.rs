@@ -707,7 +707,7 @@ fn runtime_empty_text_override_clears_stale_glyphs() {
     // reusing the cached build-time content, so no precise bounds are recorded.
     let _scene = timeline.evaluate(0.0, dimensions);
     assert!(
-        !timeline.eval_caches.precise_bounds_cache.borrow().contains_key("counter"),
+        timeline.precise_bounds_for("counter").is_none(),
         "empty runtime text override should clear visible content"
     );
 }

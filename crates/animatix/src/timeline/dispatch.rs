@@ -87,6 +87,13 @@ pub struct AnimationTrack {
     /// once consumed so later actions never stomp an intentional value.
     #[cfg_attr(feature = "serde", serde(default))]
     pub hidden_by_default: bool,
+    /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
+    /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
+    /// `tracks` order and invalidated via `invalidate_frame_cache`; the
+    /// per-node bounds write is then a `Vec` store with no string key.
+    /// `u32::MAX` until first stamped.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) bounds_slot: std::cell::Cell<u32>,
 
     // ── Geometry tier (sub-struct) ──
     /// Geometry property tracks (position, size, rotation, scale, etc.).
@@ -209,6 +216,7 @@ impl AnimationTrack {
             visible: true,
             locked: false,
             hidden_by_default: false,
+            bounds_slot: std::cell::Cell::new(u32::MAX),
 
             // Geometry tier (sub-struct)
             geometry: GeometryTracks::default(),

@@ -487,7 +487,8 @@ type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
 /// scene-only entry and report empty items.
 type StaticSubtreeEntry = (
     vello::Scene,
-    Vec<(String, kurbo::Rect)>,
+    // Bounds captured for this subtree as `(bounds_slot, rect)` pairs.
+    Vec<(u32, kurbo::Rect)>,
     Vec<crate::timeline::scene_program::SceneItem>,
 );
 
@@ -595,12 +596,11 @@ pub(crate) struct FrameCacheEntry {
     /// Scene-only cache hits clone `program.scene` directly; the full program
     /// is only cloned back on the observable (collect_items) restore path.
     program: crate::timeline::scene_program::SceneProgram,
-    /// Per-frame world-space bounds, stored so a scene-only cache hit can
-    /// restore `precise_bounds_cache` without re-encoding the scene. These are
-    /// kept separate from `program.precise_bounds` (which stays empty on the
-    /// scene-only path) so a miss frame only clones the bounds table once
-    /// instead of twice (program field + `program.clone()` for the cache).
-    precise_bounds: std::collections::HashMap<String, kurbo::Rect>,
+    /// Per-frame world-space bounds as `(bounds_slot, rect)` pairs, stored so
+    /// a scene-only cache hit can restore `precise_bounds` without re-encoding
+    /// the scene. Kept separate from `program.precise_bounds` (which stays an
+    /// empty map on the scene-only path); restoring is a flat `Vec` copy.
+    precise_bounds: Vec<(u32, kurbo::Rect)>,
     /// Whether the cached program was requested with observable item collection.
     collect_items: bool,
 }
@@ -626,14 +626,17 @@ struct EvalCaches {
     static_subtree_flags: std::cell::RefCell<std::collections::HashMap<String, bool>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
-    precise_bounds_cache: std::cell::RefCell<std::collections::HashMap<String, kurbo::Rect>>,
-    /// Reused `String` keys drained from `precise_bounds_cache` (PF-4). The
-    /// bounds map is emptied and rebuilt every frame; pooling the keys turns
-    /// one alloc+free per node per frame into a `Vec` pop/push. Pure allocation
-    /// reuse — keys are always cleared and rewritten before insert, and the
-    /// map itself is still emptied every frame, so no stale entry can ever be
-    /// observed.
-    bounds_key_pool: std::cell::RefCell<Vec<String>>,
+    /// Precise world-space bounds for the current frame, indexed by
+    /// [`AnimationTrack::bounds_slot`] instead of actor label (PF-6 slot-id
+    /// design: the per-node write is a `Vec` store, the frame-cache stash and
+    /// restore are flat `Vec<(u32, Rect)>` copies, and the string-keyed map
+    /// machinery — per-node hashing, pooled-key bookkeeping, per-key `String`
+    /// clones on restore — is gone entirely).
+    precise_bounds: std::cell::RefCell<BoundsTable>,
+    /// Label↔slot identity for [`Self::precise_bounds`]: sorted track labels,
+    /// rebuilt lazily (cleared by `invalidate_frame_cache`, whose funnel
+    /// invariant covers every track mutation). `None` until first needed.
+    bounds_registry: std::cell::RefCell<Option<BoundsRegistry>>,
     runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
@@ -642,34 +645,86 @@ struct EvalCaches {
     background_color: std::cell::Cell<[f32; 4]>,
 }
 
-impl EvalCaches {
-    /// Maximum pooled-key budget for [`Self::recycle_bounds_keys`]. A miss
-    /// frame pops at most one key per node, so a few hundred keys cover any
-    /// real scene. The cap matters because pure cache-hit workloads drain and
-    /// re-extend the pool every frame without ever popping: unbounded, the
-    /// pool grew by one key per node per hit — `restore_frame_cache` on a
-    /// 50-actor scene accumulated 15M live blocks / ~700 MB over 300k frames
-    /// (`examples/leak_probe.rs`, found 2026-09-04; the leak predates the
-    /// vector-path and empty-layout changes and explains the suite's
-    /// intermittent OOM deaths around the `scene_costs` benches).
-    const BOUNDS_KEY_POOL_CAP: usize = 512;
+/// Dense per-frame precise-bounds storage (PF-6 slot-id design).
+///
+/// `slots` is indexed by [`AnimationTrack::bounds_slot`], which `ensure_bounds_registry`
+/// stamps once per rebuild (sorted `tracks` order — deterministic and stable for the
+/// lifetime of one `Timeline`). `written` lists the slots touched this frame so the
+/// per-frame clear, the frame-cache stash, and the restore are all flat
+/// `Vec<(u32, kurbo::Rect)>` work with no string keys, hashing, or per-key allocation.
+#[derive(Default)]
+struct BoundsTable {
+    slots: Vec<Option<kurbo::Rect>>,
+    written: Vec<u32>,
+}
 
-    /// Return drained bounds-map keys to [`Self::bounds_key_pool`], keeping at
-    /// most [`Self::BOUNDS_KEY_POOL_CAP`] pooled keys. Surplus keys are
-    /// dropped: a miss frame only pops one key per node, so keys beyond the
-    /// cap would never be consumed anyway — and pure cache-hit workloads drain
-    /// + re-extend the pool every frame, which made an unbounded pool grow by
-    /// one key per node per hit forever.
-    fn recycle_bounds_keys<I>(&self, keys: I)
-    where
-        I: IntoIterator<Item = String>,
-    {
-        let mut pool = self.bounds_key_pool.borrow_mut();
-        if pool.len() >= Self::BOUNDS_KEY_POOL_CAP {
+impl BoundsTable {
+    /// Record bounds for `slot`, appending to [`Self::written`] on first write.
+    fn write(&mut self, slot: u32, rect: kurbo::Rect) {
+        let index = slot as usize;
+        if index >= self.slots.len() {
+            // Only reachable if tracks changed without `invalidate_frame_cache`
+            // (every public mutator funnels through it). Log rather than panic.
+            tracing::warn!("bounds slot {slot} outside registry; bounds dropped for this frame");
             return;
         }
-        let room = Self::BOUNDS_KEY_POOL_CAP - pool.len();
-        pool.extend(keys.into_iter().take(room));
+        if self.slots[index].is_none() {
+            self.written.push(slot);
+        }
+        self.slots[index] = Some(rect);
+    }
+
+    /// Clear the current frame's entries. Sparse: touches only written slots.
+    fn clear_frame(&mut self) {
+        for &slot in &self.written {
+            self.slots[slot as usize] = None;
+        }
+        self.written.clear();
+    }
+
+    /// `(slot, bounds)` pairs for every recorded entry, optionally starting
+    /// from a `written` offset (used to snapshot a single static subtree).
+    /// Pre-sized from `written` so the frame-end stash is one allocation
+    /// (the filter-map iterator alone would grow the Vec by doubling).
+    fn pairs_from(&self, from: usize) -> Vec<(u32, kurbo::Rect)> {
+        let mut pairs = Vec::with_capacity(self.written.len() - from);
+        pairs.extend(self.written[from..].iter().filter_map(|&slot| {
+            let rect = self.slots[slot as usize]?;
+            Some((slot, rect))
+        }));
+        pairs
+    }
+}
+
+/// Sorted track labels giving [`AnimationTrack::bounds_slot`] values their
+/// meaning; rebuilt whenever `invalidate_frame_cache` clears it.
+#[derive(Clone)]
+struct BoundsRegistry {
+    /// Slot index → label, in `tracks` (BTreeMap) order, so slot numbering is
+    /// deterministic. `bounds_slot` lookups by label binary-search this.
+    labels: Vec<String>,
+}
+
+impl EvalCaches {
+    /// Stamp [`AnimationTrack::bounds_slot`] for every track and (re)build the
+    /// label registry. Cheap no-op while the registry is valid; invalidated by
+    /// `invalidate_frame_cache` (the single track-mutation funnel) and by
+    /// `Clone` (EvalCaches reset to `Default`).
+    fn ensure_bounds_registry(&self, tracks: &std::collections::BTreeMap<String, AnimationTrack>) {
+        if self.bounds_registry.borrow().is_some() {
+            return;
+        }
+        let labels: Vec<String> = tracks.keys().cloned().collect();
+        {
+            let mut table = self.precise_bounds.borrow_mut();
+            table.clear_frame();
+            table.slots.clear();
+            table.slots.resize(labels.len(), None);
+        }
+        for (slot, track) in tracks.values().enumerate() {
+            track.bounds_slot.set(slot as u32);
+        }
+        *self.bounds_registry.borrow_mut() = Some(BoundsRegistry { labels });
     }
 }
 
@@ -1188,6 +1243,44 @@ impl Timeline {
     /// Returns true if the actor and all its descendants have no keyframes
     /// and the timeline has no modifiers that could affect them.
     /// Fully-static subtrees can have their rendered output cached (P2.17).
+    /// Stamp [`AnimationTrack::bounds_slot`] values and (re)build the label
+    /// registry if invalid. See [`EvalCaches::ensure_bounds_registry`].
+    pub(crate) fn ensure_bounds_registry(&self) {
+        self.eval_caches.ensure_bounds_registry(&self.tracks);
+    }
+
+    /// Precise world-space bounds for `label` recorded during the current
+    /// frame, if any. Lookup path for [`TargetResolver::target_bounds`];
+    /// point queries are rare (a few targeted callouts/lines/arrows per
+    /// frame), so a binary search over the sorted registry is plenty.
+    pub(crate) fn precise_bounds_for(&self, label: &str) -> Option<kurbo::Rect> {
+        self.ensure_bounds_registry();
+        let registry = self.eval_caches.bounds_registry.borrow().clone()?;
+        let slot = registry.labels.binary_search_by(|probe| probe.as_str().cmp(label)).ok()?;
+        self.eval_caches.precise_bounds.borrow().slots.get(slot).copied().flatten()
+    }
+
+    /// Record `rect` as the world-space bounds of the node at `stamped_slot`
+    /// (from [`AnimationTrack::bounds_slot`]) during the current frame.
+    ///
+    /// `label` is only consulted on the slow path — when the slot was never
+    /// stamped (track added mid-frame without the invalidation funnel) — to
+    /// rebuild the registry once and retry.
+    pub(crate) fn record_precise_bounds(&self, stamped_slot: u32, label: &str, rect: kurbo::Rect) {
+        let mut slot = stamped_slot;
+        if slot == u32::MAX {
+            self.ensure_bounds_registry();
+            slot = self.tracks.get(label).map(|t| t.bounds_slot.get()).unwrap_or(u32::MAX);
+            if slot == u32::MAX {
+                // Unreachable while the invalidation funnel holds; log rather
+                // than silently dropping the bounds.
+                tracing::warn!("no bounds slot for track '{label}'; bounds dropped for this frame");
+                return;
+            }
+        }
+        self.eval_caches.precise_bounds.borrow_mut().write(slot, rect);
+    }
+
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
         // Memoized: `compute_static_subtree` walks the property registry and the
         // whole subtree, and the frame path asks once per root *per frame*. That
@@ -1245,12 +1338,12 @@ impl Timeline {
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
         {
-            // Drain the bounds keys into the pool (same allocation reuse as the
-            // per-frame clear in `evaluate_program_inner`).
-            let mut bounds = self.eval_caches.precise_bounds_cache.borrow_mut();
-            let keys = bounds.drain().map(|(key, _)| key);
-            self.eval_caches.recycle_bounds_keys(keys);
+            // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).
+            self.eval_caches.precise_bounds.borrow_mut().clear_frame();
         }
+        // Bounds slots are registry-stamped; a track mutation can change the
+        // label set, so drop the registry and let it rebuild lazily.
+        *self.eval_caches.bounds_registry.borrow_mut() = None;
         self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
         // Drop the pooled frame environment: timeline mutation may change the

@@ -40,7 +40,7 @@ impl TargetResolver for Timeline {
         // Prefer the exact world AABB emitted from render commands on the
         // current frame. This reflects text/path/image geometry in addition to
         // the declared size box and works for already-evaluated targets.
-        if let Some(rect) = self.eval_caches.precise_bounds_cache.borrow().get(name).copied() {
+        if let Some(rect) = self.precise_bounds_for(name) {
             let centre = rect.center();
             let half = rect.size() * 0.5;
             return Some((
