@@ -404,6 +404,32 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > `retain` removes entries (bucket order diverges from the order vec).
 > Cumulative vs pre-PF-6: **−72% blocks, −96.8% bytes** per frame.
 
+> **Round 7 (2026-09-05): one shared key buffer across the frame-env
+> injection — the top allocation-lens residue.** The dhat stacks attributed
+> the remaining evaluate-path `String` churn to `format!`-built env keys:
+> `set_lookup_vec2/color` sub-keys (`.x`/`.y`/`.r`…), the overrides loop,
+> the radius-derivation block, `inject_property_into_env`'s per-track
+> `String::with_capacity`, and `apply_override_incremental`'s
+> `property()` + owned-key clones. The whole injection chain now threads
+> ONE `String` buffer (`env_keys::property_into` keeps the key-shape
+> single-source convention; `inject_*` take `key: &mut String`;
+> `apply_override_incremental` uses a `thread_local` buffer — no reentrancy,
+> `env.set` cannot call back). On the pooled env every write goes through
+> `set`'s get_mut-first path, so the steady-state frame performs **zero key
+> allocations**; fresh builds pay `to_string` inside `set` on cold misses
+> only. Measured (adjacent A/B): **alloc_driver 168.2 → 100.2 blocks
+> (−40%), 15,832 → 14,580 B/frame (−8%)**; perf_driver 498k → 520k
+> frames/12s (**+4.4%**, 3× reproduced). Gate: 5 flags, all dispositioned —
+> `offscreen_100_actors` +24.6% and `simple_parse_only` +5.0% measured
+> change-faster-or-flat in adjacent A/Bs (culling-early-return path barely
+> touches injection; the parser is untouched), `property_track_evaluate`
+> +139% is the sub-ns bench flipping direction run-to-run (it measured
+> *faster* in the round-6 isolation), `sample_all_tracks` +17.9% gate /
+> +4.3% isolated (the documented per-track `Cell`, below gate),
+> `static_50_actors_with_items` +12.2% = the accepted round-6 tooling-path
+> cost. Cumulative vs pre-PF-6: **−83% blocks, −97.1% bytes** per frame.
+
+
 
 > **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
 > "allocation-free hot path" candidate.** The override-layer key set is
@@ -631,11 +657,12 @@ it moves and the **gate** that protects it.
   (2026-09-05) implemented Round 5's prescribed slot-id design: the string
   map and the key pool are gone entirely (`BoundsTable` + `Cell<u32>`
   slots, flat pair stash/restore) — **204.2 → 168.2 blocks (−17.6%),
-  18,233 → 15,832 B/frame (−13.2%), perf_driver +5.1%**; cumulative vs
-  pre-PF-6 **−72% blocks / −96.8% bytes**. Remaining: DHAT/peak-RSS on real
-  scenarios (GUI/export); the alloc-lens re-ranking (§3.5 Round-4 list) is
-  the source of truth for what is left in the evaluate loop (env-key
-  `format!` churn is the largest measured residue).
+  18,233 → 15,832 B/frame (−13.2%), perf_driver +5.1%**. Round 7 (same
+  day) removed the top allocation residue: one shared key buffer across
+  the frame-env injection chain — **168.2 → 100.2 blocks (−40%),
+  15,832 → 14,580 B/frame, perf_driver +4.4%**; cumulative vs
+  pre-PF-6 **−83% blocks / −97.1% bytes**. Remaining: DHAT/peak-RSS on
+  real scenarios (GUI/export).
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
