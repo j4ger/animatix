@@ -103,6 +103,9 @@ fn main() {
     for i in 0..30u32 {
         render_frame(&mut renderer, ((i % 30) as f64) / fps);
     }
+    // Flush settle-phase stage entries (the initial Timeline::build among
+    // them) so the measured window starts from an empty ledger.
+    perf::take_measurements();
 
     // ── Measured window ──
     let mut stage_sum: std::collections::HashMap<String, std::time::Duration> =
