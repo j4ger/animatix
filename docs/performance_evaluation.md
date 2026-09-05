@@ -731,8 +731,26 @@ it moves and the **gate** that protects it.
   pre-PF-6 **−94.6% blocks / −98.0% bytes**. Round 9 (same day) profiled
   the export path for the first time (`export_alloc_driver`, real `.amx`
   projects) and recycled the CPU readback buffer — **3.97 MB → 282 KB per
-  frame, peak 5.9 → 2.3 MB** on `dashboard_story`; the text/Typst path is
-  the next export-path target.
+  frame, peak 5.9 → 2.3 MB** on `dashboard_story`. Round 10 (same day)
+  took the export lens to the text-heavy scene the round-9 ranking
+  pointed at — and found the churn was NOT text: `fft_explain`'s 533 KB
+ /frame was the plot-closure evaluation chain (`Value::clone` 223
+  blocks — `merge_missing_into` deep-cloned a captured FFT sample array
+  via `env.get` just to test presence, per sample point; sampler caches
+  growing un-resized). Fixes: the presence test borrows (`get_ref`);
+  `Value::List` is `Arc<[Value]>` so every list clone in the
+  inject/eval/remove cycle is a refcount bump (same pattern as the
+  `VelloPath.path` memo); sampler caches pre-sized (256). Measured:
+  **fft_explain 533.6 → 425.0 KB/frame (−20%), blocks 2059 → 1502
+  (−27%)**; `dashboard_story` flat (no lists). Cost: build benches carry
+  a small real overhead from the extra `Arc` allocation per list
+  construction — `simple_build_only` +2.8…3% isolated (adjacent A/B,
+  3× reproduced), accepted per the round-4 precedent (build is
+  keystroke-latency, ~230 µs against a 16.7 ms budget); the heavier
+  build benches drifted +5…8% in gates both before and after the
+  change. Residual export-path ranking: wgpu-internal bookkeeping
+  (176 KB/frame, not ours) and text recompiles for genuinely animated
+  content.
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
