@@ -669,6 +669,12 @@ impl Timeline {
                             });
                         }
                     }
+                    // Shape-primitive commands came from the track's command
+                    // memo on a hit — hand the buffers back so the next frame
+                    // can take them again (PF-6 round 8; `take_shape_commands`
+                    // returns `None` for non-memo actors, so a recycle of a
+                    // foreign `Vec` is simply dropped by the memo).
+                    track.recycle_shape_commands(commands);
                     record_hit_region(local_bounds);
 
                     // Debug overlays

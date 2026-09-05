@@ -284,32 +284,164 @@ pub fn sample_shape_style(
     }
 }
 
+/// Memoized single-command output for the six vector-shape primitives.
+///
+/// The primitive `evaluate()` signature returns an owned `Vec<RenderCommand>`
+/// (extension ABI — not changeable), so the steady-state frame paid two heap
+/// allocations per static shape actor per frame (the command `Vec` plus the
+/// inner paths `Vec`) even though every input is identical frame-to-frame.
+/// The memo caches that `Vec` on the track, keyed by the *complete* render
+/// input: every shape primitive's `render()` is a pure function of
+/// `(style, state)` — anchor references and `always` overrides are resolved
+/// into the state by the `evaluate()` wrappers *before* this function is
+/// called (audited 2026-09-05; `PartialEq` on the state enums pins that
+/// contract for future variants). The borrow protocol ("single master, take
+/// and return") makes a memo hit fully allocation-free:
+///
+/// - **hit** (inputs equal): `take_shape_commands` hands the cached `Vec` to
+///   the caller, which encodes it into the frame's vello scene, clones it for
+///   the observable `SceneItem` when item collection is requested, and hands
+///   it back via `recycle_shape_commands` — the next frame's hit reuses the
+///   same buffers.
+/// - **miss** (inputs changed): the caller builds a fresh `Vec`, clones it
+///   once into the memo slot, and still returns the fresh one.
+///
+/// `epoch` is `vector_paths_epoch` — the same invalidation funnel as the
+/// PF-6 path memo (`invalidate_frame_cache`), which every track mutation
+/// goes through; a stale epoch fails the key match and forces a rebuild.
+/// Deliberately not part of the frame cache or `static_subtree_cache`: those
+/// replay cached encodings and never re-run `evaluate()`, so they cannot
+/// observe a stale memo.
+#[derive(Default, Clone, Debug)]
+pub(crate) struct ShapeCommandMemo {
+    epoch: u64,
+    style: Option<crate::timeline::VectorShapeStyle>,
+    state: Option<crate::timeline::VectorShapeState>,
+    commands: Option<Vec<RenderCommand>>,
+}
+
+impl ShapeCommandMemo {
+    /// True when the memo holds commands built from exactly
+    /// `(epoch, style, state)`.
+    fn matches(
+        &self,
+        epoch: u64,
+        style: &crate::timeline::VectorShapeStyle,
+        state: &crate::timeline::VectorShapeState,
+    ) -> bool {
+        self.commands.is_some()
+            && self.epoch == epoch
+            && self.style.as_ref() == Some(style)
+            && self.state.as_ref() == Some(state)
+    }
+
+    fn store(
+        &mut self,
+        epoch: u64,
+        style: crate::timeline::VectorShapeStyle,
+        state: &crate::timeline::VectorShapeState,
+        commands: Vec<RenderCommand>,
+    ) {
+        self.epoch = epoch;
+        self.style = Some(style);
+        self.state = Some(state.clone());
+        self.commands = Some(commands);
+    }
+}
+
+impl crate::timeline::AnimationTrack {
+    /// Take the memoized command `Vec` out of the slot for reuse by the
+    /// caller (see [`ShapeCommandMemo`]). `None` when the inputs changed;
+    /// a stale epoch also drops the stale payload so it can never be served.
+    pub(crate) fn take_shape_commands(
+        &self,
+        epoch: u64,
+        style: &crate::timeline::VectorShapeStyle,
+        state: &crate::timeline::VectorShapeState,
+    ) -> Option<Vec<RenderCommand>> {
+        let mut memo = self.shape_command_memo.borrow_mut();
+        if memo.matches(epoch, style, state) {
+            return memo.commands.take();
+        }
+        if memo.epoch != epoch {
+            // Stale epoch: drop the payload AND the key, so a recycle of a
+            // post-bump build can never later match against the pre-bump key.
+            memo.epoch = epoch;
+            memo.commands = None;
+            memo.style = None;
+            memo.state = None;
+        }
+        None
+    }
+
+    /// Build the fresh command `Vec` for this shape actor and stash a clone
+    /// in the memo slot (see [`ShapeCommandMemo`]).
+    pub(crate) fn build_shape_commands(
+        &self,
+        epoch: u64,
+        style: crate::timeline::VectorShapeStyle,
+        state: &crate::timeline::VectorShapeState,
+        primitive: &dyn Primitive,
+        time_ms: u64,
+    ) -> Result<Vec<RenderCommand>, crate::renderer::error::RenderError> {
+        let paths = primitive
+            .render(&RenderCtx {
+                state,
+                style,
+                time_ms,
+                track: self,
+            })
+            .unwrap_or_default();
+        if paths.is_empty() {
+            // A shape producing no paths means "nothing to draw" — not an
+            // error. Log at debug so a silently invisible shape is observable
+            // in trace output without spamming per-frame warn logs.
+            tracing::debug!(
+                "shape primitive '{}' produced no paths at t={time_ms}ms",
+                primitive.type_name()
+            );
+        }
+        let commands = vec![RenderCommand::Paths { paths }];
+        // Stash only when the slot is empty: a full slot means the previous
+        // frame's payload was never taken (dynamic inputs) — keeping the
+        // older valid payload avoids a clone per frame on dynamic actors
+        // (the key match still guards staleness).
+        let mut memo = self.shape_command_memo.borrow_mut();
+        if memo.commands.is_none() {
+            memo.store(epoch, style, state, commands.clone());
+        }
+        Ok(commands)
+    }
+
+    /// Return a consumed command `Vec` to the memo slot so the next frame's
+    /// hit can take it again (see [`ShapeCommandMemo`]). A `Vec` that did not
+    /// come from the slot (double recycle, foreign build) is dropped.
+    pub(crate) fn recycle_shape_commands(&self, commands: Vec<RenderCommand>) {
+        let mut memo = self.shape_command_memo.borrow_mut();
+        if memo.commands.is_none() {
+            memo.commands = Some(commands);
+        }
+    }
+}
+
 /// Helper: sample style, render shape, wrap in RenderCommand::Paths.
+///
+/// Static-shape actors hit [`ShapeCommandMemo`] and get the cached command
+/// `Vec` back allocation-free (take / encode / recycle); only a changed
+/// `(style, state)` rebuilds.
 pub(crate) fn evaluate_shape_render(
     primitive: &dyn Primitive,
     ctx: &EvaluateCtx,
     state: &VectorShapeState,
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-    let paths = primitive
-        .render(&RenderCtx {
-            state,
-            style,
-            time_ms: ctx.time_ms,
-            track: ctx.track,
-        })
-        .unwrap_or_default();
-    if paths.is_empty() {
-        // A shape producing no paths means "nothing to draw" — not an error.
-        // Log at debug so a silently invisible shape is observable in trace
-        // output without spamming per-frame warn logs.
-        tracing::debug!(
-            "shape primitive '{}' produced no paths at t={}ms",
-            primitive.type_name(),
-            ctx.time_ms
-        );
+    let epoch = ctx.track.shape.vector_paths_epoch.get();
+    if let Some(commands) = ctx.track.take_shape_commands(epoch, &style, state) {
+        return Ok(Some(commands));
     }
-    Ok(Some(vec![RenderCommand::Paths { paths }]))
+    ctx.track
+        .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)
+        .map(Some)
 }
 
 // ── Re-export all primitive modules ──────────────────────────────────────

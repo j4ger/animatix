@@ -9,7 +9,7 @@
 //! | Constructor | Shape | Used for |
 //! |---|---|---|
 //! | [`native_fn`] | `label.method` | Graph NativeFns (`g.map`, `g.map_inverse`) registered at build and resolved by modifier-IR method calls |
-//! | [`property`] | `label.property` | Frame-time property injections (`ring.radius_x`, ...) |
+//! | [`property_into`] | `label.property` | Frame-time property injections (`ring.radius_x`, ...) |
 //! | [`side_channel`] | `label_prop` | Build-time side-channel values (`g_size`) read back by hosted-plot children |
 //! | *(syntax crate)* | `base__index` | Array actor tracks use `animatix_syntax::ast::array_actor_label` — that constructor is canonical, do not re-spell the shape |
 
@@ -20,15 +20,12 @@ pub(crate) fn native_fn(label: &str, method: &str) -> String {
     format!("{label}.{method}")
 }
 
-/// Env key for an injected frame-time property (`ring.radius_x`).
-pub(crate) fn property(label: &str, prop: &str) -> String {
-    format!("{label}.{prop}")
-}
-
-/// [`property`]'s shape written into a reusable buffer (PF-6: the frame-env
-/// injection path builds every key through this so the steady-state frame
-/// performs zero key allocations — `out` is cleared, never read before write).
-/// Callers append sub-key suffixes (`.x`, `.y`, …) to the same buffer.
+/// Env key for an injected frame-time property (`ring.radius_x`), written
+/// into a reusable buffer (PF-6: the frame-env injection path builds every
+/// key through this so the steady-state frame performs zero key allocations
+/// — `out` is cleared, never read before write). Callers append sub-key
+/// suffixes (`.x`, `.y`, …) to the same buffer. The key shape is
+/// `{label}.{prop}` — modifier-IR and expression lookups must match it.
 pub(crate) fn property_into(label: &str, prop: &str, out: &mut String) {
     out.clear();
     out.push_str(label);

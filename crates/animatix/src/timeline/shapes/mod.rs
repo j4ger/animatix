@@ -92,7 +92,7 @@ impl Interpolate for ShapeType {
 }
 
 /// State for a rectangle shape.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RectState {
     /// Width and height of the rectangle.
     pub size: [f32; 2],
@@ -105,7 +105,7 @@ impl Default for RectState {
 }
 
 /// State for an ellipse (or arc) shape.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EllipseState {
     /// Width and height of the ellipse.
     pub size: [f32; 2],
@@ -126,7 +126,7 @@ impl Default for EllipseState {
 }
 
 /// State for a line shape, optionally with an arrow tip.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct LineState {
     /// tip_length, tip_width (0.0 = no arrow)
     pub size: [f32; 2],
@@ -147,7 +147,7 @@ impl Default for LineState {
 }
 
 /// State for a polygon shape, regular or custom.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PolygonState {
     /// Width and height of the polygon bounding box.
     pub size: [f32; 2],
@@ -177,7 +177,7 @@ impl Default for PolygonState {
 }
 
 /// State for a free-form path shape.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PathState {
     /// Width and height of the path bounding box.
     pub size: [f32; 2],
@@ -195,7 +195,7 @@ impl Default for PathState {
 }
 
 /// State for an arrow shape with a dedicated arrowhead.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ArrowState {
     /// Start point of the arrow.
     pub from: [f32; 2],
@@ -206,7 +206,7 @@ pub struct ArrowState {
 }
 
 /// State for a callout annotation (arrow geometry).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct CalloutState {
     /// Start point of the callout arrow.
     pub from: [f32; 2],
@@ -231,7 +231,7 @@ impl Default for ArrowState {
 /// Previously `VectorShapeState` was a flat struct with dead fields
 /// (e.g. `arc_angles` on Rect, `regular_polygon_sides` on Ellipse).
 /// Now each variant carries exactly the fields it needs.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum VectorShapeState {
     /// Rectangle shape state.
     Rect(RectState),
@@ -317,7 +317,7 @@ impl VectorShapeState {
 }
 
 /// Render style shared by all vector shapes.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct VectorShapeStyle {
     /// Fill / default color as `[r, g, b, a]` in 0..1.
     pub color: [f32; 4],

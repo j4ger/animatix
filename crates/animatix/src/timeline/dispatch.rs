@@ -94,6 +94,17 @@ pub struct AnimationTrack {
     /// `u32::MAX` until first stamped.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) bounds_slot: std::cell::Cell<u32>,
+    /// Memoized single-command output for the vector-shape primitives
+    /// (PF-6 round 8; see `primitives::ShapeCommandMemo`). Keyed on
+    /// `(vector_paths_epoch, style, state)` — every track mutation funnels
+    /// through `invalidate_frame_cache`, which bumps the epoch. Owned-Vec
+    /// borrow protocol: `evaluate_shape_render` takes the cached `Vec` on a
+    /// key match, the frame consumer recycles it after encoding. Boxed to
+    /// keep the per-track inline footprint at one pointer — the memo
+    /// payload is large, and `env_50/100/200` iterate every track per frame
+    /// (an inline struct measurably regressed them via cache pressure).
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) shape_command_memo: std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>,
 
     // ── Geometry tier (sub-struct) ──
     /// Geometry property tracks (position, size, rotation, scale, etc.).
@@ -217,6 +228,9 @@ impl AnimationTrack {
             locked: false,
             hidden_by_default: false,
             bounds_slot: std::cell::Cell::new(u32::MAX),
+            shape_command_memo: std::cell::RefCell::new(Box::new(
+                crate::primitives::ShapeCommandMemo::default(),
+            )),
 
             // Geometry tier (sub-struct)
             geometry: GeometryTracks::default(),
