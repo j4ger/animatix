@@ -7,8 +7,19 @@
 
 use super::{
     Environment, SceneAnchor, SceneDimensions, Timeline, Value, scene_anchor_point,
-    set_lookup_color, set_lookup_vec2,
+    set_lookup_color_into, set_lookup_vec2_into,
 };
+
+thread_local! {
+    /// Reusable env-key buffer for `apply_override_incremental` (PF-6): each
+    /// modifier-IR assignment `format!`-built its key plus one owned clone per
+    /// sub-key; on the pooled env all of those keys already exist, so writing
+    /// through one buffer makes the whole write allocation-free. The buffer
+    /// never escapes and there is no reentrancy (`env.set` cannot call back
+    /// into this function while it is borrowed).
+    static OVERRIDE_KEY: std::cell::RefCell<String> =
+        std::cell::RefCell::new(String::with_capacity(96));
+}
 
 /// Apply a modifier override incrementally to the frame environment.
 ///
@@ -21,55 +32,46 @@ pub(crate) fn apply_override_incremental(
     property: &str,
     value: Value,
 ) {
-    // Build the base key once and mutate it in place for the sub-keys
-    // (PF-6: every `format!` here was a fresh per-override allocation; the
-    // final sub-key moves the base buffer instead of copying it).
-    let mut key = crate::timeline::env_keys::property(label, property);
-    env.set_owned(key.clone(), value.clone());
+    OVERRIDE_KEY.with_borrow_mut(|key| {
+        crate::timeline::env_keys::property_into(label, property, key);
+        env.set(key, value.clone());
 
-    // Inject typed sub-keys for known compound types
-    match &value {
-        Value::Vec2([x, y]) => {
-            key.push_str(".x");
-            env.set_owned(key.clone(), Value::Num(*x));
-            key.pop();
-            key.push('y');
-            env.set_owned(key, Value::Num(*y));
-        },
-        Value::Color([r, g, b, a]) => {
-            key.push_str(".r");
-            env.set_owned(key.clone(), Value::Num(*r));
-            key.pop();
-            key.push('g');
-            env.set_owned(key.clone(), Value::Num(*g));
-            key.pop();
-            key.push('b');
-            env.set_owned(key.clone(), Value::Num(*b));
-            key.pop();
-            key.push('a');
-            env.set_owned(key, Value::Num(*a));
-        },
-        _ => {},
-    }
-
-    // Recalculate derived values when size changes, but don't overwrite
-    // an explicit radius override.
-    if property == "size" {
-        if let Value::Vec2([w, h]) = value {
-            let radius_key = crate::timeline::env_keys::property(label, "radius");
-            if env.get_ref(&radius_key).is_none() {
-                env.set_owned(radius_key, Value::Num(w.min(h) / 2.0));
-            }
-            env.set_owned(
-                crate::timeline::env_keys::property(label, "radius_x"),
-                Value::Num(w / 2.0),
-            );
-            env.set_owned(
-                crate::timeline::env_keys::property(label, "radius_y"),
-                Value::Num(h / 2.0),
-            );
+        // Inject typed sub-keys for known compound types (buffer reused).
+        match &value {
+            Value::Vec2([x, y]) => {
+                let base_len = key.len();
+                key.push_str(".x");
+                env.set(key, Value::Num(*x));
+                key.truncate(base_len);
+                key.push_str(".y");
+                env.set(key, Value::Num(*y));
+            },
+            Value::Color([r, g, b, a]) => {
+                let base_len = key.len();
+                for (suffix, channel) in [(".r", *r), (".g", *g), (".b", *b), (".a", *a)] {
+                    key.push_str(suffix);
+                    env.set(key, Value::Num(channel));
+                    key.truncate(base_len);
+                }
+            },
+            _ => {},
         }
-    }
+
+        // Recalculate derived values when size changes, but don't overwrite
+        // an explicit radius override.
+        if property == "size" {
+            if let Value::Vec2([w, h]) = value {
+                crate::timeline::env_keys::property_into(label, "radius", key);
+                if env.get_ref(key).is_none() {
+                    env.set(key, Value::Num(w.min(h) / 2.0));
+                }
+                crate::timeline::env_keys::property_into(label, "radius_x", key);
+                env.set(key, Value::Num(w / 2.0));
+                crate::timeline::env_keys::property_into(label, "radius_y", key);
+                env.set(key, Value::Num(h / 2.0));
+            }
+        }
+    });
 }
 
 impl Timeline {
@@ -181,9 +183,13 @@ impl Timeline {
         // `has_procedural_plots` walks every track, and a second call was a
         // measurable regression on the env_50/100/200 benches (2026-09-04).
         if !has_runtime_injection {
+            // PF-6: one shared key buffer for the whole injection pass — the
+            // per-track `String::with_capacity` calls were an allocation each.
+            let mut key = String::with_capacity(96);
             for (label, track) in &self.tracks {
                 crate::timeline::property_engine::inject_extension_properties_into_env(
                     &mut env,
+                    &mut key,
                     label,
                     track,
                     time_ms,
@@ -240,7 +246,13 @@ impl Timeline {
                 let [r, g, b, a] = self.background_color.evaluate_copy(time_ms);
                 [r as f64, g as f64, b as f64, a as f64]
             });
-        set_lookup_color(env, "scene.background_color", background_color);
+        // PF-6: one shared key buffer across background color, anchors, and
+        // the track loop below — every `format!`/`with_capacity` here was a
+        // per-frame allocation. Sub-key writes reuse the same buffer in place;
+        // on a pooled env `set`'s get_mut-first path makes them
+        // allocation-free.
+        let mut key = String::with_capacity(96);
+        set_lookup_color_into(env, &mut key, background_color);
 
         if let Some(dimensions) = scene_dimensions {
             for (suffix, anchor) in [
@@ -255,12 +267,10 @@ impl Timeline {
                 ("bottom_right", SceneAnchor::BottomRight),
             ] {
                 let point = scene_anchor_point(anchor, dimensions);
-                // PF-6: one key buffer per anchor, mutated in place — three
-                // `format!`-built keys per anchor were three allocations.
-                let mut key = String::with_capacity(8 + suffix.len());
+                key.clear();
                 key.push_str("scene.");
                 key.push_str(suffix);
-                set_lookup_vec2(env, &key, [point.x, point.y]);
+                set_lookup_vec2_into(env, &mut key, [point.x, point.y]);
             }
         }
 
@@ -275,10 +285,14 @@ impl Timeline {
                     continue;
                 }
             }
-            // Use the centralized injector for base track values.
-            crate::timeline::property_engine::inject_property_into_env(env, label, track, time_ms);
+            // Use the centralized injector for base track values (key buffer
+            // shared with the anchors above).
+            crate::timeline::property_engine::inject_property_into_env(
+                env, &mut key, label, track, time_ms,
+            );
             crate::timeline::property_engine::inject_extension_properties_into_env(
                 env,
+                &mut key,
                 label,
                 track,
                 time_ms,
@@ -288,28 +302,33 @@ impl Timeline {
             // Apply overrides on top (from `always` blocks or modifiers).
             let node_overrides = overrides.and_then(|map| map.get(label));
             if let Some(overrides) = node_overrides {
-                for (key, val) in overrides {
-                    env.set(&crate::timeline::env_keys::property(label, key), val.clone());
-                    // Also inject typed sub-keys for known properties
+                for (okey, val) in overrides {
+                    crate::timeline::env_keys::property_into(label, okey, &mut key);
+                    env.set(&key, val.clone());
+                    // Also inject typed sub-keys for known properties, reusing
+                    // the buffer (PF-6: these were `format!` allocations).
                     match val {
                         Value::Vec2([x, y]) => {
-                            env.set(
-                                &crate::timeline::env_keys::property(label, &format!("{key}.x")),
-                                Value::Num(*x),
-                            );
-                            env.set(
-                                &crate::timeline::env_keys::property(label, &format!("{key}.y")),
-                                Value::Num(*y),
-                            );
+                            let base_len = key.len();
+                            key.push_str(".x");
+                            env.set(&key, Value::Num(*x));
+                            key.truncate(base_len);
+                            key.push_str(".y");
+                            env.set(&key, Value::Num(*y));
                         },
                         Value::Color([r, g, b, a]) => {
-                            env.set(
-                                &crate::timeline::env_keys::property(label, &format!("{key}.r")),
-                                Value::Num(*r),
-                            );
-                            env.set(&format!("{label}.{key}.g"), Value::Num(*g));
-                            env.set(&format!("{label}.{key}.b"), Value::Num(*b));
-                            env.set(&format!("{label}.{key}.a"), Value::Num(*a));
+                            let base_len = key.len();
+                            key.push_str(".r");
+                            env.set(&key, Value::Num(*r));
+                            key.truncate(base_len);
+                            key.push_str(".g");
+                            env.set(&key, Value::Num(*g));
+                            key.truncate(base_len);
+                            key.push_str(".b");
+                            env.set(&key, Value::Num(*b));
+                            key.truncate(base_len);
+                            key.push_str(".a");
+                            env.set(&key, Value::Num(*a));
                         },
                         _ => {},
                     }
@@ -319,17 +338,22 @@ impl Timeline {
             // Recalculate derived values after overrides, but only if size
             // was actually overridden and radius wasn't explicitly set.
             if node_overrides.is_some_and(|o| o.contains_key("size")) {
-                let radius_key = format!("{label}.radius");
-                if env.get_ref(&radius_key).is_none() {
-                    let size_val = env.get(&format!("{label}.size"));
+                crate::timeline::env_keys::property_into(label, "radius", &mut key);
+                if env.get_ref(&key).is_none() {
+                    crate::timeline::env_keys::property_into(label, "size", &mut key);
+                    let size_val = env.get(&key);
                     if let Some(Value::Vec2([w, h])) = size_val {
-                        env.set(&radius_key, Value::Num(w.min(h) / 2.0));
+                        crate::timeline::env_keys::property_into(label, "radius", &mut key);
+                        env.set(&key, Value::Num(w.min(h) / 2.0));
                     }
                 }
-                let size_val = env.get(&format!("{label}.size"));
+                crate::timeline::env_keys::property_into(label, "size", &mut key);
+                let size_val = env.get(&key);
                 if let Some(Value::Vec2([w, h])) = size_val {
-                    env.set(&format!("{label}.radius_x"), Value::Num(w / 2.0));
-                    env.set(&format!("{label}.radius_y"), Value::Num(h / 2.0));
+                    crate::timeline::env_keys::property_into(label, "radius_x", &mut key);
+                    env.set(&key, Value::Num(w / 2.0));
+                    crate::timeline::env_keys::property_into(label, "radius_y", &mut key);
+                    env.set(&key, Value::Num(h / 2.0));
                 }
             }
 

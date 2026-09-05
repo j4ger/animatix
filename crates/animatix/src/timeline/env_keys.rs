@@ -25,6 +25,17 @@ pub(crate) fn property(label: &str, prop: &str) -> String {
     format!("{label}.{prop}")
 }
 
+/// [`property`]'s shape written into a reusable buffer (PF-6: the frame-env
+/// injection path builds every key through this so the steady-state frame
+/// performs zero key allocations — `out` is cleared, never read before write).
+/// Callers append sub-key suffixes (`.x`, `.y`, …) to the same buffer.
+pub(crate) fn property_into(label: &str, prop: &str, out: &mut String) {
+    out.clear();
+    out.push_str(label);
+    out.push('.');
+    out.push_str(prop);
+}
+
 /// Env key for a build-time side-channel value (`g_size`).
 pub(crate) fn side_channel(label: &str, prop: &str) -> String {
     format!("{label}_{prop}")

@@ -237,12 +237,43 @@ pub(crate) fn set_lookup_vec2(env: &mut Environment, key: &str, value: [f64; 2])
     env.set(&format!("{}.y", key), Value::Num(value[1]));
 }
 
+/// [`set_lookup_vec2`] over a reusable key buffer (PF-6): appends `.x`/`.y`
+/// in place instead of `format!`-building two keys per call. `key` is left
+/// holding the base key on return.
+pub(crate) fn set_lookup_vec2_into(env: &mut Environment, key: &mut String, value: [f64; 2]) {
+    env.set(key, Value::Vec2(value));
+    let base_len = key.len();
+    key.push('x');
+    env.set(key, Value::Num(value[0]));
+    key.truncate(base_len);
+    key.push('y');
+    env.set(key, Value::Num(value[1]));
+    key.truncate(base_len);
+}
+
 pub(crate) fn set_lookup_color(env: &mut Environment, key: &str, value: [f64; 4]) {
     env.set(key, Value::Color(value));
     env.set(&format!("{}.r", key), Value::Num(value[0]));
     env.set(&format!("{}.g", key), Value::Num(value[1]));
     env.set(&format!("{}.b", key), Value::Num(value[2]));
     env.set(&format!("{}.a", key), Value::Num(value[3]));
+}
+
+/// [`set_lookup_color`] over a reusable key buffer (PF-6) — same shape as
+/// [`set_lookup_vec2_into`]. `key` is left holding the base key on return.
+pub(crate) fn set_lookup_color_into(env: &mut Environment, key: &mut String, value: [f64; 4]) {
+    env.set(key, Value::Color(value));
+    let base_len = key.len();
+    for (suffix, channel) in [
+        (".r", value[0]),
+        (".g", value[1]),
+        (".b", value[2]),
+        (".a", value[3]),
+    ] {
+        key.push_str(suffix);
+        env.set(key, Value::Num(channel));
+        key.truncate(base_len);
+    }
 }
 
 #[cfg(test)]

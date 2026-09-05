@@ -939,14 +939,17 @@ pub(crate) fn write_string(
 /// every frame.
 pub(crate) fn inject_property_into_env(
     env: &mut Environment,
+    key: &mut String,
     label: &str,
     track: &AnimationTrack,
     time_ms: u64,
 ) {
     use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags, ReadSource};
 
-    // Reusable key buffer to avoid repeated small String allocations.
-    let mut key = String::with_capacity(label.len() + 24);
+    // Reusable key buffer threaded in from the injection caller (PF-6: one
+    // `String::with_capacity` per track per frame was 60 allocations on a
+    // 60-actor scene); the buffer is cleared and reshaped in place.
+    key.clear();
     key.push_str(label);
     key.push('.');
     let prefix_len = key.len();
@@ -981,7 +984,7 @@ pub(crate) fn inject_property_into_env(
         // Inject the value and typed sub-keys (x, y, r, g, b, a).
         key.truncate(prefix_len);
         key.push_str(schema.name);
-        inject_value(env, &mut key, prefix_len, schema.name, &pv);
+        inject_value(env, key, prefix_len, schema.name, &pv);
 
         // Inject the _animating_* flag from the read_source's storage field.
         if let Some(storage) = schema.read_source.storage_field() {
@@ -997,6 +1000,7 @@ pub(crate) fn inject_property_into_env(
 /// Inject external property values into a frame environment.
 pub(crate) fn inject_extension_properties_into_env(
     env: &mut Environment,
+    key: &mut String,
     label: &str,
     track: &AnimationTrack,
     time_ms: u64,
@@ -1009,7 +1013,8 @@ pub(crate) fn inject_extension_properties_into_env(
         return;
     };
 
-    let mut key = String::with_capacity(label.len() + 24);
+    // Same shared-buffer discipline as `inject_property_into_env` (PF-6).
+    key.clear();
     key.push_str(label);
     key.push('.');
     let prefix_len = key.len();
@@ -1023,7 +1028,7 @@ pub(crate) fn inject_extension_properties_into_env(
         };
         key.truncate(prefix_len);
         key.push_str(&spec.name);
-        inject_value(env, &mut key, prefix_len, &spec.name, &pv);
+        inject_value(env, key, prefix_len, &spec.name, &pv);
 
         let animating = track
             .property_plan

@@ -136,7 +136,8 @@ pub use index::TimelineIndex;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
 use lookup::{
     assignment_target_key, best_path_suggestion, evaluate_expr_with_lookup_diagnostic,
-    for_iter_values, parse_color_in_env_with_lookup_diagnostic, set_lookup_color, set_lookup_vec2,
+    for_iter_values, parse_color_in_env_with_lookup_diagnostic, set_lookup_color_into,
+    set_lookup_vec2_into,
 };
 pub(crate) use lookup::{
     evaluate_expr_with_lookup_diagnostic as lookup_evaluate_expr_with_lookup_diagnostic,
