@@ -105,6 +105,12 @@ pub struct AnimationTrack {
     /// (an inline struct measurably regressed them via cache pressure).
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) shape_command_memo: std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>,
+    /// Bounds handed over by a shape-command memo hit (PF-4 scoped item):
+    /// `begin_shape_commands` clears it before primitive evaluation, a memo
+    /// hit offers the build-time-computed bounds, and the frame consumer
+    /// takes them instead of re-unioning `cmd.local_bounds` per node.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub(crate) pending_shape_command_bounds: std::cell::Cell<Option<Option<kurbo::Rect>>>,
 
     // ── Geometry tier (sub-struct) ──
     /// Geometry property tracks (position, size, rotation, scale, etc.).
@@ -231,6 +237,7 @@ impl AnimationTrack {
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),
             )),
+            pending_shape_command_bounds: std::cell::Cell::new(None),
 
             // Geometry tier (sub-struct)
             geometry: GeometryTracks::default(),

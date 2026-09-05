@@ -318,6 +318,10 @@ pub(crate) struct ShapeCommandMemo {
     style: Option<crate::timeline::VectorShapeStyle>,
     state: Option<crate::timeline::VectorShapeState>,
     commands: Option<Vec<RenderCommand>>,
+    /// Local-space bounds of `commands`, computed once at build time — the
+    /// frame path unions `cmd.local_bounds` per node per frame, and for a
+    /// memo hit the answer is identical every frame (PF-4's scoped item).
+    cached_bounds: Option<Option<kurbo::Rect>>,
 }
 
 impl ShapeCommandMemo {
@@ -341,11 +345,13 @@ impl ShapeCommandMemo {
         style: crate::timeline::VectorShapeStyle,
         state: &crate::timeline::VectorShapeState,
         commands: Vec<RenderCommand>,
+        bounds: Option<kurbo::Rect>,
     ) {
         self.epoch = epoch;
         self.style = Some(style);
         self.state = Some(state.clone());
         self.commands = Some(commands);
+        self.cached_bounds = Some(bounds);
     }
 }
 
@@ -358,10 +364,11 @@ impl crate::timeline::AnimationTrack {
         epoch: u64,
         style: &crate::timeline::VectorShapeStyle,
         state: &crate::timeline::VectorShapeState,
-    ) -> Option<Vec<RenderCommand>> {
+    ) -> Option<(Vec<RenderCommand>, Option<kurbo::Rect>)> {
         let mut memo = self.shape_command_memo.borrow_mut();
         if memo.matches(epoch, style, state) {
-            return memo.commands.take();
+            let commands = memo.commands.take();
+            return commands.map(|c| (c, memo.cached_bounds.unwrap_or(None)));
         }
         if memo.epoch != epoch {
             // Stale epoch: drop the payload AND the key, so a recycle of a
@@ -370,6 +377,7 @@ impl crate::timeline::AnimationTrack {
             memo.commands = None;
             memo.style = None;
             memo.state = None;
+            memo.cached_bounds = None;
         }
         None
     }
@@ -408,7 +416,13 @@ impl crate::timeline::AnimationTrack {
         // (the key match still guards staleness).
         let mut memo = self.shape_command_memo.borrow_mut();
         if memo.commands.is_none() {
-            memo.store(epoch, style, state, commands.clone());
+            // Shape commands never carry images, so `display_size` is
+            // irrelevant here (None).
+            let bounds = commands
+                .iter()
+                .filter_map(|cmd| cmd.local_bounds(None))
+                .reduce(|acc, rect| acc.union(rect));
+            memo.store(epoch, style, state, commands.clone(), bounds);
         }
         Ok(commands)
     }
@@ -421,6 +435,23 @@ impl crate::timeline::AnimationTrack {
         if memo.commands.is_none() {
             memo.commands = Some(commands);
         }
+    }
+
+    /// Clear the memo-bounds handoff slot (call before primitive evaluation —
+    /// a non-shape primitive must never observe the previous node's bounds).
+    pub(crate) fn begin_shape_commands(&self) {
+        self.pending_shape_command_bounds.set(None);
+    }
+
+    /// Memo hit: publish the build-time-computed local bounds.
+    pub(crate) fn offer_shape_command_bounds(&self, bounds: Option<kurbo::Rect>) {
+        self.pending_shape_command_bounds.set(Some(bounds));
+    }
+
+    /// Consume the memo-bounds handoff slot. `None` = no memo data this node;
+    /// compute the bounds from the commands as before.
+    pub(crate) fn take_shape_command_bounds(&self) -> Option<Option<kurbo::Rect>> {
+        self.pending_shape_command_bounds.take()
     }
 }
 
@@ -436,7 +467,8 @@ pub(crate) fn evaluate_shape_render(
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
     let epoch = ctx.track.shape.vector_paths_epoch.get();
-    if let Some(commands) = ctx.track.take_shape_commands(epoch, &style, state) {
+    if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
+        ctx.track.offer_shape_command_bounds(bounds);
         return Ok(Some(commands));
     }
     ctx.track

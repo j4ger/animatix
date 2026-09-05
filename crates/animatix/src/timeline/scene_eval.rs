@@ -579,6 +579,9 @@ impl Timeline {
                             .and_then(|m| self.primitive_registry.find(m.type_name))
                     });
                 if let Some(primitive) = primitive {
+                    // Clear the shape-memo bounds handoff: a non-shape
+                    // primitive must never observe the previous node's data.
+                    track.begin_shape_commands();
                     let ctx = crate::primitives::EvaluateCtx {
                         track,
                         time_ms,
@@ -658,17 +661,28 @@ impl Timeline {
                             commands: commands.clone(),
                         });
                     }
-                    // Hit region — compute from commands, not stale vector_paths
+                    // Hit region — compute from commands, not stale vector_paths.
+                    // PF-4 scoped item: a shape-command memo hit hands over the
+                    // build-time-computed bounds (image_size is irrelevant —
+                    // shape commands never carry images), skipping the per-node
+                    // bezpath `bounding_box` unions entirely.
+                    let memo_bounds = track.take_shape_command_bounds();
                     let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
-                    let mut local_bounds: Option<kurbo::Rect> = None;
-                    for cmd in &commands {
-                        if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                            local_bounds = Some(match local_bounds {
-                                Some(existing) => existing.union(cmd_bounds),
-                                None => cmd_bounds,
-                            });
-                        }
-                    }
+                    let local_bounds: Option<kurbo::Rect> = match memo_bounds {
+                        Some(bounds) => bounds,
+                        None => {
+                            let mut bounds: Option<kurbo::Rect> = None;
+                            for cmd in &commands {
+                                if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                                    bounds = Some(match bounds {
+                                        Some(existing) => existing.union(cmd_bounds),
+                                        None => cmd_bounds,
+                                    });
+                                }
+                            }
+                            bounds
+                        },
+                    };
                     // Shape-primitive commands came from the track's command
                     // memo on a hit — hand the buffers back so the next frame
                     // can take them again (PF-6 round 8; `take_shape_commands`
