@@ -429,6 +429,43 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > `static_50_actors_with_items` +12.2% = the accepted round-6 tooling-path
 > cost. Cumulative vs pre-PF-6: **−83% blocks, −97.1% bytes** per frame.
 
+> **Round 8 (2026-09-05): per-track shape-command memo (take/recycle).**
+> The dhat stacks after Round 7 ranked `evaluate_shape_render` /
+> `RectPrimitive::render` first: every shape actor paid two heap
+> allocations per frame (the `vec![RenderCommand::Paths]` wrapper plus its
+> inner `Vec<VelloPath>`) even when nothing changed. The primitive
+> `evaluate()` signature returns an owned `Vec` (extension ABI — not
+> changeable), so instead of pooling, the result is **memoized on the
+> track** keyed by `(vector_paths_epoch, style, state)` with an owned-Vec
+> borrow protocol: a hit takes the cached `Vec` out (allocation-free), the
+> frame consumer encodes it, clones it only when `SceneItem` collection is
+> requested, and hands it back via `recycle_shape_commands`; a miss builds
+> fresh and stashes one clone (only into an empty slot, so dynamic actors
+> keep today's behavior). Correctness rests on a pure-function audit: all
+> six shape primitives' `render()` is a function of `(style, state)` alone
+> — anchor refs and `always` overrides are resolved into the state by the
+> `evaluate()` wrappers first (2026-09-05; `PartialEq` on the state enums
+> pins that contract for future variants). The memo is NOT consulted by the
+> frame cache or static-subtree cache (those replay encodings without
+> re-running `evaluate()`), and `vector_paths_epoch` gives every track
+> mutation a single invalidation funnel. Measured (adjacent A/B):
+> **alloc_driver 100.2 → 32.2 blocks (−68%), 14,580 → 9,948 B/frame
+> (−32%)**; perf_driver 520.9k → 525.0k frames/12s (+0.8%); 739 lib tests
+> pass. Two implementation lessons: (1) the first cut held the memo inline
+> on `AnimationTrack` and regressed `env_200` +4% (adjacent A/B, twice) —
+> the struct is big enough that cache pressure on track iteration showed
+> up in a bench that never renders shapes; `Box`-ing the memo fixed it
+> (`env_200` 765–766 ns vs baseline 767–777 ns, `env_100` flat-to-faster).
+> (2) On a stale epoch the key (style/state) must be dropped together with
+> the payload, or a recycle of a post-bump build could later match a
+> pre-bump key. Gate: 4 flags, all failed adjacent A/B isolation
+> (`offscreen_100_actors` measured change-*faster*, 6.70 vs 6.84 µs;
+> `simple_build_only`/`sample_all_tracks` flat — the Box fix also收回 the
+> round-6 `sample_all_tracks` +4.3%), plus the sub-ns
+> `property_track_evaluate` direction-flip. Cumulative vs pre-PF-6:
+> **−94.6% blocks, −98.0% bytes** (600 blocks / 500 KB → 32.2 / 9.9 KB
+> per frame).
+
 
 
 > **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
@@ -660,8 +697,10 @@ it moves and the **gate** that protects it.
   18,233 → 15,832 B/frame (−13.2%), perf_driver +5.1%**. Round 7 (same
   day) removed the top allocation residue: one shared key buffer across
   the frame-env injection chain — **168.2 → 100.2 blocks (−40%),
-  15,832 → 14,580 B/frame, perf_driver +4.4%**; cumulative vs
-  pre-PF-6 **−83% blocks / −97.1% bytes**. Remaining: DHAT/peak-RSS on
+  15,832 → 14,580 B/frame, perf_driver +4.4%**. Round 8 (same day)
+  memoized shape commands per track with a take/recycle protocol —
+  **100.2 → 32.2 blocks (−68%), 14,580 → 9,948 B/frame**; cumulative vs
+  pre-PF-6 **−94.6% blocks / −98.0% bytes**. Remaining: DHAT/peak-RSS on
   real scenarios (GUI/export).
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
