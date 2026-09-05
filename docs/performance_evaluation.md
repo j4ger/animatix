@@ -466,6 +466,34 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > **−94.6% blocks, −98.0% bytes** (600 blocks / 500 KB → 32.2 / 9.9 KB
 > per frame).
 
+> **Round 9 (2026-09-05): export-path profiled for the first time — the
+> readback buffer was 93% of its churn.** New instrument:
+> `crates/animatix/examples/export_alloc_driver.rs` drives the *whole*
+> export frame pipeline (module load → build → evaluate → vello encode →
+> wgpu render → CPU readback) on a real `.amx` project through
+> `OffscreenRenderer` — the same code path `animatix image`/video export
+> run — with the dhat profiler installed after a settle phase. First
+> capture (`examples/gallery/dashboard_story.amx`, 1280×720, 90 frames):
+> **1192.8 blocks / 3.97 MB per frame**, peak live 5.9 MB. Site ranking:
+> 93% of bytes was `readback_output`'s `vec![0; w*h*4]` — one 3.7 MB
+> allocation per frame for the CPU readback. Fix: `RenderedFrame.rgba` is
+> now `Arc<Vec<u8>>`, the renderer parks the previous frame's buffer and
+> reuses it when the consumer has dropped its reference (count-1 check →
+> clear/resize in place); a consumer still holding a frame forces a fresh
+> allocation — reuse is never correctness-load-bearing. Consumers adapted:
+> video's `fill_rgba_frame` borrows (`&frame.rgba` — the zero-alloc steady
+> state), image/gif take owned pixels (`to_vec()` — one copy, same as
+> before). Content correctness pinned by two backend regression tests
+> (`readback_reuse_is_pixel_identical_to_fresh_renderer` — frame 2 must be
+> byte-identical AND share the parked buffer;
+> `held_frame_forces_fresh_allocation_not_shared_mutation`). Measured:
+> **3.97 MB → 282 KB/frame (−93%), peak 5.9 → 2.3 MB (−61%)**; blocks flat
+> (wgpu internals dominate the count). Second scenario
+> (`fft_explain.amx`, text-heavy): 533 KB/frame remains — next-ranked
+> churn is the Typst/text path (`compile_text_fast`, `TextPath` clones,
+> `interpolate_text_paths`) and wgpu-internal bookkeeping, both candidates
+> for a follow-up round.
+
 
 
 > **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
@@ -700,8 +728,11 @@ it moves and the **gate** that protects it.
   15,832 → 14,580 B/frame, perf_driver +4.4%**. Round 8 (same day)
   memoized shape commands per track with a take/recycle protocol —
   **100.2 → 32.2 blocks (−68%), 14,580 → 9,948 B/frame**; cumulative vs
-  pre-PF-6 **−94.6% blocks / −98.0% bytes**. Remaining: DHAT/peak-RSS on
-  real scenarios (GUI/export).
+  pre-PF-6 **−94.6% blocks / −98.0% bytes**. Round 9 (same day) profiled
+  the export path for the first time (`export_alloc_driver`, real `.amx`
+  projects) and recycled the CPU readback buffer — **3.97 MB → 282 KB per
+  frame, peak 5.9 → 2.3 MB** on `dashboard_story`; the text/Typst path is
+  the next export-path target.
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
@@ -726,6 +757,7 @@ it moves and the **gate** that protects it.
 | Scenario suite benches | `crates/animatix/benches/` | add |
 | Steady-state time driver | `crates/animatix/examples/perf_driver.rs` | **added** (2026-09-03; §3.5 note) |
 | Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `examples/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
+| Export-path allocation driver (dhat, real `.amx`) | `crates/animatix/examples/export_alloc_driver.rs` | **added** (PF-6 round 9, 2026-09-05; §3.5 note) |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
 | Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9) |
