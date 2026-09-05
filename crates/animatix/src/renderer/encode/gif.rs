@@ -162,11 +162,12 @@ pub(super) async fn render_gif_async(
         progress,
         cancel,
         |frame, scene_frame| {
-            let img =
-                image::RgbaImage::from_raw(scene_frame.width, scene_frame.height, scene_frame.rgba)
-                    .ok_or_else(|| {
-                        ExportError::ImageEncode("Failed to create image buffer".into())
-                    })?;
+            let img = image::RgbaImage::from_raw(
+                scene_frame.width,
+                scene_frame.height,
+                scene_frame.rgba.to_vec(),
+            )
+            .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
 
             encoder
                 .encode_frame(image::Frame::from_parts(
@@ -307,11 +308,12 @@ pub(super) async fn render_gif_composition_async(
         progress,
         cancel,
         |frame, scene_frame| {
-            let img =
-                image::RgbaImage::from_raw(scene_frame.width, scene_frame.height, scene_frame.rgba)
-                    .ok_or_else(|| {
-                        ExportError::ImageEncode("Failed to create image buffer".into())
-                    })?;
+            let img = image::RgbaImage::from_raw(
+                scene_frame.width,
+                scene_frame.height,
+                scene_frame.rgba.to_vec(),
+            )
+            .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
 
             encoder
                 .encode_frame(image::Frame::from_parts(

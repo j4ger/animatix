@@ -5,6 +5,13 @@ use crate::timeline::filter::FilterBackend;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// A single frame rendered to CPU-accessible RGBA memory.
+///
+/// The pixel buffer is shared (`Arc`): the renderer keeps its own handle to
+/// the previous frame's allocation and reuses it in place on the next
+/// readback (`Arc::make_mut` is a no-op clone once the encoder drops its
+/// reference), so a steady-state video export performs zero per-frame
+/// allocations for the multi-megabyte readback (PF-6 round 9: dhat measured
+/// 3.7 MB/frame on a 720p export — 93% of the export path's churn).
 #[derive(Debug, Clone)]
 pub struct RenderedFrame {
     /// Frame width in pixels.
@@ -12,7 +19,7 @@ pub struct RenderedFrame {
     /// Frame height in pixels.
     pub height: u32,
     /// Raw RGBA8 pixel data, row-major order.
-    pub rgba: Vec<u8>,
+    pub rgba: std::sync::Arc<Vec<u8>>,
 }
 
 /// GPU-backed offscreen renderer that evaluates a [`Timeline`] and produces
@@ -34,6 +41,10 @@ pub struct OffscreenRenderer {
     filter_backend_dimensions: Option<SceneDimensions>,
     dimensions: SceneDimensions,
     bytes_per_row: u32,
+    /// Recycled CPU readback buffer (PF-6 round 9): parked between frames and
+    /// handed out again once the encoder drops its reference — the 720p RGBA
+    /// readback was 3.7 MB allocated per frame (93% of export-path churn).
+    readback_buffer: Option<std::sync::Arc<Vec<u8>>>,
 }
 
 impl OffscreenRenderer {
@@ -89,6 +100,7 @@ impl OffscreenRenderer {
                 height: 0,
             },
             bytes_per_row: 0,
+            readback_buffer: None,
         })
     }
 
@@ -382,16 +394,36 @@ impl OffscreenRenderer {
             .map_err(|err| format!("Failed to map preview frame: {err}"))?;
 
         let data = buffer_slice.get_mapped_range();
-        let mut rgba = vec![0; (dimensions.width * dimensions.height * 4) as usize];
-        for y in 0..dimensions.height as usize {
-            let src_row = &data[y * self.bytes_per_row as usize
-                ..y * self.bytes_per_row as usize + dimensions.width as usize * 4];
-            let dst_row = &mut rgba
-                [y * dimensions.width as usize * 4..(y + 1) * dimensions.width as usize * 4];
-            dst_row.copy_from_slice(src_row);
+        // PF-6 round 9: reuse the previous frame's readback buffer when the
+        // encoder has already consumed it (strong count back to our handle);
+        // `Arc::make_mut` clones only when someone still holds a reference.
+        let mut rgba = match self.readback_buffer.take() {
+            Some(prev) if std::sync::Arc::strong_count(&prev) == 1 => {
+                let mut prev = std::sync::Arc::try_unwrap(prev).expect("count checked above");
+                prev.clear();
+                prev.resize((dimensions.width * dimensions.height * 4) as usize, 0);
+                std::sync::Arc::new(prev)
+            },
+            _ => std::sync::Arc::new(vec![0; (dimensions.width * dimensions.height * 4) as usize]),
+        };
+        {
+            let rgba_mut = std::sync::Arc::make_mut(&mut rgba);
+            for y in 0..dimensions.height as usize {
+                let src_row = &data[y * self.bytes_per_row as usize
+                    ..y * self.bytes_per_row as usize + dimensions.width as usize * 4];
+                let dst_row = &mut rgba_mut
+                    [y * dimensions.width as usize * 4..(y + 1) * dimensions.width as usize * 4];
+                dst_row.copy_from_slice(src_row);
+            }
         }
         drop(data);
         output_buffer.unmap();
+
+        // Park the buffer for the next frame's readback. The parked copy and
+        // the returned frame share one allocation: if the consumer still
+        // holds it next frame, `make_mut`/the count check above falls back to
+        // a fresh allocation — correctness never depends on the reuse.
+        self.readback_buffer = Some(std::sync::Arc::clone(&rgba));
 
         Ok(RenderedFrame {
             width: dimensions.width,
@@ -483,6 +515,103 @@ impl OffscreenRenderer {
         let view_b = texture_b.create_view(&wgpu::TextureViewDescriptor::default());
         self.texture_b = Some(texture_b);
         self.view_b = Some(view_b);
+    }
+}
+
+#[cfg(test)]
+mod readback_reuse_tests {
+    use super::*;
+    use crate::timeline::AnimationTrack;
+
+    fn solid_rect_timeline() -> Timeline {
+        let mut timeline = Timeline::new();
+        let mut track = AnimationTrack::new("r".to_string());
+        track.first_seen_ms = 0;
+        track.shape.shape_type = Some({
+            let mut t = crate::timeline::PropertyTrack::new(crate::timeline::ShapeType::Rect);
+            t.add_keyframe(0, crate::timeline::ShapeType::Rect, crate::easing::Easing::Linear);
+            t
+        });
+        track.geometry.size = Some({
+            let mut t = crate::timeline::PropertyTrack::new([100.0, 100.0]);
+            t.add_keyframe(0, [100.0, 100.0], crate::easing::Easing::Linear);
+            t
+        });
+        track.style.color = Some({
+            let mut t = crate::timeline::PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
+            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::easing::Easing::Linear);
+            t
+        });
+        timeline.tracks_mut().insert("r".to_string(), track);
+        timeline.root_nodes.push("r".to_string());
+        timeline
+    }
+
+    /// PF-6 round 9: the readback buffer is parked and reused. The second
+    /// render from the same renderer walks the reuse path — its pixels must
+    /// be byte-identical to a fresh renderer's (no stale-buffer bleed, no
+    /// unzeroed padding), and its `Arc` must share the renderer's parked
+    /// buffer while the caller holds it (the fallback only fires when a
+    /// consumer keeps the previous frame alive).
+    #[test]
+    fn readback_reuse_is_pixel_identical_to_fresh_renderer() {
+        let mut reused = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+        let mut fresh = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let timeline = solid_rect_timeline();
+        let dims = SceneDimensions {
+            width: 320,
+            height: 240,
+        };
+
+        // Frame 1 primes the parked buffer; frame 2 takes the reuse path.
+        let _ = reused.render_timeline(&timeline, 0.0, dims).expect("frame 1");
+        let second = reused.render_timeline(&timeline, 0.0, dims).expect("frame 2");
+        let reference = fresh.render_timeline(&timeline, 0.0, dims).expect("reference");
+
+        // The reuse path actually ran: frame 2's buffer IS the parked one.
+        let parked = reused.readback_buffer.as_ref().expect("parked buffer");
+        assert!(
+            std::sync::Arc::ptr_eq(parked, &second.rgba),
+            "frame 2 should share the renderer's parked readback buffer"
+        );
+
+        assert_eq!(second.rgba.len(), reference.rgba.len());
+        assert!(
+            second.rgba.as_ref() == reference.rgba.as_ref(),
+            "reused-readback frame diverged from a fresh renderer's output"
+        );
+    }
+
+    /// The parked buffer must not be handed to two callers at once: holding
+    /// the previous frame alive forces the next readback onto a fresh
+    /// allocation (never a shared mutation).
+    #[test]
+    fn held_frame_forces_fresh_allocation_not_shared_mutation() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+        let timeline = solid_rect_timeline();
+        let dims = SceneDimensions {
+            width: 160,
+            height: 120,
+        };
+
+        let held = renderer.render_timeline(&timeline, 0.0, dims).expect("frame 1");
+        let next = renderer.render_timeline(&timeline, 0.0, dims).expect("frame 2");
+        assert!(
+            !std::sync::Arc::ptr_eq(&held.rgba, &next.rgba),
+            "a held frame must force a new buffer, not share the parked one"
+        );
+        // And the held frame's pixels are untouched by the second render.
+        let mid = ((60 * held.width + 80) * 4) as usize;
+        assert!(held.rgba[mid] > 200, "held frame was clobbered by the next render");
     }
 }
 

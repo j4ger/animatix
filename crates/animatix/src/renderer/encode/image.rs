@@ -128,7 +128,7 @@ pub(super) async fn render_image_async(
             frame: 0,
             message: e,
         })?;
-    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
+    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba.to_vec())
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
     img.save(output_file).map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     info!("Image saved to {}", output_file.display());
@@ -230,7 +230,7 @@ pub(super) async fn render_image_composition_async(
                 })?
         };
 
-    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba)
+    let img = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba.to_vec())
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
     img.save(output_file).map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     info!("Image saved to {}", output_file.display());
