@@ -330,18 +330,18 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
                 Value::List(items) => {
                     let i = args[1].as_num() as usize;
                     let j = args[2].as_num() as usize;
-                    let mut new_list = items.clone();
-                    if i >= new_list.len() || j >= new_list.len() {
+                    if i >= items.len() || j >= items.len() {
                         tracing::warn!(
                             "list_swap: index out of range (len={}, i={}, j={})",
-                            new_list.len(),
+                            items.len(),
                             i,
                             j
                         );
-                        return Ok(Value::List(new_list));
+                        return Ok(Value::List(items.clone()));
                     }
+                    let mut new_list = items.to_vec();
                     new_list.swap(i, j);
-                    Ok(Value::List(new_list))
+                    Ok(Value::List(new_list.into()))
                 },
                 _ => Err(EvalError::TypeMismatch(format!(
                     "list_swap requires a list as first argument, got {:?}",
@@ -360,17 +360,17 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
                 Value::List(items) => {
                     let i = args[1].as_num() as usize;
                     let new_value = args[2].clone();
-                    let mut new_list = items.clone();
-                    if i >= new_list.len() {
+                    if i >= items.len() {
                         tracing::warn!(
                             "list_set: index {} out of range for list of length {}",
                             i,
-                            new_list.len()
+                            items.len()
                         );
-                        return Ok(Value::List(new_list));
+                        return Ok(Value::List(items.clone()));
                     }
+                    let mut new_list = items.to_vec();
                     new_list[i] = new_value;
-                    Ok(Value::List(new_list))
+                    Ok(Value::List(new_list.into()))
                 },
                 _ => Err(EvalError::TypeMismatch(format!(
                     "list_set requires a list as first argument, got {:?}",
@@ -501,7 +501,7 @@ pub fn value_to_color(value: &Value) -> Result<[f64; 4], EvalError> {
 /// Try to extract a List value, returning an error on type mismatch.
 pub fn value_to_list(value: &Value) -> Result<Vec<Value>, EvalError> {
     match value {
-        Value::List(items) => Ok(items.clone()),
+        Value::List(items) => Ok(items.to_vec()),
         other => Err(EvalError::TypeMismatch(format!("Expected List, got {:?}", other))),
     }
 }
@@ -848,7 +848,7 @@ mod tests {
     #[test]
     fn test_value_to_list() {
         assert_eq!(
-            value_to_list(&Value::List(vec![Value::Num(1.0)])).unwrap(),
+            value_to_list(&Value::List(vec![Value::Num(1.0)].into())).unwrap(),
             vec![Value::Num(1.0)]
         );
         assert!(value_to_list(&Value::Num(0.0)).is_err());

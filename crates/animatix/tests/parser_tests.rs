@@ -2120,17 +2120,17 @@ fn test_match_pattern_tuple() {
     ]);
     assert!(test_pattern_matches(
         &tuple_pat,
-        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(2.0),])
+        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(2.0),].into())
     ));
     assert!(!test_pattern_matches(
         &tuple_pat,
-        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(3.0),])
+        &Value::List(vec![Value::Num(0.0), Value::Num(1.0), Value::Num(3.0),].into())
     ));
 }
 
 #[test]
 fn test_list_swap_builtin() {
-    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)].into());
     let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(2.0)]).unwrap();
     match &result {
         Value::List(items) => {
@@ -2145,7 +2145,7 @@ fn test_list_swap_builtin() {
 
 #[test]
 fn test_list_set_builtin() {
-    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)].into());
     let result = eval_builtin_fn("list_set", &[list, Value::Num(1.0), Value::Num(99.0)]).unwrap();
     match &result {
         Value::List(items) => {
@@ -2160,7 +2160,7 @@ fn test_list_set_builtin() {
 
 #[test]
 fn test_list_swap_out_of_range() {
-    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0)]);
+    let list = Value::List(vec![Value::Num(1.0), Value::Num(2.0)].into());
     let result = eval_builtin_fn("list_swap", &[list, Value::Num(0.0), Value::Num(99.0)]).unwrap();
     match &result {
         Value::List(items) => {

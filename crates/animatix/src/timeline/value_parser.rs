@@ -197,9 +197,9 @@ pub(crate) fn parse_value(
                     match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
                         Some(Value::List(items)) => {
                             let mut points = Vec::with_capacity(items.len());
-                            for item in items {
+                            for item in items.iter() {
                                 if let Value::Vec2([x, y]) = item {
-                                    points.push([x as f32, y as f32]);
+                                    points.push([*x as f32, *y as f32]);
                                 } else {
                                     diagnostics.push(
                                         Diagnostic::warning(

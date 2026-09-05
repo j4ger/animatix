@@ -2143,11 +2143,16 @@ fn native_to_value(native: NativeValue) -> Result<Value, EvalError> {
             Ok(Value::Str(read_native_string(&native)?))
         },
         NATIVE_VALUE_LIST | NATIVE_VALUE_POINT_LIST | NATIVE_VALUE_STRING_LIST => {
-            Ok(Value::List(read_native_list(&native)?))
+            Ok(Value::List(read_native_list(&native)?.into()))
         },
-        NATIVE_VALUE_TRANSFORM => {
-            Ok(Value::List(native.transform.iter().map(|value| Value::Num(*value)).collect()))
-        },
+        NATIVE_VALUE_TRANSFORM => Ok(Value::List(
+            native
+                .transform
+                .iter()
+                .map(|value| Value::Num(*value))
+                .collect::<Vec<_>>()
+                .into(),
+        )),
         NATIVE_VALUE_VARIANT => Err(EvalError::TypeMismatch(
             "native plugin returned a variant value to an expression function".to_string(),
         )),
@@ -2223,7 +2228,7 @@ mod tests {
             Value::Vec4([1.0, 2.0, 3.0, 4.0]),
             Value::Color([0.1, 0.2, 0.3, 0.4]),
             Value::Str("hello".to_string()),
-            Value::List(vec![Value::Num(1.0), Value::Str("two".to_string())]),
+            Value::List(vec![Value::Num(1.0), Value::Str("two".to_string())].into()),
         ];
         for value in cases {
             let mut arena = NativeValueArena::default();

@@ -19,7 +19,7 @@ pub(crate) fn bind_loop_var(
         },
         LoopPattern::Tuple(names) => {
             let components: Vec<Value> = match &value {
-                Value::List(items) => items.clone(),
+                Value::List(items) => items.to_vec(),
                 Value::Vec2(v) => v.iter().map(|&x| Value::Num(x)).collect(),
                 Value::Vec3(v) => v.iter().map(|&x| Value::Num(x)).collect(),
                 Value::Vec4(v) => v.iter().map(|&x| Value::Num(x)).collect(),

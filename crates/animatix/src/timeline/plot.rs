@@ -1375,8 +1375,10 @@ fn sample_curve_plot_source(
     }
 
     // Shared caches for from/to sources across start, end, and recursive evals.
-    let mut from_cache = HashMap::<u64, Value>::new();
-    let mut to_cache = HashMap::<u64, Value>::new();
+    // Pre-sized: the adaptive sampler inserts hundreds of entries per pass, and
+    // un-resized growth rehashes the map repeatedly per frame (PF-6 round 10).
+    let mut from_cache = HashMap::<u64, Value>::with_capacity(256);
+    let mut to_cache = HashMap::<u64, Value>::with_capacity(256);
 
     let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
         let y = eval_scalar(&func_ref, env, &arg_name, min_t, &mut from_cache, &mut to_cache);

@@ -920,7 +920,7 @@ mod tests {
             Value::Vec2([1.0, 2.0]),
             Value::Vec4([0.1, 0.2, 0.3, 1.0]),
             Value::Color([0.5, 0.6, 0.7, 1.0]),
-            Value::List(vec![crate::timeline::Value::Num(1.0), Value::Bool(false)]),
+            Value::List(vec![crate::timeline::Value::Num(1.0), Value::Bool(false)].into()),
         ];
         for v in cases {
             let json = serde_json::to_string(v)

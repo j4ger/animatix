@@ -119,7 +119,7 @@ fn execute_stmt(
         } => {
             let iterable = evaluate_compiled_expr(iterable, frame_env)?;
             let items: Vec<Value> = match iterable {
-                Value::List(list) => list,
+                Value::List(list) => list.to_vec(),
                 Value::Vec2(v) => v.into_iter().map(Value::Num).collect(),
                 Value::Vec3(v) => v.into_iter().map(Value::Num).collect(),
                 Value::Vec4(v) => v.into_iter().map(Value::Num).collect(),
@@ -173,8 +173,8 @@ fn bind_loop_var(frame_env: &mut Environment, pattern: &LoopPattern, value: Valu
         },
         LoopPattern::Tuple(names) => match value {
             Value::List(items) => {
-                for (name, item) in names.iter().zip(items) {
-                    frame_env.set(name, item);
+                for (name, item) in names.iter().zip(items.iter()) {
+                    frame_env.set(name, item.clone());
                 }
             },
             Value::Vec2([x, y]) if names.len() == 2 => {

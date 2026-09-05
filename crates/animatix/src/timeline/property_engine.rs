@@ -618,7 +618,7 @@ pub(crate) fn parse_extension_property_value(
         PropertyValueKind::PointList => match value {
             Value::List(items) => {
                 let mut points = Vec::with_capacity(items.len());
-                for item in items {
+                for item in items.iter() {
                     match item {
                         Value::Vec2(v) => points.push([v[0] as f32, v[1] as f32]),
                         _ => return None,
@@ -1087,14 +1087,14 @@ fn inject_value(
         PropertyValue::Transform(v) => {
             env.set(
                 &*key,
-                Value::List(vec![
+                Value::List(std::sync::Arc::from(vec![
                     Value::Num(v[0] as f64),
                     Value::Num(v[1] as f64),
                     Value::Num(v[2] as f64),
                     Value::Num(v[3] as f64),
                     Value::Num(v[4] as f64),
                     Value::Num(v[5] as f64),
-                ]),
+                ])),
             );
         },
         PropertyValue::String(v) => {

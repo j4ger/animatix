@@ -95,10 +95,15 @@ impl CapturedEnv {
     /// this so frame-time values written by `always { freq = ... }` can shadow
     /// build-time closure captures, then removes only the newly inserted keys
     /// so captures do not leak between plot actors sharing one env.
+    ///
+    /// PF-6 round 10: the presence test borrows (`get_ref`) instead of
+    /// cloning — captures can be large lists (an FFT sample array captured by
+    /// a plot closure was deep-cloned per sample point: 85 KB/frame on
+    /// `fft_explain` measured by `export_alloc_driver`).
     pub fn merge_missing_into(&self, env: &mut Environment) -> Vec<String> {
         let mut inserted = Vec::new();
         for (k, v) in &self.0 {
-            if env.get(k).is_none() {
+            if env.get_ref(k).is_none() {
                 env.set(k, v.clone());
                 inserted.push(k.clone());
             }
@@ -131,7 +136,13 @@ pub enum Value {
     /// RGBA color with components in [0, 1].
     Color([f64; 4]),
     /// Ordered list of values.
-    List(Vec<Value>),
+    ///
+    /// PF-6 round 10: shared as `Arc<[Value]>` — plot closures capture lists
+    /// (an FFT sample array) and the per-sample-point inject/merge cycle
+    /// deep-cloned the whole list per sample (85 KB/frame on `fft_explain`);
+    /// with the `Arc` those clones are refcount bumps, same as the
+    /// `VelloPath.path: Arc<BezPath>` memo.
+    List(std::sync::Arc<[Value]>),
     /// Object(type_name, fields) — constructed value with named fields.
     Object(String, HashMap<String, Value>),
     /// Native Rust function callable from the runtime.
@@ -262,7 +273,7 @@ impl Value {
     /// Extract the contained list, or an empty vector if the value is not a `List`.
     pub fn as_list(&self) -> Vec<Value> {
         match self {
-            Value::List(items) => items.clone(),
+            Value::List(items) => items.to_vec(),
             _ => Vec::new(),
         }
     }

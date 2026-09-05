@@ -197,6 +197,6 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
             values[2].as_num(),
             values[3].as_num(),
         ]),
-        _ => Value::List(values),
+        _ => Value::List(values.into()),
     }
 }

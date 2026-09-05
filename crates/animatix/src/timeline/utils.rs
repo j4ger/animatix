@@ -255,14 +255,14 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
                 // Arbitrary-length tuples become lists
                 let values: Result<Vec<Value>, EvalError> =
                     items.iter().map(|item| evaluate_expr(item, env)).collect();
-                Ok(Value::List(values?))
+                Ok(Value::List(values?.into()))
             }
         },
 
         Expr::List(items) => {
             let vals: Vec<Value> =
                 items.iter().map(|i| evaluate_expr(i, env)).collect::<Result<Vec<Value>, _>>()?;
-            Ok(Value::List(vals))
+            Ok(Value::List(vals.into()))
         },
         Expr::Call(func, args) => evaluate_call(func, args, env),
 
@@ -539,7 +539,7 @@ pub(crate) fn eval_method_dispatch(
             let delim = args[0].as_str();
             let parts: Vec<Value> =
                 s.split(&delim).map(|part| Value::Str(part.to_string())).collect();
-            Ok(Value::List(parts))
+            Ok(Value::List(parts.into()))
         },
         (Value::Str(s), "contains") => {
             if args.len() != 1 {
@@ -848,7 +848,7 @@ mod tests {
     #[test]
     fn test_evaluate_method_list_length() {
         let mut env = Environment::new();
-        env.set("items", Value::List(vec![Value::Num(1.0), Value::Num(2.0)]));
+        env.set("items", Value::List(vec![Value::Num(1.0), Value::Num(2.0)].into()));
         let expr =
             Expr::Method(Box::new(Expr::Ident("items".to_string())), "length".to_string(), vec![]);
 
@@ -859,7 +859,10 @@ mod tests {
     #[test]
     fn test_evaluate_method_list_get() {
         let mut env = Environment::new();
-        env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
+        env.set(
+            "items",
+            Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)].into()),
+        );
         let expr = Expr::Method(
             Box::new(Expr::Ident("items".to_string())),
             "get".to_string(),
@@ -922,7 +925,10 @@ mod tests {
     #[test]
     fn test_evaluate_index_on_list() {
         let mut env = Environment::new();
-        env.set("items", Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)]));
+        env.set(
+            "items",
+            Value::List(vec![Value::Num(10.0), Value::Num(20.0), Value::Num(30.0)].into()),
+        );
         let expr =
             Expr::Index(Box::new(Expr::Ident("items".to_string())), Box::new(Expr::Num(1.0)));
 
@@ -953,7 +959,7 @@ mod tests {
     #[test]
     fn test_evaluate_index_out_of_bounds() {
         let mut env = Environment::new();
-        env.set("items", Value::List(vec![Value::Num(10.0)]));
+        env.set("items", Value::List(vec![Value::Num(10.0)].into()));
         let expr =
             Expr::Index(Box::new(Expr::Ident("items".to_string())), Box::new(Expr::Num(5.0)));
 

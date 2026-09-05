@@ -305,7 +305,7 @@ for i in {0} {
     let arr = timeline.variable_tracks.get("arr").expect("arr track");
     assert_eq!(
         arr.evaluate(0),
-        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0)])),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0)].into())),
         "the shadowing let should carry list_swap state into the same build pass"
     );
     let done = timeline.variable_tracks.get("done").expect("done track");
@@ -366,12 +366,12 @@ for i in {0, 1} [step: 300ms] {
     let arr = timeline.variable_tracks.get("arr").expect("arr track");
     assert_eq!(
         arr.evaluate(0),
-        Some(Value::List(vec![Value::Num(2.0), Value::Num(3.0), Value::Num(1.0)])),
+        Some(Value::List(vec![Value::Num(2.0), Value::Num(3.0), Value::Num(1.0)].into())),
         "the first iteration should swap indices 0 and 1"
     );
     assert_eq!(
         arr.evaluate(600),
-        Some(Value::List(vec![Value::Num(2.0), Value::Num(1.0), Value::Num(3.0)])),
+        Some(Value::List(vec![Value::Num(2.0), Value::Num(1.0), Value::Num(3.0)].into())),
         "the second iteration should swap indices 1 and 2"
     );
 }
@@ -556,7 +556,7 @@ let summed = total(sorted)
     let sorted = timeline.variable_tracks.get("sorted").expect("sorted track");
     assert_eq!(
         sorted.evaluate(0),
-        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)])),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)].into())),
         "dnf should swap indices 0 and 2"
     );
     let summed = timeline.variable_tracks.get("summed").expect("summed track");
@@ -931,7 +931,7 @@ let scaled = bump(2, 4)
     let sorted = timeline.variable_tracks.get("sorted").expect("sorted");
     assert_eq!(
         sorted.evaluate(0),
-        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)])),
+        Some(Value::List(vec![Value::Num(1.0), Value::Num(2.0), Value::Num(3.0)].into())),
         "imported dnf must swap indices 0 and 2"
     );
     let scaled = timeline.variable_tracks.get("scaled").expect("scaled");

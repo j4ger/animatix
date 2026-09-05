@@ -87,14 +87,17 @@ mod tests {
         assert_eq!(
             property_value_to_runtime(&PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 2.0, 3.0]))
                 .unwrap(),
-            Value::List(vec![
-                Value::Num(1.0),
-                Value::Num(0.0),
-                Value::Num(0.0),
-                Value::Num(1.0),
-                Value::Num(2.0),
-                Value::Num(3.0),
-            ])
+            Value::List(
+                vec![
+                    Value::Num(1.0),
+                    Value::Num(0.0),
+                    Value::Num(0.0),
+                    Value::Num(1.0),
+                    Value::Num(2.0),
+                    Value::Num(3.0),
+                ]
+                .into()
+            )
         );
         assert_eq!(
             property_value_to_runtime(&PropertyValue::Variant {
