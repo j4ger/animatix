@@ -758,6 +758,21 @@ it moves and the **gate** that protects it.
 - **Approach:** Layer-3 `perf` binary inside `nix develop`; sanity-check the
   renderer paths (`OffscreenRenderer`, `fullscreen_blit`, filter backend)
   surfaced during export; revisit `PerformanceMetrics::set_gpu_memory`.
+- **Status (2026-09-05, baseline landed):** `export_perf_driver.rs` is the
+  Layer-3 binary — real `.amx` through `OffscreenRenderer`, PF-8 stage
+  tracer drained per frame, frame wall-time percentiles + stage means.
+  Baseline at 1280×720 (numbers swing ±40% run-to-run on this machine —
+  software rasterizer + CPU frequency states; read trends, not absolutes):
+  `dashboard_story` 234–413 fps, `motion_poster` ~295 fps, `fft_explain`
+  ~143 fps. Split: the **readback wait is the largest single component
+  (~2–3.8 ms/frame, 50–60%)** — `readback_output` blocks on
+  `device.poll(Wait)` for the whole queued GPU work; `rasterize` (vello
+  submit) 0.26–1.4 ms; `sample` 0.3 ms (dashboard) to 2.8 ms (fft_explain,
+  plot closures). The evaluate-lens rounds (PF-6 6–10) already shrank the
+  CPU side; the next PF-7 lever is **readback pipelining** — submit frame
+  N+1 before polling frame N (index-scoped `device.poll` + two parked
+  buffers) so CPU and GPU overlap — worth it for ≥1080p exports and large
+  scenes; at 720p/30 fps the current 5–6× headroom is sufficient.
 - **Gate:** GPU CI runner (future) or on-demand `perf-report` only.
 
 ---
@@ -776,6 +791,7 @@ it moves and the **gate** that protects it.
 | Steady-state time driver | `crates/animatix/examples/perf_driver.rs` | **added** (2026-09-03; §3.5 note) |
 | Steady-state allocation driver (dhat) | `crates/animatix/examples/alloc_driver.rs` + `examples/scenario_60actors.rs` | **added** (PF-6, 2026-09-04; §3.5 note) |
 | Export-path allocation driver (dhat, real `.amx`) | `crates/animatix/examples/export_alloc_driver.rs` | **added** (PF-6 round 9, 2026-09-05; §3.5 note) |
+| Export-path throughput driver (PF-7, stage breakdown) | `crates/animatix/examples/export_perf_driver.rs` | **added** (PF-7 baseline, 2026-09-05; §5 P4) |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
 | Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9) |
