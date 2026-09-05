@@ -311,15 +311,32 @@ real-authoring sessions captured via `animatix-gui --perf-log`, ranked with
 the shared stage names. Track the rest as normal, commit-gated work per
 `AGENTS.md`.
 
-**Refreshed 2026-09-04:** the allocation lens is now the primary ranking tool
-for PF-4/PF-6 — `alloc_driver` ranks deterministically where timing benches
-drift ±5–12%. Ranked next steps (from the §3.5 capture): (1) pooled /
-reused env-key `String`s (~208 blocks/frame); (2) shared or cached
-`KurboShape::to_path` bezpaths for frame-constant shapes (~70 blocks,
-23.5 KB/frame); (3) `Arc`-shared vector paths when the track has no
-keyframes/morph (~61 blocks/frame); (4) dynamic-layout key/box residues
-(~60 blocks/frame); (5) `Arc`-share the `precise_bounds` table clone.
-PF-7 (GPU/export throughput) remains the orthogonal second front, and
+**Refreshed 2026-09-04 (end of the PF-6 day, 5 rounds + 1 leak fix):** the
+allocation lens (`alloc_driver`) is now the primary ranking tool for
+PF-4/PF-6 — deterministic where timing benches drift ±5–12%. The day's
+ledger, all evidence-backed and committed:
+
+| Round | Change | blocks/frame | bytes/frame | Time outcome |
+|---|---|---|---|---|
+| 1 | frame-env `reserve` right-size (fixed + a real pre-existing leak: unbounded `bounds_key_pool`, 21 GB RSS on `scene_costs`) | 600 | 500 KB | flat (strictly-removes-work) |
+| 2 | vector-path `Arc` memo + shared empty layout maps | 420 | 71.0 KB | `stage/sample` −8.3% |
+| 3 | frame env pooled (`env_pool` + in-place `set`) | 272 | 41.8 KB | `build_frame_env` −15% |
+| 4 | `VelloPath.path: Arc<BezPath>` + shape→path memo | 204 | 18.2 KB | `stage/sample` −8% (cumulative 34.7 → 18.0 µs = −48%) |
+| 5 | `precise_bounds` Arc sharing | — | — | **REVERTED** (−3.7 KB churn but +3.3…8.2% time; needs a slot-id design) |
+
+Cumulative: **−66% blocks, −96% bytes**, `timeline_evaluate_1s/2s` −43%
+in the gate, `evaluate_25/50_actors` −94/−92%, and the `many_actors`
+bench pair is reliable again (its ±9–17% "contradiction" was leak-driven
+swap pressure). Gate flags this session: 8 of 10 failed isolation (§4
+process-state contamination); the 2 that reproduced (round-4
+`simple_build_only` +2.8%, round-5 evaluate-path) were either accepted as
+small per-declaration overhead or reverted.
+
+Remaining, ranked: (1) string-keyed map structural work — `tracks`
+BTreeMap→HashMap (iteration order is load-bearing: auto-colors, timeline
+panels; separate change) and a dense slot-id bounds table replacing
+string-keyed maps in the render path; (2) DHAT/peak-RSS on real scenarios
+(GUI/export); (3) PF-7 GPU/export throughput (orthogonal second front).
 PF-2/PF-3 stay paused until the harness proves stable.
 
 ---

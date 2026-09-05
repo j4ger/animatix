@@ -575,12 +575,15 @@ it moves and the **gate** that protects it.
   `Vec` clones (cache-hit restore, `SceneItem` collection, hit regions).
 - **Approach:** add `perf` memory capture, profile with DHAT/tracy on the
   scenario suite, eliminate steady-state allocation in the hot path.
-- **Status (2026-09-04, first pass done):** `alloc_driver` + dhat capture is
-  the memory instrument (see the driver note in §3.5); the frame-env reserve
-  fix landed as the first reduction (−81% steady-state churn bytes, −91%
-  peak). Remaining ranked candidates live in the same note; next cheapest:
-  pooled env keys, shared static bezpaths, `Arc`-shared constant vector
-  paths.
+- **Status (2026-09-04, five rounds done):** `alloc_driver` + dhat capture
+  is the memory instrument (see the driver note in §3.5). Ledger: round 1
+  frame-env reserve (−81% churn bytes) + the unbounded `bounds_key_pool`
+  leak fix (21 GB → 60 MB on `scene_costs`); round 2 vector-path Arc memo +
+  shared empty layout maps; round 3 pooled frame env; round 4 shared shape
+  bezpaths — cumulative **−66% blocks / −96% bytes**, `stage/sample`
+  −48% (34.7 → 18.0 µs). Round 5 (`precise_bounds` Arc sharing) was
+  measured and REVERTED — see the §3.5 Round-5 note; allocation savings do
+  not pay for per-node Arc indirection in the render path.
 - **Gate:** `frame.*` (allocation count is a strong proxy for eval time).
 
 ### P4 — GPU / export throughput
