@@ -342,6 +342,26 @@ production hot path pays only a thread-local push/pop unless compiled out (see
 > process RSS over a fixed-time evaluate loop — live growing with total is a
 > leak, total growing with live flat is churn/fragmentation.
 
+> **Round 5 (2026-09-04): `precise_bounds` Arc sharing — measured and
+> rejected.** The Round-4 list's last cheap candidate: handing the frame-end
+> bounds table to the `SceneProgram`/`FrameCacheEntry` as an `Arc` snapshot
+> (frame-start reclaim via `try_unwrap`, hit-path pointer swap, pool-fed key
+> rebuild). Allocation verdict as predicted: 18.2 → 14.6 KB/frame churn
+> (the 60-key table clone vanished). **Time verdict: a net loss** —
+> adjacent A/B on the un-committed change measured `full_200` 16.4 →
+> 17.0 µs (+3.3%) and `offscreen_100_actors` +8.2%; per-node
+> `Arc::make_mut` atomic refcount traffic and the reclaim pass cost more
+> than the allocator saved, even though every "removed work" argument held.
+> Reverted; the round adds the item to the §5 do-not-re-attempt list
+> alongside the `PrimitiveRegistry::find` index and the viewport-check
+> resampling: **bounds-table sharing needs a design that avoids per-node
+> Arc indirection in the render path** (e.g. batching bounds into a flat
+> `Vec` keyed by a dense per-frame slot id instead of string-keyed maps)
+> — do not re-attempt the string-keyed `Arc` variant without new evidence.
+> Session note for harness users: this is the third flag-then-isolate
+> save this session (two of them flagged build-path benches that failed
+> isolation; this one flagged evaluate-path benches that reproduced).
+
 > **Round 3 (2026-09-04, same day): the frame env is pooled — the §5 P1
 > "allocation-free hot path" candidate.** The override-layer key set is
 > identical frame-to-frame (labels × registry properties are build-time
