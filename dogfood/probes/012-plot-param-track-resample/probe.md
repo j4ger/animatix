@@ -63,6 +63,6 @@ demos, parametric Lissajous figures) silently under-samples.
 Honor `resolution` as a minimum sample count: `min_depth =
 ceil(log2(resolution))` (96 → 128 samples) in all three recursive samplers;
 adaptive subdivision continues beyond the floor while the chord deviation
-exceeds `tolerance`. Analyzer alignment for declared plot params remains a
-minor open item. Tracked in the roadmap
-fix pass (2026-09-06).
+exceeds `tolerance`. Analyzer alignment landed 2026-09-07: declared plot
+params no longer emit `unknown-property` infos (declaration and assignment
+sites resolve against the func closure's referenced names).
