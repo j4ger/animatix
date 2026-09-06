@@ -56,7 +56,10 @@ declaration is honored (bypasses hidden-by-default), which is why the
 PartialSums scene's assignment-driven reveal works while the Target scene's
 did not — inconsistent semantics for the same "start invisible" intent.
 
-### 2. Spec §14 "Runtime parameters" pattern never re-samples the curve
+### 2. Spec §14 "Runtime parameters" pattern never re-samples the curve — RESOLVED 2026-09-06
+
+Fixed (probe `011`): the dynamic gate now accounts for captures written by
+`always` blocks; the spec §14 example animates as written. Historical text below.
 
 Spec §14 documents:
 
@@ -90,7 +93,12 @@ this path.
 gate terms with `step()`. Readable, but the "reactive knob" vocabulary the spec
 advertises is not the one that works.
 
-### 3. Timed plot-param assignment (`curve.freq = 5 [1s]`) resamples but renders a wrong curve
+### 3. Timed plot-param assignment (`curve.freq = 5 [1s]`) resamples but renders a wrong curve — RESOLVED 2026-09-06
+
+Not a param-track bug: the adaptive samplers' 8-sample floor aliased the
+16-period wave into a straight line (a plain `sin(5x)` reproduced it).
+`resolution` is now honored as a minimum sample count (probe `012`).
+Historical text below.
 
 Probe: `curve: PlotCurve, func: (x) => sin(freq * x), freq: 2` +
 `#0.5s curve.freq = 5 [1s]`. At t = 5.0 (well after the 1.5s completion) the
@@ -116,7 +124,10 @@ For a 7-term series this is tedious-but-possible; for anything longer
 `sum(expr, k, k0, k1)`-style folder, closure-local `let`, or callable pure
 `fn` inside plot closures would remove the entire workaround.
 
-### 5. `format()` has no precision control
+### 5. `format()` has no precision control — RESOLVED 2026-09-06
+
+`format("y = {:.2}", v)` now works on both eval paths (unrecognized specs
+stay literal, surplus `{}` keep braces). Historical text below.
 
 `eval_format` (eval_shared.rs:394) replaces `{}` with Rust `Display`: an
 animated float readout prints `0.7071067811865476`. Math explainers need
@@ -137,7 +148,11 @@ Four Typst labels inside a `Col` wrapped mid-formula (`x - x³⏎6`): the
 container-to-child `text_max_width` propagation measured a narrower box than
 the inline fractions need. Workaround: absolutely positioned labels.
 
-### 8. `highlight … [intensity: …]` is silently ignored
+### 8. `highlight … [intensity: …]` is silently ignored — RESOLVED 2026-09-06
+
+Action-modifier validation now warns `UnsupportedModifierKey` for keys the
+action does not declare; the `intensity` call sites were removed from
+gradient_descent.amx. Historical text below.
 
 `examples/projects/gradient_descent.amx` uses `highlight ball [600ms,
 intensity: 1.3]`. `Highlight`'s ActionSignature declares only
@@ -166,19 +181,23 @@ build even warns `never-revealed`). The example needs a `fade-in signal` (as
 - `engine.map_inverse` extrapolates outside the padded plot area (documented),
   worth remembering for marker-follows-cursor effects.
 
-## Suggested follow-ups
+## Follow-up outcome (2026-09-06 fix pass)
 
-1. Engine: cascade `lift_hidden_by_default` into Graph children on container
-   entrance actions + fire `never-revealed` for the silent case (gap 1) —
-   fixes 07_plots.
-2. Engine: make `is_dynamic()` also true when the body references any
-   frame-env variable written by `always` (or document + lint the working
-   spelling) (gap 2); investigate the param-track resample corruption (gap 3).
-3. Language: `sum`/`factorial`/closure-local `let` (gap 4); `format` precision
-   (gap 5).
-4. Spec: fix §14's two examples (gaps 2, 9); align highlight signature with
-   examples or drop `intensity` from them (gap 8).
-5. Consider promoting gaps 1–3 into `dogfood/probes/010…012` minimal repros.
+Landed on `feat/dogfood-fix-pass` (all merged gates green, 26 suites):
+
+1. Gap 1 → `26b4ca46` (probe 010 resolved; 07_plots renders its headline
+   sine again; 23_plot_kinds fixed with a container fade-in).
+2. Gap 2 → `291ae9ff` (probe 011 resolved; spec §14 animates as written).
+3. Gap 3 → `aab8ced9` (probe 012's real cause: sampler resolution floor).
+4. Gap 5 → `606f8fd7` (`{:.N}` on both eval paths).
+5. Gap 8 → `e7bdbecb` (modifier validation; example call sites cleaned).
+6. Spec §14/§8 corrections → `b597a48e`.
+
+Still open: gap 4 (`sum`/`factorial`/closure-local `let` — roadmap LG-1,
+design-gated), the `__anon_` reserved-prefix self-collision (roadmap Known
+Issues, documented in spec §8 for now), analyzer's `unknown-property` info
+for declared plot params, and the `always-overrides-keyframes` warning noise
+on the reactive readout idiom.
 
 ## Verification
 
