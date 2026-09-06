@@ -324,6 +324,16 @@ pub(crate) struct LayoutDynKey {
 pub(crate) struct LayoutContainerCache {
     /// Cached results per dynamic input state (usually one).
     entries: Vec<(LayoutDynKey, LayoutCacheEntry)>,
+    /// PF-6 round 13: for containers whose children's `layout_size` and
+    /// `baseline` tracks carry no keyframes, the fingerprint pass output is
+    /// identical every frame — serve the result directly and skip the
+    /// per-child `tracks.get` BTreeMap navigation (60-child containers
+    /// measured 1.85% of the evaluate frame). Cleared by
+    /// `invalidate_cache`, the same mutation funnel as `entries`.
+    static_result: Option<std::sync::Arc<LayoutPositions>>,
+    /// Whether the fast path above has been validated for this bucket (all
+    /// children keyframe-free at install time).
+    children_are_keyframe_free: bool,
 }
 
 fn f32_bits(v: f32) -> u32 {
@@ -453,13 +463,34 @@ impl LayoutEngine {
         // allocated here. Baselines keep the legacy shape: one entry per
         // `layout_children` element (0.0 when the track is missing), while
         // fingerprints cover only admitted children.
+        {
+            // PF-6 round 13 fast path: for a keyframe-free container the
+            // fingerprint pass output is constant, so the first computed
+            // result is served directly and the per-child `tracks.get`
+            // BTreeMap navigation disappears from the steady-state frame.
+            let cache = self.cache.borrow();
+            if let Some(bucket) = cache.get(container_label) {
+                if bucket.children_are_keyframe_free {
+                    if let Some(positions) = &bucket.static_result {
+                        return std::sync::Arc::clone(positions);
+                    }
+                }
+            }
+        }
+
         let mut fingerprints: Vec<([u32; 2], u8)> = Vec::with_capacity(layout_children.len());
         let mut baselines: Vec<f32> = Vec::with_capacity(layout_children.len());
+        let mut children_are_keyframe_free = true;
         for child in layout_children {
             let Some(track) = tracks.get(&child.label) else {
                 baselines.push(0.0);
                 continue;
             };
+            // `layout_size`/`baseline` without keyframes sample to a constant;
+            // any keyframe makes the container dynamic for this fast path.
+            children_are_keyframe_free &=
+                track.geometry.layout_size.as_ref().is_none_or(|t| t.keyframes.is_empty())
+                    && track.text.baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
             baselines.push(track.baseline_get(time_ms));
             if let Some(half_size) = track.layout_size_get(time_ms) {
                 fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
@@ -507,13 +538,16 @@ impl LayoutEngine {
         }
         let positions = std::sync::Arc::new(result);
 
-        // Store in cache
+        // Store in cache. Keyframe-free containers also get the static fast
+        // path: their inputs (and therefore their result) are frame-invariant.
         let mut cache = self.cache.borrow_mut();
         let bucket =
             cache
                 .entry(container_label.to_string())
                 .or_insert_with(|| LayoutContainerCache {
                     entries: Vec::new(),
+                    static_result: None,
+                    children_are_keyframe_free: false,
                 });
         bucket.entries.push((
             dyn_key,
@@ -521,6 +555,10 @@ impl LayoutEngine {
                 positions: std::sync::Arc::clone(&positions),
             },
         ));
+        if children_are_keyframe_free {
+            bucket.children_are_keyframe_free = true;
+            bucket.static_result = Some(std::sync::Arc::clone(&positions));
+        }
 
         positions
     }
