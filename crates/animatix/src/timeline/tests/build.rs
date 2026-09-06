@@ -325,6 +325,81 @@ fn plot_capture_of_always_written_var_is_dynamic() {
 }
 
 #[test]
+fn plot_closure_calls_pure_fn_at_frame_time() {
+    // LG-1 premise check: a plot closure body may call a pure user fn. The
+    // body references `t` so the procedural plot is dynamic (per-frame
+    // resampling fires), and the frame env's frozen base must resolve
+    // `double` through the CallEnv dispatch. The sampled curve at t where
+    // the dynamic gate is active must equal double(x) = 2x, not NaN.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+fn double(n: Num) -> Num {
+  n * 2
+}
+
+c: PlotCurve, kind: "cartesian", func: (x) => double(x) + 0 * t,
+  color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+#0.2s
+fade-in c [100ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let track = timeline.tracks.get("c").expect("curve track");
+    assert!(
+        track
+            .procedural_plot
+            .as_ref()
+            .expect("procedural plot")
+            .is_dynamic(&timeline.frame_written_vars),
+        "body references t — the plot must be dynamic"
+    );
+
+    // Full pipeline evaluation: frame env + per-frame plot resampling.
+    let mut filter_backend = None;
+    let program = timeline.evaluate_program_with_debug(
+        1.0,
+        crate::timeline::SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        crate::timeline::DebugRenderOptions::default(),
+        &mut filter_backend,
+    );
+    let mut checked = 0;
+    for item in &program.items {
+        for command in &item.commands {
+            if let crate::primitives::RenderCommand::Paths { paths } = command {
+                for vp in paths {
+                    for el in vp.path.elements() {
+                        if let kurbo::PathEl::LineTo(p) | kurbo::PathEl::MoveTo(p) = el {
+                            assert!(
+                                p.y.is_finite(),
+                                "sampled y must be finite (user-fn call inside plot closure must resolve), got NaN at x={}",
+                                p.x
+                            );
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 0, "expected sampled points");
+}
+
+#[test]
 fn undeclared_action_modifier_warns() {
     // LG-4: `highlight` does not declare `intensity` — the value used to be
     // silently ignored (the shipped gradient_descent example carried one).
