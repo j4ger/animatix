@@ -122,7 +122,7 @@ fade-in down_arrow [800ms]
 fade-in down_label [800ms]
 
 #3.5s
-highlight ball [600ms, intensity: 1.3]
+highlight ball [600ms]
 
 play Descent [fade, 400ms]
 
@@ -184,7 +184,7 @@ fade-in trail [400ms]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
 
 #5.7s
-highlight ball [600ms, intensity: 1.4]
+highlight ball [600ms]
 
 #6.5s
 fade-in takeaway [600ms]

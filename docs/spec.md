@@ -713,6 +713,12 @@ exclude it (for example, a full-viewport background).
 
 Actors declared inside a `Graph` block have their `at`/`position`/`from`/`to` properties automatically mapped from math coordinates to screen pixels.
 
+> **Labels are required inside a `Graph`.** An unlabeled child generates an
+> internal `__anon_*` label that trips the reserved-label check at build
+> time (`error[build:reserved-label-prefix]`). Give every hosted plot a
+> label; add `// lint-disable: unused-label` if the label is never targeted
+> by assignments or actions.
+
 ```animatix
 graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (-10, 10) {
   // These are math coordinates, mapped to screen automatically
@@ -1373,8 +1379,15 @@ animate to `1`:
 signal: PlotCurve, kind: "cartesian", func: (x) => sin(x),
   stroke: accent.primary, stroke_width: 4, stroke_progress: 0
 
+#0.5s
+fade-in signal [500ms]
 signal.stroke_progress = 1 [1.5s, ease: ease-out]
 ```
+
+> Pre-keyframe declarations are hidden by default (see §3), so a curve that
+> only animates `stroke_progress` still needs an entrance action (or an
+> in-keyframe declaration) to become visible. A `stroke_progress` assignment
+> alone renders nothing.
 
 The `kind` property selects the sampling strategy:
 
@@ -1393,12 +1406,27 @@ always {
 }
 ```
 
+> The frame value shadows the build-time capture only when the curve is
+> resampled per frame. A closure capturing a variable that an `always` block
+> writes (and any closure referencing `t`) qualifies automatically. If the
+> variable is *only* captured and never rewritten, prefer referencing `t`
+> inline:
+>
+> ```animatix
+> curve: PlotCurve, kind: "cartesian", func: (x) => sin((2 + 3 * sin(t * 0.5)) * x)
+> ```
+
 Declaration-time numeric parameters can also be injected directly:
 
 ```animatix
 curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
   freq: 2, stroke: accent.primary
 ```
+
+> Declared parameters are re-injected per frame when animated via timed
+> assignments (`curve.freq = 5 [1s]` writes a parameter keyframe). The
+> analyzer may emit an informational `unknown-property` for the declaration
+> form; it is valid.
 
 | `kind` | Closure signature | Example |
 |--------|-------------------|---------|
