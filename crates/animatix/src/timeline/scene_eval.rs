@@ -519,7 +519,10 @@ impl Timeline {
             let has_completed_transitions =
                 track.func_transitions.iter().any(|t| t.is_complete_at(time_ms));
 
-            if procedural_plot.is_dynamic() || transitioning || has_completed_transitions {
+            if procedural_plot.is_dynamic(&self.frame_written_vars)
+                || transitioning
+                || has_completed_transitions
+            {
                 let mut local_env = if let Some(env) = frame_env {
                     env.clone()
                 } else {

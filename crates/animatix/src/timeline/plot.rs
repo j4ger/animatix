@@ -1128,9 +1128,18 @@ pub struct ProceduralPlot {
 impl ProceduralPlot {
     /// Returns `true` if the function references the timeline variable `t`, or
     /// if the plot has custom parameters that require per-frame environment
-    /// injection.  Used to decide whether to resample on every frame.
-    pub fn is_dynamic(&self) -> bool {
-        self.func_body.references_ident("t") || !self.param_names.is_empty()
+    /// injection, or if the closure captures a variable that an `always` block
+    /// writes (the spec §14 "runtime parameters" pattern — the frame-env value
+    /// shadows the build-time capture only when per-frame sampling actually
+    /// runs). Used to decide whether to resample on every frame.
+    ///
+    /// `frame_written_vars` is the set of bare names any `always` block in the
+    /// scene assigns (`freq = ...`); computed once per build from
+    /// `Timeline::modifiers`.
+    pub fn is_dynamic(&self, frame_written_vars: &std::collections::HashSet<String>) -> bool {
+        self.func_body.references_ident("t")
+            || !self.param_names.is_empty()
+            || self.extra_captures.0.keys().any(|name| frame_written_vars.contains(name))
     }
 }
 

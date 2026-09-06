@@ -1,6 +1,7 @@
 # Probe: plot closure capturing an always-written let never re-samples
 
-Status: open — fix planned (roadmap "Planned: Dogfood-Driven Fix Pass", Stage B).
+Status: **resolved 2026-09-06** — the dynamic gate now accounts for
+captures written by `always` blocks (see Resolution).
 
 ## Intent
 
@@ -61,3 +62,14 @@ Make the dynamic gate account for `extra_captures` that an `always` block in
 the same scene writes (build-time AST scan, cf. `referenced_roots`), so the
 existing per-frame shadowing kicks in. Tracked as Stage B of the roadmap fix
 pass (2026-09-06). Regression: two render times of this repro must differ.
+
+## Resolution
+
+`Timeline::collect_frame_written_vars` scans the lowered `always` statements
+at the end of the build (bare assignments + `let`s, walking if/for) into
+`Timeline::frame_written_vars`; `ProceduralPlot::is_dynamic` now also fires
+when `extra_captures` intersect that set. The per-frame shadowing machinery
+needed no change. Pixel-verified: the repro's frequency now sweeps (t=0.3 vs
+t=5.0 differ); regression test
+`plot_capture_of_always_written_var_is_dynamic` pins the gate. The
+inline-`t` spelling continues to work unchanged.

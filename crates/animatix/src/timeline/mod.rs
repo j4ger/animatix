@@ -525,6 +525,11 @@ pub struct Timeline {
     /// fresh-build semantics whenever the injection key set may have changed.
     env_pool: std::cell::RefCell<Option<crate::timeline::Environment>>,
     pub(crate) modifiers: Vec<Stmt>,
+    /// Bare names any `always` block writes (`freq = ...`, `let freq = ...`).
+    /// Computed once at the end of the build from `modifiers`; a plot closure
+    /// capturing one of these must resample per frame so the frame value
+    /// shadows its build-time capture (spec §14 "Runtime parameters").
+    pub(crate) frame_written_vars: std::collections::HashSet<String>,
     /// Lowered modifier IR programs. Populated during build.
     pub modifier_programs: Vec<ModifierIrProgram>,
     colorscheme: ResolvedColorscheme,
@@ -761,6 +766,7 @@ impl Timeline {
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),
             env_pool: std::cell::RefCell::new(None),
             modifiers: Vec::new(),
+            frame_written_vars: std::collections::HashSet::new(),
             modifier_programs: Vec::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
@@ -1225,13 +1231,48 @@ impl Timeline {
         &mut self.env
     }
 
+    /// Bare names written by any `always` block: empty-target assignments
+    /// (`freq = ...`, lowered to frame-local variable writes) and `let`
+    /// declarations inside always bodies. Nested blocks (if/for) are walked.
+    /// Used by `ProceduralPlot::is_dynamic` to detect closures whose captured
+    /// variables are re-driven per frame.
+    fn collect_frame_written_vars(modifiers: &[Stmt]) -> std::collections::HashSet<String> {
+        fn walk(stmts: &[Stmt], out: &mut std::collections::HashSet<String>) {
+            for stmt in stmts {
+                match stmt {
+                    Stmt::Assignment {
+                        target, property, ..
+                    } => {
+                        if target.is_empty() {
+                            out.insert(property.clone());
+                        }
+                    },
+                    Stmt::LetDecl { name, .. } => {
+                        out.insert(name.clone());
+                    },
+                    Stmt::Conditional { then_branch, else_branch, .. } => {
+                        walk(then_branch, out);
+                        if let Some(else_branch) = else_branch {
+                            walk(else_branch, out);
+                        }
+                    },
+                    Stmt::ForLoop { body, .. } => walk(body, out),
+                    _ => {}, // Only variable writes matter for the gate.
+                }
+            }
+        }
+        let mut out = std::collections::HashSet::new();
+        walk(modifiers, &mut out);
+        out
+    }
+
     /// Returns true if any actor has a procedural plot that requires per-frame
     /// evaluation.  Static plots (no `t` reference, no animated params, no func
     /// transitions) always use their cached build-time paths and do not force a
     /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
         self.tracks.values().any(|t| {
-            t.procedural_plot.as_ref().is_some_and(|pp| pp.is_dynamic())
+            t.procedural_plot.as_ref().is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
                 || !t.func_transitions.is_empty()
         })
     }

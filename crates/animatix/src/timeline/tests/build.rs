@@ -285,6 +285,46 @@ fn unrevealed_graph_child_still_warns_never_revealed() {
 }
 
 #[test]
+fn plot_capture_of_always_written_var_is_dynamic() {
+    // spec §14 "Runtime parameters": a plot closure capturing a `let` that an
+    // `always` block rewrites must resample per frame — the frame value
+    // shadows the build-time capture. The dynamic gate used to classify
+    // capture-only plots as static, so the documented pattern rendered inert
+    // (probe 011; identical frames at t=0.3 and t=5.0).
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        #0s
+        let freq = 2
+
+        curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
+          color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+        always {
+          freq = 2 + 3 * sin(t * 0.5)
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    assert!(
+        timeline.frame_written_vars.contains("freq"),
+        "always bare assignment must register the written name, got: {:?}",
+        timeline.frame_written_vars
+    );
+    let track = timeline.tracks.get("curve").expect("curve track");
+    let plot = track.procedural_plot.as_ref().expect("procedural plot");
+    assert!(
+        plot.is_dynamic(&timeline.frame_written_vars),
+        "closure capturing an always-written variable must be dynamic"
+    );
+}
+
+#[test]
 fn equation_container_builds_with_fragment_children() {
     let source = r#"
         eq: Equation {
