@@ -7,6 +7,7 @@ fn main() {
         .init();
 
     let mut perf_log: Option<std::path::PathBuf> = None;
+    let mut script: Option<std::path::PathBuf> = None;
     let mut file: Option<std::path::PathBuf> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -31,6 +32,13 @@ fn main() {
                     std::process::exit(2);
                 },
             },
+            "--demo-script" => match args.next() {
+                Some(path) => script = Some(std::path::PathBuf::from(path)),
+                None => {
+                    tracing::error!("--demo-script requires a file path");
+                    std::process::exit(2);
+                },
+            },
             other => {
                 if file.is_none() {
                     file = Some(std::path::PathBuf::from(other));
@@ -42,5 +50,5 @@ fn main() {
         }
     }
 
-    animatix_gui::run_gui(file, perf_log);
+    animatix_gui::run_gui(file, perf_log, script);
 }
