@@ -391,35 +391,114 @@ fn eval_unary_math(args: &[Value], name: &str, f: fn(f64) -> f64) -> Result<Valu
 
 // ─── Shared format implementation ─────────────────────────────────────────────
 
-fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
-    let Some((template, rest)) = args.split_first() else {
-        return Ok(Value::Str(String::new()));
-    };
-    let mut output = template.as_str();
-    for arg in rest {
-        let replacement = match arg {
-            Value::Num(n) => {
+/// Format one argument value for `format()` substitution.
+fn format_value(arg: &Value, precision: Option<usize>) -> String {
+    match arg {
+        Value::Num(n) => match precision {
+            Some(digits) => format!("{:.*}", digits, n),
+            None => {
                 if n.fract() == 0.0 {
                     format!("{}", *n as i64)
                 } else {
                     n.to_string()
                 }
             },
-            Value::Str(s) => s.clone(),
-            Value::Bool(b) => b.to_string(),
-            Value::Vec2(v) => format!("({}, {})", v[0], v[1]),
-            Value::Vec3(v) => format!("({}, {}, {})", v[0], v[1], v[2]),
-            Value::Vec4(v) | Value::Color(v) => {
-                format!("({}, {}, {}, {})", v[0], v[1], v[2], v[3])
-            },
-            Value::List(items) => format!("{:?}", items),
-            Value::Object(name, fields) => format!("{}({:?})", name, fields),
-            Value::NativeFn(_) => "<NativeFn>".to_string(),
-            Value::Closure(_, _, _) => "<Closure>".to_string(),
-            Value::UserFn { name, .. } => format!("<UserFn({})>", name),
-        };
-        output = output.replacen("{}", &replacement, 1);
+        },
+        Value::Str(s) => s.clone(),
+        Value::Bool(b) => b.to_string(),
+        Value::Vec2(v) => format!("({}, {})", v[0], v[1]),
+        Value::Vec3(v) => format!("({}, {}, {})", v[0], v[1], v[2]),
+        Value::Vec4(v) | Value::Color(v) => {
+            format!("({}, {}, {}, {})", v[0], v[1], v[2], v[3])
+        },
+        Value::List(items) => format!("{:?}", items),
+        Value::Object(name, fields) => format!("{}({:?})", name, fields),
+        Value::NativeFn(_) => "<NativeFn>".to_string(),
+        Value::Closure(_, _, _) => "<Closure>".to_string(),
+        Value::UserFn { name, .. } => format!("<UserFn({})>", name),
     }
+}
+
+/// What a `{...}` sequence starting at `open` (the index of `{`) means.
+enum Placeholder {
+    /// Recognized placeholder: braces end at `close`, value formatted with
+    /// the given precision (`{}` → `None`).
+    Subst {
+        close: usize,
+        precision: Option<usize>,
+    },
+    /// Braces with an unsupported spec (`{:d}`) — keep them literal but
+    /// continue scanning after them so later placeholders still substitute.
+    Literal { close: usize },
+    /// No closing brace — emit the rest of the template verbatim.
+    Unterminated,
+}
+
+fn parse_placeholder(template: &str, open: usize) -> Placeholder {
+    let Some(close) = template[open..].find('}') else {
+        return Placeholder::Unterminated;
+    };
+    let close = open + close;
+    let spec = &template[open + 1..close];
+    // Only `{:.N}` precision specs are supported; `{}` means "next value,
+    // default formatting".
+    if spec.is_empty() {
+        return Placeholder::Subst {
+            close,
+            precision: None,
+        };
+    }
+    if let Some(rest) = spec.strip_prefix(':') {
+        if let Some(digits) = rest.strip_prefix('.') {
+            if let Ok(n) = digits.parse::<usize>() {
+                return Placeholder::Subst {
+                    close,
+                    precision: Some(n),
+                };
+            }
+        }
+    }
+    Placeholder::Literal { close }
+}
+
+fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
+    let Some((template, rest)) = args.split_first() else {
+        return Ok(Value::Str(String::new()));
+    };
+    let Value::Str(template) = template else {
+        return Ok(Value::Str(String::new()));
+    };
+    let template: &str = template;
+    let mut output = String::with_capacity(template.len() + 16);
+    let mut byte_pos = 0;
+    let mut arg_index = 0;
+    while let Some(open) = template[byte_pos..].find('{') {
+        let open = byte_pos + open;
+        output.push_str(&template[byte_pos..open]);
+        match parse_placeholder(template, open) {
+            Placeholder::Subst { close, precision } if arg_index < rest.len() => {
+                output.push_str(&format_value(&rest[arg_index], precision));
+                arg_index += 1;
+                byte_pos = close + 1;
+            },
+            Placeholder::Subst { close, .. } => {
+                // No value left for this placeholder — keep it literal so
+                // over-`{}`-ing a template is visible rather than silent.
+                output.push_str(&template[open..=close]);
+                byte_pos = close + 1;
+            },
+            Placeholder::Literal { close } => {
+                output.push_str(&template[open..=close]);
+                byte_pos = close + 1;
+            },
+            Placeholder::Unterminated => {
+                // Unterminated brace: emit the rest of the template literally.
+                output.push_str(&template[open..]);
+                byte_pos = template.len();
+            },
+        }
+    }
+    output.push_str(&template[byte_pos..]);
     Ok(Value::Str(output))
 }
 
@@ -800,6 +879,57 @@ mod tests {
 
         let result = eval_builtin_fn("format", &[]).unwrap();
         assert_eq!(result.as_str(), "");
+    }
+
+    #[test]
+    fn test_builtin_format_precision() {
+        // `{:.N}` formats the numeric value with exactly N fractional digits
+        // (live readouts print 0.7071067811865476 without it).
+        let result = eval_builtin_fn(
+            "format",
+            &[
+                Value::Str("y = {:.2}".to_string()),
+                Value::Num(0.7071067811865476),
+            ],
+        )
+        .unwrap();
+        assert_eq!(result.as_str(), "y = 0.71");
+
+        // Multiple placeholders mix precision and default formatting.
+        let result = eval_builtin_fn(
+            "format",
+            &[
+                Value::Str("{} -> {:.3} @ {}".to_string()),
+                Value::Num(2.0),
+                Value::Num(1.0 / 3.0),
+                Value::Str("s".to_string()),
+            ],
+        )
+        .unwrap();
+        assert_eq!(result.as_str(), "2 -> 0.333 @ s");
+
+        // Precision on a string value falls back to the plain string.
+        let result = eval_builtin_fn(
+            "format",
+            &[
+                Value::Str("{:.2}".to_string()),
+                Value::Str("hi".to_string()),
+            ],
+        )
+        .unwrap();
+        assert_eq!(result.as_str(), "hi");
+
+        // Unrecognized specs stay literal instead of silently consuming a value.
+        let result =
+            eval_builtin_fn("format", &[Value::Str("{:d} {}".to_string()), Value::Num(7.0)])
+                .unwrap();
+        assert_eq!(result.as_str(), "{:d} 7");
+
+        // More placeholders than values keeps the extras literal.
+        let result =
+            eval_builtin_fn("format", &[Value::Str("{} and {}".to_string()), Value::Num(1.0)])
+                .unwrap();
+        assert_eq!(result.as_str(), "1 and {}");
     }
 
     #[test]
