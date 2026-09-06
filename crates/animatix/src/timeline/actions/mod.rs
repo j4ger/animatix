@@ -380,7 +380,51 @@ fn execute_action(
     }
     let mut expanded_action = action.clone();
     expanded_action.targets = expanded_targets;
+    let signature = handler.signature();
+    validate_action_modifiers(&expanded_action, &signature, diagnostics);
     handler.execute(&expanded_action, time_ms, timeline, diagnostics);
+}
+
+/// Named modifier keys must be declared by the action's signature (or be
+/// universal timing vocabulary). `parse_timing_modifiers` whitelists a set of
+/// effect-key names (`intensity`, `color`, ...) so actions that declare them
+/// don't warn — which also let undeclared keys pass silently
+/// (`highlight ball [intensity: 1.3]` on the shipped gradient_descent example
+/// was a no-op). This check turns those into diagnostics.
+fn validate_action_modifiers(
+    action: &Action,
+    signature: &ActionSignature,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    const TIMING_KEYS: [&str; 2] = ["delay", "ease"];
+    for modifier in &action.modifiers {
+        let Some(name) = modifier.name.as_deref() else {
+            continue; // positional duration shorthand
+        };
+        if TIMING_KEYS.contains(&name) {
+            continue;
+        }
+        if signature.modifiers.iter().any(|p| p.name == name) {
+            continue;
+        }
+        let declared = signature
+            .modifiers
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::UnsupportedModifierKey,
+                DiagnosticPhase::Build,
+                format!(
+                    "Action '{}' does not declare a '{}' modifier (declared: {}). The value is ignored.",
+                    signature.name, name, declared
+                ),
+            )
+            .with_subject(action.verb.as_str()),
+        );
+    }
 }
 
 /// Looks up the action by verb and executes it if found.

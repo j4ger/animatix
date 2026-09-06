@@ -325,6 +325,63 @@ fn plot_capture_of_always_written_var_is_dynamic() {
 }
 
 #[test]
+fn undeclared_action_modifier_warns() {
+    // LG-4: `highlight` does not declare `intensity` — the value used to be
+    // silently ignored (the shipped gradient_descent example carried one).
+    // The action-modifier validation must surface it.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
+
+        #0.2s
+        highlight ball [600ms, intensity: 1.3]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnsupportedModifierKey
+                && d.message.contains("intensity")
+        }),
+        "undeclared `intensity` on highlight must warn, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn declared_action_modifier_does_not_warn() {
+    // `shake` declares `intensity`; its use must stay silent.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        ball: Ellipse, size: (16, 16), color: accent.warning, at: (320, 180)
+
+        #0.2s
+        fade-in ball [300ms]
+
+        #0.6s
+        shake ball [intensity: 2]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::UnsupportedModifierKey),
+        "declared `intensity` on shake must not warn, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
 fn high_frequency_curve_meets_resolution_floor() {
     // sin(5x) over (-10, 10) is ~16 periods; the adaptive samplers used to
     // subdivide at most 3 levels (8 samples), whose values are nearly
