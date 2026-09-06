@@ -48,9 +48,8 @@ fade-in step_title [500ms, ease: ease-out]
 
 #0.8s
 fade-in sine_graph [500ms, ease: ease-out]
-// NOTE: the hosted curve must be revealed individually — a container-level
-// fade-in does not cascade to Graph-hosted children (engine gap, see notes.md).
-fade-in sine [500ms, ease: ease-out]
+// The container fade-in cascades into the hosted curve now (probe 010 fix);
+// stroke_progress still animates the trace-on separately.
 sine.stroke_progress = 1.0 [2.0s, ease: ease-in-out]
 
 #3.2s

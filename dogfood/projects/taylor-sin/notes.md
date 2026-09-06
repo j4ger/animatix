@@ -22,7 +22,13 @@ than they should be.
 
 ## Gaps found (ordered by severity)
 
-### 1. Container `fade-in` does not reveal Graph-hosted PlotCurve children (silent)
+### 1. Container `fade-in` does not reveal Graph-hosted PlotCurve children (silent) — RESOLVED 2026-09-06
+
+Fixed in the same pass (probe `010-graph-child-reveal`): container entrance
+actions now cascade the reveal into children, and a child without any
+entrance warns `never-revealed`. The Target scene no longer needs the
+per-curve `fade-in sine` line. `examples/data/07_plots.amx` renders its
+headline sine again. Historical text below.
 
 Minimal repro (`dogfood` convention):
 
