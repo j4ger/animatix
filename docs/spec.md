@@ -1500,7 +1500,32 @@ contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9}, resolution: 
 (x, y) => x + y      // multiple params
 ```
 
+**Block-bodied closures** — `{ let … }` after `=>` opens a let-chain: bindings
+evaluate in order with lexical shadowing, and the trailing expression is the
+block's value. A `{` whose next token is not `let` remains a list literal
+(`(x) => {1, 2}` returns a list). Statements other than `let` are not
+supported inside the block — pure `fn` bodies cover statement-heavy
+computation.
+```animatix
+func: (x) => {
+  let n = clamp(floor(t), 0, 6)
+  let deg = 2 * n + 1
+  x - x^deg / factorial(deg)
+}
+```
+
 **Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `atan2(y, x)`, `clamp(val, min, max)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `floor(x)`, `ceil(x)`, `lerp(a, b, t)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
+
+**Series helpers:**
+- `factorial(n)` — factorial of a non-negative integer (`170` max before overflow); non-integer or negative arguments are errors.
+- `sum({a, b, ...})` — sum of a numeric list (empty list → `0`).
+- `sum_range(f, lo, hi)` — `Σ_{k=lo}^{hi} f(k)` for a single-parameter
+  closure `f` and integer bounds (`lo > hi` → `0`, 100k-iteration cap).
+  This is the series-construction primitive — e.g. a Taylor partial sum
+  inside a plot closure:
+  ```animatix
+  func: (x) => sum_range((k) => (-1)^k * x^(2*k + 1) / factorial(2*k + 1), 0, floor((n - 1) / 2))
+  ```
 
 **Built-in constants:** `pi` (π), `tau` / `two_pi` (2π), `e` (Euler's number), `PI`, `TAU`, `E` (uppercase aliases).
 

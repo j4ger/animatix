@@ -141,21 +141,14 @@ sw_graph: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8),
   size: (760, 470), anchor: scene.center, offset: (0, 20) {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
     color: text.muted, stroke_width: 3, opacity: 0.35
-  // The partial sum up to odd degree n. The language cannot rebuild a closure
-  // programmatically (no sum() / user-fn calls / let inside closures), so every
-  // term is spelled out and gated by a step() on ft = clamp(floor((t-0.8)/0.6),
-  // 0, 6): gate g turns term (2g+1) on at g steps of 0.6s after t=0.8s.
-  // `ft` is inlined into the closure body because `always` frame values are
-  // NOT re-seen by plot closures (spec drift, see notes.md): referencing `t`
-  // inside the closure body is the only spelling that re-samples per frame.
+  // The Taylor partial sum Σ_{k=0}^{(n-1)/2} (-1)^k·x^(2k+1)/(2k+1)! — the
+  // entire LG-1 payoff: one sum_range over a term closure, no hand-expanded
+  // terms. The degree `n` is rewritten per frame by the always block below;
+  // since Stage B the frame value shadows the closure's build-time capture,
+  // so the curve re-samples as n sweeps 1 → 13.
   // lint-disable: unused-label
   taylor: PlotCurve, kind: "cartesian",
-    func: (x) => x - step(1, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^3 / 6
-      + step(2, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^5 / 120
-      - step(3, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^7 / 5040
-      + step(4, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^9 / 362880
-      - step(5, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^11 / 39916800
-      + step(6, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^13 / 6227020800,
+    func: (x) => sum_range((k) => (-1)^k * x^(2*k + 1) / factorial(2*k + 1), 0, floor((n - 1) / 2)),
     color: accent.warning, stroke_width: 4
 }
 
@@ -166,7 +159,7 @@ note: Text, text: "Around 0, a few terms are already enough",
   font_size: 17, color: text.muted, anchor: scene.bottom, offset: (0, -70)
 
 always {
-  let n = 1 + 2 * clamp(floor((t - 0.8) / 0.6), 0, 6)
+  n = 1 + 2 * clamp(floor((t - 0.8) / 0.6), 0, 6)
   readout.text = format("n = {}", n)
   readout.color = if n >= 13 { accent.success } else { accent.warning }
 }

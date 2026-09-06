@@ -109,7 +109,16 @@ flags the documented declaration form as `unknown-property: freq ... (may
 still be valid)` — the runtime feature and the analyzer's common-property
 table disagree.
 
-### 4. Expression language can't build a series: no `sum`, no closure locals, no user-fn calls in closures
+### 4. Expression language can't build a series — RESOLVED 2026-09-06 (LG-1)
+
+`factorial(n)`, `sum(list)`, and `sum_range(closure, lo, hi)` landed, plus
+block-bodied closures (`(x) => { let a = …; tail }`, newline-separated,
+`let`-token disambiguation). The Sweep scene below was rewritten onto
+`sum_range` + `factorial` and renders identically at n=1/5/13. One premise
+was corrected during implementation: **pure-fn calls from plot closures
+already worked** (verified, not a gap). Design details in
+`docs/series_construction.md`. Kept limitation: no `return`/`for` inside
+closure blocks. Historical text below.
 
 Writing Sₙ(x) = x − x³/3! + … requires:
 
