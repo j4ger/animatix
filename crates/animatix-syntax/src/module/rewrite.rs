@@ -771,6 +771,15 @@ fn rewrite_expr(
             params.clone(),
             Box::new(rewrite_expr(body, prefix, root_label, known_labels, bindings)),
         ),
+        Expr::LetChain(bindings_list, tail) => Expr::LetChain(
+            bindings_list
+                .iter()
+                .map(|(name, value)| {
+                    (name.clone(), rewrite_expr(value, prefix, root_label, known_labels, bindings))
+                })
+                .collect(),
+            Box::new(rewrite_expr(tail, prefix, root_label, known_labels, bindings)),
+        ),
         Expr::Conditional(condition, then_expr, else_expr) => Expr::Conditional(
             Box::new(rewrite_expr(condition, prefix, root_label, known_labels, bindings)),
             Box::new(rewrite_expr(then_expr, prefix, root_label, known_labels, bindings)),

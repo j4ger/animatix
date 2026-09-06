@@ -157,6 +157,33 @@ pub(crate) fn evaluate_compiled_expr(
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
         },
+        CompiledExpr::LetChain(bindings, tail) => {
+            // Bindings evaluate in order; each becomes a let-scope entry so
+            // later bindings and the tail see it. Scoped lookup lives in
+            // `env.get`; pops restore the caller env exactly (the plot
+            // sampler shares one env across sample points).
+            let mut pushed = 0;
+            let mut result = Ok(Value::Num(0.0));
+            for (name, value) in bindings {
+                match evaluate_compiled_expr(value, env) {
+                    Ok(v) => {
+                        env.push_let_scope(vec![(name.clone(), v)]);
+                        pushed += 1;
+                    },
+                    Err(e) => {
+                        result = Err(e);
+                        break;
+                    },
+                }
+            }
+            if result.is_ok() {
+                result = evaluate_compiled_expr(tail, env);
+            }
+            for _ in 0..pushed {
+                env.pop_let_scope();
+            }
+            result
+        },
         CompiledExpr::Construct(name, fields) => {
             let mut map = std::collections::HashMap::new();
             for (field_name, field_expr) in fields {

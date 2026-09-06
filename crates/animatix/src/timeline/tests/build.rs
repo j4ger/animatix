@@ -1454,3 +1454,115 @@ t: Text, text: "hello", font_size: theme.text_md, color: accent.primary
         report.diagnostics
     );
 }
+
+#[test]
+fn letchain_evaluates_with_shadowing_and_restores_env() {
+    // Build-time let-bound block closure: sequential bindings see earlier
+    // ones, shadowing wins innermost, and the caller env is restored (a later
+    // read of the shadowed name must see the original value).
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
+
+#0.2s
+fade-in label [100ms]
+
+#0.5s
+let base = 4
+let step = (v) => {
+  let base = base * 10
+  let out = base + v
+  out
+}
+label.text = format("step(2)={} base={}", step(2), base)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let text = timeline
+        .tracks
+        .get("label")
+        .and_then(|t| t.text.text_content.as_ref())
+        .map(|track| track.evaluate(1000))
+        .unwrap_or_default();
+    // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
+    assert_eq!(text, "step(2)=42 base=4");
+}
+
+#[test]
+fn letchain_inside_plot_closure_is_dynamic_and_finite() {
+    // A block-bodied plot closure that references `t` must classify the plot
+    // as dynamic (references_ident walks LetChain bindings + tail) and every
+    // sampled y must be finite.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+c: PlotCurve, kind: "cartesian",
+  func: (x) => {
+    let k = clamp(floor(t), 0, 6)
+    let deg = 2 * k + 1
+    sum_range((j) => (-1)^j * x^(2*j + 1) / factorial(2*j + 1), 0, floor(deg / 2))
+  },
+  color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+#0.2s
+fade-in c [100ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let track = timeline.tracks.get("c").expect("curve track");
+    assert!(
+        track
+            .procedural_plot
+            .as_ref()
+            .expect("procedural plot")
+            .is_dynamic(&timeline.frame_written_vars),
+        "LetChain body referencing t must be dynamic"
+    );
+
+    let mut filter_backend = None;
+    let program = timeline.evaluate_program_with_debug(
+        1.0,
+        crate::timeline::SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        crate::timeline::DebugRenderOptions::default(),
+        &mut filter_backend,
+    );
+    let mut checked = 0;
+    for item in &program.items {
+        for command in &item.commands {
+            if let crate::primitives::RenderCommand::Paths { paths } = command {
+                for vp in paths {
+                    for el in vp.path.elements() {
+                        if let kurbo::PathEl::LineTo(p) | kurbo::PathEl::MoveTo(p) = el {
+                            assert!(p.y.is_finite(), "sampled y must be finite at x={}", p.x);
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 0, "expected sampled points");
+}

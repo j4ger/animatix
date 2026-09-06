@@ -774,6 +774,12 @@ pub fn infer_expr_type(expr: &Expr, env: &TypeEnv) -> Type {
             params: params.iter().map(|_| Type::Any).collect(),
             ret: Box::new(infer_expr_type(body, env)),
         },
+        Expr::LetChain(_, tail) => {
+            // Consistent with the Closure arm above: let-bound names are not
+            // bound into the type scope (closure params are not either), so
+            // the chain's type is its tail's type.
+            infer_expr_type(tail, env)
+        },
         Expr::Conditional(_, then_expr, else_expr) => common_type(&[
             infer_expr_type(then_expr, env),
             infer_expr_type(else_expr, env),

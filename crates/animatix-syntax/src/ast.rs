@@ -149,6 +149,10 @@ pub enum Expr {
     Method(Box<Expr>, String, Vec<Expr>),
     /// Closure / lambda expression (e.g. `(x) => x ^ 2`).
     Closure(Vec<String>, Box<Expr>),
+    /// Block-bodied closure body with sequential `let` bindings and a tail
+    /// expression: `(x) => { let a = x * 2; let b = a + 1; b }`. Bindings
+    /// shadow lexically in order; the tail is the value.
+    LetChain(Vec<(String, Expr)>, Box<Expr>),
 
     // Conditionals
     /// Conditional expression (e.g. `if cond { a } else { b }`).
@@ -185,6 +189,10 @@ impl Expr {
                 receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
             },
             Expr::Closure(_, body) => body.references_ident(name),
+            Expr::LetChain(bindings, tail) => {
+                bindings.iter().any(|(_, expr)| expr.references_ident(name))
+                    || tail.references_ident(name)
+            },
             Expr::Conditional(cond, then_branch, else_branch) => {
                 cond.references_ident(name)
                     || then_branch.references_ident(name)

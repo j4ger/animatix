@@ -232,6 +232,13 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Closure(params, body) => {
             Ok(CompiledExpr::Closure(params.clone(), Box::new(compile_expr(body)?)))
         },
+        Expr::LetChain(bindings, tail) => {
+            let mut compiled = Vec::with_capacity(bindings.len());
+            for (name, value) in bindings {
+                compiled.push((name.clone(), compile_expr(value)?));
+            }
+            Ok(CompiledExpr::LetChain(compiled, Box::new(compile_expr(tail)?)))
+        },
         Expr::Match(scrutinee, arms) => {
             // Lower to nested Select expressions
             let scrutinee_compiled = compile_expr(scrutinee)?;

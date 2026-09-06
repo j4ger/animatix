@@ -117,6 +117,12 @@ fn detect_fn_cycles(
                 }
             },
             crate::ast::Expr::Closure(_, body) => collect_calls_in_expr(body, out),
+            crate::ast::Expr::LetChain(bindings, tail) => {
+                for (_, value) in bindings {
+                    collect_calls_in_expr(value, out);
+                }
+                collect_calls_in_expr(tail, out);
+            },
             crate::ast::Expr::Conditional(c, t, e) => {
                 collect_calls_in_expr(c, out);
                 collect_calls_in_expr(t, out);
@@ -919,6 +925,13 @@ fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> E
         Expr::Closure(params, body) => {
             Expr::Closure(params.clone(), Box::new(substitute_params_in_expr(body, bindings)))
         },
+        Expr::LetChain(bindings_list, tail) => Expr::LetChain(
+            bindings_list
+                .iter()
+                .map(|(name, value)| (name.clone(), substitute_params_in_expr(value, bindings)))
+                .collect(),
+            Box::new(substitute_params_in_expr(tail, bindings)),
+        ),
         Expr::Conditional(cond, then_expr, else_expr) => Expr::Conditional(
             Box::new(substitute_params_in_expr(cond, bindings)),
             Box::new(substitute_params_in_expr(then_expr, bindings)),

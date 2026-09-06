@@ -338,6 +338,13 @@ pub struct Environment {
     pub(crate) bindings: [Option<(String, Value)>; 2],
     /// Memoization identity; see [`EnvStamp`]. Bumped on every mutation.
     stamp: EnvStamp,
+    /// LetChain scoped stack (see `push_let_scope`/`pop_let_scope`): the
+    /// expression cache consults `let_epoch` so values computed inside a
+    /// let-scope are never reused outside it. `RefCell` keeps
+    /// `evaluate_expr(&Expr, &Environment)` signatures unchanged.
+    let_scopes: std::cell::RefCell<Vec<HashMap<String, Value>>>,
+    /// Cache-key epoch bumped on every let-scope push/pop (see `let_epoch`).
+    let_epoch: std::cell::Cell<u64>,
 }
 
 impl Clone for Environment {
@@ -352,6 +359,8 @@ impl Clone for Environment {
                 instance: fresh_env_instance(),
                 version: 0,
             },
+            let_scopes: std::cell::RefCell::new(Vec::new()),
+            let_epoch: std::cell::Cell::new(0),
         }
     }
 }
@@ -373,6 +382,8 @@ impl Environment {
                 instance: fresh_env_instance(),
                 version: 0,
             },
+            let_scopes: std::cell::RefCell::new(Vec::new()),
+            let_epoch: std::cell::Cell::new(0),
         }
     }
 
@@ -386,6 +397,8 @@ impl Environment {
                 instance: fresh_env_instance(),
                 version: 0,
             },
+            let_scopes: std::cell::RefCell::new(Vec::new()),
+            let_epoch: std::cell::Cell::new(0),
         }
     }
 
@@ -399,6 +412,8 @@ impl Environment {
                 instance: fresh_env_instance(),
                 version: 0,
             },
+            let_scopes: std::cell::RefCell::new(Vec::new()),
+            let_epoch: std::cell::Cell::new(0),
         }
     }
 
@@ -409,6 +424,28 @@ impl Environment {
     #[inline]
     pub(crate) fn mark_mutated(&mut self) {
         self.stamp.version += 1;
+    }
+
+    /// Push a LetChain scope: a set of `let` bindings visible until the
+    /// matching [`Self::pop_let_scope`]. Innermost scope wins lookups (see
+    /// `get`). Uses interior mutability so expression evaluation can open a
+    /// scope through a shared `&Environment` reference.
+    pub(crate) fn push_let_scope(&self, bindings: Vec<(String, Value)>) {
+        self.let_scopes.borrow_mut().push(bindings.into_iter().collect());
+        self.let_epoch.set(self.let_epoch.get() + 1);
+    }
+
+    /// Pop the innermost LetChain scope pushed by [`Self::push_let_scope`].
+    pub(crate) fn pop_let_scope(&self) {
+        self.let_scopes.borrow_mut().pop();
+        self.let_epoch.set(self.let_epoch.get() + 1);
+    }
+
+    /// Monotonic epoch that changes on every let-scope push/pop. Part of the
+    /// expression-cache key (see `utils::evaluate_expr`): a cached value
+    /// computed under one let-scope must never be reused under another.
+    pub(crate) fn let_epoch(&self) -> u64 {
+        self.let_epoch.get()
     }
 
     /// Cache identity for expression memoization (see [`EnvStamp`]).
@@ -462,6 +499,8 @@ impl Environment {
             version: 0,
         };
         self.bindings = [None, None];
+        self.let_scopes.borrow_mut().clear();
+        self.let_epoch.set(0);
     }
 
     /// Update one field on a frame-local `Value::Object` variable.
@@ -524,6 +563,14 @@ impl Environment {
     /// Look up a variable by name, returning a clone.
     /// Checks bindings → overrides → base, in that order.
     pub fn get(&self, name: &str) -> Option<Value> {
+        {
+            let scopes = self.let_scopes.borrow();
+            for scope in scopes.iter().rev() {
+                if let Some(value) = scope.get(name) {
+                    return Some(value.clone());
+                }
+            }
+        }
         for binding in self.bindings.iter().flatten() {
             if binding.0 == name {
                 return Some(binding.1.clone());

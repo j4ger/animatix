@@ -97,6 +97,9 @@ pub enum CompiledExpr {
     /// Create a closure value (parameter names, compiled body expression).
     /// The environment is captured at evaluation time.
     Closure(Vec<String>, Box<CompiledExpr>),
+    /// Block-bodied closure body: sequential `let` bindings and a tail
+    /// expression, evaluated with lexical shadowing in a restored-after scope.
+    LetChain(Vec<(String, CompiledExpr)>, Box<CompiledExpr>),
     /// Construct an object value (type name, compiled field expressions).
     Construct(String, Vec<(String, CompiledExpr)>),
     /// Lazily resolve an actor anchor point from the frame environment.
@@ -133,6 +136,10 @@ impl CompiledExpr {
                 receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
             },
             CompiledExpr::Closure(_, body) => body.references_ident(name),
+            CompiledExpr::LetChain(bindings, tail) => {
+                bindings.iter().any(|(_, expr)| expr.references_ident(name))
+                    || tail.references_ident(name)
+            },
             CompiledExpr::Construct(_, fields) => {
                 fields.iter().any(|(_, value)| value.references_ident(name))
             },

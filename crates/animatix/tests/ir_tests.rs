@@ -915,3 +915,48 @@ fn load_fixture_program(source: &str) -> Vec<Stmt> {
         .expect("program should load")
         .expand_components(&mut Vec::new())
 }
+
+#[test]
+fn letchain_ir_matches_ast() {
+    // Block-bodied closures: IR and tree-walker must agree on sequential
+    // bindings with shadowing, and on a body that reads the outer plot arg.
+    use animatix_syntax::ast::{BinaryOp as BO, Expr as E};
+
+    // (v) => { let a = v * 2; let a = a + 1; a * 3 }
+    //      => ((v*2) + 1) * 3 at v=4 → 27
+    let expr = E::Closure(
+        vec!["v".to_string()],
+        Box::new(E::LetChain(
+            vec![
+                (
+                    "a".to_string(),
+                    E::Binary(Box::new(E::Ident("v".into())), BO::Mul, Box::new(E::Num(2.0))),
+                ),
+                (
+                    "a".to_string(),
+                    E::Binary(Box::new(E::Ident("a".into())), BO::Add, Box::new(E::Num(1.0))),
+                ),
+            ],
+            Box::new(E::Binary(Box::new(E::Ident("a".into())), BO::Mul, Box::new(E::Num(3.0)))),
+        )),
+    );
+    let call = E::Call("apply".to_string(), vec![expr.clone(), E::Num(4.0)]);
+    // No apply builtin exists — invoke the closure directly via the env: bind
+    // it to a name and call it.
+    let mut env = Environment::new();
+    load_standard_library(&mut env);
+    let closure_value = evaluate_expr(&expr, &env).expect("closure evaluates");
+    env.set("my_fn", closure_value);
+    let call_expr = E::Call("my_fn".to_string(), vec![E::Num(4.0)]);
+
+    // Tree-walker path.
+    let ast_value = evaluate_expr(&call_expr, &env).expect("ast eval");
+    assert_eq!(ast_value, Value::Num(27.0), "shadowing order: ((4*2)+1)*3");
+
+    // IR path: compile the same call and execute.
+    let compiled = compile_expr(&call_expr).expect("call compiles");
+    let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
+    assert_eq!(ir_value, Value::Num(27.0), "IR must match the tree-walker");
+
+    let _ = call; // call_expr is the invoked form; the raw closure+arg pair is unused
+}

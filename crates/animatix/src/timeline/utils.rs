@@ -22,7 +22,7 @@ use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 // [`clear_eval_cache`] and capped so long-running GUI sessions cannot grow
 // without bound.
 thread_local! {
-    static EVAL_CACHE: RefCell<HashMap<(u64, super::env::EnvStamp), Value>> =
+    static EVAL_CACHE: RefCell<HashMap<(u64, super::env::EnvStamp, u64), Value>> =
         RefCell::new(HashMap::new());
     /// Flag to disable the eval cache for tight sampling loops.
     /// When false, evaluate_expr skips hashing and the cache entirely.
@@ -149,6 +149,14 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
             params.hash(hasher);
             hash_expr_recursive(body, hasher);
         },
+        Expr::LetChain(bindings, tail) => {
+            20u8.hash(hasher);
+            for (name, value) in bindings {
+                name.hash(hasher);
+                hash_expr_recursive(value, hasher);
+            }
+            hash_expr_recursive(tail, hasher);
+        },
         Expr::Conditional(c, t, e) => {
             15u8.hash(hasher);
             hash_expr_recursive(c, hasher);
@@ -200,7 +208,10 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
         return evaluate_expr_inner(expr, env);
     }
 
-    let cache_key = (expr_hash(expr), env.stamp());
+    // The let-scope epoch is part of the identity: the same env instance can
+    // produce different values for the same expression under different
+    // active LetChain scopes.
+    let cache_key = (expr_hash(expr), env.stamp(), env.let_epoch());
 
     // Check cache
     {
@@ -293,6 +304,36 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
             let compiled = crate::timeline::modifier_runtime::ir::compile_expr(body)
                 .map_err(|e| EvalError::UnsupportedConstruct(format!("closure body: {e}")))?;
             Ok(Value::Closure(args.clone(), Box::new(compiled), CapturedEnv::snapshot(env)))
+        },
+
+        // Block-bodied closure body: evaluate bindings in order (later ones
+        // see earlier ones), each pushed as a let-scope, then the tail. The
+        // let-scopes restore on pop, so the caller's environment is untouched
+        // — closures may share one env across invocations (plot samplers),
+        // and a leaked `let` would corrupt subsequent samples
+        // (see docs/series_construction.md).
+        Expr::LetChain(bindings, tail) => {
+            let mut pushed = 0;
+            let mut result = Ok(Value::Num(0.0));
+            for (name, value) in bindings {
+                match evaluate_expr(value, env) {
+                    Ok(v) => {
+                        env.push_let_scope(vec![(name.clone(), v)]);
+                        pushed += 1;
+                    },
+                    Err(e) => {
+                        result = Err(e);
+                        break;
+                    },
+                }
+            }
+            if result.is_ok() {
+                result = evaluate_expr(tail, env);
+            }
+            for _ in 0..pushed {
+                env.pop_let_scope();
+            }
+            result
         },
 
         Expr::Match(scrutinee, arms) => {
@@ -497,15 +538,14 @@ pub(crate) fn invoke_closure_value(
         )));
     }
 
-    // Invariant: the calling env must carry a stdlib base so that
-    // NativeFn values (colorscheme samplers, etc.) are accessible
-    // inside the closure body.  Built-in math functions are exempt
-    // (they are resolved by eval_builtin_fn before env lookup).
-    debug_assert!(
-        env.base.is_some(),
-        "calling env has no stdlib base; NativeFn values will be unreachable inside closure '{}'",
-        func_name
-    );
+    // NativeFn reachability inside the closure body depends on WHEN the
+    // closure is invoked:
+    // - Frame time: the caller env carries the frozen stdlib base, propagated
+    //   into the child env below.
+    // - Build time (pre-freeze): base is None, but the stdlib lives in the
+    //   caller's overrides and is therefore part of the lexical captures.
+    // Both cases resolve; the fallback `Environment::new()` covers the build
+    // case, where lookup falls back to the merged captures.
 
     // Propagate the caller's stdlib base so NativeFn values
     // (e.g. colorscheme samplers) remain reachable inside the

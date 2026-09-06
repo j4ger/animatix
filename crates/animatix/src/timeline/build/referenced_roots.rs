@@ -69,6 +69,12 @@ fn collect_expr_roots(expr: &Expr, roots: &mut HashSet<String>) {
             }
         },
         Expr::Closure(_, body) => collect_expr_roots(body, roots),
+        Expr::LetChain(bindings, tail) => {
+            for (_, value) in bindings {
+                collect_expr_roots(value, roots);
+            }
+            collect_expr_roots(tail, roots);
+        },
         Expr::Conditional(condition, then_expr, else_expr) => {
             collect_expr_roots(condition, roots);
             collect_expr_roots(then_expr, roots);

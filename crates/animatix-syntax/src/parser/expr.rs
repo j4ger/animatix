@@ -265,7 +265,10 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             params
         })
         .then(
-            expr.clone()
+            // Block body: `{ let a = …; let b = …; tail }`. Only `{ let` opens
+            // a block — `{1, 2}` remains a list literal (zero compat break).
+            closure_let_chain(expr.clone())
+                .or(expr.clone())
                 .then(empty::<StrInput<'src>, ParserExtra<'src>>().map_with(
                     |(), _: &mut MapExtra<'src, '_, StrInput<'src>, ParserExtra<'src>>| {
                         crate::occurrence::pop_scope();
@@ -344,4 +347,33 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             .boxed()
     })
     .boxed()
+}
+
+/// Parse a closure block body: `{ let a = …; let b = …; tail }`.
+///
+/// One or more `let` bindings followed by the tail expression whose value is
+/// the block's value. Statements are newline-separated (the `let` keyword
+/// terminates the previous expression, mirroring pure-fn bodies). Statements
+/// other than `let` are not supported here — pure `fn` bodies cover those.
+fn closure_let_chain<'src, P>(
+    expr: P,
+) -> impl Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone
+where
+    P: Parser<'src, StrInput<'src>, Expr, ParserExtra<'src>> + Clone,
+{
+    let binding = keyword("let")
+        .ignore_then(common::ident_decl_occ(OccurrenceKind::Variable).clone())
+        .then_ignore(assign())
+        .then(expr.clone())
+        .map(|(name, value)| (name, value))
+        .labelled("let binding");
+
+    binding
+        .repeated()
+        .at_least(1)
+        .collect::<Vec<_>>()
+        .then(expr)
+        .delimited_by(lbrace(), rbrace())
+        .map(|(bindings, tail)| Expr::LetChain(bindings, Box::new(tail)))
+        .labelled("closure let block")
 }

@@ -256,6 +256,18 @@ pub fn format_expr(expr: &Expr) -> String {
             let params_str = params.join(", ");
             format!("({}) => {}", params_str, format_expr(body))
         },
+        Expr::LetChain(bindings, tail) => {
+            // Serialize as a single line with newlines between bindings —
+            // the language has no `;` token, so newline separation is the
+            // only re-parseable form. The embedded newlines are indented
+            // enough to stay readable wherever the expression appears.
+            let mut parts: Vec<String> = Vec::with_capacity(bindings.len() + 1);
+            for (name, value) in bindings {
+                parts.push(format!("let {} = {}", name, format_expr(value)));
+            }
+            parts.push(format_expr(tail));
+            format!("{{ {} }}", parts.join("\n  "))
+        },
         Expr::Conditional(cond, then_expr, else_expr) => {
             format!(
                 "if {} {{ {} }} else {{ {} }}",
