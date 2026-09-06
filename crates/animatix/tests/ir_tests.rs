@@ -235,6 +235,21 @@ fn ir_matches_ast_for_extended_builtins() {
         Expr::Call("rem".to_string(), vec![Expr::Num(7.0), Expr::Num(4.0)]),
         Expr::Call("step".to_string(), vec![Expr::Num(1.0), Expr::Num(0.5)]),
         Expr::Call("round".to_string(), vec![Expr::Num(2.6)]),
+        Expr::Call("factorial".to_string(), vec![Expr::Num(5.0)]),
+        Expr::Call(
+            "sum".to_string(),
+            vec![Expr::List(vec![
+                Expr::Num(1.0),
+                Expr::Num(2.0),
+                Expr::Num(3.5),
+            ])],
+        ),
+        // >4 numeric items stay a Value::List (not a Vec4), so the sum arm
+        // actually takes the list branch through the IR too.
+        Expr::Call(
+            "sum".to_string(),
+            vec![Expr::List((0..8).map(|i| Expr::Num(i as f64)).collect())],
+        ),
     ];
 
     for expr in cases {
@@ -245,6 +260,57 @@ fn ir_matches_ast_for_extended_builtins() {
         let ast_value = evaluate_expr(&expr, &env).expect("ast eval should work");
         assert_eq!(ir_value, ast_value, "IR and AST disagree for {expr:?}");
     }
+}
+
+#[test]
+fn factorial_and_sum_reject_invalid_args() {
+    // Both paths must surface the same errors for bad SCALAR arguments (an
+    // IR silent-degradation to CallEnv would turn these into UndefinedVariable
+    // instead of the builtin's own type error).
+    use animatix::ir::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides, execute_modifier_ir};
+    let cases: Vec<Expr> = vec![
+        Expr::Call("factorial".to_string(), vec![Expr::Num(-1.0)]),
+        Expr::Call("factorial".to_string(), vec![Expr::Num(2.5)]),
+        Expr::Call("factorial".to_string(), vec![Expr::Num(171.0)]),
+    ];
+    for expr in cases {
+        let ast_result = evaluate_expr(&expr, &Environment::new());
+        assert!(ast_result.is_err(), "AST eval should error for {expr:?}, got {:?}", ast_result);
+
+        let compiled = compile_expr(&expr).expect("builtin should compile");
+        let program = ModifierIrProgram {
+            statements: vec![ModifierIrStmt::Let {
+                name: "__ir_test_result".to_string(),
+                value: compiled,
+            }],
+        };
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let mut overrides = ModifierOverrides::default();
+        let ir_result = execute_modifier_ir(&program, &mut env, &mut overrides);
+        assert!(ir_result.is_err(), "IR eval should error for {expr:?}, got {:?}", ir_result);
+    }
+}
+
+#[test]
+fn sum_mixed_type_list_paths_diverge_as_documented() {
+    // Known pre-existing divergence, pinned so it cannot drift silently:
+    // the IR compiles `{1, "x"}` via MakeVec, which coerces elements with
+    // `as_num()` ("x" -> 0.0) into a Vec3 — so the IR sums 1 + 0 + 0 = 1,
+    // while the tree-walker keeps a Value::List and sum() rejects the
+    // non-numeric element. Strictness lives at the tree-walker; the IR side
+    // inherits make_vec_value's coercion like every other numeric op.
+    let expr = Expr::Call(
+        "sum".to_string(),
+        vec![Expr::List(vec![Expr::Num(1.0), Expr::Str("x".to_string())])],
+    );
+    assert!(evaluate_expr(&expr, &Environment::new()).is_err());
+
+    let compiled = compile_expr(&expr).expect("builtin should compile");
+    let mut env = Environment::new();
+    load_standard_library(&mut env);
+    let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
+    assert_eq!(ir_value, Value::Num(1.0), "IR coerces Str -> 0.0 via MakeVec");
 }
 
 #[test]

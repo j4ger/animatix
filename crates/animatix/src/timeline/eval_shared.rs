@@ -378,6 +378,49 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
                 ))),
             }
         },
+        "factorial" => {
+            let n = single_num_arg(name, args)?;
+            if n < 0.0 || n.fract() != 0.0 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "factorial expects a non-negative integer, got {}",
+                    n
+                )));
+            }
+            if n > 170.0 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "factorial overflows for n = {} (max 170)",
+                    n as u64
+                )));
+            }
+            let mut acc = 1.0_f64;
+            for k in 2..=(n as u64) {
+                acc *= k as f64;
+            }
+            Ok(Value::Num(acc))
+        },
+        "sum" => {
+            let Some(items) = args.first() else {
+                return Err(EvalError::TypeMismatch("sum requires 1 argument (list)".to_string()));
+            };
+            match items {
+                // List literals of 2-4 numeric items evaluate to Vec2/3/4;
+                // summing their components keeps `{1, 2, 3}` and `{1, 2, 3,
+                // 3.5}` usable as sums too.
+                Value::List(items) => {
+                    let mut acc = 0.0_f64;
+                    for item in items.iter() {
+                        acc += value_to_f64(item)?;
+                    }
+                    Ok(Value::Num(acc))
+                },
+                Value::Vec2(v) => Ok(Value::Num(v[0] + v[1])),
+                Value::Vec3(v) => Ok(Value::Num(v[0] + v[1] + v[2])),
+                Value::Vec4(v) => Ok(Value::Num(v[0] + v[1] + v[2] + v[3])),
+                other => {
+                    Err(EvalError::TypeMismatch(format!("sum requires a list, got {:?}", other)))
+                },
+            }
+        },
         _ => Err(EvalError::UndefinedVariable(name.to_string())),
     }
 }
@@ -930,6 +973,49 @@ mod tests {
             eval_builtin_fn("format", &[Value::Str("{} and {}".to_string()), Value::Num(1.0)])
                 .unwrap();
         assert_eq!(result.as_str(), "1 and {}");
+    }
+
+    #[test]
+    fn test_builtin_factorial_and_sum() {
+        // factorial: integral non-negative only.
+        let result = eval_builtin_fn("factorial", &[Value::Num(5.0)]).unwrap();
+        assert_eq!(result, Value::Num(120.0));
+        let result = eval_builtin_fn("factorial", &[Value::Num(0.0)]).unwrap();
+        assert_eq!(result, Value::Num(1.0));
+        assert!(eval_builtin_fn("factorial", &[Value::Num(-1.0)]).is_err());
+        assert!(eval_builtin_fn("factorial", &[Value::Num(2.5)]).is_err());
+        assert!(eval_builtin_fn("factorial", &[Value::Num(171.0)]).is_err());
+
+        // sum: lists of any length; 2-4 numeric items evaluate to Vec2/3/4
+        // and sum over their components.
+        let result = eval_builtin_fn(
+            "sum",
+            &[Value::List(
+                vec![
+                    Value::Num(1.0),
+                    Value::Num(2.0),
+                    Value::Num(3.0),
+                    Value::Num(4.0),
+                    Value::Num(5.0),
+                ]
+                .into(),
+            )],
+        )
+        .unwrap();
+        assert_eq!(result, Value::Num(15.0));
+        let result = eval_builtin_fn("sum", &[Value::Vec3([1.0, 2.0, 3.5])]).unwrap();
+        assert_eq!(result, Value::Num(6.5));
+        let result = eval_builtin_fn("sum", &[Value::List(Vec::new().into())]).unwrap();
+        assert_eq!(result, Value::Num(0.0));
+        assert!(
+            eval_builtin_fn("sum", &[Value::Num(1.0)]).is_err(),
+            "sum of a scalar must be a type error"
+        );
+        assert!(
+            eval_builtin_fn("sum", &[Value::List(vec![Value::Str("x".to_string())].into())])
+                .is_err(),
+            "sum must reject non-numeric elements"
+        );
     }
 
     #[test]

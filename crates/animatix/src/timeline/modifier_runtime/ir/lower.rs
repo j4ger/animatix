@@ -294,6 +294,12 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         "round" => Some(BuiltinFn::Round),
         "list_swap" => Some(BuiltinFn::ListSwap),
         "list_set" => Some(BuiltinFn::ListSet),
+        // NOTE: every builtin in eval_shared::eval_builtin_fn MUST have an arm
+        // here. This match is not compiler-enforced (Option + catch-all), and
+        // a missing arm silently lowers to CallEnv, which then fails at frame
+        // time with UndefinedVariable. The ir_tests parity suite guards this.
+        "factorial" => Some(BuiltinFn::Factorial),
+        "sum" => Some(BuiltinFn::SumList),
         _ => None,
     }
 }

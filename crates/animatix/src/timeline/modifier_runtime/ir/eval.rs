@@ -73,6 +73,8 @@ pub(crate) fn evaluate_compiled_expr(
                 BuiltinFn::Rem => "rem",
                 BuiltinFn::Step => "step",
                 BuiltinFn::Round => "round",
+                BuiltinFn::Factorial => "factorial",
+                BuiltinFn::SumList => "sum",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         },

@@ -64,6 +64,10 @@ pub enum BuiltinFn {
     Step,
     /// Round to nearest integer.
     Round,
+    /// Factorial of a non-negative integer.
+    Factorial,
+    /// Sum of a list of numbers.
+    SumList,
 }
 
 /// A compiled expression in the modifier IR.

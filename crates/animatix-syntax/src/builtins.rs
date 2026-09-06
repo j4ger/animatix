@@ -112,6 +112,7 @@ pub const MATH_FUNCTIONS: &[&str] = &[
     "cos",
     "deg",
     "exp",
+    "factorial",
     "floor",
     "lerp",
     "log",
@@ -122,6 +123,7 @@ pub const MATH_FUNCTIONS: &[&str] = &[
     "seeded_rand",
     "sin",
     "sqrt",
+    "sum",
     "tan",
 ];
 
