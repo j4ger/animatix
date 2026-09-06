@@ -1,0 +1,13 @@
+// Probe 012 — timed plot-param assignment resamples to a WRONG curve.
+// After `curve.freq = 5 [1s]` completes, sin(5x) is expected; a near-flat
+// sloped line renders instead.
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x), freq: 2,
+  color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+#0.5s
+curve.freq = 5 [1s]
+
+#0.1s
+fade-in curve [100ms]

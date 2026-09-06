@@ -508,14 +508,31 @@ impl Timeline {
         // their parent primitive, so an ancestor's reveal counts as their
         // own. `parent_of` is derived from the children lists rather than
         // trusting the stored `parent` back-reference.
+        // An ancestor counts as revealing only when its opacity genuinely
+        // ramps 0 → positive (an entrance window). A declaration-time
+        // constant keyframe — visible-by-default containers carry one — is
+        // not a reveal: counting it suppressed warnings for hidden Graph
+        // children, whose own seeded 0 multiplies the ancestor's opacity to
+        // zero regardless (probe 010).
         let parent_of = timeline.parent_of();
+        let opacity_reveals = |pt: &crate::timeline::PropertyTrack<f32>| -> bool {
+            let mut saw_zero_at: Option<u64> = None;
+            for (t, (v, _)) in pt.keyframes.iter() {
+                if *v <= 0.0 {
+                    saw_zero_at.get_or_insert(*t);
+                } else if saw_zero_at.is_some_and(|t0| *t > t0) {
+                    return true;
+                }
+            }
+            false
+        };
         let revealed_via_ancestor = |label: &str| -> bool {
             let mut current = parent_of.get(&label.to_string());
             while let Some(parent) = current {
                 if let Some(pt) =
                     timeline.tracks.get(*parent).and_then(|t| t.style.opacity.as_ref())
                 {
-                    if pt.keyframes.values().any(|(v, _)| *v > 0.0) {
+                    if opacity_reveals(pt) {
                         return true;
                     }
                 }
@@ -523,11 +540,19 @@ impl Timeline {
             }
             false
         };
+        // Generated sub-actors (graph tick labels, bar labels) render through
+        // their parent primitive and are not individually targetable, so they
+        // follow the parent's entrance by construction and never warn.
+        let is_generated_sub = |label: &str| -> bool {
+            label.contains("_tick_x_")
+                || label.contains("_tick_y_")
+                || label.contains("_bar_label_")
+        };
         for (label, track) in &timeline.tracks {
             if !track.hidden_by_default {
                 continue;
             }
-            if revealed_via_ancestor(label) {
+            if is_generated_sub(label) || revealed_via_ancestor(label) {
                 continue;
             }
             diagnostics.push(

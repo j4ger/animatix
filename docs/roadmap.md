@@ -117,6 +117,10 @@ re-attempt without new evidence. Remaining: profile and gate `frame.*`/`scrub.*`
 | `hidden_by_default` flag goes STALE when reveals bypass lift_hidden_by_default | **Root cause found (probe, 2026-08-26)**: 06_reactive's title/ring carry staggered fade keyframes `[(0,0),(500,0),(1000,1)]` (authored fade-ins beyond the file's 40th line) yet the flag stays `true` — the fade keyframes were added without routing through `lift_hidden_by_default`, so the flag is a stale "never revealed" signal. The SOUND signal is keyframe-based: warn only when the opacity keyframes are all zero AND no ancestor's opacity lifts (parent chain derived from children lists) AND the actor is not a generated sub-actor. The earlier attempt's false positives were generated sub-actors (ticks/labels) whose visibility inherits from parents | **Resolved 2026-08-26**: the diagnostic was re-implemented on the keyframe + parent-chain + generated-sub-actor-exclusion model (`151c02f5`); `Timeline::parent_of()` supplies the parent chain and `FadeIn::execute` now routes its reveal through `lift_hidden_by_default`. Verified against the 42-example corpus. |
 | GPU `Filter` `blur`/color effects are not visibly applied in `animatix image` export | A `Filter` with `blur: 10` over a high-contrast checkerboard stayed sharp. Root-caused 2026-08-31: back-to-back compute passes sharing ping-pong textures in one encoder did not synchronize (a color-matrix control proved the machinery works; a two-pass blur returned the untouched copy until split). | **Fixed 2026-08-31**: each blur/color-matrix pass is now submitted in its own encoder (submit boundary = sync point); `gpu_filter_blur_softens_a_hard_boundary` + `color_matrix_actually_desaturates` are the regression guards (backend, content-level); pixel-verified (soft gradients on the checkerboard). See `dogfood/probes/009-filter-gpu-deferred`. The Filter scene-eval silent fallback is still worth surfacing as a diagnostic (separate follow-up). |
 | Typst math with implicit multi-letter coefficients fails to compile | `Typst, content: "$mc^2$"` / `"$E = mc^2$"` error because Typst parses `mc` as a single multi-letter *variable*, not `m*c` (a Typst math gotcha). This is correct Typst semantics, not a bug. | **Resolved 2026-08-28**: the compile error now surfaces Typst's real message ("unknown variable: mc" + its hints) instead of an opaque "failed to compile Typst document". For a multi-letter product write `$m c^2$` or `$"mc"$`. |
+| Container `fade-in` never reveals Graph-hosted PlotCurve children (2026-09-06, **silent**) | Pre-keyframe declarations are hidden by default; `fade-in <graph>` lifts the container but does not cascade into Graph children, so the hosted curve stays at seeded opacity 0 forever and **no diagnostic fires**. Pixel-verified on `examples/data/07_plots.amx` (t=3.0/6.0): its headline sine is invisible the whole scene. Twin quirk: explicit `opacity: 0` on the child bypasses hidden-by-default, so the two "start invisible" spellings disagree | Probe + cascade `lift_hidden_by_default` into Graph children on container entrance actions (parity with the accepted group-`fade-in` behavior for Row children, dogfood run/003); extend `never-revealed` to graph children; render regression on 07_plots |
+| spec §14 "Runtime parameters" plot pattern never re-samples (2026-09-06) | `let freq = 2` + `always { freq = ... }` + `func: (x) => sin(freq * x)` renders **static** (pixel-verified identical at t=0.3/5.0). `ProceduralPlot::is_dynamic()` (plot.rs:1132) = `references_ident("t") \|\| !param_names.is_empty()`, so capture-only plots reuse cached build-time `vector_paths` and the frame-env shadowing path (scene_eval.rs:522+) is unreachable. Inlining the `t`-expression into the closure body works | Probe; make the dynamic gate account for captures written by an `always` block in the same scene (build-time AST scan, cf. `referenced_roots`); the shadowing itself already works once sampling fires (sample_procedural_plot_at only fills names the frame env lacks); regression = two render times must differ |
+| Timed plot-param assignment resamples to a **wrong curve** (2026-09-06) | `curve.freq = 5 [1s]` on `func: (x) => sin(freq * x), freq: 2` renders a near-flat sloped line at t=5.0 — neither sin(2x), sin(5x), nor a plausible blend. assignments/mod.rs:629–683 writes `plot_param_tracks`; scene_eval.rs:532–547 injects `param_track.evaluate(time_ms)` unconditionally over the frame env. Analyzer also infos the documented `freq: 2` declaration as `unknown-property` | Probe; root-cause the injected value (temporary tracing on the sample path), fix, pixel regression at mid- and post-transition times; align analyzer common-property handling for plot params |
+| Unlabeled actor inside a Graph fails the build on an engine-generated name (2026-09-06) | `__anon_sw_graph_1` trips `error[build:reserved-label-prefix]` — the generator's own output violates the reserved rule. Labeled + `// lint-disable: unused-label` is the working spelling. Row/Col scope unverified (spec §8 shows unlabeled Row children) | Exempt engine-generated anon labels from the reserved-prefix check (or generate non-reserved names); probe Row/Col to bound the scope |
 
 ### Typst surface fixes (2026-08-27)
 
@@ -143,6 +147,20 @@ visual evidence):
   removed.
 - Also register `Math` in `schema.rs` / `builtins::TYPES` so the analyzer no
   longer flags it as `unknown-type`. No change to the `Text`/`Code` fast paths.
+
+## Language Capability Gaps (2026-09-06, taylor-sin dogfood)
+
+Found while authoring `dogfood/projects/taylor-sin` (render-verified; full
+evidence, repro snippets, and workarounds in its `notes.md`). Ranked by
+authoring impact on STEM-explainer content. The engine-side defects found by
+the same pass are rows in the Known Issues table above.
+
+| ID | Gap | Evidence / Workaround today | Fix direction |
+|----|-----|------------------------------|----------------|
+| LG-1 | No series construction in expressions: no `sum`-style folder, no `factorial`, no `let` inside closures (parse error), no pure-fn calls from plot closures | Taylor Sₙ(x) needs 7 hand-expanded terms gated by `step()`, with the degree knob inlined 6× into the closure body | Smallest step: `sum(...)`/`factorial(...)` builtins registered in **both** eval paths (eval_shared + IR `BuiltinFn`, per the single-eval-paths pitfall); then closure-local `let`; then user-fn calls via the closure capture mechanism. Needs a short design note before implementation (closure-arg builtins are new territory for the IR) |
+| LG-2 | `format()` has no precision/width specifiers | Live float readouts print `0.7071067811865476`; workaround `floor(x * 100) / 100` is lossy | Parse `{:.N}` in `eval_format` (eval_shared.rs:394) and mirror in the IR `Format` builtin so both paths stay in sync; covered by round-trip tests on both paths |
+| LG-3 | No reliable frame-driven "knob" vocabulary for plot closures | Only inline-`t` spellings animate; the spec §14 pattern is static (see Known Issues re-sampling row) | Fix the runtime gate first, then spec §14 becomes true as written; consider a lint suggesting inline-`t` when an `always` writes a name only captured by a plot |
+| LG-4 | Modifier keys are not validated against the action's declared signature | `highlight ball [600ms, intensity: 1.3]` in gradient_descent.amx is a silent no-op (timing.rs:563 whitelists `intensity` for any action) | timing.rs effect-key whitelist should consult the host's `ActionSignature.modifiers`; undeclared effect keys become `InvalidModifierValue` diagnostics; then drop `intensity` from the highlight call sites + spec table stays authoritative |
 
 ## Resolved Open Questions (2026-08-26)
 
@@ -385,6 +403,58 @@ baseline was saved 2026-09-06 after rounds 6–13). The performance
 backlog is now fully worked through; new work should start from fresh
 `perf_driver`/`export_alloc_driver`/`export_perf_driver` evidence per
 §8 of the perf doc.
+
+---
+
+## Planned: Dogfood-Driven Fix Pass (2026-09-06)
+
+Candidate plan for the Known Issues rows + spec drift + LG items surfaced by
+the `taylor-sin` pass. Ordered so each engine fix lands with its regression
+before the next depends on it. Nothing here is merged without the AGENTS.md
+gates (`cargo fmt`, `cargo check --workspace`, syntax + serial lib tests).
+
+**Stage A — silent Graph-child reveal (bug fix, highest user impact).**
+Probe first (`dogfood/probes/010-graph-child-reveal/`): repro from notes.md
+plus a Row-child control to bound scope. Fix: container entrance actions
+(`FadeIn::execute` and siblings routed through `lift_hidden_by_default`)
+cascade into Graph children, mirroring the layout-container behavior accepted
+in dogfood run/003. Extend the `never-revealed` keyframe-based diagnostic to
+Graph children so future breaks are loud. Regression: pixel test that
+`fade-in g` reveals a hosted curve + a rebuilt 07_plots render smoke. Then
+re-verify taylor-sin Target scene and drop its per-curve `fade-in` workaround
+comment.
+
+**Stage B — plot re-sampling gate (bug fix).**
+Probe 011 with the three-spelling matrix from notes.md. Fix `is_dynamic()` to
+also return true when the plot's `extra_captures` intersect names written by
+an `always` block in the same scene (build-time scan; the shadowing machinery
+downstream already works — only the gate is wrong). Regression: two-time
+render-differs test on the spec §14 literal example. Re-verify the f3
+probe (timed `curve.freq` corruption) separately: temporary tracing on the
+injected `param_track.evaluate` value, fix, pixel regression at mid- and
+post-transition times — it may share the root cause or be its own bug; do not
+assume.
+
+**Stage C — spec corrections (docs + example alignment, no runtime change).**
+1. §14 stroke_progress example: add `fade-in signal` (match gradient_descent's
+   working pattern) and note the pre-keyframe hiding interaction.
+2. §14 Runtime parameters: after Stage B the literal example works; keep it
+   and add the inline-`t` spelling as the documented reliable alternative
+   until B ships.
+3. `highlight` signature: decide one way — either add `intensity` to
+   Highlight's ActionSignature + implement it, or remove `intensity:` from
+   gradient_descent.amx (and any spec mention). Removal is the honest option
+   today.
+4. §14 §8: document that unlabeled actors inside `Graph` require labels until
+   the anon-prefix exemption lands (Known Issues row).
+
+**Stage D — language gaps (design-gated).**
+LG-2 (`format` precision) first: small, both-paths change, immediate authoring
+value. Then LG-1 behind a short design note (folder builtins touch the IR and
+the capture machinery — design before code). LG-4 (modifier signature
+validation) is mechanical but touches timing.rs shared parsing; land after
+the highlight call-site cleanup from Stage C so no shipped example regresses.
+LG-3 closes automatically when Stage B lands; re-spec then.
 
 ---
 

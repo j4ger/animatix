@@ -1,0 +1,17 @@
+// Probe 011 — spec §14 "Runtime parameters" pattern renders static.
+// The three spellings live in separate files: this one is the spec-literal
+// (broken) variant; inline-t works; declared-param + always is also broken.
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+#0s
+let freq = 2
+
+curve: PlotCurve, kind: "cartesian", func: (x) => sin(freq * x),
+  color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+always {
+  freq = 2 + 3 * sin(t * 0.5)  // sweep frequency over time
+}
+
+#0.1s
+fade-in curve [100ms]

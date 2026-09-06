@@ -114,6 +114,31 @@ pub(crate) fn lift_hidden_by_default(
     track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
 }
 
+/// Lift the hidden-by-default seed for a target and its whole subtree.
+///
+/// A container target (e.g. a `Graph` hosting `PlotCurve` children) must
+/// reveal its subtree: pre-keyframe children carry their own seeded opacity 0
+/// and opacity multiplies down the scene graph, so a container-level entrance
+/// without the cascade fades the container in while its children stay
+/// invisible — silently (dogfood probe 010; 07_plots.amx shipped with an
+/// invisible headline curve). Children that are not hidden-by-default are
+/// untouched, so explicit `opacity: 0` authoring keeps its meaning.
+pub(crate) fn lift_hidden_by_default_subtree(
+    timeline: &mut Timeline,
+    label: &str,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) {
+    let children = timeline.tracks.get(label).map(|t| t.children.clone()).unwrap_or_default();
+    if let Some(track) = timeline.tracks.get_mut(label) {
+        lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+    }
+    for child in children {
+        lift_hidden_by_default_subtree(timeline, &child, t_start_ms, t_end_ms, easing);
+    }
+}
+
 /// Resolve a possibly-dotted action target (e.g. `"decomp_eq.f1"`) to the
 /// actual track key in `timeline.tracks`.
 ///

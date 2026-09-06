@@ -19,3 +19,6 @@ the curated suite.
 
 - `sorting-visualizer/` - insertion-sort explainer; first idiomatic pass with
   array actors, indexed targets, callout retargeting, and module tokens.
+- `taylor-sin/` - Taylor-approximation-of-sin explainer; render-verified pass
+  that surfaced silent Graph-child reveal and plot re-sampling gaps (see
+  notes.md).

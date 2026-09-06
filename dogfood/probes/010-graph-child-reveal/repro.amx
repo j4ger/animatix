@@ -1,0 +1,8 @@
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), anchor: scene.center {
+  c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
+}
+
+#0.3s
+fade-in g [300ms]

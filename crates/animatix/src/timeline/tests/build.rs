@@ -217,6 +217,74 @@ fn graph_axes_invisible_before_fadein() {
 }
 
 #[test]
+fn container_fadein_reveals_graph_hosted_children() {
+    // A Graph-hosted PlotCurve declared before the first keyframe carries its
+    // own hidden-by-default seed. A container-level `fade-in g` must cascade
+    // the reveal into the subtree — opacity multiplies down the scene graph,
+    // so without the cascade the curve stays invisible forever (probe 010;
+    // 07_plots.amx shipped with an invisible headline curve).
+    let source = r#"
+        g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
+            c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
+        }
+
+        #0.3s
+        fade-in g [300ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let child = timeline.tracks.get("c").expect("child curve track should exist");
+    assert!(
+        !child.hidden_by_default,
+        "container fade-in must lift the child's hidden-by-default flag"
+    );
+    let opacity_at_0 = child.style.opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_1000 = child.style.opacity.as_ref().map(|t| t.evaluate(1000));
+    assert_eq!(
+        opacity_at_0,
+        Some(0.0),
+        "child opacity should start at its seeded 0 (fade starts at 300ms)"
+    );
+    assert_eq!(
+        opacity_at_1000,
+        Some(1.0),
+        "child opacity should be lifted to 1 after the container fade-in window"
+    );
+}
+
+#[test]
+fn unrevealed_graph_child_still_warns_never_revealed() {
+    // Without any entrance action the hosted child stays invisible, and the
+    // build must say so. The graph itself is visible-by-default (its
+    // declaration-time opacity keyframe is a constant 1.0), so the ancestor
+    // check must not treat that constant as a reveal (probe 010).
+    let source = r#"
+        g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
+            c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed
+                && d.location.subject.as_deref() == Some("c")),
+        "hidden graph child without any entrance must warn never-revealed, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
 fn equation_container_builds_with_fragment_children() {
     let source = r#"
         eq: Equation {

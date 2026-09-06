@@ -132,23 +132,26 @@ impl BuiltinAction for FadeIn {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
-            };
-
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
+                if let Some(track) = timeline.tracks.get_mut(target) {
+                    super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
+                }
             }
 
             // Reveal hidden-by-default targets through the lift: it adds the
             // same (start, 0) → (end, 1) pair AND clears the
             // `hidden_by_default` flag, keeping the flag trustworthy for
-            // later entrance actions and diagnostics.
-            let was_hidden = track.hidden_by_default;
-            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            // later entrance actions and diagnostics. The lift cascades into
+            // hidden children so a container fade-in reveals its subtree
+            // (probe 010: Graph-hosted PlotCurves stay seeded at opacity 0).
+            let was_hidden = timeline.tracks.get(target).is_some_and(|t| t.hidden_by_default);
+            super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {
+                let track = match timeline.tracks.get_mut(target) {
+                    Some(t) => t,
+                    None => continue,
+                };
                 track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
                 track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);

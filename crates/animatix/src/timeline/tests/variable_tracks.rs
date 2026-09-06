@@ -325,7 +325,7 @@ fn build_time_for_loop_step_sequences_swap_actions() {
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0, 1, 2} {
-    b[k]: Rect, size: (70, 80), color: blue
+    b[k]: Rect, size: (70, 80), color: blue, opacity: 1
   }
 }
 #0s
@@ -384,7 +384,7 @@ fn build_time_indexed_assignment_resolves_against_loop_variables() {
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0, 1, 2} {
-    b[k]: Rect, size: (70, 80), color: blue
+    b[k]: Rect, size: (70, 80), color: blue, opacity: 1
   }
 }
 #0s
@@ -630,7 +630,7 @@ fn bubble_sort(bars, values: List<Num>) {
 }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0,1,2,3} {
-    b[k]: Rect, size: (70, 80), color: blue
+    b[k]: Rect, size: (70, 80), color: blue, opacity: 1
   }
 }
 #0s
@@ -700,7 +700,7 @@ fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
 }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0,1,2,3,4,5} {
-    b[k]: Rect, size: (70, 80), color: blue
+    b[k]: Rect, size: (70, 80), color: blue, opacity: 1
   }
 }
 #0s
@@ -763,7 +763,7 @@ fn bubble_sort(bars, values: List<Num>) {
 pub component Bars(values: List<Num>, colors: List<Color>, at: Vec2 = (640, 440)) {
   row: Row, at: at, gap: 8 {
     for v, i in values {
-      bar[i]: Rect, size: (60, v * 30), color: colors[i]
+      bar[i]: Rect, size: (60, v * 30), color: colors[i], opacity: 1
     }
   }
 }

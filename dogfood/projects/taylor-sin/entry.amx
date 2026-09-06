@@ -1,0 +1,205 @@
+// Taylor Approximation of sin(x)
+// Title → the target curve → partial sums appear one term at a time →
+// the degree n sweeps 1→13 (frame-driven) → outro formula.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// =============================================================================
+// Scene 1 — Title card
+// =============================================================================
+# Title
+
+title: Text, text: "Taylor Series", font_size: 64,
+  color: text.primary, anchor: scene.center, offset: (0, -40)
+subtitle: Text, text: "Approximating sin(x) with polynomials", font_size: 28,
+  color: text.secondary, anchor: scene.center, offset: (0, 40)
+
+#0.5s
+fade-in title [800ms, ease: ease-out]
+
+#1.4s
+fade-in subtitle [600ms, ease: ease-out]
+
+#3.0s
+fade-out title [400ms]
+fade-out subtitle [400ms]
+
+play Target [fade, 400ms]
+
+// =============================================================================
+// Scene 2 — The function we want to approximate
+// =============================================================================
+# Target
+
+step_title: Text, text: "The Target: sin(x)", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sine_graph: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8),
+  size: (760, 470), anchor: scene.center, offset: (0, 20) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+    color: accent.primary, stroke_width: 4, stroke_progress: 0
+}
+
+hint: Text, text: "We only need it near 0 — that is where Taylor works best",
+  font_size: 17, color: text.muted, anchor: scene.bottom, offset: (0, -70)
+
+#0.4s
+fade-in step_title [500ms, ease: ease-out]
+
+#0.8s
+fade-in sine_graph [500ms, ease: ease-out]
+// NOTE: the hosted curve must be revealed individually — a container-level
+// fade-in does not cascade to Graph-hosted children (engine gap, see notes.md).
+fade-in sine [500ms, ease: ease-out]
+sine.stroke_progress = 1.0 [2.0s, ease: ease-in-out]
+
+#3.2s
+fade-in hint [500ms]
+
+#4.4s
+fade-out hint [400ms]
+
+play PartialSums [fade, 400ms]
+
+// =============================================================================
+// Scene 3 — Partial sums, one term at a time
+// =============================================================================
+# PartialSums
+
+step_title: Text, text: "Add One Term at a Time", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sum_graph: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8),
+  size: (760, 470), anchor: scene.center, offset: (0, 20) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+    color: text.muted, stroke_width: 3, opacity: 0.35
+  p1: PlotCurve, kind: "cartesian", func: (x) => x,
+    color: accent.warning, stroke_width: 3, opacity: 0
+  p3: PlotCurve, kind: "cartesian", func: (x) => x - x^3 / 6,
+    color: accent.secondary, stroke_width: 3, opacity: 0
+  p5: PlotCurve, kind: "cartesian", func: (x) => x - x^3 / 6 + x^5 / 120,
+    color: accent.success, stroke_width: 3, opacity: 0
+  p7: PlotCurve, kind: "cartesian", func: (x) => x - x^3 / 6 + x^5 / 120 - x^7 / 5040,
+    color: accent.danger, stroke_width: 3, opacity: 0
+}
+
+term_eq: Typst,
+  content: "$S_n(x) = sum_(k=0)^n (-1)^k x^(2k+1) / (2k+1)!$",
+  font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (0, -95)
+
+// Labels are absolutely positioned: as Col children they auto-inherit a
+// text width and wrap their fractions across lines (see notes.md).
+p1_label: Typst, content: "$n = 1: quad x$",
+  font_size: 16, color: accent.warning, at: (1055, 235), opacity: 0
+p3_label: Typst, content: "$n = 3: quad x - x^3/6$",
+  font_size: 16, color: accent.secondary, at: (1055, 270), opacity: 0
+p5_label: Typst, content: "$n = 5: quad + x^5/120$",
+  font_size: 16, color: accent.success, at: (1055, 305), opacity: 0
+p7_label: Typst, content: "$n = 7: quad - x^7/5040$",
+  font_size: 16, color: accent.danger, at: (1055, 340), opacity: 0
+
+#0.4s
+fade-in step_title [500ms, ease: ease-out]
+fade-in sum_graph [500ms, ease: ease-out]
+fade-in term_eq [600ms]
+
+#1.0s
+p1.opacity = 1 [600ms]
+p1_label.opacity = 1 [400ms]
+
+#2.0s
+p3.opacity = 1 [600ms]
+p3_label.opacity = 1 [400ms]
+
+#3.0s
+p5.opacity = 1 [600ms]
+p5_label.opacity = 1 [400ms]
+
+#4.0s
+p7.opacity = 1 [600ms]
+p7_label.opacity = 1 [400ms]
+
+#5.6s
+p1_label.opacity = 0.35 [400ms]
+p3_label.opacity = 0.35 [400ms]
+p5_label.opacity = 0.35 [400ms]
+p7_label.opacity = 0.35 [400ms]
+
+play Sweep [fade, 400ms]
+
+// =============================================================================
+// Scene 4 — Continuous degree sweep: n from 1 to 13, driven by t
+// =============================================================================
+# Sweep
+
+step_title: Text, text: "Raise the Degree", font_size: 36,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+#0s
+let n = 1
+
+sw_graph: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8),
+  size: (760, 470), anchor: scene.center, offset: (0, 20) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+    color: text.muted, stroke_width: 3, opacity: 0.35
+  // The partial sum up to odd degree n. The language cannot rebuild a closure
+  // programmatically (no sum() / user-fn calls / let inside closures), so every
+  // term is spelled out and gated by a step() on ft = clamp(floor((t-0.8)/0.6),
+  // 0, 6): gate g turns term (2g+1) on at g steps of 0.6s after t=0.8s.
+  // `ft` is inlined into the closure body because `always` frame values are
+  // NOT re-seen by plot closures (spec drift, see notes.md): referencing `t`
+  // inside the closure body is the only spelling that re-samples per frame.
+  // lint-disable: unused-label
+  taylor: PlotCurve, kind: "cartesian",
+    func: (x) => x - step(1, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^3 / 6
+      + step(2, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^5 / 120
+      - step(3, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^7 / 5040
+      + step(4, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^9 / 362880
+      - step(5, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^11 / 39916800
+      + step(6, clamp(floor((t - 0.8) / 0.6), 0, 6)) * x^13 / 6227020800,
+    color: accent.warning, stroke_width: 4
+}
+
+readout: Text, text: "n = 1", font_size: 22,
+  at: (1055, 240)
+
+note: Text, text: "Around 0, a few terms are already enough",
+  font_size: 17, color: text.muted, anchor: scene.bottom, offset: (0, -70)
+
+always {
+  let n = 1 + 2 * clamp(floor((t - 0.8) / 0.6), 0, 6)
+  readout.text = format("n = {}", n)
+  readout.color = if n >= 13 { accent.success } else { accent.warning }
+}
+
+#0.4s
+fade-in step_title [500ms, ease: ease-out]
+fade-in sw_graph [500ms, ease: ease-out]
+fade-in readout [400ms]
+
+#5.5s
+fade-in note [600ms]
+
+play Outro [fade, 400ms]
+
+// =============================================================================
+// Scene 5 — Outro
+// =============================================================================
+# Outro
+
+final_eq: Typst,
+  content: "$sin(x) = x - frac(x^3, 3!) + frac(x^5, 5!) - frac(x^7, 7!) + dots.h$",
+  font_size: 36, color: text.primary, anchor: scene.center, offset: (0, -30)
+
+tag: Text, text: "taylor series  ·  animatix", font_size: 18,
+  color: text.muted, anchor: scene.center, offset: (0, 55)
+
+#0.5s
+fade-in final_eq [700ms, ease: ease-out]
+
+#1.0s
+fade-in tag [500ms, ease: ease-out]
+
+#3.0s
+fade-out final_eq [400ms]
+fade-out tag [400ms]
