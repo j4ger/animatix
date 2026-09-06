@@ -400,6 +400,131 @@ fade-in c [100ms]
 }
 
 #[test]
+fn sum_range_computes_series_at_build_and_frame_time() {
+    // Build time: `let` precompute inside a keyframe. 1! + 2! + 3! = 9 and
+    // an arithmetic series 0+1+2+3+4 = 10.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
+
+#0.2s
+fade-in label [100ms]
+
+#0.5s
+let fact_sum = sum_range((k) => factorial(k), 1, 3)
+let arith = sum_range((k) => k, 0, 4)
+label.text = format("facts={} arith={}", fact_sum, arith)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let text = timeline
+        .tracks
+        .get("label")
+        .and_then(|t| t.text.text_content.as_ref())
+        .map(|track| track.evaluate(1000))
+        .unwrap_or_default();
+    assert_eq!(text, "facts=9 arith=10");
+}
+
+#[test]
+fn sum_range_inside_plot_closure() {
+    // The payoff shape: a Taylor partial sum via sum_range inside a plot
+    // closure. The body references `t` (through the n expression) so the
+    // dynamic gate fires, and every sampled y must be finite — the partial
+    // sum of sin's series at small x stays bounded.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+c: PlotCurve, kind: "cartesian",
+  func: (x) => sum_range((k) => (-1)^k * x^(2*k + 1) / factorial(2*k + 1), 0, 2) + 0 * t,
+  color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+
+#0.2s
+fade-in c [100ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let mut filter_backend = None;
+    let program = timeline.evaluate_program_with_debug(
+        1.0,
+        crate::timeline::SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        crate::timeline::DebugRenderOptions::default(),
+        &mut filter_backend,
+    );
+    let mut checked = 0;
+    for item in &program.items {
+        for command in &item.commands {
+            if let crate::primitives::RenderCommand::Paths { paths } = command {
+                for vp in paths {
+                    for el in vp.path.elements() {
+                        if let kurbo::PathEl::LineTo(p) | kurbo::PathEl::MoveTo(p) = el {
+                            assert!(
+                                p.y.is_finite(),
+                                "sampled y must be finite, got NaN at x={}",
+                                p.x
+                            );
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(checked > 0, "expected sampled points");
+}
+
+#[test]
+fn sum_range_rejects_invalid_arguments() {
+    // Non-closure first arg and non-integer bounds must be type errors at
+    // build time.
+    for bad in [
+        "let x = sum_range(5, 0, 3)",
+        "let x = sum_range((k) => k, 0.5, 3)",
+        "let x = sum_range((k) => k, -1, 3)",
+        "let x = sum_range((a, b) => a + b, 0, 3)",
+    ] {
+        let source = format!(
+            r#"
+config {{ colorscheme: "editorial-dark", resolution: (480, 270) }}
+#0.5s
+{bad}
+    "#
+        );
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+        let ast = ast.expect("parsed AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        assert!(!report.diagnostics.is_empty(), "expected a diagnostic for: {bad}");
+    }
+}
+
+#[test]
 fn undeclared_action_modifier_warns() {
     // LG-4: `highlight` does not declare `intensity` — the value used to be
     // silently ignored (the shipped gradient_descent example carried one).

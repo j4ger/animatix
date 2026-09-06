@@ -465,45 +465,75 @@ pub(crate) fn evaluate_call_value(
                 name, params, body, ..
             } => super::fn_eval::evaluate_user_fn(&name, &params, &body, &arg_values, env),
             Value::Closure(params, body, ref captures) => {
-                if arg_values.len() != params.len() {
-                    return Err(EvalError::TypeMismatch(format!(
-                        "Closure '{}' expects {} arguments, got {}",
-                        func,
-                        params.len(),
-                        arg_values.len()
-                    )));
-                }
-
-                // Invariant: the calling env must carry a stdlib base so that
-                // NativeFn values (colorscheme samplers, etc.) are accessible
-                // inside the closure body.  Built-in math functions are exempt
-                // (they are resolved by eval_builtin_fn before env lookup).
-                debug_assert!(
-                    env.base.is_some(),
-                    "evaluate_call: calling env has no stdlib base; NativeFn values will be unreachable inside closure '{}'",
-                    func
-                );
-
-                // Propagate the caller's stdlib base so NativeFn values
-                // (e.g. colorscheme samplers) remain reachable inside the
-                // closure body.  Captured overrides are merged on top.
-                let mut child_env = if let Some(base) = env.base.as_ref() {
-                    Environment::with_base(std::sync::Arc::clone(base))
-                } else {
-                    Environment::new()
-                };
-                captures.merge_into(&mut child_env);
-                for (param, val) in params.iter().zip(arg_values) {
-                    child_env.set(param, val);
-                }
-
-                crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&body, &child_env)
+                invoke_closure_value(&params, &body, captures, arg_values, func, env)
             },
             _ => Err(EvalError::NotCallable(func.to_string())),
         }
     } else {
         Err(EvalError::UndefinedVariable(func.to_string()))
     }
+}
+
+/// Invoke a closure value with already-evaluated arguments.
+///
+/// Closures evaluate against the captured (lexical) environment, then bind
+/// parameters on top. Free variables resolve to their values at creation
+/// time, not call time. Shared by `evaluate_call_value` and by builtins
+/// that take a closure argument (e.g. `sum_range`).
+pub(crate) fn invoke_closure_value(
+    params: &[String],
+    body: &crate::timeline::modifier_runtime::ir::CompiledExpr,
+    captures: &CapturedEnv,
+    arg_values: Vec<Value>,
+    func_name: &str,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    if arg_values.len() != params.len() {
+        return Err(EvalError::TypeMismatch(format!(
+            "Closure '{}' expects {} arguments, got {}",
+            func_name,
+            params.len(),
+            arg_values.len()
+        )));
+    }
+
+    // Invariant: the calling env must carry a stdlib base so that
+    // NativeFn values (colorscheme samplers, etc.) are accessible
+    // inside the closure body.  Built-in math functions are exempt
+    // (they are resolved by eval_builtin_fn before env lookup).
+    debug_assert!(
+        env.base.is_some(),
+        "calling env has no stdlib base; NativeFn values will be unreachable inside closure '{}'",
+        func_name
+    );
+
+    // Propagate the caller's stdlib base so NativeFn values
+    // (e.g. colorscheme samplers) remain reachable inside the
+    // closure body.  Captured overrides are merged on top.
+    let mut child_env = if let Some(base) = env.base.as_ref() {
+        Environment::with_base(std::sync::Arc::clone(base))
+    } else {
+        Environment::new()
+    };
+    captures.merge_into(&mut child_env);
+    // Propagate the caller's plot-sampling bindings (e.g. the bound plot
+    // argument `x`): they live in binding slots, never in `CapturedEnv`, so
+    // a nested closure referencing the outer argument would otherwise
+    // resolve to UndefinedVariable. Slots whose name collides with a
+    // parameter are skipped — the parameter binding must win.
+    for (dst, src) in child_env.bindings.iter_mut().zip(env.bindings.iter()) {
+        if let Some((name, _)) = src {
+            if params.contains(name) {
+                continue;
+            }
+        }
+        *dst = src.clone();
+    }
+    for (param, val) in params.iter().zip(arg_values) {
+        child_env.set(param, val);
+    }
+
+    crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(body, &child_env)
 }
 
 /// Evaluate a method call on a receiver value.

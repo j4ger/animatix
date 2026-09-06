@@ -242,6 +242,79 @@ pub fn load_standard_library(env: &mut Environment) {
 
     env.set("rand", Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))));
 
+    // Σ_{k=lo}^{hi} f(k): invoke a single-parameter closure over an integer
+    // range and accumulate. Requires the caller env so the closure body can
+    // resolve the stdlib base (see docs/series_construction.md for why this
+    // is a NativeFn rather than an eval_shared fast-path builtin).
+    env.set(
+        "sum_range",
+        Value::NativeFn(Arc::new(|args, env| {
+            expect_arg_count("sum_range", args, 3)?;
+            let (params, body, captures) = match &args[0] {
+                Value::Closure(params, body, captures) => (params, body, captures),
+                other => {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "sum_range expects a closure as first argument, got {:?}",
+                        other
+                    )));
+                },
+            };
+            if params.len() != 1 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "sum_range expects a single-parameter closure, got {} parameters",
+                    params.len()
+                )));
+            }
+            let lo = expect_num("sum_range", &args[1])?;
+            let hi = expect_num("sum_range", &args[2])?;
+            if lo < 0.0 || lo.fract() != 0.0 || hi < 0.0 || hi.fract() != 0.0 {
+                return Err(EvalError::TypeMismatch(format!(
+                    "sum_range bounds must be non-negative integers, got [{}, {}]",
+                    lo, hi
+                )));
+            }
+            let (lo, hi) = (lo as u64, hi as u64);
+            if hi >= lo + 100_000 {
+                return Err(EvalError::TypeMismatch(
+                    "sum_range exceeded 100,000 iterations".to_string(),
+                ));
+            }
+
+            // Build the child env once: caller base + lexical captures, then
+            // rebind only the loop parameter per iteration. Also propagate
+            // the caller's plot-sampling bindings (e.g. the bound plot
+            // argument `x`): they live in binding slots, never in
+            // CapturedEnv, so a term closure referencing the outer argument
+            // would otherwise not resolve. Slots colliding with the loop
+            // parameter are skipped — the per-iteration `set` must win.
+            let mut child_env = if let Some(base) = env.base.as_ref() {
+                Environment::with_base(std::sync::Arc::clone(base))
+            } else {
+                Environment::new()
+            };
+            captures.merge_into(&mut child_env);
+            let param = params[0].clone();
+            for (dst, src) in child_env.bindings.iter_mut().zip(env.bindings.iter()) {
+                if let Some((name, _)) = src {
+                    if *name == param {
+                        continue;
+                    }
+                }
+                *dst = src.clone();
+            }
+
+            let mut acc = 0.0_f64;
+            for k in lo..=hi {
+                child_env.set(&param, Value::Num(k as f64));
+                acc += crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(
+                    body, &child_env,
+                )?
+                .as_num();
+            }
+            Ok(Value::Num(acc))
+        })),
+    );
+
     // Deterministic pseudo-random using splitmix64 hash.
     // Same seed always produces the same value in [0, 1).
     fn splitmix64(x: u64) -> u64 {
