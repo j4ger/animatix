@@ -787,6 +787,18 @@ impl Timeline {
             // Check if a filter backend is available
             let has_backend = filter_backend.is_some();
             if !has_backend {
+                // Surface the fallback: authored filter effects are silently
+                // dropped without it.
+                self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                    crate::diagnostics::Diagnostic::warning(
+                        crate::diagnostics::DiagnosticCode::RenderFailure,
+                        crate::diagnostics::DiagnosticPhase::Render,
+                        format!(
+                            "Filter '{node_label}' has no filter backend available; \
+                             rendering children unfiltered"
+                        ),
+                    ),
+                );
                 // Fallback: render children directly (no filtering)
                 for child in &children {
                     self.evaluate_node(
@@ -923,6 +935,16 @@ impl Timeline {
                     Err(e) => {
                         tracing::warn!(
                             "Filter backend error, falling back to unfiltered rendering: {e}"
+                        );
+                        self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                            crate::diagnostics::Diagnostic::warning(
+                                crate::diagnostics::DiagnosticCode::RenderFailure,
+                                crate::diagnostics::DiagnosticPhase::Render,
+                                format!(
+                                    "Filter '{node_label}' backend failed ({e}); \
+                                     rendering children unfiltered"
+                                ),
+                            ),
                         );
                         scene.encoding_mut().append(sub_scene.encoding(), &None);
                     },

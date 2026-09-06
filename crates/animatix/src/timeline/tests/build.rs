@@ -525,6 +525,33 @@ config {{ colorscheme: "editorial-dark", resolution: (480, 270) }}
 }
 
 #[test]
+fn anonymous_graph_child_builds_without_reserved_prefix_error() {
+    // An unlabeled actor inside a Graph gets an engine-generated `__anon_*`
+    // label; the reserved-prefix check must not reject the engine's own
+    // names (it used to make unlabeled Graph children unbuildable).
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
+            PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::ReservedLabelPrefix),
+        "anonymous Graph children must not trip the reserved-prefix check, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
 fn undeclared_action_modifier_warns() {
     // LG-4: `highlight` does not declare `intensity` — the value used to be
     // silently ignored (the shipped gradient_descent example carried one).

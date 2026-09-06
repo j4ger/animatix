@@ -67,10 +67,14 @@ impl Timeline {
                     props,
                     modifiers,
                     children,
+                    is_anonymous,
                     ..
                 } => {
-                    // Validate that user labels don't use the reserved `__` prefix
-                    if label.starts_with("__") {
+                    // Validate that user labels don't use the reserved `__` prefix.
+                    // Anonymous actors carry engine-generated `__anon_*` labels —
+                    // the generator's own output must not trip this check (it used
+                    // to make unlabeled Graph children unbuildable).
+                    if label.starts_with("__") && !*is_anonymous {
                         diagnostics.push(Diagnostic::error(
                             DiagnosticCode::ReservedLabelPrefix,
                             DiagnosticPhase::Build,

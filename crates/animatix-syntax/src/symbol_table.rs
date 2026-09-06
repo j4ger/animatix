@@ -70,6 +70,11 @@ pub struct LabelInfo {
     pub span: Option<Span>,
     /// The type of the actor (e.g., "Text", "Button"), if applicable.
     pub ty: Option<String>,
+    /// Plot runtime-parameter names (property names matching identifiers in
+    /// the actor's `func` closure), populated for plot-family actors. Lets
+    /// the analyzer skip the unknown-property info for `curve.freq = ...`
+    /// assignments on parameters declared on the same actor.
+    pub plot_params: Vec<String>,
     /// Inferred expression type for variables and actors.
     pub inferred_type: Option<typing::Type>,
     /// Whether the declaration is exported with `pub`.
@@ -173,6 +178,7 @@ impl SymbolTable {
                         ty: None,
                         inferred_type: Some(inferred),
                         is_pub: *is_pub,
+                        plot_params: Vec::new(),
                     },
                 );
             },
@@ -184,8 +190,10 @@ impl SymbolTable {
                 ty,
                 span,
                 children,
+                props,
                 ..
             } => {
+                let plot_params = crate::semantic_diagnostics::plot_runtime_params(ty, props);
                 self.labels.insert(
                     label.clone(),
                     LabelInfo {
@@ -201,6 +209,7 @@ impl SymbolTable {
                             typing::Type::Actor(ty.clone())
                         }),
                         is_pub: *is_pub,
+                        plot_params,
                     },
                 );
                 if array_index.is_some() {
@@ -267,6 +276,7 @@ impl SymbolTable {
                             ty: None,
                             inferred_type: param_ty,
                             is_pub: false,
+                            plot_params: Vec::new(),
                         },
                     );
                 }
@@ -283,6 +293,7 @@ impl SymbolTable {
                         ty: None,
                         inferred_type: None,
                         is_pub: false,
+                        plot_params: Vec::new(),
                     },
                 );
                 for stmt in body {
@@ -330,6 +341,7 @@ impl SymbolTable {
                             ty: None,
                             inferred_type: element_types.get(index).cloned(),
                             is_pub: false,
+                            plot_params: Vec::new(),
                         },
                     );
                 }
@@ -346,6 +358,7 @@ impl SymbolTable {
                             ty: None,
                             inferred_type: None,
                             is_pub: false,
+                            plot_params: Vec::new(),
                         },
                     );
                 }
@@ -711,6 +724,7 @@ impl SymbolTable {
                         ty: None,
                         inferred_type: None,
                         is_pub: false,
+                        plot_params: Vec::new(),
                     },
                 );
                 if array_index.is_some() {
@@ -747,6 +761,7 @@ impl SymbolTable {
                             ty: None,
                             inferred_type: None,
                             is_pub: false,
+                            plot_params: Vec::new(),
                         },
                     );
                 }
@@ -762,6 +777,7 @@ impl SymbolTable {
                             ty: None,
                             inferred_type: None,
                             is_pub: false,
+                            plot_params: Vec::new(),
                         },
                     );
                 }
