@@ -465,8 +465,7 @@ impl Timeline {
 
         // Names written by always blocks — a plot closure capturing one of
         // these must resample per frame (see ProceduralPlot::is_dynamic).
-        timeline.frame_written_vars =
-            Timeline::collect_frame_written_vars(&timeline.modifiers);
+        timeline.frame_written_vars = Timeline::collect_frame_written_vars(&timeline.modifiers);
 
         // Compute modifier hash for cross-rebuild IR caching.
         //

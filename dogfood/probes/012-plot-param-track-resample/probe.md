@@ -1,7 +1,13 @@
 # Probe: timed plot-param assignment renders a wrong curve after completion
 
-Status: open — root-cause then fix (roadmap "Planned: Dogfood-Driven Fix Pass",
-Stage B; do not assume it shares a root cause with probe 011).
+Status: **resolved 2026-09-06** — not a param-track bug at all. The adaptive
+samplers' subdivision floor was 3 levels (8 samples); high-frequency curves
+(e.g. `sin(5x)` over `(-10, 10)` ≈ 16 periods) fit a single chord within
+tolerance and rendered as a straight line. `sample_recursive_cartesian`,
+`_polar`, and `_parametric` now take a `min_depth` derived from the plot's
+`resolution` (build-time previews use full depth). Pixel-verified: the repro
+and a plain `sin(5x)` both render the full wave. Original writeup kept below
+with the corrected diagnosis inline.
 
 ## Intent
 
@@ -39,19 +45,24 @@ transition instead of parameter assignment) is the reliable alternative.
   build error.
 - `animatix image --time 5.0`: near-flat sloped line (pixel-verified
   2026-09-06).
-- Suspicion: `plot_param_tracks` seeding/`PropertyTrack::new(target_val)`
-  plus the unconditional injection in scene_eval.rs:532-547 feed the sampler
-  an unexpected value; needs temporary tracing on the sample path before any
-  fix.
+- **Corrected diagnosis (2026-09-06):** rendering a plain
+  `func: (x) => sin(5 * x)` with no param machinery reproduces the sloped
+  line — the param-track path was innocent. The samplers only guaranteed 8
+  samples (`depth < 3` floor); for sin(5x) the 9 sample points are
+  monotonically decreasing and nearly collinear, so the deviation test passes
+  immediately. The param-track keyframes were working; the resampled wave was
+  then under-sampled into a line.
 
 ## Impact
 
-Timed parameter animation is the documented escape hatch for animating plots;
-as-is it silently renders garbage.
+Any curve whose frequency is high relative to the domain (waves, aliasing
+demos, parametric Lissajous figures) silently under-samples.
 
-## Recommendation
+## Recommendation (applied)
 
-Root-cause the injected value, fix the param-track sampling, add a pixel
-regression at mid- (blend window) and post-transition times, and align the
-analyzer's common-property handling for plot params. Tracked in the roadmap
+Honor `resolution` as a minimum sample count: `min_depth =
+ceil(log2(resolution))` (96 → 128 samples) in all three recursive samplers;
+adaptive subdivision continues beyond the floor while the chord deviation
+exceeds `tolerance`. Analyzer alignment for declared plot params remains a
+minor open item. Tracked in the roadmap
 fix pass (2026-09-06).

@@ -1250,7 +1250,11 @@ impl Timeline {
                     Stmt::LetDecl { name, .. } => {
                         out.insert(name.clone());
                     },
-                    Stmt::Conditional { then_branch, else_branch, .. } => {
+                    Stmt::Conditional {
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
                         walk(then_branch, out);
                         if let Some(else_branch) = else_branch {
                             walk(else_branch, out);
@@ -1272,7 +1276,9 @@ impl Timeline {
     /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
         self.tracks.values().any(|t| {
-            t.procedural_plot.as_ref().is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
+            t.procedural_plot
+                .as_ref()
+                .is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
                 || !t.func_transitions.is_empty()
         })
     }

@@ -325,6 +325,36 @@ fn plot_capture_of_always_written_var_is_dynamic() {
 }
 
 #[test]
+fn high_frequency_curve_meets_resolution_floor() {
+    // sin(5x) over (-10, 10) is ~16 periods; the adaptive samplers used to
+    // subdivide at most 3 levels (8 samples), whose values are nearly
+    // collinear for this function — the curve rendered as a single straight
+    // chord (probe 012). `resolution` is now honored as a minimum sample
+    // count, so the sampled polyline must contain materially more points than
+    // the old floor.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        c: PlotCurve, kind: "cartesian", func: (x) => sin(5 * x),
+          color: accent.primary, stroke_width: 3, at: (320, 180), size: (400, 300)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let track = timeline.tracks.get("c").expect("curve track");
+    let paths = track.evaluate_vector_paths_value(500);
+    let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
+    assert!(
+        point_count >= 32,
+        "high-frequency curve should sample at least ~resolution points, got {point_count}"
+    );
+}
+
+#[test]
 fn equation_container_builds_with_fragment_children() {
     let source = r#"
         eq: Equation {

@@ -11,3 +11,9 @@ kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (400, 400), at: (640, 
   lissajous: PlotCurve, kind: "parametric", func: (t) => (2.2 * sin(3 * t), 1.4 * cos(2 * t)), color: accent.success, stroke_width: 2
   circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 3.0, color: accent.danger, stroke_width: 2
 }
+
+// Pre-keyframe declarations are hidden by default; the container fade-in
+// reveals the hosted curves (and would have been needed even before the
+// reveal-cascade fix — this example previously rendered bare axes).
+#0.2s
+fade-in kinds [400ms]

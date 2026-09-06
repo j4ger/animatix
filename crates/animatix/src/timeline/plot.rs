@@ -469,6 +469,7 @@ pub(crate) fn sample_recursive_cartesian(
     p1: kurbo::Point,
     depth: usize,
     max_depth: usize,
+    min_depth: usize,
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
@@ -528,7 +529,7 @@ pub(crate) fn sample_recursive_cartesian(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < 3 {
+    if dist_sq > tolerance || depth < min_depth {
         sample_recursive_cartesian(
             min_t,
             mid_t,
@@ -536,6 +537,7 @@ pub(crate) fn sample_recursive_cartesian(
             p_mid,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -555,6 +557,7 @@ pub(crate) fn sample_recursive_cartesian(
             p1,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -582,6 +585,7 @@ pub(crate) fn sample_recursive_polar(
     p1: kurbo::Point,
     depth: usize,
     max_depth: usize,
+    min_depth: usize,
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
@@ -637,7 +641,7 @@ pub(crate) fn sample_recursive_polar(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < 3 {
+    if dist_sq > tolerance || depth < min_depth {
         sample_recursive_polar(
             min_t,
             mid_t,
@@ -645,6 +649,7 @@ pub(crate) fn sample_recursive_polar(
             p_mid,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -664,6 +669,7 @@ pub(crate) fn sample_recursive_polar(
             p1,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -691,6 +697,7 @@ pub(crate) fn sample_recursive_parametric(
     p1: kurbo::Point,
     depth: usize,
     max_depth: usize,
+    min_depth: usize,
     tolerance: f64,
     env: &mut Environment,
     arg_name: &str,
@@ -749,7 +756,7 @@ pub(crate) fn sample_recursive_parametric(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < 3 {
+    if dist_sq > tolerance || depth < min_depth {
         sample_recursive_parametric(
             min_t,
             mid_t,
@@ -757,6 +764,7 @@ pub(crate) fn sample_recursive_parametric(
             p_mid,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -776,6 +784,7 @@ pub(crate) fn sample_recursive_parametric(
             p1,
             depth + 1,
             max_depth,
+            min_depth,
             tolerance,
             env,
             arg_name,
@@ -1440,6 +1449,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
+            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
             actual_tolerance,
             env,
             &arg_name,
@@ -1460,6 +1470,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
+            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
             actual_tolerance,
             env,
             &arg_name,
@@ -1480,6 +1491,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
+            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
             actual_tolerance,
             env,
             &arg_name,
