@@ -183,7 +183,7 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             .iter()
             .map(compile_expr)
             .collect::<Result<Vec<_>, _>>()
-            .map(CompiledExpr::MakeVec),
+            .map(CompiledExpr::MakeList),
         Expr::Unary(op, expr) => {
             if *op == crate::ast::UnaryOp::Ref {
                 // `&label.prop` — the parser guarantees a two-segment path.

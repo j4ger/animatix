@@ -1579,6 +1579,11 @@ Animatix distinguishes between **fixed-size tuples** `(...)` and **variable-leng
 Tuples of length 2 are inferred as `Vec2`, length 4 as `Vec4`. All other tuples produce a generic tuple type.
 Lists are always inferred as `List<T>` and can be empty `{}` or single-element `{42}`.
 
+This distinction holds at frame time too: brace lists keep their elements as
+a `Value::List` (never coerced to a vector), while paren tuples of 2-4
+numeric elements evaluate to `Vec2/3/4` — identical semantics on the
+build-time tree-walker and the frame-time IR.
+
 ### Operators
 
 Binary operator precedence, tightest to loosest:

@@ -311,9 +311,11 @@ fn evaluate_modifier_via_ir_result(
 
 #[test]
 fn sum_mixed_type_list_errors_on_both_paths() {
-    // Formerly a documented divergence (IR coerced "x" -> 0.0 via MakeVec's
-    // as_num); make_vec_value now requires numeric elements, so both paths
-    // reject the non-numeric element instead of silently summing a hidden 0.
+    // Formerly a documented divergence: the IR lowered brace lists via
+    // MakeVec, coercing "x" -> 0.0 into a Vec2 and silently summing 1.
+    // Lowering now distinguishes lists (MakeList, elements preserved) from
+    // tuples (MakeVec, numeric), so both paths keep the Str and sum()
+    // rejects it identically.
     let expr = Expr::Call(
         "sum".to_string(),
         vec![Expr::List(vec![Expr::Num(1.0), Expr::Str("x".to_string())])],
@@ -325,6 +327,40 @@ fn sum_mixed_type_list_errors_on_both_paths() {
     load_standard_library(&mut env);
     let ir_err = evaluate_modifier_via_ir_result(compiled, &mut env);
     assert!(ir_err.is_err(), "IR must reject non-numeric elements now");
+}
+
+#[test]
+fn brace_list_preserves_elements_through_ir() {
+    // {1, 2, 3} lowered via MakeList must evaluate to Value::List([Num; 3])
+    // — identical to the tree-walker — instead of the old MakeVec Vec3
+    // coercion. Tuples stay on MakeVec.
+    let list_expr = Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]);
+    let tuple_expr = Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]);
+
+    // Tree-walker expectations.
+    let walker_list = evaluate_expr(&list_expr, &Environment::new()).expect("list eval");
+    assert!(
+        matches!(walker_list, Value::List(_)),
+        "walker keeps brace lists as List, got {walker_list:?}"
+    );
+    let walker_tuple = evaluate_expr(&tuple_expr, &Environment::new()).expect("tuple eval");
+    assert!(
+        matches!(walker_tuple, Value::Vec3(_)),
+        "walker coerces 3-tuples to Vec3, got {walker_tuple:?}"
+    );
+
+    // IR parity for both.
+    let compiled_list = compile_expr(&list_expr).expect("list compiles");
+    let mut env = Environment::new();
+    load_standard_library(&mut env);
+    let ir_list = evaluate_modifier_via_ir(compiled_list, &mut env);
+    assert_eq!(ir_list, walker_list, "IR list must match tree-walker");
+
+    let compiled_tuple = compile_expr(&tuple_expr).expect("tuple compiles");
+    let mut env2 = Environment::new();
+    load_standard_library(&mut env2);
+    let ir_tuple = evaluate_modifier_via_ir(compiled_tuple, &mut env2);
+    assert_eq!(ir_tuple, walker_tuple, "IR tuple must match tree-walker");
 }
 
 #[test]

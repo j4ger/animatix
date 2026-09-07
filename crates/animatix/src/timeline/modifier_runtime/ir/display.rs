@@ -104,6 +104,16 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
                 }
                 write!(f, ")")
             },
+            CompiledExpr::MakeList(items) => {
+                write!(f, "vec(")?;
+                for (idx, item) in items.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", DisplayCompiledExpr(item))?;
+                }
+                write!(f, ")")
+            },
             CompiledExpr::Unary(op, expr) => {
                 write!(f, "({op:?} {})", DisplayCompiledExpr(expr))
             },

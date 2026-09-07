@@ -21,6 +21,13 @@ pub(crate) fn evaluate_compiled_expr(
                 .collect::<Result<Vec<_>, _>>()?;
             make_vec_value(values)
         },
+        CompiledExpr::MakeList(items) => {
+            let values = items
+                .iter()
+                .map(|item| evaluate_compiled_expr(item, env))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Value::List(values.into()))
+        },
         CompiledExpr::Unary(op, expr) => {
             if *op == crate::ast::UnaryOp::Ref {
                 // lowering compiles Unary(Ref, two-segment path) into

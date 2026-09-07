@@ -78,8 +78,12 @@ pub enum CompiledExpr {
     Const(Value),
     /// Load a value from the environment by name.
     LoadEnv(String),
-    /// Construct a vector of expressions.
+    /// Construct a vector of expressions (from paren tuples): coerces 2-4
+    /// numeric elements to Vec2/3/4.
     MakeVec(Vec<CompiledExpr>),
+    /// Construct a value list (from brace literals): elements are preserved
+    /// as-is, mirroring the tree-walker's `Value::List`.
+    MakeList(Vec<CompiledExpr>),
     /// Unary operation.
     Unary(UnaryOp, Box<CompiledExpr>),
     /// Binary operation.
@@ -127,6 +131,11 @@ impl CompiledExpr {
         match self {
             CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_) => {},
             CompiledExpr::PropRef { label, prop } => out.push((label.clone(), prop.clone())),
+            CompiledExpr::MakeList(items) => {
+                for item in items {
+                    item.collect_prop_refs(out);
+                }
+            },
             CompiledExpr::MakeVec(items) => {
                 for item in items {
                     item.collect_prop_refs(out);
@@ -178,6 +187,7 @@ impl CompiledExpr {
         match self {
             CompiledExpr::LoadEnv(id) => id == name,
             CompiledExpr::MakeVec(items) => items.iter().any(|item| item.references_ident(name)),
+            CompiledExpr::MakeList(items) => items.iter().any(|item| item.references_ident(name)),
             CompiledExpr::Unary(_, expr) => expr.references_ident(name),
             CompiledExpr::Binary(left, _, right) => {
                 left.references_ident(name) || right.references_ident(name)
