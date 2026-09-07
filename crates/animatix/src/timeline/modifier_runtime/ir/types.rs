@@ -121,6 +121,58 @@ pub enum CompiledExpr {
 }
 
 impl CompiledExpr {
+    /// Collect every property-slot reference (`&label.prop`) reachable from
+    /// this expression, as `(label, prop)` pairs.
+    pub fn collect_prop_refs(&self, out: &mut Vec<(String, String)>) {
+        match self {
+            CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_) => {},
+            CompiledExpr::PropRef { label, prop } => out.push((label.clone(), prop.clone())),
+            CompiledExpr::MakeVec(items) => {
+                for item in items {
+                    item.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::Unary(_, expr) => expr.collect_prop_refs(out),
+            CompiledExpr::Binary(left, _, right) => {
+                left.collect_prop_refs(out);
+                right.collect_prop_refs(out);
+            },
+            CompiledExpr::Select(cond, then_expr, else_expr) => {
+                cond.collect_prop_refs(out);
+                then_expr.collect_prop_refs(out);
+                else_expr.collect_prop_refs(out);
+            },
+            CompiledExpr::CallBuiltin(_, args) | CompiledExpr::CallEnv(_, args) => {
+                for arg in args {
+                    arg.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::Index(base, index) => {
+                base.collect_prop_refs(out);
+                index.collect_prop_refs(out);
+            },
+            CompiledExpr::Method(base, _, args) => {
+                base.collect_prop_refs(out);
+                for arg in args {
+                    arg.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::Construct(_, fields) => {
+                for (_, field) in fields {
+                    field.collect_prop_refs(out);
+                }
+            },
+            CompiledExpr::AnchorLookup { .. } => {},
+            CompiledExpr::Closure(_, body) => body.collect_prop_refs(out),
+            CompiledExpr::LetChain(bindings, tail) => {
+                for (_, value) in bindings {
+                    value.collect_prop_refs(out);
+                }
+                tail.collect_prop_refs(out);
+            },
+        }
+    }
+
     /// Returns `true` if this compiled expression references the given identifier.
     pub fn references_ident(&self, name: &str) -> bool {
         match self {
@@ -218,6 +270,37 @@ pub enum ModifierIrStmt {
 pub struct ModifierIrProgram {
     /// Top-level statements.
     pub statements: Vec<ModifierIrStmt>,
+}
+
+impl ModifierIrProgram {
+    /// Collect every property-slot reference (`&label.prop`) reachable from
+    /// all statements (used by the build-time reference validation pass).
+    pub fn collect_prop_refs(&self, out: &mut Vec<(String, String)>) {
+        fn walk_stmts(stmts: &[ModifierIrStmt], out: &mut Vec<(String, String)>) {
+            for stmt in stmts {
+                match stmt {
+                    ModifierIrStmt::Assign { value, .. }
+                    | ModifierIrStmt::AssignIndexed { value, .. }
+                    | ModifierIrStmt::Let { value, .. } => value.collect_prop_refs(out),
+                    ModifierIrStmt::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    } => {
+                        condition.collect_prop_refs(out);
+                        walk_stmts(then_branch, out);
+                        walk_stmts(else_branch, out);
+                    },
+                    ModifierIrStmt::For { iterable, body, .. } => {
+                        iterable.collect_prop_refs(out);
+                        walk_stmts(body, out);
+                    },
+                    ModifierIrStmt::Noop => {},
+                }
+            }
+        }
+        walk_stmts(&self.statements, out);
+    }
 }
 
 /// Overrides for modifier properties, keyed by object and property name.

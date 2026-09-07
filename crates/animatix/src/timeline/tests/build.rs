@@ -1749,3 +1749,66 @@ fn effect_keys_on_non_action_hosts_warn() {
         report.diagnostics
     );
 }
+
+#[test]
+fn prop_ref_with_unknown_actor_warns_at_build() {
+    // `&rign.at` (typo'd label) must produce a build-time diagnostic instead
+    // of failing at frame time.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+        box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
+
+        #0.2s
+        fade-in box [200ms]
+
+        always {
+          box.color = if is_animating(&rign.at) { accent.warning } else { accent.success }
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
+                && d.message.contains("rign")
+        }),
+        "typo'd property-ref label must warn at build, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn prop_ref_to_non_injectable_property_warns() {
+    // `font_size` is assignable but not injectable (read_source is absent),
+    // so `&box.font_size` must warn even though the label and the property
+    // name are both individually valid.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+        box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center, font_size: 10
+
+        #0.2s
+        fade-in box [200ms]
+
+        always {
+          let _guard = is_animating(&box.font_size)
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
+                && d.message.contains("font_size")
+        }),
+        "non-injectable property ref must warn at build, got: {:?}",
+        report.diagnostics
+    );
+}

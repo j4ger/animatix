@@ -503,6 +503,54 @@ impl Timeline {
             }
         }
 
+        // Validate `&label.prop` references at build time: the label must be
+        // a declared track and the property must be injectable. The reference
+        // resolves at frame time today; this pass moves the common failure
+        // (typo'd label or property) to build diagnostics. Runs after IR
+        // lowering because it walks the lowered modifier programs.
+        {
+            let mut prop_refs: Vec<(String, String)> = Vec::new();
+            for program in &timeline.modifier_programs {
+                program.collect_prop_refs(&mut prop_refs);
+            }
+            prop_refs.sort();
+            prop_refs.dedup();
+            for (label, prop) in prop_refs {
+                if !timeline.tracks.contains_key(&label) {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownTargetPath,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Property reference `&{label}.{prop}` targets an unknown actor '{label}'."
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                    continue;
+                }
+                let injectable =
+                    crate::timeline::property_registry::resolve_property(prop.as_str())
+                        .is_some_and(|(schema, _)| {
+                            schema.flags.contains(
+                                crate::timeline::property_registry::PropertyFlags::INJECTABLE,
+                            )
+                        });
+                if !injectable {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownTargetPath,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Property reference `&{label}.{prop}` names a property that is not injectable."
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+        }
+
         // Never-revealed: tracks still flagged `hidden_by_default` at the
         // end of the build were seeded hidden and no entrance action (fade-in,
         // wipe-in, ...) ever lifted them — they will never be visible. The
