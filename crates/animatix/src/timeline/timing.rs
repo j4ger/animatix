@@ -556,13 +556,18 @@ pub(crate) fn parse_timing_modifiers(
                     subject,
                 ),
             },
-            // Action-specific effect modifiers handled directly by action execute functions.
-            // These are declared in ActionSignature.modifiers and consumed by the action itself;
-            // the timing parser must not warn on them. Extend this list if a new action
-            // declares custom effect keys (alternative: thread ActionSignature into this fn).
-            Some("intensity" | "frequency" | "color" | "blend" | "padding" | "radius") => {
-                // Valid action-effect modifiers — not timing modifiers, skip diagnostic.
-            },
+            // Action-specific effect modifiers are declared in
+            // ActionSignature.modifiers and consumed by the action itself
+            // (after this parser runs, validate_action_modifiers does the
+            // signature check). The parser stays silent about them ONLY on
+            // the Action host — on assignments/declarations/text these keys
+            // have no vocabulary and would be silent no-ops, so they warn.
+            Some(name)
+                if host == ModifierHost::Action
+                    && matches!(
+                        name,
+                        "intensity" | "frequency" | "color" | "blend" | "padding" | "radius"
+                    ) => {},
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,

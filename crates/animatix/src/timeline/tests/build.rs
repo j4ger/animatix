@@ -1729,3 +1729,31 @@ label.text = format("add20(4) = {}", add20(4))
     // maker(2) binds a=20; add20(4) = 4 + 20.
     assert_eq!(text, "add20(4) = 24");
 }
+
+#[test]
+fn effect_keys_on_non_action_hosts_warn() {
+    // The effect-key whitelist is Action-only: the same keys on an
+    // assignment or actor declaration are silent no-ops today, and the
+    // host-gated whitelist must surface them.
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+        box: Rect, size: (80, 40), color: accent.primary, at: (240, 135)
+
+        #0.5s
+        box.at = (240, 200) [padding: 4]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnsupportedModifierKey
+                && d.message.contains("padding")
+        }),
+        "effect key on an assignment must warn, got: {:?}",
+        report.diagnostics
+    );
+}
