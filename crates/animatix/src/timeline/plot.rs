@@ -216,7 +216,10 @@ impl FuncTransition {
 
 /// Evaluate a `FuncSource` at a single scalar argument, returning the scalar
 /// result. Clones `env` locally to avoid mutating the caller's environment.
-#[allow(dead_code)] // Reserved for future VectorField/Heatmap/ContourSet transition support
+/// Test-only today: production sampling goes through `eval_source_scalar`.
+/// Kept for the transition-model parity suite (tests/plot_transitions.rs);
+/// remove alongside that suite if the transition model changes shape.
+#[allow(dead_code)]
 pub fn resolve_func_source(
     source: &FuncSource,
     env: &Environment,
@@ -238,40 +241,6 @@ pub fn resolve_func_source(
                 sum += weight * resolve_func_source(src, env, arg_name, arg_val)?;
             }
             Ok(sum)
-        },
-    }
-}
-
-/// Evaluate a `FuncSource` at scalar `t`, returning a 2-element array
-/// (for parametric plots). Non-Vec2 results become `[NaN, NaN]`.
-#[allow(dead_code)] // Reserved for future parametric plot transition support
-pub fn resolve_func_source_vec2(
-    source: &FuncSource,
-    env: &Environment,
-    arg_name: &str,
-    arg_val: f64,
-) -> Result<[f64; 2], EvalError> {
-    match source {
-        FuncSource::Compiled(args, body, captures) => {
-            let name = args.first().map(String::as_str).unwrap_or(arg_name);
-            let mut local_env = env.clone();
-            captures.merge_missing_into(&mut local_env);
-            local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_compiled_expr(body, &local_env).map(|v| match v {
-                Value::Vec2(arr) => arr,
-                other => [other.as_num(), f64::NAN],
-            })
-        },
-        FuncSource::Blend { .. } => {
-            let flat = flatten_blend(source);
-            let mut sum_x = 0.0;
-            let mut sum_y = 0.0;
-            for (weight, src) in flat {
-                let [vx, vy] = resolve_func_source_vec2(src, env, arg_name, arg_val)?;
-                sum_x += weight * vx;
-                sum_y += weight * vy;
-            }
-            Ok([sum_x, sum_y])
         },
     }
 }

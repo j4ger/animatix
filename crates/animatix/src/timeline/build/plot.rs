@@ -60,6 +60,8 @@ pub(crate) struct ProcessedPlotActor {
 /// Parameters for building plot curve paths.
 pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
+    /// Actor label, used in evaluation-failure diagnostics.
+    pub(super) label: &'a str,
     pub(super) func: &'a Option<(
         Vec<String>,
         Box<crate::timeline::modifier_runtime::ir::CompiledExpr>,
@@ -83,7 +85,10 @@ pub(crate) struct PlotCurveParams<'a> {
 /// Build plot curve VelloPaths from the given parameters.
 /// This is the shared implementation used by both `process_plot_actor` and the
 /// `process_body` ActorDecl fallback path.
-pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloPath> {
+pub(crate) fn build_plot_curve_paths(
+    params: &PlotCurveParams<'_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
     // Apply build-quality scaling to plot sampling parameters (Phase 6.3)
@@ -146,8 +151,29 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             });
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
-            let start_eval =
-                evaluate_compiled_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+            let start_eval = match evaluate_compiled_expr(body, &env_copy) {
+                Ok(v) => v,
+                // `t` and the plot argument are frame-time names; their
+                // absence at build time is the designed handoff to per-frame
+                // resampling, not an error.
+                Err(EvalError::UndefinedVariable(name)) if name == "t" || name == arg_name => {
+                    Value::Num(f64::NAN)
+                },
+                Err(e) => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "plot '{}': func evaluation failed at x={min_t}: {e}",
+                                params.label
+                            ),
+                        )
+                        .with_subject(params.label),
+                    );
+                    Value::Num(f64::NAN)
+                },
+            };
             env_copy.clear_bindings();
             let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (min_t, start_eval.as_num())
@@ -170,7 +196,26 @@ pub(crate) fn build_plot_curve_paths(params: &PlotCurveParams<'_>) -> Vec<VelloP
             );
 
             env_copy.set_binding(&arg_name, Value::Num(max_t));
-            let end_eval = evaluate_compiled_expr(body, &env_copy).unwrap_or(Value::Num(f64::NAN));
+            let end_eval = match evaluate_compiled_expr(body, &env_copy) {
+                Ok(v) => v,
+                Err(EvalError::UndefinedVariable(name)) if name == "t" || name == arg_name => {
+                    Value::Num(f64::NAN)
+                },
+                Err(e) => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "plot '{}': func evaluation failed at x={max_t}: {e}",
+                                params.label
+                            ),
+                        )
+                        .with_subject(params.label),
+                    );
+                    Value::Num(f64::NAN)
+                },
+            };
             env_copy.clear_bindings();
             let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
                 (max_t, end_eval.as_num())
@@ -1358,8 +1403,9 @@ impl Timeline {
                         stroke_color,
                         eval_env: &eval_env,
                         build_quality: self.build_quality,
+                        label,
                     };
-                    vello_paths = build_plot_curve_paths(&curve_params);
+                    vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
                     self.plot_path_cache.insert(key, vello_paths.clone());
                 }
             } else {
@@ -1378,8 +1424,9 @@ impl Timeline {
                     stroke_color,
                     eval_env: &eval_env,
                     build_quality: self.build_quality,
+                    label,
                 };
-                vello_paths = build_plot_curve_paths(&curve_params);
+                vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
             }
 
             // Always create a procedural_plot for PlotCurve actors so that

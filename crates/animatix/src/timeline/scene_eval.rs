@@ -556,6 +556,33 @@ impl Timeline {
                         time_ms,
                         &track.func_transitions,
                     ));
+                // Surface silent sample failures once per actor per frame: a
+                // closure whose evaluation fails renders NaN gaps with no
+                // other trace (the sampler memoizes per-sample errors, so the
+                // path itself is the only signal). PathElement scan is cheap
+                // relative to sampling; one diagnostic per frame per actor
+                // cannot spam the panel.
+                let has_nan_gap = vector_paths.iter().any(|vp| {
+                    vp.path.elements().iter().any(|el| match el {
+                        kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => {
+                            p.x.is_nan() || p.y.is_nan()
+                        },
+                        _ => false,
+                    })
+                });
+                if has_nan_gap {
+                    self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                        crate::diagnostics::Diagnostic::warning(
+                            crate::diagnostics::DiagnosticCode::RenderFailure,
+                            crate::diagnostics::DiagnosticPhase::Render,
+                            format!(
+                                "plot '{}' produced non-finite samples at t={time_ms}ms; \
+                                 the func closure likely failed — rendering gaps",
+                                procedural_plot.actor_label
+                            ),
+                        ),
+                    );
+                }
             }
         }
 

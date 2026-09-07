@@ -12,6 +12,7 @@ impl Timeline {
     #[allow(clippy::too_many_arguments)]
     fn generate_actor_paths(
         &self,
+        label: &str,
         ty: &str,
         size: [f32; 2],
         line_from: [f32; 2],
@@ -92,6 +93,10 @@ impl Timeline {
                 .unwrap_or([0.0; 4]);
 
             let kind = extracted.kind.unwrap_or(PlotCurveKind::Cartesian);
+            // This generic fallback path has no diagnostics channel; eval
+            // failures here degrade to NaN as before (the plot-specific
+            // declaration path reports them).
+            let mut ignored_diagnostics = Vec::new();
             let curve_params = PlotCurveParams {
                 kind,
                 func: &extracted.func,
@@ -107,8 +112,9 @@ impl Timeline {
                 stroke_color,
                 eval_env,
                 build_quality: self.build_quality,
+                label,
             };
-            return build_plot_curve_paths(&curve_params);
+            return build_plot_curve_paths(&curve_params, &mut ignored_diagnostics);
         }
 
         if primitive.is_plot() {
@@ -631,6 +637,7 @@ impl Timeline {
         }
 
         let vello_paths = self.generate_actor_paths(
+            label,
             ty,
             size,
             line_from,
