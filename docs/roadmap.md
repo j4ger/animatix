@@ -409,7 +409,8 @@ backlog is now fully worked through; new work should start from fresh
 ## Audit Fix Pass (2026-09-07)
 
 From a full-chain review (lexer→parser→IR→eval→render→build) during the
-prop-ref/series work; evidence in the session. Landed on `feat/audit-fixes`:
+prop-ref/series work; evidence in the session. Landed 2026-09-07
+(commits `ccc1b3ed`…`3c46e693`):
 
 - LetChain closures now capture let-bindings (`CapturedEnv::snapshot` merges
   let-scopes); `get_ref` carries a tripwire (unreachable today, three
