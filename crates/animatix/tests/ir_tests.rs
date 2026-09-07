@@ -6,7 +6,7 @@ use animatix::ir::{
     execute_modifier_ir, lower_modifier_ir,
 };
 use animatix::timeline::{
-    Environment, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
+    Environment, EvalError, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
 use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Stmt, Time};
 use animatix_syntax::module::ModuleGraph;
@@ -292,14 +292,28 @@ fn factorial_and_sum_reject_invalid_args() {
     }
 }
 
+/// Like `evaluate_modifier_via_ir` but returns the executor's Result so
+/// error-path assertions can inspect it.
+fn evaluate_modifier_via_ir_result(
+    value: CompiledExpr,
+    env: &mut Environment,
+) -> Result<Value, EvalError> {
+    let program = ModifierIrProgram {
+        statements: vec![ModifierIrStmt::Let {
+            name: "__ir_test_result".to_string(),
+            value,
+        }],
+    };
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&program, env, &mut overrides)?;
+    Ok(env.get("__ir_test_result").expect("IR result should be stored"))
+}
+
 #[test]
-fn sum_mixed_type_list_paths_diverge_as_documented() {
-    // Known pre-existing divergence, pinned so it cannot drift silently:
-    // the IR compiles `{1, "x"}` via MakeVec, which coerces elements with
-    // `as_num()` ("x" -> 0.0) into a Vec3 — so the IR sums 1 + 0 + 0 = 1,
-    // while the tree-walker keeps a Value::List and sum() rejects the
-    // non-numeric element. Strictness lives at the tree-walker; the IR side
-    // inherits make_vec_value's coercion like every other numeric op.
+fn sum_mixed_type_list_errors_on_both_paths() {
+    // Formerly a documented divergence (IR coerced "x" -> 0.0 via MakeVec's
+    // as_num); make_vec_value now requires numeric elements, so both paths
+    // reject the non-numeric element instead of silently summing a hidden 0.
     let expr = Expr::Call(
         "sum".to_string(),
         vec![Expr::List(vec![Expr::Num(1.0), Expr::Str("x".to_string())])],
@@ -309,8 +323,8 @@ fn sum_mixed_type_list_paths_diverge_as_documented() {
     let compiled = compile_expr(&expr).expect("builtin should compile");
     let mut env = Environment::new();
     load_standard_library(&mut env);
-    let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
-    assert_eq!(ir_value, Value::Num(1.0), "IR coerces Str -> 0.0 via MakeVec");
+    let ir_err = evaluate_modifier_via_ir_result(compiled, &mut env);
+    assert!(ir_err.is_err(), "IR must reject non-numeric elements now");
 }
 
 #[test]

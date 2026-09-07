@@ -1394,7 +1394,10 @@ impl Timeline {
                         Property::new("text", Expr::Str(format!("{:.1}", val))),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
-                        Property::new("color", Expr::Str("#888888".to_string())),
+                        Property::new(
+                            "color",
+                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
+                        ),
                     ];
                     self.process_text_actor_decl(
                         "Text",
@@ -1415,7 +1418,10 @@ impl Timeline {
                         Property::new("text", Expr::Str(format!("{:.1}", val))),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
-                        Property::new("color", Expr::Str("#888888".to_string())),
+                        Property::new(
+                            "color",
+                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
+                        ),
                     ];
                     self.process_text_actor_decl(
                         "Text",
@@ -1436,7 +1442,10 @@ impl Timeline {
                         Property::new("text", Expr::Str(text.clone())),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
-                        Property::new("color", Expr::Str("#888888".to_string())),
+                        Property::new(
+                            "color",
+                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
+                        ),
                     ];
                     self.process_text_actor_decl(
                         "Text",

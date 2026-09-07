@@ -19,7 +19,7 @@ pub(crate) fn evaluate_compiled_expr(
                 .iter()
                 .map(|item| evaluate_compiled_expr(item, env))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(make_vec_value(values))
+            make_vec_value(values)
         },
         CompiledExpr::Unary(op, expr) => {
             if *op == crate::ast::UnaryOp::Ref {
@@ -229,8 +229,19 @@ pub(crate) fn apply_binary_op(
     crate::timeline::eval_shared::eval_binary_op(left, op, right)
 }
 
-pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
-    match values.len() {
+pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
+    // Numeric coercion used to be silent (`as_num()` mapped any element to
+    // 0.0), so `{1, "x"}` produced a vector with a hidden zero. Require
+    // numbers and surface the mismatch instead.
+    for (i, v) in values.iter().enumerate() {
+        if !matches!(v, Value::Num(_)) {
+            return Err(EvalError::TypeMismatch(format!(
+                "vector/list elements must be numbers, element {i} is {:?}",
+                v
+            )));
+        }
+    }
+    Ok(match values.len() {
         2 => Value::Vec2([values[0].as_num(), values[1].as_num()]),
         3 => Value::Vec3([values[0].as_num(), values[1].as_num(), values[2].as_num()]),
         4 => Value::Vec4([
@@ -240,5 +251,5 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Value {
             values[3].as_num(),
         ]),
         _ => Value::List(values.into()),
-    }
+    })
 }
