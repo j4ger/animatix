@@ -184,7 +184,23 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             .map(compile_expr)
             .collect::<Result<Vec<_>, _>>()
             .map(CompiledExpr::MakeVec),
-        Expr::Unary(op, expr) => Ok(CompiledExpr::Unary(op.clone(), Box::new(compile_expr(expr)?))),
+        Expr::Unary(op, expr) => {
+            if *op == crate::ast::UnaryOp::Ref {
+                // `&label.prop` — the parser guarantees a two-segment path.
+                if let Expr::Path(parts) = expr.as_ref() {
+                    if let [label, prop] = parts.as_slice() {
+                        return Ok(CompiledExpr::PropRef {
+                            label: label.clone(),
+                            prop: prop.clone(),
+                        });
+                    }
+                }
+                return Err(IrLowerError::UnsupportedStatement(
+                    "& expects a two-segment path: &actor.prop",
+                ));
+            }
+            Ok(CompiledExpr::Unary(op.clone(), Box::new(compile_expr(expr)?)))
+        },
         Expr::Binary(left, op, right) => Ok(CompiledExpr::Binary(
             Box::new(compile_expr(left)?),
             op.clone(),

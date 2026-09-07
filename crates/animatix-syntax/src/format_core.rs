@@ -178,6 +178,7 @@ impl UnaryOp {
         match self {
             UnaryOp::Neg => "-",
             UnaryOp::Not => "!",
+            UnaryOp::Ref => "&",
         }
     }
 }

@@ -1,5 +1,5 @@
 // 06 — Reactive: Live Focus Reticle
-// Uses always + _animating_* flag to detect keyframe-driven motion.
+// Uses always + the is_animating property query to detect keyframe-driven motion.
 
 import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
@@ -31,7 +31,7 @@ always {
   cross_v.at = ring.at
   dot.at = ring.at
 
-  if ring._animating_at == 0 {
+  if !is_animating(&ring.at) {
     let p = 0.5 + 0.5 * sin(t * 3)
     cross_h.color = accent.success
     cross_v.color = accent.success

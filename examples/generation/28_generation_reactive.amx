@@ -3,7 +3,7 @@
 //   - Group: non-layout grouping with shared transform inheritance
 //   - Mask: clip children using a shape boundary
 //   - Array-indexed actors via `for item, i in list` with tuple destructuring
-//   - Advanced always: analytical motion, staggered opacity, _animating_* flag guard
+//   - Advanced always: analytical motion, staggered opacity, is_animating guard
 
 import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
@@ -67,8 +67,8 @@ always {
   dots__4.color = if t > 2.5 { accent.success } else { accent.primary }
   dots__8.color = if t > 2.5 { accent.secondary } else { accent.primary }
 
-  // _animating_rotation guard: breathe group opacity only when at rest
-  if badge_group._animating_rotation == 0 {
+  // is_animating guard: breathe group opacity only when at rest
+  if !is_animating(&badge_group.rotation) {
     badge_group.opacity = 0.75 + 0.25 * sin(t * 1.5)
   }
 }

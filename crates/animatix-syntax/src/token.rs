@@ -80,6 +80,8 @@ pub enum TokenKind {
     RangeInclusive,
     /// `|`
     Pipe,
+    /// `&` (single) — property reference operator, e.g. `&actor.prop`
+    Amp,
     /// `::`
     ColonColon,
     /// `(`
@@ -152,6 +154,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::ThinArrow => write!(f, "->"),
             TokenKind::RangeInclusive => write!(f, "..="),
             TokenKind::Pipe => write!(f, "|"),
+            TokenKind::Amp => write!(f, "&"),
             TokenKind::ColonColon => write!(f, "::"),
             TokenKind::LParen => write!(f, "("),
             TokenKind::RParen => write!(f, ")"),
@@ -429,6 +432,7 @@ impl<'a> Lexer<'a> {
                 self.pos += 2;
                 TokenKind::And
             },
+            b'&' => self.advance(TokenKind::Amp),
             b'|' if self.peek_n(1) == b'|' => {
                 self.pos += 2;
                 TokenKind::Or

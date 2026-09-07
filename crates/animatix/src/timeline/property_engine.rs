@@ -640,7 +640,12 @@ pub(crate) fn parse_extension_property_value(
 }
 
 fn property_value_from_value(value: Value) -> Option<PropertyValue> {
+    if matches!(value, Value::PropRef { .. }) {
+        // A property reference is not assignable as a value.
+        return None;
+    }
     Some(match value {
+        Value::PropRef { .. } => unreachable!("filtered above"),
         Value::Num(n) => PropertyValue::F32(n as f32),
         Value::Str(s) => PropertyValue::String(s),
         Value::Bool(b) => PropertyValue::Bool(b),
@@ -986,13 +991,12 @@ pub(crate) fn inject_property_into_env(
         key.push_str(schema.name);
         inject_value(env, key, prefix_len, schema.name, &pv);
 
-        // Inject the _animating_* flag from the read_source's storage field.
+        // Inject the animation-state flag under the internal animating_flag
+        // key (read by `is_animating(&label.prop)`).
         if let Some(storage) = schema.read_source.storage_field() {
-            key.truncate(prefix_len);
-            key.push_str("_animating_");
-            key.push_str(schema.name);
+            let flag_key = super::env_keys::animating_flag(label, schema.name);
             let animating = track.is_field_currently_animating(storage, time_ms);
-            env.set(&key, Value::Num(if animating { 1.0 } else { 0.0 }));
+            env.set(&flag_key, Value::Bool(animating));
         }
     }
 }
@@ -1034,10 +1038,8 @@ pub(crate) fn inject_extension_properties_into_env(
             .property_plan
             .get(spec.id)
             .is_some_and(|slot| slot.track.has_any_keyframes());
-        key.truncate(prefix_len);
-        key.push_str("_animating_");
-        key.push_str(&spec.name);
-        env.set(&key, Value::Num(if animating { 1.0 } else { 0.0 }));
+        let flag_key = super::env_keys::animating_flag(label, &spec.name);
+        env.set(&flag_key, Value::Bool(animating));
     }
 }
 

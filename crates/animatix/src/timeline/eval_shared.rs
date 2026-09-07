@@ -437,6 +437,9 @@ fn eval_unary_math(args: &[Value], name: &str, f: fn(f64) -> f64) -> Result<Valu
 /// Format one argument value for `format()` substitution.
 fn format_value(arg: &Value, precision: Option<usize>) -> String {
     match arg {
+        Value::PropRef { label, prop } => {
+            format!("&{label}.{prop} (not a value; read {label}.{prop})")
+        },
         Value::Num(n) => match precision {
             Some(digits) => format!("{:.*}", digits, n),
             None => {

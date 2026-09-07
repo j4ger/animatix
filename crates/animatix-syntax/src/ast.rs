@@ -258,6 +258,10 @@ pub enum UnaryOp {
     Neg,
     /// Logical NOT (`!`).
     Not,
+    /// Property reference (`&actor.prop`): packages the slot as a
+    /// `PropRef` value for property-state query functions. The operand is
+    /// restricted to a two-segment `label.property` path at parse time.
+    Ref,
 }
 
 // ----------------------------------------------------------------------------

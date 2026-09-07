@@ -359,6 +359,8 @@ fn union_type_name(types: &[ValueType]) -> String {
 pub fn value_to_expr(value: &crate::timeline::Value) -> Option<Expr> {
     use crate::timeline::Value;
     match value {
+        // References do not round-trip to source expressions.
+        Value::PropRef { .. } => None,
         Value::Num(n) => Some(Expr::Num(*n)),
         Value::Str(s) => Some(Expr::Str(s.clone())),
         Value::Bool(b) => Some(Expr::Bool(*b)),

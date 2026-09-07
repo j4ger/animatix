@@ -153,6 +153,7 @@ impl fmt::Display for DisplayCompiledExpr<'_> {
             CompiledExpr::Closure(params, _body) => {
                 write!(f, "closure({:?})", params)
             },
+            CompiledExpr::PropRef { label, prop } => write!(f, "&{label}.{prop}"),
             CompiledExpr::LetChain(bindings, _tail) => {
                 let names: Vec<&String> = bindings.iter().map(|(n, _)| n).collect();
                 write!(f, "let-chain({:?})", names)

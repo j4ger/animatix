@@ -315,6 +315,33 @@ pub fn load_standard_library(env: &mut Environment) {
         })),
     );
 
+    // Property-state query: is the referenced property currently between
+    // keyframes? Takes a property reference (`&actor.prop`) produced by the
+    // `&` operator. Reads the per-frame flag injected under the internal
+    // animating_flag key (see env_keys::animating_flag).
+    env.set(
+        "is_animating",
+        Value::NativeFn(Arc::new(|args, env| {
+            expect_arg_count("is_animating", args, 1)?;
+            let (label, prop) = match &args[0] {
+                Value::PropRef { label, prop } => (label, prop),
+                other => {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "is_animating expects a property reference (&actor.prop), got {:?}",
+                        other
+                    )));
+                },
+            };
+            let flag_key = crate::timeline::env_keys::animating_flag(label, prop);
+            let animating = match env.get(&flag_key) {
+                Some(Value::Bool(b)) => b,
+                Some(Value::Num(n)) => n != 0.0,
+                _ => false,
+            };
+            Ok(Value::Bool(animating))
+        })),
+    );
+
     // Deterministic pseudo-random using splitmix64 hash.
     // Same seed always produces the same value in [0, 1).
     fn splitmix64(x: u64) -> u64 {

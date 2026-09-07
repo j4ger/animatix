@@ -22,10 +22,19 @@ pub(crate) fn evaluate_compiled_expr(
             Ok(make_vec_value(values))
         },
         CompiledExpr::Unary(op, expr) => {
+            if *op == crate::ast::UnaryOp::Ref {
+                // lowering compiles Unary(Ref, two-segment path) into
+                // CompiledExpr::PropRef; reaching this arm means the operand
+                // was not a path.
+                return Err(EvalError::TypeMismatch(
+                    "& expects a two-segment path: &actor.prop".to_string(),
+                ));
+            }
             let value = evaluate_compiled_expr(expr, env)?;
             match op {
                 UnaryOp::Neg => Ok(Value::Num(-value.as_num())),
                 UnaryOp::Not => Ok(Value::Num(if value.is_truthy() { 0.0 } else { 1.0 })),
+                UnaryOp::Ref => unreachable!("handled above"),
             }
         },
         CompiledExpr::Binary(left, op, right) => {
@@ -157,6 +166,10 @@ pub(crate) fn evaluate_compiled_expr(
         CompiledExpr::Closure(params, body) => {
             Ok(Value::Closure(params.clone(), body.clone(), CapturedEnv::snapshot(env)))
         },
+        CompiledExpr::PropRef { label, prop } => Ok(Value::PropRef {
+            label: label.clone(),
+            prop: prop.clone(),
+        }),
         CompiledExpr::LetChain(bindings, tail) => {
             // Bindings evaluate in order; each becomes a let-scope entry so
             // later bindings and the tail see it. Scoped lookup lives in

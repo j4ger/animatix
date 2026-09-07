@@ -859,36 +859,45 @@ always {
 
 > **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See the Icebox notes on interactive step control and eval-path unification in `docs/roadmap.md`.
 
-### Animation State Flags
+### Property References & State Queries
 
-For every INJECTABLE property, a boolean flag `{label}._animating_{property}` is
-injected into the `always` evaluation environment. The flag is `1` when the
-current time is strictly inside an interpolation segment: there is both a
-previous keyframe at `time <= current` and a next keyframe at
-`time > current`. It is `0` at exact keyframe times, before the first keyframe,
-and after the last keyframe.
+The `&` operator packages a property **slot** (not its value) into a
+reference: `&actor.prop`, where the path is exactly `label.property`. The
+reference is not a value — arithmetic, string interpolation, or conditions
+that consume it directly are errors. Query functions accept it:
 
-This lets reactive blocks detect when a property is between two keyframes and
-defer to interpolation:
+- `is_animating(&actor.prop)` — `true` while the property is strictly inside
+  an interpolation segment: there is both a previous keyframe at
+  `time <= current` and a next keyframe at `time > current`. It is `false` at
+  exact keyframe times, before the first keyframe, and after the last one.
 
 ```animatix
 always {
   // Only override opacity when no keyframe segment contains the current time
-  if circle._animating_opacity == 0 {
+  if !is_animating(&circle.opacity) {
     circle.opacity = 0.5
   }
 }
 ```
 
-> **Why is the flag based on interpolation segments?** `is_currently_animating`
-> checks the raw keyframe map: `prev(time <= t)` and `next(time > t)`, without
-> inspecting easing. That means a flag can be `1` even when both endpoint values
-> are equal or the easing is `Linear`; it is a "between two keyframes" test, not
-> a "visibly changing right now" test.
+> **Why is the query based on interpolation segments?** The check reads the
+> raw keyframe map: `prev(time <= t)` and `next(time > t)`, without inspecting
+> easing. That means the query can return `true` even when both endpoint
+> values are equal or the easing is `Linear`; it is a "between two keyframes"
+> test, not a "visibly changing right now" test. Note also that a property's
+> declaration position counts as a keyframe, so the span from an actor's
+> declared position to its first assignment reads as `true`.
 
-Available flags follow the property name: `_animating_at`, `_animating_position`,
-`_animating_size`, `_animating_rotation`, `_animating_scale`,
-`_animating_transform`, `_animating_color`, `_animating_opacity`, etc.
+Query functions compose — combine multiple properties or write your own over
+the same shape:
+
+```animatix
+always {
+  if !is_animating(&ring.at) && !is_animating(&ring.scale) {
+    // fully at rest: idle styling
+  }
+}
+```
 
 ---
 

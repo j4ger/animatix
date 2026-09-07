@@ -114,3 +114,40 @@ through the plugin ABI like every other `CompiledExpr` node.
 - End-to-end: taylor-sin Sweep scene rewritten onto `sum_range` +
   `factorial`, pixel-compared against the hand-expanded version at
   n = 1/5/13.
+
+## Property state queries — the `&` reference operator (2026-09-07)
+
+Series construction surfaced a second language need: **property state
+queries** (`is_animating(&ring.at)`), which exposed the slot/value ambiguity.
+The design went through four candidates; the accepted one is an explicit
+reference operator:
+
+- `& <label>.<prop>` is a unary expression evaluating to
+  `Value::PropRef { label, prop }` — it packages the SLOT, never reads the
+  value. Grammar-restricted to two path segments (components have no
+  independent animation state).
+- Query functions are **plain stdlib functions** over `PropRef`
+  (`is_animating(r)` reads the per-frame injected flag under an internal
+  env_keys-constructed key). Future queries (`keyframed`, `source`) are new
+  plain functions, not new lowering.
+- `PropRef` in any value context (arithmetic, format, condition) is a clear
+  `EvalError` — a reference is not a value.
+- Build-time validation of the referenced label/property is deferred to
+  frame-time `UndefinedVariable`-class errors initially (matching existing
+  undefined-reference behavior); a post-build validation pass over modifier
+  programs is a listed follow-up.
+
+Rejected alternatives, for the record:
+
+| Candidate | Why rejected |
+|---|---|
+| `is_animating("at")` (string arg) | Property identity degrades to a string; typos are uncheckable |
+| `is_animating(ring.at)` (value call) | Passes the position VALUE; the query is about the slot's state, not its value |
+| `is_animating(ring.at)` (special form) | Semantics hidden in a callee-name if-check; every future query adds a lowering hack |
+| `PropertyPath` typed parameter | Call site looks like a value call but is not (implicit, Swift `@autoclosure` critique); requires threading a signature table through the entire lowering pipeline (compile_expr is currently a pure function) |
+| `ring.at.animating` (virtual field) | Metadata mixed into the component namespace; relies on injected-key-shadows-field priority |
+
+The line this draws in the language: **value projections are fields
+(`.x/.y/.r/.g/.b/.a`), state queries are functions over references
+(`is_animating(&ring.at)`).** The old `{label}._animating_{property}`
+spelling is removed entirely.

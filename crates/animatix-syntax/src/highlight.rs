@@ -94,6 +94,7 @@ pub fn lexical_role(token: &Token) -> &'static str {
         | TokenKind::ThinArrow
         | TokenKind::RangeInclusive
         | TokenKind::Pipe
+        | TokenKind::Amp
         | TokenKind::ColonColon => "operator",
         TokenKind::LParen
         | TokenKind::RParen

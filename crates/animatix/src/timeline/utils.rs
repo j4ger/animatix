@@ -284,10 +284,26 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
         },
 
         Expr::Unary(op, inner) => {
+            if *op == crate::ast::UnaryOp::Ref {
+                // `&label.prop` packages the slot; the operand is guaranteed
+                // a two-segment path by the parser.
+                if let Expr::Path(parts) = inner.as_ref() {
+                    if let [label, prop] = parts.as_slice() {
+                        return Ok(Value::PropRef {
+                            label: label.clone(),
+                            prop: prop.clone(),
+                        });
+                    }
+                }
+                return Err(EvalError::TypeMismatch(
+                    "& expects a two-segment path: &actor.prop".to_string(),
+                ));
+            }
             let value = evaluate_expr(inner, env)?;
             Ok(match op {
                 crate::ast::UnaryOp::Neg => Value::Num(-value.as_num()),
                 crate::ast::UnaryOp::Not => Value::Num(if value.is_truthy() { 0.0 } else { 1.0 }),
+                crate::ast::UnaryOp::Ref => unreachable!("handled above"),
             })
         },
 
@@ -742,6 +758,9 @@ fn evaluate_method(
 /// Format a single Value into its display string.
 fn format_value(value: &Value) -> String {
     match value {
+        Value::PropRef { label, prop } => {
+            format!("&{label}.{prop} (not a value; read {label}.{prop})")
+        },
         Value::Num(n) => {
             if *n == n.floor() {
                 format!("{}", *n as i64)

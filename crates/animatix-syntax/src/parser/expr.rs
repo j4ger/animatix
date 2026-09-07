@@ -103,7 +103,17 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
 
         let prefix_op = minus().to(UnaryOp::Neg).or(not().to(UnaryOp::Not));
 
+        // Property reference: `&actor.prop` — strictly a two-segment
+        // `label.property` path. Components have no independent animation
+        // state, so `&a.b.c` is a parse error rather than a silent misread.
+        let prop_ref = amp()
+            .ignore_then(common::ident())
+            .then(dot().ignore_then(common::ident()))
+            .map(|(label, prop)| Expr::Unary(UnaryOp::Ref, Box::new(Expr::Path(vec![label, prop]))))
+            .labelled("property reference");
+
         let base_atom = choice((
+            prop_ref,
             percent,
             num,
             str_val,

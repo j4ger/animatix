@@ -143,6 +143,7 @@ unit_parsers!(
     (thin_arrow, ThinArrow),
     (range_inclusive, RangeInclusive),
     (pipe, Pipe),
+    (amp, Amp),
     (colon_colon, ColonColon),
     (hash, Hash),
     (at, At),

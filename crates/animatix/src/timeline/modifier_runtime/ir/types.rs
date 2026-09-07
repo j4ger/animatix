@@ -97,6 +97,14 @@ pub enum CompiledExpr {
     /// Create a closure value (parameter names, compiled body expression).
     /// The environment is captured at evaluation time.
     Closure(Vec<String>, Box<CompiledExpr>),
+    /// A property-slot reference (`&label.prop`). Evaluates to
+    /// `Value::PropRef` for query functions (`is_animating`).
+    PropRef {
+        /// The actor label owning the property.
+        label: String,
+        /// The property name.
+        prop: String,
+    },
     /// Block-bodied closure body: sequential `let` bindings and a tail
     /// expression, evaluated with lexical shadowing in a restored-after scope.
     LetChain(Vec<(String, CompiledExpr)>, Box<CompiledExpr>),
@@ -136,6 +144,7 @@ impl CompiledExpr {
                 receiver.references_ident(name) || args.iter().any(|arg| arg.references_ident(name))
             },
             CompiledExpr::Closure(_, body) => body.references_ident(name),
+            CompiledExpr::PropRef { label, .. } => label == name,
             CompiledExpr::LetChain(bindings, tail) => {
                 bindings.iter().any(|(_, expr)| expr.references_ident(name))
                     || tail.references_ident(name)

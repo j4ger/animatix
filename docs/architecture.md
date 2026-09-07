@@ -442,7 +442,7 @@ unions, lists, and other aliases.
 
 A property's `field` says where to write at BUILD time (parsing, keyframing).
 `read_source` says where to read at FRAME time (env injection for `always` blocks,
-`_animating_*` flags). Most properties use the same storage for both, but some differ:
+animation-state flags via `env_keys::animating_flag`). Most properties use the same storage for both, but some differ:
 
 | Variant | Meaning | Example |
 |---------|---------|---------|
@@ -455,7 +455,7 @@ A property's `field` says where to write at BUILD time (parsing, keyframing).
 
 Every frame, `inject_property_into_env()` iterates the registry and injects every
 `INJECTABLE` property into the evaluation environment (`{label}.{name}`) along
-with its `_animating_{name}` flag (see §5 Reactive). The read_source dispatches
+with its animation-state flag (see §5 Reactive). The read_source dispatches
 between direct field reads, aliases, and component extraction — no special cases.
 
 ### Engine

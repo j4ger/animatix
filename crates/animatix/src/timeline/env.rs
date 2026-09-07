@@ -150,6 +150,18 @@ pub enum Value {
     NativeFn(Arc<dyn Fn(&[Value], &Environment) -> Result<Value, EvalError> + Send + Sync>),
     /// User-defined closure (parameter names, compiled body, captured environment).
     Closure(Vec<String>, Box<CompiledExpr>, CapturedEnv),
+    /// A reference to an actor property slot (e.g. produced by
+    /// `&actor.prop`). Not a value: consuming it in arithmetic/format is an
+    /// error; query functions (`is_animating`) accept it.
+    /// A reference to an actor property slot (produced by `&actor.prop`).
+    /// Not a value: arithmetic/format consumption is an error; query
+    /// functions like `is_animating` accept it.
+    PropRef {
+        /// The actor label owning the property.
+        label: String,
+        /// The property name.
+        prop: String,
+    },
     /// User-declared pure function (`fn f(...) -> T`), evaluated at build time.
     UserFn {
         /// Function name.
@@ -169,6 +181,7 @@ impl fmt::Debug for Value {
             Value::Str(s) => write!(f, "Str({:?})", s),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::Vec2(v) => write!(f, "Vec2({:?})", v),
+            Value::PropRef { label, prop } => write!(f, "PropRef({label}.{prop})"),
             Value::Vec3(v) => write!(f, "Vec3({:?})", v),
             Value::Vec4(v) => write!(f, "Vec4({:?})", v),
             Value::Color(c) => write!(f, "Color({:?})", c),

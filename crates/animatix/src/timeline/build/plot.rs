@@ -965,6 +965,9 @@ impl Timeline {
                                     ty,
                                     expected_ty,
                                     match result {
+                                        Value::PropRef { label, prop } => {
+                                            format!("property reference &{label}.{prop}")
+                                        },
                                         Value::Num(_) => "number".to_string(),
                                         Value::Vec2(_) => "vec2".to_string(),
                                         Value::Vec3(_) => "vec3".to_string(),

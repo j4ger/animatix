@@ -204,5 +204,7 @@ the schema's `ReadSource` declares the frame-time read strategy:
 | Component | `radius_x` writes to `Size` field | Reads `Size.x × 1` |
 | Component | `radius_y` writes to `Size` field | Reads `Size.y × 1` |
 
-Each injectable property also gets an `_animating_{name}` flag in the
-environment (see `spec.md` §10 Reactive System — Animation State Flags).
+Each injectable property also gets an internal animation-state flag in the
+environment (key shape `label.__anim__name`, see `env_keys::animating_flag`),
+consumed by the `is_animating(&label.name)` query (see `spec.md` §10 Reactive
+System — Property References & State Queries).

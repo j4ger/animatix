@@ -11,6 +11,7 @@
 //! | [`native_fn`] | `label.method` | Graph NativeFns (`g.map`, `g.map_inverse`) registered at build and resolved by modifier-IR method calls |
 //! | [`property_into`] | `label.property` | Frame-time property injections (`ring.radius_x`, ...) |
 //! | [`side_channel`] | `label_prop` | Build-time side-channel values (`g_size`) read back by hosted-plot children |
+//! | [`animating_flag`] | `label.__anim__prop` | Internal per-frame animation-state flags, consumed by `is_animating(&label.prop)`. Internal shape — user code spells `&label.prop` |
 //! | *(syntax crate)* | `base__index` | Array actor tracks use `animatix_syntax::ast::array_actor_label` — that constructor is canonical, do not re-spell the shape |
 
 /// Env key for a NativeFn registered on a label (`g.map`, `g.map_inverse`).
@@ -36,6 +37,14 @@ pub(crate) fn property_into(label: &str, prop: &str, out: &mut String) {
 /// Env key for a build-time side-channel value (`g_size`).
 pub(crate) fn side_channel(label: &str, prop: &str) -> String {
     format!("{label}_{prop}")
+}
+
+/// Env key for the per-frame animation-state flag of a property. Written by
+/// the frame-env property injection, read by `is_animating(&label.prop)`.
+/// The `__anim__` shape is internal — user code goes through the `&`
+/// reference operator, which is checked against the property registry.
+pub(crate) fn animating_flag(label: &str, prop: &str) -> String {
+    format!("{label}.__anim__{prop}")
 }
 
 #[cfg(test)]
