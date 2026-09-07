@@ -132,6 +132,18 @@ pub(super) async fn render_image_async(
         .ok_or_else(|| ExportError::ImageEncode("Failed to create image buffer".into()))?;
     img.save(output_file).map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     info!("Image saved to {}", output_file.display());
+    // Headless workflows (CI, scripts) have no GUI diagnostics panel — drain
+    // the frame's runtime diagnostics so frame-time failures (plot closure
+    // errors, filter fallbacks) are visible on stderr too.
+    for diagnostic in timeline.runtime_diagnostics() {
+        let location = diagnostic
+            .location
+            .subject
+            .clone()
+            .map(|s| format!(" [{s}]"))
+            .unwrap_or_default();
+        tracing::warn!("[{}] {}{location}", diagnostic.severity, diagnostic.message);
+    }
     Ok(())
 }
 

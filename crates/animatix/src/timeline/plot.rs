@@ -498,7 +498,11 @@ pub(crate) fn sample_recursive_cartesian(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < min_depth {
+    // NaN in the midpoint (failed evaluation) must force subdivision until the
+    // depth floor so the NaN propagates into `pts` — the chord-deviation test
+    // is always-false on NaN, which used to terminate subdivision and swallow
+    // the failure entirely.
+    if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
         sample_recursive_cartesian(
             min_t,
             mid_t,
@@ -610,7 +614,7 @@ pub(crate) fn sample_recursive_polar(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < min_depth {
+    if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
         sample_recursive_polar(
             min_t,
             mid_t,
@@ -725,7 +729,7 @@ pub(crate) fn sample_recursive_parametric(
     let expected_mid_y = (p0.y + p1.y) / 2.0;
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
-    if dist_sq > tolerance || depth < min_depth {
+    if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
         sample_recursive_parametric(
             min_t,
             mid_t,

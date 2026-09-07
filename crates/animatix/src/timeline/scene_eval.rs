@@ -562,14 +562,13 @@ impl Timeline {
                 // path itself is the only signal). PathElement scan is cheap
                 // relative to sampling; one diagnostic per frame per actor
                 // cannot spam the panel.
-                let has_nan_gap = vector_paths.iter().any(|vp| {
-                    vp.path.elements().iter().any(|el| match el {
-                        kurbo::PathEl::MoveTo(p) | kurbo::PathEl::LineTo(p) => {
-                            p.x.is_nan() || p.y.is_nan()
-                        },
-                        _ => false,
-                    })
-                });
+                // The path assembler drops NaN points entirely (they only
+                // reset the pen), so a failed closure produces an EMPTY
+                // BezPath inside a present VelloPath — that emptiness is the
+                // observable signal. (Per-point NaN scans never see it.)
+                let has_nan_gap = vector_paths
+                    .iter()
+                    .any(|vp| vp.path.elements().is_empty() && vp.stroke.is_some());
                 if has_nan_gap {
                     self.eval_caches.runtime_diagnostics.borrow_mut().push(
                         crate::diagnostics::Diagnostic::warning(
