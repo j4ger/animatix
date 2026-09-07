@@ -1691,3 +1691,41 @@ label.text = format("{}", is_animating(5))
     .expect_err("non-reference arg must be a type error");
     assert!(err.to_string().contains("property reference"), "unexpected error: {err}");
 }
+
+#[test]
+fn letchain_closure_captures_let_binding() {
+    // A closure created inside a block body must capture the let-bound
+    // variable (CapturedEnv::snapshot includes LetChain scopes). Before the
+    // fix this invoked as UndefinedVariable — the inner closure's captures
+    // silently missed the scoped `a`.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+label: Text, text: "init", font_size: 18, anchor: scene.center, text_max_width: 440
+
+#0.2s
+fade-in label [100ms]
+
+#0.5s
+let maker = (x) => {
+  let a = x * 10
+  (y) => y + a
+}
+let add20 = maker(2)
+label.text = format("add20(4) = {}", add20(4))
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let text = timeline
+        .tracks
+        .get("label")
+        .and_then(|t| t.text.text_content.as_ref())
+        .map(|track| track.evaluate(1000))
+        .unwrap_or_default();
+    // maker(2) binds a=20; add20(4) = 4 + 20.
+    assert_eq!(text, "add20(4) = 24");
+}

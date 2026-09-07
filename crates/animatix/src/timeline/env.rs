@@ -69,9 +69,22 @@ pub struct CapturedEnv(pub HashMap<String, Value>);
 
 impl CapturedEnv {
     /// Create a `CapturedEnv` from the environment's override layer.
-    /// Captures the lexical scope at the point of closure creation.
+    /// Captures the lexical scope at the point of closure creation,
+    /// including any active LetChain scopes (innermost wins — see
+    /// `push_let_scope`). Stdlib base values are NOT captured; invocation
+    /// re-provides the caller's base.
     pub fn snapshot(env: &Environment) -> Self {
-        CapturedEnv(env.overrides.clone())
+        let mut captured = env.overrides.clone();
+        {
+            let scopes = env.let_scopes.borrow();
+            for scope in scopes.iter() {
+                // Later (innermost) scopes must win: merge under.
+                for (k, v) in scope {
+                    captured.insert(k.clone(), v.clone());
+                }
+            }
+        }
+        CapturedEnv(captured)
     }
 
     /// Merge this captured environment into a mutable environment at render
@@ -597,7 +610,16 @@ impl Environment {
 
     /// Look up a variable by name, returning a reference (zero-copy).
     /// Checks bindings → overrides → base, in that order.
+    ///
+    /// NOTE: LetChain scopes (`push_let_scope`) are deliberately invisible
+    /// here — this method cannot return a reference into the `RefCell`. All
+    /// current callers are presence-only tests that run strictly outside any
+    /// active LetChain scope; the tripwire below keeps that invariant loud.
     pub fn get_ref(&self, name: &str) -> Option<&Value> {
+        debug_assert!(
+            self.let_scopes.borrow().is_empty(),
+            "get_ref called while a LetChain scope is active — scoped values are              invisible by reference; use get() instead (looking up '{name}')"
+        );
         for binding in self.bindings.iter().flatten() {
             if binding.0 == name {
                 return Some(&binding.1);
