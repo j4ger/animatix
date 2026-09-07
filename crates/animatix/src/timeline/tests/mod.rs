@@ -1,6 +1,17 @@
 use super::*;
 use crate::ast::Property;
 
+/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
+/// actors have no entrance actions — they are about demo content, not the
+/// feature under test, so assertions exclude them.
+pub(crate) fn without_content_lints(
+    diagnostics: &[animatix_syntax::diagnostics::Diagnostic],
+) -> impl Iterator<Item = &animatix_syntax::diagnostics::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|d| !matches!(d.code, animatix_syntax::diagnostics::DiagnosticCode::NeverRevealed))
+}
+
 #[cfg(test)]
 mod bar_chart;
 #[cfg(test)]

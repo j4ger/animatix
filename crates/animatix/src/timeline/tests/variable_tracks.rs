@@ -28,7 +28,7 @@ fn test_keyframe_scoped_variables_create_tracks() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -148,7 +148,7 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -246,7 +246,7 @@ fn always_object_field_writes_update_frame_environment() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -296,7 +296,7 @@ for i in {0} {
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -344,7 +344,7 @@ for i in {0, 1} [step: 300ms] {
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -399,7 +399,7 @@ for j in {0, 2} {
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -485,7 +485,7 @@ fn always_nested_object_field_writes_update_frame_environment() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -548,7 +548,7 @@ let summed = total(sorted)
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -592,7 +592,7 @@ pulse btn [strength: 1.5]
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -644,7 +644,7 @@ bubble_sort(b, vals)
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -714,7 +714,7 @@ dnf_pass(arr, 0, 0, 5)
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -779,7 +779,7 @@ bubble_sort(bars, vals)
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -832,7 +832,7 @@ let h = guard(21)
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -867,7 +867,7 @@ always {
         &std::collections::HashMap::new(),
     );
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -923,7 +923,7 @@ let scaled = bump(2, 4)
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
@@ -955,7 +955,7 @@ fn sort_colors_demo_file_produces_dnf_sequence() {
     let expanded = program.expand_components(&mut Vec::new());
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     assert!(
-        report.diagnostics.is_empty(),
+        without_content_lints(&report.diagnostics).next().is_none(),
         "demo must build cleanly, got: {:?}",
         report.diagnostics
     );

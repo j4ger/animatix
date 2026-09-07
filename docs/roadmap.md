@@ -406,6 +406,45 @@ backlog is now fully worked through; new work should start from fresh
 
 ---
 
+## Audit Fix Pass (2026-09-07)
+
+From a full-chain review (lexer→parser→IR→eval→render→build) during the
+prop-ref/series work; evidence in the session. Landed on `feat/audit-fixes`:
+
+- LetChain closures now capture let-bindings (`CapturedEnv::snapshot` merges
+  let-scopes); `get_ref` carries a tripwire (unreachable today, three
+  presence-only callers) against future scope-blind reads.
+- Plot closure evaluation failures surface as diagnostics: build-time probes
+  report non-frame-variable errors (a `t`/arg `UndefinedVariable` is the
+  designed handoff to frame resampling); frame-time NaN gaps emit one
+  `RenderFailure` warning per actor per frame. This closed the
+  silent-NaN debugging trap from probe 012.
+- Effect-key whitelist in `parse_timing_modifiers` is host-gated: the six
+  keys stay silent only for the Action host (the LG-4 signature check runs
+  there); on assignments/declarations/text they now warn as silent no-ops.
+- `make_vec_value` requires numeric elements (`{1, "x"}` no longer coerces
+  `"x"` to a hidden 0.0); Graph tick/bar-label children take
+  `text.muted` from the colorscheme (the hardcoded `#888888` was a dead
+  literal — `Str` never parsed, effective color was the 0.8 gray fallback).
+- Test infra: `without_content_lints` deduplicated into `tests/mod.rs`
+  (was copy-pasted in 4 files) and applied to variable_tracks assertions.
+
+Open follow-ups from the audit (see also `docs/series_construction.md`):
+
+1. **IR list-literal alignment**: the IR still coerces numeric 2-4 element
+   brace literals to `Vec2/3/4` while the tree-walker keeps `Value::List`
+   (same source, different frame/build values). Full alignment needs
+   `MakeList` in lowering plus `value_parser` accepting list-of-nums for
+   vector-typed properties — the minimal strictness pass (this round) only
+   fixed the element-type half.
+2. **PropRef build-time validation**: `&label.prop` currently validates
+   label/prop at frame time; a post-build pass over modifier programs
+   against `tracks` kinds would move it to build.
+3. **CLI runtime-diagnostics blind spot**: `animatix check`/`image` never
+   read `runtime_diagnostics()` (GUI has a panel); headless workflows miss
+   every frame-time diagnostic.
+
+---
 ## Planned: Dogfood-Driven Fix Pass (2026-09-06)
 
 Candidate plan for the Known Issues rows + spec drift + LG items surfaced by
