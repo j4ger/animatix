@@ -173,7 +173,7 @@ project organization.
 | Layout (Grid/%/fill/constraints/reorder) | G3, G6, G2 |
 | Actions/easings/effects | G4, G6 |
 | Morph (text/path/strategy) | G4, G6 |
-| Reactive (always/anchors/map/_animating_) | G1, G2, G3 |
+| Reactive (always/anchors/map/is_animating) | G1, G2, G3 |
 | Plots (six plot kinds + function transitions + stroke_progress) | G1, G3 |
 | Annotations (Callout/Legend/Equation highlight) | G1, G3 |
 | Multi-scene (6 transitions/persist/cross-file/per-scene config) | G5, G6 |

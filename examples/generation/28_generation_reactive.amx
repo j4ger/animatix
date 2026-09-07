@@ -82,6 +82,6 @@ fade-in sub [400ms, delay: 100ms]
 fade-in badge_group [500ms, ease: ease-out]
 fade-in reveal_mask [500ms, delay: 150ms]
 
-// ── Group-level rotation (triggers _animating_rotation flag) ────────────────
+// ── Group-level rotation (drives the is_animating flag) ────────────────────
 #1.8s
 rotate badge_group [by: tau, 3s, ease: ease-in-out]

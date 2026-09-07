@@ -66,7 +66,7 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 |------|-------------|
 | `animation/04_motion.amx` | Actions and reactive `always` expressions |
 | `animation/05_morph.amx` | Re-declaration morphing |
-| `animation/06_reactive.amx` | Reactive expressions and `_animating_*` flags |
+| `animation/06_reactive.amx` | Reactive expressions and `is_animating(&prop)` state queries |
 | `animation/08_effects.amx` | Filter, shake, pulse, bounce |
 | `animation/16_showcase.amx` | Combined layout, morphing, paths, transforms, always |
 | `animation/21_actions.amx` | Entrance, motion, exit, and effect actions |
