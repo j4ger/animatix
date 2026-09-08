@@ -406,6 +406,36 @@ backlog is now fully worked through; new work should start from fresh
 
 ---
 
+## Audit Fix Pass — Round 2 (2026-09-08)
+
+Second review pass (`feat/audit-followups-2`), from re-auditing the first
+round's fixes plus new-chain walkthrough:
+
+- **Brace-list assignment leniency**: all-numeric brace lists of matching
+  arity are accepted at the property boundary — `at`/`position`
+  (`parse_numeric_vec2*` via `list_as_vec2`), `size`
+  (`handle_size_assignment`), `color` (all-Num 3/4 lists in
+  `color_from_value`), and generic registry Vec2/Vec4 properties
+  (`value_parser`). Heterogeneous/wrong-arity lists emit an
+  `invalid-property-value` warning suggesting parens instead of the three
+  former silent failures (at/size re-keyframed old values; color fell back
+  to a wrong gray — all present since `3a9a5bad`, 2026-06).
+- **Effect-key whitelist host-gating refined**: the whitelist in
+  `parse_timing_modifiers` is Action-host-only — the same keys on
+  assignments/declarations now warn as silent no-ops (zero corpus usage).
+  Note: an earlier observation that the whitelist was removable was wrong —
+  it is load-bearing (parse runs inside each action's execute before the
+  LG-4 signature check).
+- **env_keys violations cleared**: plot-param injection in scene_eval now
+  routes through `env_keys::property_into`; `property_into` shape pinned by
+  test; module doc carries an explicit constructor rule with the two known
+  past violations recorded.
+
+Also landed: "Adding a New Expression Semantic to the IR" touch-point
+checklist in `docs/contributing.md` (8 sites, two compiler-invisible) with a
+pointer from AGENTS.md.
+
+---
 ## Audit Fix Pass (2026-09-07)
 
 From a full-chain review (lexer→parser→IR→eval→render→build) during the

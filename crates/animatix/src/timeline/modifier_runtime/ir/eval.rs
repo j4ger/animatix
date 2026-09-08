@@ -237,9 +237,9 @@ pub(crate) fn apply_binary_op(
 }
 
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
-    // Numeric coercion used to be silent (`as_num()` mapped any element to
-    // 0.0), so `{1, "x"}` produced a vector with a hidden zero. Require
-    // numbers and surface the mismatch instead.
+    // Elements must be numeric: a non-Num element is a type error, never a
+    // silent 0.0 coercion (the tree-walker keeps heterogeneous lists as
+    // `Value::List` and errors identically).
     for (i, v) in values.iter().enumerate() {
         if !matches!(v, Value::Num(_)) {
             return Err(EvalError::TypeMismatch(format!(

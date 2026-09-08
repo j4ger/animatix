@@ -213,6 +213,35 @@ This checks relative Markdown links under `docs/`, rejects completed-status rows
 
 ---
 
+## Adding a New Expression Semantic to the IR
+
+Every new expression form (operator, literal shape, call convention) must be
+implemented in **all** of the following places. The compiler's non-exhaustive
+match errors catch the typed arms, but the *semantic* ones (recursion in the
+two visitor methods, tree-walker parity) are silent if missed:
+
+1. **AST variant** — `crates/animatix-syntax/src/ast.rs` (`Expr` enum);
+   extend `references_ident` in the same file (plot dynamic-gating and
+   frame-env injection depend on it).
+2. **Parser** — `crates/animatix-syntax/src/parser/expr.rs`.
+3. **IR lowering** — `crates/animatix/src/timeline/modifier_runtime/ir/lower.rs`
+   (`compile_expr`).
+4. **IR types** — `.../ir/types.rs`: a `CompiledExpr` variant plus **both**
+   visitors: `collect_prop_refs` and `references_ident`.
+5. **IR evaluation** — `.../ir/eval.rs` (`evaluate_compiled_expr`) and
+   `.../ir/display.rs` (debug rendering).
+6. **Tree-walker** — `crates/animatix/src/timeline/utils.rs`
+   (`evaluate_expr_inner`) — build-time semantics must match the IR.
+7. **Cache key** — if the form reads mutable environment state, check whether
+   `utils::evaluate_expr`'s cache key (`expr_hash`, `stamp`, `let_epoch`)
+   needs a new component.
+8. **Round-trip & parity** — `crates/animatix/src/timeline/value_parser.rs`
+   (`value_to_expr`) and a case in `crates/animatix/tests/ir_tests.rs`
+   asserting IR result == tree-walker result.
+
+Precedents to copy: `LetChain` (block bodies, 13 touch points),
+`PropRef` (references, 9), `MakeList` (list/tuple split, 7).
+
 ## GUI Actor Creation
 
 Users can create actors from the GUI via toolbar `+`, inspector CTA, or right-click canvas. New actors are inserted into the current keyframe block (or wrapped in `#0s` if none exist).
