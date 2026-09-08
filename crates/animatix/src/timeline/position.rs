@@ -1,4 +1,6 @@
-use super::lookup::parse_numeric_vec2_with_lookup_diagnostic;
+use super::lookup::{
+    evaluate_expr_with_lookup_diagnostic, parse_numeric_vec2_with_lookup_diagnostic,
+};
 use super::{
     AnimationTrack, Environment, Interpolate, PlacementMode, PositionBinding, PropertyTrack,
     SceneAnchor, SceneDimensions,
@@ -109,6 +111,27 @@ pub(crate) fn resolve_position_binding_with_lookup_diagnostic(
             }
             return Some((PositionBinding::Absolute, Some(position)));
         }
+    }
+
+    // All three parse attempts failed. The common typo is a brace list
+    // (`at: {280, 220}`) with a non-numeric element or a wrong arity — say
+    // so instead of silently keyframing the previous position.
+    if let Some(at_expr) = at_expr {
+        let value_repr =
+            match evaluate_expr_with_lookup_diagnostic(at_expr, env, diagnostics, subject) {
+                Some(v) => format!("{v:?}"),
+                None => "<unevaluated>".to_string(),
+            };
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "'{subject}' expects a Vec2 like (280, 220); got {value_repr}. Use parentheses for fixed-size vectors."
+                ),
+            )
+            .with_subject(subject),
+        );
     }
 
     None

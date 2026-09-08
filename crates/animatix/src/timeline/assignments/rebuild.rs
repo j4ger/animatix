@@ -22,12 +22,24 @@ pub(super) fn handle_size_assignment(
 
     let target_size = match property {
         "size" => {
-            if let Some(Value::Vec2([w, h])) =
-                evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-            {
-                [w as f32 / 2.0, h as f32 / 2.0]
-            } else {
-                track.geometry.size.last(default_size)
+            // Accept a Vec2 or an all-numeric 2-element brace list
+            // (`size = {40, 80}`); anything else keeps the previous size.
+            match evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject) {
+                Some(Value::Vec2([w, h])) => [w as f32 / 2.0, h as f32 / 2.0],
+                Some(Value::List(items)) if items.len() == 2 => {
+                    let dims: Option<Vec<f64>> = items
+                        .iter()
+                        .map(|item| match item {
+                            Value::Num(n) => Some(*n),
+                            _ => None,
+                        })
+                        .collect();
+                    match dims {
+                        Some(dims) => [dims[0] as f32 / 2.0, dims[1] as f32 / 2.0],
+                        None => track.geometry.size.last(default_size),
+                    }
+                },
+                _ => track.geometry.size.last(default_size),
             }
         },
         "radius_x" => {

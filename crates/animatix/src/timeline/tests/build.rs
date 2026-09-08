@@ -1812,3 +1812,71 @@ fn prop_ref_to_non_injectable_property_warns() {
         report.diagnostics
     );
 }
+
+#[test]
+fn brace_list_assignment_to_vector_properties_works() {
+    // All-numeric brace lists are accepted at the property boundary with
+    // the same semantics as the paren form (`at` moves, `size` applies).
+    // This used to be three separate silent no-ops: at re-keyframed the old
+    // position, size re-keyframed the old size.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+box: Rect, size: {40, 40}, color: accent.primary, anchor: scene.center
+
+#0.2s
+fade-in box [150ms]
+
+#1s
+box.at = {420, 260} [500ms, ease: ease-out]
+box.size = {120, 60} [500ms, ease: ease-out]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let box_track = timeline.tracks.get("box").expect("box track");
+    let at = box_track.geometry.position.as_ref().expect("at track").evaluate(2000);
+    let size = box_track.geometry.size.as_ref().expect("size track").evaluate(2000);
+    assert_eq!(at, [420.0, 260.0], "brace at must position the actor");
+    assert_eq!(size, [60.0, 30.0], "brace size is stored as half-size");
+}
+
+#[test]
+fn brace_list_with_non_numeric_element_warns() {
+    // Heterogeneous lists stay rejected (no silent 0.0 coercion): a
+    // non-numeric element produces an InvalidPropertyValue diagnostic and
+    // the previous position is kept.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (480, 270) }
+
+box: Rect, size: (80, 40), color: accent.primary, anchor: scene.center
+
+#0.2s
+fade-in box [200ms]
+
+#1s
+box.at = {280, "x"} [300ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue),
+        "non-numeric brace element must warn, got: {:?}",
+        report.diagnostics
+    );
+}

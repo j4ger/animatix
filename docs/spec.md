@@ -1582,7 +1582,11 @@ Lists are always inferred as `List<T>` and can be empty `{}` or single-element `
 This distinction holds at frame time too: brace lists keep their elements as
 a `Value::List` (never coerced to a vector), while paren tuples of 2-4
 numeric elements evaluate to `Vec2/3/4` — identical semantics on the
-build-time tree-walker and the frame-time IR.
+build-time tree-walker and the frame-time IR. At the **property boundary**
+the two forms converge: an all-numeric brace list of matching arity
+(`size = {40, 80}`, `color = {1, 0, 0, 1}`) is accepted wherever the paren
+form is; heterogeneous or wrong-arity lists produce an
+`invalid-property-value` warning instead of being silently dropped.
 
 ### Operators
 

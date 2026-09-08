@@ -11,8 +11,25 @@ use crate::ast::{Expr, TargetSegment, array_actor_label};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32; 2]> {
-    match evaluate_expr(expr, env).ok()? {
-        Value::Vec2([x, y]) => Some([x as f32, y as f32]),
+    list_as_vec2(&evaluate_expr(expr, env).ok()?)
+}
+
+/// Accept a `Vec2` or an all-numeric 2-element `Value::List` (a brace list
+/// like `{280, 220}`) as a Vec2. Heterogeneous or wrong-arity lists are
+/// rejected so type errors surface upstream.
+pub(crate) fn list_as_vec2(value: &Value) -> Option<[f32; 2]> {
+    match value {
+        Value::Vec2([x, y]) => Some([*x as f32, *y as f32]),
+        Value::List(items) if items.len() == 2 => {
+            let xs: Option<Vec<f64>> = items
+                .iter()
+                .map(|item| match item {
+                    Value::Num(n) => Some(*n),
+                    _ => None,
+                })
+                .collect();
+            xs.map(|xs| [xs[0] as f32, xs[1] as f32])
+        },
         _ => None,
     }
 }
@@ -180,10 +197,7 @@ pub(crate) fn parse_numeric_vec2_with_lookup_diagnostic(
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
 ) -> Option<[f32; 2]> {
-    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)? {
-        Value::Vec2([x, y]) => Some([x as f32, y as f32]),
-        _ => None,
-    }
+    list_as_vec2(&evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?)
 }
 
 pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> {

@@ -156,6 +156,18 @@ pub(crate) fn parse_value(
             let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
             match v {
                 Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
+                // All-numeric 2-element brace lists are accepted at the
+                // property boundary, mirroring the paren form.
+                Value::List(items) if items.len() == 2 => {
+                    let nums: Option<Vec<f64>> = items
+                        .iter()
+                        .map(|item| match item {
+                            Value::Num(n) => Some(*n),
+                            _ => None,
+                        })
+                        .collect();
+                    nums.map(|n| PropertyValue::Vec2([n[0] as f32, n[1] as f32]))
+                },
                 _ => None,
             }
         },
@@ -167,6 +179,19 @@ pub(crate) fn parse_value(
                 },
                 Value::Color([a, b, c, d]) => {
                     Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
+                },
+                // All-numeric 4-element brace lists mirror the paren form.
+                Value::List(items) if items.len() == 4 => {
+                    let nums: Option<Vec<f64>> = items
+                        .iter()
+                        .map(|item| match item {
+                            Value::Num(n) => Some(*n),
+                            _ => None,
+                        })
+                        .collect();
+                    nums.map(|n| {
+                        PropertyValue::Vec4([n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32])
+                    })
                 },
                 _ => None,
             }
