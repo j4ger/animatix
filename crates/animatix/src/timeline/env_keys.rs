@@ -13,6 +13,12 @@
 //! | [`side_channel`] | `label_prop` | Build-time side-channel values (`g_size`) read back by hosted-plot children |
 //! | [`animating_flag`] | `label.__anim__prop` | Internal per-frame animation-state flags, consumed by `is_animating(&label.prop)`. Internal shape — user code spells `&label.prop` |
 //! | *(syntax crate)* | `base__index` | Array actor tracks use `animatix_syntax::ast::array_actor_label` — that constructor is canonical, do not re-spell the shape |
+//!
+//! **Rule:** every site that constructs or looks up one of these keys goes
+//! through a constructor above. Known past violations (each fixed by routing
+//! through the constructor): graph.map registration/lookup drift (2026-08-26),
+//! plot-param injection in scene_eval (2026-09-08). If you are about to write
+//! `format!("{label}.{...}")` for an env key, add or use a constructor here.
 
 /// Env key for a NativeFn registered on a label (`g.map`, `g.map_inverse`).
 /// Modifier-IR method calls with a plain path/ident receiver join the
@@ -64,6 +70,18 @@ mod tests {
     #[test]
     fn side_channel_matches_plot_registration() {
         assert_eq!(side_channel("g", "size"), "g_size");
+    }
+
+    #[test]
+    fn property_into_matches_dotted_injection_shape() {
+        // Frame-time injections (`ring.radius_x`) and plot-parameter
+        // injections (`curve.freq`) both use this shape; IR lookups and the
+        // expression `label.prop` path must match it.
+        let mut out = String::new();
+        property_into("ring", "radius_x", &mut out);
+        assert_eq!(out, "ring.radius_x");
+        property_into("curve", "freq", &mut out);
+        assert_eq!(out, "curve.freq");
     }
 
     #[test]

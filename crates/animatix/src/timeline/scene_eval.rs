@@ -537,10 +537,13 @@ impl Timeline {
                         let val = param_track.evaluate(time_ms);
                         let num_val = crate::timeline::Value::Num(val);
                         // Set the dotted key (e.g. "curve.freq") for explicit references
-                        local_env.set(
-                            &format!("{}.{}", procedural_plot.actor_label, name),
-                            num_val.clone(),
+                        let mut key = String::new();
+                        crate::timeline::env_keys::property_into(
+                            &procedural_plot.actor_label,
+                            name,
+                            &mut key,
                         );
+                        local_env.set(&key, num_val.clone());
                         // Set the bare name (e.g. "freq") for closure captures,
                         // but don't shadow closure sample arguments.
                         if !procedural_plot.func_args.contains(name) {
