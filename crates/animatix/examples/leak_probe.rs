@@ -10,9 +10,6 @@
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
-#[path = "common/scenario_60actors.rs"]
-mod scenario;
-
 use animatix::timeline::{SceneDimensions, Timeline};
 
 fn main() {

@@ -935,7 +935,7 @@ mod tests {
             "format",
             &[
                 Value::Str("y = {:.2}".to_string()),
-                Value::Num(0.7071067811865476),
+                Value::Num(std::f64::consts::FRAC_1_SQRT_2),
             ],
         )
         .unwrap();

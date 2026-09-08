@@ -11,7 +11,7 @@ pub const DIMS: animatix::timeline::SceneDimensions = animatix::timeline::SceneD
     width: 1920,
     height: 1080,
 };
-pub const N_ACTORS: usize = 60;
+const N_ACTORS: usize = 60;
 
 pub fn scenario_source() -> String {
     let mut src = String::from(

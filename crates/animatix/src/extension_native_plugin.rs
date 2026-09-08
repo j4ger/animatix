@@ -3433,7 +3433,7 @@ mod tests {
         };
 
         unsafe extern "C" fn pulse_default_props(ctx: *mut NativeDefaultPropsCtx) -> i32 {
-            let Some(ctx) = (unsafe { (ctx as *mut NativeDefaultPropsCtx).as_mut() }) else {
+            let Some(ctx) = (unsafe { ctx.as_mut() }) else {
                 return NATIVE_STATUS_TYPE_ERROR;
             };
             let Some(append) = ctx.append_property else {

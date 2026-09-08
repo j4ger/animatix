@@ -107,7 +107,7 @@ fn bench_stage_breakdown(c: &mut Criterion) {
             eprintln!("stage_breakdown: skipping stage '{stage_name}' (not fired in every frame)");
             continue;
         }
-        group.bench_function(format!("{stage_name}"), |b| {
+        group.bench_function(stage_name.to_string(), |b| {
             b.iter_custom(|iters| {
                 // Drain any residual accumulation, then run `iters` miss
                 // frames and return only this stage's accumulated time.

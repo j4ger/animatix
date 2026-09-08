@@ -126,7 +126,7 @@ mod tests {
         let target = root.join("c").join("d");
         std::fs::create_dir_all(&from).expect("create from dir");
         std::fs::create_dir_all(&target).expect("create target dir");
-        std::fs::write(&target.join("file"), b"demo").expect("write target");
+        std::fs::write(target.join("file"), b"demo").expect("write target");
 
         let relative = relative_path(&from, &target.join("file")).expect("relative path");
         assert_eq!(relative, PathBuf::from("../../c/d/file"));

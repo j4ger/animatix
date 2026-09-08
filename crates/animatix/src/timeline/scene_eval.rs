@@ -681,69 +681,63 @@ impl Timeline {
                 let slot = track.bounds_slot.get();
                 self.record_precise_bounds(slot, node_label, world_bounds);
             };
-            match primitive_dispatch {
-                Some(commands) => {
-                    for cmd in &commands {
-                        cmd.execute(scene, &local_transform, opacity);
-                    }
-                    if let Some(items) = program_items.as_mut() {
-                        items.push(crate::timeline::scene_program::SceneItem {
-                            transform: local_transform,
-                            opacity,
-                            commands: commands.clone(),
-                        });
-                    }
-                    // Hit region — compute from commands, not stale vector_paths.
-                    // PF-4 scoped item: a shape-command memo hit hands over the
-                    // build-time-computed bounds (image_size is irrelevant —
-                    // shape commands never carry images), skipping the per-node
-                    // bezpath `bounding_box` unions entirely.
-                    let memo_bounds = track.take_shape_command_bounds();
-                    let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
-                    let local_bounds: Option<kurbo::Rect> = match memo_bounds {
-                        Some(bounds) => bounds,
-                        None => {
-                            let mut bounds: Option<kurbo::Rect> = None;
-                            for cmd in &commands {
-                                if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                                    bounds = Some(match bounds {
-                                        Some(existing) => existing.union(cmd_bounds),
-                                        None => cmd_bounds,
-                                    });
-                                }
+            if let Some(commands) = primitive_dispatch {
+                for cmd in &commands {
+                    cmd.execute(scene, &local_transform, opacity);
+                }
+                if let Some(items) = program_items.as_mut() {
+                    items.push(crate::timeline::scene_program::SceneItem {
+                        transform: local_transform,
+                        opacity,
+                        commands: commands.clone(),
+                    });
+                }
+                // Hit region — compute from commands, not stale vector_paths.
+                // PF-4 scoped item: a shape-command memo hit hands over the
+                // build-time-computed bounds (image_size is irrelevant —
+                // shape commands never carry images), skipping the per-node
+                // bezpath `bounding_box` unions entirely.
+                let memo_bounds = track.take_shape_command_bounds();
+                let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
+                let local_bounds: Option<kurbo::Rect> = match memo_bounds {
+                    Some(bounds) => bounds,
+                    None => {
+                        let mut bounds: Option<kurbo::Rect> = None;
+                        for cmd in &commands {
+                            if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                                bounds = Some(match bounds {
+                                    Some(existing) => existing.union(cmd_bounds),
+                                    None => cmd_bounds,
+                                });
                             }
-                            bounds
-                        },
-                    };
-                    // Shape-primitive commands came from the track's command
-                    // memo on a hit — hand the buffers back so the next frame
-                    // can take them again (PF-6 round 8; `take_shape_commands`
-                    // returns `None` for non-memo actors, so a recycle of a
-                    // foreign `Vec` is simply dropped by the memo).
-                    track.recycle_shape_commands(commands);
-                    record_hit_region(local_bounds);
+                        }
+                        bounds
+                    },
+                };
+                // Shape-primitive commands came from the track's command
+                // memo on a hit — hand the buffers back so the next frame
+                // can take them again (PF-6 round 8; `take_shape_commands`
+                // returns `None` for non-memo actors, so a recycle of a
+                // foreign `Vec` is simply dropped by the memo).
+                track.recycle_shape_commands(commands);
+                record_hit_region(local_bounds);
 
-                    // Debug overlays
-                    if debug_options.draw_bounds {
-                        let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
-                        let text_paths = track.evaluate_text_paths(time_ms);
-                        let _ = self.add_node_debug_overlays(
-                            &svg_paths,
-                            half_size,
-                            &local_transform,
-                            scene,
-                            &vector_paths,
-                            &text_paths,
-                            image_size.is_some(),
-                        );
-                    }
+                // Debug overlays
+                if debug_options.draw_bounds {
+                    let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
+                    let text_paths = track.evaluate_text_paths(time_ms);
+                    let _ = self.add_node_debug_overlays(
+                        &svg_paths,
+                        half_size,
+                        &local_transform,
+                        scene,
+                        &vector_paths,
+                        &text_paths,
+                        image_size.is_some(),
+                    );
+                }
 
-                    return (local_transform, opacity);
-                },
-                // No drawable content: nothing is drawn and no hit region /
-                // precise bounds are recorded (empty text/image actors stay
-                // un-pickable until they have content).
-                None => {},
+                return (local_transform, opacity);
             }
         }
 

@@ -53,7 +53,7 @@ pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Op
         "Animatix",
         options,
         Box::new(move |cc| {
-            let mut app = AnimatixApp::new(cc, initial_path, show_welcome, perf_log)?;
+            let app = AnimatixApp::new(cc, initial_path, show_welcome, perf_log)?;
             // Demo-script driver (PF-11 follow-up): inject commands from a
             // script at fixed wall-clock times — the scripted form of the
             // external-command queue, used to drive scripted seek/playback

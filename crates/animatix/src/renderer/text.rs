@@ -338,9 +338,11 @@ fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::I
     CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
 
+/// Shared face data keyed by fontdb face id.
+type FaceData = Option<Arc<[u8]>>;
 /// Process-wide cache: fontdb face id → shared face data.
-fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Option<Arc<[u8]>>>> {
-    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Option<Arc<[u8]>>>>> =
+fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, FaceData>> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, FaceData>>> =
         std::sync::OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
@@ -2459,11 +2461,7 @@ mod tests {
             let font = Font::new(Bytes::new(bf.data), 0).expect("bundled face parses");
             let info = font.info();
             // (weight, style-debug) uniquely identifies a face variant.
-            sigs.insert(format!(
-                "{}:{}",
-                info.variant.weight.to_number(),
-                format!("{:?}", info.variant.style)
-            ));
+            sigs.insert(format!("{}:{:?}", info.variant.weight.to_number(), info.variant.style));
         }
         assert_eq!(sigs.len(), 4, "expected regular+bold+italic+bold-italic, got {sigs:?}");
         assert!(

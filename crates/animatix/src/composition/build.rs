@@ -347,7 +347,7 @@ impl Composition {
             };
             // Legacy/test namespaces may carry no scenes at all — accept any
             // name there (same rule as validate_play_target).
-            if !ns.scenes.is_empty() && ns.scenes.get(scene_name).is_none() {
+            if !ns.scenes.is_empty() && !ns.scenes.contains_key(scene_name) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::PlayTargetNotFound,

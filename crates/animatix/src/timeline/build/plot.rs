@@ -1045,7 +1045,7 @@ impl Timeline {
             // seeding the half-size here made hosted plots occupy only the
             // central half of the axis box.
             self.env.set(
-                &crate::timeline::env_keys::side_channel(&label, "size"),
+                &crate::timeline::env_keys::side_channel(label, "size"),
                 Value::Vec2([
                     (initial_size[0] * 2.0) as f64,
                     (initial_size[1] * 2.0) as f64,

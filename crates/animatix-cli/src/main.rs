@@ -760,8 +760,8 @@ fn main() {
                 BuildTarget::MultiScene(comp) => {
                     let summary = comp.summary();
                     println!(
-                        "{:<4} {:<14} {:>8} {:>9}  {}",
-                        "#", "scene", "start(s)", "dur(s)", "transition -> next"
+                        "{:<4} {:<14} {:>8} {:>9}  transition -> next",
+                        "#", "scene", "start(s)", "dur(s)"
                     );
                     for (i, (name, start, dur, explicit)) in summary.scenes.iter().enumerate() {
                         let next = summary

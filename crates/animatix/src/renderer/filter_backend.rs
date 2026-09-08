@@ -692,8 +692,8 @@ impl GpuFilterBackend {
             // Horizontal pass (copy + h): tex_a → tex_b.
             self.dispatch_blur(
                 &mut encoder,
-                &tex_a_view,
-                &tex_b_view,
+                tex_a_view,
+                tex_b_view,
                 blur,
                 0,
                 dimensions.width,
@@ -709,8 +709,8 @@ impl GpuFilterBackend {
             });
             self.dispatch_blur(
                 &mut enc,
-                &tex_b_view,
-                &tex_a_view,
+                tex_b_view,
+                tex_a_view,
                 blur,
                 1,
                 dimensions.width,
@@ -726,7 +726,7 @@ impl GpuFilterBackend {
             let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Animatix Filter Color Matrix Encoder"),
             });
-            self.dispatch_color_matrix(&mut enc, &tex_a_view, &tex_b_view, &matrix);
+            self.dispatch_color_matrix(&mut enc, tex_a_view, tex_b_view, &matrix);
             self.queue.submit(std::iter::once(enc.finish()));
         }
 

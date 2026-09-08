@@ -221,7 +221,7 @@ mod tests {
         let sources = discover_manifest_sources(
             Some(&document),
             Some(&workspace),
-            &[explicit_manifest.clone()],
+            std::slice::from_ref(&explicit_manifest),
         );
         let paths = sources.iter().map(|source| source.path.clone()).collect::<Vec<_>>();
         assert_eq!(paths, vec![explicit_manifest, document_manifest, workspace_manifest]);
@@ -231,8 +231,11 @@ mod tests {
     fn discovery_deduplicates_by_canonical_path() {
         let document = temp_dir("dedupe");
         let manifest = write_manifest(&document, "same.amx-plugin.toml");
-        let sources =
-            discover_manifest_sources(Some(&document), Some(&document), &[manifest.clone()]);
+        let sources = discover_manifest_sources(
+            Some(&document),
+            Some(&document),
+            std::slice::from_ref(&manifest),
+        );
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].path, manifest);
     }

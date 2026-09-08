@@ -164,10 +164,6 @@ impl Primitive for PlotExt {
 
 /// Verify that a `FuncTransition` is created with the correct timing, easing,
 /// and arity when a `curve.func = ...` assignment is processed.
-
-/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
-/// actors have no entrance actions — they are about demo content, not the
-/// feature under test, so assertions exclude them.
 #[test]
 fn basic_func_transition_cartesian() {
     let source = r#"
