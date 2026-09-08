@@ -430,20 +430,27 @@ prop-ref/series work; evidence in the session. Landed 2026-09-07
 - Test infra: `without_content_lints` deduplicated into `tests/mod.rs`
   (was copy-pasted in 4 files) and applied to variable_tracks assertions.
 
-Open follow-ups from the audit (see also `docs/series_construction.md`):
+Open follow-ups from the audit (see also `docs/series_construction.md`) —
+**all three closed 2026-09-07** on `feat/audit-followups`:
 
-1. **IR list-literal alignment**: the IR still coerces numeric 2-4 element
-   brace literals to `Vec2/3/4` while the tree-walker keeps `Value::List`
-   (same source, different frame/build values). Full alignment needs
-   `MakeList` in lowering plus `value_parser` accepting list-of-nums for
-   vector-typed properties — the minimal strictness pass (this round) only
-   fixed the element-type half.
-2. **PropRef build-time validation**: `&label.prop` currently validates
-   label/prop at frame time; a post-build pass over modifier programs
-   against `tracks` kinds would move it to build.
-3. **CLI runtime-diagnostics blind spot**: `animatix check`/`image` never
-   read `runtime_diagnostics()` (GUI has a panel); headless workflows miss
-   every frame-time diagnostic.
+1. ~~IR list-literal alignment~~ — **Done** (`5f98b1f8`): lowering
+   distinguishes brace lists (`MakeList`, elements preserved) from paren
+   tuples (`MakeVec`, numeric coercion) — identical semantics on the
+   tree-walker and the IR. Verified: corpus clean, IR parity suite extended
+   with `brace_list_preserves_elements_through_ir`. (Note: `box.at = {a, b}`
+   brace-assignment was already a no-op on main — the alignment did not
+   change assignment behavior; paren tuple assignment is the working form.)
+2. ~~PropRef build-time validation~~ — **Done** (`fc26013c`): a post-lowering
+   pass walks modifier programs (`collect_prop_refs`), checking label
+   existence against `tracks` and injectability against
+   `property_registry::resolve_property`; typos surface as
+   `unknown-target-path` build warnings instead of frame-time failures.
+3. ~~CLI runtime-diagnostics blind spot~~ — **Done** (`1272ed72`):
+   `animatix image` drains `runtime_diagnostics()` to stderr after export;
+   the same commit fixed the sampler's NaN swallowing (the chord-deviation
+   test was always-false on NaN, which terminated subdivision and erased the
+   curve — now NaN forces subdivision to the resolution floor so gaps render
+   and the empty-path/NaN signal reaches the diagnostics check).
 
 ---
 ## Planned: Dogfood-Driven Fix Pass (2026-09-06)
