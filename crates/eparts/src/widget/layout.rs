@@ -254,11 +254,17 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
             t.text.muted
         };
         let font_id = TextRole::BodyS.font_id();
-        let full_text = format!("{}  {}", icon, label);
-        let galley = ui.painter().layout_no_wrap(full_text.clone(), font_id.clone(), text_color);
-        let show_label = galley.size().x + s.space_5 <= tab_w;
-        let display_text = if show_label {
-            full_text
+        let with_icon = format!("{}  {}", icon, label);
+        let galley_full =
+            ui.painter().layout_no_wrap(with_icon.clone(), font_id.clone(), text_color);
+        let galley_label =
+            ui.painter().layout_no_wrap(label.to_string(), font_id.clone(), text_color);
+        // Degrade label-first: when space is tight the label is the informative
+        // part, so drop the icon before dropping the text.
+        let display_text = if galley_full.size().x + s.space_5 <= tab_w {
+            with_icon
+        } else if galley_label.size().x + s.space_2 <= tab_w {
+            label.to_string()
         } else {
             icon.to_string()
         };
@@ -269,6 +275,8 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
             font_id,
             text_color,
         );
+        // Tooltip keeps the label reachable even in the icon-only fallback.
+        let response = response.on_hover_text(*label);
 
         if response.clicked() {
             clicked_tab = Some(*tab);
