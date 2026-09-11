@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::animation_track::{
-    FilterTracks, GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
+    GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
 };
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 use crate::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, Timeline};
@@ -318,7 +318,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     // Collapse each tier's property tracks to a single t=0 keyframe.
     collapse_geometry_tracks(&mut snapshot.geometry, time_ms);
     collapse_style_tracks(&mut snapshot.style, time_ms);
-    collapse_filter_tracks(&mut snapshot.filter, time_ms);
     collapse_shape_tracks(&mut snapshot.shape, time_ms);
     collapse_text_tracks(&mut snapshot.text, time_ms);
     collapse_highlight_tracks(&mut snapshot.highlight, time_ms);
@@ -394,15 +393,6 @@ fn collapse_style_tracks(tracks: &mut StyleTracks, time_ms: u64) {
     collapse_optional_track(&mut tracks.line_cap, time_ms);
     collapse_optional_track(&mut tracks.line_join, time_ms);
     collapse_optional_track(&mut tracks.morph_options, time_ms);
-}
-
-fn collapse_filter_tracks(tracks: &mut FilterTracks, time_ms: u64) {
-    collapse_optional_track(&mut tracks.filter_blur, time_ms);
-    collapse_optional_track(&mut tracks.filter_brightness, time_ms);
-    collapse_optional_track(&mut tracks.filter_contrast, time_ms);
-    collapse_optional_track(&mut tracks.filter_saturate, time_ms);
-    collapse_optional_track(&mut tracks.filter_hue_rotate, time_ms);
-    collapse_optional_track(&mut tracks.filter_sepia, time_ms);
 }
 
 fn collapse_shape_tracks(tracks: &mut ShapeTracks, time_ms: u64) {

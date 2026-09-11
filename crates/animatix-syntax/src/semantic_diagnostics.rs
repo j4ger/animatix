@@ -316,9 +316,37 @@ fn check_stmt(
                 }
             }
 
-            if let Some(seg) = target.first() {
-                let label = seg.label_str();
-                if let Some(info) = symbols.labels.get(label) {
+            // `scope.stage.param = value` addresses an effect stage parameter,
+            // which is not on the scope's property table. Validate it against
+            // the effect's declared parameter instead.
+            let effect_param = if target.len() >= 2 {
+                crate::schema::effect_specs()
+                    .iter()
+                    .find_map(|spec| spec.params.iter().find(|param| param.name == property))
+            } else {
+                None
+            };
+            if let Some(param) = effect_param {
+                if let Some(expected_type) = crate::symbol_table::effect_param_type(param.kind) {
+                    let actual_type = symbols.infer_expr_type(value);
+                    if !crate::typing::is_subtype(&actual_type, &expected_type) {
+                        diagnostics.push(span_diagnostic(
+                            DiagnosticSeverity::Warning,
+                            DiagnosticCode::TypeMismatch,
+                            format!(
+                                "Type mismatch for effect parameter '{}': expected {:?}, found {:?}",
+                                property, expected_type, actual_type
+                            ),
+                            line,
+                            col,
+                            end_col,
+                        ));
+                    }
+                }
+            } else {
+                let resolved = target.first().and_then(|seg| symbols.labels.get(seg.label_str()));
+                let label = target.first().map(|seg| seg.label_str()).unwrap_or("");
+                if let Some(info) = resolved {
                     if let Some(ty) = &info.ty {
                         if let Some(known_props) = symbols.properties.get(ty) {
                             if !known_props.contains(property)

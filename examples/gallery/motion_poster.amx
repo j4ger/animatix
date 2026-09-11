@@ -136,7 +136,9 @@ frame: Rect, size: (700, 380), color: surface.secondary, anchor: scene.center, o
 
 // Ken-burns window: Mask crops the oversized, slowly zooming photo; the
 // outer Filter breathes blur/brightness over the cropped result.
-grade: Filter, brightness: 0.75, anchor: scene.center, offset: (0, 110) {
+grade: Filter, anchor: scene.center, offset: (0, 110) {
+  grade_soft: Blur, radius: 0
+  grade_color: ColorGrade, brightness: 0.75
   window: Mask, size: (660, 340) {
     clip_shape: Rect, size: (660, 340)
     photo: Image, url: "examples/assets/checker.png", size: (760, 420), at: (-380, -210)
@@ -160,12 +162,12 @@ photo.scale = 1.18 [5s, ease: ease-in-out]
 
 // Filter breathing on the grade
 #1.5s
-grade.blur = 6 [2s, ease: ease-in-out]
-grade.brightness = 1.05 [2s, ease: ease-in-out]
+grade.grade_soft.radius = 6 [2s, ease: ease-in-out]
+grade.grade_color.brightness = 1.05 [2s, ease: ease-in-out]
 
 #3.5s
-grade.blur = 0 [2s, ease: ease-in-out]
-grade.brightness = 0.7 [2s, ease: ease-in-out]
+grade.grade_soft.radius = 0 [2s, ease: ease-in-out]
+grade.grade_color.brightness = 0.7 [2s, ease: ease-in-out]
 
 play Easing [fade, 600ms]
 

@@ -371,21 +371,6 @@ pub enum ActorField {
     /// Highlight corner radius for equation fragments.
     HighlightRadius,
 
-    // ── Effects tier ──
-    // ── Filter tier ──
-    /// Gaussian blur radius.
-    FilterBlur,
-    /// Brightness multiplier.
-    FilterBrightness,
-    /// Contrast multiplier.
-    FilterContrast,
-    /// Saturation multiplier.
-    FilterSaturate,
-    /// Hue rotation in degrees.
-    FilterHueRotate,
-    /// Sepia intensity.
-    FilterSepia,
-
     // ── Transform tier ──
     /// 2D affine transform matrix.
     Transform,
@@ -441,15 +426,6 @@ impl ActorField {
             ActorField::StrokeProgress => PropertyValue::F32(1.0),
             ActorField::FillOpacity => PropertyValue::F32(1.0),
             ActorField::MorphOptions => return None,
-
-            // ── Effects tier ──
-            // ── Filter tier ──
-            ActorField::FilterBlur => PropertyValue::F32(0.0),
-            ActorField::FilterBrightness => PropertyValue::F32(1.0),
-            ActorField::FilterContrast => PropertyValue::F32(1.0),
-            ActorField::FilterSaturate => PropertyValue::F32(1.0),
-            ActorField::FilterHueRotate => PropertyValue::F32(0.0),
-            ActorField::FilterSepia => PropertyValue::F32(0.0),
 
             ActorField::Transform => PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]),
 
@@ -786,24 +762,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
-        "blur",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterBlur,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "brightness",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterBrightness,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
         "char_progress",
         ValueType::F32,
         F::ASSIGNABLE_AI,
@@ -851,15 +809,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         }),
         Applicable::ShapeKinds(&[S::Path]),
         |_| super::property_engine::PropertyValue::CommandList(String::new())
-    ),
-    schema!(
-        "contrast",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterContrast,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(1.0)
     ),
     schema!(
         "data",
@@ -1055,15 +1004,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         None,
         Applicable::ActorKinds(&[A::Equation, A::Fragment]),
         |_| super::property_engine::PropertyValue::F32(3.0)
-    ),
-    schema!(
-        "hue_rotate",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterHueRotate,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
         "kind",
@@ -1356,15 +1296,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
-        "saturate",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterSaturate,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
         "scale",
         ValueType::F32,
         F::ASSIGNABLE_AI,
@@ -1372,15 +1303,6 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         None,
         Applicable::Everything,
         |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
-        "sepia",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FilterSepia,
-        None,
-        Applicable::ActorKinds(&[A::Filter]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
         "shift",

@@ -1391,28 +1391,6 @@ reveal-in a [1s]
     assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
 }
 
-/// Static filter properties on a Filter declaration seed their tracks so they
-/// apply without a `#0s` assignment. (Regression: declaration-time filter
-/// values used to be dropped silently, so only assignment/keyframe-driven
-/// filter values ever applied.)
-#[test]
-fn static_filter_properties_seed_tracks() {
-    let source = "f: Filter, blur: 8, brightness: 0.5";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let track = report.output.tracks.get("f").expect("filter track");
-    assert_eq!(track.filter.filter_blur.get(0, 0.0), 8.0);
-    assert_eq!(track.filter.filter_brightness.get(0, 1.0), 0.5);
-}
-
 /// Effect children of a `Filter` scope lower into the scope's chain instead of
 /// becoming scene-graph actors.
 #[test]

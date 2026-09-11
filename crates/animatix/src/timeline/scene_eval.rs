@@ -946,52 +946,9 @@ impl Timeline {
             );
         }
 
-        // Sample filter properties
-        let mut blur = track.filter.filter_blur.get(time_ms, 0.0);
-        let mut brightness = track.filter.filter_brightness.get(time_ms, 1.0);
-        let mut contrast = track.filter.filter_contrast.get(time_ms, 1.0);
-        let mut saturate = track.filter.filter_saturate.get(time_ms, 1.0);
-        let mut hue_rotate = track.filter.filter_hue_rotate.get(time_ms, 0.0);
-        let mut sepia = track.filter.filter_sepia.get(time_ms, 0.0);
-
-        // Apply modifier overrides for filter properties
-        if let Some(ov) = overrides.get(node_label) {
-            if let Some(Value::Num(v)) = ov.get("blur") {
-                blur = *v as f32;
-            }
-            if let Some(Value::Num(v)) = ov.get("brightness") {
-                brightness = *v as f32;
-            }
-            if let Some(Value::Num(v)) = ov.get("contrast") {
-                contrast = *v as f32;
-            }
-            if let Some(Value::Num(v)) = ov.get("saturate") {
-                saturate = *v as f32;
-            }
-            if let Some(Value::Num(v)) = ov.get("hue_rotate") {
-                hue_rotate = *v as f32;
-            }
-            if let Some(Value::Num(v)) = ov.get("sepia") {
-                sepia = *v as f32;
-            }
-        }
-
-        // If all filters are identity and no blur, just append sub-scene directly.
-        // Prefer the scope's lowered effect chain; fall back to the legacy flat
-        // Filter properties until they are retired (Phase 3).
-        let chain = if track.effects.is_empty() {
-            crate::timeline::filter::EffectChain::from_flat_filter(
-                time_ms as f32,
-                blur,
-                brightness,
-                contrast,
-                saturate,
-                hue_rotate,
-                sepia,
-            )
-        } else {
-            track.effects.build_chain(time_ms)
-        };
+        // Effects are lowered onto the scope's chain at build time; identity
+        // and disabled stages are dropped during sampling.
+        let chain = track.effects.build_chain(time_ms);
 
         if chain.is_empty() {
             scene.encoding_mut().append(sub_scene.encoding(), &None);

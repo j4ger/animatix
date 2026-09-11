@@ -137,6 +137,18 @@ pub struct SceneInfo {
     pub span: Option<Span>,
 }
 
+/// Map an effect parameter's declared value kind to its analysis type.
+pub(crate) fn effect_param_type(kind: crate::schema::PropertyValueKind) -> Option<typing::Type> {
+    use crate::schema::PropertyValueKind as K;
+    match kind {
+        K::F32 | K::U32 => Some(typing::Type::Num),
+        K::Bool => Some(typing::Type::Bool),
+        K::Vec2 => Some(typing::Type::Vec2),
+        K::Vec4 => Some(typing::Type::Vec4),
+        _ => None,
+    }
+}
+
 impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
@@ -149,6 +161,24 @@ impl SymbolTable {
             scenes: HashMap::new(),
             ..Default::default()
         };
+
+        // Effects are declared like actors but are not primitives; register their
+        // type names and declared parameters so property diagnostics and
+        // completion treat `soft: Blur, radius: 10` as valid.
+        for spec in crate::schema::effect_specs() {
+            table.types.insert(spec.type_name.to_string());
+            table.properties.insert(
+                spec.type_name.to_string(),
+                spec.params.iter().map(|param| param.name.to_string()).collect(),
+            );
+            for param in spec.params {
+                if let Some(ty) = effect_param_type(param.kind) {
+                    table
+                        .property_types
+                        .insert((spec.type_name.to_string(), param.name.to_string()), ty);
+                }
+            }
+        }
 
         for stmt in stmts {
             table.collect_stmt(stmt);

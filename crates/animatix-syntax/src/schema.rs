@@ -591,8 +591,6 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ("bar_colors", &["BarChart"], Type::Any, PropertyValueKind::Generic),
         ("bar_width", &["BarChart"], Type::Num, PropertyValueKind::F32),
         ("baseline", &[], Type::Num, PropertyValueKind::F32),
-        ("blur", &["Filter"], Type::Num, PropertyValueKind::F32),
-        ("brightness", &["Filter"], Type::Num, PropertyValueKind::F32),
         (
             "char_progress",
             &["Text", "Math", "Code", "Typst"],
@@ -640,7 +638,6 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ),
         ("cols", &["Grid"], Type::Num, PropertyValueKind::U32),
         ("commands", &["Path"], Type::Any, PropertyValueKind::Generic),
-        ("contrast", &["Filter"], Type::Num, PropertyValueKind::F32),
         ("data", &["BarChart"], Type::Any, PropertyValueKind::Generic),
         ("density", &["VectorField"], Type::Num, PropertyValueKind::F32),
         ("descent", &[], Type::Num, PropertyValueKind::F32),
@@ -737,7 +734,6 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             PropertyValueKind::F32,
         ),
         ("highlight_radius", &["Equation", "Fragment"], Type::Num, PropertyValueKind::F32),
-        ("hue_rotate", &["Filter"], Type::Num, PropertyValueKind::F32),
         ("kind", &["PlotCurve"], Type::Str, PropertyValueKind::String),
         ("label", &["Callout"], Type::Str, PropertyValueKind::String),
         ("label_at", &["Callout"], Type::Vec2, PropertyValueKind::Vec2),
@@ -1071,7 +1067,6 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("saturate", &["Filter"], Type::Num, PropertyValueKind::F32),
         (
             "scale",
             &[
@@ -1109,7 +1104,6 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
             Type::Num,
             PropertyValueKind::F32,
         ),
-        ("sepia", &["Filter"], Type::Num, PropertyValueKind::F32),
         (
             "shift",
             &[

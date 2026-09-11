@@ -250,6 +250,12 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
         }
     }
 
+    // Effect chain parameters live outside the property registry.
+    #[cfg(feature = "render")]
+    for t in track.effects.keyframe_times() {
+        times.insert(t);
+    }
+
     times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
 }
 

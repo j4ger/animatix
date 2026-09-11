@@ -172,54 +172,6 @@ impl EffectChain {
     pub fn is_empty(&self) -> bool {
         self.instances.iter().all(|instance| !instance.enabled)
     }
-
-    /// Build a chain from the legacy flat `Filter` properties.
-    ///
-    /// Temporary bridge while the flat `blur:`/`brightness:`/... properties
-    /// still exist; removed when effects become child primitives. Instances at
-    /// their identity values are omitted, so `is_empty` mirrors the old
-    /// "needs filter" test.
-    pub fn from_flat_filter(
-        time_ms: f32,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
-    ) -> Self {
-        let mut instances = Vec::new();
-        if blur > 0.5 {
-            instances.push(EffectInstance {
-                id: EffectId::Blur,
-                enabled: true,
-                params: EffectParams {
-                    values: vec![EffectParamValue::F32(blur)],
-                },
-            });
-        }
-        let color_is_identity = (brightness - 1.0).abs() <= 0.001
-            && (contrast - 1.0).abs() <= 0.001
-            && (saturate - 1.0).abs() <= 0.001
-            && hue_rotate.abs() <= 0.5
-            && sepia <= 0.001;
-        if !color_is_identity {
-            instances.push(EffectInstance {
-                id: EffectId::ColorGrade,
-                enabled: true,
-                params: EffectParams {
-                    values: vec![
-                        EffectParamValue::F32(brightness),
-                        EffectParamValue::F32(contrast),
-                        EffectParamValue::F32(saturate),
-                        EffectParamValue::F32(hue_rotate),
-                        EffectParamValue::F32(sepia),
-                    ],
-                },
-            });
-        }
-        Self { instances, time_ms }
-    }
 }
 
 /// Descriptor for a built-in effect.

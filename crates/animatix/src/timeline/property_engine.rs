@@ -1485,18 +1485,6 @@ mod tests {
     }
 
     #[test]
-    fn test_write_read_roundtrip_filter_brightness() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        let result = write_read_roundtrip(
-            &mut track,
-            ActorField::FilterBrightness,
-            PropertyValue::F32(1.5),
-            500,
-        );
-        assert_eq!(result, Some(PropertyValue::F32(1.5)));
-    }
-
-    #[test]
     fn test_write_read_roundtrip_highlight_color() {
         let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(

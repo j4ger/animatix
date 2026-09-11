@@ -101,23 +101,20 @@ fn test_keyframe_times_s_includes_background_color() {
 }
 
 #[test]
-fn test_keyframe_times_s_includes_filter_fields() {
+fn test_keyframe_times_s_includes_effect_params() {
     let mut timeline = keyframe_times_s_timeline();
-    // Filter fields apply to Filter actor kind
     let mut track = AnimationTrack::placeholder("test".to_string());
-    track.kind = ActorKindId::Filter;
-    track
-        .filter
-        .filter_brightness
-        .ensure(1.0)
-        .add_keyframe(500, 2.0, Easing::Linear);
-    track.filter.filter_contrast.ensure(1.0).add_keyframe(1200, 1.5, Easing::Linear);
-    track.filter.filter_saturate.ensure(1.0).add_keyframe(800, 0.0, Easing::Linear);
+    let mut stage = crate::timeline::effect::EffectStage::new(
+        "soft".to_string(),
+        crate::timeline::filter::EffectId::Blur,
+    );
+    stage
+        .param_track_mut("radius", crate::timeline::filter::EffectParamKind::F32)
+        .add_keyframe(500, crate::timeline::property_engine::PropertyValue::F32(8.0));
+    track.effects.stages.push(stage);
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
-    assert!(times.contains(&0.5));
-    assert!(times.contains(&0.8));
-    assert!(times.contains(&1.2));
+    assert!(times.contains(&0.5), "Got: {:?}", times);
 }
 
 #[test]

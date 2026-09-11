@@ -75,6 +75,42 @@ impl EffectChainTrack {
         self.stages.iter_mut().find(|stage| stage.label == label)
     }
 
+    /// All keyframe times across every stage parameter and `enabled` flag.
+    pub fn keyframe_times(&self) -> Vec<u64> {
+        let mut times: Vec<u64> = self
+            .stages
+            .iter()
+            .flat_map(|stage| stage.params.values())
+            .flat_map(|track| track.keyframe_times())
+            .chain(self.stages.iter().flat_map(|stage| stage.enabled.keyframe_times()))
+            .collect();
+        times.sort_unstable();
+        times.dedup();
+        times
+    }
+
+    /// Maximum keyframe time across the chain.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        self.stages
+            .iter()
+            .flat_map(|stage| {
+                stage
+                    .params
+                    .values()
+                    .filter_map(|track| track.max_keyframe_time())
+                    .chain(stage.enabled.max_keyframe_time())
+            })
+            .max()
+    }
+
+    /// `true` when any stage parameter or `enabled` flag is animated.
+    pub fn has_any_keyframes(&self) -> bool {
+        self.stages.iter().any(|stage| {
+            stage.enabled.has_any_keyframes()
+                || stage.params.values().any(|track| track.has_any_keyframes())
+        })
+    }
+
     /// Sample the chain at `time_ms`, dropping disabled and identity stages.
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();

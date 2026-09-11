@@ -339,28 +339,6 @@ impl Interpolate for Option<Vec<crate::renderer::types::VelloPath>> {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FilterTracks sub-struct
-// ─────────────────────────────────────────────────────────────
-
-/// Sub-struct holding all filter-related property tracks.
-#[derive(Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct FilterTracks {
-    /// Gaussian blur radius.
-    pub filter_blur: Option<PropertyTrack<f32>>,
-    /// Brightness multiplier.
-    pub filter_brightness: Option<PropertyTrack<f32>>,
-    /// Contrast multiplier.
-    pub filter_contrast: Option<PropertyTrack<f32>>,
-    /// Saturation multiplier.
-    pub filter_saturate: Option<PropertyTrack<f32>>,
-    /// Hue rotation in degrees.
-    pub filter_hue_rotate: Option<PropertyTrack<f32>>,
-    /// Sepia intensity.
-    pub filter_sepia: Option<PropertyTrack<f32>>,
-}
-
-// ─────────────────────────────────────────────────────────────
 // HighlightTracks
 // ─────────────────────────────────────────────────────────────
 
@@ -997,24 +975,6 @@ mod tests {
     }
 
     #[test]
-    fn test_max_keyframe_time_with_filter_blur() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.filter.filter_blur.ensure(0.0).add_keyframe(2000, 5.0, Easing::Linear);
-        assert_eq!(track.max_keyframe_time(), Some(2000));
-    }
-
-    #[test]
-    fn test_max_keyframe_time_with_filter_brightness() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track
-            .filter
-            .filter_brightness
-            .ensure(1.0)
-            .add_keyframe(1500, 2.0, Easing::Linear);
-        assert_eq!(track.max_keyframe_time(), Some(1500));
-    }
-
-    #[test]
     fn test_max_keyframe_time_returns_max_across_all_fields() {
         let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
@@ -1073,13 +1033,6 @@ mod tests {
         let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
         track.style.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
-        assert!(track.has_any_keyframes());
-    }
-
-    #[test]
-    fn test_has_any_keyframes_returns_true_for_filter_contrast() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.filter.filter_contrast.ensure(1.0).add_keyframe(2000, 2.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 

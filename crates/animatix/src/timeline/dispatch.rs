@@ -23,8 +23,8 @@ use serde::{Deserialize, Serialize};
 
 use super::actor_kind::ActorKindId;
 use super::animation_track::{
-    CalloutPlace, FilterTracks, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding,
-    ShapeTracks, StyleTracks, TextTracks,
+    CalloutPlace, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding, ShapeTracks,
+    StyleTracks, TextTracks,
 };
 use super::kurbo_shapes::KurboShape;
 use super::morph;
@@ -121,10 +121,7 @@ pub struct AnimationTrack {
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
 
-    // ── Filter tier (sub-struct) ──
-    /// Filter property tracks (blur, brightness, contrast, etc.).
-    pub filter: FilterTracks,
-
+    // ── Effects tier ──
     /// Effect chain for compositing scopes; empty for non-scope actors.
     #[cfg(feature = "render")]
     pub effects: crate::timeline::effect::EffectChainTrack,
@@ -257,9 +254,6 @@ impl AnimationTrack {
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
-
-            // Filter tier (sub-struct)
-            filter: FilterTracks::default(),
 
             #[cfg(feature = "render")]
             effects: crate::timeline::effect::EffectChainTrack::default(),
@@ -562,6 +556,11 @@ impl AnimationTrack {
         for ft in &self.func_transitions {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
         }
+        // Effect chain parameters.
+        #[cfg(feature = "render")]
+        if let Some(t) = self.effects.max_keyframe_time() {
+            max = Some(max.map_or(t, |m| m.max(t)));
+        }
         max
     }
 
@@ -579,6 +578,16 @@ impl AnimationTrack {
             || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || self.property_plan.has_any_keyframes()
             || !self.func_transitions.is_empty()
+            || {
+                #[cfg(feature = "render")]
+                {
+                    self.effects.has_any_keyframes()
+                }
+                #[cfg(not(feature = "render"))]
+                {
+                    false
+                }
+            }
     }
 }
 
@@ -919,12 +928,6 @@ impl AnimationTrack {
             StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
             StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
             FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
-            FilterBlur => TrackFieldRef::F32(&self.filter.filter_blur),
-            FilterBrightness => TrackFieldRef::F32(&self.filter.filter_brightness),
-            FilterContrast => TrackFieldRef::F32(&self.filter.filter_contrast),
-            FilterSaturate => TrackFieldRef::F32(&self.filter.filter_saturate),
-            FilterHueRotate => TrackFieldRef::F32(&self.filter.filter_hue_rotate),
-            FilterSepia => TrackFieldRef::F32(&self.filter.filter_sepia),
             ShapeType => TrackFieldRef::ShapeType(&self.shape.shape_type),
             LineFrom => TrackFieldRef::Vec2(&self.shape.line_from),
             LineTo => TrackFieldRef::Vec2(&self.shape.line_to),
@@ -1005,12 +1008,6 @@ impl AnimationTrack {
             StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
             StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
             FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
-            FilterBlur => TrackFieldMut::F32(&mut self.filter.filter_blur),
-            FilterBrightness => TrackFieldMut::F32(&mut self.filter.filter_brightness),
-            FilterContrast => TrackFieldMut::F32(&mut self.filter.filter_contrast),
-            FilterSaturate => TrackFieldMut::F32(&mut self.filter.filter_saturate),
-            FilterHueRotate => TrackFieldMut::F32(&mut self.filter.filter_hue_rotate),
-            FilterSepia => TrackFieldMut::F32(&mut self.filter.filter_sepia),
             ShapeType => TrackFieldMut::ShapeType(&mut self.shape.shape_type),
             LineFrom => TrackFieldMut::Vec2(&mut self.shape.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.shape.line_to),
@@ -1142,12 +1139,6 @@ impl AnimationTrack {
             "stroke_color" => StrokeColor,
             "stroke_progress" => StrokeProgress,
             "fill_opacity" => FillOpacity,
-            "filter_blur" => FilterBlur,
-            "filter_brightness" => FilterBrightness,
-            "filter_contrast" => FilterContrast,
-            "filter_saturate" => FilterSaturate,
-            "filter_hue_rotate" => FilterHueRotate,
-            "filter_sepia" => FilterSepia,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,
             "line_to" => LineTo,
@@ -1201,12 +1192,6 @@ impl AnimationTrack {
             "stroke_color" => StrokeColor,
             "stroke_progress" => StrokeProgress,
             "fill_opacity" => FillOpacity,
-            "filter_blur" => FilterBlur,
-            "filter_brightness" => FilterBrightness,
-            "filter_contrast" => FilterContrast,
-            "filter_saturate" => FilterSaturate,
-            "filter_hue_rotate" => FilterHueRotate,
-            "filter_sepia" => FilterSepia,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,
             "line_to" => LineTo,
@@ -1258,12 +1243,6 @@ impl AnimationTrack {
             "stroke_color" => StrokeColor,
             "stroke_progress" => StrokeProgress,
             "fill_opacity" => FillOpacity,
-            "filter_blur" => FilterBlur,
-            "filter_brightness" => FilterBrightness,
-            "filter_contrast" => FilterContrast,
-            "filter_saturate" => FilterSaturate,
-            "filter_hue_rotate" => FilterHueRotate,
-            "filter_sepia" => FilterSepia,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,
             "line_to" => LineTo,

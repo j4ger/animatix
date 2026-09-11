@@ -2,7 +2,8 @@
 config { resolution: (1280, 720) }
 
 #0s
-filter: Filter, at: (400, 300), size: (320, 320), blur: 10 {
+filter: Filter, at: (400, 300), size: (320, 320) {
+  soft: Blur, radius: 10
   img: Image, url: "examples/assets/checker.png", size: (300, 300)
 }
 #0s

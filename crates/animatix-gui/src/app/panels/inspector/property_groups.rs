@@ -82,7 +82,6 @@ pub(crate) fn build_property_groups(
     let mut shape = Vec::new();
     let mut text = Vec::new();
     let mut media = Vec::new();
-    let mut effects = Vec::new();
     let mut audio = Vec::new();
 
     for &idx in &indices {
@@ -155,12 +154,6 @@ pub(crate) fn build_property_groups(
             | ActorField::FontSize
             | ActorField::TextPaths => text.push(entry),
             ActorField::ImageData | ActorField::SvgPaths => media.push(entry),
-            ActorField::FilterBlur
-            | ActorField::FilterBrightness
-            | ActorField::FilterContrast
-            | ActorField::FilterSaturate
-            | ActorField::FilterHueRotate
-            | ActorField::FilterSepia => effects.push(entry),
             ActorField::AudioSource | ActorField::AudioVolume => audio.push(entry),
             _ => {},
         }
@@ -200,13 +193,6 @@ pub(crate) fn build_property_groups(
             name: "Media",
             icon: egui_phosphor::regular::FILM_STRIP,
             properties: media,
-        });
-    }
-    if !effects.is_empty() {
-        groups.push(PropertyGroup {
-            name: "Effects",
-            icon: egui_phosphor::regular::MAGIC_WAND,
-            properties: effects,
         });
     }
     if !audio.is_empty() {

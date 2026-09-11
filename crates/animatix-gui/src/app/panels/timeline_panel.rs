@@ -180,12 +180,6 @@ const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
             "line_cap",
             "line_join",
             "morph_options",
-            "filter_blur",
-            "filter_brightness",
-            "filter_contrast",
-            "filter_saturate",
-            "filter_hue_rotate",
-            "filter_sepia",
         ],
     ),
     (

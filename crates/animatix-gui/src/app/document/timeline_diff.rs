@@ -77,13 +77,6 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.shape.commands, "commands");
     push(&mut result, &track.shape.vector_paths, "vector_paths");
     push(&mut result, &track.shape.head_size, "head_size");
-    // Filter
-    push(&mut result, &track.filter.filter_blur, "filter_blur");
-    push(&mut result, &track.filter.filter_brightness, "filter_brightness");
-    push(&mut result, &track.filter.filter_contrast, "filter_contrast");
-    push(&mut result, &track.filter.filter_saturate, "filter_saturate");
-    push(&mut result, &track.filter.filter_hue_rotate, "filter_hue_rotate");
-    push(&mut result, &track.filter.filter_sepia, "filter_sepia");
     result
 }
 
@@ -111,13 +104,6 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
     ("fill_opacity", ActorField::FillOpacity),
     ("line_cap", ActorField::LineCap),
     ("line_join", ActorField::LineJoin),
-    // Filter
-    ("filter_blur", ActorField::FilterBlur),
-    ("filter_brightness", ActorField::FilterBrightness),
-    ("filter_contrast", ActorField::FilterContrast),
-    ("filter_saturate", ActorField::FilterSaturate),
-    ("filter_hue_rotate", ActorField::FilterHueRotate),
-    ("filter_sepia", ActorField::FilterSepia),
     // Shape
     ("shape_type", ActorField::ShapeType),
     ("line_from", ActorField::LineFrom),
@@ -603,10 +589,6 @@ mod tests {
             lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "motion_offset")
                 .map(|schema| schema.name),
             Some("shift")
-        );
-        assert_eq!(
-            lane_schema(ActorKindId::Filter, "filter_blur").map(|schema| schema.name),
-            Some("blur")
         );
         // `size` shares `ActorField::Size` with `height`/`width`; exact-name
         // precedence must win.

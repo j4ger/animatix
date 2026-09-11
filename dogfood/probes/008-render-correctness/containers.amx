@@ -25,7 +25,8 @@ group: Group, at: (700, 480) {
   gp1: Rect, size: (80, 60), color: (1, 0.6, 0.3, 1), at: (-45, 0)
   gp2: Rect, size: (80, 60), color: (0.2, 0.8, 0.9, 1), at: (45, 0)
 }
-filter: Filter, at: (1050, 480), size: (200, 200), blur: 6 {
+filter: Filter, at: (1050, 480), size: (200, 200) {
+  fsoft: Blur, radius: 6
   fchild: Rect, size: (200, 200), color: (0.2, 0.6, 0.9, 1)
 }
 
