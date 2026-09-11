@@ -32,16 +32,18 @@
    - 7.4 Interaction Constraints (focus ring, cursor convention)
    - 7.5 Iconography
    - 7.6 Overlay Layering
+   - 7.7 Unified Interaction Grammar
 8. [Motion Language](#8-motion-language)
 9. [Layout System](#9-layout-system)
 10. [Accessibility Constraints](#10-accessibility-constraints)
 11. [Status & Remaining Work](#11-status--remaining-work)
+12. [UX Audit & Redesign](#12-ux-audit--redesign)
 
 ---
 
 ## 1. Design Philosophy
 
-Five non-negotiable principles that govern every GUI decision.
+Seven non-negotiable principles that govern every GUI decision.
 
 ### P1. Canvas-First
 
@@ -74,6 +76,22 @@ never occupy screen space by default.
 Every user action is undoable. No irreversible confirmation dialogs for
 operations that *could* be undoable. Only truly irreversible operations
 (file overwrite, workspace switch with unsaved changes) may intercept.
+
+### P6. State is Visible
+
+Every mode that changes what input does (tool, auto-key/record, snap,
+transform context) has a persistent, labeled indicator and is toggleable
+without a keyboard. No invisible modes. The recurring failure mode this
+guards against is state the user cannot see or change — e.g. auto-key
+that silently writes keyframes, or a scene inspector reached only by
+deselecting everything.
+
+### P7. One Grammar
+
+The same physical input means the same thing on the canvas, the timeline,
+and in lists. Modifiers are assigned globally (see §7.7), never per
+surface. "Shift" must not mean add-to-selection on one surface and
+disable-snapping on another.
 
 ---
 
@@ -778,6 +796,45 @@ if overlay::is_topmost(ctx, my_id) && overlay::escape_pressed(ctx, my_id) {
 overlay::remove_overlay(ctx, egui::Id::new("my_dialog"));
 ```
 
+### 7.7 Unified Interaction Grammar
+
+One table, applied identically on the canvas, the timeline, and in lists
+(P7). Each modifier has exactly one job; a behaviour that used to be a
+hidden modifier becomes a menu item or a visible tool instead.
+
+| Input | Meaning everywhere |
+|---|---|
+| Click | Select (replace) |
+| Shift+Click | Add / toggle selection |
+| Cmd/Ctrl+Click | Add / toggle selection (mac parity) |
+| Drag on empty | Marquee / range select (overlap, not centre-containment) |
+| Drag on body | Move; **if unselected, select it first** |
+| Shift+Drag | Constrain: axis lock / uniform scale / angle snap |
+| Alt+Drag | Bypass snapping (only) |
+| Cmd/Ctrl+Drag | Duplicate and move |
+| Double-click | Enter context: text edit / rename in list / group isolation |
+| Right-click | Context menu: full command menu, keyboard-navigable, non-destructive dismiss |
+| Esc | Cancel in order: drag → open menu → active tool → selection |
+| Delete | Delete the focused pane's selection (visible focus ring), never by hover |
+
+Two consequences worth stating explicitly because they reverse shipped
+behaviour: `Alt` no longer duplicates (it bypasses snapping), and
+`Shift` no longer un-snaps or detaches. Structural "detach from layout" /
+"detach callout" move to explicit context-menu actions, since they change
+the document's structure rather than a single gesture.
+
+**Auto-key is explicit.** `keyframe_mode` defaults **off**. The toolbar
+record toggle and the per-property keyframe diamond are the only ways to
+write a keyframe; the diamond works regardless of the toggle. See §12.
+
+**Tool keys.** Six tool modes, six keys: `V` select, `A` vertex,
+`R` rotate, `S` scale, `G` move/grab, `P` pivot. `V`/`A` follow the
+Adobe select/direct-select convention; the rest are mnemonics. These are
+secondary to the visible tool switcher (P6), which is still pending.
+
+**Frame stepping.** `Shift+,` / `Shift+.` step one frame back/forward;
+bare `,` / `.` remain prev/next keyframe.
+
 ---
 
 ## 8. Motion Language
@@ -889,6 +946,10 @@ Phases 1–3 of the original migration plan are complete. See `docs/roadmap.md`
 for the remaining eparts widget-adoption backlog and `crates/animatix-gui/src/app/commands/`
 for the command-split implementation.
 
+The 2026-09-11 UX pass is documented in §12 (diagnosis, target information
+architecture, per-surface redesign, phased plan). Its Phase 0 batch is
+implemented on `feat/gui-redesign`; Phases 1–4 remain.
+
 **Completed:**
 - Phase 1 (token refoundation): 3-layer token system extracted into `eparts`
   crate; `primitive`, `semantic`, `theme`, `spatial`, `typography`, `motion`
@@ -922,3 +983,116 @@ for the command-split implementation.
 - Toolbar shortcut hints and the shortcut cheat sheet derive from `SHORTCUT_REGISTRY`.
 - `ButtonVariant::Danger` is exposed and themed.
 - Gesture router covers move/scale/rotate/pivot/reorder/marquee/vertex/motion_path; legacy `drag_handler.rs` is retired.
+
+---
+
+## 12. UX Audit & Redesign
+
+A 2026-09-11 usability pass reviewed the shipped interaction design and
+produced the redesign below. This section is the normative record: §12.4
+lists what shipped, the rest describes the target state.
+
+### 12.1 Systemic diagnosis
+
+The gap was not missing features but **invisible state** and half-built
+loops:
+
+1. **Modes were invisible and un-toggleable.** `keyframe_mode` defaulted
+   on with no writer anywhere else in the crate, so every property edit
+   silently keyed a keyframe. Tool modes were keyboard-only. The scene
+   inspector appeared when the selection was empty, unlabeled. Snapping
+   was on with no toggle.
+2. **Affordances lied.** A multi-selection drew a group bounding box with
+   eight handles, but scale/rotate/pivot all acted on
+   `selected_actors.iter().next()` — an arbitrary `HashSet` element.
+   Dragging an unselected actor started a marquee. The pivot crosshair was
+   always drawn and won the gesture-priority race at an actor's centre.
+3. **Core loops were unreachable.** Rename existed only in the inspector
+   header; no UI created a scene or a `play` edge; timeline property lanes
+   appeared only once keyframes existed; editor completion appended to
+   end-of-document; the inspector toggle rebuilt the whole dock tree.
+
+### 12.2 Target information architecture
+
+```
+┌───────────┬──────────────────────────┬─────────────┐
+│  Outline  │   Preview                │  Inspector  │
+│  (Scenes  │   ┌─ tool switcher ─┐    │ (contextual,│
+│   + Actor │   │ V A R S G  ● rec │    │  always on) │
+│   tree)   │   └─────────────────┘    │             │
+│           │        canvas            │  Actor |    │
+│  ⌄ Project│                          │  Scene |    │
+│  ⌄ Library│                          │  Multi      │
+├───────────┴──────────────────────────┴─────────────┤
+│  Timeline   [ Dope sheet | Curves ]   transport     │
+└─────────────────────────────────────────────────────┘
+```
+
+1. The **Inspector is always visible** and headed by what it edits
+   (`Actor: rect1` / `Scene: intro` / `3 actors`). Toggling panel
+   visibility must not rebuild the dock tree.
+2. The **sidebar's six tabs collapse to three** switchable views
+   (`Cmd+1/2/3`): Project (files + assets), Outline (scenes + actors in one
+   hierarchy), Library (components/snippets/actions). The **code editor is
+   promoted out of the sidebar** to a real pane.
+3. The **preview owns its tools**: a persistent tool switcher and record
+   indicator live in the preview header, not a global toolbar. The global
+   toolbar slims to app menu, document, palettes, settings, layout.
+4. The **timeline gains tabs**: Dope sheet and Curves (the inspector's
+   read-only graph editor, made interactive and moved here).
+5. **Layout presets, reset layout, and focus mode** are wired (the §9.2
+   presets are specified but unimplemented).
+
+### 12.3 Per-surface redesign
+
+| Surface | Changes |
+|---|---|
+| Canvas | Select-on-mousedown and a real primary selection; working group transform; pivot demoted out of Select mode; numeric entry in the drag HUD and property popup; arrange/align toolbar for multi-selection; full context menu (keyboard-navigable, non-destructive dismiss); guide management; double-click group isolation |
+| Timeline | Property lanes always addable; property-granular selection and multi-keyframe drag; draggable playhead; editable action blocks (translate/add/delete/duplicate); inline easing glyph; snap toggle with magnet state; per-track hide/lock/solo; frame ruler at high zoom |
+| Layers / Outline | Rename (`F2` / double-click); drag-to-reorder siblings; z-order actions; Group/Ungroup in the context menu; action-identified menu dispatch; descendant-safe reparent with search; type picker at creation |
+| Inspector | Explicit context header; property search/filter; one stopwatch behaviour across all surfaces; multi-select property editing; reset / remove-animation per property |
+| Editor | Completion at the caret, auto-triggered after `.`; `inline_edit_active` gates shortcuts; find/replace case/word/regex with match highlighting |
+| Shell | App menu with New/Open/Recent/Save As; dirty window title; autosave + crash recovery; command palette as a generated superset with fuzzy search; settings restore-defaults and full key rebinding; export browse/overwrite/error detail; more session state persisted |
+
+### 12.4 Phased plan & status
+
+Phase 0 shipped on `feat/gui-redesign` (2026-09-11):
+
+| Item | Change |
+|---|---|
+| Auto-key | Defaults off; toolbar record toggle with red icon; inspector diamond keys explicitly regardless of the toggle |
+| Keyframe model | Inspector / canvas popup / spreadsheet share one model: click toggles a key at the playhead, right-click edits easing/removes |
+| Coincident keys | The aggregate diamond carries every property keyed at that time; easing/delete/move apply to all of them |
+| Completion | Caret-anchored via a live caret tracked by the cell renderer; splices in place instead of appending to EOF; auto-triggers after `.`; filtered selection index fixed |
+| Scene inspector | Header reads `Scene: <name>` with a note explaining why it appeared |
+| Shortcuts | Platform-aware display in Settings; `Shift+,` / `Shift+.` frame step |
+| Delete scope | Timeline focus is click-latched with a visible focus ring, not hover |
+| Inspector toggle | Flips pane visibility in place; the dock layout survives |
+| Layers menu | Action-identified dispatch replaces the `_ => Delete` index fallback |
+| Tool keys | `V` select, `A` vertex, `R` rotate, `S` scale, `G` move, `P` pivot |
+| Group transform | Group scale (union-box handles, per-actor size vs scale mode) and group rotate (union centre) implemented |
+
+Remaining, in order:
+
+1. **Phase 1 — visible state & canvas.** Tool switcher UI, pivot
+   demotion, snap toggle, select-on-mousedown, canvas context menu,
+   numeric entry, timeline playhead drag and property-granular keyframe
+   editing.
+2. **Phase 2 — core loops.** Layer outliner editing; add scene / create a
+   `play` edge from the UI; interactive Curves tab; editor find/replace
+   options.
+3. **Phase 3 — information architecture.** The §12.2 sidebar merge,
+   contextual Inspector rail, layout presets/reset/focus mode,
+   drag-to-place from the Library.
+4. **Phase 4 — platform conventions.** App menu (New/Open/Recent/Save As),
+   autosave + recovery, command palette superset, export/settings polish.
+
+### 12.5 Open decisions
+
+| Decision | Status |
+|---|---|
+| Auto-key default | **Resolved:** off. |
+| Group transform | **Resolved:** implemented. |
+| Tool shortcut letters | **Resolved:** `V/A/R/S/G/P`. |
+| Editor placement | **Open.** Tabbed with the Timeline (recommended) vs its own pane vs bottom split. Deferred pending a layout discussion. |
+| Outline shape | **Open.** Whether the scene+actor merge is one tree (recommended, scenes as roots) or two sub-sections. |

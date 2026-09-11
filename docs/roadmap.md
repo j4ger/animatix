@@ -298,6 +298,27 @@ lands.
 | 4 | `brand_reel/` capstone | **Done** 2026-08-25 (merged) | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; cross-file slot fills / component-instance positioning workarounds landing with it |
 | 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | **Done** 2026-08-25 | script green; render smoke covers all examples | Reuses new `lib/`; `animation/16_showcase.amx` and `composition/20_feature_reel.amx` are superseded by the gallery |
 
+### GUI UX Redesign (active)
+
+Source of truth: `docs/gui_design_language.md` §12 (diagnosis, target
+information architecture, per-surface redesign, open decisions). Work
+happens on the short-lived `feat/gui-redesign` worktree off `main`.
+
+Phase 0 shipped 2026-09-11: visible auto-key (default off), caret-anchored
+completion, click-latched Delete scope, layout-preserving Inspector toggle,
+explicit keyframe-diamond model, labeled scene inspector, platform-aware
+shortcut display, action-identified Layers menu, remapped tool keys
+(`V/A/R/S/G/P`), and real group scale/rotate.
+
+Remaining phases, in order:
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Tool switcher UI, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
+| 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, interactive Curves tab, editor find/replace options | Not started |
+| 3 | Sidebar 6→3 merge, contextual Inspector rail, editor placement, layout presets/reset/focus mode, drag-to-place from the Library | Not started; editor placement and Outline shape are **open decisions** |
+| 4 | App menu (New/Open/Recent/Save As), autosave + crash recovery, command palette superset with fuzzy search, export/settings polish | Not started |
+
 ### Resolved Engine Bugs (gallery-era)
 
 These were discovered during the demo-gallery work and are now all **resolved**
