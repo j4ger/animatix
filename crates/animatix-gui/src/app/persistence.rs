@@ -423,10 +423,16 @@ pub(crate) struct WorkspacePersistence {
 
 // ── App state persistence (recent file, preferences) ─────────────────────
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct AppState {
+    #[serde(default)]
     recent_file: Option<PathBuf>,
+    #[serde(default)]
+    recent_files: Vec<PathBuf>,
 }
+
+/// Cap on the recent-files list.
+const MAX_RECENT_FILES: usize = 12;
 
 pub(super) fn app_state_path() -> PathBuf {
     if let Some(project_dirs) = ProjectDirs::from("dev", "animatix", "animatix") {
@@ -442,6 +448,20 @@ pub(super) fn load_app_state() -> Option<PathBuf> {
     state.recent_file
 }
 
+/// Most-recently opened files, newest first.
+pub(super) fn load_recent_files() -> Vec<PathBuf> {
+    let Some(content) = fs::read_to_string(app_state_path()).ok() else {
+        return Vec::new();
+    };
+    let state: AppState = ron::from_str(&content).unwrap_or_default();
+    if state.recent_files.is_empty() {
+        // Migrate a pre-list install that only stored a single recent file.
+        state.recent_file.into_iter().collect()
+    } else {
+        state.recent_files
+    }
+}
+
 pub(super) fn save_app_state(recent_file: &Path) {
     let path = app_state_path();
     if let Some(parent) = path.parent() {
@@ -449,9 +469,15 @@ pub(super) fn save_app_state(recent_file: &Path) {
             tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
         }
     }
-    let state = AppState {
-        recent_file: Some(recent_file.to_path_buf()),
-    };
+    let mut state = fs::read_to_string(&path)
+        .ok()
+        .and_then(|content| ron::from_str::<AppState>(&content).ok())
+        .unwrap_or_default();
+    state.recent_file = Some(recent_file.to_path_buf());
+    state.recent_files.retain(|existing| existing != recent_file);
+    state.recent_files.insert(0, recent_file.to_path_buf());
+    state.recent_files.truncate(MAX_RECENT_FILES);
+
     if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
         if let Err(e) = fs::write(&path, serialized) {
             tracing::warn!("Failed to write app state file {}: {}", path.display(), e);

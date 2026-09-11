@@ -536,6 +536,7 @@ impl GuiShell {
         let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
 
         let mut ui_store = UiStore::new(tree);
+        ui_store.recent_files = crate::app::persistence::load_recent_files();
         ui_store.view.welcome_open = is_welcome;
 
         // Apply persisted settings

@@ -219,6 +219,8 @@ pub struct UiStore {
     pub recording_shortcut: Option<String>,
     /// Path buffer for adding an explicit plugin manifest/library path.
     pub plugin_path_input: String,
+    /// Recently opened files, newest first (populated from app-state persistence).
+    pub recent_files: Vec<PathBuf>,
 }
 
 impl UiStore {
@@ -228,8 +230,7 @@ impl UiStore {
             interaction: InteractionStore::new(),
             clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
-            editor_sync_enabled: true,
-            // Auto-key is off by default: property edits change the base value
+            editor_sync_enabled: true, // Auto-key is off by default: property edits change the base value
             // unless the user explicitly records or clicks a keyframe diamond.
             keyframe_mode: false,
             cursor_time_s: None,
@@ -259,6 +260,7 @@ impl UiStore {
             shortcut_overrides: std::collections::BTreeMap::new(),
             recording_shortcut: None,
             plugin_path_input: String::new(),
+            recent_files: Vec::new(),
         }
     }
 

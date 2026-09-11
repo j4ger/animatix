@@ -141,6 +141,7 @@ pub fn handle_open_file(
             }
             ui_store.view.welcome_open = false;
             save_app_state(&path);
+            ui_store.recent_files = crate::app::persistence::load_recent_files();
             vec![]
         },
         Err(error) => {

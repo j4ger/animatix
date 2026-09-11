@@ -1,7 +1,9 @@
 use egui::{Align, RichText, Stroke, Vec2};
 
 use crate::app::GuiShell;
-use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
+use crate::app::commands::{
+    ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction,
+};
 use crate::app::components::button::Button;
 use crate::app::components::{Tag, text_tooltip};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
@@ -130,6 +132,42 @@ impl GuiShell {
                         if open_btn.clicked() {
                             commands.push_back(ShellAction::View(ViewAction::OpenFileDialog));
                             ui.close();
+                        }
+
+                        // Recent files, newest first.
+                        let recents = self.ui_store.recent_files.clone();
+                        if !recents.is_empty() {
+                            ui.menu_button(
+                                format!(
+                                    "{} Open recent",
+                                    egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE
+                                ),
+                                |ui| {
+                                    ui.set_min_width(220.0);
+                                    for path in recents {
+                                        let exists = path.exists();
+                                        let label = path
+                                            .file_name()
+                                            .and_then(|name| name.to_str())
+                                            .unwrap_or("(unknown)")
+                                            .to_string();
+                                        let entry = ui.add_enabled(
+                                            exists,
+                                            egui::Button::new(label).frame(false),
+                                        );
+                                        text_tooltip(
+                                            ui,
+                                            entry.id.with(("recent", path.display().to_string())),
+                                            &entry,
+                                            &path.display().to_string(),
+                                        );
+                                        if entry.clicked() {
+                                            commands.push_back(Command::OpenFile(path).into());
+                                            ui.close();
+                                        }
+                                    }
+                                },
+                            );
                         }
                         ui.separator();
 
