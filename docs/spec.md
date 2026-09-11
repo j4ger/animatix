@@ -42,7 +42,7 @@ Use these rules when generating `.amx` files:
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
-| Post-processing | `Filter` (blur, brightness, contrast, saturate, hue-rotate, sepia) | Yes | Runtime-real | Yes | Yes | Container primitive; renders children offscreen then applies GPU filtering with a CPU fallback when no GPU backend is available. See `examples/animation/08_effects.amx` |
+| Post-processing | `Filter` scope + effect chain (`Blur`, `ColorGrade`) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -554,7 +554,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
 | `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
 | `Image` / `Svg` | `url` |
-| `Filter` | `blur`, `brightness`, `contrast`, `saturate`, `hue_rotate`, `sepia` |
+| `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
@@ -729,26 +729,35 @@ graph: Graph, at: (960, 540), size: (500, 500), x_domain: (-10, 10), y_domain: (
 
 ### Filter (Post-Processing)
 
-`Filter` is a **container primitive** that renders its children to an offscreen texture and applies post-processing filters before compositing back to the parent scene.
+`Filter` is a **compositing scope**. It renders its content children to an offscreen texture, applies its declared **effect chain** in order, and composites the result back. Effects are declared as labelled children of the scope, before the content; they are not actors and do not render on their own.
 
 ```animatix
-bg: Filter, blur: 40, brightness: 0.5 {
+bg: Filter, anchor: scene.center {
+  soft: Blur, radius: 40
+  warm: ColorGrade, contrast: 1.15, saturate: 0.9
   img: Image, url: "photo.jpg", size: fill
 }
+
+#1.5s
+bg.soft.radius = 24 [1.5s, ease: ease-out]
 ```
 
-**Filter properties** (all animatable via keyframes):
+Effect parameters animate like any other property, addressed as
+`scope.stage.param = value`. Every effect also accepts an implicit
+`enabled: Bool` (default `true`); a disabled or all-identity effect costs
+nothing (the pass and the offscreen round-trip are skipped).
 
-| Property | Default | Description |
-|----------|---------|-------------|
-| `blur` | 0 | Gaussian blur radius in px |
-| `brightness` | 1.0 | Multiplier on all channels |
-| `contrast` | 1.0 | Contrast curve offset |
-| `saturate` | 1.0 | 0 = grayscale, 1 = unchanged |
-| `hue_rotate` | 0 | Hue rotation in degrees |
-| `sepia` | 0 | Sepia intensity (0–1) |
+**Built-in effects:**
 
-Pipeline order: **blur → color matrix → opacity**. Nested filters are allowed but each level adds one offscreen pass.
+| Effect | Parameters | Description |
+|--------|------------|-------------|
+| `Blur` | `radius` (default 0) | Gaussian blur radius in px; two passes (H then V) |
+| `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
+
+Chain order is declaration order; the chain is fixed at build time (effects
+cannot appear or disappear over time). An effect declared outside a `Filter`
+scope is a build diagnostic. Nested `Filter` scopes are allowed; each level adds
+one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
 
 ### Audio
 

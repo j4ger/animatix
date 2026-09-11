@@ -119,30 +119,28 @@ feature that hits the boundary) — not for purity.
 5. **G6/G8 — keep as-is.** Documented boundaries; do not expand the ABI without a
    concrete plugin need.
 
-## 6. Post-processing effects: a primitive category, not a parallel axis
+## 6. Post-processing effects: a chain, not a primitive category
 
-`Filter` today is a *container strategy* (`ChildProcessing::Filter`) whose
-parameter set is baked into the track (`FilterTracks` — six fixed
-`PropertyTrack<f32>`, `timeline/animation_track.rs:348`), registered per
-`"Filter"` actor type (`animatix-syntax/src/schema.rs:521`), and implemented by
-two fixed WGSL shaders (`renderer/filter_backend.rs:23/80`,
-`timeline/filter.rs`). It can only be applied by containing children, and every
-new effect would touch `FilterTracks`, the property table, and `scene_eval`.
+`Filter` used to be a *container strategy* (`ChildProcessing::Filter`) whose
+parameter set was baked into the track (`FilterTracks` — six fixed
+`PropertyTrack<f32>`), registered per `"Filter"` actor type, and implemented by
+two fixed WGSL shaders. It could only be applied by containing children, and
+every new effect would have touched `FilterTracks`, the property table, and
+`scene_eval`.
 
-**Direction (decided): effects are primitives.** A new `ActorCategory::Effect`
-family registers effects through the same `PrimitiveRegistry` → `ExtensionRegistry`
-path as every other primitive, and an effect's parameters are ordinary
-*registered properties*. Animation, persistence (`CarryBag`), and GUI descriptors
-therefore come from the existing `PropertyPlan` / `PropertyId` slot machinery
-(`timeline/plan.rs:70`, `property_engine.rs:694`) rather than a bespoke effect
-registry; an effect primitive additionally declares its shader passes and its
-spatial support. This avoids inventing a second registration mechanism and makes
-the plugin path a `NativePrimitive` category extension instead of a new ABI
-surface.
+**Direction (implemented 2026-09-11): effects are a first-class chain owned by
+the scope.** A `Filter` lowers its effect children into its own
+`EffectChainTrack` at build time (`timeline/effect.rs`, `build/effect.rs`); the
+stages are **not** primitives, actors, or scene nodes, and their parameters are
+`DynTrack`-backed rather than registry properties. This avoids both the
+`ActorField`/`PROPERTY_REGISTRY` entanglement and the discovery that
+extension-registered parameters never apply on the primary build paths (those
+run with `extensions: None`). Background and remaining work: `docs/effects.md`
+(contract) and `docs/roadmap.md` ("Post-Processing Effect Abstraction").
 
-**Authoring surface (decided, not backward compatible).** The flat
+**Authoring surface (shipped, not backward compatible).** The flat
 `Filter, blur: …, brightness: …` properties are removed. Effects are declared as
-labeled child primitives of a compositing scope, applied in declaration order:
+labeled child declarations of a compositing scope, applied in declaration order:
 
 ```animatix
 bg: Filter {

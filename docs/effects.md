@@ -7,11 +7,11 @@
 
 ## 1. Model
 
-An **effect** is a built-in or plugin-authored primitive in the `Effect`
-category. An effect only has meaning as a labeled child of a `Filter`
-compositing scope; anywhere else it is a build diagnostic. Within the scope,
-effect children form an ordered **chain** applied to the content children in
-declaration order.
+An **effect** is a stage in an ordered chain owned by a `Filter` compositing
+scope. Effects are **not primitives or actors**: a `Filter` lowers its effect
+children into the scope's own `EffectChainTrack` at build time, so they create
+no scene-graph node, no layout entry, and no hit region. Declaring an effect
+anywhere other than inside a `Filter` scope is a build diagnostic.
 
 ```
 bg: Filter {
@@ -20,24 +20,30 @@ bg: Filter {
   photo: Image, url: "photo.jpg"         // content
 }
 #1.5s
-soft.radius = 24 [1.5s, ease: ease-out]  // effect params animate
+bg.soft.radius = 24 [1.5s, ease: ease-out]  // effect params animate
 ```
 
 Rules:
 
-- **Chain membership is static.** An effect child is fixed at build time; it
-  cannot be added or removed over time. Its parameters animate like any other
-  property.
+- **Chain membership is static.** A stage is fixed at build time; it cannot be
+  added or removed over time. Its parameters animate like any other property.
 - **Effects are declared before content.** Effect children do not render as
-  content and do not participate in layout. The canonical form declares them
-  first; the pipeline excludes them from "last rendered element" ordering
-  regardless.
-- **Parameters are registered properties.** They are stored in the generic
-  `PropertyPlan` / `PropertyId` slot machinery, so animation, keyframe diffing,
-  persistence (`CarryBag`), and GUI descriptors come from the existing property
-  pipeline. Effect params must not add `ActorField` variants.
+  content and do not participate in layout.
+- **Parameters are `DynTrack`-backed.** Each stage stores its parameters as
+  `BTreeMap<param_name, DynTrack>` plus an `enabled: DynTrack`, so animation,
+  keyframe timing, snapshot/collapse, and persistence (`CarryBag`) reuse the
+  dynamic-track machinery. Effect parameters do **not** enter the primitive
+  property registry (`PROPERTY_REGISTRY` / `ActorField` / `PropertyPlan`).
+- **Effect schema has one author-visible source per layer.** The renderer owns
+  the `EffectDescriptor` (WGSL, passes, uniform layout, identity values); the
+  analyzer's `animatix_syntax::schema::effect_specs()` mirrors the parameter
+  names and kinds. A drift test pins them together.
 - **Every effect has an implicit `enabled: Bool`** (default `true`, animatable).
   There is no generic `mix` in v1.
+
+Assignment syntax is scope-qualified: `scope.stage.param = value`. Parameters
+are addressed by their authored names; the chain is sampled per frame into the
+renderer-facing `EffectChain`.
 
 ## 2. On-demand evaluation
 
