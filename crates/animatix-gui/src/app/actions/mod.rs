@@ -355,6 +355,25 @@ impl GuiShell {
                 let actor = edit.actor.clone();
                 let property = edit.property.clone();
                 try_apply_source_edit(stmts, |trial| {
+                    // `scope.stage.param` addresses an effect stage parameter.
+                    if let Some((stage, param)) = property.split_once('.') {
+                        let set_edit = crate::source_edit::SourceEdit::SetEffectParam {
+                            scope: actor.clone(),
+                            stage: stage.to_string(),
+                            param: param.to_string(),
+                            value: expr.clone(),
+                        };
+                        if crate::source_edit::apply_edit(trial, set_edit).is_ok() {
+                            return Ok(());
+                        }
+                        let insert_edit = crate::source_edit::SourceEdit::InsertEffectParam {
+                            scope: actor.clone(),
+                            stage: stage.to_string(),
+                            param: param.to_string(),
+                            value: expr.clone(),
+                        };
+                        return crate::source_edit::apply_edit(trial, insert_edit);
+                    }
                     let set_edit = crate::source_edit::SourceEdit::SetProperty {
                         actor: actor.clone(),
                         property: property.clone(),
@@ -544,6 +563,13 @@ fn apply_property_edit_to_track(
     use crate::app::panels::PropertyValue as PV;
 
     let linear = animatix_syntax::easing::Easing::Linear;
+
+    // `scope.stage.param` edits address the scope's effect chain.
+    if let Some((stage, param)) = property.split_once('.') {
+        if track.effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear) {
+            return;
+        }
+    }
 
     fn write_tagged_value(
         track: &mut animatix::timeline::AnimationTrack,

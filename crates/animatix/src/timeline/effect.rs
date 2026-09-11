@@ -111,6 +111,41 @@ impl EffectChainTrack {
         })
     }
 
+    /// Write a keyframed value to a stage parameter (or its `enabled` flag).
+    ///
+    /// Returns `false` when the stage or parameter does not exist on the chain.
+    /// Used by the GUI's in-memory edit path; the build-time path lives in
+    /// `timeline::build::effect`.
+    pub fn write_param(
+        &mut self,
+        stage_label: &str,
+        param: &str,
+        value: PropertyValue,
+        t_start_ms: u64,
+        t_end_ms: u64,
+        easing: crate::easing::Easing,
+    ) -> bool {
+        let Some(stage) = self.stage_mut(stage_label) else {
+            return false;
+        };
+        let desc = descriptor(stage.kind);
+        let (track, default) = if param == "enabled" {
+            (&mut stage.enabled, PropertyValue::Bool(true))
+        } else {
+            let Some(spec) = desc.params.iter().find(|spec| spec.name == param) else {
+                return false;
+            };
+            let default = identity_to_property(spec.identity);
+            (stage.param_track_mut(spec.name, spec.kind), default)
+        };
+        if t_start_ms != t_end_ms {
+            let start = track.sample(t_start_ms).unwrap_or(default.clone());
+            track.add_keyframe_eased(t_start_ms, start, crate::easing::Easing::Linear);
+        }
+        track.add_keyframe_eased(t_end_ms, value, easing);
+        true
+    }
+
     /// Sample the chain at `time_ms`, dropping disabled and identity stages.
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();

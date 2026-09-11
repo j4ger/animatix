@@ -245,7 +245,73 @@ pub(crate) fn build_property_groups(
         });
     }
 
+    // Effect stages on a compositing scope. Entry names are `stage.param`;
+    // the property-edit handler routes the dotted form to the effect chain.
+    let mut effect_props = Vec::new();
+    for stage in &track.effects.stages {
+        let desc = animatix::timeline::filter::descriptor(stage.kind);
+        for spec in desc.params {
+            let track_opt = stage.params.get(spec.name);
+            let value = track_opt
+                .and_then(|param| param.sample(time_ms))
+                .unwrap_or_else(|| animatix::timeline::effect::identity_to_property(spec.identity));
+            effect_props.push(PropertyEntry {
+                name: format!("{}.{}", stage.label, spec.name),
+                kind: effect_value_to_kind(spec.kind, value),
+                has_keyframes: track_opt.is_some_and(|param| param.keyframe_count() > 0),
+                has_keyframe_at_current_time: track_opt
+                    .is_some_and(|param| param.has_keyframe_at(time_ms)),
+                keyframe_count: track_opt.map_or(0, |param| param.keyframe_count()),
+            });
+        }
+        effect_props.push(PropertyEntry {
+            name: format!("{}.enabled", stage.label),
+            kind: PropertyKind::Bool(matches!(
+                stage.enabled.sample(time_ms),
+                Some(PropertyValue::Bool(true))
+            )),
+            has_keyframes: stage.enabled.keyframe_count() > 0,
+            has_keyframe_at_current_time: stage.enabled.has_keyframe_at(time_ms),
+            keyframe_count: stage.enabled.keyframe_count(),
+        });
+    }
+    if !effect_props.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Effects",
+            icon: egui_phosphor::regular::MAGIC_WAND,
+            properties: effect_props,
+        });
+    }
+
     groups
+}
+
+/// Map an effect parameter value to the inspector's editable kind.
+fn effect_value_to_kind(
+    kind: animatix::timeline::filter::EffectParamKind,
+    value: PropertyValue,
+) -> PropertyKind {
+    use animatix::timeline::filter::EffectParamKind as K;
+    match kind {
+        K::F32 => PropertyKind::Float(match value {
+            PropertyValue::F32(v) => v,
+            PropertyValue::U32(v) => v as f32,
+            _ => 0.0,
+        }),
+        K::U32 => PropertyKind::U32(match value {
+            PropertyValue::U32(v) => v,
+            _ => 0,
+        }),
+        K::Bool => PropertyKind::Bool(matches!(value, PropertyValue::Bool(true))),
+        K::Vec2 => match value {
+            PropertyValue::Vec2([x, y]) => PropertyKind::Vec2 { x, y },
+            _ => PropertyKind::Vec2 { x: 0.0, y: 0.0 },
+        },
+        K::Vec4 => match value {
+            PropertyValue::Vec4(v) | PropertyValue::Color(v) => PropertyKind::Color(v),
+            _ => PropertyKind::Color([0.0, 0.0, 0.0, 1.0]),
+        },
+    }
 }
 
 fn extension_value_to_kind(

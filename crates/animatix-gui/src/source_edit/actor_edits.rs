@@ -90,6 +90,101 @@ pub(super) fn insert_property(
 }
 
 // ---------------------------------------------------------------------------
+// Effect stage parameters (`scope.stage.param`)
+// ---------------------------------------------------------------------------
+
+/// Update a parameter (or `enabled`) on an effect stage child of `scope`.
+pub(super) fn set_effect_param(
+    stmts: &mut [Stmt],
+    scope: &str,
+    stage: &str,
+    param: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
+    let actor_decl =
+        find_actor_decl_mut(stmts, scope).ok_or_else(|| SourceEditError::ActorNotFound {
+            actor: scope.to_string(),
+        })?;
+    let Stmt::ActorDecl { children, .. } = actor_decl else {
+        return Err(SourceEditError::ActorNotFound {
+            actor: scope.to_string(),
+        });
+    };
+
+    let mut found = false;
+    walk_inline_items_mut(children, &mut |item| {
+        if let InlineItem::Labeled { label, props, .. } = item
+            && label == stage
+            && let Some(prop) = props.iter_mut().find(|prop| prop.name == param)
+        {
+            prop.value = value.clone();
+            found = true;
+        }
+    });
+
+    if found {
+        Ok(())
+    } else {
+        Err(SourceEditError::PropertyNotFound {
+            actor: format!("{scope}.{stage}"),
+            property: param.to_string(),
+        })
+    }
+}
+
+/// Insert a parameter on an effect stage child of `scope`.
+pub(super) fn insert_effect_param(
+    stmts: &mut [Stmt],
+    scope: &str,
+    stage: &str,
+    param: &str,
+    value: Expr,
+) -> Result<(), SourceEditError> {
+    let actor_decl =
+        find_actor_decl_mut(stmts, scope).ok_or_else(|| SourceEditError::ActorNotFound {
+            actor: scope.to_string(),
+        })?;
+    let Stmt::ActorDecl { children, .. } = actor_decl else {
+        return Err(SourceEditError::ActorNotFound {
+            actor: scope.to_string(),
+        });
+    };
+
+    let mut inserted = false;
+    let mut already_exists = false;
+    walk_inline_items_mut(children, &mut |item| {
+        if let InlineItem::Labeled { label, props, .. } = item
+            && label == stage
+        {
+            if props.iter().any(|prop| prop.name == param) {
+                already_exists = true;
+            } else {
+                props.push(Property {
+                    name: param.to_string(),
+                    value: value.clone(),
+                    value_span: None,
+                    trailing_comment: None,
+                });
+                inserted = true;
+            }
+        }
+    });
+
+    if inserted {
+        Ok(())
+    } else if already_exists {
+        Err(SourceEditError::PropertyAlreadyExists {
+            actor: format!("{scope}.{stage}"),
+            property: param.to_string(),
+        })
+    } else {
+        Err(SourceEditError::ActorNotFound {
+            actor: format!("{scope}.{stage}"),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RemoveProperty
 // ---------------------------------------------------------------------------
 

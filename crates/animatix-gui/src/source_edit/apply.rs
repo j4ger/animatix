@@ -115,6 +115,20 @@ pub enum SourceEdit {
     },
     /// Remove a property from an actor declaration. Does not remove keyframed assignments.
     RemoveProperty { actor: String, property: String },
+    /// Update a parameter on an effect stage (`scope.stage.param`).
+    SetEffectParam {
+        scope: String,
+        stage: String,
+        param: String,
+        value: Expr,
+    },
+    /// Insert a parameter on an effect stage (`scope.stage.param`).
+    InsertEffectParam {
+        scope: String,
+        stage: String,
+        param: String,
+        value: Expr,
+    },
     /// Reorder top-level scene declarations.
     ReorderScenes { new_order: Vec<String> },
     /// Set or remove the play target for a scene.
@@ -229,6 +243,18 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             property,
             value,
         } => super::actor_edits::insert_property(stmts, &actor, &property, value),
+        SourceEdit::SetEffectParam {
+            scope,
+            stage,
+            param,
+            value,
+        } => super::actor_edits::set_effect_param(stmts, &scope, &stage, &param, value),
+        SourceEdit::InsertEffectParam {
+            scope,
+            stage,
+            param,
+            value,
+        } => super::actor_edits::insert_effect_param(stmts, &scope, &stage, &param, value),
         SourceEdit::InsertKeyframe {
             scene,
             actor,
