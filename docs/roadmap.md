@@ -310,13 +310,20 @@ explicit keyframe-diamond model, labeled scene inspector, platform-aware
 shortcut display, action-identified Layers menu, remapped tool keys
 (`V/A/R/S/G/P`), and real group scale/rotate.
 
+Layout phase shipped 2026-09-11 (screenshot-verified): Inspector and Code
+share one right-hand tab group; region sizes are `clamp(ratio × available,
+min, max)` with a per-frame pixel-bound pass and a 120px tile floor; Animate /
+Code / Inspect / Focus presets plus Reset layout; sidebar merged 6 → 3 labeled
+tabs (Project / Outline / Library) with the editor promoted into the detail
+region; `pill_tab_bar` degrades label-first.
+
 Remaining phases, in order:
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Tool switcher UI, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
+| 1 | Tool switcher UI in the preview header, transport moved to a global bar, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
 | 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, interactive Curves tab, editor find/replace options | Not started |
-| 3 | Sidebar 6→3 merge, contextual Inspector rail, editor placement, layout presets/reset/focus mode, drag-to-place from the Library | Not started; editor placement and Outline shape are **open decisions** |
+| 3 | Remaining IA: drag-to-place from the Library, narrow-window downgrade modes (icon rail, overlay drawer), diagnostics as a status-bar peek | Partly done — sidebar merge, detail tabs, editor placement and presets shipped |
 | 4 | App menu (New/Open/Recent/Save As), autosave + crash recovery, command palette superset with fuzzy search, export/settings polish | Not started |
 
 ### Resolved Engine Bugs (gallery-era)

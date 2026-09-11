@@ -881,31 +881,60 @@ integrator in `anim.rs` (optional future follow-up).
 
 ## 9. Layout System
 
-### 9.1 Panel Size Constraints
+### 9.1 Region Size Constraints
 
-| Panel | Min Width | Default | Max Width |
-|-------|-----------|---------|-----------|
-| Sidebar | 180px | 240px | 360px |
-| Editor | 300px | 480px | ∞ |
-| Preview | 320px | ∞ | ∞ |
-| Inspector | 220px | 300px | 480px |
-| Timeline | 400px (w) | 200px (h) | ∞ |
+Sizes are **proportion-first with pixel bounds**: a region is allocated as
+`clamp(ratio × available, min, max)`. Shares are relative, so proportions hold
+as the window resizes; a per-frame pass clamps each region back into its pixel
+bounds so a small window cannot scale panels below their floors (§9.3). The
+right column is one region with two tabs (Inspector | Code), so its bounds
+depend on the active tab.
+
+| Region | Ratio | Min | Max | Default at 1440px |
+|--------|-------|-----|-----|-------------------|
+| Sidebar | 0.16 W | 200 | 360 | 230 |
+| Preview | remainder | 360 | ∞ | 908 |
+| Right column · Inspector | 0.21 W | 260 | 420 | 302 |
+| Right column · Code | 0.38 W | 420 | 720 | 547 |
+| Timeline | 0.25 H | 180 | 420 | 227 |
+| Toolbar | fixed | — | — | 28 |
+| Status bar | fixed | — | — | 22 |
+
+Proportions are the default allocation; a user drag stores an absolute size and
+is preserved as long as it stays inside `[min, max]`. `Reset layout` restores
+the proportions.
 
 ### 9.2 Workspace Presets
 
-| Preset | Layout |
-|--------|--------|
-| Animate | Sidebar \| Preview(60%) + Editor(40%) / Timeline |
-| Code | Sidebar \| Editor(70%) + Preview(30%) / Timeline |
-| Inspect | Sidebar \| Preview(50%) + Inspector(50%) / Timeline |
-| Focus | Preview only (fullscreen canvas) |
+A preset adjusts proportions and the active detail tab on the existing tree — it
+never rebuilds, so a user's custom arrangement survives. `Focus` also hides the
+surrounding regions.
+
+| Preset | Sidebar | Right column | Timeline |
+|--------|---------|--------------|----------|
+| Animate (default) | 0.16 W | Inspector | 0.25 H |
+| Code | 0.14 W | **Code** | 0.18 H |
+| Inspect | 0.12 W | Inspector (wider, 300–460) | 0.30 H |
+| Focus | hidden | hidden | hidden |
 
 ### 9.3 Layout Constraints
 
-1. Panels resist being dragged below min width — they snap-hide instead.
-2. Workspace presets are persistable and restorable.
-3. Focus mode (`F11`) hides all panels; other panels slide in as overlays.
-4. `egui_tiles::Tree` remains the docking engine.
+1. `clamp(ratio, min, max)` is the allocation rule; pixel bounds are the
+   floor/ceiling that keeps extreme window sizes usable.
+2. `egui_tiles::Behavior::min_size` adds a 120px floor to every tile so no pane
+   collapses into a sliver.
+3. The Inspector and the code editor share one tab group and are mutually
+   exclusive; `Cmd+Shift+I` / `Cmd+Shift+E` show each, toggling the region off
+   when the same tab is already active.
+4. Focus mode hides the sidebar, detail column and timeline; the preview fills
+   the window.
+5. Presets are applied in place (proportions + active tab) and are not
+   destructive; `Reset layout` is the only action that rebuilds the tree.
+6. `egui_tiles::Tree` remains the docking engine.
+
+**Not yet implemented:** the narrow-window downgrade modes (collapsing the
+sidebar to an icon rail and demoting the right column to an overlay drawer below
+their breakpoints); today the pixel floors are the only degradation.
 
 ---
 
@@ -1072,20 +1101,34 @@ Phase 0 shipped on `feat/gui-redesign` (2026-09-11):
 | Tool keys | `V` select, `A` vertex, `R` rotate, `S` scale, `G` move, `P` pivot |
 | Group transform | Group scale (union-box handles, per-actor size vs scale mode) and group rotate (union centre) implemented |
 
+Layout (2026-09-11, verified from workspace screenshots):
+
+| Item | Change |
+|---|---|
+| Detail region | Inspector and Code share one right-hand tab group, visible by default with the Inspector active (`Cmd+Shift+I` / `Cmd+Shift+E`) |
+| Responsive sizing | `clamp(ratio × available, min, max)` allocation plus a per-frame pixel-bound pass and a 120px tile floor (§9.1–9.3) |
+| Presets | Animate / Code / Inspect / Focus applied in place, plus Reset layout |
+| Sidebar | Merged 6 → 3 labeled tabs: Project (Files/Assets), Outline (Layers/Scenes), Library (Components) |
+| Editor home | Promoted out of the sidebar into the detail region; the dead sidebar Editor tab/renderer removed |
+| pill_tab_bar | Degrades label-first (icon+label → label → icon) and adds hover tooltips, so merged tabs stay legible at the 200px floor |
+
 Remaining, in order:
 
-1. **Phase 1 — visible state & canvas.** Tool switcher UI, pivot
-   demotion, snap toggle, select-on-mousedown, canvas context menu,
-   numeric entry, timeline playhead drag and property-granular keyframe
-   editing.
+1. **Phase 1 — visible state & canvas.** Tool switcher UI in the preview
+   header, pivot demotion, snap toggle, select-on-mousedown, canvas context
+   menu, numeric entry, timeline playhead drag and property-granular keyframe
+   editing. Also move the transport to a global bar so playback survives a
+   bottom-tab switch.
 2. **Phase 2 — core loops.** Layer outliner editing; add scene / create a
    `play` edge from the UI; interactive Curves tab; editor find/replace
    options.
-3. **Phase 3 — information architecture.** The §12.2 sidebar merge,
-   contextual Inspector rail, layout presets/reset/focus mode,
-   drag-to-place from the Library.
+3. **Phase 3 — information architecture (partly done).** Sidebar merge,
+   detail tab group, editor placement and presets have shipped; still open are
+   drag-to-place from the Library and the narrow-window downgrade modes (icon
+   rail / overlay drawer).
 4. **Phase 4 — platform conventions.** App menu (New/Open/Recent/Save As),
-   autosave + recovery, command palette superset, export/settings polish.
+   autosave + recovery, command palette superset, export/settings polish;
+   diagnostics as a status-bar peek instead of a stacked bottom panel.
 
 ### 12.5 Open decisions
 
@@ -1094,5 +1137,6 @@ Remaining, in order:
 | Auto-key default | **Resolved:** off. |
 | Group transform | **Resolved:** implemented. |
 | Tool shortcut letters | **Resolved:** `V/A/R/S/G/P`. |
-| Editor placement | **Open.** Tabbed with the Timeline (recommended) vs its own pane vs bottom split. Deferred pending a layout discussion. |
-| Outline shape | **Open.** Whether the scene+actor merge is one tree (recommended, scenes as roots) or two sub-sections. |
+| Editor placement | **Resolved:** shares the right-hand detail tab group with the Inspector (mutually exclusive). |
+| Outline shape | **Resolved:** one labeled Outline tab with a Layers / Scenes section switcher. |
+| Transport placement | **Open.** Recommendation: promote to a global bar so playback survives switching the bottom tab to Code/Curves; currently it still lives in the timeline panel. |
