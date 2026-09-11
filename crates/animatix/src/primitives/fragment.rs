@@ -10,7 +10,8 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::{
-    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive, RenderCommand,
+    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive,
+    RenderCommand,
 };
 use crate::timeline::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
@@ -38,6 +39,24 @@ impl Primitive for FragmentPrimitive {
     }
     fn kind_id(&self) -> ActorKindId {
         ActorKindId::Fragment
+    }
+
+    /// A Fragment is the one built-in equation fragment: it contributes its
+    /// content and highlight state to the parent `Equation`'s document. Any
+    /// other primitive (including an extension) can opt in by overriding this.
+    fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
+        Some(EquationFragment {
+            content: ctx.track.text.text_content.get(ctx.time_ms, String::new()),
+            highlight_color: ctx
+                .track
+                .highlight
+                .highlight_color
+                .get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
+            highlight_opacity: ctx.track.highlight.highlight_opacity.get(ctx.time_ms, 0.0),
+            highlight_padding: ctx.track.highlight.highlight_padding.get(ctx.time_ms, 4.0),
+            highlight_radius: ctx.track.highlight.highlight_radius.get(ctx.time_ms, 3.0),
+            highlight_blend: ctx.track.highlight.highlight_blend,
+        })
     }
 
     fn build(

@@ -26,20 +26,24 @@ use animatix_plugin_api::{
     NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32,
     NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction,
     NativeActionContext, NativeActionExecuteFn, NativeActionParam, NativeAssignmentContext,
-    NativeAssignmentFn, NativeChild, NativeDefaultColorKeyFn, NativeDefaultPropsCtx,
-    NativeDefaultPropsFn, NativeFinalizeContext, NativeFinalizeFn, NativeFunctionContext,
-    NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand, NativeInstallFn,
-    NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
-    NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEvaluateCtx,
-    NativePrimitiveEvaluateFn, NativePropertyDescriptor, NativePropertyValue, NativeService,
-    NativeTextCommand, NativeValue, UNSTABLE_ABI_VERSION,
+    NativeAssignmentFn, NativeChild, NativeClipPathCtx, NativeClipPathFn, NativeDefaultColorKeyFn,
+    NativeDefaultPropsCtx, NativeDefaultPropsFn, NativeFinalizeContext, NativeFinalizeFn,
+    NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand,
+    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
+    NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEquationFragmentCtx,
+    NativePrimitiveEquationFragmentFn, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn,
+    NativePropertyDescriptor, NativePropertyValue, NativeService, NativeTextCommand, NativeValue,
+    UNSTABLE_ABI_VERSION,
 };
 use kurbo::Shape;
 use libloading::Library;
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::extension_context::ExtensionContext;
-use crate::primitives::{AssignmentCtx, BuildCtx, ChildProcessing, EvaluateCtx, Primitive};
+use crate::primitives::{
+    AssignmentCtx, BuildCtx, ChildProcessing, EquationFragment, EvaluateCtx, Primitive,
+    RenderCommand,
+};
 use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
@@ -553,6 +557,8 @@ struct NativePrimitiveAdapter {
     finalize_container_build: Option<NativeFinalizeFn>,
     default_props: Option<NativeDefaultPropsFn>,
     default_color_key: Option<NativeDefaultColorKeyFn>,
+    clip_path: Option<NativeClipPathFn>,
+    equation_fragment: Option<NativePrimitiveEquationFragmentFn>,
     _library: Arc<dyn Any + Send + Sync>,
 }
 
@@ -597,6 +603,8 @@ impl NativePrimitiveAdapter {
             finalize_container_build: primitive.finalize_container_build,
             default_props: primitive.default_props,
             default_color_key: primitive.default_color_key,
+            clip_path: primitive.clip_path,
+            equation_fragment: primitive.equation_fragment,
             _library: library,
         })
     }
@@ -936,6 +944,104 @@ impl Primitive for NativePrimitiveAdapter {
             )));
         }
         Ok(Some(host.commands))
+    }
+
+    fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
+        let clip_path = self.clip_path?;
+        let mut host = NativePrimitiveEvaluateHost {
+            ctx,
+            property_ids: &self.property_ids,
+            service_values: &self.service_values,
+            text_compiler: None,
+            font_context: None,
+            commands: Vec::new(),
+            arena: NativeValueArena::default(),
+        };
+        let mut native_ctx = NativeClipPathCtx {
+            size: std::mem::size_of::<NativeClipPathCtx>(),
+            time_ms: ctx.time_ms as f64,
+            host: (&mut host as *mut NativePrimitiveEvaluateHost).cast(),
+            append_path: Some(native_append_path),
+        };
+        let status = unsafe { clip_path(&mut native_ctx) };
+        if status != NATIVE_STATUS_OK {
+            return None;
+        }
+        // Concatenate every emitted subpath into one clip geometry.
+        let mut path = kurbo::BezPath::new();
+        for command in host.commands {
+            if let RenderCommand::Paths { paths } = command {
+                for vello_path in paths {
+                    path.extend(vello_path.path.iter());
+                }
+            }
+        }
+        (!path.elements().is_empty()).then_some(path)
+    }
+
+    fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
+        let equation_fragment = self.equation_fragment?;
+        let mut host = NativeEquationFragmentHost::default();
+        let mut native_ctx = NativePrimitiveEquationFragmentCtx {
+            size: std::mem::size_of::<NativePrimitiveEquationFragmentCtx>(),
+            time_ms: ctx.time_ms as f64,
+            host: (&mut host as *mut NativeEquationFragmentHost).cast(),
+            write_content: Some(native_write_content),
+            highlight_color: [0.0; 4],
+            highlight_opacity: 0.0,
+            highlight_padding: 4.0,
+            highlight_radius: 3.0,
+            highlight_blend: 0,
+        };
+        let status = unsafe { equation_fragment(&mut native_ctx) };
+        if status != NATIVE_STATUS_OK {
+            return None;
+        }
+        let color = native_ctx.highlight_color;
+        Some(EquationFragment {
+            content: host.content,
+            highlight_color: [
+                color[0].clamp(0.0, 1.0) as f32,
+                color[1].clamp(0.0, 1.0) as f32,
+                color[2].clamp(0.0, 1.0) as f32,
+                color[3].clamp(0.0, 1.0) as f32,
+            ],
+            highlight_opacity: native_ctx.highlight_opacity.clamp(0.0, 1.0) as f32,
+            highlight_padding: native_ctx.highlight_padding.max(0.0) as f32,
+            highlight_radius: native_ctx.highlight_radius.max(0.0) as f32,
+            highlight_blend: native_blend_from_code(native_ctx.highlight_blend),
+        })
+    }
+}
+
+/// Host collection for a native equation-fragment callback.
+#[derive(Default)]
+struct NativeEquationFragmentHost {
+    content: String,
+}
+
+unsafe extern "C" fn native_write_content(
+    host: *mut c_void,
+    content: *const c_char,
+    content_len: usize,
+) -> i32 {
+    let Some(host) = (unsafe { (host as *mut NativeEquationFragmentHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    let Some(text) = (unsafe { read_c_string_len(content, content_len) }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+    host.content = text;
+    NATIVE_STATUS_OK
+}
+
+/// Map a `NativeHighlightCommand.blend` / equation-fragment blend code.
+fn native_blend_from_code(code: u32) -> vello::peniko::Mix {
+    match code {
+        1 => vello::peniko::Mix::Multiply,
+        2 => vello::peniko::Mix::Difference,
+        3 => vello::peniko::Mix::Screen,
+        _ => vello::peniko::Mix::Normal,
     }
 }
 
@@ -1491,12 +1597,7 @@ unsafe extern "C" fn native_append_highlight(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let rect = kurbo::Rect::new(command.rect[0], command.rect[1], command.rect[2], command.rect[3]);
-    let blend = match command.blend {
-        1 => vello::peniko::Mix::Multiply,
-        2 => vello::peniko::Mix::Difference,
-        3 => vello::peniko::Mix::Screen,
-        _ => vello::peniko::Mix::Normal,
-    };
+    let blend = native_blend_from_code(command.blend);
     host.commands.push(crate::primitives::RenderCommand::HighlightLayer {
         rect,
         color: native_color(command.color),
@@ -2508,6 +2609,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         assert_eq!(
             unsafe {
@@ -2664,6 +2767,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         assert_eq!(
             unsafe {
@@ -3356,6 +3461,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3407,6 +3514,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3488,6 +3597,8 @@ mod tests {
             finalize_container_build: None,
             default_props: Some(pulse_default_props),
             default_color_key: Some(pulse_default_color_key),
+            clip_path: None,
+            equation_fragment: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3630,6 +3741,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,
@@ -3695,6 +3808,8 @@ mod tests {
             finalize_container_build: None,
             default_props: None,
             default_color_key: None,
+            clip_path: None,
+            equation_fragment: None,
         };
         let adapter = NativePrimitiveAdapter::new(
             primitive,

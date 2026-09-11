@@ -1016,6 +1016,101 @@ fade-in m [1ms]
         assert!(!is_red(60, 150), "far outside the mask must stay background");
     }
 
+    /// A non-Rect/Ellipse `clip_shape` (Polygon here) must define the actual
+    /// clip geometry. Before the `Primitive::clip_path` capability this
+    /// silently fell back to a rectangular clip, so a diamond mask rendered as
+    /// a rectangle. The clip child must also not paint itself.
+    #[test]
+    fn mask_clip_shape_polygon_defines_clip_region() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let source = r#"
+config { resolution: (400, 300) }
+
+m: Mask, size: (100, 75), at: (200, 150) {
+  clip_shape: Polygon, points: {(0, -50), (50, 0), (0, 50), (-50, 0)}, color: accent.success
+  big: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
+
+#0s
+fade-in m [1ms]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.5,
+                SceneDimensions {
+                    width: 400,
+                    height: 300,
+                },
+            )
+            .expect("render should succeed");
+
+        let is_red = |x: u32, y: u32| -> bool {
+            let i = ((y * frame.width + x) * 4) as usize;
+            let px = [frame.rgba[i], frame.rgba[i + 1], frame.rgba[i + 2]];
+            px[0] > 200 && px[1] < 80 && px[2] < 80
+        };
+
+        // Diamond center → red child visible.
+        assert!(is_red(200, 150), "diamond center should show the red child");
+        // Inside the mask box but outside the diamond (|dx| + |dy| > 50):
+        // clipped away — a rectangular fallback would show red here.
+        assert!(!is_red(235, 178), "outside the diamond must stay background");
+        assert!(!is_red(60, 150), "far outside the mask must stay background");
+    }
+
+    /// A `clip_shape` whose primitive has no clip geometry warns instead of
+    /// silently clipping with a rectangle.
+    #[test]
+    fn mask_clip_shape_without_geometry_warns() {
+        let source = r#"
+config { resolution: (400, 300) }
+
+m: Mask, size: (100, 75), at: (200, 150) {
+  clip_shape: Text, text: "clip"
+  big: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
+
+#0s
+fade-in m [1ms]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let _ = timeline.evaluate(
+            0.5,
+            SceneDimensions {
+                width: 400,
+                height: 300,
+            },
+        );
+        let warnings = timeline.runtime_diagnostics();
+        assert!(
+            warnings.iter().any(|d| d.message.contains("provides no clip geometry")),
+            "expected a clip-geometry warning, got {:?}",
+            warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn hosted_bar_chart_paints_bars_across_the_full_graph_axis() {
         let mut renderer = match OffscreenRenderer::new() {

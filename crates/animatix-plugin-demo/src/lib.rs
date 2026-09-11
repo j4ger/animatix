@@ -183,6 +183,8 @@ pub unsafe extern "C" fn animatix_plugin_install(
         finalize_container_build: None,
         default_props: None,
         default_color_key: None,
+        clip_path: None,
+        equation_fragment: None,
     };
     let primitive_status = unsafe { (api.register_primitive)(host, primitive) };
     if primitive_status != NATIVE_STATUS_OK {

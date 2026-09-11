@@ -132,7 +132,7 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current unstable ABI snapshot is 7 and has exactly one install entry. The
+The current unstable ABI snapshot is 8 and has exactly one install entry. The
 snapshot is not a compatibility version: plugins must be rebuilt from the same
 source tree as the host whenever it changes. It can register
 external properties with full tooling metadata, native expression functions,
@@ -140,12 +140,19 @@ primitives, actions, and service values with optional destructors. Native
 primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property
 names, a `NATIVE_RESIZE_MODE_*` value so the GUI, actions, and generic
 property writer can route them without string matching. Native primitives have
-optional `build`, `evaluate`, `handle_assignment`, and
-`finalize_container_build` callbacks. The host builds children through the same
+optional `build`, `evaluate`, `handle_assignment`,
+`finalize_container_build`, `clip_path`, and `equation_fragment` callbacks. The
+host builds children through the same
 timeline path as built-ins and then calls finalize, so native containers no
 longer need to fake their way through a built-in `ActorKindId`. Extension
 tracks use the neutral `ActorKindId::Extension`; build, assignment, and frame
 evaluation resolve them through `actor_type` and the active primitive registry.
+`clip_path` lets a native primitive act as a `Mask`'s `clip_shape` by emitting
+path commands through `NativeClipPathCtx::append_path`; `equation_fragment`
+lets it contribute content and highlight styling to a parent `Equation` through
+`NativePrimitiveEquationFragmentCtx`. Both are optional: omitting them (or
+returning `NATIVE_STATUS_UNSUPPORTED`) opts the primitive out, matching the
+built-in defaults.
 Evaluate callbacks receive a host context with `get_property`, `get_service`,
 `append_path`, `append_text`, `append_image`, and `append_highlight`; the demo
 primitive reads its keyframed `glow` property and emits paths, text, and a

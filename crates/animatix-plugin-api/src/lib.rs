@@ -18,7 +18,7 @@ use std::ffi::{c_char, c_void};
 ///
 /// Keep `docs/extension_authoring.md` ("The current unstable ABI snapshot is N")
 /// in sync with this value whenever it is bumped.
-pub const UNSTABLE_ABI_VERSION: u32 = 7;
+pub const UNSTABLE_ABI_VERSION: u32 = 8;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -537,6 +537,58 @@ pub struct NativePrimitiveEvaluateCtx {
 /// Native primitive evaluate callback.
 pub type NativePrimitiveEvaluateFn = unsafe extern "C" fn(*mut NativePrimitiveEvaluateCtx) -> i32;
 
+/// Context passed to a native primitive clip-path callback.
+///
+/// The plugin emits its clip geometry as path commands; the host concatenates
+/// them into one clip path in the primitive's local space.
+#[repr(C)]
+pub struct NativeClipPathCtx {
+    /// `size_of::<NativeClipPathCtx>()`.
+    pub size: usize,
+    /// Current evaluation time in milliseconds.
+    pub time_ms: f64,
+    /// Opaque host handle passed back to [`Self::append_path`].
+    pub host: *mut c_void,
+    /// Append one vector path command to the clip geometry.
+    pub append_path: Option<unsafe extern "C" fn(*mut c_void, NativePathCommand) -> i32>,
+}
+
+/// Native primitive clip-path callback: called when the primitive is used as a
+/// `Mask`'s `clip_shape` child. Return [`NATIVE_STATUS_UNSUPPORTED`] to opt out
+/// (the host then warns and falls back to a rectangular clip).
+pub type NativeClipPathFn = unsafe extern "C" fn(*mut NativeClipPathCtx) -> i32;
+
+/// Context passed to a native primitive equation-fragment callback.
+///
+/// The plugin writes its raw fragment markup through [`Self::write_content`]
+/// (the host copies it) and fills the highlight style fields; the host owns all
+/// memory. Return [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
+#[repr(C)]
+pub struct NativePrimitiveEquationFragmentCtx {
+    /// `size_of::<NativePrimitiveEquationFragmentCtx>()`.
+    pub size: usize,
+    /// Current evaluation time in milliseconds.
+    pub time_ms: f64,
+    /// Opaque host handle passed back to [`Self::write_content`].
+    pub host: *mut c_void,
+    /// Set the fragment's raw markup (copied by the host).
+    pub write_content: Option<unsafe extern "C" fn(*mut c_void, *const c_char, usize) -> i32>,
+    /// Highlight fill color as RGBA in 0..1.
+    pub highlight_color: [f64; 4],
+    /// Highlight layer opacity (`0.0` = no highlight).
+    pub highlight_opacity: f64,
+    /// Highlight padding around the fragment.
+    pub highlight_padding: f64,
+    /// Highlight corner radius.
+    pub highlight_radius: f64,
+    /// Highlight blend mode code (0=Normal, 1=Multiply, 2=Difference, 3=Screen).
+    pub highlight_blend: u32,
+}
+
+/// Native primitive equation-fragment callback.
+pub type NativePrimitiveEquationFragmentFn =
+    unsafe extern "C" fn(*mut NativePrimitiveEquationFragmentCtx) -> i32;
+
 /// Context passed to a native primitive default-props callback.
 #[repr(C)]
 pub struct NativeDefaultPropsCtx {
@@ -687,6 +739,10 @@ pub struct NativePrimitive {
     pub default_props: Option<NativeDefaultPropsFn>,
     /// Optional default colorscheme-key callback.
     pub default_color_key: Option<NativeDefaultColorKeyFn>,
+    /// Optional clip-path callback (when used as a `Mask`'s `clip_shape`).
+    pub clip_path: Option<NativeClipPathFn>,
+    /// Optional equation-fragment callback (when used inside an `Equation`).
+    pub equation_fragment: Option<NativePrimitiveEquationFragmentFn>,
 }
 
 /// Host callbacks available to a native plugin during install.

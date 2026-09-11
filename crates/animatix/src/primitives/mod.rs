@@ -862,6 +862,29 @@ impl RenderCommand {
 /// Child-rendering strategy selected by a primitive.
 pub use animatix_syntax::schema::ChildProcessingKind as ChildProcessing;
 
+/// Data one child actor contributes to a parent `Equation`'s Typst document.
+///
+/// Returned by [`Primitive::equation_fragment`]; the Equation container collects
+/// every child whose primitive returns `Some`, in source order, and joins them
+/// into one compiled document. Making this a trait query (rather than a match on
+/// `ActorKindId::Fragment`) lets any primitive — including an extension — be an
+/// equation fragment.
+#[derive(Clone, Debug, PartialEq)]
+pub struct EquationFragment {
+    /// Raw fragment markup; the Equation container escapes and joins it.
+    pub content: String,
+    /// Highlight rectangle fill color.
+    pub highlight_color: [f32; 4],
+    /// Highlight layer opacity (`0.0` = no highlight).
+    pub highlight_opacity: f32,
+    /// Highlight padding around the fragment.
+    pub highlight_padding: f32,
+    /// Highlight corner radius.
+    pub highlight_radius: f32,
+    /// Highlight blend mode.
+    pub highlight_blend: vello::peniko::Mix,
+}
+
 /// Every actor type in Animatix implements this trait.
 ///
 /// Metadata, build logic, and (optionally) render logic live in one place.
@@ -966,6 +989,32 @@ pub trait Primitive: Send + Sync {
     /// Render the primitive into Vello paths.
     /// Returns `None` for non-visual primitives.
     fn render(&self, _ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
+        None
+    }
+
+    /// Local-space clip geometry when this primitive is used as a `Mask`'s
+    /// `clip_shape` child.
+    ///
+    /// The default reuses the primitive's own evaluation output, so any shape
+    /// (built-in or extension) that produces vector paths can define a clip
+    /// without a per-primitive override. Returning `None` means "not usable as
+    /// a clip"; the caller then warns and falls back to a rectangular clip.
+    /// The path is in the primitive's local space — the caller composes the
+    /// child transform and the mask transform.
+    fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
+        let commands = self.evaluate(ctx, None).ok()??;
+        let path = commands.iter().find_map(|command| match command {
+            RenderCommand::Paths { paths } => paths.first().map(|p| (*p.path).clone()),
+            _ => None,
+        });
+        // Return the memo payload for reuse (shape primitives take/recycle it).
+        ctx.track.recycle_shape_commands(commands);
+        path
+    }
+
+    /// Data this primitive contributes to a parent `Equation`'s document, or
+    /// `None` when it is not an equation fragment.
+    fn equation_fragment(&self, _ctx: &EvaluateCtx) -> Option<EquationFragment> {
         None
     }
 

@@ -766,6 +766,59 @@ impl Timeline {
         }
     }
 
+    /// Resolve a track's primitive: its `actor_type` first, else the kind
+    /// fallback used by hand-built tracks without a type name.
+    fn track_primitive<'a>(
+        &'a self,
+        track: &AnimationTrack,
+    ) -> Option<&'a dyn crate::primitives::Primitive> {
+        track
+            .actor_type
+            .as_deref()
+            .and_then(|ty| self.primitive_registry.find(ty))
+            .or_else(|| {
+                crate::primitives::actor_kind_meta(track.kind)
+                    .and_then(|m| self.primitive_registry.find(m.type_name))
+            })
+    }
+
+    /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
+    /// the child's own primitive via [`Primitive::clip_path`]. Placed at the
+    /// child's declared position (the default clip geometry is origin-centered)
+    /// to match the previous Rect/Ellipse behavior. `None` means the primitive
+    /// has no clip geometry — the caller warns and falls back to a rectangle.
+    fn clip_path_for_child(
+        &self,
+        child: &AnimationTrack,
+        time_ms: u64,
+        scene_dimensions: SceneDimensions,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    ) -> Option<kurbo::BezPath> {
+        let primitive = self.track_primitive(child)?;
+        let vector_paths = child.evaluate_vector_paths(time_ms);
+        child.begin_shape_commands();
+        let ctx = crate::primitives::EvaluateCtx {
+            track: child,
+            time_ms,
+            local_transform: kurbo::Affine::IDENTITY,
+            opacity: 1.0,
+            scene_dimensions,
+            background_color: self.eval_caches.background_color.get(),
+            overrides: overrides.get(&child.label),
+            vector_paths: &vector_paths,
+            asset_cache: &self.asset_cache,
+            target_resolver: Some(self),
+        };
+        let path = primitive.clip_path(&ctx);
+        // Consume the memo-bounds handoff so it can't leak into the next node.
+        let _ = child.take_shape_command_bounds();
+        let pos = child.geometry.position.last([0.0, 0.0]);
+        path.map(|mut path| {
+            path.apply_affine(kurbo::Affine::translate((pos[0] as f64, pos[1] as f64)));
+            path
+        })
+    }
+
     /// Recursively render child nodes using the primitive capability hook.
     fn render_node_children(
         &self,
@@ -977,48 +1030,42 @@ impl Timeline {
             let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
             // Resolve the clip geometry. A child labelled `clip_shape` defines
-            // the clip (its shape + size at its local position) and is NOT
-            // rendered itself; without one the clip is a rect covering the
-            // Mask's own size.
-            let clip_shape_track =
-                track.children.iter().filter_map(|c| self.tracks.get(c)).find(|c| {
-                    c.label == "clip_shape"
-                        && matches!(
-                            c.kind,
-                            ActorKindId::Shape(
-                                crate::timeline::ShapeKind::Rect
-                                    | crate::timeline::ShapeKind::Ellipse
-                            )
-                        )
-                });
+            // the clip and is NOT rendered itself; its primitive supplies the
+            // geometry via `Primitive::clip_path`, so any shape (built-in or
+            // extension) works. Without one — or when the primitive has no clip
+            // geometry — the clip falls back to a rect covering the Mask's own
+            // size; the latter case warns instead of silently clipping wrong.
+            let clip_shape_track = track
+                .children
+                .iter()
+                .filter_map(|c| self.tracks.get(c))
+                .find(|c| c.label == "clip_shape");
+            let fallback_clip = || {
+                let w = half_size[0] as f64;
+                let h = half_size[1] as f64;
+                kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
+            };
             let clip_path: kurbo::BezPath = match clip_shape_track {
                 Some(child) => {
-                    let child_half = child.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-                    let pos = child.geometry.position.last([0.0, 0.0]);
-                    let center = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
-                    let size = kurbo::Size::new(
-                        (child_half[0] * 2.0) as f64,
-                        (child_half[1] * 2.0) as f64,
-                    );
-                    if matches!(child.kind, ActorKindId::Shape(crate::timeline::ShapeKind::Ellipse))
-                    {
-                        // Ellipse::new takes RADII (half-extents); child_half
-                        // already stores half the declared size.
-                        kurbo::Ellipse::new(
-                            center,
-                            kurbo::Vec2::new(child_half[0] as f64, child_half[1] as f64),
-                            0.0,
-                        )
-                        .to_path(1e-3)
-                    } else {
-                        kurbo::Rect::from_center_size(center, size).to_path(1e-3)
+                    match self.clip_path_for_child(child, time_ms, scene_dimensions, overrides) {
+                        Some(path) => path,
+                        None => {
+                            self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                                crate::diagnostics::Diagnostic::warning(
+                                    crate::diagnostics::DiagnosticCode::RenderFailure,
+                                    crate::diagnostics::DiagnosticPhase::Render,
+                                    format!(
+                                        "Mask clip_shape '{}' provides no clip geometry; \
+                                         using a rectangular clip",
+                                        child.label
+                                    ),
+                                ),
+                            );
+                            fallback_clip()
+                        },
                     }
                 },
-                None => {
-                    let w = half_size[0] as f64;
-                    let h = half_size[1] as f64;
-                    kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
-                },
+                None => fallback_clip(),
             };
             let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
 
@@ -1078,26 +1125,36 @@ impl Timeline {
             }
             let mut frags: Vec<FragInfo> = Vec::new();
             for child_label in &children {
-                if let Some(child_track) = self.tracks.get(*child_label) {
-                    if child_track.kind == ActorKindId::Fragment {
-                        let content = child_track.text.text_content.get(time_ms, String::new());
-                        let hl_color = child_track
-                            .highlight
-                            .highlight_color
-                            .get(time_ms, [0.3, 0.5, 1.0, 1.0]);
-                        let hl_opacity = child_track.highlight.highlight_opacity.get(time_ms, 0.0);
-                        let hl_padding = child_track.highlight.highlight_padding.get(time_ms, 4.0);
-                        let hl_radius = child_track.highlight.highlight_radius.get(time_ms, 3.0);
-                        let hl_blend = child_track.highlight.highlight_blend;
-                        frags.push(FragInfo {
-                            content,
-                            hl_color,
-                            hl_opacity,
-                            hl_padding,
-                            hl_radius,
-                            hl_blend,
-                        });
-                    }
+                let Some(child_track) = self.tracks.get(*child_label) else {
+                    continue;
+                };
+                // A fragment is any child whose primitive opts into
+                // `equation_fragment` — not a hard-coded `ActorKindId::Fragment`.
+                let Some(primitive) = self.track_primitive(child_track) else {
+                    continue;
+                };
+                let child_vector_paths = child_track.evaluate_vector_paths(time_ms);
+                let ctx = crate::primitives::EvaluateCtx {
+                    track: child_track,
+                    time_ms,
+                    local_transform: kurbo::Affine::IDENTITY,
+                    opacity: 1.0,
+                    scene_dimensions,
+                    background_color: self.eval_caches.background_color.get(),
+                    overrides: overrides.get(&child_track.label),
+                    vector_paths: &child_vector_paths,
+                    asset_cache: &self.asset_cache,
+                    target_resolver: Some(self),
+                };
+                if let Some(fragment) = primitive.equation_fragment(&ctx) {
+                    frags.push(FragInfo {
+                        content: fragment.content,
+                        hl_color: fragment.highlight_color,
+                        hl_opacity: fragment.highlight_opacity,
+                        hl_padding: fragment.highlight_padding,
+                        hl_radius: fragment.highlight_radius,
+                        hl_blend: fragment.highlight_blend,
+                    });
                 }
             }
 
