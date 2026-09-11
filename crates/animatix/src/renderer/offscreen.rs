@@ -892,6 +892,135 @@ mod tests {
         assert!(result.unwrap_err().contains("greater than zero"), "should give clear error");
     }
 
+    /// Derived region of interest: a `Filter` with no authored `bounds` must
+    /// still keep its content — the region is derived from the content bounds
+    /// recorded during the sub-scene evaluation and padded by the chain's
+    /// support. (Regression guard for the derived-ROI crop: a bug here would
+    /// clip or blank the filtered content.)
+    #[test]
+    fn derived_effect_region_preserves_content() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let source = r#"
+config { resolution: (400, 300) }
+
+#0s
+fx: Filter {
+  soft: Blur, radius: 4
+  box: Rect, size: (120, 120), color: (1, 1, 1, 1), at: (0, 0)
+}
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.0,
+                crate::timeline::SceneDimensions {
+                    width: 400,
+                    height: 300,
+                },
+            )
+            .expect("render");
+
+        let px = |x: usize, y: usize| -> [u8; 4] {
+            let base = (y * frame.width as usize + x) * 4;
+            [
+                frame.rgba[base],
+                frame.rgba[base + 1],
+                frame.rgba[base + 2],
+                frame.rgba[base + 3],
+            ]
+        };
+
+        // The offscreen target composites over an opaque black backdrop, so
+        // assertions run on luminance. Rect centre: white.
+        let center = px(200, 150);
+        assert!(center[0] > 200, "rect centre must stay white: {center:?}");
+        // On the rect edge column: blur mixes content with the backdrop
+        // (premultiplied alpha softens twice), so expect mid luminance.
+        let spill = px(260, 150);
+        assert!(
+            spill[0] > 20 && spill[0] < 200,
+            "expected blurred edge luminance, got {spill:?}"
+        );
+        // Well outside the content + support: untouched backdrop.
+        let far = px(60, 40);
+        assert!(
+            far[0] + far[1] + far[2] < 20,
+            "content must not leak outside the derived region: {far:?}"
+        );
+    }
+
+    /// Authored `bounds:` on a Filter scopes effect processing and composites
+    /// the result back at the region origin.
+    #[test]
+    fn authored_effect_bounds_region_renders_at_origin() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => return, // Skip if no GPU
+        };
+
+        let source = r#"
+config { resolution: (400, 300) }
+
+#0s
+fx: Filter, bounds: (100, 60, 200, 180) {
+  soft: Blur, radius: 4
+  box: Rect, size: (120, 120), color: (1, 1, 1, 1), at: (0, 0)
+}
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let frame = renderer
+            .render_timeline(
+                &timeline,
+                0.0,
+                crate::timeline::SceneDimensions {
+                    width: 400,
+                    height: 300,
+                },
+            )
+            .expect("render");
+
+        let px = |x: usize, y: usize| -> [u8; 4] {
+            let base = (y * frame.width as usize + x) * 4;
+            [
+                frame.rgba[base],
+                frame.rgba[base + 1],
+                frame.rgba[base + 2],
+                frame.rgba[base + 3],
+            ]
+        };
+
+        // The rect (140..260, 90..210) sits inside the authored region
+        // (100..300, 60..240). The backdrop is opaque black: check luminance.
+        let center = px(200, 150);
+        assert!(center[0] > 200, "rect centre must stay white: {center:?}");
+        let far = px(40, 30);
+        assert!(
+            far[0] + far[1] + far[2] < 20,
+            "content must not leak outside the authored region: {far:?}"
+        );
+    }
+
     /// A Mask must clip its children to the mask's own rect AT THE MASK'S
     /// POSITION. (Regression: the clip layer was pushed with the identity
     /// transform, pinning the clip at the scene origin — children of any mask

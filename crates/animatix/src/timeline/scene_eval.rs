@@ -955,10 +955,29 @@ impl Timeline {
             return;
         }
 
-        // Region of interest: an authored `bounds: (x, y, w, h)` expanded by
-        // the chain's worst-case support and clamped to the scene. `None`
-        // keeps the full-scene path.
-        let region = self.effect_scope_region(track, scene_dimensions, time_ms);
+        // Region of interest, in priority order:
+        // 1. an authored `bounds: (x, y, w, h)`;
+        // 2. derived from the content bounds the sub-scene evaluation just
+        //    recorded (`docs/effects.md` §3), expanded by worst-case support;
+        // 3. `None` — the historical full-scene path.
+        // The GPU textures stay at full scene capacity in every case, so
+        // varying regions never reallocate (PF-7).
+        let region = match self.effect_scope_region(track, scene_dimensions, time_ms) {
+            Some(region) => Some(region),
+            None => {
+                let mut content: Option<kurbo::Rect> = None;
+                for child in &track.children {
+                    self.subtree_bounds_union(child, &mut content);
+                }
+                content.and_then(|rect| {
+                    Self::region_from_rect(
+                        rect,
+                        track.effects.worst_case_support(),
+                        scene_dimensions,
+                    )
+                })
+            },
+        };
 
         // Try zero-readback path when this filter is safely the last rendering element
         if allow_pending_composites && self.can_post_composite_filter(node_label) {
@@ -1028,13 +1047,10 @@ impl Timeline {
         }
     }
 
-    /// Compute the region of interest for an effect scope.
-    ///
-    /// The scope's authored `bounds: (x, y, w, h)` (tagged `filter_bounds`
-    /// storage) is expanded by the chain's worst-case support and clamped to
-    /// the scene. Returns `None` when no bounds are authored, the region is
-    /// degenerate, or it already covers the whole scene (the historical
-    /// full-scene path, which then behaves exactly as before).
+    /// Compute the region of interest for an effect scope from an authored
+    /// `bounds: (x, y, w, h)` (tagged `filter_bounds` storage). Returns `None`
+    /// when no bounds are authored, the region is degenerate, or it already
+    /// covers the whole scene (the historical full-scene path).
     pub(crate) fn effect_scope_region(
         &self,
         track: &AnimationTrack,
@@ -1052,12 +1068,43 @@ impl Timeline {
         if w <= 0.0 || h <= 0.0 {
             return None;
         }
+        let rect = kurbo::Rect::new(x as f64, y as f64, (x + w) as f64, (y + h) as f64);
+        Self::region_from_rect(rect, track.effects.worst_case_support(), scene_dimensions)
+    }
 
-        let pad = track.effects.worst_case_support();
-        let x0 = (x - pad).max(0.0);
-        let y0 = (y - pad).max(0.0);
-        let x1 = (x + w + pad).min(scene_dimensions.width as f32);
-        let y1 = (y + h + pad).min(scene_dimensions.height as f32);
+    /// Union the recorded world bounds of `label`'s content subtree into `out`.
+    ///
+    /// Bounds are recorded by the sub-scene evaluation that just ran, so they
+    /// reflect exactly what this frame drew. Nodes without recorded ink (pure
+    /// containers, disabled effects) contribute nothing themselves; their
+    /// subtrees are still walked.
+    fn subtree_bounds_union(&self, label: &str, out: &mut Option<kurbo::Rect>) {
+        if let Some(rect) = self.precise_bounds_for(label) {
+            *out = Some(match out.take() {
+                Some(accumulated) => accumulated.union(rect),
+                None => rect,
+            });
+        }
+        if let Some(track) = self.tracks.get(label) {
+            for child in &track.children {
+                self.subtree_bounds_union(child, out);
+            }
+        }
+    }
+
+    /// Turn a content-bounds rectangle into an [`EffectRegion`], padding by
+    /// `support` and clamping to the scene. Returns `None` when the padded
+    /// region covers the whole scene (fall back to the full-scene path) or is
+    /// degenerate.
+    fn region_from_rect(
+        rect: kurbo::Rect,
+        support: f32,
+        scene_dimensions: SceneDimensions,
+    ) -> Option<crate::timeline::filter::EffectRegion> {
+        let x0 = (rect.x0 as f32 - support).max(0.0);
+        let y0 = (rect.y0 as f32 - support).max(0.0);
+        let x1 = (rect.x1 as f32 + support).min(scene_dimensions.width as f32);
+        let y1 = (rect.y1 as f32 + support).min(scene_dimensions.height as f32);
         let width = (x1 - x0).floor().max(1.0) as u32;
         let height = (y1 - y0).floor().max(1.0) as u32;
         if width >= scene_dimensions.width && height >= scene_dimensions.height {

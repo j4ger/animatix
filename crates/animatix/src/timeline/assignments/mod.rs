@@ -152,6 +152,60 @@ impl Timeline {
         // Effects are not actors, so the target resolves as `[scope, stage]`
         // rather than to a track. Handle it before the generic target walk.
         #[cfg(feature = "render")]
+        if target.len() == 1 {
+            // Bare stage form (`pix.size = 16`): the stage label must be
+            // unique across all `Filter` scopes; otherwise it is ambiguous
+            // and reported instead of guessed.
+            let stage_label = target[0].label_str();
+            let mut owners: Vec<String> = self
+                .tracks
+                .iter()
+                .filter(|(_, track)| track.kind == ActorKindId::Filter)
+                .filter(|(_, track)| track.effects.stage(stage_label).is_some())
+                .map(|(label, _)| label.clone())
+                .collect();
+            if owners.len() > 1 {
+                owners.sort();
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::InvalidAssignmentTarget,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Effect stage '{stage_label}' is declared in multiple Filter scopes ({}); qualify it as `scope.{stage_label}.<param>`",
+                            owners.join(", ")
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+                return;
+            }
+            if let Some(scope_label) = owners.pop() {
+                let stage_kind = self
+                    .tracks
+                    .get(&scope_label)
+                    .and_then(|track| track.effects.stage(stage_label))
+                    .map(|stage| stage.kind);
+                if let Some(kind) = stage_kind {
+                    write_effect_stage_param(
+                        self,
+                        &scope_label,
+                        stage_label,
+                        kind,
+                        property,
+                        value,
+                        &eval_env,
+                        t_start_ms,
+                        t_end_ms,
+                        duration_ms,
+                        easing,
+                        diagnostics,
+                        &assignment_subject,
+                    );
+                    return;
+                }
+            }
+        }
+        #[cfg(feature = "render")]
         if target.len() == 2 {
             let scope_label = target[0].label_str();
             let stage_label = target[1].label_str();

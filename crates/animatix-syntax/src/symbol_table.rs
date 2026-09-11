@@ -42,6 +42,14 @@ pub struct SymbolTable {
     pub namespaces: HashMap<String, SymbolTable>,
     /// Named type aliases declared in this file: name → annotation.
     pub type_aliases: HashMap<String, TypeAnnotation>,
+    /// Built-in and manifest-declared effect type names. Effect stages
+    /// (`pix: Pixelate`) validate against these instead of primitive
+    /// property tables.
+    pub effect_names: HashSet<String>,
+    /// Declared type of inline child labels (`pix: Pixelate` inside a
+    /// container body). Container children are collected before the full
+    /// `LabelInfo.ty` pipeline, so their declared type lives here.
+    pub inline_child_types: HashMap<String, String>,
 }
 
 /// Information about an import declaration.
@@ -150,6 +158,18 @@ pub(crate) fn effect_param_type(kind: crate::schema::PropertyValueKind) -> Optio
 }
 
 impl SymbolTable {
+    /// `true` when `ty` names a built-in or manifest-declared effect.
+    pub fn is_effect_type(&self, ty: &str) -> bool {
+        self.effect_names.contains(ty)
+    }
+
+    /// Declared type of an inline child label, if collected.
+    pub fn inline_child_type(&self, label: &str) -> Option<&str> {
+        self.inline_child_types.get(label).map(String::as_str)
+    }
+}
+
+impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
         let mut table = Self {
@@ -167,6 +187,7 @@ impl SymbolTable {
         // completion treat `soft: Blur, radius: 10` as valid.
         for spec in crate::schema::effect_specs() {
             table.types.insert(spec.type_name.to_string());
+            table.effect_names.insert(spec.type_name.to_string());
             table.properties.insert(
                 spec.type_name.to_string(),
                 spec.params.iter().map(|param| param.name.to_string()).collect(),
@@ -736,6 +757,7 @@ impl SymbolTable {
             InlineItem::Labeled {
                 label,
                 array_index,
+                ty,
                 props,
                 children,
                 ..
@@ -757,6 +779,10 @@ impl SymbolTable {
                         plot_params: Vec::new(),
                     },
                 );
+                // Declared types of inline children feed effect-stage
+                // validation; consumers gate on `is_effect_type`, so recording
+                // every label here is inert for non-effect children.
+                self.inline_child_types.insert(label.clone(), ty.clone());
                 if array_index.is_some() {
                     self.array_labels.insert(label.clone());
                 }

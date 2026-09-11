@@ -318,15 +318,53 @@ fn check_stmt(
 
             // `scope.stage.param = value` addresses an effect stage parameter,
             // which is not on the scope's property table. Validate it against
-            // the effect's declared parameter instead.
-            let effect_param = if target.len() >= 2 {
+            // the stage's declared effect — built-in or manifest-declared —
+            // resolved through the stage label's collected type. A bare
+            // `stage.param = value` resolves the same way when the stage is
+            // the direct target.
+            let stage_label = target.last().map(|seg| seg.label_str());
+            let effect_ty = stage_label
+                .and_then(|label| symbols.inline_child_type(label))
+                .filter(|ty| symbols.is_effect_type(ty))
+                .map(str::to_string);
+            if let Some(effect_ty) = effect_ty {
+                if let Some(known_props) = symbols.properties.get(&effect_ty) {
+                    if !known_props.contains(property) {
+                        diagnostics.push(span_diagnostic(
+                            DiagnosticSeverity::Info,
+                            DiagnosticCode::UnknownProperty,
+                            format!("Effect '{}' has no parameter '{}'", effect_ty, property),
+                            line,
+                            col,
+                            end_col,
+                        ));
+                    }
+
+                    let key = (effect_ty.clone(), property.to_string());
+                    if let Some(expected_type) = symbols.property_types.get(&key) {
+                        let actual_type = symbols.infer_expr_type(value);
+                        if !crate::typing::is_subtype(&actual_type, expected_type) {
+                            diagnostics.push(span_diagnostic(
+                                DiagnosticSeverity::Warning,
+                                DiagnosticCode::TypeMismatch,
+                                format!(
+                                    "Type mismatch for '{}.{}': expected {:?}, found {:?}",
+                                    effect_ty, property, expected_type, actual_type
+                                ),
+                                line,
+                                col,
+                                end_col,
+                            ));
+                        }
+                    }
+                }
+            } else if let Some(param) = if target.len() >= 2 {
                 crate::schema::effect_specs()
                     .iter()
                     .find_map(|spec| spec.params.iter().find(|param| param.name == property))
             } else {
                 None
-            };
-            if let Some(param) = effect_param {
+            } {
                 if let Some(expected_type) = crate::symbol_table::effect_param_type(param.kind) {
                     let actual_type = symbols.infer_expr_type(value);
                     if !crate::typing::is_subtype(&actual_type, &expected_type) {

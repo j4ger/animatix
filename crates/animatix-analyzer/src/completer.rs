@@ -361,6 +361,26 @@ fn property_completions(
     if let Some(ty) = actor_type {
         // Effects are not primitives: offer their declared parameters plus the
         // implicit `enabled` flag, and nothing else.
+        if let Some(effect) = manifest.effects.iter().find(|effect| effect.name == *ty) {
+            let display = effect.display_name.as_deref().unwrap_or(&effect.name);
+            for param in &effect.params {
+                items.push(CompletionItem {
+                    label: param.name.clone(),
+                    kind: CompletionKind::Property,
+                    detail: Some(format!("{display} parameter")),
+                    documentation: None,
+                    insert_text: Some(format!("{}: ", param.name)),
+                });
+            }
+            items.push(CompletionItem {
+                label: "enabled".to_string(),
+                kind: CompletionKind::Property,
+                detail: Some(format!("{display} parameter")),
+                documentation: None,
+                insert_text: Some("enabled: ".to_string()),
+            });
+            return items;
+        }
         if let Some(effect) = animatix_syntax::schema::effect_spec(ty) {
             for param in effect.params {
                 items.push(CompletionItem {

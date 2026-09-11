@@ -10,6 +10,8 @@
 //   - `scale()` — native expression function
 //   - `caption` / `image_url` — read by the plugin and rendered at offsets
 //     chosen by the plugin (caption below the pulse, texture over it)
+//   - `Pixelate` — a plugin-authored post-processing effect declared in the
+//     manifest `[[effects]]` section and applied to a `Filter` scope
 //
 // Build the plugin first, then check with the manifest so the analyzer knows
 // the extension types and properties:
@@ -34,6 +36,13 @@ dot:   Pulse, glow: 0.25, mode: "dot",   caption: "dot",   at: (380, 400), origi
 ring:  Pulse, glow: 0.4,  mode: "ring",  caption: "ring",  at: (640, 400), origin: (0, 0)
 cross: Pulse, glow: 0.35, mode: "cross", caption: "cross", at: (900, 400), origin: (0, 0)
 
+// Plugin effect on a Filter scope: manifest-declared `Pixelate`, animated
+// through the standard `scope.stage.param` assignment form.
+panel: Filter, anchor: scene.center, offset: (0, 40) {
+  pix: Pixelate, size: 6
+  panel_bg: Rect, size: (1100, 420), color: (0.08, 0.08, 0.1, 0.6)
+}
+
 #0.5s
 fade-in title [500ms]
 fade-in subtitle [500ms, delay: 150ms]
@@ -41,16 +50,21 @@ stagger [120ms] {
   fade-in dot [400ms]
   fade-in ring [400ms]
   fade-in cross [400ms]
+  fade-in panel [400ms]
 }
 
 #2s
 throb dot, ring [strength: 0.8]
 dot.glow = 0.6 [400ms]
 ring.mode = "cross" [300ms]
+panel.pix.size = 12 [1.5s, ease: ease-in-out]
 
 #3s
 dot.glow = scale(0.25, 2.0) [400ms]
 cross.mode = "dot" [300ms]
+
+#3.5s
+panel.pix.size = 6 [1.5s, ease: ease-in-out]
 
 #4s
 ring.glow = 0.6 [500ms]

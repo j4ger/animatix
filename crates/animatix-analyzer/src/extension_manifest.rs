@@ -36,6 +36,35 @@ pub struct ExtensionManifest {
     pub functions: Vec<FunctionDescriptor>,
     /// Service declarations.
     pub services: Vec<ServiceDescriptor>,
+    /// Plugin-authored post-processing effect declarations.
+    pub effects: Vec<ManifestEffect>,
+}
+
+/// Manifest metadata for one plugin-authored effect.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ManifestEffect {
+    /// Authored type name used in `.amx` (`pix: Pixelate`).
+    pub name: String,
+    /// Human-readable name for GUI labels and completion detail.
+    pub display_name: Option<String>,
+    /// Declared parameters.
+    pub params: Vec<ManifestEffectParam>,
+}
+
+/// One parameter of a manifest-declared effect.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ManifestEffectParam {
+    /// Parameter name as authored.
+    pub name: String,
+    /// Declared value type string (`"Num"`, `"Bool"`, `"Vec2"`, `"Vec4"`).
+    pub ty: String,
+}
+
+impl ManifestEffect {
+    /// The name used for completion detail lines.
+    pub fn display_label(&self) -> &str {
+        self.display_name.as_deref().unwrap_or(&self.name)
+    }
 }
 
 #[derive(Deserialize)]
@@ -52,6 +81,24 @@ struct RawManifest {
     functions: Vec<RawFunction>,
     #[serde(default)]
     services: Vec<RawService>,
+    #[serde(default)]
+    effects: Vec<RawEffect>,
+}
+
+#[derive(Deserialize)]
+struct RawEffect {
+    name: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    params: Vec<RawEffectParam>,
+}
+
+#[derive(Deserialize)]
+struct RawEffectParam {
+    name: String,
+    #[serde(rename = "type")]
+    ty: String,
 }
 
 #[derive(Deserialize)]
@@ -155,6 +202,24 @@ struct OutputManifest<'a> {
     actions: Vec<OutputAction<'a>>,
     functions: Vec<OutputFunction<'a>>,
     services: Vec<OutputService<'a>>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    effects: Vec<OutputEffect<'a>>,
+}
+
+#[derive(Serialize)]
+struct OutputEffect<'a> {
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    params: Vec<OutputEffectParam<'a>>,
+}
+
+#[derive(Serialize)]
+struct OutputEffectParam<'a> {
+    name: &'a str,
+    #[serde(rename = "type")]
+    ty: &'a str,
 }
 
 #[derive(Serialize)]
@@ -274,6 +339,7 @@ impl ExtensionManifest {
             merged.actions.extend(manifest.actions.iter().cloned());
             merged.functions.extend(manifest.functions.iter().cloned());
             merged.services.extend(manifest.services.iter().cloned());
+            merged.effects.extend(manifest.effects.iter().cloned());
         }
         merged
     }
@@ -292,6 +358,7 @@ impl ExtensionManifest {
     ) -> Self {
         Self {
             library,
+            effects: Vec::new(),
             primitives: primitives
                 .iter()
                 .map(|spec| {
@@ -409,6 +476,22 @@ impl ExtensionManifest {
                     help: service.help.as_deref(),
                 })
                 .collect(),
+            effects: self
+                .effects
+                .iter()
+                .map(|effect| OutputEffect {
+                    name: &effect.name,
+                    display_name: effect.display_name.as_deref(),
+                    params: effect
+                        .params
+                        .iter()
+                        .map(|param| OutputEffectParam {
+                            name: &param.name,
+                            ty: &param.ty,
+                        })
+                        .collect(),
+                })
+                .collect(),
         };
         toml::to_string(&output).map_err(|err| err.to_string())
     }
@@ -449,6 +532,29 @@ impl ExtensionManifest {
                     .entry((actor_type.clone(), spec.name.to_string()))
                     .or_insert_with(|| spec.ty.clone());
             }
+        }
+        // Plugin-authored effects behave like built-in effects for the
+        // analyzer: the type is known, the declared parameters (plus the
+        // implicit `enabled`) complete and validate.
+        for effect in &self.effects {
+            table.types.insert(effect.name.clone());
+            table.effect_names.insert(effect.name.clone());
+            let properties = table.properties.entry(effect.name.clone()).or_default();
+            for param in &effect.params {
+                if !properties.iter().any(|existing| existing == &param.name) {
+                    properties.push(param.name.clone());
+                }
+                table.property_types.insert(
+                    (effect.name.clone(), param.name.clone()),
+                    parse_manifest_type(&param.ty),
+                );
+            }
+            if !properties.iter().any(|existing| existing == "enabled") {
+                properties.push("enabled".to_string());
+            }
+            table
+                .property_types
+                .insert((effect.name.clone(), "enabled".to_string()), Type::Bool);
         }
         for action in &self.actions {
             table.actions.insert(action.name.clone());
@@ -550,6 +656,23 @@ impl ExtensionManifest {
             })
             .collect::<Vec<_>>();
 
+        let effects = raw
+            .effects
+            .into_iter()
+            .map(|effect| ManifestEffect {
+                name: effect.name,
+                display_name: effect.display_name,
+                params: effect
+                    .params
+                    .into_iter()
+                    .map(|param| ManifestEffectParam {
+                        name: param.name,
+                        ty: param.ty,
+                    })
+                    .collect(),
+            })
+            .collect();
+
         Self {
             library: raw.library,
             primitives,
@@ -557,6 +680,7 @@ impl ExtensionManifest {
             actions,
             functions,
             services,
+            effects,
         }
     }
 }

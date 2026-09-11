@@ -459,7 +459,7 @@ backlog is now fully worked through; new work should start from fresh
 `perf_driver`/`export_alloc_driver`/`export_perf_driver` evidence per
 §8 of the perf doc.
 
-### Post-Processing Effect Abstraction (implemented; derived ROI remaining)
+### Post-Processing Effect Abstraction (implemented)
 
 Goal: make pixel effects a first-class, composable chain owned by a `Filter`
 compositing scope, and let native plugins author effects by shipping
@@ -516,18 +516,17 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
   `Pixelate` effect. Extension manifests do not yet carry effect metadata, so
   analyzer completion for plugin effect parameters is future work.
 
-**Remaining.**
+**Remaining (optional optimizations only).**
 
-1. **Derived ROI.** The explicit `Filter, bounds: (x, y, w, h)` knob is
-   implemented (crop → effect dispatch at region size → composite at origin,
-   zero-readback blit is viewport-scoped). Deriving the region from content
-   bounds still needs a content-bounds pre-pass before the sub-scene render,
-   plus generalising `can_post_composite_filter` to "no later sibling
-   intersects the ROI". PF-7 is already protected: GPU textures stay at full
-   scene capacity and only seed/dispatch/readback shrink to the region.
-2. **Analyzer metadata for plugin effects.** Extension manifests do not yet
-   describe effects, so completion/validation for plugin effect parameters is
-   unavailable (built-in effects are fully covered by `effect_specs()`).
+1. **Derived-ROI adoption on the zero-readback path** is gated by the existing
+   last-rendered-element precondition; generalising it to per-region
+   intersection ("no later sibling intersects the ROI") would let mid-scene
+   scopes take the zero-readback path too. The readback path already derives
+   the region automatically.
+2. **Effect metadata in `plugin describe` output** — the generated manifest
+   snapshot does not yet round-trip the `[[effects]]` section from runtime
+   registrations (the analyzer reads effects from the authored manifest
+   directly).
 
 **Guardrails.** Preserve the zero-readback `PendingComposite` park protocol,
 `RenderedFrame` buffer reuse, chain/declaration order determinism, and the PF-7/

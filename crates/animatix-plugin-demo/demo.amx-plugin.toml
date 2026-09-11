@@ -84,3 +84,11 @@ type = "Num"
 name = "demo.pulse"
 type = "usize"
 help = "Demo native service value"
+
+[[effects]]
+name = "Pixelate"
+display_name = "Pixelate"
+
+[[effects.params]]
+name = "size"
+type = "Num"

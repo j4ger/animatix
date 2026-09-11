@@ -92,11 +92,19 @@ through the readback path (drawn at the origin) or the zero-readback path
 copy, dispatch, and readback shrink. Without `bounds`, the whole scene is
 processed exactly as before.
 
-**Remaining (derived ROI).** Deriving the region from content bounds —
-`content bounds ∪ max support over the chain` instead of an authored box — needs
-a content-bounds pre-pass before the sub-scene render (bounds are currently only
-known during evaluation). Once that exists, an animated `Blur.radius` widens the
-region automatically.
+**Derived ROI (implemented).** When no `bounds:` is authored, the region is
+derived from the content bounds the sub-scene evaluation itself records
+(`precise_bounds`): union the content subtree's world bounds, pad by the chain's
+worst-case support, and clamp to the scene. The bounds are exact for the frame
+being rendered — no staleness, no heuristics — and since the GPU textures stay
+at full scene capacity, a region that grows or shrinks between frames never
+reallocates. `Blur.radius` animating simply widens the region automatically.
+
+Composite ordering: the zero-readback path keeps the existing
+`can_post_composite_filter` precondition ("this scope is the last rendered
+element"), under which a rect-scoped composite can never overwrite later
+geometry. Generalising that precondition to per-region intersection remains an
+optional optimization.
 
 Two constraints:
 
