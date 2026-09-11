@@ -315,6 +315,16 @@ impl AnimationTrack {
         }
     }
 
+    /// Set this track's primitive identity, deriving `kind` from it.
+    ///
+    /// The single funnel for identity writes, so `actor_type` and `kind` cannot
+    /// drift: built-in type names map to their `ActorKindId`, and anything
+    /// unregistered (extension primitives) maps to [`ActorKindId::Extension`].
+    pub(crate) fn set_identity(&mut self, actor_type: &str) {
+        self.actor_type = actor_type.to_string();
+        self.kind = ActorKindId::from_type_name(actor_type).unwrap_or(ActorKindId::Extension);
+    }
+
     /// Rebuild the property plan from the current actor kind.
     pub fn rebuild_property_plan(&mut self) {
         let previous = std::mem::take(&mut self.property_plan);

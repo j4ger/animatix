@@ -256,6 +256,10 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
+                    // Only the registry key here: an extension primitive owns its
+                    // `kind` through `kind_id()` (an in-process extension can
+                    // opt into a built-in kind like `Text`), so we must not
+                    // overwrite it with the `Extension` fallback.
                     track.actor_type = ty.to_string();
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
@@ -362,8 +366,7 @@ impl Timeline {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
-            early_track.kind = kind_id;
-            early_track.actor_type = ty.to_string();
+            early_track.set_identity(ty);
             early_track.rebuild_property_plan();
         }
 
@@ -702,8 +705,7 @@ impl Timeline {
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
-        track.kind = kind_id;
-        track.actor_type = ty.to_string();
+        track.set_identity(ty);
         track.rebuild_property_plan();
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
@@ -1217,7 +1219,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(kind_id) = super::ActorKindId::from_type_name(ty) else {
+        if super::ActorKindId::from_type_name(ty).is_none() {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,
@@ -1227,7 +1229,7 @@ impl Timeline {
                 .with_subject(label),
             );
             return;
-        };
+        }
 
         // First-declaration status must be captured BEFORE the track exists:
         // a first declaration with children is seeded hidden-by-default.
@@ -1241,8 +1243,7 @@ impl Timeline {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
-            entry.kind = kind_id;
-            entry.actor_type = ty.to_string();
+            entry.set_identity(ty);
             entry.rebuild_property_plan();
         }
         let existing_track = self
@@ -1339,8 +1340,7 @@ impl Timeline {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
-            track.kind = kind_id;
-            track.actor_type = ty.to_string();
+            track.set_identity(ty);
             track.rebuild_property_plan();
             track.procedural_plot = procedural_plot;
             if let Some(pl) = parent_label {

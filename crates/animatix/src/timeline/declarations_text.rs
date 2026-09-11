@@ -333,13 +333,7 @@ impl Timeline {
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.
-        track.kind = match kind {
-            TextDeclarationKind::Text => super::ActorKindId::Text,
-            TextDeclarationKind::Code => super::ActorKindId::Code,
-            TextDeclarationKind::Typst => super::ActorKindId::Typst,
-            TextDeclarationKind::Math => super::ActorKindId::Math,
-        };
-        track.actor_type = kind.type_name().to_string();
+        track.set_identity(kind.type_name());
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

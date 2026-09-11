@@ -286,6 +286,46 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
 }
 
 #[test]
+fn every_built_track_identity_is_consistent() {
+    // `actor_type` and `kind` are written together through `set_identity`; this
+    // guards against a future site writing `kind` directly and drifting.
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+        title: Text, text: "hi"
+        code: Code, text: "let x = 1"
+        r: Rect, size: (10, 10)
+        e: Ellipse, size: (10, 10)
+        p: Polygon, points: {(0, 0), (10, 0), (0, 10)}
+        row: Row { c: Rect, size: (5, 5) }
+        g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), size: (100, 100) {
+            curve: PlotCurve, kind: "cartesian", func: (x) => x
+        }
+
+        #0s
+        fade-in title [1ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    for (label, track) in &timeline.tracks {
+        let expected = timeline
+            .primitive_registry
+            .find(&track.actor_type)
+            .map(|primitive| primitive.kind_id())
+            .unwrap_or(crate::timeline::ActorKindId::Extension);
+        assert_eq!(
+            track.kind, expected,
+            "track '{label}' kind {:?} drifted from actor_type '{}'",
+            track.kind, track.actor_type
+        );
+    }
+}
+
+#[test]
 fn unrevealed_graph_child_still_warns_never_revealed() {
     // Without any entrance action the hosted child stays invisible, and the
     // build must say so. The graph itself is visible-by-default (its

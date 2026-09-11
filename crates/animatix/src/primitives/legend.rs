@@ -214,8 +214,7 @@ impl Primitive for LegendPrimitive {
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string(), "Legend"));
-        track.kind = ActorKindId::Legend;
-        track.actor_type = "Legend".to_string();
+        track.set_identity("Legend");
 
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = ctx.time_ms as u64;

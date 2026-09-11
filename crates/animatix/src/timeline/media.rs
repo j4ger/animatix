@@ -136,19 +136,15 @@ impl Timeline {
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string(), actor_type));
 
-        // Ensure the track kind matches the declaration type.
-        // Resolved via `ActorKindId::from_type_name` instead of string
-        // comparisons so the mapping cannot drift from the registry.
+        // Ensure the track identity matches the declaration type (single funnel,
+        // so `kind` cannot drift from `actor_type`).
+        track.set_identity(actor_type);
+
+        // Media-specific decode below distinguishes Svg from raster Image.
         let is_svg =
             super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Svg);
         let is_image =
             super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Image);
-        track.kind = match (is_svg, is_image) {
-            (true, _) => super::ActorKindId::Svg,
-            (_, true) => super::ActorKindId::Image,
-            _ => track.kind,
-        };
-        track.actor_type = actor_type.to_string();
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
@@ -300,8 +296,7 @@ impl Timeline {
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| AnimationTrack::new(label.to_string(), "Audio"));
-        track.kind = super::ActorKindId::Audio;
-        track.actor_type = "Audio".to_string();
+        track.set_identity("Audio");
 
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = time_ms as u64;

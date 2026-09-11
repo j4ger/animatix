@@ -759,8 +759,11 @@ impl Primitive for NativePrimitiveAdapter {
             let track = timeline.tracks.entry(label.to_string()).or_insert_with(|| {
                 crate::timeline::AnimationTrack::new(label.to_string(), self.type_name.clone())
             });
-            track.kind = ActorKindId::Extension;
-            track.actor_type = self.type_name.clone();
+            let type_name = self.type_name.clone();
+            track.actor_type = type_name;
+            // Native adapters report `ActorKindId::Extension`; use the primitive's
+            // own kind so the identity stays consistent with `kind_id()`.
+            track.kind = self.kind_id();
             track.rebuild_property_plan();
         }
         let Some(build) = self.build else {

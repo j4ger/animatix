@@ -640,6 +640,22 @@ impl Timeline {
                     .with_subject(label),
                 );
             }
+            // `actor_type` and `kind` are written together through
+            // `AnimationTrack::set_identity` (built-ins) or by the primitive's
+            // own `kind_id()` (extensions); anything else would show as drift.
+            let expected_kind = timeline
+                .primitive_registry
+                .find(&track.actor_type)
+                .map(|primitive| primitive.kind_id())
+                .unwrap_or(crate::timeline::ActorKindId::Extension);
+            if track.kind != expected_kind {
+                tracing::warn!(
+                    "track '{label}' kind {:?} disagrees with actor_type '{}' (expected {:?})",
+                    track.kind,
+                    track.actor_type,
+                    expected_kind
+                );
+            }
         }
 
         // Check for always-blocks overriding keyframed properties.
