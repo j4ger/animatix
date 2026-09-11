@@ -21,7 +21,7 @@ pub(crate) fn transport_ui(
 ) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
+    ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
 
     // Go to start
     if ui
@@ -173,16 +173,10 @@ pub(crate) fn transport_ui(
 
     // Timecode + duration + fps
     let current_tc = preview.playback.timecode_string();
-    let dur = preview.playback.duration_s.max(0.0);
-    let dh = (dur / 3600.0).floor() as u32;
-    let dm = ((dur % 3600.0) / 60.0).floor() as u32;
-    let ds = (dur % 60.0).floor() as u32;
-    let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
-    let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
     let fps_val = preview.playback.fps;
     ui.add(
         egui::Label::new(
-            egui::RichText::new(format!("{} / {}  {:.0}fps", current_tc, duration_tc, fps_val))
+            egui::RichText::new(format!("{current_tc}  {fps_val:.0}fps"))
                 .font(TextRole::Mono.font_id())
                 .color(theme.text.primary),
         )
