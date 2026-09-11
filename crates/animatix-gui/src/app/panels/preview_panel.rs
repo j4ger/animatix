@@ -1,14 +1,140 @@
 //! Preview panel: canvas with rulers, zoom/pan, drag interaction, and overlays.
 
 use animatix::timeline::SceneDimensions;
-use egui::Vec2;
+use egui::{RichText, Vec2};
+use eparts::widget::UiExt;
 
 use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
+use crate::app::components::button::{Button, toolbar_separator};
+use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;
-use crate::app::preview::{self, DragState, fit_preview, selection};
+use crate::app::preview::{self, DragState, ToolMode, fit_preview, selection};
+
+/// Tool and view controls for the canvas, kept next to the surface they affect
+/// rather than in the global toolbar (design doc §12.2).
+fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+    use egui_phosphor::regular as icons;
+
+    let theme = eparts::theme(ui);
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
+    egui::Frame::new()
+        .fill(theme.surface.base)
+        .inner_margin(egui::Margin::symmetric(sp.base.space_2 as i8, sp.base.space_1 as i8))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
+
+                // Tool switcher: the visible mode state that used to be
+                // keyboard-only.
+                let tools: [(ToolMode, &str, &str, &str); 6] = [
+                    (ToolMode::Select, icons::CURSOR, "Select", "Select tool (V)"),
+                    (ToolMode::Move, icons::HAND_GRABBING, "Move", "Move tool (G)"),
+                    (ToolMode::Rotate, icons::ARROW_CLOCKWISE, "Rotate", "Rotate tool (R)"),
+                    (ToolMode::Scale, icons::ARROWS_OUT_SIMPLE, "Scale", "Scale tool (S)"),
+                    (ToolMode::Vertex, icons::POLYGON, "Vertex", "Vertex tool (A)"),
+                    (ToolMode::Pivot, icons::CROSSHAIR, "Pivot", "Pivot tool (P)"),
+                ];
+                for (mode, icon, label, tip) in tools {
+                    let active = *ctx.tool_mode == mode;
+                    let resp = ui.add(Button::ghost("").with_icon(icon).active(active));
+                    text_tooltip(ui, resp.id.with(("tool", label)), &resp, tip);
+                    if resp.clicked() {
+                        *ctx.tool_mode = mode;
+                        ctx.preview.status = format!("Tool: {label}");
+                    }
+                }
+
+                toolbar_separator(ui);
+
+                // Snapping toggle (there was previously no way to see or
+                // change this).
+                let snap = ctx.preview.snap.snap_enabled;
+                let snap_resp = ui.add(Button::ghost("").with_icon(icons::MAGNET).active(snap));
+                text_tooltip(
+                    ui,
+                    snap_resp.id.with("snap_tip"),
+                    &snap_resp,
+                    if snap {
+                        "Snapping on (hold Alt to bypass)"
+                    } else {
+                        "Snapping off"
+                    },
+                );
+                if snap_resp.clicked() {
+                    ctx.preview.snap.snap_enabled = !snap;
+                }
+
+                // View toggles
+                let grid = ctx.preview.overlay.show_grid;
+                let grid_resp = ui.stable_selectable_label(grid, "Grid");
+                text_tooltip(ui, grid_resp.id.with("grid_tip"), &grid_resp, "Toggle grid");
+                if grid_resp.clicked() {
+                    ctx.preview.overlay.show_grid = !grid;
+                }
+
+                let guides = ctx.preview.overlay.show_guides;
+                let guides_resp = ui.stable_selectable_label(guides, "Guides");
+                text_tooltip(ui, guides_resp.id.with("guides_tip"), &guides_resp, "Toggle guides");
+                if guides_resp.clicked() {
+                    ctx.preview.overlay.show_guides = !guides;
+                }
+
+                let labels = ctx.preview.overlay.show_actor_labels;
+                let labels_resp = ui.stable_selectable_label(labels, "Labels");
+                text_tooltip(
+                    ui,
+                    labels_resp.id.with("labels_tip"),
+                    &labels_resp,
+                    "Toggle actor labels",
+                );
+                if labels_resp.clicked() {
+                    ctx.preview.overlay.show_actor_labels = !labels;
+                }
+
+                // Zoom, pinned right.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let zoom = ctx.preview.viewport.preview_zoom;
+                    let zoom_label = if (zoom - 1.0).abs() < 0.05 {
+                        "100%"
+                    } else if (zoom - 1.5).abs() < 0.05 {
+                        "150%"
+                    } else if (zoom - 2.0).abs() < 0.05 {
+                        "200%"
+                    } else {
+                        "Fit"
+                    };
+                    ui.menu_button(
+                        RichText::new(zoom_label)
+                            .size(TextRole::BodyS.size())
+                            .color(theme.text.secondary),
+                        |ui| {
+                            ui.set_min_width(80.0);
+                            if ui.stable_selectable_label(false, "Fit").clicked() {
+                                ctx.preview.fit_zoom_requested = true;
+                                ui.close();
+                            }
+                            for (z, name) in [(1.0_f32, "100%"), (1.5, "150%"), (2.0, "200%")] {
+                                if ui
+                                    .stable_selectable_label((zoom - z).abs() < 0.05, name)
+                                    .clicked()
+                                {
+                                    ctx.preview.viewport.preview_zoom = z;
+                                    ctx.preview.viewport.preview_pan = Vec2::new(
+                                        ctx.scene_dimensions.width as f32 / 2.0,
+                                        ctx.scene_dimensions.height as f32 / 2.0,
+                                    );
+                                    ui.close();
+                                }
+                            }
+                        },
+                    );
+                });
+            });
+        });
+}
 
 // ─── Free functions for the preview canvas ─────────────────────────────────
 
@@ -45,6 +171,8 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
         .inner_margin(egui::Margin::ZERO)
         .show(ui, |ui| {
             ui.vertical(|ui| {
+                preview_header_ui(ctx, ui);
+
                 // Handle fit-zoom request from the global toolbar.
                 if ctx.preview.fit_zoom_requested {
                     ctx.preview.fit_zoom_requested = false;

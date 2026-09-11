@@ -6,6 +6,7 @@ pub mod plugin_status;
 pub mod settings;
 pub mod shortcut_cheat_sheet;
 pub mod toolbar;
+pub mod transport;
 
 use crate::app::GuiShell;
 use crate::app::commands::{Command, DocumentCommand, DragEvent, Effect, ShellAction, ViewAction};

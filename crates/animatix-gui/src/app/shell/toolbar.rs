@@ -1,5 +1,4 @@
 use egui::{Align, RichText, Stroke, Vec2};
-use eparts::widget::UiExt;
 
 use crate::app::GuiShell;
 use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
@@ -235,45 +234,18 @@ impl GuiShell {
                         }
                     }
 
-                    // ── Center: viewport toggles + zoom cycle ──
+                    // ── Center: record + debug. Canvas view controls (grid,
+                    // guides, labels, zoom) now live in the preview header. ──
                     ui.add_space(sp.base.space_5);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
-                        // Grid toggle
-                        let grid = self.preview_store.preview.overlay.show_grid;
-                        let grid_btn = ui.stable_selectable_label(grid, "Grid");
-                        text_tooltip(ui, grid_btn.id.with("grid_tip"), &grid_btn, "Toggle grid");
-                        if grid_btn.clicked() {
-                            self.preview_store.preview.overlay.show_grid = !grid;
-                        }
-
-                        // Guides toggle
-                        let guides = self.preview_store.preview.overlay.show_guides;
-                        let guides_btn = ui.stable_selectable_label(guides, "Guides");
-                        text_tooltip(
+                        // Global playback transport (survives bottom-tab switches)
+                        super::transport::transport_ui(
                             ui,
-                            guides_btn.id.with("guides_tip"),
-                            &guides_btn,
-                            "Toggle guides",
+                            &mut self.preview_store.preview,
+                            commands,
                         );
-                        if guides_btn.clicked() {
-                            self.preview_store.preview.overlay.show_guides = !guides;
-                        }
-
-                        // Labels toggle
-                        let labels = self.preview_store.preview.overlay.show_actor_labels;
-                        let labels_btn = ui.stable_selectable_label(labels, "Labels");
-                        text_tooltip(
-                            ui,
-                            labels_btn.id.with("labels_tip"),
-                            &labels_btn,
-                            "Toggle actor labels",
-                        );
-                        if labels_btn.clicked() {
-                            self.preview_store.preview.overlay.show_actor_labels = !labels;
-                        }
-
                         ui.separator();
 
                         // Auto-key / record toggle. This is the single control
@@ -323,65 +295,6 @@ impl GuiShell {
                                     self.preview_store.preview.overlay.show_performance_hud;
                                 if ui.checkbox(&mut perf, "Performance HUD").clicked() {
                                     self.preview_store.preview.overlay.show_performance_hud = perf;
-                                }
-                            },
-                        );
-
-                        ui.separator();
-
-                        // Zoom dropdown
-                        let zoom = self.preview_store.preview.viewport.preview_zoom;
-                        let zoom_label = if (zoom - 1.0).abs() < 0.05 {
-                            "100%"
-                        } else if (zoom - 1.5).abs() < 0.05 {
-                            "150%"
-                        } else if (zoom - 2.0).abs() < 0.05 {
-                            "200%"
-                        } else {
-                            "Fit"
-                        };
-                        ui.menu_button(
-                            RichText::new(zoom_label)
-                                .size(TextRole::BodyS.size())
-                                .color(t.text.secondary),
-                            |ui| {
-                                ui.set_min_width(80.0);
-                                if ui.stable_selectable_label(false, "Fit").clicked() {
-                                    self.preview_store.preview.fit_zoom_requested = true;
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 1.0).abs() < 0.05, "100%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 1.0;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 1.5).abs() < 0.05, "150%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 1.5;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 2.0).abs() < 0.05, "200%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 2.0;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
                                 }
                             },
                         );

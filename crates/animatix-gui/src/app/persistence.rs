@@ -36,6 +36,9 @@ mod metrics {
 /// Vertical chrome outside the dock area: toolbar + status bar.
 const VERTICAL_CHROME: f32 = 28.0 + 22.0;
 
+/// Narrowest the sidebar may be squeezed before the preview starts giving ground.
+const RAIL_MIN: f32 = 48.0;
+
 fn clamp_ratio(ratio: f32, available: f32, min: f32, max: f32) -> f32 {
     (ratio * available).clamp(min, max)
 }
@@ -261,15 +264,25 @@ pub(super) fn enforce_layout_bounds(
             } else {
                 0.0
             };
-            // Guarantee the preview floor by giving back from detail, then left.
-            let overflow = (metrics::PREVIEW_MIN + left + detail_px) - width;
-            if overflow > 0.0 {
-                let taken = detail_px.min(overflow);
-                detail_px -= taken;
-                left = (left - (overflow - taken)).max(0.0);
+            let mut preview_px = (width - left - detail_px).max(0.0);
+            // Reclaim in reverse priority when the window is too small: the
+            // detail column yields first, then the sidebar shrinks toward an
+            // icon-rail width, and only then does the preview give ground. This
+            // keeps every region present instead of collapsing one to nothing.
+            if preview_px < metrics::PREVIEW_MIN {
+                let need = metrics::PREVIEW_MIN - preview_px;
+                let take = detail_px.min(need);
+                detail_px -= take;
+                preview_px += take;
+            }
+            if preview_px < metrics::PREVIEW_MIN {
+                let need = metrics::PREVIEW_MIN - preview_px;
+                let take = (left - RAIL_MIN).max(0.0).min(need);
+                left -= take;
+                preview_px += take;
             }
             linear.shares.set_share(sidebar, left);
-            linear.shares.set_share(preview, (width - left - detail_px).max(0.0));
+            linear.shares.set_share(preview, preview_px);
             if detail_visible {
                 linear.shares.set_share(detail, detail_px);
             }

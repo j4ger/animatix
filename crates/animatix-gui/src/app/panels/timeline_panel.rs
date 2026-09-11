@@ -22,12 +22,12 @@ use std::time::Duration;
 
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
-use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Sense, Stroke, Vec2};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{ActionQueue, Command, PlaybackCommand, ShellAction};
-use crate::app::components::button::{self, Button, toolbar_separator};
+use crate::app::components::button::Button;
 use crate::app::components::{layout, text_tooltip};
 use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
@@ -219,183 +219,18 @@ fn bar_interaction(
     }
 }
 
-/// Render the playback transport strip: play/pause/stop buttons, speed
-/// dropdown, loop/ping-pong toggle, zoom controls, and timecode display.
-fn render_transport_strip(
+/// Timeline-local controls: zoom. Playback transport is global (`shell::transport`).
+fn render_timeline_zoom_bar(
     ui: &mut egui::Ui,
-    scroll_rect: egui::Rect,
-    strip_top: f32,
-    strip_bot: f32,
+    strip_rect: egui::Rect,
     preview: &mut PreviewPaneState,
-    commands: &mut ActionQueue,
 ) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    let strip_rect = Rect::from_min_size(
-        Pos2::new(scroll_rect.left(), strip_top),
-        Vec2::new(scroll_rect.width(), sp.timeline.playback_strip_height),
-    );
-
     ui.scope_builder(egui::UiBuilder::new().max_rect(strip_rect), |ui| {
-        // Background fill
-        ui.painter().rect_filled(
-            Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), strip_top),
-                Pos2::new(scroll_rect.right(), strip_bot),
-            ),
-            0.0,
-            theme.surface.base,
-        );
-
+        ui.painter().rect_filled(strip_rect, 0.0, theme.surface.base);
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add_space(sp.base.space_2);
-
-            // Go to start
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::SKIP_BACK)
-                        .with_tooltip("Go to start"),
-                )
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::ScrubTo(0.0).into());
-            }
-
-            // Previous keyframe
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::CARET_LEFT)
-                        .with_tooltip("Previous keyframe"),
-                )
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::PrevKeyframe.into());
-            }
-
-            // Play / Pause
-            if ui
-                .add(
-                    Button::icon(button::play_pause_icon(preview.playback.is_playing))
-                        .with_tooltip("Play/Pause (Space)"),
-                )
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::TogglePlayback.into());
-            }
-
-            // Next keyframe
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::CARET_RIGHT)
-                        .with_tooltip("Next keyframe"),
-                )
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::NextKeyframe.into());
-            }
-
-            // Frame-step back
-            if ui
-                .add(Button::ghost("").with_icon("⏪").with_tooltip("Step back one frame"))
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::FrameStepBackward.into());
-            }
-
-            // Frame-step forward
-            if ui
-                .add(Button::ghost("").with_icon("⏩").with_tooltip("Step forward one frame"))
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::FrameStepForward.into());
-            }
-
-            // Go to end
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::SKIP_FORWARD)
-                        .with_tooltip("Go to end"),
-                )
-                .clicked()
-            {
-                commands.push_back(PlaybackCommand::ScrubTo(preview.playback.duration_s).into());
-            }
-
-            toolbar_separator(ui);
-
-            // Speed dropdown
-            const SPEEDS: [(f32, &str); 4] = [
-                (0.5, "\u{BD}\u{D7}"),
-                (1.0, "1\u{D7}"),
-                (2.0, "2\u{D7}"),
-                (4.0, "4\u{D7}"),
-            ];
-            let si = SPEEDS
-                .iter()
-                .position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON)
-                .unwrap_or(1);
-            ui.menu_button(
-                RichText::new(SPEEDS[si].1)
-                    .monospace()
-                    .size(TextRole::BodyS.size())
-                    .color(theme.text.secondary),
-                |ui| {
-                    for (speed, label) in &SPEEDS {
-                        let is_active =
-                            (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
-                        if ui.stable_selectable_label(is_active, *label).clicked() {
-                            preview.playback.playback_speed = *speed;
-                            ui.close();
-                        }
-                    }
-                },
-            );
-
-            // Loop toggle
-            let loop_active =
-                preview.playback.loop_start_s.is_some() && preview.playback.loop_end_s.is_some();
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
-                        .with_tooltip("Toggle loop playback")
-                        .active(loop_active),
-                )
-                .clicked()
-            {
-                if loop_active {
-                    preview.playback.loop_start_s = None;
-                    preview.playback.loop_end_s = None;
-                } else {
-                    preview.playback.loop_start_s = Some(0.0);
-                    preview.playback.loop_end_s = Some(preview.playback.duration_s);
-                }
-            }
-
-            // Ping-pong toggle
-            let ping_pong_active = preview.playback.ping_pong;
-            if ui
-                .add(
-                    Button::ghost("")
-                        .with_icon(egui_phosphor::regular::ARROWS_CLOCKWISE)
-                        .with_tooltip("Toggle ping-pong playback (bounce at boundaries)")
-                        .active(ping_pong_active),
-                )
-                .clicked()
-            {
-                preview.playback.ping_pong = !preview.playback.ping_pong;
-                if !preview.playback.ping_pong {
-                    preview.playback.ping_pong_direction = 1;
-                }
-            }
-
-            toolbar_separator(ui);
-
-            // Zoom controls
             let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
             let zoom_btn = ui.button(
                 egui::RichText::new(zoom_text)
@@ -403,7 +238,7 @@ fn render_transport_strip(
                     .size(TextRole::BodyS.size())
                     .color(theme.text.secondary),
             );
-            text_tooltip(ui, zoom_btn.id.with("reset_zoom_tip"), &zoom_btn, "Reset zoom");
+            text_tooltip(ui, zoom_btn.id.with("reset_zoom_tip"), &zoom_btn, "Reset timeline zoom");
             if zoom_btn.clicked() {
                 preview.timeline_zoom = 1.0;
                 preview.timeline_scroll_offset = 0.0;
@@ -412,7 +247,7 @@ fn render_transport_strip(
                 .add(
                     Button::ghost("")
                         .with_icon(egui_phosphor::regular::MINUS)
-                        .with_tooltip("Zoom out"),
+                        .with_tooltip("Zoom out (Ctrl+wheel)"),
                 )
                 .clicked()
             {
@@ -426,7 +261,7 @@ fn render_transport_strip(
                 .add(
                     Button::ghost("")
                         .with_icon(egui_phosphor::regular::PLUS)
-                        .with_tooltip("Zoom in"),
+                        .with_tooltip("Zoom in (Ctrl+wheel)"),
                 )
                 .clicked()
             {
@@ -436,41 +271,8 @@ fn render_transport_strip(
                 }
                 preview.timeline_zoom = new_zoom;
             }
-
-            // Time display (right-aligned) — timecode + fps
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let current_tc = preview.playback.timecode_string();
-                let dur = preview.playback.duration_s.max(0.0);
-                let dh = (dur / 3600.0).floor() as u32;
-                let dm = ((dur % 3600.0) / 60.0).floor() as u32;
-                let ds = (dur % 60.0).floor() as u32;
-                let df = ((dur % 1.0) * preview.playback.fps as f64).floor() as u32;
-                let duration_tc = format!("{:02}:{:02}:{:02}:{:02}", dh, dm, ds, df);
-                let fps_val = preview.playback.fps;
-                ui.add(
-                    egui::Label::new(
-                        egui::RichText::new(format!(
-                            "{} / {}  {:.0}fps",
-                            current_tc, duration_tc, fps_val
-                        ))
-                        .font(TextRole::Mono.font_id())
-                        .color(theme.text.primary),
-                    )
-                    .selectable(false),
-                );
-            });
         });
     });
-
-    // Bottom border
-    let painter = ui.painter();
-    painter.line_segment(
-        [
-            Pos2::new(scroll_rect.left(), strip_bot - 1.0),
-            Pos2::new(scroll_rect.right(), strip_bot - 1.0),
-        ],
-        Stroke::new(STROKE_WIDTH, theme.border.default),
-    );
 }
 
 fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
@@ -671,12 +473,15 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         }
     }
 
-    // ── Transport strip (outside ScrollArea, always visible) ──
+    // ── Timeline-local toolbar (zoom). Playback transport is global now. ──
     {
         let outer_rect = ui.available_rect_before_wrap();
-        let strip_top = outer_rect.top();
-        let strip_bot = strip_top + sp.timeline.playback_strip_height;
-        render_transport_strip(ui, outer_rect, strip_top, strip_bot, preview, commands);
+        let strip_bot = outer_rect.top() + sp.timeline.playback_strip_height;
+        let strip_rect = Rect::from_min_max(
+            Pos2::new(outer_rect.left(), outer_rect.top()),
+            Pos2::new(outer_rect.right(), strip_bot),
+        );
+        render_timeline_zoom_bar(ui, strip_rect, preview);
     }
     ui.add_space(sp.timeline.playback_strip_height);
 
