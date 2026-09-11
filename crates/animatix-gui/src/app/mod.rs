@@ -1130,6 +1130,18 @@ impl GuiShell {
             avail.y,
         );
 
+        // Refresh find-match decorations once per frame from the shared find
+        // state, before the Code pane renders. The renderer overlays them on
+        // the cached highlight jobs, so query/option changes take effect
+        // without invalidating the highlight cache.
+        self.document_store.source.editor.set_find_state(
+            &self.ui_store.find_query,
+            self.ui_store.find_case_sensitive,
+            self.ui_store.find_whole_word,
+            self.ui_store.find_regex,
+            self.ui_store.find_last_match,
+        );
+
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
             document_store: &mut self.document_store,

@@ -12,6 +12,7 @@ use crate::completion_popup::CompletionPopup;
 
 mod completion;
 mod diagnostics;
+mod find_match;
 
 pub struct EditorBuffer {
     text: String,

@@ -10,7 +10,7 @@ use crate::app::components::dialog;
 use crate::app::design_tokens::typography::TextRole;
 
 /// Build the search regex for the current options.
-fn build_pattern(
+pub(crate) fn build_pattern(
     query: &str,
     case_sensitive: bool,
     whole_word: bool,

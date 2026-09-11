@@ -58,6 +58,88 @@ fn diagnostic_border_color(
     }
 }
 
+/// Overlay find-match backgrounds onto an already-built syntax `LayoutJob`.
+///
+/// `ranges` are `(start_byte, end_byte, is_current)` offsets into the job text.
+/// Sections are split at range boundaries so only matched slices change;
+/// `is_current` ranges win when ranges overlap. This is applied to the cloned
+/// job every frame *after* it is fetched from `cached_highlight_jobs`, so
+/// changing the query or options never requires invalidating that cache.
+fn apply_find_highlights(
+    job: &mut egui::text::LayoutJob,
+    ranges: &[(usize, usize, bool)],
+    match_bg: Color32,
+    current_bg: Color32,
+) {
+    if ranges.is_empty() {
+        return;
+    }
+
+    let text_len = job.text.len();
+    let mut normalized: Vec<(usize, usize, bool)> = ranges
+        .iter()
+        .filter_map(|&(start, end, is_current)| {
+            let start = start.min(text_len);
+            let end = end.min(text_len);
+            (start < end).then_some((start, end, is_current))
+        })
+        .collect();
+    if normalized.is_empty() {
+        return;
+    }
+    normalized.sort_by_key(|&(start, _, _)| start);
+
+    let old_sections = std::mem::take(&mut job.sections);
+    let mut sections = Vec::with_capacity(old_sections.len());
+    for section in old_sections {
+        let sec_start = section.byte_range.start;
+        let sec_end = section.byte_range.end;
+        if sec_start >= sec_end {
+            continue;
+        }
+
+        // Split this section at every find-range boundary that falls inside it.
+        let mut points = vec![sec_start, sec_end];
+        for &(start, end, _) in &normalized {
+            if start > sec_start && start < sec_end {
+                points.push(start);
+            }
+            if end > sec_start && end < sec_end {
+                points.push(end);
+            }
+        }
+        points.sort_unstable();
+        points.dedup();
+
+        for window in points.windows(2) {
+            let (a, b) = (window[0], window[1]);
+            if a >= b {
+                continue;
+            }
+            let mut format = section.format.clone();
+            let mut bg: Option<Color32> = None;
+            for &(start, end, is_current) in &normalized {
+                if a >= start && b <= end {
+                    if is_current {
+                        bg = Some(current_bg);
+                        break;
+                    }
+                    bg.get_or_insert(match_bg);
+                }
+            }
+            if let Some(color) = bg {
+                format.background = color;
+            }
+            sections.push(egui::text::LayoutSection {
+                leading_space: section.leading_space,
+                byte_range: a..b,
+                format,
+            });
+        }
+    }
+    job.sections = sections;
+}
+
 // ── Public API ───────────────────────────────────────────────────────────
 
 /// Render the cell editor UI.
@@ -308,6 +390,16 @@ fn render_code_cell(
                             .filter(|sh| sh.cell_index == index)
                             .cloned()
                             .collect();
+                        let cell_find: Vec<(usize, usize, bool)> = state
+                            .find_matches
+                            .iter()
+                            .filter(|m| m.cell_index == index)
+                            .map(|m| (m.rel_start_byte, m.rel_end_byte, m.is_current))
+                            .collect();
+                        // Distinct colors for the current match vs the rest,
+                        // both sourced from the theme (never hardcoded).
+                        let find_match_bg = theme.accent.selection;
+                        let find_current_bg = theme.accent.subtle;
                         // Cached highlight: skip highlight_source when cell body unchanged
                         let body_text = cell.body().to_string();
                         let cached_job = state
@@ -344,6 +436,14 @@ fn render_code_cell(
                                         &cell_semantic,
                                     )
                                 };
+                                // Overlay find backgrounds on the cloned job so
+                                // they never leak into the body-keyed cache.
+                                apply_find_highlights(
+                                    &mut job,
+                                    &cell_find,
+                                    find_match_bg,
+                                    find_current_bg,
+                                );
                                 job.wrap.max_width = wrap_width;
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
@@ -515,6 +615,14 @@ fn render_keyframe_cell(
                                     .filter(|sh| sh.cell_index == index)
                                     .cloned()
                                     .collect();
+                                let cell_find: Vec<(usize, usize, bool)> = state
+                                    .find_matches
+                                    .iter()
+                                    .filter(|m| m.cell_index == index)
+                                    .map(|m| (m.rel_start_byte, m.rel_end_byte, m.is_current))
+                                    .collect();
+                                let find_match_bg = theme.accent.selection;
+                                let find_current_bg = theme.accent.subtle;
                                 // Cached highlight: skip highlight_source when cell body unchanged
                                 let body_text = cell.body().to_string();
                                 let cached_job = state
@@ -553,6 +661,12 @@ fn render_keyframe_cell(
                                                 &cell_semantic,
                                             )
                                         };
+                                        apply_find_highlights(
+                                            &mut job,
+                                            &cell_find,
+                                            find_match_bg,
+                                            find_current_bg,
+                                        );
                                         job.wrap.max_width = wrap_width;
                                         ui.fonts_mut(|fonts| fonts.layout_job(job))
                                     };
@@ -1003,5 +1117,109 @@ mod tests {
 
         assert_eq!(cells[0].body(), "first");
         assert_eq!(cells[1].body(), "second你");
+    }
+
+    // ── Find-match overlay ───────────────────────────────────────────────
+
+    const MATCH_BG: Color32 = Color32::from_rgba_premultiplied(1, 2, 3, 60);
+    const CURRENT_BG: Color32 = Color32::from_rgba_premultiplied(4, 5, 6, 200);
+
+    /// A single-section job covering the whole text.
+    fn plain_job(text: &str) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+        job.append(
+            text,
+            0.0,
+            egui::TextFormat {
+                font_id: TextRole::Mono.font_id(),
+                color: Color32::WHITE,
+                ..Default::default()
+            },
+        );
+        job
+    }
+
+    /// Background color of the section covering `needle`.
+    fn bg_for(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
+        job.sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == needle)
+            .map(|s| s.format.background)
+    }
+
+    /// Background color of the section containing `byte_index`.
+    fn bg_at(job: &egui::text::LayoutJob, byte_index: usize) -> Option<Color32> {
+        job.sections
+            .iter()
+            .find(|s| s.byte_range.contains(&byte_index))
+            .map(|s| s.format.background)
+    }
+
+    #[test]
+    fn find_overlay_splits_base_section_at_match_boundaries() {
+        let mut job = plain_job("cat dog cat");
+        apply_find_highlights(&mut job, &[(0, 3, false), (8, 11, false)], MATCH_BG, CURRENT_BG);
+
+        assert_eq!(job.text, "cat dog cat", "overlay must not alter the text");
+        assert_eq!(bg_for(&job, "cat"), Some(MATCH_BG));
+        assert_eq!(bg_for(&job, " dog "), Some(Color32::TRANSPARENT));
+        // The trailing "cat" is its own section with the match background.
+        assert_eq!(bg_at(&job, 8), Some(MATCH_BG));
+    }
+
+    #[test]
+    fn find_overlay_distinguishes_current_match() {
+        let mut job = plain_job("cat cat cat");
+        apply_find_highlights(
+            &mut job,
+            &[(0, 3, false), (4, 7, true), (8, 11, false)],
+            MATCH_BG,
+            CURRENT_BG,
+        );
+
+        let bg = |start: usize| {
+            job.sections
+                .iter()
+                .find(|s| s.byte_range == (start..start + 3))
+                .map(|s| s.format.background)
+        };
+        assert_eq!(bg(0), Some(MATCH_BG));
+        assert_eq!(bg(4), Some(CURRENT_BG), "the current match uses the stronger accent");
+        assert_eq!(bg(8), Some(MATCH_BG));
+    }
+
+    #[test]
+    fn find_overlay_preserves_syntax_format() {
+        let mut job = plain_job("box.pos");
+        job.sections[0].format.color = Color32::from_rgb(10, 20, 30);
+        apply_find_highlights(&mut job, &[(4, 7, false)], MATCH_BG, CURRENT_BG);
+
+        for section in &job.sections {
+            assert_eq!(
+                section.format.color,
+                Color32::from_rgb(10, 20, 30),
+                "split sections must keep the original text color"
+            );
+        }
+    }
+
+    #[test]
+    fn find_overlay_is_a_noop_without_ranges() {
+        let mut job = plain_job("box");
+        let before = job.sections.len();
+        apply_find_highlights(&mut job, &[], MATCH_BG, CURRENT_BG);
+        assert_eq!(job.sections.len(), before);
+        assert_eq!(job.sections[0].format.background, Color32::TRANSPARENT);
+    }
+
+    #[test]
+    fn find_overlay_clamps_out_of_range_offsets() {
+        let mut job = plain_job("box");
+        // A stale/oversized range must not panic.
+        apply_find_highlights(&mut job, &[(1, 999, false)], MATCH_BG, CURRENT_BG);
+        assert_eq!(job.text, "box");
+        assert_eq!(bg_at(&job, 0), Some(Color32::TRANSPARENT));
+        assert_eq!(bg_at(&job, 1), Some(MATCH_BG));
+        assert_eq!(bg_at(&job, 2), Some(MATCH_BG));
     }
 }
