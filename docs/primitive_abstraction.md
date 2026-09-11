@@ -37,11 +37,31 @@ These are engineering trade-offs, not oversights. Document them; do not "fix"
 them without a concrete driver.
 
 - **The FFI boundary.** Native `cdylib` plugins cannot share Rust pipeline
-  internals. `Filter`'s offscreen GPU composite, `Equation`'s Typst compilation,
-  and sub-scene image readback have no `repr(C)` representation. The host adapter
-  is a hand-written mirror, and every new trait method needs a callback plus an
-  ABI bump. Plugins reuse the host's `Filter`/`Mask`/`Equation` by declaring
-  `child_processing`.
+  internals — a `repr(C)` ABI carries only POD structs, raw pointers, and
+  `extern "C"` fn pointers, never trait objects, types with destructors, or GPU
+  handles. Concretely:
+  - **Offscreen GPU composite (`Filter`).** The strategy renders children into a
+    `vello::Scene`, then calls `dyn FilterBackend` (`timeline/filter.rs:22`)
+    whose GPU methods take `&vello::Scene` and return either a `SceneImage`
+    (`vello::peniko::ImageData`) or a `PendingComposite` holding a
+    `wgpu::Texture` / `TextureView` (`filter.rs:6`). Trait objects have no stable
+    C vtable, and `vello`/`wgpu` ownership, threading, and version coupling
+    cannot cross.
+  - **Typst compilation (`Equation`).** `compile_typst_grouped_cached`
+    (`renderer/text.rs:2260`) takes a `&FontContext` and returns an
+    `Arc<CachedGroupedText>` from a process-wide memo — all Rust types, and the
+    Typst engine has no C surface.
+  - **Sub-scene readback.** The only image the ABI ingests is
+    `NativeImageCommand` — a URL resolved from the asset cache
+    (`crates/animatix-plugin-api/src/lib.rs:485`); there is deliberately no
+    "here are pixels" or "here is a texture" command, because `SceneImage` /
+    `RenderedFrame` carry `vello` types and a buffer park/reuse protocol.
+
+  The host adapter is a hand-written mirror, and every new trait method needs a
+  callback plus an ABI bump. Plugins reuse the host's `Filter`/`Mask`/`Equation`
+  by declaring `child_processing`. The one route that *does* cross this boundary
+  is **source text, not handles**: a plugin can ship WGSL plus a parameter
+  schema and let the host compile and run it on its own device (see §6).
 - **Container strategy bodies live in `Timeline`, not the primitive.** The
   built-in `render_children` overrides (`primitives/filter.rs`, `mask.rs`,
   `equation.rs`) are one-line delegations to `Timeline::render_*_children_ctx`
@@ -99,7 +119,57 @@ feature that hits the boundary) — not for purity.
 5. **G6/G8 — keep as-is.** Documented boundaries; do not expand the ABI without a
    concrete plugin need.
 
-## 6. Guardrails to preserve
+## 6. Post-processing effects: a second abstraction?
+
+`Filter` is currently a *container strategy* (`ChildProcessing::Filter`) whose
+parameter set is compiled into the track (`FilterTracks` — six fixed
+`PropertyTrack<f32>`, `timeline/animation_track.rs:348`), registered per
+`"Filter"` actor type (`animatix-syntax/src/schema.rs:521`), and implemented by
+two fixed WGSL shaders plus a CPU fallback (`renderer/filter_backend.rs:23/80`,
+`timeline/filter.rs:83`). It can only be applied by containing children.
+
+Pulling effects out into their own axis — an effect descriptor + registry, and a
+generic offscreen→effect→composite pipeline — is a better separation of concerns:
+`ChildProcessing` returns to structural aggregation (`Mask` clip geometry,
+`Equation` aggregation) while visual post-processing becomes its own axis. Three
+tiers:
+
+1. **Seam (small).** An effect description (name + parameter schema) and a
+   registry; the `Filter` container becomes a generic "apply this effect chain to
+   my children" shell. Adding a host effect stops touching `FilterTracks`, the
+   property table, and `scene_eval`.
+2. **Pass / render-graph (medium).** Generalize offscreen→effect→composite into a
+   pass graph with ping-pong, chaining, and non-container targets (an actor or the
+   whole scene). Real renderer work that must preserve the PF-7/PF-9 buffer-reuse
+   and pending-composite invariants.
+3. **Plugin-authored effects (large, but viable).** Register effects through the
+   extension system; the key is that a plugin supplies **WGSL source + a parameter
+   schema**, never a GPU handle — the host owns the device, textures,
+   synchronization, and lifetime, so this *does* cross the FFI boundary (§2). The
+   contract to pin: `Rgba8Unorm` input/output with
+   `TEXTURE_BINDING | STORAGE_BINDING`; bind group 0 =
+   `texture_2d<f32>` / `texture_storage_2d<rgba8unorm, write>` / `var<uniform>`;
+   `@workgroup_size(16, 16)` with entry `main`; an N-pass model (blur is H+V); a
+   minimal typed parameter model the host marshals into the plugin's uniform
+   struct; host-owned ping-pong textures.
+
+Costs and limits: arbitrary WGSL has **no CPU fallback**, so with no GPU backend a
+plugin effect is "skip + warn" (unlike the built-in six, which keep a CPU
+implementation); wgpu validates syntax but not termination, so this is
+trusted-authoring rather than a sandbox; pipelines must be cached on
+`(source, entry, layout)`; and effects needing a second texture or geometry info
+are outside the contract.
+
+Migration blast radius: `FilterTracks` / `filter_*` has 73 references across 10+
+files (GUI timeline diff, timeline panel, inspector, persistence `CarryBag`,
+`property_engine`, `dispatch`, `scene_eval`, tests), so moving to a generic
+parameter model is a renderer **plus** property/GUI/persistence change. With only
+one effect today, the recommended path is staged: effect contract (design doc) →
+in-process seam → validate with a second effect → extend the ABI → migrate the
+property tracks last. Tracked in `roadmap.md` under "Post-Processing Effect
+Abstraction".
+
+## 7. Guardrails to preserve
 
 Any work above must keep these green (and extend them where behaviour changes):
 

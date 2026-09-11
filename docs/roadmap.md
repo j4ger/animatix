@@ -409,6 +409,65 @@ backlog is now fully worked through; new work should start from fresh
 `perf_driver`/`export_alloc_driver`/`export_perf_driver` evidence per
 §8 of the perf doc.
 
+### Post-Processing Effect Abstraction (planned, design-gated)
+
+Goal: turn pixel effects (today only `Filter`) into a first-class, registerable
+effect/pass axis instead of a hard-coded container strategy, and let native
+plugins author effects by shipping **WGSL source + a parameter schema** — the
+host compiles and runs the shader with its own device, so no GPU handle ever
+crosses the FFI boundary. Background and gaps: `primitive_abstraction.md` §6.
+
+**Why it is not just "add a callback".** The effect parameter set is compiled
+into `FilterTracks` (six fixed `PropertyTrack<f32>`, `animation_track.rs:348`),
+the properties are registered per `"Filter"` actor type (`schema.rs:521`), the
+implementation is two fixed WGSL shaders plus pipelines and a CPU fallback
+(`filter_backend.rs:23/80`, `filter.rs:83`), and the actor can only apply the
+effect by *containing* children. `filter_*` / `FilterTracks` has 73 references
+across 10+ files including the GUI (timeline diff, timeline panel, inspector),
+persistence (`CarryBag` serialization), `property_engine`, and `dispatch` — so a
+migration is a renderer **plus** property/GUI/persistence change, not a renderer
+change alone.
+
+**WGSL contract to pin (Stage 0 deliverable).** Input/output texture format
+`Rgba8Unorm` with `TEXTURE_BINDING | STORAGE_BINDING`; bind group 0 bindings
+0/1/2 = `texture_2d<f32>` / `texture_storage_2d<rgba8unorm, write>` /
+`var<uniform>`; `@workgroup_size(16, 16)`, entry `main`, dispatch `div_ceil(16)`;
+an N-pass model (blur is H+V, so a single-shader model is insufficient); a
+minimal typed parameter model (f32/vec2/vec4/color/u32 with fixed alignment) that
+the host marshals into the plugin's declared uniform struct; host-owned
+ping-pong textures (a plugin must not assume source/destination).
+
+**Stages (each independently reviewable):**
+
+1. **Stage 0 — contract design doc.** Write the effect contract (textures,
+   format, passes, parameter schema/uniform packing, blend, bounds/padding,
+   no-GPU policy, error handling, determinism, pipeline caching). No code.
+2. **Stage 1 — in-process seam.** Add an `Effect` trait + effect registry;
+   port the existing blur / color-matrix to be its first two effects behind the
+   generic offscreen→effect→composite pipeline; keep the `Filter` container as
+   the shell that applies an effect chain to its children. Do not touch the ABI
+   and do not yet migrate `FilterTracks` (adapt alongside); this is the contained
+   refactor.
+3. **Stage 2 — validate with a second effect.** Land one multi-pass effect
+   (e.g. bloom) authored as WGSL through the registry, proving "adding an effect
+   does not touch the core".
+4. **Stage 3 — native ABI.** Expose the effect descriptor (WGSL source +
+   parameter schema + passes) over FFI behind a new ABI snapshot; document that
+   effects are GPU-only (arbitrary WGSL has no CPU fallback; no backend means
+   "skip + warn").
+5. **Only after Stage 2/3 validate the contract:** migrate `FilterTracks` and the
+   six `filter_*` property tracks to the generic parameter model (the 73-reference
+   cleanup), with persistence/GUI/keyframe-diff updates.
+
+**Risks / guardrails.** Must preserve the zero-readback `PendingComposite` park
+protocol, `RenderedFrame` buffer reuse, effect-order determinism, and per-frame
+allocation budget (the PF-7/PF-9 wins), or the change regresses measured
+performance. Arbitrary WGSL is not a sandbox — wgpu validates syntax but not
+termination, so effects are trusted-host-authored; pipeline creation must be
+cached on `(source, entry, layout)` and validation errors surfaced as
+diagnostics. Do not start Stage 1 before Stage 0 is reviewed, and do not freeze
+the ABI until Stage 2 has exercised the contract.
+
 ---
 
 ## Audit Fix Pass — Round 2 (2026-09-08)
