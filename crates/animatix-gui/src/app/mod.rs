@@ -848,7 +848,7 @@ impl GuiShell {
                             );
                         }
                     }
-                    // Right side: scene dimensions
+                    // Right side: diagnostics count + scene dimensions
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let dims = &self.document_store.source.document.scene_dimensions;
                         ui.label(
@@ -856,6 +856,47 @@ impl GuiShell {
                                 .size(TextRole::Micro.size())
                                 .color(theme.text.muted),
                         );
+
+                        // Diagnostics chip: always-visible error/warning counts that
+                        // toggle the panel, so an open issue is never invisible.
+                        let errors = diagnostics.iter().filter(|d| d.is_error()).count();
+                        let warnings = diagnostics.len() - errors;
+                        let (chip_icon, chip_color, chip_label) = if errors > 0 {
+                            (
+                                egui_phosphor::regular::X_CIRCLE,
+                                theme.status.error,
+                                format!("{errors} error(s)"),
+                            )
+                        } else if warnings > 0 {
+                            (
+                                egui_phosphor::regular::WARNING,
+                                theme.status.warning,
+                                format!("{warnings} warning(s)"),
+                            )
+                        } else {
+                            (
+                                egui_phosphor::regular::CHECK_CIRCLE,
+                                theme.status.success,
+                                "No problems".to_string(),
+                            )
+                        };
+                        let chip = ui.add(
+                            Button::ghost("")
+                                .with_icon(chip_icon)
+                                .icon_color(chip_color)
+                                .hover_icon_color(chip_color)
+                                .active(self.ui_store.view.diagnostics_panel_visible),
+                        );
+                        text_tooltip(
+                            ui,
+                            chip.id.with("diag_chip_tip"),
+                            &chip,
+                            &format!("{chip_label} — click to toggle the diagnostics panel"),
+                        );
+                        if chip.clicked() {
+                            self.ui_store.view.diagnostics_panel_visible =
+                                !self.ui_store.view.diagnostics_panel_visible;
+                        }
                     });
                 });
             });
