@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use egui_tiles::Tree;
 
@@ -83,6 +84,137 @@ impl ClipboardStore {
     }
 }
 
+/// Default autosave interval when the user has no persisted preference.
+pub const DEFAULT_AUTOSAVE_INTERVAL_S: f64 = 20.0;
+/// Lower/upper bounds applied to a persisted or user-entered interval.
+pub const MIN_AUTOSAVE_INTERVAL_S: f64 = 1.0;
+pub const MAX_AUTOSAVE_INTERVAL_S: f64 = 3600.0;
+
+/// Crash-recovery autosave preference plus timer bookkeeping.
+///
+/// The write itself is driven from `GuiShell::prepare_frame`; this only records
+/// whether it is on, how often it should fire, and when it last did. Defaults
+/// match `AppState`'s serde defaults so a fresh profile autosaves.
+#[derive(Debug, Clone)]
+pub struct AutosaveState {
+    pub enabled: bool,
+    pub interval: Duration,
+    /// Source path targeted by the most recent recovery write. A change here
+    /// means a different document is open, so the timer restarts and a stale
+    /// sidecar never gets attributed to the new source.
+    pub last_source_path: Option<PathBuf>,
+    /// When the most recent recovery write happened.
+    pub last_write: Option<Instant>,
+}
+
+impl Default for AutosaveState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AutosaveState {
+    pub fn new() -> Self {
+        Self {
+            enabled: true,
+            interval: Duration::from_secs_f64(DEFAULT_AUTOSAVE_INTERVAL_S),
+            last_source_path: None,
+            last_write: None,
+        }
+    }
+
+    /// Build from persisted preferences, clamping the interval to sane bounds.
+    /// Non-finite input (corrupt RON, hand-edited NaN) falls back to the default
+    /// rather than panicking in `Duration::from_secs_f64`.
+    pub fn from_prefs(enabled: bool, interval_s: f64) -> Self {
+        let interval_s = if interval_s.is_finite() {
+            interval_s.clamp(MIN_AUTOSAVE_INTERVAL_S, MAX_AUTOSAVE_INTERVAL_S)
+        } else {
+            DEFAULT_AUTOSAVE_INTERVAL_S
+        };
+        Self {
+            enabled,
+            interval: Duration::from_secs_f64(interval_s),
+            last_source_path: None,
+            last_write: None,
+        }
+    }
+
+    /// Preference pair for persistence.
+    pub fn prefs(&self) -> crate::app::persistence::AutosavePrefs {
+        crate::app::persistence::AutosavePrefs {
+            enabled: self.enabled,
+            interval_s: self.interval.as_secs_f64(),
+        }
+    }
+
+    /// Whether a write is due. `last_write == None` means the document just
+    /// became dirty (or the source path changed), so the first write is due
+    /// immediately — a crash within the first interval must still recover.
+    pub fn is_due(&self, now: Instant) -> bool {
+        self.last_write
+            .is_none_or(|last| now.saturating_duration_since(last) >= self.interval)
+    }
+
+    /// Time until the next write is due (zero when already due).
+    pub fn remaining(&self, now: Instant) -> Duration {
+        self.last_write.map_or(Duration::ZERO, |last| {
+            self.interval.saturating_sub(now.saturating_duration_since(last))
+        })
+    }
+
+    /// Point the timer at `source_path`, resetting it when the open document
+    /// changed so the first write for the new document is due immediately.
+    pub fn track_source(&mut self, source_path: &Path) {
+        if self.last_source_path.as_deref() != Some(source_path) {
+            self.last_source_path = Some(source_path.to_path_buf());
+            self.last_write = None;
+        }
+    }
+
+    /// Record that a recovery write was attempted at `now`.
+    pub fn note_write(&mut self, now: Instant) {
+        self.last_write = Some(now);
+    }
+}
+
+/// Startup prompt offering to restore a newer crash-recovery sidecar.
+///
+/// There is deliberately no default-close path: Escape and backdrop clicks are
+/// ignored by the renderer so the user must pick Recover or Discard. Until then
+/// the sidecar is the only copy of the previous session's edits, so autosave
+/// and save commands are held off (see `GuiShell::recovery_prompt_pending`).
+#[derive(Debug, Clone, Default)]
+pub struct RecoveryPrompt {
+    pub is_open: bool,
+    /// Document the sidecar belongs to (also the path the recovery will be
+    /// written back to on the next autosave).
+    pub source_path: Option<PathBuf>,
+    /// Sidecar holding the recovered text.
+    pub recovery_path: Option<PathBuf>,
+    pub message: String,
+}
+
+impl RecoveryPrompt {
+    pub fn open(&mut self, source_path: PathBuf, recovery_path: PathBuf) {
+        self.is_open = true;
+        self.message = format!(
+            "Animatix found unsaved changes from a previous session for \"{}\".\n\n\
+             Recover them into the editor, or discard the recovery file?",
+            source_path.display()
+        );
+        self.source_path = Some(source_path);
+        self.recovery_path = Some(recovery_path);
+    }
+
+    pub fn close(&mut self) {
+        self.is_open = false;
+        self.message.clear();
+        self.source_path = None;
+        self.recovery_path = None;
+    }
+}
+
 /// View settings and panel state.
 pub struct ViewStore {
     pub tree: Tree<crate::app::WorkspaceTab>,
@@ -95,7 +227,6 @@ pub struct ViewStore {
     pub debug_layout: bool,
     pub debug_spacing: bool,
     pub shortcuts_open: bool,
-    pub inspector_visible: bool,
     pub welcome_open: bool,
     pub workspace_switcher_open: bool,
     pub command_palette_open: bool,
@@ -124,6 +255,21 @@ pub struct ViewStore {
     pub reduce_motion: bool,
     /// Density preference for UI spacing.
     pub density: eparts::Density,
+    /// Last observed window size, used to size layout presets/reset.
+    pub layout_size: (f32, f32),
+    /// Active layout preset, used to derive per-frame pixel bounds.
+    pub layout_preset: crate::app::LayoutPreset,
+    /// True when the window is narrow enough to use the compact layout (icon
+    /// rail sidebar + overlay detail drawer). Recomputed from `layout_size`.
+    pub compact: bool,
+    /// Docked pane visibility captured when compact mode engaged, restored when
+    /// the window widens again.
+    pub compact_restore: Option<crate::app::persistence::CompactRestore>,
+    /// Active compact-mode overlay drawer. `None` when no drawer is open; the
+    /// sidebar and detail drawers are mutually exclusive.
+    pub compact_drawer: Option<crate::app::panels::CompactDrawer>,
+    /// Crash-recovery autosave preference and timer state.
+    pub autosave: AutosaveState,
 }
 
 impl ViewStore {
@@ -139,7 +285,6 @@ impl ViewStore {
             debug_layout: false,
             debug_spacing: false,
             shortcuts_open: false,
-            inspector_visible: false,
             welcome_open: false,
             workspace_switcher_open: false,
             command_palette_open: false,
@@ -157,6 +302,12 @@ impl ViewStore {
             timeline_focused: false,
             reduce_motion: false,
             density: eparts::Density::Default,
+            layout_size: (1440.0, 960.0),
+            layout_preset: crate::app::LayoutPreset::Animate,
+            compact: false,
+            compact_restore: None,
+            compact_drawer: None,
+            autosave: AutosaveState::new(),
         }
     }
 }
@@ -195,8 +346,16 @@ pub struct UiStore {
     pub replace_query: String,
     /// Byte offset of the last Find Next match, for cursor-relative search.
     pub find_last_match: Option<usize>,
+    /// Match case when searching.
+    pub find_case_sensitive: bool,
+    /// Match whole words only.
+    pub find_whole_word: bool,
+    /// Treat the find query as a regular expression.
+    pub find_regex: bool,
     /// Unsaved changes confirmation dialog state.
     pub unsaved_changes: UnsavedChangesDialog,
+    /// Startup crash-recovery prompt state.
+    pub recovery_prompt: RecoveryPrompt,
     /// Persisted shortcut overrides keyed by stable binding name.
     pub shortcut_overrides:
         std::collections::BTreeMap<String, crate::app::interaction::keyboard::SavedShortcut>,
@@ -204,6 +363,8 @@ pub struct UiStore {
     pub recording_shortcut: Option<String>,
     /// Path buffer for adding an explicit plugin manifest/library path.
     pub plugin_path_input: String,
+    /// Recently opened files, newest first (populated from app-state persistence).
+    pub recent_files: Vec<PathBuf>,
 }
 
 impl UiStore {
@@ -213,12 +374,13 @@ impl UiStore {
             interaction: InteractionStore::new(),
             clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
-            editor_sync_enabled: true,
-            keyframe_mode: true,
+            editor_sync_enabled: true, // Auto-key is off by default: property edits change the base value
+            // unless the user explicitly records or clicks a keyframe diamond.
+            keyframe_mode: false,
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
-            sidebar_tab: SidebarTab::Explorer,
+            sidebar_tab: SidebarTab::Project,
             property_view_mode: PropertyViewMode::Semantic,
             keyframe_view_mode: KeyframeViewMode::List,
             rebuild_debounce_ms: 150,
@@ -235,11 +397,26 @@ impl UiStore {
             find_query: String::new(),
             replace_query: String::new(),
             find_last_match: None,
+            find_case_sensitive: false,
+            find_whole_word: false,
+            find_regex: false,
             unsaved_changes: UnsavedChangesDialog::default(),
+            recovery_prompt: RecoveryPrompt::default(),
             shortcut_overrides: std::collections::BTreeMap::new(),
             recording_shortcut: None,
             plugin_path_input: String::new(),
+            recent_files: Vec::new(),
         }
+    }
+
+    /// Record a compact-layout breakpoint change and drop any open overlay
+    /// drawer (a drawer from the previous mode is stale).
+    ///
+    /// The flag is derived from the window width at the call site; the dock tree
+    /// is reconciled separately (`persistence::reconcile_compact`).
+    pub fn set_compact(&mut self, compact: bool) {
+        self.view.compact = compact;
+        self.view.compact_drawer = None;
     }
 
     /// Capture UI state plus playback/timeline state for undo/redo.
@@ -315,9 +492,9 @@ mod tests {
         let store = UiStore::new(tree);
 
         assert!(store.editor_sync_enabled);
-        assert!(store.keyframe_mode);
+        assert!(!store.keyframe_mode);
         assert_eq!(store.cursor_time_s, None);
-        assert_eq!(store.sidebar_tab, SidebarTab::Explorer);
+        assert_eq!(store.sidebar_tab, SidebarTab::Project);
         assert_eq!(store.property_view_mode, PropertyViewMode::Semantic);
         assert_eq!(store.keyframe_view_mode, KeyframeViewMode::List);
         assert_eq!(store.scrub_step_s, 0.1);
@@ -366,5 +543,92 @@ mod tests {
         assert!(!store.view.debug_layout);
         assert!(!store.view.debug_spacing);
         assert_eq!(store.view.tool_mode, ToolMode::Select);
+        // Compact mode starts off at the 1440x960 default window.
+        assert!(!store.view.compact);
+        assert!(store.view.compact_drawer.is_none());
+        assert!(store.view.compact_restore.is_none());
+    }
+
+    #[test]
+    fn set_compact_tracks_flag_and_clears_drawer() {
+        let mut store = UiStore::new(default_tree());
+        store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+
+        store.set_compact(true);
+        assert!(store.view.compact);
+        assert!(store.view.compact_drawer.is_none(), "entering compact starts with no drawer");
+
+        store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Sidebar);
+        store.set_compact(false);
+        assert!(!store.view.compact);
+        assert!(store.view.compact_drawer.is_none(), "leaving compact drops drawer state");
+    }
+
+    #[test]
+    fn autosave_defaults_to_enabled_twenty_seconds() {
+        let store = UiStore::new(default_tree());
+
+        assert!(store.view.autosave.enabled);
+        assert_eq!(store.view.autosave.interval.as_secs_f64(), DEFAULT_AUTOSAVE_INTERVAL_S);
+        assert!(store.view.autosave.is_due(Instant::now()), "first write is due immediately");
+    }
+
+    #[test]
+    fn autosave_from_prefs_clamps_interval() {
+        let tiny = AutosaveState::from_prefs(true, 0.0);
+        assert_eq!(tiny.interval.as_secs_f64(), MIN_AUTOSAVE_INTERVAL_S);
+
+        let huge = AutosaveState::from_prefs(false, 1.0e9);
+        assert_eq!(huge.interval.as_secs_f64(), MAX_AUTOSAVE_INTERVAL_S);
+        assert!(!huge.enabled);
+    }
+
+    #[test]
+    fn autosave_due_respects_interval_and_write_time() {
+        let mut state = AutosaveState::from_prefs(true, 5.0);
+        let start = Instant::now();
+        state.track_source(Path::new("/tmp/scene.amx"));
+        assert!(state.is_due(start), "newly tracked source is due");
+
+        state.note_write(start);
+        assert!(!state.is_due(start));
+        assert!(!state.is_due(start + Duration::from_secs(4)));
+        assert_eq!(state.remaining(start + Duration::from_secs(4)), Duration::from_secs(1));
+        assert!(state.is_due(start + Duration::from_secs(5)));
+        assert_eq!(state.remaining(start + Duration::from_secs(9)), Duration::ZERO);
+    }
+
+    #[test]
+    fn autosave_restarts_when_the_source_document_changes() {
+        let mut state = AutosaveState::from_prefs(true, 30.0);
+        let start = Instant::now();
+        state.track_source(Path::new("/tmp/a.amx"));
+        state.note_write(start);
+        assert!(!state.is_due(start + Duration::from_secs(1)));
+
+        // Re-tracking the same path keeps the timer...
+        state.track_source(Path::new("/tmp/a.amx"));
+        assert!(!state.is_due(start + Duration::from_secs(1)));
+
+        // ...but a different document resets it so it can be saved promptly.
+        state.track_source(Path::new("/tmp/b.amx"));
+        assert!(state.is_due(start + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn recovery_prompt_open_and_close_roundtrip() {
+        let mut prompt = RecoveryPrompt::default();
+        prompt.open(PathBuf::from("/tmp/scene.amx"), PathBuf::from("/tmp/scene.amx.autosave"));
+
+        assert!(prompt.is_open);
+        assert!(prompt.message.contains("scene.amx"));
+        assert_eq!(prompt.source_path.as_deref(), Some(Path::new("/tmp/scene.amx")));
+        assert_eq!(prompt.recovery_path.as_deref(), Some(Path::new("/tmp/scene.amx.autosave")));
+
+        prompt.close();
+        assert!(!prompt.is_open);
+        assert!(prompt.message.is_empty());
+        assert!(prompt.source_path.is_none());
+        assert!(prompt.recovery_path.is_none());
     }
 }

@@ -224,10 +224,30 @@ pub fn render_floating_menu(
 
 // ─── Internals ──────────────────────────────────────────────────────────────
 
+/// Resolve the color slot for a menu item.
+///
+/// Reads `theme.components.menu_item.*` for the normal / hover / disabled states and
+/// keeps the accent fill for a checked item (accent emphasis, `on_accent` text).
+fn menu_item_slot(t: &theme::Theme, enabled: bool, checked: bool, hovered: bool) -> theme::Slot {
+    if !enabled {
+        t.components.menu_item.disabled
+    } else if checked {
+        theme::Slot {
+            bg: t.palette.accent.primary,
+            fg: t.palette.text.on_accent,
+            border: Color32::TRANSPARENT,
+        }
+    } else if hovered {
+        t.components.menu_item.hover
+    } else {
+        t.components.menu_item.normal
+    }
+}
+
 fn menu_frame(t: &theme::Theme) -> egui::Frame {
     egui::Frame::new()
-        .fill(t.surface.surface)
-        .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
+        .fill(t.palette.surface.surface)
+        .stroke(Stroke::new(STROKE_WIDTH, t.palette.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(Margin::same(SPACE_2 as i8))
         .shadow(t.elevation.raised)
@@ -254,17 +274,9 @@ fn render_menu_item(
         },
     );
 
-    // ── Background ──
-    let bg = if !enabled {
-        Color32::TRANSPARENT
-    } else if checked {
-        t.accent.primary
-    } else if response.hovered() {
-        t.surface.hover
-    } else {
-        Color32::TRANSPARENT
-    };
-
+    // ── Background / foreground from `theme.components.menu_item.*` slots ──
+    let slot = menu_item_slot(t, enabled, checked, response.hovered());
+    let bg = slot.bg;
     if bg != Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, RADIUS_S, bg);
     }
@@ -280,7 +292,7 @@ fn render_menu_item(
                 Align2::CENTER_CENTER,
                 egui_phosphor::regular::CHECK,
                 TextRole::BodyS.font_id(),
-                t.text.primary,
+                t.palette.text.primary,
             );
         }
         cursor_x += menu_spatial::CHECK_WIDTH + s.space_2;
@@ -289,15 +301,7 @@ fn render_menu_item(
     // ── Icon column ──
     if layout.icon_col {
         if let Some(icon_str) = icon {
-            let icon_color = if enabled {
-                if checked || response.hovered() {
-                    t.text.primary
-                } else {
-                    t.text.secondary
-                }
-            } else {
-                t.text.disabled
-            };
+            let icon_color = slot.fg;
             ui.painter().text(
                 egui::pos2(cursor_x + menu_spatial::ICON_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
@@ -310,13 +314,7 @@ fn render_menu_item(
     }
 
     // ── Label ──
-    let label_color = if !enabled {
-        t.text.disabled
-    } else if checked || response.hovered() {
-        t.text.primary
-    } else {
-        t.text.secondary
-    };
+    let label_color = slot.fg;
 
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
@@ -329,9 +327,9 @@ fn render_menu_item(
     // ── Shortcut (right-aligned) ──
     if let Some(sc) = shortcut {
         let shortcut_color = if !enabled {
-            t.text.disabled
+            t.palette.text.disabled
         } else {
-            t.text.muted
+            t.palette.text.muted
         };
         ui.painter().text(
             egui::pos2(rect.max.x - s.space_3, baseline_y),
@@ -356,7 +354,7 @@ fn render_menu_header(ui: &mut Ui, text: &str, content_width: f32, t: &theme::Th
         Align2::LEFT_CENTER,
         text,
         TextRole::Micro.font_id(),
-        t.text.muted,
+        t.palette.text.muted,
     );
 }
 
@@ -371,7 +369,7 @@ fn render_menu_separator(ui: &mut Ui, content_width: f32, t: &theme::Theme) {
             egui::pos2(rect.min.x + s.space_3, y),
             egui::pos2(rect.max.x - s.space_3, y),
         ],
-        Stroke::new(STROKE_WIDTH, t.border.default),
+        Stroke::new(STROKE_WIDTH, t.palette.border.default),
     );
 }
 
@@ -418,5 +416,30 @@ mod tests {
             MenuEntry::Separator => {},
             _ => panic!("expected Separator variant"),
         }
+    }
+
+    /// Menu item colors must come from the `theme.components.menu_item.*` slots (both
+    /// themes seed them; before this they were unread and roles were hand-picked).
+    #[test]
+    fn menu_item_slot_reads_theme_slots() {
+        let dark = theme::Theme::dark();
+        let light = theme::Theme::light();
+
+        for t in [&dark, &light] {
+            assert_eq!(menu_item_slot(t, true, false, false).bg, t.components.menu_item.normal.bg);
+            assert_eq!(menu_item_slot(t, true, false, true).bg, t.components.menu_item.hover.bg);
+            assert_eq!(
+                menu_item_slot(t, false, false, false).fg,
+                t.components.menu_item.disabled.fg
+            );
+            // Checked keeps accent emphasis with on-accent text.
+            let checked = menu_item_slot(t, true, true, false);
+            assert_eq!(checked.bg, t.palette.accent.primary);
+            assert_eq!(checked.fg, t.palette.text.on_accent);
+        }
+
+        // Hover is visibly distinct from the normal fill in both themes.
+        assert_ne!(dark.components.menu_item.hover.bg, dark.components.menu_item.normal.bg);
+        assert_ne!(light.components.menu_item.hover.bg, light.components.menu_item.normal.bg);
     }
 }

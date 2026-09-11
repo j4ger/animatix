@@ -6,6 +6,7 @@ use crate::tokens::spatial::component::TOAST_WIDTH;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::tokens::theme::{Theme, theme};
 use crate::tokens::typography::TextRole;
+use crate::tokens::util::with_alpha;
 
 /// Toast severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,12 +82,20 @@ impl Toast {
         }
     }
 
+    /// The level's accent colour (bar + icon), from `theme.components.toast.<level>`.
     pub fn color(&self, t: &Theme) -> Color32 {
-        match self.level {
-            ToastLevel::Info => t.accent.primary,
-            ToastLevel::Success => t.status.success,
-            ToastLevel::Warning => t.status.warning,
-            ToastLevel::Error => t.status.error,
+        self.level.level_slots(t).accent
+    }
+}
+
+impl ToastLevel {
+    /// The component slot group for this level.
+    pub fn level_slots(self, t: &Theme) -> &crate::tokens::theme::ToastLevelSlots {
+        match self {
+            ToastLevel::Info => &t.components.toast.info,
+            ToastLevel::Success => &t.components.toast.success,
+            ToastLevel::Warning => &t.components.toast.warning,
+            ToastLevel::Error => &t.components.toast.error,
         }
     }
 }
@@ -193,27 +202,30 @@ impl ToastQueue {
 
             // Elevated shadow behind the toast (faded with alpha)
             let mut shadow = theme.elevation.raised;
-            shadow.color = shadow.color.linear_multiply(alpha);
+            shadow.color = with_alpha(shadow.color, alpha);
             ui.painter().add(shadow.as_shape(rect, RADIUS_M));
 
+            // Per-level colours from `theme.components.toast.<level>`.
+            let level = toast.level.level_slots(&theme);
+
             // Background with alpha
-            let bg = theme.surface.surface.linear_multiply(alpha);
+            let bg = with_alpha(level.bg, alpha);
             ui.painter().rect_filled(rect, RADIUS_M as u8, bg);
             ui.painter().rect_stroke(
                 rect,
                 RADIUS_M as u8,
-                egui::Stroke::new(STROKE_WIDTH, theme.border.default.linear_multiply(alpha)),
+                egui::Stroke::new(STROKE_WIDTH, with_alpha(level.border, alpha)),
                 egui::StrokeKind::Outside,
             );
 
             // Left accent bar
             let accent_rect = Rect::from_min_size(rect.min, Vec2::new(s.space_2, toast_h));
-            let accent_color = toast.color(&theme).linear_multiply(alpha);
+            let accent_color = with_alpha(level.accent, alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
             let icon_x = rect.min.x + s.space_6;
-            let icon_color = toast.color(&theme).linear_multiply(alpha);
+            let icon_color = with_alpha(level.accent, alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
                 egui::Align2::CENTER_CENTER,
@@ -224,7 +236,7 @@ impl ToastQueue {
 
             // Message (wrapped to toast width so it doesn't overflow)
             let text_x = icon_x + s.space_6;
-            let text_color = theme.text.primary.linear_multiply(alpha);
+            let text_color = with_alpha(level.fg, alpha);
             let text_max_w = (toast_w - (text_x - rect.min.x) - s.space_6).max(40.0);
             let display_message = if toast.count > 1 {
                 format!("{} (x{})", toast.message, toast.count)
@@ -275,5 +287,22 @@ mod tests {
         let mut queue = ToastQueue::default();
         queue = queue.with_placement(ToastPlacement::TopLeft);
         assert_eq!(queue.placement, ToastPlacement::TopLeft);
+    }
+
+    /// Representative slot-resolution test: each toast level maps onto its
+    /// `theme.components.toast.<level>` group and the accent matches the shared status role.
+    #[test]
+    fn toast_level_resolves_through_slots_in_both_themes() {
+        for t in [Theme::dark(), Theme::light()] {
+            assert_eq!(Toast::info("x").color(&t), crate::tokens::semantic::accent::PRIMARY);
+            assert_eq!(Toast::success("x").color(&t), crate::tokens::semantic::status::SUCCESS);
+            assert_eq!(Toast::warning("x").color(&t), crate::tokens::semantic::status::WARNING);
+            assert_eq!(Toast::error("x").color(&t), crate::tokens::semantic::status::ERROR);
+
+            // The level's fg/border/bg resolve through the same slot group.
+            let error = ToastLevel::Error.level_slots(&t);
+            assert_eq!(Toast::error("x").color(&t), error.accent);
+            assert_eq!(error.border, t.palette.border.default);
+        }
     }
 }

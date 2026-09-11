@@ -145,6 +145,19 @@ pub enum ToolMode {
     Pivot,
 }
 
+/// Per-actor start state captured when a group transform begins.
+#[derive(Debug, Clone)]
+pub struct GroupTransformActor {
+    pub label: String,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub rotation: f32,
+    /// `size` (geometry) or `scale` (whole-block) — see [`ResizeMode`].
+    pub resize_mode: ResizeMode,
+    /// Transform scale at drag start (used when `resize_mode == Scale`).
+    pub scale: f32,
+}
+
 /// Tracks the current drag interaction on the preview canvas.
 ///
 /// - `Move`, `Scale`, `Rotate` manipulate absolutely positioned actors.
@@ -198,6 +211,24 @@ pub enum DragState {
         start_rotation: f32,
         /// Pivot point in world space at drag start.
         pivot: [f32; 2],
+    },
+    /// Dragging a group scale handle across a multi-selection.
+    GroupScale {
+        actors: Vec<GroupTransformActor>,
+        /// Union bounds of the selection in scene space at drag start.
+        union: kurbo::Rect,
+        /// Handle index 0-7 on the union box.
+        handle: usize,
+        /// Preserve aspect ratio (Shift held).
+        uniform: bool,
+    },
+    /// Rotating a multi-selection around its union centre.
+    GroupRotate {
+        actors: Vec<GroupTransformActor>,
+        /// Rotation centre in scene space.
+        center: [f32; 2],
+        /// Angle from centre to pointer at drag start (radians).
+        start_angle: f32,
     },
     /// Dragging a layout-managed child to reorder within its container.
     Reorder {
@@ -515,14 +546,14 @@ pub(super) fn draw_vertex_handles(
         let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
         let is_active = active_vertex == Some(i);
         let fill = if is_active {
-            theme.accent.primary
+            theme.palette.accent.primary
         } else {
-            theme.text.primary
+            theme.palette.text.primary
         };
         let stroke_color = if is_active {
-            theme.status.warning
+            theme.palette.status.warning
         } else {
-            theme.accent.primary
+            theme.palette.accent.primary
         };
         let radius = if is_active {
             (VERTEX_RADIUS + 1.5) * pixels_per_point
@@ -554,9 +585,9 @@ pub(super) fn draw_callout_handles(
     let r = PREVIEW_HANDLE_SIZE * 0.7 * pixels_per_point;
     // Tip: diamond
     let tip_color = if active_tip {
-        theme.accent.hover
+        theme.palette.accent.hover
     } else {
-        theme.text.primary
+        theme.palette.text.primary
     };
     let tip_pts = [
         Pos2::new(tip_screen.x, tip_screen.y - r * 1.4),
@@ -569,12 +600,12 @@ pub(super) fn draw_callout_handles(
     }
     // Label: circle
     let lbl_color = if active_label {
-        theme.accent.hover
+        theme.palette.accent.hover
     } else {
-        theme.text.primary
+        theme.palette.text.primary
     };
     painter.circle_filled(label_screen, r, lbl_color);
-    painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, theme.accent.primary));
+    painter.circle_stroke(label_screen, r, Stroke::new(STROKE_WIDTH, theme.palette.accent.primary));
 }
 
 /// Draw four side handles around a targeted callout's target bounds.
@@ -598,14 +629,14 @@ pub(super) fn draw_callout_place_handles(
     for (i, screen) in place_screens.iter().enumerate() {
         let active = active_place.map(|p| p == places[i]).unwrap_or(false);
         let fill = if active {
-            theme.accent.hover
+            theme.palette.accent.hover
         } else {
-            theme.surface.widget
+            theme.palette.surface.widget
         };
         let stroke_color = if active {
-            theme.accent.hover
+            theme.palette.accent.hover
         } else {
-            theme.accent.primary
+            theme.palette.accent.primary
         };
         painter.circle_filled(*screen, r, fill);
         painter.circle_stroke(*screen, r, Stroke::new(STROKE_WIDTH, stroke_color));
@@ -652,12 +683,16 @@ pub(super) fn draw_callout_standoff_handle(
 ) {
     let r = PREVIEW_HANDLE_SIZE * 0.6 * pixels_per_point;
     let fill = if active {
-        theme.accent.hover
+        theme.palette.accent.hover
     } else {
-        theme.surface.widget
+        theme.palette.surface.widget
     };
     painter.circle_filled(standoff_screen, r, fill);
-    painter.circle_stroke(standoff_screen, r, Stroke::new(STROKE_WIDTH, theme.accent.primary));
+    painter.circle_stroke(
+        standoff_screen,
+        r,
+        Stroke::new(STROKE_WIDTH, theme.palette.accent.primary),
+    );
 }
 
 // ─── Preview Helpers ────────────────────────────────────────────────────────────

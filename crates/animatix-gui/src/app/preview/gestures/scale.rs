@@ -2,7 +2,6 @@
 //!
 //! Extracted from the legacy `drag_handler.rs` Scale match arms.
 
-use animatix::timeline::TrackAccessor;
 use egui::Pos2;
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
@@ -32,6 +31,33 @@ impl GestureHandler for ScaleGesture {
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
+                // Multi-selection: the union-box handles scale the whole group.
+                if ctx.selected_actors.len() > 1 {
+                    let Some(union) = ctx.selected_union_rect() else {
+                        return GestureResult::Ignored;
+                    };
+                    let handles = crate::app::preview::overlay_ops::scale_handle_positions(union);
+                    let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
+                        ctx.preview_scene_to_screen(preview_rect, handles[i])
+                    });
+                    let Some(idx) =
+                        drag_utils::find_nearest_handle(*pos, &handle_screen, hit_radius)
+                    else {
+                        return GestureResult::Ignored;
+                    };
+                    let actors = ctx.capture_group_actors();
+                    if actors.is_empty() {
+                        return GestureResult::Ignored;
+                    }
+                    *ctx.drag_state = DragState::GroupScale {
+                        actors,
+                        union,
+                        handle: idx,
+                        uniform: modifiers.shift,
+                    };
+                    return GestureResult::Claimed;
+                }
+
                 // Get first selected actor
                 let actor = match ctx.selected_actors.iter().next().cloned() {
                     Some(a) => a,
@@ -54,7 +80,6 @@ impl GestureHandler for ScaleGesture {
                     None => return GestureResult::Ignored,
                 };
 
-                let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
 
                 // Hit test 8 handles
@@ -75,29 +100,7 @@ impl GestureHandler for ScaleGesture {
                     preview::handle_anchor_local(idx, props.size)
                 };
 
-                let (resize_mode, start_scale) = ctx
-                    .timeline
-                    .and_then(|t| {
-                        t.get_track(&actor).map(|tr| {
-                            // Resolve the resize mode from the live timeline
-                            // registry via the track's required `actor_type`
-                            // (covers extension primitives). The snapshot Arc
-                            // must stay alive while `find` borrows from it.
-                            let registry = t.primitive_registry_snapshot();
-                            let mode = if let Some(primitive) = registry.find(&tr.actor_type) {
-                                match primitive.resize_mode() {
-                                    animatix::timeline::ResizeMode::Scale => {
-                                        preview::ResizeMode::Scale
-                                    },
-                                    _ => preview::ResizeMode::Size,
-                                }
-                            } else {
-                                preview::ResizeMode::Size
-                            };
-                            (mode, tr.geometry.scale.get(time_ms, 1.0))
-                        })
-                    })
-                    .unwrap_or((preview::ResizeMode::Size, 1.0));
+                let (resize_mode, start_scale) = ctx.actor_resize_mode(&actor);
 
                 *ctx.drag_state = DragState::Scale {
                     actor,
@@ -116,6 +119,92 @@ impl GestureHandler for ScaleGesture {
                 GestureResult::Claimed
             },
             Gesture::DragMove { pos, modifiers, .. } => {
+                // Group scale: apply the union-box scale factor to every member.
+                let group = match &*ctx.drag_state {
+                    DragState::GroupScale {
+                        actors,
+                        union,
+                        handle,
+                        uniform,
+                        ..
+                    } => Some((actors.clone(), *union, *handle, *uniform)),
+                    _ => None,
+                };
+                if let Some((actors, union, handle, stored_uniform)) = group {
+                    let uniform = stored_uniform || modifiers.shift;
+                    let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
+                    let sign = group_handle_sign(handle);
+                    let (anchor_x, anchor_y) = group_scale_anchor(union, handle);
+                    let handles = crate::app::preview::overlay_ops::scale_handle_positions(union);
+                    let start_handle = handles[handle];
+                    let denom_x = start_handle.x - anchor_x;
+                    let denom_y = start_handle.y - anchor_y;
+                    let mut sx = if denom_x.abs() > 1e-6 {
+                        (scene.x - anchor_x) / denom_x
+                    } else {
+                        1.0
+                    };
+                    let mut sy = if denom_y.abs() > 1e-6 {
+                        (scene.y - anchor_y) / denom_y
+                    } else {
+                        1.0
+                    };
+                    let min_scale = PREVIEW_MIN_SCALE as f64;
+                    sx = sx.max(min_scale);
+                    sy = sy.max(min_scale);
+                    if uniform {
+                        let s = if sign[0] == 0.0 {
+                            sy
+                        } else if sign[1] == 0.0 {
+                            sx
+                        } else {
+                            sx.max(sy)
+                        };
+                        sx = s;
+                        sy = s;
+                    }
+
+                    for a in &actors {
+                        let nx = anchor_x + (a.position[0] as f64 - anchor_x) * sx;
+                        let ny = anchor_y + (a.position[1] as f64 - anchor_y) * sy;
+                        drag_utils::emit_position_edit(a.label.clone(), nx as f32, ny as f32, ctx);
+                        match a.resize_mode {
+                            preview::ResizeMode::Scale => {
+                                let ratio = sx.max(sy) as f32;
+                                ctx.commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                        time_s: None,
+                                        actor: a.label.clone(),
+                                        property: "scale".into(),
+                                        value: PropertyValue::F32(
+                                            (a.scale * ratio).max(PREVIEW_MIN_SCALE),
+                                        ),
+                                        create_keyframe: ctx.keyframe_mode,
+                                    })
+                                    .into(),
+                                );
+                            },
+                            preview::ResizeMode::Size => {
+                                let nw =
+                                    ((a.size[0] as f64 * sx) as f32).max(PREVIEW_MIN_ACTOR_SIZE);
+                                let nh =
+                                    ((a.size[1] as f64 * sy) as f32).max(PREVIEW_MIN_ACTOR_SIZE);
+                                ctx.commands.push_back(
+                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                        time_s: None,
+                                        actor: a.label.clone(),
+                                        property: "size".into(),
+                                        value: PropertyValue::Vec2([nw, nh]),
+                                        create_keyframe: ctx.keyframe_mode,
+                                    })
+                                    .into(),
+                                );
+                            },
+                        }
+                    }
+                    return GestureResult::Claimed;
+                }
+
                 // Only handle if we are already in Scale state
                 let (
                     actor,
@@ -252,7 +341,7 @@ impl GestureHandler for ScaleGesture {
 
                 // Only handle if we were in Scale state
                 match &old_drag_state {
-                    DragState::Scale { .. } => {},
+                    DragState::Scale { .. } | DragState::GroupScale { .. } => {},
                     _ => return GestureResult::Ignored,
                 }
 
@@ -263,5 +352,68 @@ impl GestureHandler for ScaleGesture {
             },
             _ => GestureResult::Ignored,
         }
+    }
+}
+
+/// Axis sign for each union-box handle index (0-7): `[-1, -1]` is top-left and
+/// the sign points away from the anchor corner.
+fn group_handle_sign(handle: usize) -> [f64; 2] {
+    match handle {
+        0 => [-1.0, -1.0],
+        1 => [1.0, -1.0],
+        2 => [1.0, 1.0],
+        3 => [-1.0, 1.0],
+        4 => [0.0, -1.0],
+        5 => [1.0, 0.0],
+        6 => [0.0, 1.0],
+        7 => [-1.0, 0.0],
+        _ => [1.0, 1.0],
+    }
+}
+
+/// Fixed point of a group scale: the union-box corner/edge opposite the dragged
+/// handle, or the box centre on axes the handle does not control.
+fn group_scale_anchor(union: kurbo::Rect, handle: usize) -> (f64, f64) {
+    let sign = group_handle_sign(handle);
+    let x = if sign[0] > 0.0 {
+        union.x0
+    } else if sign[0] < 0.0 {
+        union.x1
+    } else {
+        union.center().x
+    };
+    let y = if sign[1] > 0.0 {
+        union.y0
+    } else if sign[1] < 0.0 {
+        union.y1
+    } else {
+        union.center().y
+    };
+    (x, y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn group_scale_anchor_is_opposite_corner() {
+        let r = kurbo::Rect::new(0.0, 0.0, 10.0, 20.0);
+        // Top-left handle scales about the bottom-right corner.
+        assert_eq!(group_scale_anchor(r, 0), (10.0, 20.0));
+        // Bottom-right handle scales about the top-left corner.
+        assert_eq!(group_scale_anchor(r, 2), (0.0, 0.0));
+        assert_eq!(group_scale_anchor(r, 1), (0.0, 20.0));
+        assert_eq!(group_scale_anchor(r, 3), (10.0, 0.0));
+    }
+
+    #[test]
+    fn group_scale_anchor_centers_uncontrolled_axis() {
+        let r = kurbo::Rect::new(0.0, 0.0, 10.0, 20.0);
+        // Edge-mid handles fix only the opposite edge and centre the free axis.
+        assert_eq!(group_scale_anchor(r, 4), (5.0, 20.0));
+        assert_eq!(group_scale_anchor(r, 5), (0.0, 10.0));
+        assert_eq!(group_scale_anchor(r, 6), (5.0, 0.0));
+        assert_eq!(group_scale_anchor(r, 7), (10.0, 10.0));
     }
 }

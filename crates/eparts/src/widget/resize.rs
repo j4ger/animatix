@@ -114,11 +114,11 @@ impl ResizeHandle {
         let is_dragged = response.dragged();
 
         let (stroke_color, line_width) = if is_dragged {
-            (t.accent.primary, STROKE_WIDTH + 0.5)
+            (t.palette.accent.primary, STROKE_WIDTH + 0.5)
         } else if is_hovered {
-            (t.border.strong, STROKE_WIDTH)
+            (t.palette.border.strong, STROKE_WIDTH)
         } else {
-            (t.border.default, STROKE_WIDTH)
+            (t.palette.border.default, STROKE_WIDTH)
         };
 
         let line_endpoints = match self.axis {
@@ -131,8 +131,11 @@ impl ResizeHandle {
 
         // ── Paint a faint background highlight while dragging ──────────────
         if is_dragged {
-            ui.painter()
-                .rect_filled(rect, CornerRadius::same(RADIUS_S as u8), t.accent.faint);
+            ui.painter().rect_filled(
+                rect,
+                CornerRadius::same(RADIUS_S as u8),
+                t.palette.accent.faint,
+            );
         }
 
         // ── Cursor ─────────────────────────────────────────────────────────

@@ -16,6 +16,9 @@ use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::anim;
 use crate::widget::button::Button;
+use crate::widget::overlay::{
+    OverlayLayer, escape_pressed, is_topmost, push_overlay, remove_overlay,
+};
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
@@ -102,12 +105,22 @@ pub fn modal(
     let screen_rect = ctx.viewport_rect();
 
     // ── Animation state ──
-    let anim_id = egui::Id::new(spec.id).with("anim");
-    let closing_id = egui::Id::new(spec.id).with("closing");
-    let opened_id = egui::Id::new(spec.id).with("opened");
+    let dialog_id = egui::Id::new(spec.id);
+    let anim_id = dialog_id.with("anim");
+    let closing_id = dialog_id.with("closing");
+    let opened_id = dialog_id.with("opened");
 
     // Read current closing state (persists across frames)
     let is_closing = ctx.data(|d| d.get_temp::<bool>(closing_id).unwrap_or(false));
+
+    // Register with the overlay coordination layer while open (and animating
+    // closed) so Escape / click-outside dismissal is consumed by exactly one
+    // overlay — the topmost. This mirrors Popover::show. `OverlayLayer::Dialog`
+    // is the lowest priority, so a Tooltip/Popover opened on top of a dialog
+    // keeps Escape for itself; the dialog only reacts when it is topmost.
+    if !is_closing {
+        push_overlay(ctx, dialog_id, OverlayLayer::Dialog);
+    }
 
     // First-ever-frame detection: seed animation value at 0.0 so the
     // entrance transition doesn't snap to 1.0 on the very first summon
@@ -157,7 +170,7 @@ pub fn modal(
     };
 
     // ── Animated backdrop (painted before window, layered behind it) ──
-    let bg = t.overlay.backdrop;
+    let bg = t.palette.overlay.backdrop;
     let alpha = (bg.a() as f32 * progress).round() as u8;
     let backdrop_color = egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
@@ -169,16 +182,16 @@ pub fn modal(
 
     // ── Window fill and border opacity — scales with animation progress ──
     let border_color = egui::Color32::from_rgba_premultiplied(
-        t.border.default.r(),
-        t.border.default.g(),
-        t.border.default.b(),
-        (t.border.default.a() as f32 * progress).round() as u8,
+        t.palette.border.default.r(),
+        t.palette.border.default.g(),
+        t.palette.border.default.b(),
+        (t.palette.border.default.a() as f32 * progress).round() as u8,
     );
     let window_bg = egui::Color32::from_rgba_premultiplied(
-        t.surface.base.r(),
-        t.surface.base.g(),
-        t.surface.base.b(),
-        (t.surface.base.a() as f32 * progress).round() as u8,
+        t.palette.surface.base.r(),
+        t.palette.surface.base.g(),
+        t.palette.surface.base.b(),
+        (t.palette.surface.base.a() as f32 * progress).round() as u8,
     );
 
     // ── Slide offset for window ──
@@ -245,8 +258,10 @@ pub fn modal(
     let body_close = resp.map(|r| r.inner.unwrap_or(true)).unwrap_or(true);
 
     // ── Close request detection ──
-    let close_requested =
-        ctx.input(|i| i.key_pressed(egui::Key::Escape)) || backdrop_clicked || body_close;
+    // Escape only fires for the topmost overlay, so a dialog and a popover open
+    // together don't both dismiss on one Escape press. Mirrors Popover's gate.
+    let escape_dismissed = is_topmost(ctx, dialog_id) && escape_pressed(ctx, dialog_id);
+    let close_requested = escape_dismissed || backdrop_clicked || body_close;
 
     // Start closing animation (only once, on first close request)
     if close_requested && !is_closing {
@@ -264,6 +279,10 @@ pub fn modal(
     // completes with no threshold-magic ghost tail.
     let fully_closed = is_closing && raw_progress <= 0.0;
     if fully_closed {
+        // Deregister from the overlay coordination layer now that the dialog is
+        // fully hidden (mirrors Popover::finish_close).
+        remove_overlay(ctx, dialog_id);
+
         // Read+clear the saved focus from data first (releases the lock), THEN
         // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
         // would deadlock because data lives inside Memory (same RwLock).
@@ -290,7 +309,11 @@ pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     let t = theme(ui);
     let mut close = false;
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(t.text.primary));
+        ui.label(
+            egui::RichText::new(title)
+                .size(TextRole::Heading.size())
+                .color(t.palette.text.primary),
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
                 .add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)"))
@@ -347,5 +370,60 @@ mod tests {
     fn with_anchor_offset() {
         let spec = DialogSpec::new("test_id", [400.0, 300.0]).with_anchor_offset([0.0, -80.0]);
         assert_eq!(spec.anchor_offset, [0.0, -80.0]);
+    }
+
+    // ── Overlay coordination ─────────────────────────────────────────────
+
+    fn run_modal_frame(ctx: &egui::Context, id: &str) -> bool {
+        let mut open = true;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let spec = DialogSpec::new(id, [200.0, 160.0]);
+            open = modal(ui, &spec, |_, _| false);
+        });
+        open
+    }
+
+    /// Regression: a Dialog did not register with the overlay layer, so its
+    /// Escape handling was a bare global key check that fired even while a
+    /// higher-priority Popover was open.
+    #[test]
+    fn modal_registers_with_overlay_when_open() {
+        use crate::widget::overlay::{OverlayLayer, is_topmost, push_overlay};
+
+        let ctx = egui::Context::default();
+        assert!(run_modal_frame(&ctx, "overlay_dialog"));
+        let dialog_id = egui::Id::new("overlay_dialog");
+        assert!(is_topmost(&ctx, dialog_id), "open dialog should be the topmost overlay");
+
+        // A Popover opened on top outranks the Dialog (OverlayLayer ordering).
+        let popover_id = egui::Id::new("on_top_popover");
+        push_overlay(&ctx, popover_id, OverlayLayer::Popover);
+        assert!(!is_topmost(&ctx, dialog_id), "popover must outrank a dialog for Escape");
+        assert!(is_topmost(&ctx, popover_id));
+    }
+
+    /// An Escape press while a Popover is topmost must not be consumed by the
+    /// dialog's gated check.
+    #[test]
+    fn escape_gate_respects_topmost() {
+        use crate::widget::overlay::{OverlayLayer, escape_pressed, is_topmost, push_overlay};
+
+        let ctx = egui::Context::default();
+        assert!(run_modal_frame(&ctx, "escape_dialog"));
+        let dialog_id = egui::Id::new("escape_dialog");
+
+        push_overlay(&ctx, egui::Id::new("escape_popover"), OverlayLayer::Popover);
+        ctx.input_mut(|i| {
+            i.events.push(egui::Event::Key {
+                key: egui::Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::default(),
+            });
+        });
+
+        // The dialog is not topmost → its gate must be false.
+        assert!(!(is_topmost(&ctx, dialog_id) && escape_pressed(&ctx, dialog_id)));
     }
 }

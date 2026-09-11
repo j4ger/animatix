@@ -155,6 +155,10 @@ struct AnimatixApp {
     theme_error: Option<String>,
     /// Opt-in JSONL perf telemetry sink (`--perf-log`, PF-9).
     perf_log: Option<crate::app::perf_log::PerfLogSink>,
+    /// Bounded whole-window screenshot session (`ANIMATIX_SCREENSHOT`), used for
+    /// visual layout review. Only compiled with `dev-screenshots`.
+    #[cfg(feature = "dev-screenshots")]
+    screenshot: Option<ScreenshotSession>,
 }
 
 /// Probe the OS light/dark appearance via the `dark-light` crate.
@@ -225,6 +229,28 @@ impl AnimatixApp {
             },
         };
 
+        // Dev-only: start with a named layout preset so screenshots can cover
+        // each preset without driving the UI.
+        #[cfg(feature = "dev-screenshots")]
+        let shell = {
+            let mut shell = shell;
+            let preset = match std::env::var("ANIMATIX_LAYOUT_PRESET")
+                .unwrap_or_default()
+                .to_ascii_lowercase()
+                .as_str()
+            {
+                "code" => Some(crate::app::LayoutPreset::Code),
+                "inspect" => Some(crate::app::LayoutPreset::Inspect),
+                "focus" => Some(crate::app::LayoutPreset::Focus),
+                "animate" => Some(crate::app::LayoutPreset::Animate),
+                _ => None,
+            };
+            if let Some(preset) = preset {
+                let _ = crate::app::handlers::ui::handle_apply_layout(&mut shell.ui_store, preset);
+            }
+            shell
+        };
+
         Ok(Self {
             shell,
             preview_surface,
@@ -242,6 +268,8 @@ impl AnimatixApp {
             #[cfg(feature = "theme-json")]
             theme_error,
             perf_log,
+            #[cfg(feature = "dev-screenshots")]
+            screenshot: ScreenshotSession::from_env(),
         })
     }
 
@@ -448,6 +476,10 @@ impl AnimatixApp {
                         .pending_actions
                         .push_back(ShellAction::View(ViewAction::OpenFindReplace));
                 },
+                KeyboardAction::SetSelectTool => {
+                    self.shell.ui_store.view.tool_mode = ToolMode::Select;
+                    self.shell.preview_store.preview.status = "Tool: Select".to_string();
+                },
                 KeyboardAction::SetMoveTool => {
                     self.shell.ui_store.view.tool_mode = ToolMode::Move;
                     self.shell.preview_store.preview.status = "Tool: Move".to_string();
@@ -582,6 +614,12 @@ impl AnimatixApp {
                         .ui_store
                         .pending_actions
                         .push_back(ShellAction::View(ViewAction::ShowInspector));
+                },
+                KeyboardAction::ToggleCode => {
+                    self.shell
+                        .ui_store
+                        .pending_actions
+                        .push_back(ShellAction::View(ViewAction::ShowCode));
                 },
             }
         }
@@ -763,6 +801,13 @@ impl eframe::App for AnimatixApp {
         if self.shell.ui_store.view.welcome_open {
             clear_app_state();
         } else {
+            // A clean shutdown leaves nothing to recover, so drop the sidecar.
+            // If the document is still dirty (an abnormal/forced exit), keep it
+            // so the next launch can offer the unsaved edits back. A pending
+            // recovery prompt also keeps it: the user has not chosen yet.
+            if !self.shell.document_store.source.is_dirty() {
+                self.shell.clear_recovery_for_current_document();
+            }
             save_app_state(&self.shell.document_store.source.document.file_path);
         }
     }
@@ -908,8 +953,115 @@ impl eframe::App for AnimatixApp {
             || self.shell.preview_store.rebuild_in_progress
         {
             ui.ctx().request_repaint();
+        } else if let Some(delay) = self.shell.autosave_repaint_delay(std::time::Instant::now()) {
+            // Wake up exactly when the next autosave is due; without this the
+            // app sleeping while idle would never reach the timer.
+            ui.ctx().request_repaint_after(delay);
+        }
+
+        #[cfg(feature = "dev-screenshots")]
+        self.drive_screenshot(ui);
+    }
+}
+
+/// Bounded whole-window screenshot driver (visual layout review).
+///
+/// Enabled with `ANIMATIX_SCREENSHOT=<png>` (and optional
+/// `ANIMATIX_SCREENSHOT_FRAMES=<n>`), only compiled with `dev-screenshots`.
+#[cfg(feature = "dev-screenshots")]
+struct ScreenshotSession {
+    path: PathBuf,
+    after_frames: u32,
+    frame: u32,
+    requested: bool,
+}
+
+#[cfg(feature = "dev-screenshots")]
+impl ScreenshotSession {
+    fn from_env() -> Option<Self> {
+        let path = PathBuf::from(std::env::var_os("ANIMATIX_SCREENSHOT")?);
+        let after_frames = std::env::var("ANIMATIX_SCREENSHOT_FRAMES")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(8);
+        Some(Self {
+            path,
+            after_frames,
+            frame: 0,
+            requested: false,
+        })
+    }
+}
+
+#[cfg(feature = "dev-screenshots")]
+impl AnimatixApp {
+    fn drive_screenshot(&mut self, ui: &mut egui::Ui) {
+        let Some(session) = self.screenshot.as_mut() else {
+            return;
+        };
+        session.frame += 1;
+        if session.frame < session.after_frames {
+            ui.ctx().request_repaint();
+            return;
+        }
+        if !session.requested {
+            ui.ctx()
+                .send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+            session.requested = true;
+        }
+
+        let mut saved = false;
+        ui.input(|i| {
+            for event in &i.raw.events {
+                if let egui::Event::Screenshot { image, .. } = event {
+                    match save_window_screenshot(image, i.pixels_per_point, &session.path) {
+                        Ok(()) => {
+                            tracing::info!(
+                                "workspace screenshot saved to {}",
+                                session.path.display()
+                            );
+                            saved = true;
+                        },
+                        Err(error) => tracing::error!("workspace screenshot failed: {error}"),
+                    }
+                }
+            }
+        });
+
+        if saved {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+        } else {
+            ui.ctx().request_repaint();
         }
     }
+}
+
+#[cfg(feature = "dev-screenshots")]
+fn save_window_screenshot(
+    image: &egui::ColorImage,
+    pixels_per_point: f32,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create dir: {e}"))?;
+    }
+
+    let [img_w, img_h] = image.size;
+    let logical_w = (img_w as f32 / pixels_per_point).round() as u32;
+    let logical_h = (img_h as f32 / pixels_per_point).round() as u32;
+
+    let raw: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+    let src = image::RgbaImage::from_raw(img_w as u32, img_h as u32, raw)
+        .ok_or("invalid screenshot buffer")?;
+    let resized = image::imageops::resize(
+        &src,
+        logical_w.max(1),
+        logical_h.max(1),
+        image::imageops::FilterType::Lanczos3,
+    );
+
+    resized.save(path).map_err(|e| format!("save png: {e}"))?;
+    Ok(())
 }
 
 fn live_preview_status(preview: &PreviewPaneState, active_scene: Option<&str>) -> String {

@@ -9,9 +9,9 @@ use crate::tokens::typography::TextRole;
 /// Prefer this over the standalone [`crate::widget::layout::pill_tab_bar`]
 /// free function for new code; `pill_tab_bar` remains for backward compatibility.
 ///
-/// The bar renders tabs with `theme.tab.active` / `theme.tab.inactive` /
-/// `theme.tab.hover` slots and an active indicator stripe using
-/// `theme.tab.active.indicator`. Selection is committed on click.
+/// The bar renders tabs with `theme.components.tab.active` / `theme.components.tab.inactive` /
+/// `theme.components.tab.hover` slots and an active indicator stripe using
+/// `theme.components.tab.active.indicator`. Selection is committed on click.
 ///
 /// `TabBar` owns no cross-frame state; the caller stores the selected index
 /// (typically in an app struct) and passes a mutable reference.
@@ -99,7 +99,7 @@ impl<'a> TabBar<'a> {
             ui.allocate_exact_size(Vec2::new(available, tab_h), self.sense);
 
         // Bar background — use the inactive slot color as the base.
-        ui.painter().rect_filled(bar_rect, RADIUS_M, t.tab.inactive.bg);
+        ui.painter().rect_filled(bar_rect, RADIUS_M, t.components.tab.inactive.bg);
 
         let mut clicked_index = None;
 
@@ -112,11 +112,11 @@ impl<'a> TabBar<'a> {
             let response = ui.interact(tab_rect, self.id.with(("tab", idx)), Sense::click());
 
             let slot = if is_active {
-                &t.tab.active
+                &t.components.tab.active
             } else if response.hovered() {
-                &t.tab.hover
+                &t.components.tab.hover
             } else {
-                &t.tab.inactive
+                &t.components.tab.inactive
             };
 
             // Draw pill background for the tab.
@@ -127,7 +127,7 @@ impl<'a> TabBar<'a> {
                 ui.painter().rect_stroke(
                     pill,
                     RADIUS_M,
-                    egui::Stroke::new(STROKE_WIDTH, t.border.strong),
+                    egui::Stroke::new(STROKE_WIDTH, t.palette.border.strong),
                     egui::StrokeKind::Inside,
                 );
 

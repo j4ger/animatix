@@ -124,7 +124,7 @@ fn render_compact_track_row(
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
+        ui.painter().rect_filled(row_rect, 0.0, theme.palette.surface.hover);
     }
 
     let baseline_y = row_rect.center().y;
@@ -137,7 +137,7 @@ fn render_compact_track_row(
         egui::Align2::CENTER_CENTER,
         group.icon,
         TextRole::Micro.font_id(),
-        theme.text.muted,
+        theme.palette.text.muted,
     );
     cursor_x += 18.0;
 
@@ -147,7 +147,7 @@ fn render_compact_track_row(
         egui::Align2::LEFT_CENTER,
         track.name.as_str(),
         TextRole::BodyS.font_id(),
-        theme.text.secondary,
+        theme.palette.text.secondary,
     );
 
     // Keyframe count badge (right-aligned)
@@ -166,7 +166,7 @@ fn render_compact_track_row(
             egui::pos2(strip_left, row_rect.min.y + 5.0),
             egui::pos2(strip_right, row_rect.max.y - 5.0),
         );
-        ui.painter().rect_filled(strip_rect, RADIUS_S, theme.surface.widget);
+        ui.painter().rect_filled(strip_rect, RADIUS_S, theme.palette.surface.widget);
 
         // Keyframe dots on the strip
         for (time_ms, value, easing) in &track.keyframes {
@@ -174,9 +174,9 @@ fn render_compact_track_row(
             let x = egui::lerp(strip_rect.left()..=strip_rect.right(), fraction as f32);
             let is_current = *time_ms == current_time_ms;
             let color = if is_current {
-                theme.status.warning
+                theme.palette.status.warning
             } else {
-                theme.text.muted
+                theme.palette.text.muted
             };
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
@@ -220,12 +220,12 @@ fn render_compact_track_row(
                     ui.label(
                         egui::RichText::new(value)
                             .size(TextRole::Micro.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                     );
                     ui.label(
                         egui::RichText::new(format!("ease: {}", easing_display_name(*easing)))
                             .size(TextRole::Micro.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     );
                 },
             );
@@ -241,7 +241,7 @@ fn render_compact_track_row(
                     egui::pos2(playhead_x, strip_rect.top()),
                     egui::pos2(playhead_x, strip_rect.bottom()),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, theme.status.warning),
+                egui::Stroke::new(STROKE_WIDTH, theme.palette.status.warning),
             );
         }
 
@@ -270,16 +270,16 @@ fn render_compact_track_row(
                 ui.label(
                     egui::RichText::new(format!("{} keyframes", track.keyframes.len()))
                         .size(TextRole::Micro.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 );
             });
             ui.add_space(sp.base.space_1);
             for (time_ms, value, easing) in &track.keyframes {
                 let is_current = *time_ms == current_time_ms;
                 let color = if is_current {
-                    theme.status.warning
+                    theme.palette.status.warning
                 } else {
-                    theme.text.secondary
+                    theme.palette.text.secondary
                 };
                 ui.horizontal(|ui| {
                     let icon = egui_phosphor::regular::DIAMOND;
@@ -293,12 +293,12 @@ fn render_compact_track_row(
                     ui.label(
                         egui::RichText::new(value)
                             .size(TextRole::Micro.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                     );
                     ui.label(
                         egui::RichText::new(easing_display_name(*easing))
                             .size(TextRole::Micro.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     );
                 });
             }

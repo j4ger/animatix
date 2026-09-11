@@ -905,6 +905,71 @@ fn atomic_write(path: &Path, contents: &str) -> Result<(), GuiError> {
     })
 }
 
+/// Sidecar path used for crash-recovery autosaves of `source_path`.
+///
+/// The recovery file is a sibling of the document so a whole-project copy or
+/// delete moves it along with the source, and appending `.autosave` keeps it
+/// from ever being confused with a normal `.amx` save.
+pub(crate) fn recovery_path(source_path: &Path) -> PathBuf {
+    let file_name = source_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "animatix.amx".to_string());
+    source_path.with_file_name(format!("{file_name}.autosave"))
+}
+
+/// Atomically write `text` to `source_path`'s recovery sidecar.
+pub(crate) fn write_recovery(source_path: &Path, text: &str) -> Result<(), GuiError> {
+    atomic_write(&recovery_path(source_path), text)
+}
+
+/// Remove the recovery sidecar for `source_path`, if present.
+///
+/// Returns `true` when a file was removed. A missing sidecar is not an error:
+/// the common case is a document that was saved normally and needed no
+/// recovery, or a discard that already cleaned up.
+pub(crate) fn clear_recovery(source_path: &Path) -> bool {
+    let path = recovery_path(source_path);
+    match fs::remove_file(&path) {
+        Ok(()) => {
+            tracing::debug!("Removed recovery file {}", path.display());
+            true
+        },
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => false,
+        Err(err) => {
+            tracing::warn!("Failed to remove recovery file {}: {}", path.display(), err);
+            false
+        },
+    }
+}
+
+/// Whether a recovery sidecar for `source_path` exists and is strictly newer
+/// than the source file itself.
+///
+/// A sidecar that is older than (or identical in age to) the source cannot hold
+/// anything the source does not already have, so it is never offered.
+pub(crate) fn recovery_is_newer(source_path: &Path) -> bool {
+    let recovery = recovery_path(source_path);
+    let (Ok(recovery_meta), Ok(source_meta)) = (fs::metadata(&recovery), fs::metadata(source_path))
+    else {
+        return false;
+    };
+    match (recovery_meta.modified(), source_meta.modified()) {
+        (Ok(recovery_mtime), Ok(source_mtime)) => {
+            recovery_is_newer_than(recovery_mtime, source_mtime)
+        },
+        _ => false,
+    }
+}
+
+/// Pure mtime comparison behind [`recovery_is_newer`], split out for tests.
+pub(crate) fn recovery_is_newer_than(
+    recovery_mtime: std::time::SystemTime,
+    source_mtime: std::time::SystemTime,
+) -> bool {
+    recovery_mtime > source_mtime
+}
+
 fn document_extensions(
     file_path: &Path,
 ) -> (std::sync::Arc<animatix::extension_context::ExtensionContext>, ExtensionManifest) {
@@ -975,7 +1040,7 @@ fn load_extension_manifests(file_path: &Path) -> Vec<ExtensionManifest> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use animatix_syntax::ast::{Property, Time};
 
@@ -1466,5 +1531,55 @@ scene: Rect, size: (100, 100)
 
         let document = DocumentSession::from_source(entry, "#0s\n".to_string()).unwrap();
         assert_eq!(document.extension_manifest.primitives.len(), 1);
+    }
+
+    #[test]
+    fn recovery_path_is_a_sibling_sidecar() {
+        assert_eq!(
+            recovery_path(Path::new("/tmp/demo/scene.amx")),
+            PathBuf::from("/tmp/demo/scene.amx.autosave")
+        );
+        // A path with no file name still yields a usable sibling.
+        assert_eq!(recovery_path(Path::new("/")), PathBuf::from("/animatix.amx.autosave"));
+    }
+
+    #[test]
+    fn recovery_is_newer_than_compares_mtimes_strictly() {
+        let base = UNIX_EPOCH + Duration::from_secs(1_000);
+        let newer = base + Duration::from_secs(1);
+
+        assert!(recovery_is_newer_than(newer, base));
+        assert!(!recovery_is_newer_than(base, base), "equal mtimes are not newer");
+        assert!(!recovery_is_newer_than(base, newer));
+    }
+
+    #[test]
+    fn recovery_detection_reads_filesystem_mtimes() {
+        let dir = temp_project_dir("recovery_detection").unwrap();
+        let source = dir.join("scene.amx");
+        write_file(&source, "#0s\n").unwrap();
+
+        // Backdate the source so the recovery write is unambiguously newer.
+        let old = SystemTime::now() - Duration::from_secs(600);
+        fs::File::options()
+            .write(true)
+            .open(&source)
+            .unwrap()
+            .set_modified(old)
+            .unwrap();
+
+        assert!(!recovery_is_newer(&source), "no sidecar yet");
+        assert!(!clear_recovery(&source), "clearing a missing sidecar is a no-op");
+
+        write_recovery(&source, "#0s\nbox: Rect, size: (100, 100)\n").unwrap();
+        assert!(recovery_is_newer(&source));
+        assert_eq!(
+            fs::read_to_string(recovery_path(&source)).unwrap(),
+            "#0s\nbox: Rect, size: (100, 100)\n"
+        );
+
+        assert!(clear_recovery(&source));
+        assert!(!recovery_path(&source).exists());
+        assert!(!recovery_is_newer(&source));
     }
 }

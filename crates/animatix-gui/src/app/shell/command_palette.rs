@@ -45,15 +45,26 @@ impl GuiShell {
             ui.separator();
             ui.add_space(sp.base.space_2);
 
-            let query = self.ui_store.command_palette_query.to_lowercase();
+            let query = self.ui_store.command_palette_query.trim().to_string();
             let items = self.build_palette_items();
-            let filtered: Vec<&PaletteItem> = items
+            let mut scored: Vec<(i32, &PaletteItem)> = items
                 .iter()
-                .filter(|item| {
-                    item.label.to_lowercase().contains(&query)
-                        || item.keywords.to_lowercase().contains(&query)
+                .filter_map(|item| {
+                    if query.is_empty() {
+                        return Some((0, item));
+                    }
+                    let label = fuzzy_score(&item.label, &query).map(|s| s * 2);
+                    let keywords = fuzzy_score(item.keywords, &query);
+                    match (label, keywords) {
+                        (Some(l), Some(k)) => Some((l.max(k), item)),
+                        (Some(l), None) => Some((l, item)),
+                        (None, Some(k)) => Some((k, item)),
+                        (None, None) => None,
+                    }
                 })
                 .collect();
+            scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.label.cmp(&b.1.label)));
+            let filtered: Vec<&PaletteItem> = scored.into_iter().map(|(_, item)| item).collect();
 
             // Clamp selected index after filtering
             if self.ui_store.command_palette_selected >= filtered.len() {
@@ -92,7 +103,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("No commands match your search")
                         .size(TextRole::BodyS.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 );
             } else {
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
@@ -130,6 +141,87 @@ impl GuiShell {
     fn build_palette_items(&self) -> Vec<PaletteItem> {
         let mut items = Vec::new();
         let has_selection = !self.ui_store.selection.selected_actors.is_empty();
+
+        items.push(PaletteItem {
+            label: "Open File…".into(),
+            icon: egui_phosphor::regular::FOLDER_OPEN,
+            action: ShellAction::View(ViewAction::OpenFileDialog),
+            keywords: "open file load amx document",
+        });
+        items.push(PaletteItem {
+            label: "New Scene".into(),
+            icon: egui_phosphor::regular::FILE_PLUS,
+            action: ShellAction::View(ViewAction::NewFile),
+            keywords: "new create file scene document",
+        });
+        items.push(PaletteItem {
+            label: "Save As…".into(),
+            icon: egui_phosphor::regular::FLOPPY_DISK,
+            action: ShellAction::View(ViewAction::SaveAsDialog),
+            keywords: "save as file copy document",
+        });
+        items.push(PaletteItem {
+            label: "Insert…".into(),
+            icon: egui_phosphor::regular::PLUS,
+            action: ShellAction::View(ViewAction::OpenInsertionPalette),
+            keywords: "insert add actor primitive component action snippet",
+        });
+        items.push(PaletteItem {
+            label: "Settings…".into(),
+            icon: egui_phosphor::regular::GEAR,
+            action: ShellAction::View(ViewAction::OpenSettings),
+            keywords: "settings preferences options theme density",
+        });
+        items.push(PaletteItem {
+            label: "Keyboard Shortcuts…".into(),
+            icon: egui_phosphor::regular::KEYBOARD,
+            action: ShellAction::View(ViewAction::OpenShortcuts),
+            keywords: "shortcuts keys help cheatsheet",
+        });
+        items.push(PaletteItem {
+            label: "Find / Replace…".into(),
+            icon: egui_phosphor::regular::MAGNIFYING_GLASS,
+            action: ShellAction::View(ViewAction::OpenFindReplace),
+            keywords: "find replace search text",
+        });
+        items.push(PaletteItem {
+            label: "Toggle Inspector".into(),
+            icon: egui_phosphor::regular::SLIDERS,
+            action: ShellAction::View(ViewAction::ShowInspector),
+            keywords: "inspector properties panel detail",
+        });
+        items.push(PaletteItem {
+            label: "Toggle Code".into(),
+            icon: egui_phosphor::regular::CODE,
+            action: ShellAction::View(ViewAction::ShowCode),
+            keywords: "code source editor panel detail",
+        });
+        items.push(PaletteItem {
+            label: "Toggle Curves Editor".into(),
+            icon: egui_phosphor::regular::CHART_LINE,
+            action: ShellAction::View(ViewAction::ShowCurves),
+            keywords: "curves graph fcurve keyframe easing panel bottom",
+        });
+        items.push(PaletteItem {
+            label: "Show Timeline".into(),
+            icon: egui_phosphor::regular::FILM_STRIP,
+            action: ShellAction::View(ViewAction::ShowTimeline),
+            keywords: "timeline keyframes panel bottom",
+        });
+        for preset in crate::app::LayoutPreset::ALL {
+            items.push(PaletteItem {
+                label: format!("Layout: {}", preset.label()),
+                icon: egui_phosphor::regular::LAYOUT,
+                action: ShellAction::View(ViewAction::ApplyLayout(preset)),
+                keywords: "layout preset workspace panels",
+            });
+        }
+        items.push(PaletteItem {
+            label: "Reset Layout".into(),
+            icon: egui_phosphor::regular::ARROW_CLOCKWISE,
+            action: ShellAction::View(ViewAction::ResetLayout),
+            keywords: "layout reset workspace default panels",
+        });
 
         items.push(PaletteItem {
             label: "Save".into(),
@@ -274,5 +366,73 @@ impl GuiShell {
         });
 
         items
+    }
+}
+
+/// Subsequence fuzzy match with a relevance score (higher is better).
+///
+/// Returns `None` when `query` is not a subsequence of `haystack`. Adjacent
+/// matches and matches at word boundaries score higher, so "tl" ranks
+/// "Toggle Layout" above an incidental scatter of the same letters.
+fn fuzzy_score(haystack: &str, query: &str) -> Option<i32> {
+    let hay: Vec<char> = haystack.chars().flat_map(|c| c.to_lowercase()).collect();
+    let needle: Vec<char> = query.chars().flat_map(|c| c.to_lowercase()).collect();
+    if needle.is_empty() {
+        return Some(0);
+    }
+
+    let mut score = 0i32;
+    let mut cursor = 0usize;
+    let mut prev: Option<usize> = None;
+    for &qc in &needle {
+        let mut found = None;
+        while cursor < hay.len() {
+            if hay[cursor] == qc {
+                found = Some(cursor);
+                break;
+            }
+            cursor += 1;
+        }
+        let idx = found?;
+        if prev == Some(idx.wrapping_sub(1)) {
+            score += 8;
+        }
+        if idx == 0 || matches!(hay.get(idx - 1).copied(), Some(' ' | '_' | '-' | '/')) {
+            score += 6;
+        }
+        score += 1;
+        prev = Some(idx);
+        cursor = idx + 1;
+    }
+    Some(score)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fuzzy_score;
+
+    #[test]
+    fn fuzzy_requires_subsequence() {
+        assert!(fuzzy_score("Toggle Layout", "tl").is_some());
+        assert!(fuzzy_score("Save", "xyz").is_none());
+    }
+
+    #[test]
+    fn fuzzy_prefers_adjacent_and_prefix_matches() {
+        // Adjacent run beats the same letters spread out.
+        let adjacent = fuzzy_score("abc", "ab").expect("adjacent");
+        let spread = fuzzy_score("acb", "ab").expect("spread");
+        assert!(adjacent > spread, "adjacent match should outrank a scatter");
+
+        // Prefix match beats a later, non-adjacent match.
+        let prefix = fuzzy_score("Export", "ex").expect("prefix");
+        let later = fuzzy_score("Export", "et").expect("later");
+        assert!(prefix > later, "prefix match should outrank a later match");
+    }
+
+    #[test]
+    fn fuzzy_is_case_insensitive_and_empty_query_matches() {
+        assert!(fuzzy_score("Export", "EXP").is_some());
+        assert_eq!(fuzzy_score("anything", ""), Some(0));
     }
 }

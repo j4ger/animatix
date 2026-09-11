@@ -18,11 +18,10 @@ impl GestureHandler for PivotGesture {
     ) -> GestureResult {
         match gesture {
             Gesture::DragStart { pos, .. } => {
-                // Only handle Pivot or Select tool mode
-                match *ctx.tool_mode {
-                    crate::app::preview::ToolMode::Pivot
-                    | crate::app::preview::ToolMode::Select => {},
-                    _ => return GestureResult::Ignored,
+                // Pivot only. Allowing this in Select mode meant a drag near an
+                // actor's centre silently moved the pivot instead of the actor.
+                if *ctx.tool_mode != crate::app::preview::ToolMode::Pivot {
+                    return GestureResult::Ignored;
                 }
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;

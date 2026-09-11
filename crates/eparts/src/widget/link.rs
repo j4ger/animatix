@@ -31,8 +31,8 @@ impl Link {
 
     pub fn show(self, ui: &mut egui::Ui) -> Response {
         let t = crate::theme(ui);
-        let color = t.accent.primary;
-        let hover_color = t.accent.primary_hover;
+        let color = t.palette.accent.primary;
+        let hover_color = t.palette.accent.primary_hover;
 
         let label = egui::Label::new(
             egui::RichText::new(self.text.clone())

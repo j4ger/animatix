@@ -64,7 +64,10 @@ pub struct Tooltip {
 impl Tooltip {
     /// Create a new tooltip builder.
     ///
-    /// `id` must be unique per tooltip instance (typically `ui.id().with("tooltip")`).
+    /// `id` namespaces this tooltip's transient state; it is combined with the
+    /// trigger's response id, so the same `id` may safely be reused across
+    /// several triggers (each keeps independent hover/grace state). Typically
+    /// `ui.id().with("tooltip")`.
     pub fn new(id: Id) -> Self {
         Self {
             id,
@@ -105,7 +108,12 @@ impl Tooltip {
             return;
         }
 
-        let mut state: State = ctx.data(|d| d.get_temp::<State>(self.id)).unwrap_or_default();
+        // Key the hover/grace state on the *trigger* response id namespaced by the
+        // caller-supplied tooltip id, not on `self.id` alone. Callers that reuse a
+        // constant id across several triggers (e.g. a toolbar built in a loop) would
+        // otherwise share one hover state and show the wrong tooltip.
+        let state_key = state_key(trigger.id, self.id);
+        let mut state: State = ctx.data(|d| d.get_temp::<State>(state_key)).unwrap_or_default();
 
         // ── Hover tracking ────────────────────────────────────────────────
         if trigger_hovered {
@@ -157,8 +165,8 @@ impl Tooltip {
             let inner = area.show(ctx, |ui| {
                 ui.set_max_width(est_max_width);
                 egui::Frame::new()
-                    .fill(t.overlay.tooltip_bg)
-                    .stroke(Stroke::new(STROKE_WIDTH, t.border.default))
+                    .fill(t.components.tooltip.bg)
+                    .stroke(Stroke::new(STROKE_WIDTH, t.components.tooltip.border))
                     .corner_radius(CornerRadius::same(RADIUS_M as u8))
                     .inner_margin(Margin::same(s.space_3 as i8))
                     .show(ui, add_contents);
@@ -177,7 +185,7 @@ impl Tooltip {
         state.visible_last_frame = is_open;
 
         ctx.data_mut(|d| {
-            d.insert_temp::<State>(self.id, state);
+            d.insert_temp::<State>(state_key, state);
         });
 
         // Keep repainting while a timer is pending so delays and grace resolve.
@@ -185,6 +193,17 @@ impl Tooltip {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
     }
+}
+
+// ─── State key ──────────────────────────────────────────────────────────────
+
+/// Memory key for a tooltip's transient hover/grace state.
+///
+/// Namespaced by the trigger response id so a constant tooltip id shared by
+/// several triggers keeps per-trigger state, then further namespaced by the
+/// caller-supplied tooltip id.
+fn state_key(trigger_id: Id, tooltip_id: Id) -> Id {
+    trigger_id.with(tooltip_id)
 }
 
 // ─── Convenience ────────────────────────────────────────────────────────────
@@ -214,5 +233,25 @@ mod tests {
         let t = Tooltip::new(Id::new("test")).open_delay(100.0).close_delay(50.0);
         assert_eq!(t.open_delay, 100.0);
         assert_eq!(t.close_delay, 50.0);
+    }
+
+    /// Regression: state used to be keyed on the caller-supplied id alone, so two
+    /// triggers sharing a constant tooltip id shared one hover state.
+    #[test]
+    fn state_key_is_per_trigger() {
+        let tooltip = Id::new("shared_tooltip");
+        let trigger_a = Id::new("trigger_a");
+        let trigger_b = Id::new("trigger_b");
+
+        assert_ne!(
+            state_key(trigger_a, tooltip),
+            state_key(trigger_b, tooltip),
+            "distinct triggers sharing one tooltip id must not share state"
+        );
+        assert_eq!(
+            state_key(trigger_a, tooltip),
+            state_key(trigger_a, tooltip),
+            "the same trigger must resolve a stable key across frames"
+        );
     }
 }

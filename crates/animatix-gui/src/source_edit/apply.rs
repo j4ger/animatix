@@ -67,6 +67,20 @@ pub enum SourceEdit {
         /// Absolute time of the keyframe to update (in seconds).
         time_s: f64,
     },
+    /// Replace the RHS of an existing keyframe's assignment at an exact time.
+    ///
+    /// Unlike [`SourceEdit::MergeKeyframe`] this never inserts a block and
+    /// never applies a merge window; the graph editor uses it to write a
+    /// vertically dragged keyframe back to the block it came from.
+    SetKeyframeValue {
+        /// `Some(name)` scopes the edit to a composition scene.
+        scene: Option<String>,
+        actor: String,
+        property: String,
+        value: Expr,
+        /// Absolute time of the keyframe to edit (in seconds).
+        time_s: f64,
+    },
     /// Reorder a container's inline children by label.
     ReorderContainerChildren {
         container: String,
@@ -238,6 +252,20 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             value,
             time_s,
         } => super::keyframe_edits::merge_keyframe(
+            stmts,
+            scene.as_deref(),
+            &actor,
+            &property,
+            value,
+            time_s,
+        ),
+        SourceEdit::SetKeyframeValue {
+            scene,
+            actor,
+            property,
+            value,
+            time_s,
+        } => super::keyframe_edits::set_keyframe_value(
             stmts,
             scene.as_deref(),
             &actor,

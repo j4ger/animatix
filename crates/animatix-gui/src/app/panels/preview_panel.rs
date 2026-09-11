@@ -1,14 +1,140 @@
 //! Preview panel: canvas with rulers, zoom/pan, drag interaction, and overlays.
 
 use animatix::timeline::SceneDimensions;
-use egui::Vec2;
+use egui::{RichText, Vec2};
+use eparts::widget::UiExt;
 
 use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
+use crate::app::components::button::{Button, toolbar_separator};
+use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;
-use crate::app::preview::{self, DragState, fit_preview, selection};
+use crate::app::preview::{self, DragState, ToolMode, fit_preview, selection};
+
+/// Tool and view controls for the canvas, kept next to the surface they affect
+/// rather than in the global toolbar (design doc §12.2).
+fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
+    use egui_phosphor::regular as icons;
+
+    let theme = eparts::theme(ui);
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
+    egui::Frame::new()
+        .fill(theme.palette.surface.base)
+        .inner_margin(egui::Margin::symmetric(sp.base.space_2 as i8, sp.base.space_1 as i8))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
+
+                // Tool switcher: the visible mode state that used to be
+                // keyboard-only.
+                let tools: [(ToolMode, &str, &str, &str); 6] = [
+                    (ToolMode::Select, icons::CURSOR, "Select", "Select tool (V)"),
+                    (ToolMode::Move, icons::HAND_GRABBING, "Move", "Move tool (G)"),
+                    (ToolMode::Rotate, icons::ARROW_CLOCKWISE, "Rotate", "Rotate tool (R)"),
+                    (ToolMode::Scale, icons::ARROWS_OUT_SIMPLE, "Scale", "Scale tool (S)"),
+                    (ToolMode::Vertex, icons::POLYGON, "Vertex", "Vertex tool (A)"),
+                    (ToolMode::Pivot, icons::CROSSHAIR, "Pivot", "Pivot tool (P)"),
+                ];
+                for (mode, icon, label, tip) in tools {
+                    let active = *ctx.tool_mode == mode;
+                    let resp = ui.add(Button::ghost("").with_icon(icon).active(active));
+                    text_tooltip(ui, resp.id.with(("tool", label)), &resp, tip);
+                    if resp.clicked() {
+                        *ctx.tool_mode = mode;
+                        ctx.preview.status = format!("Tool: {label}");
+                    }
+                }
+
+                toolbar_separator(ui);
+
+                // Snapping toggle (there was previously no way to see or
+                // change this).
+                let snap = ctx.preview.snap.snap_enabled;
+                let snap_resp = ui.add(Button::ghost("").with_icon(icons::MAGNET).active(snap));
+                text_tooltip(
+                    ui,
+                    snap_resp.id.with("snap_tip"),
+                    &snap_resp,
+                    if snap {
+                        "Snapping on (hold Alt to bypass)"
+                    } else {
+                        "Snapping off"
+                    },
+                );
+                if snap_resp.clicked() {
+                    ctx.preview.snap.snap_enabled = !snap;
+                }
+
+                // View toggles
+                let grid = ctx.preview.overlay.show_grid;
+                let grid_resp = ui.stable_selectable_label(grid, "Grid");
+                text_tooltip(ui, grid_resp.id.with("grid_tip"), &grid_resp, "Toggle grid");
+                if grid_resp.clicked() {
+                    ctx.preview.overlay.show_grid = !grid;
+                }
+
+                let guides = ctx.preview.overlay.show_guides;
+                let guides_resp = ui.stable_selectable_label(guides, "Guides");
+                text_tooltip(ui, guides_resp.id.with("guides_tip"), &guides_resp, "Toggle guides");
+                if guides_resp.clicked() {
+                    ctx.preview.overlay.show_guides = !guides;
+                }
+
+                let labels = ctx.preview.overlay.show_actor_labels;
+                let labels_resp = ui.stable_selectable_label(labels, "Labels");
+                text_tooltip(
+                    ui,
+                    labels_resp.id.with("labels_tip"),
+                    &labels_resp,
+                    "Toggle actor labels",
+                );
+                if labels_resp.clicked() {
+                    ctx.preview.overlay.show_actor_labels = !labels;
+                }
+
+                // Zoom, pinned right.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let zoom = ctx.preview.viewport.preview_zoom;
+                    let zoom_label = if (zoom - 1.0).abs() < 0.05 {
+                        "100%"
+                    } else if (zoom - 1.5).abs() < 0.05 {
+                        "150%"
+                    } else if (zoom - 2.0).abs() < 0.05 {
+                        "200%"
+                    } else {
+                        "Fit"
+                    };
+                    ui.menu_button(
+                        RichText::new(zoom_label)
+                            .size(TextRole::BodyS.size())
+                            .color(theme.palette.text.secondary),
+                        |ui| {
+                            ui.set_min_width(80.0);
+                            if ui.stable_selectable_label(false, "Fit").clicked() {
+                                ctx.preview.fit_zoom_requested = true;
+                                ui.close();
+                            }
+                            for (z, name) in [(1.0_f32, "100%"), (1.5, "150%"), (2.0, "200%")] {
+                                if ui
+                                    .stable_selectable_label((zoom - z).abs() < 0.05, name)
+                                    .clicked()
+                                {
+                                    ctx.preview.viewport.preview_zoom = z;
+                                    ctx.preview.viewport.preview_pan = Vec2::new(
+                                        ctx.scene_dimensions.width as f32 / 2.0,
+                                        ctx.scene_dimensions.height as f32 / 2.0,
+                                    );
+                                    ui.close();
+                                }
+                            }
+                        },
+                    );
+                });
+            });
+        });
+}
 
 // ─── Free functions for the preview canvas ─────────────────────────────────
 
@@ -34,6 +160,80 @@ fn preview_scene_to_screen(
     tx.scene_to_screen(scene)
 }
 
+/// Handle an in-flight Library/Asset row drag (`panels::LibraryDragPayload`).
+///
+/// While a payload exists and the pointer is over the canvas we draw a drop
+/// highlight; on release over the canvas we resolve the scene position with the
+/// same transform the OS file-drop path uses and push `CreateActor`. The payload
+/// is cleared on release anywhere (inside or outside) and on Escape.
+fn library_drag_drop_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui, preview_rect: egui::Rect) {
+    let Some(payload) = crate::app::panels::library_drag(ui.ctx()) else {
+        return;
+    };
+
+    let pointer = ui.ctx().input(|i| i.pointer.latest_pos());
+    let over_preview = pointer.is_some_and(|p| preview_rect.contains(p));
+
+    if over_preview {
+        // Drop highlight: accent outline plus a translucent fill so the target
+        // region reads clearly against the scene.
+        let theme = eparts::theme(ui);
+        ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.accent.faint);
+        ui.painter().rect_stroke(
+            preview_rect,
+            RADIUS_L,
+            egui::Stroke::new(2.0, theme.palette.accent.primary),
+            egui::StrokeKind::Inside,
+        );
+        if let Some(mouse) = pointer {
+            ui.painter().text(
+                mouse + Vec2::new(12.0, -12.0),
+                egui::Align2::LEFT_CENTER,
+                &payload.ty,
+                TextRole::BodyS.font_id(),
+                theme.palette.text.primary,
+            );
+        }
+    }
+
+    let released = ui.input(|i| i.pointer.any_released());
+    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    if escape {
+        crate::app::panels::clear_library_drag(ui.ctx());
+        return;
+    }
+    if !released {
+        return;
+    }
+
+    if over_preview {
+        if let Some(mouse) = pointer {
+            let scene = preview_screen_to_scene(
+                ctx.scene_dimensions,
+                preview_rect,
+                mouse,
+                ctx.preview.viewport.preview_zoom,
+                ctx.preview.viewport.preview_pan,
+            );
+            let label = crate::app::utils::labels::unique_label(
+                ctx.timeline,
+                &crate::app::panels::library_drag_label_base(&payload),
+            );
+            ctx.commands.push_back(
+                ActorCommand::CreateActor {
+                    ty: payload.ty.clone(),
+                    label,
+                    position: [scene.x as f32, scene.y as f32],
+                    props: payload.props.clone(),
+                }
+                .into(),
+            );
+        }
+    }
+    // Always clear on release so a drag that ends off-canvas leaves no payload.
+    crate::app::panels::clear_library_drag(ui.ctx());
+}
+
 // ─── Main preview_panel_ui function ─────────────────────────────────────────
 
 pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
@@ -45,6 +245,8 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
         .inner_margin(egui::Margin::ZERO)
         .show(ui, |ui| {
             ui.vertical(|ui| {
+                preview_header_ui(ctx, ui);
+
                 // Handle fit-zoom request from the global toolbar.
                 if ctx.preview.fit_zoom_requested {
                     ctx.preview.fit_zoom_requested = false;
@@ -78,16 +280,16 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ui.painter().rect_stroke(
                     preview_rect,
                     RADIUS_L,
-                    egui::Stroke::new(STROKE_WIDTH, theme.border.default),
+                    egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
                     egui::StrokeKind::Outside,
                 );
-                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.surface.base);
+                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.surface.base);
 
                 // ── Rulers ──
-                let ruler_bg = theme.surface.panel;
-                let ruler_tick_color = theme.text.muted;
-                let ruler_text_color = theme.text.muted;
-                let ruler_label_color = theme.text.secondary;
+                let ruler_bg = theme.palette.surface.panel;
+                let ruler_tick_color = theme.palette.text.muted;
+                let ruler_text_color = theme.palette.text.muted;
+                let ruler_label_color = theme.palette.text.secondary;
 
                 let h_ruler_rect = egui::Rect::from_min_size(
                     egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
@@ -101,7 +303,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
                     Vec2::new(RULER_SIZE, RULER_SIZE),
                 );
-                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.border.default);
+                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
 
                 ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
                 ui.painter()
@@ -270,7 +472,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
                     if let Some(mouse) = raw_pointer_pos {
                         let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        let guide_color = theme.status.warning;
+                        let guide_color = theme.palette.status.warning;
                         if is_vertical {
                             let ghost_screen = ctx.preview_scene_to_screen(
                                 preview_rect,
@@ -331,7 +533,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Draw existing guides ──
                 if ctx.preview.overlay.show_guides {
-                    let guide_color = theme.status.warning;
+                    let guide_color = theme.palette.status.warning;
                     for &guide_y in &ctx.preview.guides.horizontal_guides {
                         let screen_pt = ctx.preview_scene_to_screen(
                             preview_rect,
@@ -652,6 +854,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                         }
                     }
                 }
+
+                // ── Library drag-to-place ──
+                // A Library/Asset row sets a payload while it is dragged; we own
+                // the scene transform, so the drop point is resolved here.
+                library_drag_drop_ui(ctx, ui, preview_rect);
 
                 // Inline text editor (double-click on text actors)
                 ctx.render_inline_text_editor(ui, preview_rect);

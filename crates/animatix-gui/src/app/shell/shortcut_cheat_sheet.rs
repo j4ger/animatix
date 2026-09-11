@@ -34,6 +34,10 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 names: &["Prev Keyframe", "Next Keyframe"],
                 desc: "Prev / Next keyframe",
             },
+            CheatSheetEntry::Bindings {
+                names: &["Step Back 1 Frame", "Step Forward 1 Frame"],
+                desc: "Prev / Next frame",
+            },
             CheatSheetEntry::Gesture {
                 key: "T (hold)",
                 desc: "Time lens scrub",
@@ -50,6 +54,10 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
             CheatSheetEntry::Gesture {
                 key: "Esc",
                 desc: "Select (default)",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Select Tool"],
+                desc: "Select",
             },
             CheatSheetEntry::Bindings {
                 names: &["Move Tool"],
@@ -265,7 +273,7 @@ fn shortcut_column(
             ui.label(
                 RichText::new(*title)
                     .size(TextRole::BodyS.size())
-                    .color(theme.accent.primary)
+                    .color(theme.palette.accent.primary)
                     .strong(),
             );
             ui.add_space(sp.base.space_1);
@@ -316,10 +324,14 @@ fn shortcut_row_inner(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32, row_
                 RichText::new(key)
                     .monospace()
                     .size(TextRole::BodyS.size())
-                    .color(theme.text.secondary),
+                    .color(theme.palette.text.secondary),
             )
             .truncate(),
         );
-        ui.label(RichText::new(desc).size(TextRole::BodyS.size()).color(theme.text.primary));
+        ui.label(
+            RichText::new(desc)
+                .size(TextRole::BodyS.size())
+                .color(theme.palette.text.primary),
+        );
     });
 }

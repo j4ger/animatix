@@ -32,7 +32,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("Loaded plugins")
                         .size(TextRole::Title.size())
-                        .color(theme.text.primary)
+                        .color(theme.palette.text.primary)
                         .strong(),
                 );
                 ui.add(Badge::new(snapshot.plugin_names.len().to_string()));
@@ -54,13 +54,13 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("No native or in-process plugins are installed.")
                         .size(TextRole::BodyS.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 );
             } else {
                 egui::ScrollArea::horizontal().show(ui, |ui| {
                     ui.horizontal_wrapped(|ui| {
                         for name in &snapshot.plugin_names {
-                            ui.add(Tag::new(name.clone()).color(theme.accent.cyan));
+                            ui.add(Tag::new(name.clone()).color(theme.palette.accent.cyan));
                         }
                     });
                 });
@@ -70,7 +70,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Manifests")
                     .size(TextRole::Title.size())
-                    .color(theme.text.primary)
+                    .color(theme.palette.text.primary)
                     .strong(),
             );
             ui.add_space(sp.base.space_2);
@@ -79,7 +79,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new("No `.amx-plugin.toml` manifests found.")
                             .size(TextRole::BodyS.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     );
                 }
                 for source in &snapshot.sources {
@@ -89,8 +89,8 @@ impl GuiShell {
                     let functions = source.manifest.functions.len();
                     let services = source.manifest.services.len();
                     egui::Frame::new()
-                        .fill(theme.surface.widget)
-                        .stroke(egui::Stroke::new(1.0, theme.border.default))
+                        .fill(theme.palette.surface.widget)
+                        .stroke(egui::Stroke::new(1.0, theme.palette.border.default))
                         .corner_radius(RADIUS_S)
                         .inner_margin(egui::Margin::symmetric(8, 6))
                         .show(ui, |ui| {
@@ -98,7 +98,7 @@ impl GuiShell {
                                 ui.label(
                                     egui::RichText::new(source.path.display().to_string())
                                         .size(TextRole::BodyS.size())
-                                        .color(theme.text.primary)
+                                        .color(theme.palette.text.primary)
                                         .strong(),
                                 );
                                 ui.with_layout(
@@ -108,7 +108,7 @@ impl GuiShell {
                                             ui.label(
                                                 egui::RichText::new(library)
                                                     .size(TextRole::Micro.size())
-                                                    .color(theme.text.muted),
+                                                    .color(theme.palette.text.muted),
                                             );
                                         }
                                     },
@@ -131,7 +131,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Issues")
                     .size(TextRole::Title.size())
-                    .color(theme.text.primary)
+                    .color(theme.palette.text.primary)
                     .strong(),
             );
             ui.add_space(sp.base.space_2);
@@ -139,7 +139,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("No plugin load or install issues.")
                         .size(TextRole::BodyS.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 );
             } else {
                 for issue in &snapshot.issues {
@@ -151,7 +151,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new(message)
                             .size(TextRole::BodyS.size())
-                            .color(theme.status.error),
+                            .color(theme.palette.status.error),
                     );
                 }
             }
@@ -160,7 +160,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Explicit plugin paths")
                     .size(TextRole::Title.size())
-                    .color(theme.text.primary)
+                    .color(theme.palette.text.primary)
                     .strong(),
             );
             ui.add_space(sp.base.space_2);
@@ -170,7 +170,7 @@ impl GuiShell {
                     ui.label(
                         egui::RichText::new(path.display().to_string())
                             .size(TextRole::Micro.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                     );
                     if ui
                         .add(
@@ -265,5 +265,5 @@ impl GuiShell {
 }
 
 fn capability_badge(ui: &mut egui::Ui, label: &str, count: usize, theme: eparts::Theme) {
-    ui.add(Tag::new(format!("{label} {count}")).color(theme.text.muted));
+    ui.add(Tag::new(format!("{label} {count}")).color(theme.palette.text.muted));
 }

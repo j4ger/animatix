@@ -141,7 +141,7 @@ impl<'a> Field<'a> {
                     ui.add(
                         Label::new(label)
                             .role(TextRole::BodyS)
-                            .color(t.text.secondary)
+                            .color(t.palette.text.secondary)
                             .required(required),
                     );
                 },

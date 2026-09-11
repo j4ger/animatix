@@ -94,7 +94,7 @@ impl eframe::App for ScreenshotApp {
 
         let theme = eparts::theme(ui);
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(theme.surface.base))
+            .frame(egui::Frame::new().fill(theme.palette.surface.base))
             .show_inside(ui, |ui| {
                 let content_rect = ui.available_rect_before_wrap().shrink(20.0);
                 ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {

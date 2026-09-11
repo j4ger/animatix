@@ -6,7 +6,7 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::app::panels::{editor, inspector, preview_panel, sidebar, timeline_panel};
+use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
 use crate::app::{WorkspaceTab, preview};
@@ -26,6 +26,10 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub(crate) tool_mode: &'a mut preview::ToolMode,
     pub(crate) sidebar_tab: &'a mut crate::app::panels::SidebarTab,
+    /// True when the window is narrow enough for the compact sidebar icon rail.
+    pub(crate) compact: bool,
+    /// Compact-mode overlay drawer slot (opened by the sidebar rail).
+    pub(crate) compact_drawer: &'a mut Option<crate::app::panels::CompactDrawer>,
     pub(crate) property_view_mode: &'a mut crate::app::panels::inspector::PropertyViewMode,
     pub(crate) keyframe_view_mode: &'a mut crate::app::panels::inspector::KeyframeViewMode,
     pub(crate) keyframe_mode: bool,
@@ -35,6 +39,8 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) debug_spacing: bool,
     /// Set by the timeline panel each frame; true when the panel has pointer interaction.
     pub(crate) timeline_focused: &'a mut bool,
+    /// Canonical keyframe selection, shared by the timeline and Curves editor.
+    pub(crate) selected_keyframes: &'a mut Vec<crate::app::document::timeline_diff::KeyframeId>,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -46,8 +52,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     ) -> UiResponse {
         match pane {
             WorkspaceTab::Sidebar => {
-                let diagnostics = self.document_store.combined_diagnostics();
-                let is_playing = self.preview_store.preview.playback.is_playing;
                 let timeline = self.document_store.source.document.timeline.as_ref();
                 let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
@@ -64,19 +68,17 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
+                    compact: self.compact,
+                    compact_drawer: self.compact_drawer,
                     editor: &mut self.document_store.source.editor,
-                    diagnostics: &diagnostics,
-                    source_dirty: &mut self.document_store.source.document.source_text,
-                    is_playing,
                     components: &self.document_store.source.document.components,
                     asset_cache,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
             },
-            WorkspaceTab::Editor => {
-                // Editor is now rendered inside the Sidebar pane via the
-                // Editor tab. This branch remains for backward compatibility
-                // with old persisted layouts that still have an Editor pane.
+            WorkspaceTab::Code => {
+                // Source editor; shares the right detail tab group with the
+                // Inspector.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
                     editor: &mut self.document_store.source.editor,
@@ -187,6 +189,29 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
             },
+            WorkspaceTab::Curves => {
+                let resolved_timeline = self.document_store.source.document.active_timeline();
+                let active_scene =
+                    self.document_store.source.document.active_scene.as_deref().or_else(|| {
+                        self.document_store
+                            .source
+                            .document
+                            .composition
+                            .as_ref()
+                            .and_then(|c| c.declaration_order.first().map(String::as_str))
+                    });
+                let mut ctx = curves_panel::CurvesContext {
+                    preview: &mut self.preview_store.preview,
+                    timeline: resolved_timeline,
+                    active_scene,
+                    selected_actors: self.selected_actors,
+                    selected_keyframes: self.selected_keyframes,
+                    commands: self.commands,
+                    snap_fps: self.snap_fps,
+                    timeline_focused: self.timeline_focused,
+                };
+                curves_panel::curves_panel_ui(&mut ctx, ui);
+            },
         }
         UiResponse::None
     }
@@ -194,10 +219,11 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
         match pane {
             WorkspaceTab::Sidebar => "Sidebar".into(),
-            WorkspaceTab::Editor => "Editor".into(),
+            WorkspaceTab::Code => "Code".into(),
             WorkspaceTab::Preview => "Preview".into(),
             WorkspaceTab::Inspector => "Inspector".into(),
             WorkspaceTab::Timeline => "Timeline".into(),
+            WorkspaceTab::Curves => "Curves".into(),
         }
     }
 
@@ -212,6 +238,12 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
 
     fn gap_width(&self, _style: &egui::Style) -> f32 {
         1.0
+    }
+
+    /// Pixel floor for every tile: panes never collapse into unusable slivers
+    /// (design doc §9 "px 兜底").
+    fn min_size(&self) -> f32 {
+        120.0
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {

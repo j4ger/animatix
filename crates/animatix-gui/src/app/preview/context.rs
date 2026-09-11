@@ -9,7 +9,8 @@ use animatix::timeline::{ActorKindId, SceneDimensions, Timeline};
 use egui::{Pos2, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand,
+    ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
+    SceneCommand,
 };
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
@@ -83,6 +84,97 @@ impl PreviewContext<'_> {
             rotation,
             pivot_offset,
         })
+    }
+
+    /// Union of the selected actors' rotation-aware scene bounds, falling back
+    /// to cached hit regions. Shared by the multi-selection overlay and the
+    /// group transform gestures so the drawn box and the hit box agree.
+    pub(crate) fn selected_union_rect(&self) -> Option<kurbo::Rect> {
+        let mut union: Option<kurbo::Rect> = None;
+        for actor in self.selected_actors.iter() {
+            let bounds = if let Some(props) = self.get_actor_props(actor) {
+                let hw = props.size[0] / 2.0;
+                let hh = props.size[1] / 2.0;
+                let local_corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+                let (mut min_x, mut min_y) = (f64::INFINITY, f64::INFINITY);
+                let (mut max_x, mut max_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+                for corner in &local_corners {
+                    let world = preview::local_to_world(*corner, props.position, props.rotation);
+                    min_x = min_x.min(world.x);
+                    min_y = min_y.min(world.y);
+                    max_x = max_x.max(world.x);
+                    max_y = max_y.max(world.y);
+                }
+                kurbo::Rect::new(min_x, min_y, max_x, max_y)
+            } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
+                *bounds
+            } else {
+                continue;
+            };
+            union = Some(match union {
+                None => bounds,
+                Some(u) => kurbo::Rect::new(
+                    u.x0.min(bounds.x0),
+                    u.y0.min(bounds.y0),
+                    u.x1.max(bounds.x1),
+                    u.y1.max(bounds.y1),
+                ),
+            });
+        }
+        union
+    }
+
+    /// Resize mode and current transform scale for an actor's primitive.
+    /// Mirrors the single-actor scale path so group scaling stays consistent.
+    pub(crate) fn actor_resize_mode(&self, actor: &str) -> (preview::ResizeMode, f32) {
+        use animatix::timeline::TrackAccessor;
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        self.timeline
+            .and_then(|t| {
+                t.get_track(actor).map(|tr| {
+                    let registry = t.primitive_registry_snapshot();
+                    let mode: preview::ResizeMode = if let Some(primitive) =
+                        registry.find(&tr.actor_type).or_else(|| {
+                            animatix::timeline::actor_kind_meta(tr.kind)
+                                .and_then(|m| animatix::primitives::find_primitive(m.type_name))
+                        }) {
+                        match primitive.resize_mode() {
+                            animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
+                            _ => preview::ResizeMode::Size,
+                        }
+                    } else {
+                        preview::ResizeMode::Size
+                    };
+                    (mode, tr.geometry.scale.get(time_ms, 1.0))
+                })
+            })
+            .unwrap_or((preview::ResizeMode::Size, 1.0))
+    }
+
+    /// Capture per-actor start state for a group transform. Locked actors are
+    /// excluded, matching single-actor behaviour.
+    pub(crate) fn capture_group_actors(&self) -> Vec<preview::GroupTransformActor> {
+        self.selected_actors
+            .iter()
+            .filter(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| !tr.locked)
+                    .unwrap_or(true)
+            })
+            .filter_map(|label| {
+                let props = self.get_actor_props(label)?;
+                let (resize_mode, scale) = self.actor_resize_mode(label);
+                Some(preview::GroupTransformActor {
+                    label: label.clone(),
+                    position: props.position,
+                    size: props.size,
+                    rotation: props.rotation,
+                    resize_mode,
+                    scale,
+                })
+            })
+            .collect()
     }
 
     /// Get the text content property name for a text-type actor.
@@ -197,11 +289,12 @@ impl PreviewContext<'_> {
         let theme = eparts::theme(ui);
 
         // Draw background
-        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, theme.surface.surface);
+        ui.painter()
+            .rect_filled(editor_rect, RADIUS_M as u8, theme.palette.surface.surface);
         ui.painter().rect_stroke(
             editor_rect,
             RADIUS_M as u8,
-            Stroke::new(STROKE_WIDTH, theme.accent.primary),
+            Stroke::new(STROKE_WIDTH, theme.palette.accent.primary),
             egui::StrokeKind::Outside,
         );
 
@@ -391,12 +484,65 @@ impl PreviewContext<'_> {
 
         let mut menu_item_clicked = false;
         if self.selection.context_menu_open {
-            let (selected, close, _rect) =
-                selection::draw_context_menu(ui, self.selection, self.selected_actors);
+            let effective: Vec<String> = if self.selected_actors.is_empty() {
+                self.selection.context_menu_actors.first().cloned().into_iter().collect()
+            } else {
+                self.selected_actors.iter().cloned().collect()
+            };
+            let any_locked = effective.iter().any(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| tr.locked)
+                    .unwrap_or(false)
+            });
+            let any_hidden = effective.iter().any(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| !tr.visible)
+                    .unwrap_or(false)
+            });
+
+            let (selected, action, close, _rect) = selection::draw_context_menu(
+                ui,
+                self.selection,
+                self.selected_actors,
+                any_locked,
+                any_hidden,
+            );
             menu_item_clicked = close;
             if let Some(actor) = selected {
                 self.selected_actors.clear();
                 self.selected_actors.insert(actor);
+            } else if let Some(action) = action {
+                // Actions operate on the current selection; with nothing
+                // selected, fall back to the actor under the cursor.
+                if self.selected_actors.is_empty() {
+                    self.selected_actors.extend(effective.iter().cloned());
+                }
+                use selection::ContextMenuAction as A;
+                match action {
+                    A::Duplicate => {
+                        self.commands.push_back(ActorCommand::DuplicateSelectedActors.into())
+                    },
+                    A::Delete => self.commands.push_back(ActorCommand::DeleteSelectedActors.into()),
+                    A::Group => self.commands.push_back(ActorCommand::GroupSelectedActors.into()),
+                    A::Ungroup => {
+                        self.commands.push_back(ActorCommand::UngroupSelectedActors.into())
+                    },
+                    A::ToggleLock => {
+                        for label in &effective {
+                            self.commands
+                                .push_back(ActorCommand::ToggleActorLock(label.clone()).into());
+                        }
+                    },
+                    A::ToggleVisibility => {
+                        for label in &effective {
+                            self.commands.push_back(
+                                ActorCommand::ToggleActorVisibility(label.clone()).into(),
+                            );
+                        }
+                    },
+                }
             }
             if close {
                 self.selection.context_menu_open = false;
@@ -643,7 +789,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "No scene to preview",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                     let hint_pos = preview_rect.center() + egui::vec2(0.0, 20.0);
                     ui.painter().text(
@@ -651,7 +797,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Open a file or create a scene to get started",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                 } else {
                     ui.painter().text(
@@ -659,7 +805,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Preview initializing…",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                 }
             },
@@ -732,7 +878,7 @@ impl PreviewContext<'_> {
                     let galley = ui.painter().layout_no_wrap(
                         label.clone(),
                         TextRole::BodyS.font_id(),
-                        theme.status.success,
+                        theme.palette.status.success,
                     );
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
@@ -750,7 +896,7 @@ impl PreviewContext<'_> {
                         ),
                         egui::StrokeKind::Outside,
                     );
-                    ui.painter().galley(hud_pos + padding, galley, theme.status.success);
+                    ui.painter().galley(hud_pos + padding, galley, theme.palette.status.success);
                 }
             }
         }
@@ -771,7 +917,7 @@ impl PreviewContext<'_> {
             let galley = ui.painter().layout_no_wrap(
                 pill_text.to_string(),
                 TextRole::Micro.font_id(),
-                theme.text.muted,
+                theme.palette.text.muted,
             );
             let padding = Vec2::new(8.0, 4.0);
             let pill_size = galley.size() + padding * 2.0;
@@ -779,11 +925,11 @@ impl PreviewContext<'_> {
                 preview_rect.right_bottom() - pill_size - egui::vec2(8.0, 8.0),
                 pill_size,
             );
-            ui.painter().rect_filled(pill_rect, 3.0, theme.surface.widget);
+            ui.painter().rect_filled(pill_rect, 3.0, theme.palette.surface.widget);
             ui.painter().galley(
                 pill_rect.left_center() + egui::vec2(padding.x, -galley.size().y / 2.0),
                 galley,
-                theme.text.muted,
+                theme.palette.text.muted,
             );
         }
     }
@@ -847,7 +993,7 @@ impl PreviewContext<'_> {
 
         let theme = eparts::theme(ui);
         let threshold = 8.0;
-        let guide_color = theme.accent.subtle;
+        let guide_color = theme.palette.accent.subtle;
         let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
 
         for (label, bounds) in self.hit_regions {
@@ -944,41 +1090,21 @@ impl PreviewContext<'_> {
         let theme = eparts::theme(ui);
         let tx = self.preview_transform(preview_rect);
         if self.selected_actors.len() > 1 {
-            let mut scene_rects = Vec::new();
-            for actor in self.selected_actors.iter() {
-                if let Some(props) = self.get_actor_props(actor) {
-                    let hw = props.size[0] / 2.0;
-                    let hh = props.size[1] / 2.0;
-                    let local_corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-                    let mut min_x = f64::INFINITY;
-                    let mut min_y = f64::INFINITY;
-                    let mut max_x = f64::NEG_INFINITY;
-                    let mut max_y = f64::NEG_INFINITY;
-                    for corner in &local_corners {
-                        let world =
-                            preview::local_to_world(*corner, props.position, props.rotation);
-                        min_x = min_x.min(world.x);
-                        min_y = min_y.min(world.y);
-                        max_x = max_x.max(world.x);
-                        max_y = max_y.max(world.y);
-                    }
-                    scene_rects.push(kurbo::Rect::new(min_x, min_y, max_x, max_y));
-                } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor)
-                {
-                    scene_rects.push(*bounds);
-                }
+            if let Some(union) = self.selected_union_rect() {
+                let ops = multi_selection_overlay_ops(
+                    &theme,
+                    &[union],
+                    is_dragging,
+                    ui.ctx().pixels_per_point(),
+                    tx,
+                );
+                execute_overlay_ops(ui.painter(), &ops, &tx);
             }
-            let ops = multi_selection_overlay_ops(
-                &theme,
-                &scene_rects,
-                is_dragging,
-                ui.ctx().pixels_per_point(),
-                tx,
-            );
-            execute_overlay_ops(ui.painter(), &ops, &tx);
             return;
         }
 
+        let show_pivot = *self.tool_mode == crate::app::preview::ToolMode::Pivot
+            || matches!(self.drag_state, DragState::MovePivot { .. });
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
             let fallback =
@@ -988,6 +1114,7 @@ impl PreviewContext<'_> {
                 props.as_ref(),
                 fallback,
                 is_dragging,
+                show_pivot,
                 ui.ctx().pixels_per_point(),
                 tx,
             );
@@ -1129,8 +1256,8 @@ impl PreviewContext<'_> {
             }
 
             if is_dragging {
-                let measurement_color = theme.accent.primary;
-                let text_color = theme.text.primary;
+                let measurement_color = theme.palette.accent.primary;
+                let text_color = theme.palette.text.primary;
                 let font = egui::FontId::monospace(TextRole::Micro.size());
                 match &self.drag_state {
                     DragState::Move {
@@ -1341,11 +1468,11 @@ impl PreviewContext<'_> {
             (self.selection.marquee_start, self.selection.marquee_current)
         {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
-            ui.painter().rect_filled(marquee_rect, 0.0, theme.accent.faint);
+            ui.painter().rect_filled(marquee_rect, 0.0, theme.palette.accent.faint);
             ui.painter().rect_stroke(
                 marquee_rect,
                 0.0,
-                egui::Stroke::new(STROKE_WIDTH, theme.accent.subtle),
+                egui::Stroke::new(STROKE_WIDTH, theme.palette.accent.subtle),
                 egui::StrokeKind::Outside,
             );
         }

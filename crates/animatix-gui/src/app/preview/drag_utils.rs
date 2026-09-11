@@ -174,9 +174,9 @@ pub(crate) fn resolve_point_snap(
         }
         let theme = ctx.current_theme();
         ctx.preview.snap.snap_line_color = Some(if snap.guide_h || snap.guide_v {
-            theme.status.warning
+            theme.palette.status.warning
         } else {
-            theme.status.success
+            theme.palette.status.success
         });
         ctx.preview.snap.snap_hud_label = Some(if snap.guide_h || snap.guide_v {
             "Guide snap".into()
@@ -352,13 +352,13 @@ pub(crate) fn resolve_snap(
         || snapped_keyframe
     {
         ctx.preview.snap.snap_line_color = Some(if snapped_guide_h || snapped_guide_v {
-            theme.status.warning
+            theme.palette.status.warning
         } else if snapped_keyframe {
-            theme.accent.cyan
+            theme.palette.accent.cyan
         } else if snapped_container {
-            theme.accent.primary
+            theme.palette.accent.primary
         } else {
-            theme.status.success
+            theme.palette.status.success
         });
         ctx.preview.snap.snap_hud_label = snap_hud_text.clone();
     }

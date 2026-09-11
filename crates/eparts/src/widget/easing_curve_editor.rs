@@ -8,6 +8,7 @@ use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme::theme;
+use crate::tokens::util::with_alpha;
 
 /// State for the easing curve editor widget.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -66,11 +67,11 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     };
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, t.surface.base);
+    painter.rect_filled(rect, RADIUS_M, t.components.easing_curve.bg);
     painter.rect_stroke(
         rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, t.border.default),
+        Stroke::new(STROKE_WIDTH, t.palette.border.default),
         egui::StrokeKind::Outside,
     );
 
@@ -84,19 +85,19 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
                 Pos2::new(x, plot_rect.top()),
                 Pos2::new(x, plot_rect.bottom()),
             ],
-            Stroke::new(STROKE_WIDTH, t.lines.grid),
+            Stroke::new(STROKE_WIDTH, t.components.easing_curve.grid),
         );
         painter.line_segment(
             [
                 Pos2::new(plot_rect.left(), y),
                 Pos2::new(plot_rect.right(), y),
             ],
-            Stroke::new(STROKE_WIDTH, t.lines.grid),
+            Stroke::new(STROKE_WIDTH, t.components.easing_curve.grid),
         );
     }
 
     // Diagonal reference line (linear)
-    painter.line_segment([map(0.0, 0.0), map(1.0, 1.0)], Stroke::new(1.0, t.text.disabled));
+    painter.line_segment([map(0.0, 0.0), map(1.0, 1.0)], Stroke::new(1.0, t.palette.text.disabled));
 
     // Draw curve
     let cp = state.to_array();
@@ -107,7 +108,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         let x = cubic_bezier_x(t_norm, cp);
         let y = cubic_bezier_y(t_norm, cp);
         let curr = map(x, y);
-        painter.line_segment([prev, curr], Stroke::new(2.5, t.accent.primary));
+        painter.line_segment([prev, curr], Stroke::new(2.5, t.components.easing_curve.curve));
         prev = curr;
     }
 
@@ -118,12 +119,13 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     let p3 = map(1.0, 1.0);
 
     // Control lines (dashed-ish via alpha)
-    painter.line_segment([p0, p1], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
-    painter.line_segment([p2, p3], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
+    let control_line = with_alpha(t.palette.text.disabled, 0.5);
+    painter.line_segment([p0, p1], Stroke::new(1.0, control_line));
+    painter.line_segment([p2, p3], Stroke::new(1.0, control_line));
 
     // Endpoints
-    painter.circle_filled(p0, 3.0, t.text.secondary);
-    painter.circle_filled(p3, 3.0, t.text.secondary);
+    painter.circle_filled(p0, 3.0, t.palette.text.secondary);
+    painter.circle_filled(p3, 3.0, t.palette.text.secondary);
 
     // Draggable handles
     let handle_radius = 6.0;
@@ -146,12 +148,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p1_color = if p1_response.dragged() {
-        t.status.warning
+        t.components.easing_curve.handle_active
     } else {
-        t.accent.primary
+        t.components.easing_curve.handle
     };
     painter.circle_filled(p1, handle_radius, p1_color);
-    painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
+    painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, t.palette.text.primary));
 
     // P2 handle
     let p2_id = ui.id().with("easing_p2");
@@ -169,12 +171,12 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p2_color = if p2_response.dragged() {
-        t.status.warning
+        t.components.easing_curve.handle_active
     } else {
-        t.accent.primary
+        t.components.easing_curve.handle
     };
     painter.circle_filled(p2, handle_radius, p2_color);
-    painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
+    painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, t.palette.text.primary));
 
     // Hover cursor
     if p1_response.hovered() || p2_response.hovered() || response.hovered() {

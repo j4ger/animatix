@@ -27,6 +27,22 @@ pub struct CellDiagnostic {
     pub rel_end_col: usize,
 }
 
+/// A find/replace match range within a cell body.
+///
+/// Byte offsets are relative to the cell body because that is the string the
+/// cell layouter receives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CellFindMatch {
+    /// Which cell this match belongs to.
+    pub cell_index: usize,
+    /// Byte offset of the match start, relative to the cell body.
+    pub rel_start_byte: usize,
+    /// Byte offset of the match end (exclusive), relative to the cell body.
+    pub rel_end_byte: usize,
+    /// True for the match the Find Next cursor currently points at.
+    pub is_current: bool,
+}
+
 /// A semantic highlight range within a cell body.
 #[derive(Debug, Clone)]
 pub struct SemanticHighlight {
@@ -80,6 +96,10 @@ pub struct CellEditorState {
     pub diagnostics: Vec<CellDiagnostic>,
     /// Semantic highlights for each cell.
     pub semantic_highlights: Vec<SemanticHighlight>,
+    /// Find/replace matches mapped to cell-body byte ranges, refreshed every
+    /// frame from the current query/options. Never baked into the cached
+    /// highlight jobs: the renderer overlays them after cloning the base job.
+    pub find_matches: Vec<CellFindMatch>,
     /// Set of cell indices that have at least one diagnostic error.
     pub error_cells: std::collections::HashSet<usize>,
     /// Set of cell indices that have at least one diagnostic warning (but no errors).
@@ -89,6 +109,10 @@ pub struct CellEditorState {
     pub pending_cursor_cell: Option<usize>,
     /// Char index within the cell body where the cursor should be placed.
     pub pending_cursor_char: Option<usize>,
+    /// Live caret char offset inside the focused cell's body, refreshed every
+    /// frame the cell editor has focus. Used by completion to operate at the
+    /// caret instead of at end-of-document.
+    pub focused_cursor_char: Option<usize>,
     /// Set of cell indices that are collapsed (applies to keyframes; code cells
     /// store expansion on the `Cell` enum itself).
     pub collapsed_cells: std::collections::HashSet<usize>,

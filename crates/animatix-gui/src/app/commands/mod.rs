@@ -93,6 +93,16 @@ pub enum UndoLabel {
         old_time_s: f64,
         new_time_s: f64,
     },
+    SetKeyframeValue {
+        scene: Option<String>,
+        actor: String,
+        property: String,
+        time_s: f64,
+    },
+    /// Undo label for a batched multi-keyframe drag.
+    MoveKeyframes,
+    /// Undo label for a batched multi-keyframe delete.
+    DeleteKeyframes,
     ResizeAction {
         verb: String,
         targets: Vec<String>,
@@ -103,6 +113,7 @@ pub enum UndoLabel {
 
     // Scene
     ReorderScenes,
+    AddScene(String),
     DuplicateScene(String),
     DeleteScene(String),
     SetTransition {
@@ -211,6 +222,24 @@ impl From<UndoLabel> for Command {
                 old_time_s,
                 new_time_s,
             },
+            // The value payload is not needed to replay undo (source text is
+            // restored directly), so the label carries only identity/time.
+            UndoLabel::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+            } => Command::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+                value: PropertyValue::F32(0.0),
+            },
+            // Batch variants carry no payload in the undo label; undo restores
+            // source text directly rather than replaying the command.
+            UndoLabel::MoveKeyframes => Command::MoveKeyframes(Vec::new()),
+            UndoLabel::DeleteKeyframes => Command::DeleteKeyframes(Vec::new()),
             UndoLabel::ResizeAction {
                 verb,
                 targets,
@@ -224,6 +253,7 @@ impl From<UndoLabel> for Command {
                 new_start_s,
                 new_duration_s,
             },
+            UndoLabel::AddScene(s) => Command::AddScene(s),
             UndoLabel::DuplicateScene(s) => Command::DuplicateScene(s),
             UndoLabel::DeleteScene(s) => Command::DeleteScene(s),
             UndoLabel::ReorderScenes => Command::ReorderScenes(Vec::new()),
@@ -306,6 +336,7 @@ pub enum Command {
     },
     DuplicateScene(String),
     DeleteScene(String),
+    AddScene(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
     CreateActor {
@@ -371,6 +402,20 @@ pub enum Command {
         old_time_s: f64,
         new_time_s: f64,
     },
+    /// Replace a keyframe's value in place, without moving or merging it.
+    /// Emitted by the Curves panel's vertical keyframe drag.
+    SetKeyframeValue {
+        scene: Option<String>,
+        actor: String,
+        property: String,
+        time_s: f64,
+        value: PropertyValue,
+    },
+    /// Move several keyframes as one undoable step. Emitted by a multi-keyframe
+    /// timeline drag so the whole selection shares one undo entry.
+    MoveKeyframes(Vec<MoveKeyframeSpec>),
+    /// Delete several keyframes as one undoable step.
+    DeleteKeyframes(Vec<KeyframeId>),
     /// Resize an action block's duration. Emitted by timeline drag handles.
     ResizeAction {
         verb: String,
@@ -413,6 +458,18 @@ pub enum Command {
     FindReplaceAll,
 }
 
+/// One keyframe move inside [`Command::MoveKeyframes`].
+///
+/// Times are scene-local seconds, matching [`Command::MoveKeyframe`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct MoveKeyframeSpec {
+    pub scene: Option<String>,
+    pub actor: String,
+    pub property: String,
+    pub old_time_s: f64,
+    pub new_time_s: f64,
+}
+
 /// Horizontal or vertical axis for distribute.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
@@ -440,6 +497,20 @@ pub enum Align {
 #[derive(Debug, Clone)]
 pub enum ViewAction {
     ShowInspector,
+    ShowCode,
+    /// Show the bottom Curves tab (or hide the bottom region when it is
+    /// already the active tab).
+    ShowCurves,
+    /// Show the bottom Timeline tab.
+    ShowTimeline,
+    ApplyLayout(crate::app::LayoutPreset),
+    ResetLayout,
+    OpenFileDialog,
+    NewFile,
+    SaveAsDialog,
+    OpenSettings,
+    OpenShortcuts,
+    OpenInsertionPalette,
     OpenExportDialog,
     OpenCommandPalette,
     OpenPluginStatus,

@@ -70,15 +70,15 @@ pub fn render_performance_hud(
     );
 
     // Background
-    painter.rect_filled(hud_rect, 6.0, theme.surface.base.linear_multiply(0.9));
+    painter.rect_filled(hud_rect, 6.0, theme.palette.surface.base.linear_multiply(0.9));
     painter.rect_stroke(
         hud_rect,
         6.0,
-        egui::Stroke::new(1.0, theme.border.default),
+        egui::Stroke::new(1.0, theme.palette.border.default),
         egui::StrokeKind::Outside,
     );
 
-    let text_color = theme.text.primary;
+    let text_color = theme.palette.text.primary;
     let font = egui::FontId::monospace(11.0);
     let label_w = 90.0;
     let x = hud_rect.left() + 8.0;
@@ -92,7 +92,7 @@ pub fn render_performance_hud(
                 egui::Align2::LEFT_TOP,
                 label,
                 font.clone(),
-                theme.text.muted,
+                theme.palette.text.muted,
             );
             painter.text(
                 egui::Pos2::new(x + label_w, y),
@@ -118,9 +118,9 @@ pub fn render_performance_hud(
         "Preview",
         if metrics.is_stale { "STALE" } else { "FRESH" },
         if metrics.is_stale {
-            theme.status.warning
+            theme.palette.status.warning
         } else {
-            theme.status.success
+            theme.palette.status.success
         },
     );
     y += line_h;
@@ -151,7 +151,10 @@ pub fn render_performance_hud(
             .collect();
 
         if points.len() >= 2 {
-            painter.add(egui::Shape::line(points, egui::Stroke::new(1.5, theme.status.success)));
+            painter.add(egui::Shape::line(
+                points,
+                egui::Stroke::new(1.5, theme.palette.status.success),
+            ));
         }
     }
 }

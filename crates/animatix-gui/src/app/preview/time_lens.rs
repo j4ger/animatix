@@ -109,15 +109,15 @@ impl TimeLens {
 
         // Backdrop dim
         let screen_rect = ui.ctx().viewport_rect();
-        painter.rect_filled(screen_rect, 0.0, theme.overlay.backdrop);
+        painter.rect_filled(screen_rect, 0.0, theme.palette.overlay.backdrop);
 
         // Outer ring background
-        painter.circle_filled(center, LENS_RADIUS, theme.surface.panel);
-        painter.circle_stroke(center, LENS_RADIUS, Stroke::new(1.5, theme.border.default));
+        painter.circle_filled(center, LENS_RADIUS, theme.palette.surface.panel);
+        painter.circle_stroke(center, LENS_RADIUS, Stroke::new(1.5, theme.palette.border.default));
         painter.circle_stroke(
             center,
             LENS_INNER_RADIUS,
-            Stroke::new(STROKE_WIDTH, theme.border.default),
+            Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         );
 
         // Time range on ring: center_time ± visible_range/2
@@ -142,7 +142,8 @@ impl TimeLens {
                 center.x + angle.cos() * (LENS_RADIUS - 2.0),
                 center.y + angle.sin() * (LENS_RADIUS - 2.0),
             );
-            painter.line_segment([inner, outer], Stroke::new(STROKE_WIDTH, theme.lines.grid));
+            painter
+                .line_segment([inner, outer], Stroke::new(STROKE_WIDTH, theme.palette.lines.grid));
             tick_time += tick_step;
         }
 
@@ -159,9 +160,9 @@ impl TimeLens {
             );
             let is_current = (kf - center_time).abs() < 0.05;
             let color = if is_current {
-                theme.status.warning
+                theme.palette.status.warning
             } else {
-                theme.accent.primary
+                theme.palette.accent.primary
             };
             let size = if is_current { 4.5 } else { 3.0 };
             painter.circle_filled(dot_pos, size, color);
@@ -174,7 +175,7 @@ impl TimeLens {
             egui::Align2::CENTER_CENTER,
             &time_text,
             TextRole::Title.font_id(),
-            theme.text.primary,
+            theme.palette.text.primary,
         );
 
         // Range indicator below center
@@ -184,7 +185,7 @@ impl TimeLens {
             egui::Align2::CENTER_CENTER,
             &range_text,
             TextRole::Micro.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
 
         // Current playhead indicator on ring
@@ -197,6 +198,6 @@ impl TimeLens {
             center.x + playhead_angle.cos() * (LENS_RADIUS + 4.0),
             center.y + playhead_angle.sin() * (LENS_RADIUS + 4.0),
         );
-        painter.line_segment([ph_inner, ph_outer], Stroke::new(2.0, theme.status.warning));
+        painter.line_segment([ph_inner, ph_outer], Stroke::new(2.0, theme.palette.status.warning));
     }
 }

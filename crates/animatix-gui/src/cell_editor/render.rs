@@ -50,12 +50,94 @@ fn diagnostic_border_color(
     theme: eparts::Theme,
 ) -> Option<Color32> {
     if state.error_cells.contains(&index) {
-        Some(theme.status.error)
+        Some(theme.palette.status.error)
     } else if state.warning_cells.contains(&index) {
-        Some(theme.status.warning)
+        Some(theme.palette.status.warning)
     } else {
         None
     }
+}
+
+/// Overlay find-match backgrounds onto an already-built syntax `LayoutJob`.
+///
+/// `ranges` are `(start_byte, end_byte, is_current)` offsets into the job text.
+/// Sections are split at range boundaries so only matched slices change;
+/// `is_current` ranges win when ranges overlap. This is applied to the cloned
+/// job every frame *after* it is fetched from `cached_highlight_jobs`, so
+/// changing the query or options never requires invalidating that cache.
+fn apply_find_highlights(
+    job: &mut egui::text::LayoutJob,
+    ranges: &[(usize, usize, bool)],
+    match_bg: Color32,
+    current_bg: Color32,
+) {
+    if ranges.is_empty() {
+        return;
+    }
+
+    let text_len = job.text.len();
+    let mut normalized: Vec<(usize, usize, bool)> = ranges
+        .iter()
+        .filter_map(|&(start, end, is_current)| {
+            let start = start.min(text_len);
+            let end = end.min(text_len);
+            (start < end).then_some((start, end, is_current))
+        })
+        .collect();
+    if normalized.is_empty() {
+        return;
+    }
+    normalized.sort_by_key(|&(start, _, _)| start);
+
+    let old_sections = std::mem::take(&mut job.sections);
+    let mut sections = Vec::with_capacity(old_sections.len());
+    for section in old_sections {
+        let sec_start = section.byte_range.start;
+        let sec_end = section.byte_range.end;
+        if sec_start >= sec_end {
+            continue;
+        }
+
+        // Split this section at every find-range boundary that falls inside it.
+        let mut points = vec![sec_start, sec_end];
+        for &(start, end, _) in &normalized {
+            if start > sec_start && start < sec_end {
+                points.push(start);
+            }
+            if end > sec_start && end < sec_end {
+                points.push(end);
+            }
+        }
+        points.sort_unstable();
+        points.dedup();
+
+        for window in points.windows(2) {
+            let (a, b) = (window[0], window[1]);
+            if a >= b {
+                continue;
+            }
+            let mut format = section.format.clone();
+            let mut bg: Option<Color32> = None;
+            for &(start, end, is_current) in &normalized {
+                if a >= start && b <= end {
+                    if is_current {
+                        bg = Some(current_bg);
+                        break;
+                    }
+                    bg.get_or_insert(match_bg);
+                }
+            }
+            if let Some(color) = bg {
+                format.background = color;
+            }
+            sections.push(egui::text::LayoutSection {
+                leading_space: section.leading_space,
+                byte_range: a..b,
+                format,
+            });
+        }
+    }
+    job.sections = sections;
 }
 
 // ── Public API ───────────────────────────────────────────────────────────
@@ -164,15 +246,15 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
     );
 
     let bg = if response.is_pointer_button_down_on() {
-        theme.surface.active
+        theme.palette.surface.active
     } else {
-        lerp_color(Color32::TRANSPARENT, theme.surface.hover, t)
+        lerp_color(Color32::TRANSPARENT, theme.palette.surface.hover, t)
     };
 
     let icon_color = if response.is_pointer_button_down_on() {
-        theme.text.primary
+        theme.palette.text.primary
     } else {
-        lerp_color(theme.text.muted, theme.text.primary, t)
+        lerp_color(theme.palette.text.muted, theme.palette.text.primary, t)
     };
 
     if bg != Color32::TRANSPARENT {
@@ -229,12 +311,12 @@ fn render_code_cell(
     let theme = eparts::theme(ui);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        theme.surface.surface
+        theme.palette.surface.surface
     } else {
-        theme.surface.panel
+        theme.palette.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(theme.accent.primary)
+        Some(theme.palette.accent.primary)
     } else {
         diagnostic_border_color(index, state, theme)
     };
@@ -272,12 +354,12 @@ fn render_code_cell(
                         ui.label(
                             RichText::new(egui_phosphor::regular::CODE)
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
                         ui.label(
                             RichText::new(format!("Code {index}"))
                                 .size(TextRole::Micro.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
 
                         // Right-aligned actions
@@ -308,6 +390,16 @@ fn render_code_cell(
                             .filter(|sh| sh.cell_index == index)
                             .cloned()
                             .collect();
+                        let cell_find: Vec<(usize, usize, bool)> = state
+                            .find_matches
+                            .iter()
+                            .filter(|m| m.cell_index == index)
+                            .map(|m| (m.rel_start_byte, m.rel_end_byte, m.is_current))
+                            .collect();
+                        // Distinct colors for the current match vs the rest,
+                        // both sourced from the theme (never hardcoded).
+                        let find_match_bg = theme.palette.accent.selection;
+                        let find_current_bg = theme.palette.accent.subtle;
                         // Cached highlight: skip highlight_source when cell body unchanged
                         let body_text = cell.body().to_string();
                         let cached_job = state
@@ -344,6 +436,14 @@ fn render_code_cell(
                                         &cell_semantic,
                                     )
                                 };
+                                // Overlay find backgrounds on the cloned job so
+                                // they never leak into the body-keyed cache.
+                                apply_find_highlights(
+                                    &mut job,
+                                    &cell_find,
+                                    find_match_bg,
+                                    find_current_bg,
+                                );
                                 job.wrap.max_width = wrap_width;
                                 ui.fonts_mut(|fonts| fonts.layout_job(job))
                             };
@@ -365,6 +465,7 @@ fn render_code_cell(
                             state.pending_cursor_cell = None;
                         }
                         track_focus(index, &response, state);
+                        track_cursor(&response, state);
 
                         // Draw wavy diagnostic underlines
                         let cell_underlines: Vec<CellDiagnostic> = state
@@ -399,12 +500,12 @@ fn render_keyframe_cell(
     let time_s = cell.time_s().unwrap_or(0.0);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        theme.surface.surface
+        theme.palette.surface.surface
     } else {
-        theme.surface.panel
+        theme.palette.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(theme.accent.primary)
+        Some(theme.palette.accent.primary)
     } else {
         diagnostic_border_color(index, state, theme)
     };
@@ -427,7 +528,7 @@ fn render_keyframe_cell(
                 ui.vertical(|ui| {
                     // ── Header bar ──────────────────────────────
                     Frame::new()
-                        .fill(theme.surface.base)
+                        .fill(theme.palette.surface.base)
                         .inner_margin(Margin::symmetric(10, 5))
                         .show(ui, |ui| {
                             ui.set_min_height(26.0);
@@ -455,7 +556,7 @@ fn render_keyframe_cell(
                                 ui.label(
                                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                                         .size(TextRole::BodyS.size())
-                                        .color(theme.text.muted),
+                                        .color(theme.palette.text.muted),
                                 );
 
                                 // Editable timestamp
@@ -514,6 +615,14 @@ fn render_keyframe_cell(
                                     .filter(|sh| sh.cell_index == index)
                                     .cloned()
                                     .collect();
+                                let cell_find: Vec<(usize, usize, bool)> = state
+                                    .find_matches
+                                    .iter()
+                                    .filter(|m| m.cell_index == index)
+                                    .map(|m| (m.rel_start_byte, m.rel_end_byte, m.is_current))
+                                    .collect();
+                                let find_match_bg = theme.palette.accent.selection;
+                                let find_current_bg = theme.palette.accent.subtle;
                                 // Cached highlight: skip highlight_source when cell body unchanged
                                 let body_text = cell.body().to_string();
                                 let cached_job = state
@@ -552,6 +661,12 @@ fn render_keyframe_cell(
                                                 &cell_semantic,
                                             )
                                         };
+                                        apply_find_highlights(
+                                            &mut job,
+                                            &cell_find,
+                                            find_match_bg,
+                                            find_current_bg,
+                                        );
                                         job.wrap.max_width = wrap_width;
                                         ui.fonts_mut(|fonts| fonts.layout_job(job))
                                     };
@@ -575,6 +690,7 @@ fn render_keyframe_cell(
                                     state.pending_cursor_cell = None;
                                 }
                                 track_focus(index, &response, state);
+                                track_cursor(&response, state);
 
                                 // Draw wavy diagnostic underlines
                                 let cell_underlines: Vec<CellDiagnostic> = state
@@ -628,7 +744,7 @@ fn render_timestamp_editor(
                 .font(TextRole::Mono.font_id())
                 .desired_width(100.0)
                 .frame(Frame::NONE)
-                .text_color(theme.accent.primary),
+                .text_color(theme.palette.accent.primary),
         );
 
         if ts_response.changed() {
@@ -661,7 +777,7 @@ fn render_timestamp_editor(
             egui::Label::new(
                 RichText::new(display)
                     .font(TextRole::Mono.font_id())
-                    .color(theme.accent.primary),
+                    .color(theme.palette.accent.primary),
             )
             .sense(egui::Sense::click()),
         );
@@ -680,6 +796,20 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
     if response.gained_focus() {
         state.focused_cell = Some(index);
         state.highlighted_cell = None;
+    }
+}
+
+/// Record the live caret char offset inside the focused cell body so callers
+/// (completion in particular) can operate at the caret rather than assuming
+/// end-of-document.
+fn track_cursor(response: &egui::Response, state: &mut CellEditorState) {
+    if !response.has_focus() {
+        return;
+    }
+    if let Some(te_state) = egui::text_edit::TextEditState::load(&response.ctx, response.id) {
+        if let Some(range) = te_state.cursor.char_range() {
+            state.focused_cursor_char = Some(range.primary.index);
+        }
     }
 }
 
@@ -702,10 +832,12 @@ fn draw_wavy_underlines(
 
     for d in diags {
         let color = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.status.error,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.palette.status.error,
             animatix_syntax::diagnostics::DiagnosticSeverity::Warning
             | animatix_syntax::diagnostics::DiagnosticSeverity::Info
-            | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => theme.status.warning,
+            | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
+                theme.palette.status.warning
+            },
         };
 
         // Y position: baseline below the diagnostic line
@@ -765,9 +897,9 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     // ── Divider line (always visible, brightens on hover) ──
     if left < right {
         let line_color = if t > 0.0 {
-            theme.border.strong
+            theme.palette.border.strong
         } else {
-            theme.border.default
+            theme.palette.border.default
         };
         let line_a = egui::lerp(120.0..=220.0, t) as u8;
         ui.painter().line_segment(
@@ -803,30 +935,30 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let pressed = response.is_pointer_button_down_on();
 
     // Background (always visible — no alpha tricks)
-    let bg_idle = theme.surface.widget;
-    let bg_hover = theme.surface.hover;
+    let bg_idle = theme.palette.surface.widget;
+    let bg_hover = theme.palette.surface.hover;
     let bg = if pressed {
-        theme.status.warning
+        theme.palette.status.warning
     } else {
         lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)
     let border = if pressed {
-        theme.status.warning
+        theme.palette.status.warning
     } else if btn_t > 0.0 {
-        theme.border.strong
+        theme.palette.border.strong
     } else {
-        theme.border.default
+        theme.palette.border.default
     };
 
     // Icon color
     let icon = if pressed {
-        theme.text.on_accent
+        theme.palette.text.on_accent
     } else if btn_t > 0.0 {
-        theme.text.primary
+        theme.palette.text.primary
     } else {
-        theme.text.secondary
+        theme.palette.text.secondary
     };
 
     ui.painter().rect_filled(btn_rect, 6.0, bg);
@@ -987,5 +1119,109 @@ mod tests {
 
         assert_eq!(cells[0].body(), "first");
         assert_eq!(cells[1].body(), "second你");
+    }
+
+    // ── Find-match overlay ───────────────────────────────────────────────
+
+    const MATCH_BG: Color32 = Color32::from_rgba_premultiplied(1, 2, 3, 60);
+    const CURRENT_BG: Color32 = Color32::from_rgba_premultiplied(4, 5, 6, 200);
+
+    /// A single-section job covering the whole text.
+    fn plain_job(text: &str) -> egui::text::LayoutJob {
+        let mut job = egui::text::LayoutJob::default();
+        job.append(
+            text,
+            0.0,
+            egui::TextFormat {
+                font_id: TextRole::Mono.font_id(),
+                color: Color32::WHITE,
+                ..Default::default()
+            },
+        );
+        job
+    }
+
+    /// Background color of the section covering `needle`.
+    fn bg_for(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
+        job.sections
+            .iter()
+            .find(|s| &job.text[s.byte_range.clone()] == needle)
+            .map(|s| s.format.background)
+    }
+
+    /// Background color of the section containing `byte_index`.
+    fn bg_at(job: &egui::text::LayoutJob, byte_index: usize) -> Option<Color32> {
+        job.sections
+            .iter()
+            .find(|s| s.byte_range.contains(&byte_index))
+            .map(|s| s.format.background)
+    }
+
+    #[test]
+    fn find_overlay_splits_base_section_at_match_boundaries() {
+        let mut job = plain_job("cat dog cat");
+        apply_find_highlights(&mut job, &[(0, 3, false), (8, 11, false)], MATCH_BG, CURRENT_BG);
+
+        assert_eq!(job.text, "cat dog cat", "overlay must not alter the text");
+        assert_eq!(bg_for(&job, "cat"), Some(MATCH_BG));
+        assert_eq!(bg_for(&job, " dog "), Some(Color32::TRANSPARENT));
+        // The trailing "cat" is its own section with the match background.
+        assert_eq!(bg_at(&job, 8), Some(MATCH_BG));
+    }
+
+    #[test]
+    fn find_overlay_distinguishes_current_match() {
+        let mut job = plain_job("cat cat cat");
+        apply_find_highlights(
+            &mut job,
+            &[(0, 3, false), (4, 7, true), (8, 11, false)],
+            MATCH_BG,
+            CURRENT_BG,
+        );
+
+        let bg = |start: usize| {
+            job.sections
+                .iter()
+                .find(|s| s.byte_range == (start..start + 3))
+                .map(|s| s.format.background)
+        };
+        assert_eq!(bg(0), Some(MATCH_BG));
+        assert_eq!(bg(4), Some(CURRENT_BG), "the current match uses the stronger accent");
+        assert_eq!(bg(8), Some(MATCH_BG));
+    }
+
+    #[test]
+    fn find_overlay_preserves_syntax_format() {
+        let mut job = plain_job("box.pos");
+        job.sections[0].format.color = Color32::from_rgb(10, 20, 30);
+        apply_find_highlights(&mut job, &[(4, 7, false)], MATCH_BG, CURRENT_BG);
+
+        for section in &job.sections {
+            assert_eq!(
+                section.format.color,
+                Color32::from_rgb(10, 20, 30),
+                "split sections must keep the original text color"
+            );
+        }
+    }
+
+    #[test]
+    fn find_overlay_is_a_noop_without_ranges() {
+        let mut job = plain_job("box");
+        let before = job.sections.len();
+        apply_find_highlights(&mut job, &[], MATCH_BG, CURRENT_BG);
+        assert_eq!(job.sections.len(), before);
+        assert_eq!(job.sections[0].format.background, Color32::TRANSPARENT);
+    }
+
+    #[test]
+    fn find_overlay_clamps_out_of_range_offsets() {
+        let mut job = plain_job("box");
+        // A stale/oversized range must not panic.
+        apply_find_highlights(&mut job, &[(1, 999, false)], MATCH_BG, CURRENT_BG);
+        assert_eq!(job.text, "box");
+        assert_eq!(bg_at(&job, 0), Some(Color32::TRANSPARENT));
+        assert_eq!(bg_at(&job, 1), Some(MATCH_BG));
+        assert_eq!(bg_at(&job, 2), Some(MATCH_BG));
     }
 }

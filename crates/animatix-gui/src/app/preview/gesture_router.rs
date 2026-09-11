@@ -4,6 +4,49 @@ use super::DragState;
 use super::context::PreviewContext;
 use super::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
 use super::gestures::common::GestureFrame;
+use super::selection;
+
+/// Select-on-mousedown.
+///
+/// A body drag that starts on an unselected, unlocked actor selects it first,
+/// so dragging moves what the user grabbed instead of falling through to a
+/// marquee. Dragging an already-selected actor leaves the (possibly
+/// multi-selection) set intact so group transforms keep working.
+fn select_on_drag_start(
+    ctx: &mut PreviewContext<'_>,
+    pos: Pos2,
+    preview_rect: Rect,
+    modifiers: egui::Modifiers,
+) {
+    let scene = ctx.preview_screen_to_scene(preview_rect, pos);
+    let candidates: Vec<String> = selection::actors_at_point(ctx.hit_regions, scene)
+        .into_iter()
+        .filter(|label| {
+            !ctx.timeline
+                .and_then(|t| t.get_track(label))
+                .map(|track| track.locked)
+                .unwrap_or(false)
+        })
+        .collect();
+
+    let Some(top) = candidates.first().cloned() else {
+        return;
+    };
+    if ctx.selected_actors.contains(&top) {
+        return;
+    }
+
+    let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
+    if multi {
+        ctx.selected_actors.insert(top);
+    } else {
+        ctx.selected_actors.clear();
+        ctx.selected_actors.insert(top);
+    }
+    ctx.selection.click_candidates = candidates;
+    ctx.selection.cycle_index = 0;
+    ctx.selection.last_click_scene = Some(scene);
+}
 
 pub struct GestureRouter;
 
@@ -18,7 +61,9 @@ impl GestureRouter {
         // Capture drag_state and marquee state before any mutable borrows
         let is_active_pivot = matches!(ctx.drag_state, DragState::MovePivot { .. });
         let is_active_rotate = matches!(ctx.drag_state, DragState::Rotate { .. });
+        let is_active_group_rotate = matches!(ctx.drag_state, DragState::GroupRotate { .. });
         let is_active_scale = matches!(ctx.drag_state, DragState::Scale { .. });
+        let is_active_group_scale = matches!(ctx.drag_state, DragState::GroupScale { .. });
         let is_active_motion_path = matches!(ctx.drag_state, DragState::MotionPath { .. });
         let is_active_move = matches!(ctx.drag_state, DragState::Move { .. });
         let is_active_reorder = matches!(ctx.drag_state, DragState::Reorder { .. });
@@ -69,7 +114,15 @@ impl GestureRouter {
             route_active(&mut super::gestures::rotate::RotateGesture);
             return;
         }
+        if is_active_group_rotate {
+            route_active(&mut super::gestures::rotate::RotateGesture);
+            return;
+        }
         if is_active_scale {
+            route_active(&mut super::gestures::scale::ScaleGesture);
+            return;
+        }
+        if is_active_group_scale {
             route_active(&mut super::gestures::scale::ScaleGesture);
             return;
         }
@@ -102,6 +155,7 @@ impl GestureRouter {
         if is_drag_started {
             ctx.selection.clear_tapped_place();
             if let Some(pos) = frame.screen_pos {
+                select_on_drag_start(ctx, pos, preview_rect, frame.modifiers);
                 let start_gesture = Gesture::DragStart {
                     pos,
                     button: PointerButton::Primary,

@@ -1,8 +1,9 @@
 use egui::{Align, RichText, Stroke, Vec2};
-use eparts::widget::UiExt;
 
 use crate::app::GuiShell;
-use crate::app::commands::{ActionQueue, DocumentCommand, SceneCommand, ShellAction, ViewAction};
+use crate::app::commands::{
+    ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction,
+};
 use crate::app::components::button::Button;
 use crate::app::components::{Tag, text_tooltip};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
@@ -13,9 +14,9 @@ use crate::app::design_tokens::typography::TextRole;
 impl GuiShell {
     pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let t = eparts::theme(ui);
-        let toolbar_bg = t.surface.base;
-        let border_color = t.surface.widget;
-        let text_primary = t.text.primary;
+        let toolbar_bg = t.palette.surface.base;
+        let border_color = t.palette.surface.widget;
+        let text_primary = t.palette.text.primary;
 
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
@@ -32,7 +33,7 @@ impl GuiShell {
                     // App mark
                     let (mark_rect, _response) =
                         ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 2.0, t.accent.primary);
+                    ui.painter().rect_filled(mark_rect, 2.0, t.palette.accent.primary);
 
                     // Filename with dirty indicator
                     let filename = self
@@ -50,7 +51,7 @@ impl GuiShell {
                         filename.to_string()
                     };
                     let filename_color = if self.document_store.source.document.is_dirty {
-                        t.status.warning
+                        t.palette.status.warning
                     } else {
                         text_primary
                     };
@@ -66,7 +67,7 @@ impl GuiShell {
 
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
-                        let response = ui.add(Tag::new("last good").color(t.status.error));
+                        let response = ui.add(Tag::new("last good").color(t.palette.status.error));
                         text_tooltip(
                             ui,
                             response.id.with("last_good_tooltip"),
@@ -74,7 +75,7 @@ impl GuiShell {
                             "Build failed — preview shows the last successful build",
                         );
                     } else if self.document_store.snapshot_is_stale() {
-                        let response = ui.add(Tag::new("stale").color(t.status.warning));
+                        let response = ui.add(Tag::new("stale").color(t.palette.status.warning));
                         text_tooltip(
                             ui,
                             response.id.with("stale_tooltip"),
@@ -87,7 +88,7 @@ impl GuiShell {
                     if self.preview_store.rebuild_in_progress {
                         let response = ui.add(
                             Tag::new(egui_phosphor::regular::ARROW_CLOCKWISE)
-                                .color(t.accent.primary),
+                                .color(t.palette.accent.primary),
                         );
                         text_tooltip(
                             ui,
@@ -120,11 +121,67 @@ impl GuiShell {
                         ui.ctx(),
                     );
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
+                        let new_btn =
+                            ui.button(format!("{} New scene", egui_phosphor::regular::FILE_PLUS));
+                        if new_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::NewFile));
+                            ui.close();
+                        }
+                        let open_btn = ui
+                            .button(format!("{} Open file…", egui_phosphor::regular::FOLDER_OPEN));
+                        if open_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::OpenFileDialog));
+                            ui.close();
+                        }
+
+                        // Recent files, newest first.
+                        let recents = self.ui_store.recent_files.clone();
+                        if !recents.is_empty() {
+                            ui.menu_button(
+                                format!(
+                                    "{} Open recent",
+                                    egui_phosphor::regular::CLOCK_COUNTER_CLOCKWISE
+                                ),
+                                |ui| {
+                                    ui.set_min_width(220.0);
+                                    for path in recents {
+                                        let exists = path.exists();
+                                        let label = path
+                                            .file_name()
+                                            .and_then(|name| name.to_str())
+                                            .unwrap_or("(unknown)")
+                                            .to_string();
+                                        let entry = ui.add_enabled(
+                                            exists,
+                                            egui::Button::new(label).frame(false),
+                                        );
+                                        text_tooltip(
+                                            ui,
+                                            entry.id.with(("recent", path.display().to_string())),
+                                            &entry,
+                                            &path.display().to_string(),
+                                        );
+                                        if entry.clicked() {
+                                            commands.push_back(Command::OpenFile(path).into());
+                                            ui.close();
+                                        }
+                                    }
+                                },
+                            );
+                        }
+                        ui.separator();
+
                         let save_btn =
                             ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
                         text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, &save_tip);
                         if save_btn.clicked() {
                             commands.push_back(DocumentCommand::Save.into());
+                            ui.close();
+                        }
+                        let save_as_btn =
+                            ui.button(format!("{} Save As…", egui_phosphor::regular::FLOPPY_DISK));
+                        if save_as_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::SaveAsDialog));
                             ui.close();
                         }
                         let export_btn =
@@ -202,14 +259,14 @@ impl GuiShell {
                                         ui.label(
                                             RichText::new(egui_phosphor::regular::ARROW_RIGHT)
                                                 .size(TextRole::BodyS.size())
-                                                .color(t.text.muted),
+                                                .color(t.palette.text.muted),
                                         );
                                     }
                                     let is_active = active_scene == Some(name.as_str());
                                     let color = if is_active {
-                                        t.text.primary
+                                        t.palette.text.primary
                                     } else {
-                                        t.text.muted
+                                        t.palette.text.muted
                                     };
                                     let label = RichText::new(name.as_str())
                                         .size(TextRole::BodyS.size())
@@ -235,50 +292,49 @@ impl GuiShell {
                         }
                     }
 
-                    // ── Center: viewport toggles + zoom cycle ──
+                    // ── Center: record + debug. Canvas view controls (grid,
+                    // guides, labels, zoom) now live in the preview header. ──
                     ui.add_space(sp.base.space_5);
                     ui.horizontal(|ui| {
                         ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
-                        // Grid toggle
-                        let grid = self.preview_store.preview.overlay.show_grid;
-                        let grid_btn = ui.stable_selectable_label(grid, "Grid");
-                        text_tooltip(ui, grid_btn.id.with("grid_tip"), &grid_btn, "Toggle grid");
-                        if grid_btn.clicked() {
-                            self.preview_store.preview.overlay.show_grid = !grid;
-                        }
-
-                        // Guides toggle
-                        let guides = self.preview_store.preview.overlay.show_guides;
-                        let guides_btn = ui.stable_selectable_label(guides, "Guides");
-                        text_tooltip(
+                        // Global playback transport (survives bottom-tab switches)
+                        super::transport::transport_ui(
                             ui,
-                            guides_btn.id.with("guides_tip"),
-                            &guides_btn,
-                            "Toggle guides",
+                            &mut self.preview_store.preview,
+                            commands,
                         );
-                        if guides_btn.clicked() {
-                            self.preview_store.preview.overlay.show_guides = !guides;
-                        }
+                        ui.separator();
 
-                        // Labels toggle
-                        let labels = self.preview_store.preview.overlay.show_actor_labels;
-                        let labels_btn = ui.stable_selectable_label(labels, "Labels");
-                        text_tooltip(
-                            ui,
-                            labels_btn.id.with("labels_tip"),
-                            &labels_btn,
-                            "Toggle actor labels",
+                        // Auto-key / record toggle. This is the single control
+                        // that decides whether property edits write keyframes at
+                        // the playhead, so it must always be visible.
+                        let recording = self.ui_store.keyframe_mode;
+                        let rec_btn = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::RECORD)
+                                .with_tooltip(if recording {
+                                    "Auto-key ON — property edits write keyframes at the playhead"
+                                } else {
+                                    "Auto-key OFF — edits change the base value; click a ◆ to key"
+                                })
+                                .active(recording)
+                                .icon_color(if recording {
+                                    t.palette.status.error
+                                } else {
+                                    t.palette.text.muted
+                                })
+                                .hover_icon_color(t.palette.status.error),
                         );
-                        if labels_btn.clicked() {
-                            self.preview_store.preview.overlay.show_actor_labels = !labels;
+                        if rec_btn.clicked() {
+                            self.ui_store.keyframe_mode = !recording;
                         }
 
                         // Debug dropdown (grouped debug toggles)
                         ui.menu_button(
                             RichText::new("Debug")
                                 .size(TextRole::BodyS.size())
-                                .color(t.text.secondary),
+                                .color(t.palette.text.secondary),
                             |ui| {
                                 let mut bounds = self.ui_store.view.debug_bounds;
                                 if ui.checkbox(&mut bounds, "Bounds").clicked() {
@@ -297,65 +353,6 @@ impl GuiShell {
                                     self.preview_store.preview.overlay.show_performance_hud;
                                 if ui.checkbox(&mut perf, "Performance HUD").clicked() {
                                     self.preview_store.preview.overlay.show_performance_hud = perf;
-                                }
-                            },
-                        );
-
-                        ui.separator();
-
-                        // Zoom dropdown
-                        let zoom = self.preview_store.preview.viewport.preview_zoom;
-                        let zoom_label = if (zoom - 1.0).abs() < 0.05 {
-                            "100%"
-                        } else if (zoom - 1.5).abs() < 0.05 {
-                            "150%"
-                        } else if (zoom - 2.0).abs() < 0.05 {
-                            "200%"
-                        } else {
-                            "Fit"
-                        };
-                        ui.menu_button(
-                            RichText::new(zoom_label)
-                                .size(TextRole::BodyS.size())
-                                .color(t.text.secondary),
-                            |ui| {
-                                ui.set_min_width(80.0);
-                                if ui.stable_selectable_label(false, "Fit").clicked() {
-                                    self.preview_store.preview.fit_zoom_requested = true;
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 1.0).abs() < 0.05, "100%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 1.0;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 1.5).abs() < 0.05, "150%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 1.5;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
-                                }
-                                if ui
-                                    .stable_selectable_label((zoom - 2.0).abs() < 0.05, "200%")
-                                    .clicked()
-                                {
-                                    self.preview_store.preview.viewport.preview_zoom = 2.0;
-                                    self.preview_store.preview.viewport.preview_pan = Vec2::new(
-                                        self.preview_store.preview.dimensions.width as f32 / 2.0,
-                                        self.preview_store.preview.dimensions.height as f32 / 2.0,
-                                    );
-                                    ui.close();
                                 }
                             },
                         );
@@ -410,19 +407,83 @@ impl GuiShell {
                             self.ui_store.view.diagnostics_panel_visible = !diag_active;
                         }
 
-                        // Inspector toggle
-                        let inspector_active = self.ui_store.view.inspector_visible;
-                        if ui
-                            .add(
-                                Button::ghost("")
-                                    .with_icon(egui_phosphor::regular::SLIDERS)
-                                    .with_tooltip("Toggle Inspector")
-                                    .active(inspector_active),
-                            )
-                            .clicked()
-                        {
+                        // Layout presets + reset (design doc §9.2)
+                        ui.menu_button("Layout", |ui| {
+                            for preset in crate::app::LayoutPreset::ALL {
+                                if ui.button(preset.label()).clicked() {
+                                    commands.push_back(ShellAction::View(ViewAction::ApplyLayout(
+                                        preset,
+                                    )));
+                                    ui.close();
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("Reset layout").clicked() {
+                                commands.push_back(ShellAction::View(ViewAction::ResetLayout));
+                                ui.close();
+                            }
+                        });
+
+                        // Detail region: Inspector | Code share one tab group.
+                        // In compact mode the dock is hidden and the tab renders
+                        // in the overlay drawer, so light the toggle while its
+                        // drawer is open.
+                        let compact_detail_drawer = self.ui_store.view.compact
+                            && self.ui_store.view.compact_drawer
+                                == Some(crate::app::panels::CompactDrawer::Detail);
+                        let active_tab = if compact_detail_drawer
+                            || (!self.ui_store.view.compact
+                                && crate::app::persistence::detail_visible(
+                                    &self.ui_store.view.tree,
+                                )) {
+                            crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
+                        } else {
+                            None
+                        };
+
+                        let inspector_tip =
+                            crate::app::interaction::keyboard::tooltip_with_shortcut(
+                                &self.shortcut_registry,
+                                "Inspector",
+                                &crate::app::interaction::keyboard::KeyboardAction::ToggleInspector,
+                                ui.ctx(),
+                            );
+                        let inspector_active =
+                            active_tab == Some(crate::app::WorkspaceTab::Inspector);
+                        let inspector_resp = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::SLIDERS)
+                                .active(inspector_active),
+                        );
+                        text_tooltip(
+                            ui,
+                            inspector_resp.id.with("inspector_tip"),
+                            &inspector_resp,
+                            &inspector_tip,
+                        );
+                        if inspector_resp.clicked() {
                             commands.push_back(ShellAction::View(ViewAction::ShowInspector));
                         }
+
+                        let code_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                            &self.shortcut_registry,
+                            "Code",
+                            &crate::app::interaction::keyboard::KeyboardAction::ToggleCode,
+                            ui.ctx(),
+                        );
+                        let code_active = active_tab == Some(crate::app::WorkspaceTab::Code);
+                        let code_resp = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::CODE)
+                                .active(code_active),
+                        );
+                        text_tooltip(ui, code_resp.id.with("code_tip"), &code_resp, &code_tip);
+                        if code_resp.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::ShowCode));
+                        }
+                        // Timeline | Curves are switched from the bottom band's
+                        // own tab bar (and the command palette); no toolbar
+                        // duplicate, which was crowding the transport.
                     });
                 });
             });

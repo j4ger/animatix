@@ -1,3 +1,4 @@
+pub mod autosave;
 pub mod command_palette;
 pub mod export_dialog;
 pub mod find_replace;
@@ -6,6 +7,7 @@ pub mod plugin_status;
 pub mod settings;
 pub mod shortcut_cheat_sheet;
 pub mod toolbar;
+pub mod transport;
 
 use crate::app::GuiShell;
 use crate::app::commands::{Command, DocumentCommand, DragEvent, Effect, ShellAction, ViewAction};
@@ -31,14 +33,18 @@ impl GuiShell {
                     );
                     return vec![];
                 }
-                file::handle_open_file(
+                let effects = file::handle_open_file(
                     &mut self.document_store,
                     &mut self.workspace_store,
                     &mut self.preview_store,
                     &mut self.ui_store,
                     &mut self.plugin_manager,
                     path,
-                )
+                );
+                // The newly opened file may have a newer crash-recovery sidecar;
+                // surface it before autosave can overwrite it.
+                self.detect_recovery_prompt();
+                effects
             },
             Command::ToggleExpandDir(path) => file::handle_toggle_expand_dir(
                 &mut self.workspace_store,
@@ -58,7 +64,12 @@ impl GuiShell {
                 }
                 file::handle_switch_workspace(&mut self.workspace_store, &self.document_store, path)
             },
-            Command::Save => file::handle_save(&mut self.document_store, &mut self.preview_store),
+            Command::Save => {
+                if self.recovery_prompt_pending() {
+                    return vec![Effect::Toast(self.recovery_prompt_save_blocked())];
+                }
+                file::handle_save(&mut self.document_store, &mut self.preview_store)
+            },
             Command::Reload => {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
@@ -135,6 +146,12 @@ impl GuiShell {
                 &mut self.preview_store,
                 &mut self.ui_store,
                 new_order,
+            ),
+            Command::AddScene(scene) => scene::handle_add_scene(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
             ),
             Command::DuplicateScene(scene) => scene::handle_duplicate_scene(
                 &mut self.document_store,
@@ -272,6 +289,34 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
+            Command::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+                value,
+            } => keyframe::handle_set_keyframe_value(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
+                actor,
+                property,
+                time_s,
+                value,
+            ),
+            Command::MoveKeyframes(specs) => keyframe::handle_move_keyframes(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                specs,
+            ),
+            Command::DeleteKeyframes(ids) => keyframe::handle_delete_keyframes(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                ids,
+            ),
             Command::SetSelectedKeyframes(keyframes) => {
                 ui::handle_set_selected_keyframes(&mut self.ui_store, keyframes)
             },
@@ -397,6 +442,66 @@ impl GuiShell {
     fn handle_view_action(&mut self, view: ViewAction) -> Vec<Effect> {
         match view {
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
+            ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
+            ViewAction::ShowCurves => ui::handle_show_curves(&mut self.ui_store),
+            ViewAction::ShowTimeline => ui::handle_show_timeline(&mut self.ui_store),
+            ViewAction::ApplyLayout(preset) => ui::handle_apply_layout(&mut self.ui_store, preset),
+            ViewAction::ResetLayout => ui::handle_reset_layout(&mut self.ui_store),
+            ViewAction::OpenFileDialog => {
+                match rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file() {
+                    Some(path) => self.handle_command(Command::OpenFile(path)),
+                    None => vec![],
+                }
+            },
+            ViewAction::NewFile => {
+                let path = crate::document::default_file_path();
+                match std::fs::write(&path, "#0s\n") {
+                    Ok(()) => self.handle_command(Command::OpenFile(path)),
+                    Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
+                        format!("Failed to create scene: {err}"),
+                    ))],
+                }
+            },
+            ViewAction::SaveAsDialog => {
+                // Saving under a new name would clear the current document's
+                // sidecar, so require the recovery decision first.
+                if self.recovery_prompt_pending() {
+                    return vec![Effect::Toast(self.recovery_prompt_save_blocked())];
+                }
+                let default_name = self
+                    .document_store
+                    .source
+                    .file_path()
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("untitled.amx")
+                    .to_string();
+                match rfd::FileDialog::new()
+                    .add_filter("Animatix", &["amx"])
+                    .set_file_name(&default_name)
+                    .save_file()
+                {
+                    Some(path) => file::handle_save_as(
+                        &mut self.document_store,
+                        &mut self.preview_store,
+                        path,
+                    ),
+                    None => vec![],
+                }
+            },
+            ViewAction::OpenSettings => {
+                self.ui_store.view.settings_open = true;
+                vec![]
+            },
+            ViewAction::OpenShortcuts => {
+                self.ui_store.view.shortcuts_open = true;
+                vec![]
+            },
+            ViewAction::OpenInsertionPalette => {
+                use crate::app::shell::insertion_palette::PaletteMode;
+                self.insertion_palette.open(PaletteMode::Universal);
+                vec![]
+            },
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
             },

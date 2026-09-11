@@ -139,7 +139,7 @@ impl GuiShell {
                         }
                     }
                     if let Some(error) = &self.ui_store.view.theme_error {
-                        ui.colored_label(theme.status.error, error);
+                        ui.colored_label(theme.palette.status.error, error);
                         ui.add_space(sp.base.space_2);
                     }
                 }
@@ -207,7 +207,9 @@ impl GuiShell {
             ];
             layout::labeled_row(
                 ui,
-                RichText::new("Theme").size(TextRole::BodyS.size()).color(theme.text.secondary),
+                RichText::new("Theme")
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.text.secondary),
                 SETTINGS_INPUT_WIDTH,
                 |ui| {
                     egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
@@ -337,6 +339,48 @@ impl GuiShell {
             }
             ui.add_space(sp.base.space_3);
 
+            // ── Autosave & Recovery ──
+            layout::section_header(ui, egui_phosphor::regular::CLOCK, "Autosave", None);
+            ui.add_space(sp.base.space_2);
+
+            {
+                let autosave = &mut self.ui_store.view.autosave;
+                let mut enabled = autosave.enabled;
+                let mut interval_s = autosave.interval.as_secs_f64();
+                let previous = (enabled, interval_s);
+
+                eparts::widget::Form::new("autosave_form")
+                    .label_width(SETTINGS_INPUT_WIDTH)
+                    .show(ui, |f| {
+                        f.field("Autosave", |ui| {
+                            ui.checkbox(&mut enabled, "Write recovery file while dirty");
+                        });
+                        f.field("Interval", |ui| {
+                            ui.add_enabled_ui(enabled, |ui| {
+                                eparts::NumberField::new(&mut interval_s)
+                                    .range(
+                                        crate::app::stores::ui_store::MIN_AUTOSAVE_INTERVAL_S
+                                            ..=600.0,
+                                    )
+                                    .speed(1.0)
+                                    .suffix(" s")
+                                    .show(ui);
+                            });
+                        });
+                    });
+
+                autosave.enabled = enabled;
+                autosave.interval = std::time::Duration::from_secs_f64(interval_s.clamp(
+                    crate::app::stores::ui_store::MIN_AUTOSAVE_INTERVAL_S,
+                    crate::app::stores::ui_store::MAX_AUTOSAVE_INTERVAL_S,
+                ));
+                if (enabled, autosave.interval.as_secs_f64()) != previous {
+                    // Persist immediately so the preference survives a crash.
+                    self.persist_autosave_prefs();
+                }
+            }
+            ui.add_space(sp.base.space_3);
+
             // ── Shortcuts ──
             layout::section_header(ui, egui_phosphor::regular::KEYBOARD, "Shortcuts", None);
             ui.add_space(sp.base.space_2);
@@ -348,7 +392,7 @@ impl GuiShell {
                 ui.label(
                     RichText::new(format!("Press a key for '{name}'…"))
                         .size(TextRole::BodyS.size())
-                        .color(theme.accent.primary),
+                        .color(theme.palette.accent.primary),
                 );
                 let captured_key = ui.input(|i| {
                     i.events.iter().find_map(|event| {
@@ -376,7 +420,7 @@ impl GuiShell {
                     let current = self
                         .shortcut_registry
                         .current_saved(&name)
-                        .map(|s| s.display())
+                        .map(|s| s.display_with(ui.ctx()))
                         .unwrap_or_default();
                     let is_recording = recording.as_deref() == Some(name.as_str());
                     ui.horizontal(|ui| {
@@ -385,7 +429,7 @@ impl GuiShell {
                             egui::Label::new(
                                 RichText::new(&name)
                                     .size(TextRole::BodyS.size())
-                                    .color(theme.text.secondary),
+                                    .color(theme.palette.text.secondary),
                             ),
                         );
                         ui.add_sized(
@@ -398,7 +442,7 @@ impl GuiShell {
                                 })
                                 .monospace()
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.primary),
+                                .color(theme.palette.text.primary),
                             ),
                         );
                         if is_recording {
@@ -441,7 +485,7 @@ impl GuiShell {
                         self.ui_store.recording_shortcut = None;
                         self.save_persistence();
                         self.preview_store.preview.status =
-                            format!("Shortcut '{}' set to {}", name, saved.display());
+                            format!("Shortcut '{}' set to {}", name, saved.display_with(ui.ctx()));
                     },
                     Err(error) => {
                         self.ui_store.recording_shortcut = None;

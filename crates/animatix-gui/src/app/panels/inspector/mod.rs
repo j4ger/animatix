@@ -114,9 +114,16 @@ fn render_scene_inspector(
         ui.painter().text(
             Pos2::new(row_rect.min.x + sp.base.space_2, row_rect.center().y),
             egui::Align2::LEFT_CENTER,
-            format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
+            format!("{} Scene: {}", egui_phosphor::regular::FILM_STRIP, active_scene),
             TextRole::Heading.font_id(),
-            theme.accent.primary,
+            theme.palette.accent.primary,
+        );
+        // Make the mode explicit. This panel is reached by deselecting every
+        // actor, which is otherwise an invisible context switch.
+        ui.label(
+            RichText::new("No actor selected — showing scene properties")
+                .size(TextRole::Caption.size())
+                .color(theme.palette.text.muted),
         );
         ui.add_space(sp.base.space_3);
 
@@ -179,7 +186,7 @@ fn render_scene_inspector(
                         RichText::new(format!("{:.2} s", start_s))
                             .monospace()
                             .size(TextRole::BodyS.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                     )
                     .selectable(false),
                 );
@@ -212,7 +219,7 @@ fn render_scene_inspector(
                         ))
                         .monospace()
                         .size(TextRole::BodyS.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                     )
                     .selectable(false),
                 );
@@ -221,43 +228,53 @@ fn render_scene_inspector(
 
         ui.add_space(sp.base.space_3);
 
-        // ── Play Edge ──
+        // ── Play edge (create / clear) ──
+        layout::group_box(ui, format!("{} Play Edge", egui_phosphor::regular::ARROW_RIGHT), |ui| {
+            let current_target =
+                composition.edges.get(active_scene).map(|edge| edge.to_scene.clone());
+            let other_scenes: Vec<&String> =
+                composition.declaration_order.iter().filter(|s| *s != active_scene).collect();
+            layout::labeled_row(ui, "Next scene", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                egui::ComboBox::from_id_salt(ui.id().with("play_edge_target"))
+                    .selected_text(current_target.as_deref().unwrap_or("\u{2014} None"))
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .stable_selectable_label(current_target.is_none(), "\u{2014} None")
+                            .clicked()
+                        {
+                            commands.push_back(
+                                SceneCommand::SetPlayTarget {
+                                    from_scene: active_scene.to_string(),
+                                    target: None,
+                                }
+                                .into(),
+                            );
+                        }
+                        for scene_name in &other_scenes {
+                            let selected = current_target.as_deref() == Some(scene_name.as_str());
+                            if ui.stable_selectable_label(selected, *scene_name).clicked() {
+                                commands.push_back(
+                                    SceneCommand::SetPlayTarget {
+                                        from_scene: active_scene.to_string(),
+                                        target: Some((*scene_name).clone()),
+                                    }
+                                    .into(),
+                                );
+                            }
+                        }
+                    });
+            });
+        });
+
+        ui.add_space(sp.base.space_3);
+
+        // ── Transition (edit an existing play edge) ──
         if let Some(edge) = composition.edges.get(active_scene) {
             layout::group_box(
                 ui,
                 format!("{} Transition", egui_phosphor::regular::ARROW_RIGHT),
                 |ui| {
-                    // Target scene dropdown
-                    let other_scenes: Vec<&String> = composition
-                        .declaration_order
-                        .iter()
-                        .filter(|s| *s != active_scene)
-                        .collect();
-                    layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
-                            .selected_text(&edge.to_scene)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for scene_name in &other_scenes {
-                                    if ui
-                                        .stable_selectable_label(
-                                            *scene_name == &edge.to_scene,
-                                            *scene_name,
-                                        )
-                                        .clicked()
-                                    {
-                                        commands.push_back(
-                                            SceneCommand::SetPlayTarget {
-                                                from_scene: active_scene.to_string(),
-                                                target: Some((*scene_name).clone()),
-                                            }
-                                            .into(),
-                                        );
-                                    }
-                                }
-                            });
-                    });
-
                     // Transition type dropdown
                     let registry = animatix_syntax::transition_registry::REGISTRY;
                     layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
@@ -398,7 +415,7 @@ fn render_scene_inspector(
                                 edge.to_scene
                             ))
                             .size(TextRole::BodyS.size())
-                            .color(theme.accent.primary),
+                            .color(theme.palette.accent.primary),
                         )
                         .clicked()
                     {
@@ -429,9 +446,9 @@ fn render_scene_inspector(
                     egui::Sense::click(),
                 );
                 let bg = if is_active {
-                    theme.accent.selection
+                    theme.palette.accent.selection
                 } else if response.hovered() {
-                    theme.surface.hover
+                    theme.palette.surface.hover
                 } else {
                     Color32::TRANSPARENT
                 };
@@ -444,9 +461,9 @@ fn render_scene_inspector(
                     scene_name,
                     TextRole::BodyS.font_id(),
                     if is_active {
-                        theme.accent.primary
+                        theme.palette.accent.primary
                     } else {
-                        theme.text.secondary
+                        theme.palette.text.secondary
                     },
                 );
                 if response.clicked() && !is_active {
@@ -508,7 +525,7 @@ pub(super) fn inspector_ui(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 )
                 .selectable(false),
             );
@@ -517,7 +534,7 @@ pub(super) fn inspector_ui(
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(TextRole::Title.size())
-                        .color(theme.text.secondary),
+                        .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );
@@ -525,7 +542,7 @@ pub(super) fn inspector_ui(
             let add_actor_btn = ui.button(
                 RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
                     .size(TextRole::Title.size())
-                    .color(theme.accent.primary),
+                    .color(theme.palette.accent.primary),
             );
             text_tooltip(
                 ui,
@@ -594,14 +611,14 @@ pub(super) fn inspector_ui(
                     ui.label(
                         RichText::new("Multi-selected — drag/nudge in preview applies to all. Select a single actor to edit properties.")
                             .size(TextRole::Micro.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     );
                     ui.add_space(sp.base.space_1);
                     let names: Vec<&str> = selected_actors.iter().map(String::as_str).collect();
                     ui.label(
                         RichText::new(names.join(", "))
                             .size(TextRole::Micro.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     );
                 });
             });
@@ -629,7 +646,7 @@ pub(super) fn inspector_ui(
                                 RichText::new(&path)
                                     .monospace()
                                     .size(TextRole::BodyS.size())
-                                    .color(theme.text.secondary),
+                                    .color(theme.palette.text.secondary),
                             )
                             .selectable(false),
                         );
@@ -686,7 +703,7 @@ pub(super) fn inspector_ui(
                             egui::Label::new(
                                 RichText::new("No editable properties")
                                     .size(TextRole::Body.size())
-                                    .color(theme.text.muted),
+                                    .color(theme.palette.text.muted),
                             )
                             .selectable(false),
                         );
@@ -745,7 +762,7 @@ pub(super) fn inspector_ui(
                         let reset_pivot = ui.button(
                             RichText::new("Reset")
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
                         text_tooltip(
                             ui,
@@ -901,7 +918,7 @@ fn render_property_stream(
             ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
         if row_response.hovered() {
-            ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
+            ui.painter().rect_filled(row_rect, 0.0, theme.palette.surface.hover);
         }
 
         let baseline_y = row_rect.center().y;
@@ -919,9 +936,9 @@ fn render_property_stream(
                 egui::pos2(row_rect.min.x + sp.base.space_2 + bar_w, baseline_y + 3.0),
             );
             let bar_color = if entry.keyframe_count >= max_kf / 2 {
-                theme.status.warning
+                theme.palette.status.warning
             } else {
-                theme.text.muted
+                theme.palette.text.muted
             };
             ui.painter().rect_filled(bar_rect, RADIUS_S, bar_color);
         }
@@ -933,7 +950,7 @@ fn render_property_stream(
             egui::Align2::LEFT_CENTER,
             format!("{} {}", group.icon, entry.name),
             TextRole::BodyS.font_id(),
-            theme.text.secondary,
+            theme.palette.text.secondary,
         );
 
         // Current value (middle area)
@@ -945,7 +962,7 @@ fn render_property_stream(
                 egui::Align2::LEFT_CENTER,
                 &value_text,
                 egui::FontId::monospace(TextRole::Micro.size()),
-                theme.text.muted,
+                theme.palette.text.muted,
             );
         }
 
@@ -979,7 +996,7 @@ fn render_property_stream(
                     egui::pos2(divider_rect.min.x + sp.base.space_2, divider_rect.min.y + 4.0),
                     egui::pos2(divider_rect.max.x - sp.base.space_2, divider_rect.min.y + 4.0),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, theme.border.default),
+                egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
             );
         }
         ui.add_space(sp.base.space_2);
@@ -1013,7 +1030,7 @@ fn render_actor_header(
                     egui::Label::new(
                         RichText::new(crate::app::icons::actor_icon_for_track(track, timeline))
                             .size(TextRole::Heading.size())
-                            .color(theme.status.warning),
+                            .color(theme.palette.status.warning),
                     )
                     .selectable(false),
                 );
@@ -1030,7 +1047,7 @@ fn render_actor_header(
                     let response = ui.add(
                         egui::TextEdit::singleline(&mut edit_buffer)
                             .font(TextRole::Heading.font_id())
-                            .text_color(theme.text.primary)
+                            .text_color(theme.palette.text.primary)
                             .desired_width(120.0),
                     );
                     response.request_focus();
@@ -1056,7 +1073,7 @@ fn render_actor_header(
                         egui::Label::new(
                             RichText::new(&track.label)
                                 .size(TextRole::Heading.size())
-                                .color(theme.text.primary),
+                                .color(theme.palette.text.primary),
                         )
                         .selectable(false)
                         .sense(egui::Sense::click()),
@@ -1087,7 +1104,7 @@ fn render_actor_header(
                                 track.first_seen_ms as f64 / 1000.0
                             ))
                             .size(TextRole::Micro.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                         )
                         .selectable(false),
                     );
@@ -1100,7 +1117,7 @@ fn render_actor_header(
                         egui::Label::new(
                             RichText::new(shape.to_string())
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         )
                         .selectable(false),
                     );
@@ -1186,7 +1203,7 @@ fn render_container_children(
 
         // Background
         let bg = if ui.rect_contains_pointer(row_rect) {
-            theme.surface.hover
+            theme.palette.surface.hover
         } else {
             Color32::TRANSPARENT
         };
@@ -1211,7 +1228,7 @@ fn render_container_children(
             egui::Align2::LEFT_CENTER,
             label,
             TextRole::BodyS.font_id(),
-            theme.text.secondary,
+            theme.palette.text.secondary,
         );
 
         // Up / Down buttons (right-aligned)
@@ -1224,11 +1241,11 @@ fn render_container_children(
         let down_resp = ui.interact(down_rect, row_id.with("down"), egui::Sense::click());
         text_tooltip(ui, down_resp.id.with("tooltip"), &down_resp, "Move down");
         let down_color = if i + 1 >= order.len() {
-            theme.text.disabled
+            theme.palette.text.disabled
         } else if down_resp.hovered() {
-            theme.text.primary
+            theme.palette.text.primary
         } else {
-            theme.text.secondary
+            theme.palette.text.secondary
         };
         ui.painter().text(
             down_rect.center(),
@@ -1244,11 +1261,11 @@ fn render_container_children(
         let up_resp = ui.interact(up_rect, row_id.with("up"), egui::Sense::click());
         text_tooltip(ui, up_resp.id.with("tooltip"), &up_resp, "Move up");
         let up_color = if i == 0 {
-            theme.text.disabled
+            theme.palette.text.disabled
         } else if up_resp.hovered() {
-            theme.text.primary
+            theme.palette.text.primary
         } else {
-            theme.text.secondary
+            theme.palette.text.secondary
         };
         ui.painter().text(
             up_rect.center(),
