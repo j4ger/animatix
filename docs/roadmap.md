@@ -326,14 +326,27 @@ editor over the selected actor — horizontal drag retimes through the batched
 Reachable from the toolbar, command palette, and `ViewAction::ShowCurves` /
 `ShowTimeline`.
 
-Remaining phases, in order:
+Later phases shipped 2026-09-11: timeline keyframe model (property-granular
+`KeyframeId` selection, multi-keyframe drag with a single undo step via batched
+`MoveKeyframes`, empty property lanes from the animatable-property registry,
+actor track header eye/lock); autosave to a `<file>.amx.autosave` sidecar with
+a Recover/Discard prompt on startup; in-editor find-match highlighting; Library
+drag-to-place onto the canvas; narrow-window compact mode (48px sidebar icon
+rail + overlay drawers). The `eparts` library got a batch of fixes (scrolling
+virtualized `List`/`Tree`, themed `Select` with keyboard nav and a focus ring,
+overlay-aware `Dialog`, dead slots wired, new per-component slot groups, a
+macro-generated partial theme layer, and `Theme` grouped into
+`palette`/`components`/`elevation`).
 
-| Phase | Scope | Status |
+Remaining:
+
+| Item | Scope | Status |
 |---|---|---|
-| 1 | Tool switcher UI in the preview header, transport moved to a global bar, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
-| 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, editor find/replace options | Partly done — bottom Timeline/Curves tab group + interactive Curves editor shipped |
-| 3 | Remaining IA: drag-to-place from the Library, narrow-window downgrade modes (icon rail, overlay drawer), diagnostics as a status-bar peek | Done except diagnostics peek — Library drag-to-place and the compact icon rail / overlay drawers shipped; sidebar merge, detail tabs, editor placement and presets shipped earlier |
-| 4 | App menu (New/Open/Recent/Save As), autosave + crash recovery, command palette superset with fuzzy search, export/settings polish | Not started |
+| Diagnostics peek | A transient overlay from the status-bar chip (today the chip toggles the existing bottom panel) | Not started |
+| Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
+| Multi-actor curves | The Curves editor edits the first selected actor only | Not started |
+| Export/settings polish | Detailed error text, codec/quality controls, restore-defaults | Not started |
+| main rebase | `main` moved to `9cbb2dfa` (`actor_type` is now `String`); rebase + adapt before merging | Not started |
 
 ### Resolved Engine Bugs (gallery-era)
 

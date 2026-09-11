@@ -1156,22 +1156,27 @@ Layout (2026-09-11, verified from workspace screenshots):
 | Library drag-to-place | Drag a Library component or an Asset (image/SVG) row onto the canvas to create the actor at the drop point; the payload is shared via egui context data and the preview panel owns the scene transform. Double-click still instantiates at scene centre |
 | Compact layout | Below 1000px: sidebar → 48px icon rail (opens the content as a left overlay drawer); detail column → right overlay drawer (Inspector/Code). Widening restores the captured pane visibility |
 
-Remaining, in order:
+Interaction & platform phases (2026-09-11):
 
-1. **Phase 1 — visible state & canvas.** Tool switcher UI in the preview
-   header, pivot demotion, snap toggle, select-on-mousedown, canvas context
-   menu, numeric entry, timeline playhead drag and property-granular keyframe
-   editing. Also move the transport to a global bar so playback survives a
-   bottom-tab switch.
-2. **Phase 2 — core loops.** Layer outliner editing; add scene / create a
-   `play` edge from the UI; interactive Curves tab; editor find/replace
-   options.
-3. **Phase 3 — information architecture (done).** Sidebar merge, detail tab
-   group, editor placement, presets, Library drag-to-place and the
-   narrow-window downgrade modes (icon rail / overlay drawer) have shipped.
-4. **Phase 4 — platform conventions.** App menu (New/Open/Recent/Save As),
-   autosave + recovery, command palette superset, export/settings polish;
-   diagnostics as a status-bar peek instead of a stacked bottom panel.
+| Item | Change |
+|---|---|
+| Canvas header | Tool switcher (visible mode state), snap toggle, grid/guides/labels/zoom moved next to the canvas |
+| Global transport | Playback lives in the top toolbar so it survives a bottom-tab switch; the timeline keeps its own zoom |
+| Select-on-mousedown | Dragging an unselected actor selects it first; locked actors stay unselectable |
+| Pivot | Drawn and gestured only in Pivot mode, so it no longer steals centre drags |
+| Canvas context menu | Duplicate / Delete / Group / Ungroup / Lock / Hide, state-labelled |
+| Timeline keyframes | Selection is property-granular (`KeyframeId`); multi-select drags move together in one undo step (batched `MoveKeyframes`); lanes exist for every animatable property, not only keyframed ones; track headers gained eye/lock |
+| Bottom tab group | `[Timeline \| Curves]`; the Curves tab is an editable F-curve view (retime / change value via exact `SetKeyframeValue` / easing / select) |
+| Autosave | Dirty work is written to `<file>.amx.autosave`; a newer sidecar prompts Recover/Discard on startup |
+| Find highlight | Matches are highlighted in the cell editor (current vs others), overlaid on the cached syntax job |
+| Library drag-to-place | Drag a component/asset row onto the canvas to create the actor at the drop point |
+| Compact layout | Below 1000px: sidebar → 48px icon rail (content as a left overlay drawer); detail → right overlay drawer |
+| File menu | New scene / Open file / Open recent / Save As |
+| Command palette | Superset with subsequence fuzzy scoring |
+
+Remaining (tracked in `docs/roadmap.md`): a diagnostics *peek* overlay from the
+status-bar chip, track solo, multi-actor curve editing, export/settings polish,
+and rebasing onto the advanced `main` before merging.
 
 ### 12.5 Open decisions
 
