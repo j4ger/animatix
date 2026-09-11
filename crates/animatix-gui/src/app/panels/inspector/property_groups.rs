@@ -478,7 +478,7 @@ pub(crate) fn render_property_group(
         let flat_style = {
             let mut s = (**ui.style()).clone();
             s.visuals.extreme_bg_color = Color32::TRANSPARENT;
-            s.visuals.widgets.inactive.bg_fill = theme.surface.widget;
+            s.visuals.widgets.inactive.bg_fill = theme.palette.surface.widget;
             s.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
             s.visuals.widgets.hovered.bg_fill = Color32::TRANSPARENT;
             s.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
@@ -524,7 +524,7 @@ pub(crate) fn render_property_row(
         ui.allocate_exact_size(Vec2::new(available, row_height), egui::Sense::hover());
 
     if row_response.hovered() {
-        ui.painter().rect_filled(row_rect, 0.0, theme.surface.hover);
+        ui.painter().rect_filled(row_rect, 0.0, theme.palette.surface.hover);
     }
 
     let baseline_y = row_rect.center().y;
@@ -544,10 +544,10 @@ pub(crate) fn render_property_row(
     let dot_center = egui::pos2(row_rect.min.x + INSPECTOR_KF_COL_WIDTH / 2.0, baseline_y);
     if entry.has_keyframe_at_current_time {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(6.0, 6.0));
-        ui.painter().rect_filled(dot, 2.0, theme.status.warning);
+        ui.painter().rect_filled(dot, 2.0, theme.palette.status.warning);
     } else if entry.has_keyframes {
         let dot = egui::Rect::from_center_size(dot_center, Vec2::new(5.0, 5.0));
-        ui.painter().rect_filled(dot, 2.5, theme.text.muted);
+        ui.painter().rect_filled(dot, 2.5, theme.palette.text.muted);
     }
 
     // ── Property label (truncated, vertically centered) ──
@@ -563,7 +563,7 @@ pub(crate) fn render_property_row(
                     egui::Label::new(
                         egui::RichText::new(entry.name.as_str())
                             .size(TextRole::BodyS.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                     )
                     .truncate()
                     .selectable(false),
@@ -584,7 +584,7 @@ pub(crate) fn render_property_row(
         ui.painter().rect_filled(
             input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0)),
             RADIUS_S,
-            theme.surface.widget,
+            theme.palette.surface.widget,
         );
     }
 
@@ -604,17 +604,17 @@ pub(crate) fn render_property_row(
     // Draw the keyframe diamond. It is always visible: it is the explicit
     // "add/remove a key at the playhead" affordance, independent of auto-key.
     let kf_color = if entry.has_keyframe_at_current_time {
-        theme.status.warning
+        theme.palette.status.warning
     } else if entry.has_keyframes {
         if kf_btn_resp.hovered() {
-            theme.status.warning
+            theme.palette.status.warning
         } else {
-            theme.text.muted
+            theme.palette.text.muted
         }
     } else if kf_btn_resp.hovered() {
-        theme.text.secondary
+        theme.palette.text.secondary
     } else {
-        theme.text.disabled
+        theme.palette.text.disabled
     };
     if kf_color != Color32::TRANSPARENT {
         let center = kf_btn_rect.center();
@@ -741,7 +741,7 @@ pub(crate) fn render_property_row(
                                 egui::Label::new(
                                     egui::RichText::new(a_label)
                                         .size(TextRole::Micro.size())
-                                        .color(theme.text.muted),
+                                        .color(theme.palette.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -756,7 +756,7 @@ pub(crate) fn render_property_row(
                                 egui::Label::new(
                                     egui::RichText::new(b_label)
                                         .size(TextRole::Micro.size())
-                                        .color(theme.text.muted),
+                                        .color(theme.palette.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -824,7 +824,7 @@ pub(crate) fn render_property_row(
                                         egui::RichText::new(format!("{:.2}", nv))
                                             .monospace()
                                             .size(TextRole::Micro.size())
-                                            .color(theme.text.primary),
+                                            .color(theme.palette.text.primary),
                                     )
                                     .selectable(false),
                                 );
@@ -988,14 +988,14 @@ pub(crate) fn render_property_row(
                                 &mut color,
                             )
                             .swatches(&[
-                                theme.accent.primary,
-                                theme.status.success,
-                                theme.status.warning,
-                                theme.status.error,
-                                theme.text.primary,
-                                theme.text.muted,
-                                theme.surface.surface,
-                                theme.surface.widget,
+                                theme.palette.accent.primary,
+                                theme.palette.status.success,
+                                theme.palette.status.warning,
+                                theme.palette.status.error,
+                                theme.palette.text.primary,
+                                theme.palette.text.muted,
+                                theme.palette.surface.surface,
+                                theme.palette.surface.widget,
                             ])
                             .show(ui);
                             ui.add(
@@ -1003,7 +1003,7 @@ pub(crate) fn render_property_row(
                                     egui::RichText::new(color_to_hex_rgba(color))
                                         .monospace()
                                         .size(TextRole::Micro.size())
-                                        .color(theme.text.muted),
+                                        .color(theme.palette.text.muted),
                                 )
                                 .selectable(false),
                             );
@@ -1235,7 +1235,7 @@ pub(crate) fn render_property_row(
                     egui::Label::new(
                         egui::RichText::new(text.as_str())
                             .size(TextRole::Body.size())
-                            .color(theme.text.muted),
+                            .color(theme.palette.text.muted),
                     )
                     .selectable(false),
                 );
@@ -1341,7 +1341,7 @@ pub(crate) fn render_property_row(
                                     egui::Label::new(
                                         egui::RichText::new(text.as_str())
                                             .size(TextRole::Body.size())
-                                            .color(theme.text.muted),
+                                            .color(theme.palette.text.muted),
                                     )
                                     .selectable(false),
                                 );

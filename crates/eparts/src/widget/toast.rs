@@ -82,7 +82,7 @@ impl Toast {
         }
     }
 
-    /// The level's accent colour (bar + icon), from `theme.toast.<level>`.
+    /// The level's accent colour (bar + icon), from `theme.components.toast.<level>`.
     pub fn color(&self, t: &Theme) -> Color32 {
         self.level.level_slots(t).accent
     }
@@ -92,10 +92,10 @@ impl ToastLevel {
     /// The component slot group for this level.
     pub fn level_slots(self, t: &Theme) -> &crate::tokens::theme::ToastLevelSlots {
         match self {
-            ToastLevel::Info => &t.toast.info,
-            ToastLevel::Success => &t.toast.success,
-            ToastLevel::Warning => &t.toast.warning,
-            ToastLevel::Error => &t.toast.error,
+            ToastLevel::Info => &t.components.toast.info,
+            ToastLevel::Success => &t.components.toast.success,
+            ToastLevel::Warning => &t.components.toast.warning,
+            ToastLevel::Error => &t.components.toast.error,
         }
     }
 }
@@ -205,7 +205,7 @@ impl ToastQueue {
             shadow.color = with_alpha(shadow.color, alpha);
             ui.painter().add(shadow.as_shape(rect, RADIUS_M));
 
-            // Per-level colours from `theme.toast.<level>`.
+            // Per-level colours from `theme.components.toast.<level>`.
             let level = toast.level.level_slots(&theme);
 
             // Background with alpha
@@ -290,7 +290,7 @@ mod tests {
     }
 
     /// Representative slot-resolution test: each toast level maps onto its
-    /// `theme.toast.<level>` group and the accent matches the shared status role.
+    /// `theme.components.toast.<level>` group and the accent matches the shared status role.
     #[test]
     fn toast_level_resolves_through_slots_in_both_themes() {
         for t in [Theme::dark(), Theme::light()] {
@@ -302,7 +302,7 @@ mod tests {
             // The level's fg/border/bg resolve through the same slot group.
             let error = ToastLevel::Error.level_slots(&t);
             assert_eq!(Toast::error("x").color(&t), error.accent);
-            assert_eq!(error.border, t.border.default);
+            assert_eq!(error.border, t.palette.border.default);
         }
     }
 }

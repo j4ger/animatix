@@ -63,7 +63,7 @@ pub(crate) fn render_property_spreadsheet(
         let btn = egui::Button::new(
             RichText::new(format!("{} Semantic", egui_phosphor::regular::ROWS))
                 .size(TextRole::Micro.size())
-                .color(theme.text.secondary),
+                .color(theme.palette.text.secondary),
         )
         .min_size(Vec2::new(0.0, sp.base.row_s));
         let btn_resp = ui.add(btn);
@@ -82,7 +82,7 @@ pub(crate) fn render_property_spreadsheet(
             egui::Label::new(
                 RichText::new(egui_phosphor::regular::TABLE)
                     .size(TextRole::BodyS.size())
-                    .color(theme.status.warning),
+                    .color(theme.palette.status.warning),
             )
             .selectable(false),
         );
@@ -90,7 +90,7 @@ pub(crate) fn render_property_spreadsheet(
             egui::Label::new(
                 RichText::new("Spreadsheet")
                     .size(TextRole::BodyS.size())
-                    .color(theme.status.warning),
+                    .color(theme.palette.status.warning),
             )
             .selectable(false),
         );
@@ -112,7 +112,7 @@ pub(crate) fn render_property_spreadsheet(
     let add_btn = ui.button(
         RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
             .size(TextRole::Micro.size())
-            .color(theme.accent.primary),
+            .color(theme.palette.accent.primary),
     );
     text_tooltip(ui, add_btn.id.with("add_actor_tip"), &add_btn, "Add a new actor");
     if add_btn.clicked() {
@@ -143,7 +143,7 @@ pub(crate) fn render_property_spreadsheet(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                         .size(layout::EMPTY_STATE_ICON_SIZE)
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 )
                 .selectable(false),
             );
@@ -152,7 +152,7 @@ pub(crate) fn render_property_spreadsheet(
                 egui::Label::new(
                     RichText::new("No actors in scene")
                         .size(TextRole::Title.size())
-                        .color(theme.text.secondary),
+                        .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );
@@ -182,13 +182,13 @@ pub(crate) fn render_property_spreadsheet(
                         egui::Sense::hover(),
                     )
                     .0;
-                ui.painter().rect_filled(corner_rect, 0.0, theme.surface.surface);
+                ui.painter().rect_filled(corner_rect, 0.0, theme.palette.surface.surface);
                 ui.painter().text(
                     corner_rect.center(),
                     egui::Align2::CENTER_CENTER,
                     egui_phosphor::regular::TABLE,
                     TextRole::BodyS.font_id(),
-                    theme.text.muted,
+                    theme.palette.text.muted,
                 );
 
                 // Property name headers
@@ -199,13 +199,13 @@ pub(crate) fn render_property_spreadsheet(
                             egui::Sense::hover(),
                         )
                         .0;
-                    ui.painter().rect_filled(header_rect, 0.0, theme.surface.surface);
+                    ui.painter().rect_filled(header_rect, 0.0, theme.palette.surface.surface);
                     ui.painter().text(
                         header_rect.center(),
                         egui::Align2::CENTER_CENTER,
                         prop_name,
                         TextRole::Micro.font_id(),
-                        theme.text.secondary,
+                        theme.palette.text.secondary,
                     );
                 }
                 ui.end_row();
@@ -226,9 +226,9 @@ pub(crate) fn render_property_spreadsheet(
 
                     // Background for selected or hovered row
                     let label_bg = if is_selected {
-                        theme.accent.selection
+                        theme.palette.accent.selection
                     } else if label_response.hovered() {
-                        theme.surface.hover
+                        theme.palette.surface.hover
                     } else {
                         Color32::TRANSPARENT
                     };
@@ -239,9 +239,9 @@ pub(crate) fn render_property_spreadsheet(
                     // Actor icon + label text
                     let icon = crate::app::icons::actor_icon_for_track(track, timeline);
                     let label_color = if is_selected {
-                        theme.accent.primary
+                        theme.palette.accent.primary
                     } else {
-                        theme.text.primary
+                        theme.palette.text.primary
                     };
                     ui.painter().text(
                         Pos2::new(label_rect.min.x + sp.base.space_2, label_rect.center().y),
@@ -276,7 +276,7 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Subtle hover
                         if cell_response.hovered() {
-                            ui.painter().rect_filled(cell_rect, 0.0, theme.surface.hover);
+                            ui.painter().rect_filled(cell_rect, 0.0, theme.palette.surface.hover);
                         }
 
                         // Get the value at current time
@@ -287,11 +287,11 @@ pub(crate) fn render_property_spreadsheet(
                         });
 
                         let value_color = if has_keyframes {
-                            theme.status.warning
+                            theme.palette.status.warning
                         } else if !has_animated_track || value_text == "—" {
-                            theme.text.muted
+                            theme.palette.text.muted
                         } else {
-                            theme.text.secondary
+                            theme.palette.text.secondary
                         };
 
                         ui.painter().text(

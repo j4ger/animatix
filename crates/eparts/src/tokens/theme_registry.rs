@@ -209,11 +209,17 @@ mod tests {
         assert_eq!(registry.names(), vec!["base", "child"]);
 
         let child = registry.resolved("child").expect("child resolved");
-        assert_eq!(child.dark_theme().surface.base, egui::Color32::from_rgb(0x20, 0x24, 0x28));
-        assert_eq!(child.dark_theme().text.primary, Theme::dark().text.primary);
+        assert_eq!(
+            child.dark_theme().palette.surface.base,
+            egui::Color32::from_rgb(0x20, 0x24, 0x28)
+        );
+        assert_eq!(child.dark_theme().palette.text.primary, Theme::dark().palette.text.primary);
 
         let base = registry.resolved("base").expect("base resolved");
-        assert_eq!(base.dark_theme().surface.base, egui::Color32::from_rgb(0x10, 0x14, 0x18));
+        assert_eq!(
+            base.dark_theme().palette.surface.base,
+            egui::Color32::from_rgb(0x10, 0x14, 0x18)
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -261,9 +267,9 @@ mod tests {
 
         let registry = ThemeRegistry::from_directory(&dir).expect("load registry");
         let theme = registry.resolved("child").unwrap().dark_theme();
-        assert_eq!(theme.surface.base, egui::Color32::from_rgb(0xff, 0, 0));
-        assert_eq!(theme.text.primary, egui::Color32::from_rgb(0, 0xff, 0));
-        assert_eq!(theme.surface.panel, Theme::dark().surface.panel);
+        assert_eq!(theme.palette.surface.base, egui::Color32::from_rgb(0xff, 0, 0));
+        assert_eq!(theme.palette.text.primary, egui::Color32::from_rgb(0, 0xff, 0));
+        assert_eq!(theme.palette.surface.panel, Theme::dark().palette.surface.panel);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

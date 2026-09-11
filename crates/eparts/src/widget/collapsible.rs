@@ -86,7 +86,8 @@ impl CollapsibleSection {
 
         // Hover background.
         if header_response.hovered() {
-            ui.painter().rect_filled(header_rect, CornerRadius::same(0), t.surface.hover);
+            ui.painter()
+                .rect_filled(header_rect, CornerRadius::same(0), t.palette.surface.hover);
         }
 
         // Chevron.
@@ -95,7 +96,7 @@ impl CollapsibleSection {
             egui::Align2::LEFT_CENTER,
             "\u{25B6}",
             TextRole::BodyS.font_id(),
-            t.text.muted,
+            t.palette.text.muted,
         );
 
         // Title text.
@@ -104,7 +105,7 @@ impl CollapsibleSection {
             egui::Align2::LEFT_CENTER,
             &self.header,
             TextRole::Body.font_id(),
-            t.text.primary,
+            t.palette.text.primary,
         );
 
         // Toggle on click.
@@ -139,7 +140,7 @@ impl CollapsibleSection {
                 egui::pos2(header_rect.min.x, sep_y),
                 egui::pos2(header_rect.max.x, sep_y),
             ],
-            egui::Stroke::new(STROKE_WIDTH, t.border.default),
+            egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
         );
 
         // ── Body ────────────────────────────────────────────────────────────

@@ -170,7 +170,7 @@ pub fn modal(
     };
 
     // ── Animated backdrop (painted before window, layered behind it) ──
-    let bg = t.overlay.backdrop;
+    let bg = t.palette.overlay.backdrop;
     let alpha = (bg.a() as f32 * progress).round() as u8;
     let backdrop_color = egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
@@ -182,16 +182,16 @@ pub fn modal(
 
     // ── Window fill and border opacity — scales with animation progress ──
     let border_color = egui::Color32::from_rgba_premultiplied(
-        t.border.default.r(),
-        t.border.default.g(),
-        t.border.default.b(),
-        (t.border.default.a() as f32 * progress).round() as u8,
+        t.palette.border.default.r(),
+        t.palette.border.default.g(),
+        t.palette.border.default.b(),
+        (t.palette.border.default.a() as f32 * progress).round() as u8,
     );
     let window_bg = egui::Color32::from_rgba_premultiplied(
-        t.surface.base.r(),
-        t.surface.base.g(),
-        t.surface.base.b(),
-        (t.surface.base.a() as f32 * progress).round() as u8,
+        t.palette.surface.base.r(),
+        t.palette.surface.base.g(),
+        t.palette.surface.base.b(),
+        (t.palette.surface.base.a() as f32 * progress).round() as u8,
     );
 
     // ── Slide offset for window ──
@@ -309,7 +309,11 @@ pub fn title_row(ui: &mut Ui, title: &str) -> bool {
     let t = theme(ui);
     let mut close = false;
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(title).size(TextRole::Heading.size()).color(t.text.primary));
+        ui.label(
+            egui::RichText::new(title)
+                .size(TextRole::Heading.size())
+                .color(t.palette.text.primary),
+        );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
                 .add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)"))

@@ -103,7 +103,7 @@ impl GuiShell {
                 ui.label(
                     egui::RichText::new("No commands match your search")
                         .size(TextRole::BodyS.size())
-                        .color(theme.text.muted),
+                        .color(theme.palette.text.muted),
                 );
             } else {
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {

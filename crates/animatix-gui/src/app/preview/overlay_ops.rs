@@ -30,14 +30,14 @@ struct LayoutDebugStyle {
 impl LayoutDebugStyle {
     fn from_theme(theme: &eparts::Theme) -> Self {
         Self {
-            container_color: theme.accent.primary,
+            container_color: theme.palette.accent.primary,
             slot_color: Color32::from_rgba_premultiplied(
-                theme.status.warning.r(),
-                theme.status.warning.g(),
-                theme.status.warning.b(),
+                theme.palette.status.warning.r(),
+                theme.palette.status.warning.g(),
+                theme.palette.status.warning.b(),
                 150,
             ),
-            size_color: theme.status.warning,
+            size_color: theme.palette.status.warning,
             spacing_color: Color32::from_rgba_premultiplied(200, 80, 80, 60),
         }
     }
@@ -526,11 +526,11 @@ pub fn selection_overlay_ops(
     tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    let selection_color = theme.accent.primary;
-    let accent_hover_color = theme.accent.hover;
-    let text_primary = theme.text.primary;
-    let text_faint = theme.text.faint;
-    let cross_color = theme.status.warning;
+    let selection_color = theme.palette.accent.primary;
+    let accent_hover_color = theme.palette.accent.hover;
+    let text_primary = theme.palette.text.primary;
+    let text_faint = theme.palette.text.faint;
+    let cross_color = theme.palette.status.warning;
 
     let stroke = if is_dragging {
         OverlayStroke::new(1.5, accent_hover_color)
@@ -736,10 +736,10 @@ pub fn multi_selection_overlay_ops(
     }
     let union_rect = kurbo::Rect::new(min.x, min.y, max.x, max.y);
 
-    let selection_color = theme.accent.primary;
-    let accent_hover_color = theme.accent.hover;
-    let text_primary = theme.text.primary;
-    let text_faint = theme.text.faint;
+    let selection_color = theme.palette.accent.primary;
+    let accent_hover_color = theme.palette.accent.hover;
+    let text_primary = theme.palette.text.primary;
+    let text_faint = theme.palette.text.faint;
     let stroke = if is_dragging {
         OverlayStroke::new(1.5, accent_hover_color)
     } else {
@@ -812,7 +812,7 @@ pub fn reorder_overlay_ops(
     is_row: bool,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    let ghost_color = theme.accent.hover;
+    let ghost_color = theme.palette.accent.hover;
     let hw = props.size[0] / 2.0;
     let hh = props.size[1] / 2.0;
     let local_corners: [[f32; 2]; 4] = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
@@ -856,7 +856,7 @@ pub fn reorder_overlay_ops(
         (coords[target_index - 1] + coords[target_index]) * 0.5
     };
 
-    let accent_color = theme.accent.primary;
+    let accent_color = theme.palette.accent.primary;
     let viewport = scene_viewport(&tx);
     let insertion_badge_pos = if is_row {
         let insertion_pt = tx.scene_to_screen(kurbo::Point::new(insertion_coord as f64, 0.0));
@@ -881,12 +881,12 @@ pub fn reorder_overlay_ops(
     ops.push(PreviewOverlayOp::Badge {
         pos: insertion_badge_pos,
         text: format!("→ {}", target_index + 1),
-        bg: theme.overlay.badge_bg,
-        fg: theme.text.primary,
+        bg: theme.palette.overlay.badge_bg,
+        fg: theme.palette.text.primary,
         border_stroke: OverlayStroke::new(STROKE_WIDTH, accent_color),
     });
 
-    let shift_color = theme.status.warning_subtle;
+    let shift_color = theme.palette.status.warning_subtle;
     for (i, (_, pos)) in sibling_positions.iter().enumerate() {
         let scene_pos = kurbo::Point::new(pos[0] as f64, pos[1] as f64);
         let arrow_size = px_to_scene(&tx, 8.0);
@@ -917,7 +917,7 @@ pub fn reorder_overlay_ops(
     let font = egui::FontId::proportional(12.0);
     let galley_size = painter_text_size(&tooltip_text, font.clone());
     let tooltip_rect = Rect::from_min_size(tooltip_pos, galley_size + Vec2::new(12.0, 8.0));
-    push_screen_rect_fill(&mut ops, tooltip_rect, 4.0, theme.overlay.tooltip_bg);
+    push_screen_rect_fill(&mut ops, tooltip_rect, 4.0, theme.palette.overlay.tooltip_bg);
     push_screen_rect_stroke(
         &mut ops,
         tooltip_rect,
@@ -931,7 +931,7 @@ pub fn reorder_overlay_ops(
         Align2::LEFT_TOP,
         tooltip_text,
         font,
-        theme.text.primary,
+        theme.palette.text.primary,
     );
 
     ops
@@ -945,7 +945,7 @@ pub fn hover_highlight_ops(
     tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    let hover_color = theme.accent.ghost;
+    let hover_color = theme.palette.accent.ghost;
     let corners = [
         kurbo::Point::new(hover_rect.x0, hover_rect.y0),
         kurbo::Point::new(hover_rect.x1, hover_rect.y0),
@@ -968,12 +968,12 @@ pub fn hover_highlight_ops(
     let font = egui::FontId::proportional(12.0);
     let text_size = painter_text_size(hovered_actor, font.clone());
     let tooltip_rect = Rect::from_center_size(tooltip_pos, text_size + Vec2::new(8.0, 4.0));
-    push_screen_rect_fill(&mut ops, tooltip_rect, RADIUS_M, theme.overlay.badge_bg);
+    push_screen_rect_fill(&mut ops, tooltip_rect, RADIUS_M, theme.palette.overlay.badge_bg);
     push_screen_rect_stroke(
         &mut ops,
         tooltip_rect,
         RADIUS_M,
-        OverlayStroke::new(STROKE_WIDTH, theme.border.default),
+        OverlayStroke::new(STROKE_WIDTH, theme.palette.border.default),
         StrokeKind::Outside,
     );
     push_screen_text(
@@ -982,7 +982,7 @@ pub fn hover_highlight_ops(
         Align2::LEFT_TOP,
         hovered_actor,
         font,
-        theme.text.primary,
+        theme.palette.text.primary,
     );
     ops
 }
@@ -1003,14 +1003,14 @@ pub fn cycle_indicator_ops(
     let font = egui::FontId::proportional(12.0);
     let size = painter_text_size(&indicator_text, font.clone());
     let rect = Rect::from_center_size(indicator_pos, size + Vec2::new(6.0, 3.0));
-    push_screen_rect_fill(&mut ops, rect, RADIUS_M, theme.accent.strong);
+    push_screen_rect_fill(&mut ops, rect, RADIUS_M, theme.palette.accent.strong);
     push_screen_text(
         &mut ops,
         rect.left_center() + Vec2::new(3.0, -size.y / 2.0),
         Align2::LEFT_TOP,
         indicator_text,
         font,
-        theme.text.primary,
+        theme.palette.text.primary,
     );
     ops
 }
@@ -1042,7 +1042,7 @@ pub fn motion_path_ops(
         }
         kf_points.sort_by_key(|(t, _)| *t);
 
-        let path_color = theme.accent.primary.gamma_multiply(0.6);
+        let path_color = theme.palette.accent.primary.gamma_multiply(0.6);
         let path_stroke = OverlayStroke::new(1.5, path_color);
         for i in 0..kf_points.len().saturating_sub(1) {
             let p1 = kurbo::Point::new(kf_points[i].1[0] as f64, kf_points[i].1[1] as f64);
@@ -1055,9 +1055,9 @@ pub fn motion_path_ops(
             let current_time_ms = (current_time_s * 1000.0) as u64;
             let is_current = *time_ms == current_time_ms;
             let dot_color = if is_current {
-                theme.status.warning
+                theme.palette.status.warning
             } else {
-                theme.accent.primary
+                theme.palette.accent.primary
             };
             let dot_radius = if is_current {
                 px_to_scene(&tx, 5.0)
@@ -1070,7 +1070,7 @@ pub fn motion_path_ops(
                     &mut ops,
                     scene_point,
                     dot_radius + px_to_scene(&tx, 2.0),
-                    OverlayStroke::new(1.0, theme.status.warning),
+                    OverlayStroke::new(1.0, theme.palette.status.warning),
                 );
             }
             let time_label = format!("{:.1}s", *time_ms as f64 / 1000.0);
@@ -1083,7 +1083,7 @@ pub fn motion_path_ops(
                 Align2::CENTER_BOTTOM,
                 time_label,
                 egui::FontId::monospace(10.0),
-                theme.text.muted,
+                theme.palette.text.muted,
             );
         }
     }
@@ -1285,7 +1285,7 @@ pub fn scene_bounds_ops(theme: &eparts::Theme, tx: PreviewTransform) -> Vec<Prev
         &mut ops,
         visible,
         0.0,
-        OverlayStroke::new(STROKE_WIDTH, theme.border.strong),
+        OverlayStroke::new(STROKE_WIDTH, theme.palette.border.strong),
         StrokeKind::Inside,
     );
     ops
@@ -1309,7 +1309,7 @@ pub fn actor_label_ops(
             Align2::CENTER_BOTTOM,
             label,
             egui::FontId::monospace(10.0),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
     }
     ops
@@ -1322,7 +1322,7 @@ pub fn grid_ops(
     grid_size: f32,
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
-    let grid_color = theme.lines.grid;
+    let grid_color = theme.palette.lines.grid;
     let grid_size = grid_size.max(1.0);
     let viewport = scene_viewport(&tx);
     let x0 = (viewport.x0 / grid_size as f64).floor() as i32 * grid_size as i32;

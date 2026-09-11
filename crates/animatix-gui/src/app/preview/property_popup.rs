@@ -54,11 +54,12 @@ pub fn show_property_popup(
     );
     let popup_rect = Rect::from_min_size(clamped_pos, Vec2::new(popup_w, popup_h));
     // Background
-    ui.painter().rect_filled(popup_rect, RADIUS_L as u8, theme.surface.surface);
+    ui.painter()
+        .rect_filled(popup_rect, RADIUS_L as u8, theme.palette.surface.surface);
     ui.painter().rect_stroke(
         popup_rect,
         RADIUS_L as u8,
-        Stroke::new(STROKE_WIDTH, theme.border.default),
+        Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         egui::StrokeKind::Outside,
     );
     // Build child UI for content
@@ -82,15 +83,16 @@ pub fn show_property_popup(
     }
     // Draw header background on hover (drag affordance)
     if header_resp.hovered() {
-        ui.painter().rect_filled(header_rect, RADIUS_S as u8, theme.surface.hover);
+        ui.painter()
+            .rect_filled(header_rect, RADIUS_S as u8, theme.palette.surface.hover);
     }
     // Subtle drag handle indicator (6 dots) on the left side of header
     let handle_center =
         Pos2::new(header_rect.min.x + sp.base.space_2 + 4.0, header_rect.center().y);
     let dot_color = if header_resp.hovered() {
-        theme.text.muted
+        theme.palette.text.muted
     } else {
-        theme.text.disabled
+        theme.palette.text.disabled
     };
     for row in 0..3 {
         for col in 0..2 {
@@ -110,7 +112,7 @@ pub fn show_property_popup(
         ui.label(
             RichText::new(actor)
                 .size(TextRole::Body.size())
-                .color(theme.text.primary)
+                .color(theme.palette.text.primary)
                 .strong(),
         );
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -240,7 +242,7 @@ fn popup_property_row(
     let response = ui.interact(row_rect, ui.id().with((actor, property, "row")), Sense::click());
     // Hover background
     if response.hovered() {
-        ui.painter().rect_filled(row_rect, RADIUS_S as u8, theme.surface.hover);
+        ui.painter().rect_filled(row_rect, RADIUS_S as u8, theme.palette.surface.hover);
     }
     // Diamond keyframe toggle (clickable)
     let diamond_size = 8.0;
@@ -251,9 +253,9 @@ fn popup_property_row(
     let diamond_resp =
         ui.interact(diamond_rect, ui.id().with((actor, property, "diamond")), Sense::click());
     let diamond_color = if has_keyframe || diamond_resp.hovered() {
-        theme.status.warning
+        theme.palette.status.warning
     } else {
-        theme.text.muted
+        theme.palette.text.muted
     };
     let center = diamond_rect.center();
     let fill_color = if has_keyframe {
@@ -321,7 +323,7 @@ fn popup_property_row(
         egui::Align2::LEFT_CENTER,
         label,
         TextRole::BodyS.font_id(),
-        theme.text.secondary,
+        theme.palette.text.secondary,
     );
     // Value area (right-aligned, interactive)
     let value_area_width = 100.0;
@@ -342,7 +344,8 @@ fn popup_property_row(
         ui.interact(value_rect, ui.id().with((actor, property, "value")), Sense::click_and_drag());
     // Highlight on hover
     if value_resp.hovered() {
-        ui.painter().rect_filled(value_rect, RADIUS_S as u8, theme.surface.widget);
+        ui.painter()
+            .rect_filled(value_rect, RADIUS_S as u8, theme.palette.surface.widget);
     }
     ui.painter().text(
         value_rect.center(),
@@ -350,9 +353,9 @@ fn popup_property_row(
         &value_str,
         TextRole::Mono.font_id(),
         if value_resp.hovered() {
-            theme.text.primary
+            theme.palette.text.primary
         } else {
-            theme.text.muted
+            theme.palette.text.muted
         },
     );
     // Drag on value to change

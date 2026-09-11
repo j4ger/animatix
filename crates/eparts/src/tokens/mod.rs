@@ -19,7 +19,7 @@ pub mod theme_watcher;
 pub mod typography;
 pub mod util;
 
-pub use theme::{Theme, set_theme, theme, theme_from_ctx};
+pub use theme::{Components, Palette, Theme, set_theme, theme, theme_from_ctx};
 #[cfg(feature = "theme-json")]
 pub use theme_json::{ThemeFile, theme_schema_json};
 #[cfg(feature = "theme-json")]

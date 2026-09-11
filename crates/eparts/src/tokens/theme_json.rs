@@ -162,20 +162,21 @@ impl PartialField for Shadow {
 /// through `PartialField::Partial`, so one invocation covers groups of colors,
 /// nested slots, and shadows alike.
 macro_rules! partial_group {
-    // Root arm: the top-level `Theme` → `PartialTheme`. Identical to the
-    // `@fields`/group arms except the public API takes/returns the full value
-    // by value (`apply_to(base) -> Full`, `full_from(Full) -> Self`) as the
-    // `PartialTheme` entry points have always done.
+    // Root arm: the top-level `Theme` → `PartialTheme`. The wire shape stays
+    // flat (one struct field per top-level group) while each group routes into
+    // its nested home inside `Theme` (`palette.*` / `components.*`). Fields are
+    // written `name => path.to.field : Type`, so the partial's key (and thus the
+    // JSON key) is `name` but reads/writes go through the dotted path.
     (
         @root
         $(#[$meta:meta])*
         $full:ident => $partial:ident
-        { $( $field:ident : $ty:ty ),* $(,)? }
+        { $( $field:ident => $($path:ident).+ : $ty:ty ),* $(,)? }
     ) => {
         partial_group!(@fields
             $(#[$meta])*
             $full => $partial
-            { $( $field : $ty ),* }
+            { $( $field => $($path).+ : $ty ),* }
         );
 
         impl $partial {
@@ -209,6 +210,53 @@ macro_rules! partial_group {
             /// leaving absent fields untouched.
             pub fn apply_to(self, target: &mut $full) {
                 self.apply_fields(target);
+            }
+        }
+    };
+
+    (
+        @fields
+        $(#[$meta:meta])*
+        $full:ident => $partial:ident
+        { $( $field:ident => $($path:ident).+ : $ty:ty ),* $(,)? }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+        #[serde(deny_unknown_fields)]
+        pub struct $partial {
+            $(
+                #[serde(default, skip_serializing_if = "Option::is_none")]
+                pub $field: Option<<$ty as PartialField>::Partial>,
+            )*
+        }
+
+        impl $partial {
+            /// Apply each present field onto `target`; absent fields are left as-is.
+            fn apply_fields(self, target: &mut $full) {
+                $(
+                    if let Some(value) = self.$field {
+                        <$ty as PartialField>::apply_field(value, &mut target.$($path).+);
+                    }
+                )*
+            }
+
+            /// Capture every field of `full` into this partial.
+            pub fn from_full(full: &$full) -> Self {
+                Self {
+                    $( $field: Some(<$ty as PartialField>::to_partial(&full.$($path).+)), )*
+                }
+            }
+        }
+
+        impl PartialField for $full {
+            type Partial = $partial;
+
+            fn apply_field(partial: Self::Partial, target: &mut Self) {
+                partial.apply_fields(target);
+            }
+
+            fn to_partial(&self) -> Self::Partial {
+                $partial::from_full(self)
             }
         }
     };
@@ -486,31 +534,31 @@ partial_group! {
 partial_group!(@root
     Theme => PartialTheme
     {
-        surface: Surface,
-        text: Text,
-        accent: Accent,
-        status: Status,
-        border: Border,
-        overlay: Overlay,
-        lines: Lines,
-        button: ButtonSlots,
-        list: ListSlots,
-        tab: TabSlots,
-        menu_item: MenuItemSlots,
-        input: InputSlots,
-        scrollbar: ScrollbarSlots,
-        toggle: ToggleSlots,
-        progress: ProgressSlots,
-        badge: Slot,
-        tag: TagSlots,
-        kbd: Slot,
-        tooltip: Slot,
-        alert: AlertSlots,
-        toast: ToastSlots,
-        skeleton: SkeletonSlots,
-        color_picker: ColorPickerSlots,
-        easing_curve: EasingCurveSlots,
-        elevation: Elevation,
+        surface => palette.surface: Surface,
+        text => palette.text: Text,
+        accent => palette.accent: Accent,
+        status => palette.status: Status,
+        border => palette.border: Border,
+        overlay => palette.overlay: Overlay,
+        lines => palette.lines: Lines,
+        button => components.button: ButtonSlots,
+        list => components.list: ListSlots,
+        tab => components.tab: TabSlots,
+        menu_item => components.menu_item: MenuItemSlots,
+        input => components.input: InputSlots,
+        scrollbar => components.scrollbar: ScrollbarSlots,
+        toggle => components.toggle: ToggleSlots,
+        progress => components.progress: ProgressSlots,
+        badge => components.badge: Slot,
+        tag => components.tag: TagSlots,
+        kbd => components.kbd: Slot,
+        tooltip => components.tooltip: Slot,
+        alert => components.alert: AlertSlots,
+        toast => components.toast: ToastSlots,
+        skeleton => components.skeleton: SkeletonSlots,
+        color_picker => components.color_picker: ColorPickerSlots,
+        easing_curve => components.easing_curve: EasingCurveSlots,
+        elevation => elevation: Elevation,
     }
 );
 
@@ -853,10 +901,13 @@ mod tests {
         }"##;
         let file = ThemeFile::from_json(json).expect("parse");
         let theme = file.dark_theme();
-        assert_eq!(theme.surface.base, egui::Color32::from_rgb(0x11, 0x22, 0x33));
-        assert_eq!(theme.surface.panel, Theme::dark().surface.panel);
-        assert_eq!(theme.text.primary, Theme::dark().text.primary);
-        assert_eq!(theme.button.primary.normal.bg, Theme::dark().button.primary.normal.bg);
+        assert_eq!(theme.palette.surface.base, egui::Color32::from_rgb(0x11, 0x22, 0x33));
+        assert_eq!(theme.palette.surface.panel, Theme::dark().palette.surface.panel);
+        assert_eq!(theme.palette.text.primary, Theme::dark().palette.text.primary);
+        assert_eq!(
+            theme.components.button.primary.normal.bg,
+            Theme::dark().components.button.primary.normal.bg
+        );
         assert_eq!(theme.elevation.raised, Theme::dark().elevation.raised);
     }
 
@@ -870,7 +921,7 @@ mod tests {
         }"##;
         let file = ThemeFile::from_json(json).expect("parse");
         let theme = file.dark_theme();
-        assert_eq!(theme.button.primary.hover.bg, egui::Color32::from_rgb(0xff, 0, 0));
+        assert_eq!(theme.components.button.primary.hover.bg, egui::Color32::from_rgb(0xff, 0, 0));
         assert_eq!(theme.elevation.raised.offset, [0, 4]);
         assert_eq!(theme.elevation.raised.blur, 8);
         assert_eq!(theme.elevation.raised.spread, 1);
@@ -928,7 +979,7 @@ mod tests {
         ] {
             assert!(obj.contains_key(key), "missing group {key:?}");
         }
-        assert_eq!(value["surface"]["base"], Theme::dark().surface.base.to_hex());
+        assert_eq!(value["surface"]["base"], Theme::dark().palette.surface.base.to_hex());
         // A nested slot keeps `bg`/`fg`/`border`, and a nested shadow keeps its
         // object shape (`offset`/`blur`/`spread`/`color`).
         assert!(value["button"]["primary"]["normal"]["bg"].is_string());
@@ -964,10 +1015,35 @@ mod tests {
         assert_eq!(file.name.as_deref(), Some("Gallery JSON Theme"));
         let theme = file.dark_theme();
         // The override applies and missing groups inherit the built-in dark base.
-        assert_eq!(theme.surface.base, egui::Color32::from_rgb(0x19, 0x1a, 0x1e));
-        assert_eq!(theme.button.primary.normal.bg, Theme::dark().button.primary.normal.bg);
-        assert_eq!(theme.toggle.checked.bg, Theme::dark().toggle.checked.bg);
-        assert_eq!(theme.toast.error.accent, Theme::dark().toast.error.accent);
+        assert_eq!(theme.palette.surface.base, egui::Color32::from_rgb(0x19, 0x1a, 0x1e));
+        assert_eq!(
+            theme.components.button.primary.normal.bg,
+            Theme::dark().components.button.primary.normal.bg
+        );
+        assert_eq!(theme.components.toggle.checked.bg, Theme::dark().components.toggle.checked.bg);
+        assert_eq!(
+            theme.components.toast.error.accent,
+            Theme::dark().components.toast.error.accent
+        );
+    }
+
+    #[test]
+    fn serialized_theme_json_stays_flat_after_grouping() {
+        // The runtime `Theme` gained `palette`/`components` groups, but the
+        // on-disk DTO must keep the historical flat shape so existing
+        // `theme.json` files (and the schema) stay valid.
+        let file = ThemeFile::builtin();
+        let json = file.to_json_pretty().expect("serialize");
+        let value: serde_json::Value = serde_json::from_str(&json).expect("parse");
+        let dark = value["dark"].as_object().expect("dark object");
+        for key in [
+            "surface", "text", "accent", "status", "border", "overlay", "lines", "button",
+        ] {
+            assert!(dark.contains_key(key), "missing flat top-level key {key:?}");
+        }
+        assert!(!dark.contains_key("palette"), "JSON must not nest under `palette`");
+        assert!(!dark.contains_key("components"), "JSON must not nest under `components`");
+        assert!(dark["surface"]["base"].is_string());
     }
 
     #[test]

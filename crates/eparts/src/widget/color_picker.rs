@@ -128,18 +128,18 @@ impl<'a> ColorPicker<'a> {
             let cr = CornerRadius::same(RADIUS_M as u8);
             // Checkerboard for transparent colours (from `theme.color_picker`).
             if color.a() < 255 {
-                painter.rect_filled(rect, cr, t.color_picker.checker_light);
+                painter.rect_filled(rect, cr, t.components.color_picker.checker_light);
                 // Simple two-tone checkerboard approximation
                 let half =
                     egui::Rect::from_min_max(rect.min, egui::pos2(rect.center().x, rect.max.y));
-                painter.rect_filled(half, cr, t.color_picker.checker_dark);
+                painter.rect_filled(half, cr, t.components.color_picker.checker_dark);
             }
             painter.rect_filled(rect, cr, *color);
             // The trigger frame reuses the input slots for its border.
             let border_color = if trigger.hovered() {
-                t.input.hover.border
+                t.components.input.hover.border
             } else {
-                t.input.normal.border
+                t.components.input.normal.border
             };
             painter.rect_stroke(
                 rect,
@@ -224,9 +224,9 @@ impl<'a> ColorPicker<'a> {
                             let cr = CornerRadius::same(3);
                             ui.painter().rect_filled(sr, cr, swatch);
                             let sc = if sresp.hovered() {
-                                t.color_picker.swatch_hover
+                                t.components.color_picker.swatch_hover
                             } else {
-                                t.color_picker.swatch_border
+                                t.components.color_picker.swatch_border
                             };
                             ui.painter().rect_stroke(
                                 sr,
@@ -355,14 +355,17 @@ mod tests {
 
         let dark = Theme::dark();
         let light = Theme::light();
-        assert_eq!(dark.color_picker.swatch_border, dark.border.default);
-        assert_eq!(dark.color_picker.swatch_hover, dark.border.strong);
-        assert_eq!(light.color_picker.swatch_border, light.border.default);
-        assert_eq!(light.color_picker.swatch_hover, light.border.strong);
-        assert_eq!(dark.color_picker.checker_light, Color32::WHITE);
-        assert_ne!(dark.color_picker.checker_dark, light.color_picker.checker_dark);
+        assert_eq!(dark.components.color_picker.swatch_border, dark.palette.border.default);
+        assert_eq!(dark.components.color_picker.swatch_hover, dark.palette.border.strong);
+        assert_eq!(light.components.color_picker.swatch_border, light.palette.border.default);
+        assert_eq!(light.components.color_picker.swatch_hover, light.palette.border.strong);
+        assert_eq!(dark.components.color_picker.checker_light, Color32::WHITE);
+        assert_ne!(
+            dark.components.color_picker.checker_dark,
+            light.components.color_picker.checker_dark
+        );
 
         // The trigger frame's border reuses the input slots, not a new group.
-        assert_ne!(dark.input.normal.border, dark.input.hover.border);
+        assert_ne!(dark.components.input.normal.border, dark.components.input.hover.border);
     }
 }

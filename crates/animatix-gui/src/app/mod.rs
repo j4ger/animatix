@@ -819,7 +819,7 @@ impl GuiShell {
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::new()
-                    .fill(theme.surface.panel)
+                    .fill(theme.palette.surface.panel)
                     .inner_margin(egui::Margin::symmetric(8, 2)),
             )
             .resizable(false)
@@ -837,21 +837,21 @@ impl GuiShell {
                             ui.painter().rect_filled(
                                 bg_rect,
                                 RADIUS_S,
-                                theme.status.diagnostic_error.linear_multiply(0.3),
+                                theme.palette.status.diagnostic_error.linear_multiply(0.3),
                             );
                             ui.painter().text(
                                 egui::pos2(bg_rect.center().x, bg_rect.center().y),
                                 egui::Align2::CENTER_CENTER,
                                 egui_phosphor::regular::WARNING,
                                 TextRole::Micro.font_id(),
-                                theme.status.diagnostic_error,
+                                theme.palette.status.diagnostic_error,
                             );
                             ui.add_space(SPACE_2);
                         }
                         let color = if is_error {
-                            theme.status.diagnostic_error
+                            theme.palette.status.diagnostic_error
                         } else {
-                            theme.text.muted
+                            theme.palette.text.muted
                         };
                         let label = ui.label(
                             egui::RichText::new(status.as_str())
@@ -873,7 +873,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new(format!("{}×{}", dims.width, dims.height))
                                 .size(TextRole::Micro.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
 
                         // Diagnostics chip: always-visible error/warning counts that
@@ -883,19 +883,19 @@ impl GuiShell {
                         let (chip_icon, chip_color, chip_label) = if errors > 0 {
                             (
                                 egui_phosphor::regular::X_CIRCLE,
-                                theme.status.error,
+                                theme.palette.status.error,
                                 format!("{errors} error(s)"),
                             )
                         } else if warnings > 0 {
                             (
                                 egui_phosphor::regular::WARNING,
-                                theme.status.warning,
+                                theme.palette.status.warning,
                                 format!("{warnings} warning(s)"),
                             )
                         } else {
                             (
                                 egui_phosphor::regular::CHECK_CIRCLE,
-                                theme.status.success,
+                                theme.palette.status.success,
                                 "No problems".to_string(),
                             )
                         };
@@ -1024,15 +1024,15 @@ impl GuiShell {
         let theme = eparts::theme(ui);
         let sp = spatial(ui);
         let avail = ui.available_rect_before_wrap();
-        ui.painter().rect_filled(avail, 0.0, theme.surface.base);
+        ui.painter().rect_filled(avail, 0.0, theme.palette.surface.base);
 
         ui.vertical_centered(|ui| {
             ui.add_space(avail.height() * WELCOME_TOP_OFFSET_FRAC);
 
             // ── Centered card ──
             egui::Frame::new()
-                .fill(theme.surface.surface)
-                .stroke(Stroke::new(STROKE_WIDTH, theme.border.default))
+                .fill(theme.palette.surface.surface)
+                .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
                 .corner_radius(RADIUS_L)
                 .inner_margin(egui::Margin::symmetric(40, 36))
                 .show(ui, |ui| {
@@ -1048,14 +1048,14 @@ impl GuiShell {
                         ui.painter().circle_filled(
                             icon_rect.center(),
                             icon_size * 0.5,
-                            theme.surface.widget,
+                            theme.palette.surface.widget,
                         );
                         ui.painter().text(
                             icon_rect.center(),
                             egui::Align2::CENTER_CENTER,
                             egui_phosphor::regular::FILM_STRIP,
                             TextRole::Display.font_id(),
-                            theme.accent.primary,
+                            theme.palette.accent.primary,
                         );
                         ui.add_space(sp.base.space_5 * 1.5);
 
@@ -1063,7 +1063,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Welcome to Animatix")
                                 .font(TextRole::Heading.font_id())
-                                .color(theme.text.primary)
+                                .color(theme.palette.text.primary)
                                 .strong(),
                         );
                         ui.add_space(sp.base.space_2);
@@ -1072,7 +1072,7 @@ impl GuiShell {
                         ui.label(
                             egui::RichText::new("Layout-first animation for creative coders")
                                 .size(TextRole::Body.size())
-                                .color(theme.text.secondary),
+                                .color(theme.palette.text.secondary),
                         );
                         ui.add_space(sp.base.space_5 * 2.5);
 
@@ -1274,8 +1274,8 @@ impl GuiShell {
                 ui.set_width(width);
                 ui.set_max_height((screen.height() - 2.0 * margin).max(160.0));
                 egui::Frame::new()
-                    .fill(theme.surface.panel)
-                    .stroke(Stroke::new(STROKE_WIDTH, theme.border.default))
+                    .fill(theme.palette.surface.panel)
+                    .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
                     .corner_radius(RADIUS_L)
                     .inner_margin(egui::Margin::same(8))
                     .shadow(theme.elevation_overlay())
@@ -1296,7 +1296,7 @@ impl GuiShell {
                                     active_tab,
                                 ))
                                 .size(TextRole::Heading.size())
-                                .color(theme.text.primary),
+                                .color(theme.palette.text.primary),
                             );
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
@@ -1382,8 +1382,8 @@ impl GuiShell {
                 ui.set_width(width);
                 ui.set_max_height((screen.height() - 2.0 * margin).max(160.0));
                 egui::Frame::new()
-                    .fill(theme.surface.panel)
-                    .stroke(Stroke::new(STROKE_WIDTH, theme.border.default))
+                    .fill(theme.palette.surface.panel)
+                    .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
                     .corner_radius(RADIUS_L)
                     .inner_margin(egui::Margin::same(8))
                     .shadow(theme.elevation_overlay())
@@ -1709,7 +1709,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Directory path")
                     .size(TextRole::BodyS.size())
-                    .color(theme.text.secondary),
+                    .color(theme.palette.text.secondary),
             );
             ui.add_space(SPACE_2);
             eparts::TextField::new(&mut self.ui_store.workspace_switcher_path)
@@ -1767,7 +1767,7 @@ impl GuiShell {
                 egui::Label::new(
                     egui::RichText::new(&self.ui_store.unsaved_changes.message)
                         .size(TextRole::Body.size())
-                        .color(theme.text.secondary),
+                        .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );

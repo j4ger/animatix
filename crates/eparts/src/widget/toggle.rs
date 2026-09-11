@@ -60,13 +60,13 @@ fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Resp
 /// `accent.primary` look).
 fn toggle_slot(t: &theme::Theme, value: bool, enabled: bool, hovered: bool) -> theme::Slot {
     if !enabled {
-        t.toggle.disabled
+        t.components.toggle.disabled
     } else if value {
-        t.toggle.checked
+        t.components.toggle.checked
     } else if hovered {
-        t.toggle.hover
+        t.components.toggle.hover
     } else {
-        t.toggle.unchecked
+        t.components.toggle.unchecked
     }
 }
 
@@ -74,9 +74,9 @@ fn toggle_slot(t: &theme::Theme, value: bool, enabled: bool, hovered: bool) -> t
 /// enabled, dimmed to the disabled slot's foreground when not.
 fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
     if enabled {
-        t.toggle.mark
+        t.components.toggle.mark
     } else {
-        t.toggle.disabled.fg
+        t.components.toggle.disabled.fg
     }
 }
 
@@ -141,9 +141,9 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let box_size = Vec2::splat(s.row_xs);
         let spacing = s.space_3;
         let font = TextRole::Body.font_id();
-        let label_galley = self
-            .label
-            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
+        let label_galley = self.label.map(|l| {
+            ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.palette.text.primary)
+        });
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
         let total_size =
@@ -214,7 +214,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
 
         // Draw label
         if let Some(galley) = label_galley {
-            ui.painter().galley(label_rect.min, galley, t.text.primary);
+            ui.painter().galley(label_rect.min, galley, t.palette.text.primary);
         }
 
         // Toggle on click
@@ -307,9 +307,9 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let outer_size = Vec2::splat(s.toggle.radio_size);
         let spacing = s.space_3;
         let font = TextRole::Body.font_id();
-        let label_galley = self
-            .label
-            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
+        let label_galley = self.label.map(|l| {
+            ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.palette.text.primary)
+        });
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
         let total_size =
@@ -367,7 +367,7 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
 
         // Draw label
         if let Some(galley) = label_galley {
-            ui.painter().galley(label_rect.min, galley, t.text.primary);
+            ui.painter().galley(label_rect.min, galley, t.palette.text.primary);
         }
 
         // Set value on click
@@ -453,9 +453,9 @@ impl<'a> egui::Widget for Switch<'a> {
         let spacing = s.space_3;
 
         let font = TextRole::Body.font_id();
-        let label_galley = self
-            .label
-            .map(|l| ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.text.primary));
+        let label_galley = self.label.map(|l| {
+            ui.painter().layout_no_wrap(l.to_string(), font.clone(), t.palette.text.primary)
+        });
         let label_size = label_galley.as_ref().map(|g| g.size()).unwrap_or(Vec2::ZERO);
 
         let total_size =
@@ -501,16 +501,16 @@ impl<'a> egui::Widget for Switch<'a> {
         let enabled = ui.is_enabled();
         let slot = toggle_slot(&t, *self.value, enabled, response.hovered());
         let off_bg = if !enabled {
-            t.toggle.disabled.bg
+            t.components.toggle.disabled.bg
         } else if response.hovered() {
-            t.toggle.hover.bg
+            t.components.toggle.hover.bg
         } else {
-            t.toggle.unchecked.bg
+            t.components.toggle.unchecked.bg
         };
         let on_bg = if enabled {
-            t.toggle.checked.bg
+            t.components.toggle.checked.bg
         } else {
-            t.toggle.disabled.bg
+            t.components.toggle.disabled.bg
         };
 
         // Animated track color crossfade
@@ -528,9 +528,9 @@ impl<'a> egui::Widget for Switch<'a> {
 
         // Draw thumb
         let thumb_color = if enabled {
-            t.toggle.thumb
+            t.components.toggle.thumb
         } else {
-            t.toggle.disabled.fg
+            t.components.toggle.disabled.fg
         };
         let thumb_center = Pos2::new(thumb_x, track_center_y);
         ui.painter().circle_filled(thumb_center, thumb_radius, thumb_color);
@@ -542,7 +542,7 @@ impl<'a> egui::Widget for Switch<'a> {
 
         // Draw label
         if let Some(galley) = label_galley {
-            ui.painter().galley(label_rect.min, galley, t.text.primary);
+            ui.painter().galley(label_rect.min, galley, t.palette.text.primary);
         }
 
         // Toggle on click
@@ -765,7 +765,7 @@ mod tests {
     }
 
     /// Representative slot-resolution test: the toggle control's colour is
-    /// chosen from `theme.toggle.*` and the dark/light seeds differ as expected.
+    /// chosen from `theme.components.toggle.*` and the dark/light seeds differ as expected.
     #[test]
     fn toggle_slot_resolves_per_state_in_both_themes() {
         let dark = theme::Theme::dark();
@@ -773,18 +773,18 @@ mod tests {
 
         // State selection is theme-independent: disabled > checked > hover > unchecked.
         for t in [&dark, &light] {
-            assert_eq!(toggle_slot(t, true, false, true), t.toggle.disabled);
-            assert_eq!(toggle_slot(t, true, true, false), t.toggle.checked);
-            assert_eq!(toggle_slot(t, false, true, true), t.toggle.hover);
-            assert_eq!(toggle_slot(t, false, true, false), t.toggle.unchecked);
+            assert_eq!(toggle_slot(t, true, false, true), t.components.toggle.disabled);
+            assert_eq!(toggle_slot(t, true, true, false), t.components.toggle.checked);
+            assert_eq!(toggle_slot(t, false, true, true), t.components.toggle.hover);
+            assert_eq!(toggle_slot(t, false, true, false), t.components.toggle.unchecked);
         }
 
         // The checked fill comes from the accent slot, not a widget literal, and
         // the light unchecked fill differs from the dark one.
-        assert_eq!(dark.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
-        assert_eq!(light.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
-        assert_ne!(dark.toggle.unchecked.bg, light.toggle.unchecked.bg);
-        assert_ne!(dark.toggle.mark, light.toggle.disabled.fg);
+        assert_eq!(dark.components.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
+        assert_eq!(light.components.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
+        assert_ne!(dark.components.toggle.unchecked.bg, light.components.toggle.unchecked.bg);
+        assert_ne!(dark.components.toggle.mark, light.components.toggle.disabled.fg);
     }
 
     /// The toggle widgets render through the slots in both themes.

@@ -166,7 +166,7 @@ impl GuiShell {
                 egui::Label::new(
                     egui::RichText::new(&self.ui_store.recovery_prompt.message)
                         .size(TextRole::Body.size())
-                        .color(theme.text.secondary),
+                        .color(theme.palette.text.secondary),
                 )
                 .selectable(false),
             );

@@ -54,11 +54,11 @@ impl<'a> TimelineStrip<'a> {
         let painter = ui.painter_at(rect);
 
         let track = rect.shrink2(Vec2::new(s.space_2, 3.0));
-        painter.rect_filled(track, RADIUS_M, t.surface.widget);
+        painter.rect_filled(track, RADIUS_M, t.palette.surface.widget);
         painter.rect_stroke(
             track,
             RADIUS_M,
-            egui::Stroke::new(STROKE_WIDTH, t.border.default),
+            egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
             egui::StrokeKind::Outside,
         );
 
@@ -72,7 +72,7 @@ impl<'a> TimelineStrip<'a> {
                     egui::pos2(x, track.top() + 2.0),
                     egui::pos2(x, track.bottom() - 2.0),
                 ],
-                egui::Stroke::new(STROKE_WIDTH, t.lines.grid),
+                egui::Stroke::new(STROKE_WIDTH, t.palette.lines.grid),
             );
             sec += sec_step;
         }
@@ -85,14 +85,19 @@ impl<'a> TimelineStrip<'a> {
                 egui::pos2(x, track.center().y),
                 4.0,
                 false,
-                t.text.primary,
-                t.status.warning,
+                t.palette.text.primary,
+                t.palette.status.warning,
             );
         }
 
         let playhead_frac = ((self.current_time_s / self.duration_s) as f32).clamp(0.0, 1.0);
         let playhead_x = egui::lerp(track.left()..=track.right(), playhead_frac);
-        playhead(&painter, playhead_x, track.top() - 1.0..track.bottom() + 1.0, t.status.warning);
+        playhead(
+            &painter,
+            playhead_x,
+            track.top() - 1.0..track.bottom() + 1.0,
+            t.palette.status.warning,
+        );
 
         if response.clicked() || response.dragged() {
             if let Some(pos) = response.interact_pointer_pos() {

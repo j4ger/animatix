@@ -5,7 +5,7 @@
 //! search filter, keyboard highlight) lives in `egui::Memory` per the framework
 //! contract.
 //!
-//! The trigger is painted from `theme.input.*` slots so it matches
+//! The trigger is painted from `theme.components.input.*` slots so it matches
 //! [`crate::widget::input::TextField`], and supports keyboard navigation
 //! (arrows / Home / End / Enter / Escape) while focused.
 //!
@@ -195,14 +195,14 @@ impl Widget for Select<'_> {
         let label_galley = ui.painter().layout_no_wrap(
             current_label.clone(),
             TextRole::BodyS.font_id(),
-            t.text.secondary,
+            t.palette.text.secondary,
         );
         let caret_w = ui
             .painter()
             .layout_no_wrap(
                 egui_phosphor::regular::CARET_DOWN.to_owned(),
                 TextRole::Body.font_id(),
-                t.text.secondary,
+                t.palette.text.secondary,
             )
             .size()
             .x;
@@ -429,7 +429,9 @@ impl Widget for Select<'_> {
                 for pos in visible_now {
                     match &flat_options[pos] {
                         FlatOption::Header(text) => {
-                            ui.label(egui::RichText::new(text).strong().color(t.text.secondary));
+                            ui.label(
+                                egui::RichText::new(text).strong().color(t.palette.text.secondary),
+                            );
                         },
                         FlatOption::Item { label, index } => {
                             let row_h = ui.spacing().interact_size.y.max(ROW_M * 0.8);
@@ -480,13 +482,13 @@ impl Widget for Select<'_> {
         let radius = egui::CornerRadius::same(RADIUS_M as u8);
         let trigger_hovered = response.hovered();
         let slot = if !ui.is_enabled() {
-            t.input.disabled
+            t.components.input.disabled
         } else if has_focus {
-            t.input.focus
+            t.components.input.focus
         } else if trigger_hovered {
-            t.input.hover
+            t.components.input.hover
         } else {
-            t.input.normal
+            t.components.input.normal
         };
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, radius, slot.bg);
@@ -507,11 +509,11 @@ impl Widget for Select<'_> {
         }
 
         let fg = if !ui.is_enabled() {
-            t.input.disabled.fg
+            t.components.input.disabled.fg
         } else if selected.is_some() {
             slot.fg
         } else {
-            t.text.muted
+            t.palette.text.muted
         };
         let caret_galley = ui.painter().layout_no_wrap(
             egui_phosphor::regular::CARET_DOWN.to_owned(),
@@ -604,7 +606,7 @@ fn step_highlight(visible: &[usize], current: Option<usize>, delta: i32) -> Opti
     visible.get(next).copied()
 }
 
-/// Paint one option row using the `theme.list.*` slots.
+/// Paint one option row using the `theme.components.list.*` slots.
 fn paint_option_row(
     ui: &egui::Ui,
     rect: Rect,
@@ -616,11 +618,11 @@ fn paint_option_row(
 ) {
     let s = crate::spatial(ui);
     let bg = if selected {
-        t.list.selected.bg
+        t.components.list.selected.bg
     } else if highlighted {
-        t.accent.ghost
+        t.palette.accent.ghost
     } else if hovered {
-        t.list.hover.bg
+        t.components.list.hover.bg
     } else {
         egui::Color32::TRANSPARENT
     };
@@ -629,9 +631,9 @@ fn paint_option_row(
         painter.rect_filled(rect, egui::CornerRadius::same(2), bg);
     }
     let fg = if selected {
-        t.list.selected.fg
+        t.components.list.selected.fg
     } else {
-        t.text.primary
+        t.palette.text.primary
     };
     painter.text(
         egui::pos2(rect.min.x + s.space_3, rect.center().y),

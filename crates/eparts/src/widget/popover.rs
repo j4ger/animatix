@@ -422,14 +422,14 @@ fn compute_anchor_pos_clamped(
 /// The themed frame used for the popover body.
 ///
 /// Colours are sourced from the runtime `Theme`.
-/// * fill → `t.surface.floating_card_bg`
-/// * stroke → `t.border.default`
+/// * fill → `t.palette.surface.floating_card_bg`
+/// * stroke → `t.palette.border.default`
 /// * corner radius → [`RADIUS_M`]
 /// * shadow → `t.elevation.raised`
 fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
     egui::Frame::new()
-        .fill(t.surface.floating_card_bg)
-        .stroke(egui::Stroke::new(STROKE_WIDTH, t.border.default))
+        .fill(t.palette.surface.floating_card_bg)
+        .stroke(egui::Stroke::new(STROKE_WIDTH, t.palette.border.default))
         .corner_radius(CornerRadius::same(RADIUS_M as u8))
         .inner_margin(egui::Margin::same(12))
         .shadow(t.elevation.raised)

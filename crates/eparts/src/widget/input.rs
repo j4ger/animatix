@@ -26,7 +26,7 @@ type ValidateFn<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
 /// A themed single-line text input.
 ///
-/// Renders inside a frame that tracks `theme.input.{normal, hover, focus, invalid, disabled}`
+/// Renders inside a frame that tracks `theme.components.input.{normal, hover, focus, invalid, disabled}`
 /// slots. Supports optional prefix/suffix labels, a clear button, password masking, and
 /// a validation predicate that flips the border to the `invalid` slot when it returns `false`.
 pub struct TextField<'a> {
@@ -87,7 +87,7 @@ impl<'a> TextField<'a> {
     }
 
     /// Attach a validation predicate. When `f(text)` returns `false` the field
-    /// renders with the `theme.input.invalid` border slot.
+    /// renders with the `theme.components.input.invalid` border slot.
     pub fn validate(mut self, f: impl Fn(&str) -> bool + 'a) -> Self {
         self.validate = Some(Box::new(f));
         self
@@ -125,9 +125,9 @@ impl<'a> TextField<'a> {
 
         // Initial slot for text color (focus resolved after rendering).
         let fg = if !self.enabled {
-            t.input.disabled.fg
+            t.components.input.disabled.fg
         } else {
-            t.input.normal.fg
+            t.components.input.normal.fg
         };
 
         // Reserve background + border shape slots BEFORE rendering the text
@@ -168,13 +168,14 @@ impl<'a> TextField<'a> {
                 had_focus = te_resp.has_focus();
 
                 if let Some(ref suf) = self.suffix {
-                    ui.label(egui::RichText::new(suf).color(t.text.muted));
+                    ui.label(egui::RichText::new(suf).color(t.palette.text.muted));
                 }
 
                 if show_clear {
-                    let btn =
-                        egui::Button::new(egui::RichText::new("✕").size(10.0).color(t.text.muted))
-                            .frame(false);
+                    let btn = egui::Button::new(
+                        egui::RichText::new("✕").size(10.0).color(t.palette.text.muted),
+                    )
+                    .frame(false);
                     if ui.add(btn).clicked() {
                         cleared = true;
                     }
@@ -188,15 +189,15 @@ impl<'a> TextField<'a> {
 
         let is_hovered = outer_resp.hovered();
         let active_slot = if !self.enabled {
-            t.input.disabled
+            t.components.input.disabled
         } else if is_invalid {
-            t.input.invalid
+            t.components.input.invalid
         } else if had_focus {
-            t.input.focus
+            t.components.input.focus
         } else if is_hovered {
-            t.input.hover
+            t.components.input.hover
         } else {
-            t.input.normal
+            t.components.input.normal
         };
 
         painter.set(bg_idx, egui::epaint::RectShape::filled(outer_rect, radius, active_slot.bg));
@@ -230,7 +231,7 @@ pub struct TextFieldResponse {
 /// A themed numeric input backed by [`egui::DragValue`].
 ///
 /// Supports drag-to-change, typing, clamping via `.range()`, step size, and a
-/// suffix label (e.g. `" px"`, `" s"`). The frame matches `theme.input.*` slots,
+/// suffix label (e.g. `" px"`, `" s"`). The frame matches `theme.components.input.*` slots,
 /// keeping visual consistency with [`TextField`].
 pub struct NumberField<'a> {
     value: &'a mut f64,
@@ -333,13 +334,13 @@ impl<'a> NumberField<'a> {
         let is_hovered = outer_resp.hovered() || inner_resp.hovered();
 
         let slot = if !self.enabled {
-            t.input.disabled
+            t.components.input.disabled
         } else if is_focused {
-            t.input.focus
+            t.components.input.focus
         } else if is_hovered {
-            t.input.hover
+            t.components.input.hover
         } else {
-            t.input.normal
+            t.components.input.normal
         };
 
         painter.set(bg_idx, egui::epaint::RectShape::filled(outer_rect, radius, slot.bg));

@@ -47,7 +47,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Find")
                     .size(TextRole::BodyS.size())
-                    .color(theme.text.secondary),
+                    .color(theme.palette.text.secondary),
             );
             let find_resp = ui.add(
                 egui::TextEdit::singleline(&mut self.ui_store.find_query)
@@ -84,9 +84,9 @@ impl GuiShell {
                                 egui::RichText::new(format!("{count} match(es)"))
                                     .size(TextRole::Caption.size())
                                     .color(if count == 0 {
-                                        theme.status.warning
+                                        theme.palette.status.warning
                                     } else {
-                                        theme.text.muted
+                                        theme.palette.text.muted
                                     }),
                             );
                         },
@@ -94,7 +94,7 @@ impl GuiShell {
                             ui.label(
                                 egui::RichText::new(format!("Invalid pattern: {err}"))
                                     .size(TextRole::Caption.size())
-                                    .color(theme.status.error),
+                                    .color(theme.palette.status.error),
                             );
                         },
                     }
@@ -105,7 +105,7 @@ impl GuiShell {
             ui.label(
                 egui::RichText::new("Replace with")
                     .size(TextRole::BodyS.size())
-                    .color(theme.text.secondary),
+                    .color(theme.palette.text.secondary),
             );
             ui.add(
                 egui::TextEdit::singleline(&mut self.ui_store.replace_query)

@@ -43,7 +43,7 @@ pub trait DiagnosticEntry {
 /// Renders a scrollable card of diagnostic messages.
 ///
 /// Diagnostics has no dedicated slot group: it deliberately reuses
-/// `theme.list.*` for row hover/normal text and `theme.status.*` for the
+/// `theme.components.list.*` for row hover/normal text and `theme.palette.status.*` for the
 /// error/warning accents, which already carry the right per-theme values. A
 /// one-consumer group that only re-exported those shared colours would add
 /// indirection without any theming benefit.
@@ -73,7 +73,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 egui::Label::new(
                     RichText::new(egui_phosphor::regular::WARNING_OCTAGON)
                         .size(TextRole::BodyS.size())
-                        .color(t.text.muted),
+                        .color(t.palette.text.muted),
                 )
                 .selectable(false),
             );
@@ -82,7 +82,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                 egui::Label::new(
                     RichText::new("Diagnostics")
                         .size(TextRole::BodyS.size())
-                        .color(t.text.secondary),
+                        .color(t.palette.text.secondary),
                 )
                 .selectable(false),
             );
@@ -92,7 +92,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                     egui::Label::new(
                         RichText::new(format!("{} {}", egui_phosphor::regular::X, error_count))
                             .size(TextRole::Micro.size())
-                            .color(t.status.error),
+                            .color(t.palette.status.error),
                     )
                     .selectable(false),
                 );
@@ -106,7 +106,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                             warning_count
                         ))
                         .size(TextRole::Micro.size())
-                        .color(t.status.warning),
+                        .color(t.palette.status.warning),
                     )
                     .selectable(false),
                 );
@@ -120,7 +120,7 @@ pub fn diagnostics_list<T: DiagnosticEntry>(
                             egui::Button::new(
                                 RichText::new(egui_phosphor::regular::X)
                                     .size(TextRole::BodyS.size())
-                                    .color(t.text.muted),
+                                    .color(t.palette.text.muted),
                             )
                             .frame(false),
                         )
@@ -159,9 +159,9 @@ fn diagnostic_row<T: DiagnosticEntry>(
     let (row_rect, response) = ui.allocate_exact_size(Vec2::new(available, row_h), Sense::click());
 
     let accent_color = if diagnostic.is_error() {
-        t.status.error
+        t.palette.status.error
     } else {
-        t.status.warning
+        t.palette.status.warning
     };
     let icon = if diagnostic.is_error() {
         egui_phosphor::regular::X
@@ -170,7 +170,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
     };
 
     let bg = if response.hovered() {
-        t.list.hover.bg
+        t.components.list.hover.bg
     } else {
         Color32::TRANSPARENT
     };
@@ -181,9 +181,9 @@ fn diagnostic_row<T: DiagnosticEntry>(
     // Row text uses the list slot for the current state (hover fg when hovered,
     // otherwise the even-row fg, both of which resolve to `text.primary`).
     let row_fg = if response.hovered() {
-        t.list.hover.fg
+        t.components.list.hover.fg
     } else {
-        t.list.even.fg
+        t.components.list.even.fg
     };
 
     let accent_rect = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
@@ -217,7 +217,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
         egui::Align2::RIGHT_CENTER,
         phase_str,
         TextRole::Micro.font_id(),
-        diagnostic.phase_color().unwrap_or(t.text.muted),
+        diagnostic.phase_color().unwrap_or(t.palette.text.muted),
     );
 
     if !is_last {
@@ -226,7 +226,7 @@ fn diagnostic_row<T: DiagnosticEntry>(
                 egui::pos2(row_rect.min.x + s.space_3, row_rect.bottom() - 0.5),
                 egui::pos2(row_rect.max.x - s.space_2, row_rect.bottom() - 0.5),
             ],
-            Stroke::new(STROKE_WIDTH, t.border.default),
+            Stroke::new(STROKE_WIDTH, t.palette.border.default),
         );
     }
 

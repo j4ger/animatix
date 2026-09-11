@@ -156,9 +156,9 @@ fn channel_color(theme: Theme, value_type: ValueType, channel: usize) -> Color32
     match channel {
         0 => {
             if matches!(value_type, ValueType::Vec2 | ValueType::Vec4 | ValueType::Color) {
-                theme.status.error
+                theme.palette.status.error
             } else {
-                theme.accent.primary
+                theme.palette.accent.primary
             }
         },
         1 => curve::GREEN,
@@ -206,13 +206,13 @@ pub(crate) fn draw_legend(
             ui.painter().rect_filled(
                 item_rect,
                 crate::app::design_tokens::spatial::RADIUS_S,
-                theme.surface.hover,
+                theme.palette.surface.hover,
             );
         }
         let color_dot = if is_visible {
             curve.color
         } else {
-            theme.text.disabled
+            theme.palette.text.disabled
         };
         ui.painter().circle_filled(
             egui::pos2(item_rect.min.x + 6.0, item_rect.center().y),
@@ -225,9 +225,9 @@ pub(crate) fn draw_legend(
             &curve.label,
             crate::app::design_tokens::typography::TextRole::Micro.font_id(),
             if is_visible {
-                theme.text.secondary
+                theme.palette.text.secondary
             } else {
-                theme.text.disabled
+                theme.palette.text.disabled
             },
         );
         let item_response =
@@ -344,7 +344,7 @@ pub(crate) fn draw_value_grid(painter: &Painter, axis: &Axis, theme: Theme) {
             egui::Align2::LEFT_CENTER,
             val_label,
             crate::app::design_tokens::typography::TextRole::Micro.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
     }
 }
@@ -384,7 +384,11 @@ pub(crate) fn draw_curve(
         let size = if is_current { 4.0 } else { 2.5 };
         painter.circle_filled(p, size, curve.color);
         if is_current {
-            painter.circle_stroke(p, size + 2.0, Stroke::new(STROKE_WIDTH, theme.status.warning));
+            painter.circle_stroke(
+                p,
+                size + 2.0,
+                Stroke::new(STROKE_WIDTH, theme.palette.status.warning),
+            );
         }
     }
 }
@@ -398,7 +402,7 @@ pub(crate) fn draw_playhead(painter: &Painter, axis: &Axis, current_time_s: f64,
                 Pos2::new(x, axis.plot_rect.top()),
                 Pos2::new(x, axis.plot_rect.bottom()),
             ],
-            Stroke::new(1.5, theme.status.warning),
+            Stroke::new(1.5, theme.palette.status.warning),
         );
     }
 }

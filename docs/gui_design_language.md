@@ -112,6 +112,19 @@ Layer 3: Component   — per-component token slots (Theme struct)
                        Visibility: pub — lives alongside the component module
 ```
 
+The runtime `Theme` groups these layers into three public sub-structs:
+
+```rust
+pub struct Theme {
+    pub palette: Palette,       // surface, text, accent, status, border, overlay, lines
+    pub components: Components, // one slot group per widget family (button, list, tab, …)
+    pub elevation: Elevation,   // raised / overlay shadows
+}
+```
+
+Read paths follow the grouping: `t.palette.surface.base`,
+`t.palette.text.primary`, `t.components.button.primary.normal.bg`.
+
 **Layering invariant.** Widget code imports semantic roles (e.g.
 `semantic::surface::WIDGET`) or reads the runtime `Theme` struct; it never
 imports `primitive::*` directly. This invariant is enforced by **convention
@@ -134,6 +147,9 @@ pub mod primitive;
 
 /// Semantic tokens — the public API consumed by widget code.
 pub mod semantic;  // surface (6 levels) + text, accent, status, border, lines, overlay
+
+/// Runtime theme: grouped into `Palette` / `Components` / `Elevation`.
+pub mod theme;     // Theme { palette, components, elevation }
 
 /// Utility functions (lerp, alpha-multiply).
 pub mod util;
@@ -531,7 +547,7 @@ disability gate). The loading state (`loading(true)`) disables interaction
 and shows a spinner simultaneously.
 
 **Policy note.** `Danger` is a shipped `ButtonVariant` backed by the
-`theme.button.danger` slots (see §6.4). Destructive GUI actions use
+`theme.components.button.danger` slots (see §6.4). Destructive GUI actions use
 `Button::danger(...)`.
 
 ```rust
@@ -612,51 +628,61 @@ Both paths render the same `Row`.
 ### 6.4 Component Theme Slots
 
 The `Theme` struct (source of truth: `crates/eparts/src/tokens/theme.rs`)
-exposes component-scoped color slot groups. Each group maps all interaction
-states to `Slot { bg, fg, border }` or lighter types. The full taxonomy:
+groups component-scoped color slots under `theme.components`. Each group maps
+all interaction states to `Slot { bg, fg, border }` or lighter types. The full
+taxonomy:
 
 ```
-theme.button
+theme.components.button
   .primary   — ButtonStateSlots { normal, hover, active, selected, disabled, focus }
   .secondary — ButtonStateSlots  (seeded; no ButtonVariant::Secondary yet)
   .ghost     — ButtonStateSlots
   .icon      — ButtonStateSlots
   .danger    — ButtonStateSlots  (backed by `ButtonVariant::Danger` / `Button::danger`)
 
-theme.list
+theme.components.list
   .even      — Fill { bg, fg }   zebra even row
   .odd       — Fill { bg, fg }   zebra odd row
   .selected  — Fill { bg, fg }   selected row
   .hover     — Fill { bg, fg }   hovered row
 
-theme.tab
+theme.components.tab
   .active    — TabSlot { bg, fg, indicator }   active tab with accent indicator stripe
   .inactive  — TabSlot { bg, fg, indicator }
   .hover     — TabSlot { bg, fg, indicator }
 
-theme.menu_item
+theme.components.menu_item
   .normal    — Slot { bg, fg, border }
   .hover     — Slot
   .active    — Slot
   .disabled  — Slot
 
-theme.input
+theme.components.input
   .normal    — Slot { bg, fg, border }
   .hover     — Slot
-  .focus     — Slot  (border = border.focus / accent)
-  .invalid   — Slot  (border = status.error)
+  .focus     — Slot  (border = palette.border.focus / accent)
+  .invalid   — Slot  (border = palette.status.error)
   .disabled  — Slot
 
-theme.scrollbar
+theme.components.scrollbar
   .thumb       — Color32
   .thumb_hover — Color32
 ```
 
+Remaining component groups (same `theme.components.*` prefix):
+`toggle`, `progress`, `badge`, `tag`, `kbd`, `tooltip`, `alert`, `toast`,
+`skeleton`, `color_picker`, `easing_curve`.
+
+Palette-scoped tokens live under `theme.palette` (`surface`, `text`, `accent`,
+`status`, `border`, `overlay`, `lines`); shadow tokens stay at
+`theme.elevation.{raised, overlay}`.
+
 Access pattern:
 ```rust
 let t = eparts::theme(ui);
-let bg = t.button.primary.normal.bg;
-let err_border = t.input.invalid.border;
+let bg = t.components.button.primary.normal.bg;
+let err_border = t.components.input.invalid.border;
+let panel = t.palette.surface.panel;
 ```
 
 ---
@@ -732,7 +758,7 @@ only accepts undoable commands.
 3. Every command carries `timestamp()` and `description()` for the undo
    history UI.
 4. Text input focus disables global shortcuts (Space, arrows).
-5. **Focus ring**: `STROKE_WIDTH` (2px) stroke in `theme.border.focus` /
+5. **Focus ring**: `STROKE_WIDTH` (2px) stroke in `theme.palette.border.focus` /
    `focus_ring()`, painted **inset by 1px** (`rect.shrink(1.0)`,
    `StrokeKind::Inside`) to avoid clipping by the widget boundary. Every
    focusable primitive (Button, Input, Select, …) uses this identical

@@ -121,7 +121,7 @@ pub(crate) fn transport_ui(
         egui::RichText::new(SPEEDS[si].1)
             .monospace()
             .size(TextRole::BodyS.size())
-            .color(theme.text.secondary),
+            .color(theme.palette.text.secondary),
         |ui| {
             for (speed, label) in &SPEEDS {
                 let is_active = (*speed - preview.playback.playback_speed).abs() < f32::EPSILON;
@@ -178,7 +178,7 @@ pub(crate) fn transport_ui(
         egui::Label::new(
             egui::RichText::new(format!("{current_tc}  {fps_val:.0}fps"))
                 .font(TextRole::Mono.font_id())
-                .color(theme.text.primary),
+                .color(theme.palette.text.primary),
         )
         .selectable(false),
     );

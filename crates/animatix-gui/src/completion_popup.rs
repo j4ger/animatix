@@ -178,8 +178,8 @@ impl CompletionPopup {
         // Draw popup background
         let popup_rect = Rect::from_min_size(popup_pos, Vec2::new(popup_width, popup_height));
         let t = eparts::theme(ui);
-        let bg_color = t.surface.surface;
-        let border_color = t.border.default;
+        let bg_color = t.palette.surface.surface;
+        let border_color = t.palette.border.default;
 
         ui.painter()
             .rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
@@ -205,7 +205,7 @@ impl CompletionPopup {
 
                 // Highlight selected item
                 if is_selected {
-                    let highlight_color = t.surface.hover;
+                    let highlight_color = t.palette.surface.hover;
                     ui.painter().rect_filled(
                         item_rect,
                         CornerRadius::same(RADIUS_S as u8),
@@ -244,7 +244,7 @@ impl CompletionPopup {
 
                 // Draw label
                 let label_pos = item_rect.left_center() + Vec2::new(24.0, -6.0);
-                let label_color = t.text.primary;
+                let label_color = t.palette.text.primary;
                 ui.painter().text(
                     label_pos,
                     egui::Align2::LEFT_CENTER,
@@ -256,7 +256,7 @@ impl CompletionPopup {
                 // Draw detail (if any)
                 if let Some(detail) = &item.detail {
                     let detail_pos = item_rect.right_center() + Vec2::new(-8.0, -6.0);
-                    let detail_color = t.text.secondary;
+                    let detail_color = t.palette.text.secondary;
                     ui.painter().text(
                         detail_pos,
                         egui::Align2::RIGHT_CENTER,

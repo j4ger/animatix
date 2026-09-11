@@ -29,11 +29,11 @@ pub fn render_multi_fcurve(
     let painter = ui.painter_at(rect);
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, theme.surface.base);
+    painter.rect_filled(rect, RADIUS_M, theme.palette.surface.base);
     painter.rect_stroke(
         rect,
         RADIUS_M,
-        egui::Stroke::new(STROKE_WIDTH, theme.border.default),
+        egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         egui::StrokeKind::Outside,
     );
 
@@ -45,7 +45,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "No keyframes to graph",
             TextRole::BodyS.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
         return;
     }
@@ -75,7 +75,7 @@ pub fn render_multi_fcurve(
             egui::Align2::CENTER_CENTER,
             "All curves hidden",
             TextRole::BodyS.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
         return;
     }

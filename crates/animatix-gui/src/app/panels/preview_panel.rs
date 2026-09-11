@@ -21,7 +21,7 @@ fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     egui::Frame::new()
-        .fill(theme.surface.base)
+        .fill(theme.palette.surface.base)
         .inner_margin(egui::Margin::symmetric(sp.base.space_2 as i8, sp.base.space_1 as i8))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -109,7 +109,7 @@ fn preview_header_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) {
                     ui.menu_button(
                         RichText::new(zoom_label)
                             .size(TextRole::BodyS.size())
-                            .color(theme.text.secondary),
+                            .color(theme.palette.text.secondary),
                         |ui| {
                             ui.set_min_width(80.0);
                             if ui.stable_selectable_label(false, "Fit").clicked() {
@@ -178,11 +178,11 @@ fn library_drag_drop_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui, preview
         // Drop highlight: accent outline plus a translucent fill so the target
         // region reads clearly against the scene.
         let theme = eparts::theme(ui);
-        ui.painter().rect_filled(preview_rect, RADIUS_L, theme.accent.faint);
+        ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.accent.faint);
         ui.painter().rect_stroke(
             preview_rect,
             RADIUS_L,
-            egui::Stroke::new(2.0, theme.accent.primary),
+            egui::Stroke::new(2.0, theme.palette.accent.primary),
             egui::StrokeKind::Inside,
         );
         if let Some(mouse) = pointer {
@@ -191,7 +191,7 @@ fn library_drag_drop_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui, preview
                 egui::Align2::LEFT_CENTER,
                 &payload.ty,
                 TextRole::BodyS.font_id(),
-                theme.text.primary,
+                theme.palette.text.primary,
             );
         }
     }
@@ -280,16 +280,16 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ui.painter().rect_stroke(
                     preview_rect,
                     RADIUS_L,
-                    egui::Stroke::new(STROKE_WIDTH, theme.border.default),
+                    egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
                     egui::StrokeKind::Outside,
                 );
-                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.surface.base);
+                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.surface.base);
 
                 // ── Rulers ──
-                let ruler_bg = theme.surface.panel;
-                let ruler_tick_color = theme.text.muted;
-                let ruler_text_color = theme.text.muted;
-                let ruler_label_color = theme.text.secondary;
+                let ruler_bg = theme.palette.surface.panel;
+                let ruler_tick_color = theme.palette.text.muted;
+                let ruler_text_color = theme.palette.text.muted;
+                let ruler_label_color = theme.palette.text.secondary;
 
                 let h_ruler_rect = egui::Rect::from_min_size(
                     egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
@@ -303,7 +303,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                     egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
                     Vec2::new(RULER_SIZE, RULER_SIZE),
                 );
-                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.border.default);
+                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
 
                 ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
                 ui.painter()
@@ -472,7 +472,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
                     if let Some(mouse) = raw_pointer_pos {
                         let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        let guide_color = theme.status.warning;
+                        let guide_color = theme.palette.status.warning;
                         if is_vertical {
                             let ghost_screen = ctx.preview_scene_to_screen(
                                 preview_rect,
@@ -533,7 +533,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 // ── Draw existing guides ──
                 if ctx.preview.overlay.show_guides {
-                    let guide_color = theme.status.warning;
+                    let guide_color = theme.palette.status.warning;
                     for &guide_y in &ctx.preview.guides.horizontal_guides {
                         let screen_pt = ctx.preview_scene_to_screen(
                             preview_rect,

@@ -70,7 +70,7 @@ impl Label {
 impl Widget for Label {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let base_color = self.color.unwrap_or(t.text.primary);
+        let base_color = self.color.unwrap_or(t.palette.text.primary);
         let font_id = self.role.font_id();
         let base_text = self.text.text();
 
@@ -80,7 +80,7 @@ impl Widget for Label {
 
         // Optional required asterisk
         let asterisk_galley = if self.required {
-            Some(ui.painter().layout_no_wrap(" *".to_string(), font_id, t.status.error))
+            Some(ui.painter().layout_no_wrap(" *".to_string(), font_id, t.palette.status.error))
         } else {
             None
         };
@@ -102,7 +102,7 @@ impl Widget for Label {
             ui.painter().galley(
                 egui::pos2(rect.min.x + base_text_width, rect.min.y),
                 asterisk,
-                t.status.error,
+                t.palette.status.error,
             );
         }
 

@@ -34,7 +34,7 @@ pub struct Row<'a> {
     pub right: Option<Box<dyn FnOnce(&mut egui::Ui) + 'a>>,
     pub sense: egui::Sense,
     /// Zebra parity for the base row fill: `Some(true)` paints
-    /// `theme.list.even`, `Some(false)` paints `theme.list.odd`, and `None`
+    /// `theme.components.list.even`, `Some(false)` paints `theme.components.list.odd`, and `None`
     /// (default) leaves the background transparent. Containers that own row
     /// parity (e.g. `List`, `Tree`) set this.
     pub zebra: Option<bool>,
@@ -61,7 +61,7 @@ impl<'a> Row<'a> {
 
     /// Set the zebra parity of this row's base fill (`true` = even row).
     ///
-    /// Colours come from `theme.list.even` / `theme.list.odd`. Default `None`
+    /// Colours come from `theme.components.list.even` / `theme.components.list.odd`. Default `None`
     /// leaves the background transparent for standalone rows.
     pub fn zebra(mut self, even: bool) -> Self {
         self.zebra = Some(even);
@@ -160,18 +160,22 @@ impl<'a> Row<'a> {
         let row_clicked = row_response.clicked();
         let hovered = row_response.hovered();
 
-        // Row fills come from the `theme.list.*` slots (previously these fields
+        // Row fills come from the `theme.components.list.*` slots (previously these fields
         // were seeded but unread; the widget hand-picked surface/accent roles).
         // `ListSlots` has no dedicated secondary-selection slot, so that state
         // keeps the accent role and the indicator stripe stays accent-driven.
         let bg = if self.is_selected {
-            t.list.selected.bg
+            t.components.list.selected.bg
         } else if self.secondary_selected {
-            t.accent.faint
+            t.palette.accent.faint
         } else if hovered {
-            t.list.hover.bg
+            t.components.list.hover.bg
         } else if let Some(even) = self.zebra {
-            if even { t.list.even.bg } else { t.list.odd.bg }
+            if even {
+                t.components.list.even.bg
+            } else {
+                t.components.list.odd.bg
+            }
         } else {
             Color32::TRANSPARENT
         };
@@ -181,10 +185,10 @@ impl<'a> Row<'a> {
 
         if self.is_selected {
             let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
-            painter.rect_filled(accent, 0.0, t.accent.primary);
+            painter.rect_filled(accent, 0.0, t.palette.accent.primary);
         } else if self.secondary_selected {
             let accent = Rect::from_min_size(rect.min, Vec2::new(2.0, rect.height()));
-            painter.rect_filled(accent, 0.0, t.accent.faint);
+            painter.rect_filled(accent, 0.0, t.palette.accent.faint);
         }
 
         let baseline_y = rect.center().y;
@@ -203,9 +207,9 @@ impl<'a> Row<'a> {
                 egui_phosphor::regular::CARET_RIGHT
             };
             let color = if chevron_resp.hovered() {
-                t.text.secondary
+                t.palette.text.secondary
             } else {
-                t.text.muted
+                t.palette.text.muted
             };
             painter.text(
                 egui::pos2(chevron_rect.center().x, baseline_y),
@@ -224,9 +228,9 @@ impl<'a> Row<'a> {
                 Vec2::new(ICON_SLOT_WIDTH, rect.height()),
             );
             let default_color = if self.is_selected {
-                t.text.primary
+                t.palette.text.primary
             } else {
-                t.text.muted
+                t.palette.text.muted
             };
             painter.text(
                 egui::pos2(icon_rect.center().x, baseline_y),
@@ -242,9 +246,9 @@ impl<'a> Row<'a> {
 
         let label_color = self.label_color.unwrap_or({
             if self.is_selected {
-                t.text.primary
+                t.palette.text.primary
             } else {
-                t.text.secondary
+                t.palette.text.secondary
             }
         });
         // Label truncation: stop at the start of the right-slot region (or row edge).
@@ -294,9 +298,9 @@ impl<'a> Row<'a> {
                 egui_phosphor::regular::CHECK,
                 TextRole::Body.font_id(),
                 if self.is_selected {
-                    t.text.on_accent
+                    t.palette.text.on_accent
                 } else {
-                    t.accent.primary
+                    t.palette.accent.primary
                 },
             );
         }
@@ -415,7 +419,7 @@ mod tests {
         assert_eq!(Row::new("test").zebra, None);
     }
 
-    /// The row fill resolution must read the `theme.list.*` slots rather than
+    /// The row fill resolution must read the `theme.components.list.*` slots rather than
     /// the previously hand-picked `surface`/`accent` roles.
     #[test]
     fn row_fill_uses_list_slots() {
@@ -424,13 +428,13 @@ mod tests {
         let light = Theme::light();
 
         // Dark: `list.selected` is the accent-selection alpha fill.
-        assert_eq!(dark.list.selected.bg, crate::tokens::semantic::accent::selection());
-        assert_ne!(dark.list.selected.bg, dark.surface.widget);
+        assert_eq!(dark.components.list.selected.bg, crate::tokens::semantic::accent::selection());
+        assert_ne!(dark.components.list.selected.bg, dark.palette.surface.widget);
         // Hover slot is the surface hover role in dark (seeded that way).
-        assert_eq!(dark.list.hover.bg, crate::tokens::semantic::surface::HOVER);
-        assert_ne!(dark.list.hover.bg, light.list.hover.bg);
+        assert_eq!(dark.components.list.hover.bg, crate::tokens::semantic::surface::HOVER);
+        assert_ne!(dark.components.list.hover.bg, light.components.list.hover.bg);
 
         // Light: rows still get distinct even/odd fills.
-        assert_ne!(light.list.even.bg, light.list.odd.bg);
+        assert_ne!(light.components.list.even.bg, light.components.list.odd.bg);
     }
 }

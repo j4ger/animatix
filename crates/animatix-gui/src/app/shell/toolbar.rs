@@ -14,9 +14,9 @@ use crate::app::design_tokens::typography::TextRole;
 impl GuiShell {
     pub(crate) fn toolbar_ui(&mut self, ui: &mut egui::Ui, commands: &mut ActionQueue) {
         let t = eparts::theme(ui);
-        let toolbar_bg = t.surface.base;
-        let border_color = t.surface.widget;
-        let text_primary = t.text.primary;
+        let toolbar_bg = t.palette.surface.base;
+        let border_color = t.palette.surface.widget;
+        let text_primary = t.palette.text.primary;
 
         let sp = crate::app::design_tokens::spatial::spatial(ui);
 
@@ -33,7 +33,7 @@ impl GuiShell {
                     // App mark
                     let (mark_rect, _response) =
                         ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
-                    ui.painter().rect_filled(mark_rect, 2.0, t.accent.primary);
+                    ui.painter().rect_filled(mark_rect, 2.0, t.palette.accent.primary);
 
                     // Filename with dirty indicator
                     let filename = self
@@ -51,7 +51,7 @@ impl GuiShell {
                         filename.to_string()
                     };
                     let filename_color = if self.document_store.source.document.is_dirty {
-                        t.status.warning
+                        t.palette.status.warning
                     } else {
                         text_primary
                     };
@@ -67,7 +67,7 @@ impl GuiShell {
 
                     // Status badge: last-good or stale
                     if self.document_store.showing_last_good() {
-                        let response = ui.add(Tag::new("last good").color(t.status.error));
+                        let response = ui.add(Tag::new("last good").color(t.palette.status.error));
                         text_tooltip(
                             ui,
                             response.id.with("last_good_tooltip"),
@@ -75,7 +75,7 @@ impl GuiShell {
                             "Build failed — preview shows the last successful build",
                         );
                     } else if self.document_store.snapshot_is_stale() {
-                        let response = ui.add(Tag::new("stale").color(t.status.warning));
+                        let response = ui.add(Tag::new("stale").color(t.palette.status.warning));
                         text_tooltip(
                             ui,
                             response.id.with("stale_tooltip"),
@@ -88,7 +88,7 @@ impl GuiShell {
                     if self.preview_store.rebuild_in_progress {
                         let response = ui.add(
                             Tag::new(egui_phosphor::regular::ARROW_CLOCKWISE)
-                                .color(t.accent.primary),
+                                .color(t.palette.accent.primary),
                         );
                         text_tooltip(
                             ui,
@@ -259,14 +259,14 @@ impl GuiShell {
                                         ui.label(
                                             RichText::new(egui_phosphor::regular::ARROW_RIGHT)
                                                 .size(TextRole::BodyS.size())
-                                                .color(t.text.muted),
+                                                .color(t.palette.text.muted),
                                         );
                                     }
                                     let is_active = active_scene == Some(name.as_str());
                                     let color = if is_active {
-                                        t.text.primary
+                                        t.palette.text.primary
                                     } else {
-                                        t.text.muted
+                                        t.palette.text.muted
                                     };
                                     let label = RichText::new(name.as_str())
                                         .size(TextRole::BodyS.size())
@@ -320,11 +320,11 @@ impl GuiShell {
                                 })
                                 .active(recording)
                                 .icon_color(if recording {
-                                    t.status.error
+                                    t.palette.status.error
                                 } else {
-                                    t.text.muted
+                                    t.palette.text.muted
                                 })
-                                .hover_icon_color(t.status.error),
+                                .hover_icon_color(t.palette.status.error),
                         );
                         if rec_btn.clicked() {
                             self.ui_store.keyframe_mode = !recording;
@@ -334,7 +334,7 @@ impl GuiShell {
                         ui.menu_button(
                             RichText::new("Debug")
                                 .size(TextRole::BodyS.size())
-                                .color(t.text.secondary),
+                                .color(t.palette.text.secondary),
                             |ui| {
                                 let mut bounds = self.ui_store.view.debug_bounds;
                                 if ui.checkbox(&mut bounds, "Bounds").clicked() {

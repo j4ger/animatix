@@ -50,9 +50,9 @@ fn diagnostic_border_color(
     theme: eparts::Theme,
 ) -> Option<Color32> {
     if state.error_cells.contains(&index) {
-        Some(theme.status.error)
+        Some(theme.palette.status.error)
     } else if state.warning_cells.contains(&index) {
-        Some(theme.status.warning)
+        Some(theme.palette.status.warning)
     } else {
         None
     }
@@ -246,15 +246,15 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
     );
 
     let bg = if response.is_pointer_button_down_on() {
-        theme.surface.active
+        theme.palette.surface.active
     } else {
-        lerp_color(Color32::TRANSPARENT, theme.surface.hover, t)
+        lerp_color(Color32::TRANSPARENT, theme.palette.surface.hover, t)
     };
 
     let icon_color = if response.is_pointer_button_down_on() {
-        theme.text.primary
+        theme.palette.text.primary
     } else {
-        lerp_color(theme.text.muted, theme.text.primary, t)
+        lerp_color(theme.palette.text.muted, theme.palette.text.primary, t)
     };
 
     if bg != Color32::TRANSPARENT {
@@ -311,12 +311,12 @@ fn render_code_cell(
     let theme = eparts::theme(ui);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        theme.surface.surface
+        theme.palette.surface.surface
     } else {
-        theme.surface.panel
+        theme.palette.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(theme.accent.primary)
+        Some(theme.palette.accent.primary)
     } else {
         diagnostic_border_color(index, state, theme)
     };
@@ -354,12 +354,12 @@ fn render_code_cell(
                         ui.label(
                             RichText::new(egui_phosphor::regular::CODE)
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
                         ui.label(
                             RichText::new(format!("Code {index}"))
                                 .size(TextRole::Micro.size())
-                                .color(theme.text.muted),
+                                .color(theme.palette.text.muted),
                         );
 
                         // Right-aligned actions
@@ -398,8 +398,8 @@ fn render_code_cell(
                             .collect();
                         // Distinct colors for the current match vs the rest,
                         // both sourced from the theme (never hardcoded).
-                        let find_match_bg = theme.accent.selection;
-                        let find_current_bg = theme.accent.subtle;
+                        let find_match_bg = theme.palette.accent.selection;
+                        let find_current_bg = theme.palette.accent.subtle;
                         // Cached highlight: skip highlight_source when cell body unchanged
                         let body_text = cell.body().to_string();
                         let cached_job = state
@@ -500,12 +500,12 @@ fn render_keyframe_cell(
     let time_s = cell.time_s().unwrap_or(0.0);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
-        theme.surface.surface
+        theme.palette.surface.surface
     } else {
-        theme.surface.panel
+        theme.palette.surface.panel
     };
     let border_color = if state.focused_cell == Some(index) {
-        Some(theme.accent.primary)
+        Some(theme.palette.accent.primary)
     } else {
         diagnostic_border_color(index, state, theme)
     };
@@ -528,7 +528,7 @@ fn render_keyframe_cell(
                 ui.vertical(|ui| {
                     // ── Header bar ──────────────────────────────
                     Frame::new()
-                        .fill(theme.surface.base)
+                        .fill(theme.palette.surface.base)
                         .inner_margin(Margin::symmetric(10, 5))
                         .show(ui, |ui| {
                             ui.set_min_height(26.0);
@@ -556,7 +556,7 @@ fn render_keyframe_cell(
                                 ui.label(
                                     RichText::new(egui_phosphor::regular::FILM_STRIP)
                                         .size(TextRole::BodyS.size())
-                                        .color(theme.text.muted),
+                                        .color(theme.palette.text.muted),
                                 );
 
                                 // Editable timestamp
@@ -621,8 +621,8 @@ fn render_keyframe_cell(
                                     .filter(|m| m.cell_index == index)
                                     .map(|m| (m.rel_start_byte, m.rel_end_byte, m.is_current))
                                     .collect();
-                                let find_match_bg = theme.accent.selection;
-                                let find_current_bg = theme.accent.subtle;
+                                let find_match_bg = theme.palette.accent.selection;
+                                let find_current_bg = theme.palette.accent.subtle;
                                 // Cached highlight: skip highlight_source when cell body unchanged
                                 let body_text = cell.body().to_string();
                                 let cached_job = state
@@ -744,7 +744,7 @@ fn render_timestamp_editor(
                 .font(TextRole::Mono.font_id())
                 .desired_width(100.0)
                 .frame(Frame::NONE)
-                .text_color(theme.accent.primary),
+                .text_color(theme.palette.accent.primary),
         );
 
         if ts_response.changed() {
@@ -777,7 +777,7 @@ fn render_timestamp_editor(
             egui::Label::new(
                 RichText::new(display)
                     .font(TextRole::Mono.font_id())
-                    .color(theme.accent.primary),
+                    .color(theme.palette.accent.primary),
             )
             .sense(egui::Sense::click()),
         );
@@ -832,10 +832,12 @@ fn draw_wavy_underlines(
 
     for d in diags {
         let color = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.status.error,
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => theme.palette.status.error,
             animatix_syntax::diagnostics::DiagnosticSeverity::Warning
             | animatix_syntax::diagnostics::DiagnosticSeverity::Info
-            | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => theme.status.warning,
+            | animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
+                theme.palette.status.warning
+            },
         };
 
         // Y position: baseline below the diagnostic line
@@ -895,9 +897,9 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     // ── Divider line (always visible, brightens on hover) ──
     if left < right {
         let line_color = if t > 0.0 {
-            theme.border.strong
+            theme.palette.border.strong
         } else {
-            theme.border.default
+            theme.palette.border.default
         };
         let line_a = egui::lerp(120.0..=220.0, t) as u8;
         ui.painter().line_segment(
@@ -933,30 +935,30 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let pressed = response.is_pointer_button_down_on();
 
     // Background (always visible — no alpha tricks)
-    let bg_idle = theme.surface.widget;
-    let bg_hover = theme.surface.hover;
+    let bg_idle = theme.palette.surface.widget;
+    let bg_hover = theme.palette.surface.hover;
     let bg = if pressed {
-        theme.status.warning
+        theme.palette.status.warning
     } else {
         lerp_color(bg_idle, bg_hover, btn_t)
     };
 
     // Border (subtle idle, stronger hover)
     let border = if pressed {
-        theme.status.warning
+        theme.palette.status.warning
     } else if btn_t > 0.0 {
-        theme.border.strong
+        theme.palette.border.strong
     } else {
-        theme.border.default
+        theme.palette.border.default
     };
 
     // Icon color
     let icon = if pressed {
-        theme.text.on_accent
+        theme.palette.text.on_accent
     } else if btn_t > 0.0 {
-        theme.text.primary
+        theme.palette.text.primary
     } else {
-        theme.text.secondary
+        theme.palette.text.secondary
     };
 
     ui.painter().rect_filled(btn_rect, 6.0, bg);

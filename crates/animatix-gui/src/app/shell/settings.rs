@@ -139,7 +139,7 @@ impl GuiShell {
                         }
                     }
                     if let Some(error) = &self.ui_store.view.theme_error {
-                        ui.colored_label(theme.status.error, error);
+                        ui.colored_label(theme.palette.status.error, error);
                         ui.add_space(sp.base.space_2);
                     }
                 }
@@ -207,7 +207,9 @@ impl GuiShell {
             ];
             layout::labeled_row(
                 ui,
-                RichText::new("Theme").size(TextRole::BodyS.size()).color(theme.text.secondary),
+                RichText::new("Theme")
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.text.secondary),
                 SETTINGS_INPUT_WIDTH,
                 |ui| {
                     egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
@@ -390,7 +392,7 @@ impl GuiShell {
                 ui.label(
                     RichText::new(format!("Press a key for '{name}'…"))
                         .size(TextRole::BodyS.size())
-                        .color(theme.accent.primary),
+                        .color(theme.palette.accent.primary),
                 );
                 let captured_key = ui.input(|i| {
                     i.events.iter().find_map(|event| {
@@ -427,7 +429,7 @@ impl GuiShell {
                             egui::Label::new(
                                 RichText::new(&name)
                                     .size(TextRole::BodyS.size())
-                                    .color(theme.text.secondary),
+                                    .color(theme.palette.text.secondary),
                             ),
                         );
                         ui.add_sized(
@@ -440,7 +442,7 @@ impl GuiShell {
                                 })
                                 .monospace()
                                 .size(TextRole::BodyS.size())
-                                .color(theme.text.primary),
+                                .color(theme.palette.text.primary),
                             ),
                         );
                         if is_recording {

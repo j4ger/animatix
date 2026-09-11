@@ -66,7 +66,7 @@ impl Sizable for Spinner {
 impl Widget for Spinner {
     fn ui(self, ui: &mut Ui) -> egui::Response {
         let size = self.pixel_size.max(4.0);
-        let color = self.color.unwrap_or_else(|| theme(ui).accent.primary);
+        let color = self.color.unwrap_or_else(|| theme(ui).palette.accent.primary);
 
         // Allocate first so the spinner paints inside the space it claims
         // (`ui.add(Spinner::new())` must not render at the panel centre).

@@ -210,9 +210,10 @@ impl egui::Widget for Button {
         let icon_font = TextRole::Body.font_id();
         let label_font = TextRole::BodyS.font_id();
 
-        let icon_galley = self
-            .icon
-            .map(|i| ui.painter().layout_no_wrap(i.to_string(), icon_font.clone(), t.text.primary));
+        let icon_galley = self.icon.map(|i| {
+            ui.painter()
+                .layout_no_wrap(i.to_string(), icon_font.clone(), t.palette.text.primary)
+        });
 
         let response = match self.variant {
             ButtonVariant::Icon => {
@@ -224,7 +225,7 @@ impl egui::Widget for Button {
                 };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
-                let slot_group = &t.button.icon;
+                let slot_group = &t.components.button.icon;
                 let slot = if self.loading || self.disabled {
                     &slot_group.disabled
                 } else if self.active || response.is_pointer_button_down_on() {
@@ -290,7 +291,7 @@ impl egui::Widget for Button {
                     let galley = ui.painter().layout_no_wrap(
                         l.to_string(),
                         label_font.clone(),
-                        t.text.primary,
+                        t.palette.text.primary,
                     );
                     width += galley.size().x;
                     label_galley = Some(galley);
@@ -303,7 +304,7 @@ impl egui::Widget for Button {
                 };
                 let (rect, response) = ui.allocate_exact_size(size, sense);
 
-                let slot_group = &t.button.ghost;
+                let slot_group = &t.components.button.ghost;
                 let slot = if self.loading || self.disabled {
                     &slot_group.disabled
                 } else if self.active {
@@ -381,9 +382,9 @@ impl egui::Widget for Button {
             },
             ButtonVariant::Primary | ButtonVariant::Danger | ButtonVariant::Secondary => {
                 let slot_group = match self.variant {
-                    ButtonVariant::Primary => &t.button.primary,
-                    ButtonVariant::Danger => &t.button.danger,
-                    ButtonVariant::Secondary => &t.button.secondary,
+                    ButtonVariant::Primary => &t.components.button.primary,
+                    ButtonVariant::Danger => &t.components.button.danger,
+                    ButtonVariant::Secondary => &t.components.button.secondary,
                     _ => unreachable!(),
                 };
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
@@ -399,7 +400,7 @@ impl egui::Widget for Button {
                     let galley = ui.painter().layout_no_wrap(
                         l.to_string(),
                         label_font.clone(),
-                        t.text.primary,
+                        t.palette.text.primary,
                     );
                     width += galley.size().x;
                 }
@@ -512,7 +513,7 @@ pub fn toolbar_separator(ui: &mut egui::Ui) {
             egui::pos2(rect.center().x, rect.min.y),
             egui::pos2(rect.center().x, rect.max.y),
         ],
-        egui::Stroke::new(STROKE_WIDTH, t.border.default),
+        egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
     );
 }
 

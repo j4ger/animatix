@@ -1,13 +1,17 @@
 //! Runtime `Theme` struct + immediate-mode accessors.
 //!
 //! `Theme` mirrors `tokens::semantic` so that `Theme::dark()` is *by construction*
-//! equal to the current compile-time consts.  The const modules stay intact;
-//! this is purely additive and existing call sites do not need to change.
+//! equal to the current compile-time consts.  The const modules stay intact.
+//!
+//! `Theme` is grouped into three scopes: [`Palette`] (surfaces, text, accents,
+//! status, borders, overlays, lines), [`Components`] (per-widget color slots),
+//! and [`Elevation`] (shadow tokens).
 //!
 //! Access pattern (per §3a Step 2 of the roadmap):
 //! ```ignore
 //! let t = eparts::theme(ui);
-//! let bg = t.surface.base;
+//! let bg = t.palette.surface.base;
+//! let primary = t.components.button.primary.normal.bg;
 //! ```
 //! Set once per frame (or on theme switch):
 //! ```ignore
@@ -207,7 +211,7 @@ pub struct ScrollbarSlots {
 //
 // Deliberately NOT given a dedicated group (see the widget files for the
 // inline rationale): `widget/diagnostics.rs` already maps cleanly onto
-// `theme.list.*` + `theme.status.*`, and a single-consumer group that only
+// `theme.components.list.*` + `theme.palette.status.*`, and a single-consumer group that only
 // re-exported those shared colours would add indirection without theming value.
 
 /// Interaction states for checkbox / radio / switch controls.
@@ -319,7 +323,7 @@ pub struct SkeletonSlots {
     pub shimmer: Color32,
 }
 
-/// Colour-picker swatch slots. The trigger frame reuses `theme.input.*`.
+/// Colour-picker swatch slots. The trigger frame reuses `theme.components.input.*`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ColorPickerSlots {
@@ -512,12 +516,15 @@ pub struct Elevation {
     pub overlay: Shadow,
 }
 
-// ── Theme ─────────────────────────────────────────────────────────────
+// ── Theme groups ──────────────────────────────────────────────────────
 
-/// The runtime theme.  Each field is a `Color32`; the struct is `Copy` so cloning is cheap.
+/// Palette-scoped tokens: surfaces, text, accents, status colors, borders,
+/// overlays, and neutral lines.
+///
+/// Accessed as `theme.palette.surface.base`, `theme.palette.text.primary`, …
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
-pub struct Theme {
+pub struct Palette {
     pub surface: Surface,
     pub text: Text,
     pub accent: Accent,
@@ -526,7 +533,15 @@ pub struct Theme {
     pub overlay: Overlay,
     /// Neutral grid / guide line colors.
     pub lines: Lines,
+}
 
+/// Component-scoped color slots, one group per themed widget family.
+///
+/// Accessed as `theme.components.button.primary.normal.bg`,
+/// `theme.components.tag.hover.fg`, …
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct Components {
     // ── Milestone 2: component-scoped slots (B2 + B3) ──
     /// Button color slots for all variants and states.
     pub button: ButtonSlots,
@@ -564,7 +579,19 @@ pub struct Theme {
     pub color_picker: ColorPickerSlots,
     /// Easing-curve editor colors.
     pub easing_curve: EasingCurveSlots,
+}
 
+// ── Theme ─────────────────────────────────────────────────────────────
+
+/// The runtime theme, grouped into palette / component / elevation scopes.
+/// Each leaf is a `Color32` (or shadow); the struct is `Copy` so cloning is cheap.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct Theme {
+    /// Palette-scoped tokens (surfaces, text, accents, status, borders, overlays, lines).
+    pub palette: Palette,
+    /// Component-scoped color slots, grouped per widget family.
+    pub components: Components,
     // ── Elevation / shadow tokens (T2.7) ──
     /// Shadow tokens for floating surfaces.  `flat` has no shadow (in-panel
     /// chrome); use `raised` for popover/menu/toast/dropdown and `overlay`
@@ -586,78 +613,93 @@ impl Theme {
     /// Guarantees `Theme::dark() == tokens::semantic::*` field-for-field because every value
     /// is sourced directly from `crate::tokens::semantic`.
     pub fn dark() -> Self {
-        let components = dark_component_slots();
+        let slots = dark_component_slots();
         Self {
-            surface: Surface {
-                base: semantic::surface::BASE,
-                panel: semantic::surface::PANEL,
-                surface: semantic::surface::SURFACE,
-                widget: semantic::surface::WIDGET,
-                hover: semantic::surface::HOVER,
-                active: semantic::surface::ACTIVE,
-                floating_card_bg: semantic::surface::floating_card_bg(),
+            palette: Palette {
+                surface: Surface {
+                    base: semantic::surface::BASE,
+                    panel: semantic::surface::PANEL,
+                    surface: semantic::surface::SURFACE,
+                    widget: semantic::surface::WIDGET,
+                    hover: semantic::surface::HOVER,
+                    active: semantic::surface::ACTIVE,
+                    floating_card_bg: semantic::surface::floating_card_bg(),
+                },
+                text: Text {
+                    primary: semantic::text::PRIMARY,
+                    secondary: semantic::text::SECONDARY,
+                    muted: semantic::text::MUTED,
+                    disabled: semantic::text::DISABLED,
+                    on_accent: semantic::text::ON_ACCENT,
+                    faint: semantic::text::faint(),
+                    subtle: semantic::text::subtle(),
+                    hover: semantic::text::hover(),
+                    dim: semantic::text::dim(),
+                },
+                accent: Accent {
+                    primary: semantic::accent::PRIMARY,
+                    cyan: semantic::accent::CYAN,
+                    primary_hover: semantic::accent::PRIMARY_HOVER,
+                    primary_active: semantic::accent::PRIMARY_ACTIVE,
+                    faint: semantic::accent::faint(),
+                    ghost: semantic::accent::ghost(),
+                    subtle: semantic::accent::subtle(),
+                    hover: semantic::accent::hover(),
+                    strong: semantic::accent::strong(),
+                    selection: semantic::accent::selection(),
+                },
+                status: Status {
+                    success: semantic::status::SUCCESS,
+                    warning: semantic::status::WARNING,
+                    error: semantic::status::ERROR,
+                    info: semantic::status::INFO,
+                    playing_text: semantic::status::PLAYING_TEXT,
+                    diagnostic_error: semantic::status::DIAGNOSTIC_ERROR,
+                    diagnostic_warning: semantic::status::DIAGNOSTIC_WARNING,
+                    success_faint: semantic::status::success_faint(),
+                    success_ultra_faint: semantic::status::success_ultra_faint(),
+                    warning_subtle: semantic::status::warning_subtle(),
+                    error_faint: semantic::status::error_faint(),
+                    error_ultra_faint: semantic::status::error_ultra_faint(),
+                },
+                border: Border {
+                    default: semantic::border::DEFAULT,
+                    strong: semantic::border::HOVER,
+                    focus: semantic::border::FOCUS,
+                },
+                overlay: Overlay {
+                    backdrop: semantic::overlay::backdrop(),
+                    badge_bg: semantic::overlay::badge_bg(),
+                    tooltip_bg: semantic::overlay::tooltip_bg(),
+                    shadow_ambient: semantic::overlay::shadow_ambient(),
+                    shadow_direct: semantic::overlay::shadow_direct(),
+                },
+                lines: Lines {
+                    grid: semantic::lines::grid_line(),
+                    guide: semantic::lines::guide_line(),
+                },
             },
-            text: Text {
-                primary: semantic::text::PRIMARY,
-                secondary: semantic::text::SECONDARY,
-                muted: semantic::text::MUTED,
-                disabled: semantic::text::DISABLED,
-                on_accent: semantic::text::ON_ACCENT,
-                faint: semantic::text::faint(),
-                subtle: semantic::text::subtle(),
-                hover: semantic::text::hover(),
-                dim: semantic::text::dim(),
-            },
-            accent: Accent {
-                primary: semantic::accent::PRIMARY,
-                cyan: semantic::accent::CYAN,
-                primary_hover: semantic::accent::PRIMARY_HOVER,
-                primary_active: semantic::accent::PRIMARY_ACTIVE,
-                faint: semantic::accent::faint(),
-                ghost: semantic::accent::ghost(),
-                subtle: semantic::accent::subtle(),
-                hover: semantic::accent::hover(),
-                strong: semantic::accent::strong(),
-                selection: semantic::accent::selection(),
-            },
-            status: Status {
-                success: semantic::status::SUCCESS,
-                warning: semantic::status::WARNING,
-                error: semantic::status::ERROR,
-                info: semantic::status::INFO,
-                playing_text: semantic::status::PLAYING_TEXT,
-                diagnostic_error: semantic::status::DIAGNOSTIC_ERROR,
-                diagnostic_warning: semantic::status::DIAGNOSTIC_WARNING,
-                success_faint: semantic::status::success_faint(),
-                success_ultra_faint: semantic::status::success_ultra_faint(),
-                warning_subtle: semantic::status::warning_subtle(),
-                error_faint: semantic::status::error_faint(),
-                error_ultra_faint: semantic::status::error_ultra_faint(),
-            },
-            border: Border {
-                default: semantic::border::DEFAULT,
-                strong: semantic::border::HOVER,
-                focus: semantic::border::FOCUS,
-            },
-            overlay: Overlay {
-                backdrop: semantic::overlay::backdrop(),
-                badge_bg: semantic::overlay::badge_bg(),
-                tooltip_bg: semantic::overlay::tooltip_bg(),
-                shadow_ambient: semantic::overlay::shadow_ambient(),
-                shadow_direct: semantic::overlay::shadow_direct(),
-            },
-            lines: Lines {
-                grid: semantic::lines::grid_line(),
-                guide: semantic::lines::guide_line(),
-            },
-            button: dark_button_slots(),
-            list: dark_list_slots(),
-            tab: dark_tab_slots(),
-            menu_item: dark_menu_item_slots(),
-            input: dark_input_slots(),
-            scrollbar: ScrollbarSlots {
-                thumb: semantic::border::HOVER,
-                thumb_hover: semantic::text::MUTED,
+            components: Components {
+                button: dark_button_slots(),
+                list: dark_list_slots(),
+                tab: dark_tab_slots(),
+                menu_item: dark_menu_item_slots(),
+                input: dark_input_slots(),
+                scrollbar: ScrollbarSlots {
+                    thumb: semantic::border::HOVER,
+                    thumb_hover: semantic::text::MUTED,
+                },
+                toggle: slots.toggle,
+                progress: slots.progress,
+                badge: slots.badge,
+                tag: slots.tag,
+                kbd: slots.kbd,
+                tooltip: slots.tooltip,
+                alert: slots.alert,
+                toast: slots.toast,
+                skeleton: slots.skeleton,
+                color_picker: slots.color_picker,
+                easing_curve: slots.easing_curve,
             },
             elevation: Elevation {
                 raised: Shadow {
@@ -673,17 +715,6 @@ impl Theme {
                     color: Color32::from_rgba_unmultiplied(0, 0, 0, 80),
                 },
             },
-            toggle: components.toggle,
-            progress: components.progress,
-            badge: components.badge,
-            tag: components.tag,
-            kbd: components.kbd,
-            tooltip: components.tooltip,
-            alert: components.alert,
-            toast: components.toast,
-            skeleton: components.skeleton,
-            color_picker: components.color_picker,
-            easing_curve: components.easing_curve,
         }
     }
 
@@ -720,7 +751,7 @@ impl Theme {
         // badge/kbd component slots below.
         let badge_bg = Color32::from_rgba_unmultiplied(248, 249, 250, 235);
         let tooltip_bg = Color32::from_rgba_unmultiplied(255, 255, 255, 245);
-        let components = light_component_slots(LightComponentPaint {
+        let slots = light_component_slots(LightComponentPaint {
             base,
             surface: surf,
             widget,
@@ -736,180 +767,195 @@ impl Theme {
         });
 
         Self {
-            surface: Surface {
-                base,
-                panel,
-                surface: surf,
-                widget,
-                hover,
-                active,
-                floating_card_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
-            },
-            text: Text {
-                primary,
-                secondary,
-                muted,
-                disabled,
-                on_accent,
-                faint: Color32::from_rgba_unmultiplied(20, 24, 30, 80),
-                subtle: Color32::from_rgba_unmultiplied(20, 24, 30, 140),
-                hover: Color32::from_rgba_unmultiplied(20, 24, 30, 200),
-                dim: Color32::from_rgba_unmultiplied(20, 24, 30, 150),
-            },
-            // Accent/status hues kept identical to dark for brand consistency.
-            accent: Accent {
-                primary: semantic::accent::PRIMARY,
-                cyan: semantic::accent::CYAN,
-                primary_hover: semantic::accent::PRIMARY_HOVER,
-                primary_active: semantic::accent::PRIMARY_ACTIVE,
-                faint: semantic::accent::faint(),
-                ghost: semantic::accent::ghost(),
-                subtle: semantic::accent::subtle(),
-                hover: semantic::accent::hover(),
-                strong: semantic::accent::strong(),
-                selection: Color32::from_rgba_unmultiplied(
-                    semantic::accent::PRIMARY.r(),
-                    semantic::accent::PRIMARY.g(),
-                    semantic::accent::PRIMARY.b(),
-                    60,
-                ),
-            },
-            status: Status {
-                success: semantic::status::SUCCESS,
-                warning: semantic::status::WARNING,
-                error: semantic::status::ERROR,
-                info: semantic::status::INFO,
-                playing_text: semantic::status::PLAYING_TEXT,
-                diagnostic_error: semantic::status::DIAGNOSTIC_ERROR,
-                diagnostic_warning: semantic::status::DIAGNOSTIC_WARNING,
-                success_faint: semantic::status::success_faint(),
-                success_ultra_faint: semantic::status::success_ultra_faint(),
-                warning_subtle: semantic::status::warning_subtle(),
-                error_faint: semantic::status::error_faint(),
-                error_ultra_faint: semantic::status::error_ultra_faint(),
-            },
-            border: Border {
-                default: border_default,
-                strong: border_strong,
-                focus: border_focus,
-            },
-            overlay: Overlay {
-                backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
-                badge_bg,
-                tooltip_bg,
-                shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
-                shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
-            },
-            // White-alpha lines are invisible on a near-white surface; light
-            // surfaces need dark ink instead.
-            lines: Lines {
-                grid: semantic::lines::grid_line_light(),
-                guide: semantic::lines::guide_line_light(),
-            },
-            button: light_button_slots(
-                widget,
-                hover,
-                active,
-                primary,
-                disabled,
-                on_accent,
-                border_default,
-                border_focus,
-                secondary,
-                danger_active,
-            ),
-            list: ListSlots {
-                even: Fill {
-                    bg: surf,
-                    fg: primary,
+            palette: Palette {
+                surface: Surface {
+                    base,
+                    panel,
+                    surface: surf,
+                    widget,
+                    hover,
+                    active,
+                    floating_card_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
                 },
-                odd: Fill {
-                    bg: widget,
-                    fg: primary,
+                text: Text {
+                    primary,
+                    secondary,
+                    muted,
+                    disabled,
+                    on_accent,
+                    faint: Color32::from_rgba_unmultiplied(20, 24, 30, 80),
+                    subtle: Color32::from_rgba_unmultiplied(20, 24, 30, 140),
+                    hover: Color32::from_rgba_unmultiplied(20, 24, 30, 200),
+                    dim: Color32::from_rgba_unmultiplied(20, 24, 30, 150),
                 },
-                selected: Fill {
-                    bg: Color32::from_rgba_unmultiplied(
+                // Accent/status hues kept identical to dark for brand consistency.
+                accent: Accent {
+                    primary: semantic::accent::PRIMARY,
+                    cyan: semantic::accent::CYAN,
+                    primary_hover: semantic::accent::PRIMARY_HOVER,
+                    primary_active: semantic::accent::PRIMARY_ACTIVE,
+                    faint: semantic::accent::faint(),
+                    ghost: semantic::accent::ghost(),
+                    subtle: semantic::accent::subtle(),
+                    hover: semantic::accent::hover(),
+                    strong: semantic::accent::strong(),
+                    selection: Color32::from_rgba_unmultiplied(
                         semantic::accent::PRIMARY.r(),
                         semantic::accent::PRIMARY.g(),
                         semantic::accent::PRIMARY.b(),
                         60,
                     ),
-                    fg: primary,
                 },
-                hover: Fill {
-                    bg: hover,
-                    fg: primary,
+                status: Status {
+                    success: semantic::status::SUCCESS,
+                    warning: semantic::status::WARNING,
+                    error: semantic::status::ERROR,
+                    info: semantic::status::INFO,
+                    playing_text: semantic::status::PLAYING_TEXT,
+                    diagnostic_error: semantic::status::DIAGNOSTIC_ERROR,
+                    diagnostic_warning: semantic::status::DIAGNOSTIC_WARNING,
+                    success_faint: semantic::status::success_faint(),
+                    success_ultra_faint: semantic::status::success_ultra_faint(),
+                    warning_subtle: semantic::status::warning_subtle(),
+                    error_faint: semantic::status::error_faint(),
+                    error_ultra_faint: semantic::status::error_ultra_faint(),
                 },
-            },
-            tab: TabSlots {
-                active: TabSlot {
-                    bg: surf,
-                    fg: primary,
-                    indicator: semantic::accent::PRIMARY,
+                border: Border {
+                    default: border_default,
+                    strong: border_strong,
+                    focus: border_focus,
                 },
-                inactive: TabSlot {
-                    bg: widget,
-                    fg: secondary,
-                    indicator: Color32::TRANSPARENT,
+                overlay: Overlay {
+                    backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
+                    badge_bg,
+                    tooltip_bg,
+                    shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
+                    shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
                 },
-                hover: TabSlot {
-                    bg: hover,
-                    fg: primary,
-                    indicator: Color32::TRANSPARENT,
-                },
-            },
-            menu_item: MenuItemSlots {
-                normal: Slot {
-                    bg: Color32::TRANSPARENT,
-                    fg: primary,
-                    border: Color32::TRANSPARENT,
-                },
-                hover: Slot {
-                    bg: hover,
-                    fg: primary,
-                    border: Color32::TRANSPARENT,
-                },
-                active: Slot {
-                    bg: active,
-                    fg: primary,
-                    border: Color32::TRANSPARENT,
-                },
-                disabled: Slot {
-                    bg: Color32::TRANSPARENT,
-                    fg: disabled,
-                    border: Color32::TRANSPARENT,
+                // White-alpha lines are invisible on a near-white surface; light
+                // surfaces need dark ink instead.
+                lines: Lines {
+                    grid: semantic::lines::grid_line_light(),
+                    guide: semantic::lines::guide_line_light(),
                 },
             },
-            input: InputSlots {
-                normal: Slot {
-                    bg: widget,
-                    fg: primary,
-                    border: border_default,
+            components: Components {
+                button: light_button_slots(
+                    widget,
+                    hover,
+                    active,
+                    primary,
+                    disabled,
+                    on_accent,
+                    border_default,
+                    border_focus,
+                    secondary,
+                    danger_active,
+                ),
+                list: ListSlots {
+                    even: Fill {
+                        bg: surf,
+                        fg: primary,
+                    },
+                    odd: Fill {
+                        bg: widget,
+                        fg: primary,
+                    },
+                    selected: Fill {
+                        bg: Color32::from_rgba_unmultiplied(
+                            semantic::accent::PRIMARY.r(),
+                            semantic::accent::PRIMARY.g(),
+                            semantic::accent::PRIMARY.b(),
+                            60,
+                        ),
+                        fg: primary,
+                    },
+                    hover: Fill {
+                        bg: hover,
+                        fg: primary,
+                    },
                 },
-                hover: Slot {
-                    bg: widget,
-                    fg: primary,
-                    border: border_strong,
+                tab: TabSlots {
+                    active: TabSlot {
+                        bg: surf,
+                        fg: primary,
+                        indicator: semantic::accent::PRIMARY,
+                    },
+                    inactive: TabSlot {
+                        bg: widget,
+                        fg: secondary,
+                        indicator: Color32::TRANSPARENT,
+                    },
+                    hover: TabSlot {
+                        bg: hover,
+                        fg: primary,
+                        indicator: Color32::TRANSPARENT,
+                    },
                 },
-                focus: Slot {
-                    bg: widget,
-                    fg: primary,
-                    border: border_focus,
+                menu_item: MenuItemSlots {
+                    normal: Slot {
+                        bg: Color32::TRANSPARENT,
+                        fg: primary,
+                        border: Color32::TRANSPARENT,
+                    },
+                    hover: Slot {
+                        bg: hover,
+                        fg: primary,
+                        border: Color32::TRANSPARENT,
+                    },
+                    active: Slot {
+                        bg: active,
+                        fg: primary,
+                        border: Color32::TRANSPARENT,
+                    },
+                    disabled: Slot {
+                        bg: Color32::TRANSPARENT,
+                        fg: disabled,
+                        border: Color32::TRANSPARENT,
+                    },
                 },
-                invalid: Slot {
-                    bg: widget,
-                    fg: primary,
-                    border: semantic::status::ERROR,
+                input: InputSlots {
+                    normal: Slot {
+                        bg: widget,
+                        fg: primary,
+                        border: border_default,
+                    },
+                    hover: Slot {
+                        bg: widget,
+                        fg: primary,
+                        border: border_strong,
+                    },
+                    focus: Slot {
+                        bg: widget,
+                        fg: primary,
+                        border: border_focus,
+                    },
+                    invalid: Slot {
+                        bg: widget,
+                        fg: primary,
+                        border: semantic::status::ERROR,
+                    },
+                    disabled: Slot {
+                        bg: widget,
+                        fg: disabled,
+                        border: border_default,
+                    },
                 },
-                disabled: Slot {
-                    bg: widget,
-                    fg: disabled,
-                    border: border_default,
+                scrollbar: ScrollbarSlots {
+                    thumb: border_strong,
+                    thumb_hover: semantic::accent::PRIMARY,
                 },
-            },
-            scrollbar: ScrollbarSlots {
-                thumb: border_strong,
-                thumb_hover: semantic::accent::PRIMARY,
+                toggle: slots.toggle,
+                progress: slots.progress,
+                badge: slots.badge,
+                tag: slots.tag,
+                kbd: slots.kbd,
+                tooltip: slots.tooltip,
+                alert: slots.alert,
+                toast: slots.toast,
+                skeleton: slots.skeleton,
+                color_picker: slots.color_picker,
+                easing_curve: slots.easing_curve,
             },
             elevation: Elevation {
                 // Light: raised shadow — slightly stronger offset/blur for light bg
@@ -927,17 +973,6 @@ impl Theme {
                     color: Color32::from_rgba_unmultiplied(0, 0, 0, 60),
                 },
             },
-            toggle: components.toggle,
-            progress: components.progress,
-            badge: components.badge,
-            tag: components.tag,
-            kbd: components.kbd,
-            tooltip: components.tooltip,
-            alert: components.alert,
-            toast: components.toast,
-            skeleton: components.skeleton,
-            color_picker: components.color_picker,
-            easing_curve: components.easing_curve,
         }
     }
 
@@ -946,7 +981,7 @@ impl Theme {
     /// All focusable widgets must use this one slot so the focus indicator is
     /// consistent across the UI. Do not add additional focus colors elsewhere.
     pub fn focus_ring(&self) -> Color32 {
-        self.border.focus
+        self.palette.border.focus
     }
 
     /// Convenience accessor for the `raised` elevation shadow.
@@ -973,53 +1008,53 @@ impl Theme {
             Visuals::light()
         };
 
-        v.panel_fill = self.surface.panel;
-        v.window_fill = self.surface.panel;
-        v.extreme_bg_color = self.surface.base;
-        v.faint_bg_color = self.surface.surface;
+        v.panel_fill = self.palette.surface.panel;
+        v.window_fill = self.palette.surface.panel;
+        v.extreme_bg_color = self.palette.surface.base;
+        v.faint_bg_color = self.palette.surface.surface;
 
-        v.selection.bg_fill = self.accent.selection;
-        v.selection.stroke = Stroke::new(STROKE_WIDTH, self.accent.primary);
-        v.override_text_color = Some(self.text.primary);
+        v.selection.bg_fill = self.palette.accent.selection;
+        v.selection.stroke = Stroke::new(STROKE_WIDTH, self.palette.accent.primary);
+        v.override_text_color = Some(self.palette.text.primary);
 
         let radius = CornerRadius::same(RADIUS_M as u8);
 
         let ni = &mut v.widgets.noninteractive;
-        ni.bg_fill = self.surface.surface;
-        ni.weak_bg_fill = self.surface.surface;
-        ni.bg_stroke = Stroke::new(STROKE_WIDTH, self.border.default);
-        ni.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.secondary);
+        ni.bg_fill = self.palette.surface.surface;
+        ni.weak_bg_fill = self.palette.surface.surface;
+        ni.bg_stroke = Stroke::new(STROKE_WIDTH, self.palette.border.default);
+        ni.fg_stroke = Stroke::new(STROKE_WIDTH, self.palette.text.secondary);
         ni.corner_radius = radius;
 
         let ina = &mut v.widgets.inactive;
-        ina.bg_fill = self.surface.widget;
-        ina.weak_bg_fill = self.surface.widget;
-        ina.bg_stroke = Stroke::new(STROKE_WIDTH, self.border.default);
-        ina.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
+        ina.bg_fill = self.palette.surface.widget;
+        ina.weak_bg_fill = self.palette.surface.widget;
+        ina.bg_stroke = Stroke::new(STROKE_WIDTH, self.palette.border.default);
+        ina.fg_stroke = Stroke::new(STROKE_WIDTH, self.palette.text.primary);
         ina.corner_radius = radius;
 
         let hv = &mut v.widgets.hovered;
-        hv.bg_fill = self.surface.hover;
-        hv.weak_bg_fill = self.surface.hover;
-        hv.bg_stroke = Stroke::new(STROKE_WIDTH, self.accent.primary);
-        hv.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
+        hv.bg_fill = self.palette.surface.hover;
+        hv.weak_bg_fill = self.palette.surface.hover;
+        hv.bg_stroke = Stroke::new(STROKE_WIDTH, self.palette.accent.primary);
+        hv.fg_stroke = Stroke::new(STROKE_WIDTH, self.palette.text.primary);
         hv.corner_radius = radius;
 
         let ac = &mut v.widgets.active;
-        ac.bg_fill = self.surface.active;
-        ac.weak_bg_fill = self.surface.active;
-        ac.bg_stroke = Stroke::new(STROKE_WIDTH, self.accent.primary);
-        ac.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
+        ac.bg_fill = self.palette.surface.active;
+        ac.weak_bg_fill = self.palette.surface.active;
+        ac.bg_stroke = Stroke::new(STROKE_WIDTH, self.palette.accent.primary);
+        ac.fg_stroke = Stroke::new(STROKE_WIDTH, self.palette.text.primary);
         ac.corner_radius = radius;
 
         // Menus and combo boxes use the `open` state for their trigger frame.
         // Keep its geometry aligned with the other interactive states so opening
         // a popup cannot introduce a state-dependent layout shift.
         let op = &mut v.widgets.open;
-        op.bg_fill = self.surface.active;
-        op.weak_bg_fill = self.surface.active;
-        op.bg_stroke = Stroke::new(STROKE_WIDTH, self.accent.primary);
-        op.fg_stroke = Stroke::new(STROKE_WIDTH, self.text.primary);
+        op.bg_fill = self.palette.surface.active;
+        op.weak_bg_fill = self.palette.surface.active;
+        op.bg_stroke = Stroke::new(STROKE_WIDTH, self.palette.accent.primary);
+        op.fg_stroke = Stroke::new(STROKE_WIDTH, self.palette.text.primary);
         op.corner_radius = radius;
         op.expansion = 0.0;
 
@@ -1838,45 +1873,65 @@ mod tests {
     fn light_core_text_surface_pairs_meet_wcag_aa() {
         let t = Theme::light();
         let surfaces = [
-            ("base", t.surface.base),
-            ("panel", t.surface.panel),
-            ("surface", t.surface.surface),
-            ("widget", t.surface.widget),
+            ("base", t.palette.surface.base),
+            ("panel", t.palette.surface.panel),
+            ("surface", t.palette.surface.surface),
+            ("widget", t.palette.surface.widget),
         ];
 
         for (surface_name, bg) in surfaces {
-            assert_contrast(t.text.primary, bg, WCAG_AA_TEXT, &format!("primary/{surface_name}"));
             assert_contrast(
-                t.text.secondary,
+                t.palette.text.primary,
+                bg,
+                WCAG_AA_TEXT,
+                &format!("primary/{surface_name}"),
+            );
+            assert_contrast(
+                t.palette.text.secondary,
                 bg,
                 WCAG_AA_TEXT,
                 &format!("secondary/{surface_name}"),
             );
-            assert_contrast(t.text.muted, bg, WCAG_AA_TEXT, &format!("muted/{surface_name}"));
+            assert_contrast(
+                t.palette.text.muted,
+                bg,
+                WCAG_AA_TEXT,
+                &format!("muted/{surface_name}"),
+            );
         }
 
-        assert_contrast(t.text.primary, t.surface.hover, WCAG_AA_TEXT, "primary/hover");
-        assert_contrast(t.text.primary, t.surface.active, WCAG_AA_TEXT, "primary/active");
+        assert_contrast(
+            t.palette.text.primary,
+            t.palette.surface.hover,
+            WCAG_AA_TEXT,
+            "primary/hover",
+        );
+        assert_contrast(
+            t.palette.text.primary,
+            t.palette.surface.active,
+            WCAG_AA_TEXT,
+            "primary/active",
+        );
     }
 
     #[test]
     fn light_accent_button_pairs_meet_wcag_aa() {
         let t = Theme::light();
         assert_contrast(
-            t.button.primary.normal.fg,
-            t.button.primary.normal.bg,
+            t.components.button.primary.normal.fg,
+            t.components.button.primary.normal.bg,
             WCAG_AA_TEXT,
             "primary button normal",
         );
         assert_contrast(
-            t.button.primary.hover.fg,
-            t.button.primary.hover.bg,
+            t.components.button.primary.hover.fg,
+            t.components.button.primary.hover.bg,
             WCAG_AA_UI,
             "primary button hover",
         );
         assert_contrast(
-            t.button.primary.active.fg,
-            t.button.primary.active.bg,
+            t.components.button.primary.active.fg,
+            t.components.button.primary.active.bg,
             WCAG_AA_UI,
             "primary button active",
         );
@@ -1885,65 +1940,65 @@ mod tests {
     #[test]
     fn dark_matches_semantic_constants() {
         let t = Theme::dark();
-        assert_eq!(t.surface.base, semantic::surface::BASE);
-        assert_eq!(t.surface.panel, semantic::surface::PANEL);
-        assert_eq!(t.surface.surface, semantic::surface::SURFACE);
-        assert_eq!(t.surface.widget, semantic::surface::WIDGET);
-        assert_eq!(t.surface.hover, semantic::surface::HOVER);
-        assert_eq!(t.surface.active, semantic::surface::ACTIVE);
-        assert_eq!(t.surface.floating_card_bg, semantic::surface::floating_card_bg());
+        assert_eq!(t.palette.surface.base, semantic::surface::BASE);
+        assert_eq!(t.palette.surface.panel, semantic::surface::PANEL);
+        assert_eq!(t.palette.surface.surface, semantic::surface::SURFACE);
+        assert_eq!(t.palette.surface.widget, semantic::surface::WIDGET);
+        assert_eq!(t.palette.surface.hover, semantic::surface::HOVER);
+        assert_eq!(t.palette.surface.active, semantic::surface::ACTIVE);
+        assert_eq!(t.palette.surface.floating_card_bg, semantic::surface::floating_card_bg());
 
-        assert_eq!(t.text.primary, semantic::text::PRIMARY);
-        assert_eq!(t.text.secondary, semantic::text::SECONDARY);
-        assert_eq!(t.text.muted, semantic::text::MUTED);
-        assert_eq!(t.text.disabled, semantic::text::DISABLED);
-        assert_eq!(t.text.on_accent, semantic::text::ON_ACCENT);
-        assert_eq!(t.text.faint, semantic::text::faint());
-        assert_eq!(t.text.subtle, semantic::text::subtle());
-        assert_eq!(t.text.hover, semantic::text::hover());
-        assert_eq!(t.text.dim, semantic::text::dim());
+        assert_eq!(t.palette.text.primary, semantic::text::PRIMARY);
+        assert_eq!(t.palette.text.secondary, semantic::text::SECONDARY);
+        assert_eq!(t.palette.text.muted, semantic::text::MUTED);
+        assert_eq!(t.palette.text.disabled, semantic::text::DISABLED);
+        assert_eq!(t.palette.text.on_accent, semantic::text::ON_ACCENT);
+        assert_eq!(t.palette.text.faint, semantic::text::faint());
+        assert_eq!(t.palette.text.subtle, semantic::text::subtle());
+        assert_eq!(t.palette.text.hover, semantic::text::hover());
+        assert_eq!(t.palette.text.dim, semantic::text::dim());
 
-        assert_eq!(t.accent.primary, semantic::accent::PRIMARY);
-        assert_eq!(t.accent.cyan, semantic::accent::CYAN);
-        assert_eq!(t.accent.primary_hover, semantic::accent::PRIMARY_HOVER);
-        assert_eq!(t.accent.primary_active, semantic::accent::PRIMARY_ACTIVE);
-        assert_eq!(t.accent.faint, semantic::accent::faint());
-        assert_eq!(t.accent.ghost, semantic::accent::ghost());
-        assert_eq!(t.accent.subtle, semantic::accent::subtle());
-        assert_eq!(t.accent.hover, semantic::accent::hover());
-        assert_eq!(t.accent.strong, semantic::accent::strong());
-        assert_eq!(t.accent.selection, semantic::accent::selection());
+        assert_eq!(t.palette.accent.primary, semantic::accent::PRIMARY);
+        assert_eq!(t.palette.accent.cyan, semantic::accent::CYAN);
+        assert_eq!(t.palette.accent.primary_hover, semantic::accent::PRIMARY_HOVER);
+        assert_eq!(t.palette.accent.primary_active, semantic::accent::PRIMARY_ACTIVE);
+        assert_eq!(t.palette.accent.faint, semantic::accent::faint());
+        assert_eq!(t.palette.accent.ghost, semantic::accent::ghost());
+        assert_eq!(t.palette.accent.subtle, semantic::accent::subtle());
+        assert_eq!(t.palette.accent.hover, semantic::accent::hover());
+        assert_eq!(t.palette.accent.strong, semantic::accent::strong());
+        assert_eq!(t.palette.accent.selection, semantic::accent::selection());
 
-        assert_eq!(t.status.success, semantic::status::SUCCESS);
-        assert_eq!(t.status.warning, semantic::status::WARNING);
-        assert_eq!(t.status.error, semantic::status::ERROR);
-        assert_eq!(t.status.info, semantic::status::INFO);
-        assert_eq!(t.status.playing_text, semantic::status::PLAYING_TEXT);
-        assert_eq!(t.status.diagnostic_error, semantic::status::DIAGNOSTIC_ERROR);
-        assert_eq!(t.status.diagnostic_warning, semantic::status::DIAGNOSTIC_WARNING);
-        assert_eq!(t.status.success_faint, semantic::status::success_faint());
-        assert_eq!(t.status.success_ultra_faint, semantic::status::success_ultra_faint());
-        assert_eq!(t.status.warning_subtle, semantic::status::warning_subtle());
-        assert_eq!(t.status.error_faint, semantic::status::error_faint());
-        assert_eq!(t.status.error_ultra_faint, semantic::status::error_ultra_faint());
+        assert_eq!(t.palette.status.success, semantic::status::SUCCESS);
+        assert_eq!(t.palette.status.warning, semantic::status::WARNING);
+        assert_eq!(t.palette.status.error, semantic::status::ERROR);
+        assert_eq!(t.palette.status.info, semantic::status::INFO);
+        assert_eq!(t.palette.status.playing_text, semantic::status::PLAYING_TEXT);
+        assert_eq!(t.palette.status.diagnostic_error, semantic::status::DIAGNOSTIC_ERROR);
+        assert_eq!(t.palette.status.diagnostic_warning, semantic::status::DIAGNOSTIC_WARNING);
+        assert_eq!(t.palette.status.success_faint, semantic::status::success_faint());
+        assert_eq!(t.palette.status.success_ultra_faint, semantic::status::success_ultra_faint());
+        assert_eq!(t.palette.status.warning_subtle, semantic::status::warning_subtle());
+        assert_eq!(t.palette.status.error_faint, semantic::status::error_faint());
+        assert_eq!(t.palette.status.error_ultra_faint, semantic::status::error_ultra_faint());
 
-        assert_eq!(t.border.default, semantic::border::DEFAULT);
-        assert_eq!(t.border.strong, semantic::border::HOVER);
-        assert_eq!(t.border.focus, semantic::border::FOCUS);
+        assert_eq!(t.palette.border.default, semantic::border::DEFAULT);
+        assert_eq!(t.palette.border.strong, semantic::border::HOVER);
+        assert_eq!(t.palette.border.focus, semantic::border::FOCUS);
 
-        assert_eq!(t.overlay.backdrop, semantic::overlay::backdrop());
-        assert_eq!(t.overlay.badge_bg, semantic::overlay::badge_bg());
-        assert_eq!(t.overlay.tooltip_bg, semantic::overlay::tooltip_bg());
-        assert_eq!(t.overlay.shadow_ambient, semantic::overlay::shadow_ambient());
-        assert_eq!(t.overlay.shadow_direct, semantic::overlay::shadow_direct());
+        assert_eq!(t.palette.overlay.backdrop, semantic::overlay::backdrop());
+        assert_eq!(t.palette.overlay.badge_bg, semantic::overlay::badge_bg());
+        assert_eq!(t.palette.overlay.tooltip_bg, semantic::overlay::tooltip_bg());
+        assert_eq!(t.palette.overlay.shadow_ambient, semantic::overlay::shadow_ambient());
+        assert_eq!(t.palette.overlay.shadow_direct, semantic::overlay::shadow_direct());
 
         // Elevation shadows are non-zero (not default).
         assert!(t.elevation.raised.blur > 0);
         assert!(t.elevation.overlay.blur > t.elevation.raised.blur);
         assert!(t.elevation.overlay.color.a() > t.elevation.raised.color.a());
 
-        assert_eq!(t.lines.grid, semantic::lines::grid_line());
-        assert_eq!(t.lines.guide, semantic::lines::guide_line());
+        assert_eq!(t.palette.lines.grid, semantic::lines::grid_line());
+        assert_eq!(t.palette.lines.guide, semantic::lines::guide_line());
     }
 
     #[test]
@@ -1952,12 +2007,12 @@ mod tests {
         let original = Theme::dark();
         set_theme(&ctx, original);
         let read = theme_from_ctx(&ctx);
-        assert_eq!(read.surface.base, original.surface.base);
-        assert_eq!(read.text.primary, original.text.primary);
-        assert_eq!(read.accent.primary, original.accent.primary);
-        assert_eq!(read.status.success, original.status.success);
-        assert_eq!(read.border.default, original.border.default);
-        assert_eq!(read.overlay.backdrop, original.overlay.backdrop);
+        assert_eq!(read.palette.surface.base, original.palette.surface.base);
+        assert_eq!(read.palette.text.primary, original.palette.text.primary);
+        assert_eq!(read.palette.accent.primary, original.palette.accent.primary);
+        assert_eq!(read.palette.status.success, original.palette.status.success);
+        assert_eq!(read.palette.border.default, original.palette.border.default);
+        assert_eq!(read.palette.overlay.backdrop, original.palette.overlay.backdrop);
         assert_eq!(read.elevation.raised, original.elevation.raised);
         assert_eq!(read.elevation.overlay, original.elevation.overlay);
     }
@@ -1966,14 +2021,22 @@ mod tests {
     fn light_distinct_from_dark() {
         let d = Theme::dark();
         let l = Theme::light();
-        assert_ne!(l.surface.base, d.surface.base);
-        assert_ne!(l.surface.panel, d.surface.panel);
-        assert_ne!(l.text.primary, d.text.primary);
-        assert_ne!(l.border.default, d.border.default);
-        assert_ne!(l.overlay.backdrop, d.overlay.backdrop);
+        assert_ne!(l.palette.surface.base, d.palette.surface.base);
+        assert_ne!(l.palette.surface.panel, d.palette.surface.panel);
+        assert_ne!(l.palette.text.primary, d.palette.text.primary);
+        assert_ne!(l.palette.border.default, d.palette.border.default);
+        assert_ne!(l.palette.overlay.backdrop, d.palette.overlay.backdrop);
         // Light surface is bright, light text is dark (contrast sanity).
-        assert!(l.surface.base.r() > 200 && l.surface.base.g() > 200 && l.surface.base.b() > 200);
-        assert!(l.text.primary.r() < 80 && l.text.primary.g() < 80 && l.text.primary.b() < 80);
+        assert!(
+            l.palette.surface.base.r() > 200
+                && l.palette.surface.base.g() > 200
+                && l.palette.surface.base.b() > 200
+        );
+        assert!(
+            l.palette.text.primary.r() < 80
+                && l.palette.text.primary.g() < 80
+                && l.palette.text.primary.b() < 80
+        );
         // Raised is smaller than overlay in both themes.
         assert!(d.elevation.overlay.blur > d.elevation.raised.blur);
         assert!(l.elevation.overlay.blur > l.elevation.raised.blur);
@@ -1983,8 +2046,8 @@ mod tests {
 
     #[test]
     fn focus_ring_matches_border_focus() {
-        assert_eq!(Theme::dark().focus_ring(), Theme::dark().border.focus);
-        assert_eq!(Theme::light().focus_ring(), Theme::light().border.focus);
+        assert_eq!(Theme::dark().focus_ring(), Theme::dark().palette.border.focus);
+        assert_eq!(Theme::light().focus_ring(), Theme::light().palette.border.focus);
     }
 
     #[test]
@@ -1997,17 +2060,71 @@ mod tests {
         assert_eq!(l.elevation_overlay(), l.elevation.overlay);
     }
 
+    /// The grouped `Theme` accessors must keep exposing the exact
+    /// `tokens::semantic` values, and each group literal must be exhaustive
+    /// (a field dropped from `Palette`/`Components` fails to compile here).
+    #[test]
+    fn grouped_access_matches_semantic_sources() {
+        let dark = Theme::dark();
+        // Palette reads route to the same semantic consts as before grouping.
+        assert_eq!(dark.palette.surface.base, semantic::surface::BASE);
+        assert_eq!(dark.palette.text.primary, semantic::text::PRIMARY);
+        assert_eq!(dark.palette.accent.primary, semantic::accent::PRIMARY);
+        assert_eq!(dark.palette.status.error, semantic::status::ERROR);
+        assert_eq!(dark.palette.border.focus, semantic::border::FOCUS);
+        assert_eq!(dark.palette.overlay.backdrop, semantic::overlay::backdrop());
+        assert_eq!(dark.palette.lines.grid, semantic::lines::grid_line());
+
+        // Group literals enumerate every field; omitting one is a compile error.
+        let palette = Palette {
+            surface: dark.palette.surface,
+            text: dark.palette.text,
+            accent: dark.palette.accent,
+            status: dark.palette.status,
+            border: dark.palette.border,
+            overlay: dark.palette.overlay,
+            lines: dark.palette.lines,
+        };
+        assert_eq!(dark.palette, palette);
+        let components = Components {
+            button: dark.components.button,
+            list: dark.components.list,
+            tab: dark.components.tab,
+            menu_item: dark.components.menu_item,
+            input: dark.components.input,
+            scrollbar: dark.components.scrollbar,
+            toggle: dark.components.toggle,
+            progress: dark.components.progress,
+            badge: dark.components.badge,
+            tag: dark.components.tag,
+            kbd: dark.components.kbd,
+            tooltip: dark.components.tooltip,
+            alert: dark.components.alert,
+            toast: dark.components.toast,
+            skeleton: dark.components.skeleton,
+            color_picker: dark.components.color_picker,
+            easing_curve: dark.components.easing_curve,
+        };
+        assert_eq!(dark.components, components);
+
+        // Light still routes its line tokens to the light-specific variants.
+        assert_eq!(Theme::light().palette.lines.grid, semantic::lines::grid_line_light());
+        // And both scopes differ between dark and light.
+        assert_ne!(Theme::dark().palette, Theme::light().palette);
+        assert_ne!(Theme::dark().components, Theme::light().components);
+    }
+
     #[test]
     fn to_visuals_maps_theme_fields() {
         let t = Theme::dark();
         let v = t.to_visuals(true);
-        assert_eq!(v.panel_fill, t.surface.panel);
-        assert_eq!(v.selection.bg_fill, t.accent.selection);
-        assert_eq!(v.extreme_bg_color, t.surface.base);
+        assert_eq!(v.panel_fill, t.palette.surface.panel);
+        assert_eq!(v.selection.bg_fill, t.palette.accent.selection);
+        assert_eq!(v.extreme_bg_color, t.palette.surface.base);
 
         let lt = Theme::light();
         let lv = lt.to_visuals(false);
-        assert_eq!(lv.panel_fill, lt.surface.panel);
+        assert_eq!(lv.panel_fill, lt.palette.surface.panel);
         assert_eq!(v.widgets.open.corner_radius, v.widgets.hovered.corner_radius);
         assert_eq!(v.widgets.open.bg_stroke.width, STROKE_WIDTH);
         assert_eq!(v.widgets.open.expansion, 0.0);
@@ -2020,10 +2137,10 @@ mod tests {
     fn component_slots_seeded() {
         let t = Theme::dark();
         // Primary button normal bg is the accent; danger path exists.
-        assert_eq!(t.button.primary.normal.bg, semantic::accent::PRIMARY);
-        assert_eq!(t.button.danger.hover.bg, semantic::status::ERROR);
-        assert_eq!(t.tab.active.indicator, semantic::accent::PRIMARY);
-        assert_eq!(t.input.focus.border, semantic::border::FOCUS);
+        assert_eq!(t.components.button.primary.normal.bg, semantic::accent::PRIMARY);
+        assert_eq!(t.components.button.danger.hover.bg, semantic::status::ERROR);
+        assert_eq!(t.components.tab.active.indicator, semantic::accent::PRIMARY);
+        assert_eq!(t.components.input.focus.border, semantic::border::FOCUS);
     }
 
     /// Every per-component slot group this change introduced must be defined in
@@ -2033,40 +2150,43 @@ mod tests {
         for (label, t) in [("dark", Theme::dark()), ("light", Theme::light())] {
             // Toggle: all four states plus thumb/mark must be visible colours.
             for (state, slot) in [
-                ("checked", t.toggle.checked),
-                ("unchecked", t.toggle.unchecked),
-                ("hover", t.toggle.hover),
-                ("disabled", t.toggle.disabled),
+                ("checked", t.components.toggle.checked),
+                ("unchecked", t.components.toggle.unchecked),
+                ("hover", t.components.toggle.hover),
+                ("disabled", t.components.toggle.disabled),
             ] {
                 assert_ne!(slot.bg, Color32::TRANSPARENT, "{label} toggle.{state}.bg");
                 assert_ne!(slot.border, Color32::TRANSPARENT, "{label} toggle.{state}.border");
                 assert_ne!(slot.fg, Color32::TRANSPARENT, "{label} toggle.{state}.fg");
             }
-            assert_ne!(t.toggle.thumb, Color32::TRANSPARENT, "{label} toggle.thumb");
-            assert_ne!(t.toggle.mark, Color32::TRANSPARENT, "{label} toggle.mark");
+            assert_ne!(t.components.toggle.thumb, Color32::TRANSPARENT, "{label} toggle.thumb");
+            assert_ne!(t.components.toggle.mark, Color32::TRANSPARENT, "{label} toggle.mark");
 
             // Progress.
-            assert_ne!(t.progress.track, Color32::TRANSPARENT, "{label} progress.track");
-            assert_ne!(t.progress.fill, Color32::TRANSPARENT, "{label} progress.fill");
-            assert_ne!(t.progress.label, Color32::TRANSPARENT, "{label} progress.label");
+            assert_ne!(t.components.progress.track, Color32::TRANSPARENT, "{label} progress.track");
+            assert_ne!(t.components.progress.fill, Color32::TRANSPARENT, "{label} progress.fill");
+            assert_ne!(t.components.progress.label, Color32::TRANSPARENT, "{label} progress.label");
             assert_ne!(
-                t.progress.label_on_fill,
+                t.components.progress.label_on_fill,
                 Color32::TRANSPARENT,
                 "{label} progress.label_on_fill"
             );
 
             // Badge / kbd / tooltip single Slots.
-            assert_ne!(t.badge.bg, Color32::TRANSPARENT, "{label} badge.bg");
-            assert_ne!(t.badge.fg, Color32::TRANSPARENT, "{label} badge.fg");
-            assert_ne!(t.kbd.bg, Color32::TRANSPARENT, "{label} kbd.bg");
-            assert_ne!(t.kbd.fg, Color32::TRANSPARENT, "{label} kbd.fg");
-            assert_ne!(t.kbd.border, Color32::TRANSPARENT, "{label} kbd.border");
-            assert_ne!(t.tooltip.bg, Color32::TRANSPARENT, "{label} tooltip.bg");
-            assert_ne!(t.tooltip.fg, Color32::TRANSPARENT, "{label} tooltip.fg");
-            assert_ne!(t.tooltip.border, Color32::TRANSPARENT, "{label} tooltip.border");
+            assert_ne!(t.components.badge.bg, Color32::TRANSPARENT, "{label} badge.bg");
+            assert_ne!(t.components.badge.fg, Color32::TRANSPARENT, "{label} badge.fg");
+            assert_ne!(t.components.kbd.bg, Color32::TRANSPARENT, "{label} kbd.bg");
+            assert_ne!(t.components.kbd.fg, Color32::TRANSPARENT, "{label} kbd.fg");
+            assert_ne!(t.components.kbd.border, Color32::TRANSPARENT, "{label} kbd.border");
+            assert_ne!(t.components.tooltip.bg, Color32::TRANSPARENT, "{label} tooltip.bg");
+            assert_ne!(t.components.tooltip.fg, Color32::TRANSPARENT, "{label} tooltip.fg");
+            assert_ne!(t.components.tooltip.border, Color32::TRANSPARENT, "{label} tooltip.border");
 
             // Tag normal + hover.
-            for (state, slot) in [("normal", t.tag.normal), ("hover", t.tag.hover)] {
+            for (state, slot) in [
+                ("normal", t.components.tag.normal),
+                ("hover", t.components.tag.hover),
+            ] {
                 assert_ne!(slot.bg, Color32::TRANSPARENT, "{label} tag.{state}.bg");
                 assert_ne!(slot.fg, Color32::TRANSPARENT, "{label} tag.{state}.fg");
                 assert_ne!(slot.border, Color32::TRANSPARENT, "{label} tag.{state}.border");
@@ -2074,10 +2194,10 @@ mod tests {
 
             // Alert: all four levels need a visible bg/accent/icon and fg.
             for (level, slots) in [
-                ("info", t.alert.info),
-                ("success", t.alert.success),
-                ("warning", t.alert.warning),
-                ("error", t.alert.error),
+                ("info", t.components.alert.info),
+                ("success", t.components.alert.success),
+                ("warning", t.components.alert.warning),
+                ("error", t.components.alert.error),
             ] {
                 assert_ne!(slots.bg, Color32::TRANSPARENT, "{label} alert.{level}.bg");
                 assert_ne!(slots.fg, Color32::TRANSPARENT, "{label} alert.{level}.fg");
@@ -2087,10 +2207,10 @@ mod tests {
 
             // Toast: all four levels need visible bg/fg/border/accent.
             for (level, slots) in [
-                ("info", t.toast.info),
-                ("success", t.toast.success),
-                ("warning", t.toast.warning),
-                ("error", t.toast.error),
+                ("info", t.components.toast.info),
+                ("success", t.components.toast.success),
+                ("warning", t.components.toast.warning),
+                ("error", t.components.toast.error),
             ] {
                 assert_ne!(slots.bg, Color32::TRANSPARENT, "{label} toast.{level}.bg");
                 assert_ne!(slots.fg, Color32::TRANSPARENT, "{label} toast.{level}.fg");
@@ -2099,31 +2219,43 @@ mod tests {
             }
 
             // Skeleton / colour picker / easing curve.
-            assert_ne!(t.skeleton.base, Color32::TRANSPARENT, "{label} skeleton.base");
-            assert_ne!(t.skeleton.shimmer, Color32::TRANSPARENT, "{label} skeleton.shimmer");
+            assert_ne!(t.components.skeleton.base, Color32::TRANSPARENT, "{label} skeleton.base");
             assert_ne!(
-                t.color_picker.swatch_border,
+                t.components.skeleton.shimmer,
+                Color32::TRANSPARENT,
+                "{label} skeleton.shimmer"
+            );
+            assert_ne!(
+                t.components.color_picker.swatch_border,
                 Color32::TRANSPARENT,
                 "{label} color_picker.swatch_border"
             );
             assert_ne!(
-                t.color_picker.swatch_hover,
+                t.components.color_picker.swatch_hover,
                 Color32::TRANSPARENT,
                 "{label} color_picker.swatch_hover"
             );
-            assert_eq!(t.color_picker.checker_light, Color32::WHITE, "{label} checker_light");
-            assert_ne!(t.color_picker.checker_dark, Color32::TRANSPARENT, "{label} checker_dark");
+            assert_eq!(
+                t.components.color_picker.checker_light,
+                Color32::WHITE,
+                "{label} checker_light"
+            );
+            assert_ne!(
+                t.components.color_picker.checker_dark,
+                Color32::TRANSPARENT,
+                "{label} checker_dark"
+            );
             for (name, value) in [
-                ("bg", t.easing_curve.bg),
-                ("curve", t.easing_curve.curve),
-                ("handle", t.easing_curve.handle),
-                ("handle_active", t.easing_curve.handle_active),
+                ("bg", t.components.easing_curve.bg),
+                ("curve", t.components.easing_curve.curve),
+                ("handle", t.components.easing_curve.handle),
+                ("handle_active", t.components.easing_curve.handle_active),
             ] {
                 assert_ne!(value, Color32::TRANSPARENT, "{label} easing_curve.{name}");
             }
             // The grid line is a low-alpha neutral; assert it is a real colour
             // (alpha > 0) rather than fully transparent.
-            assert!(t.easing_curve.grid.a() > 0, "{label} easing_curve.grid alpha");
+            assert!(t.components.easing_curve.grid.a() > 0, "{label} easing_curve.grid alpha");
         }
     }
 
@@ -2131,12 +2263,12 @@ mod tests {
     #[test]
     fn alert_slots_use_distinct_status_accents() {
         for t in [Theme::dark(), Theme::light()] {
-            assert_eq!(t.alert.success.accent, semantic::status::SUCCESS);
-            assert_eq!(t.alert.warning.accent, semantic::status::WARNING);
-            assert_eq!(t.alert.error.accent, semantic::status::ERROR);
-            assert_eq!(t.alert.info.accent, semantic::status::INFO);
+            assert_eq!(t.components.alert.success.accent, semantic::status::SUCCESS);
+            assert_eq!(t.components.alert.warning.accent, semantic::status::WARNING);
+            assert_eq!(t.components.alert.error.accent, semantic::status::ERROR);
+            assert_eq!(t.components.alert.info.accent, semantic::status::INFO);
             // Info borrows the accent faint tint (no `info_faint` status token).
-            assert_eq!(t.alert.info.bg, semantic::accent::faint());
+            assert_eq!(t.components.alert.info.bg, semantic::accent::faint());
         }
     }
 
@@ -2150,10 +2282,13 @@ mod tests {
         assert!(!AppThemeChoice::Auto.is_dark(Some(false)));
         assert!(AppThemeChoice::Auto.is_dark(None));
         // resolve() picks the matching Theme.
-        assert_eq!(AppThemeChoice::Light.resolve(None).surface.base, Theme::light().surface.base);
         assert_eq!(
-            AppThemeChoice::Auto.resolve(Some(true)).surface.base,
-            Theme::dark().surface.base
+            AppThemeChoice::Light.resolve(None).palette.surface.base,
+            Theme::light().palette.surface.base
+        );
+        assert_eq!(
+            AppThemeChoice::Auto.resolve(Some(true)).palette.surface.base,
+            Theme::dark().palette.surface.base
         );
         assert_eq!(AppThemeChoice::default(), AppThemeChoice::Auto);
     }

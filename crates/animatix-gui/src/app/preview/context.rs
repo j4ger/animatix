@@ -291,11 +291,12 @@ impl PreviewContext<'_> {
         let theme = eparts::theme(ui);
 
         // Draw background
-        ui.painter().rect_filled(editor_rect, RADIUS_M as u8, theme.surface.surface);
+        ui.painter()
+            .rect_filled(editor_rect, RADIUS_M as u8, theme.palette.surface.surface);
         ui.painter().rect_stroke(
             editor_rect,
             RADIUS_M as u8,
-            Stroke::new(STROKE_WIDTH, theme.accent.primary),
+            Stroke::new(STROKE_WIDTH, theme.palette.accent.primary),
             egui::StrokeKind::Outside,
         );
 
@@ -790,7 +791,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "No scene to preview",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                     let hint_pos = preview_rect.center() + egui::vec2(0.0, 20.0);
                     ui.painter().text(
@@ -798,7 +799,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Open a file or create a scene to get started",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                 } else {
                     ui.painter().text(
@@ -806,7 +807,7 @@ impl PreviewContext<'_> {
                         egui::Align2::CENTER_CENTER,
                         "Preview initializing…",
                         egui::TextStyle::Body.resolve(ui.style()),
-                        theme.text.muted,
+                        theme.palette.text.muted,
                     );
                 }
             },
@@ -879,7 +880,7 @@ impl PreviewContext<'_> {
                     let galley = ui.painter().layout_no_wrap(
                         label.clone(),
                         TextRole::BodyS.font_id(),
-                        theme.status.success,
+                        theme.palette.status.success,
                     );
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
@@ -897,7 +898,7 @@ impl PreviewContext<'_> {
                         ),
                         egui::StrokeKind::Outside,
                     );
-                    ui.painter().galley(hud_pos + padding, galley, theme.status.success);
+                    ui.painter().galley(hud_pos + padding, galley, theme.palette.status.success);
                 }
             }
         }
@@ -918,7 +919,7 @@ impl PreviewContext<'_> {
             let galley = ui.painter().layout_no_wrap(
                 pill_text.to_string(),
                 TextRole::Micro.font_id(),
-                theme.text.muted,
+                theme.palette.text.muted,
             );
             let padding = Vec2::new(8.0, 4.0);
             let pill_size = galley.size() + padding * 2.0;
@@ -926,11 +927,11 @@ impl PreviewContext<'_> {
                 preview_rect.right_bottom() - pill_size - egui::vec2(8.0, 8.0),
                 pill_size,
             );
-            ui.painter().rect_filled(pill_rect, 3.0, theme.surface.widget);
+            ui.painter().rect_filled(pill_rect, 3.0, theme.palette.surface.widget);
             ui.painter().galley(
                 pill_rect.left_center() + egui::vec2(padding.x, -galley.size().y / 2.0),
                 galley,
-                theme.text.muted,
+                theme.palette.text.muted,
             );
         }
     }
@@ -994,7 +995,7 @@ impl PreviewContext<'_> {
 
         let theme = eparts::theme(ui);
         let threshold = 8.0;
-        let guide_color = theme.accent.subtle;
+        let guide_color = theme.palette.accent.subtle;
         let guide_stroke = egui::Stroke::new(STROKE_WIDTH, guide_color);
 
         for (label, bounds) in self.hit_regions {
@@ -1257,8 +1258,8 @@ impl PreviewContext<'_> {
             }
 
             if is_dragging {
-                let measurement_color = theme.accent.primary;
-                let text_color = theme.text.primary;
+                let measurement_color = theme.palette.accent.primary;
+                let text_color = theme.palette.text.primary;
                 let font = egui::FontId::monospace(TextRole::Micro.size());
                 match &self.drag_state {
                     DragState::Move {
@@ -1469,11 +1470,11 @@ impl PreviewContext<'_> {
             (self.selection.marquee_start, self.selection.marquee_current)
         {
             let marquee_rect = egui::Rect::from_two_pos(start, current);
-            ui.painter().rect_filled(marquee_rect, 0.0, theme.accent.faint);
+            ui.painter().rect_filled(marquee_rect, 0.0, theme.palette.accent.faint);
             ui.painter().rect_stroke(
                 marquee_rect,
                 0.0,
-                egui::Stroke::new(STROKE_WIDTH, theme.accent.subtle),
+                egui::Stroke::new(STROKE_WIDTH, theme.palette.accent.subtle),
                 egui::StrokeKind::Outside,
             );
         }

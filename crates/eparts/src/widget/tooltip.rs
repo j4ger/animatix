@@ -165,8 +165,8 @@ impl Tooltip {
             let inner = area.show(ctx, |ui| {
                 ui.set_max_width(est_max_width);
                 egui::Frame::new()
-                    .fill(t.tooltip.bg)
-                    .stroke(Stroke::new(STROKE_WIDTH, t.tooltip.border))
+                    .fill(t.components.tooltip.bg)
+                    .stroke(Stroke::new(STROKE_WIDTH, t.components.tooltip.border))
                     .corner_radius(CornerRadius::same(RADIUS_M as u8))
                     .inner_margin(Margin::same(s.space_3 as i8))
                     .show(ui, add_contents);

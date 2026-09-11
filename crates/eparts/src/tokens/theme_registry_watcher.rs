@@ -150,7 +150,7 @@ mod tests {
             if let ThemeRegistryWatcherEvent::Reloaded(registry) = watcher.update(Instant::now()) {
                 let child = registry.resolved("child").expect("child resolved");
                 assert_eq!(
-                    child.dark_theme().surface.base,
+                    child.dark_theme().palette.surface.base,
                     egui::Color32::from_rgb(0xab, 0xcd, 0xef)
                 );
                 saw_reload = true;

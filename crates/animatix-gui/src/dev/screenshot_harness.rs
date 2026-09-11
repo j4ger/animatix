@@ -47,14 +47,14 @@ fn render_overview(ui: &mut egui::Ui, theme: eparts::Theme) {
         ui.label(
             egui::RichText::new("Theme-aware custom surfaces")
                 .size(TextRole::Title.size())
-                .color(theme.text.primary)
+                .color(theme.palette.text.primary)
                 .strong(),
         );
         ui.add_space(2.0);
         ui.label(
             egui::RichText::new("Buttons, rows, fields, and cards share the runtime theme.")
                 .size(TextRole::BodyS.size())
-                .color(theme.text.secondary),
+                .color(theme.palette.text.secondary),
         );
         ui.add_space(8.0);
         render_buttons(ui);
@@ -102,7 +102,7 @@ fn render_rows(ui: &mut egui::Ui) {
 
     let row3 = row::Row::new("Actor 3")
         .icon(Some(egui_phosphor::regular::TRIANGLE))
-        .label_color(eparts::theme(ui).text.muted);
+        .label_color(eparts::theme(ui).palette.text.muted);
     row3.show(ui, ui.id().with("harness_row_3"));
 }
 
@@ -112,13 +112,13 @@ fn render_card(ui: &mut egui::Ui) {
         ui.label(
             egui::RichText::new("Card Content")
                 .size(TextRole::Title.size())
-                .color(theme.text.primary),
+                .color(theme.palette.text.primary),
         );
         ui.add_space(2.0);
         ui.label(
             egui::RichText::new("This is inside an eparts card.")
                 .size(TextRole::BodyS.size())
-                .color(theme.text.secondary),
+                .color(theme.palette.text.secondary),
         );
     });
 }
@@ -150,14 +150,14 @@ fn render_empty_state(ui: &mut egui::Ui) {
 
 fn render_palette(ui: &mut egui::Ui, theme: eparts::Theme) {
     let swatches: [(&str, egui::Color32); 8] = [
-        ("Base", theme.surface.base),
-        ("Panel", theme.surface.panel),
-        ("Surface", theme.surface.surface),
-        ("Widget", theme.surface.widget),
-        ("Accent", theme.accent.primary),
-        ("Cyan", theme.accent.cyan),
-        ("Success", theme.status.success),
-        ("Warning", theme.status.warning),
+        ("Base", theme.palette.surface.base),
+        ("Panel", theme.palette.surface.panel),
+        ("Surface", theme.palette.surface.surface),
+        ("Widget", theme.palette.surface.widget),
+        ("Accent", theme.palette.accent.primary),
+        ("Cyan", theme.palette.accent.cyan),
+        ("Success", theme.palette.status.success),
+        ("Warning", theme.palette.status.warning),
     ];
     ui.horizontal_wrapped(|ui| {
         for (label, color) in swatches {
@@ -168,7 +168,7 @@ fn render_palette(ui: &mut egui::Ui, theme: eparts::Theme) {
                 egui::Align2::CENTER_CENTER,
                 label,
                 TextRole::Micro.font_id(),
-                theme.text.on_accent,
+                theme.palette.text.on_accent,
             );
             ui.add_space(4.0);
         }
@@ -181,19 +181,19 @@ fn render_unknown_widget(ui: &mut egui::Ui, theme: eparts::Theme, name: &str) {
         ui.label(
             egui::RichText::new(format!("Unknown widget: {name}"))
                 .size(TextRole::Title.size())
-                .color(theme.text.secondary),
+                .color(theme.palette.text.secondary),
         );
         ui.add_space(4.0);
         ui.label(
             egui::RichText::new("Available widgets:")
                 .size(TextRole::BodyS.size())
-                .color(theme.text.muted),
+                .color(theme.palette.text.muted),
         );
         for (id, desc) in WIDGET_REGISTRY {
             ui.label(
                 egui::RichText::new(format!("  {id} — {desc}"))
                     .size(TextRole::Micro.size())
-                    .color(theme.text.muted),
+                    .color(theme.palette.text.muted),
             );
         }
     });

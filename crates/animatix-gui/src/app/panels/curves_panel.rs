@@ -110,7 +110,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         ui.ctx().layer_painter(layer).rect_stroke(
             outer.shrink(1.0),
             egui::CornerRadius::ZERO,
-            Stroke::new(STROKE_WIDTH, theme.border.focus),
+            Stroke::new(STROKE_WIDTH, theme.palette.border.focus),
             egui::StrokeKind::Inside,
         );
     }
@@ -152,7 +152,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     // the full rect (egui_tiles gives the pane exactly this space).
     ui.allocate_rect(outer, Sense::hover());
     let painter = ui.painter_at(outer);
-    painter.rect_filled(outer, 0.0, theme.surface.base);
+    painter.rect_filled(outer, 0.0, theme.palette.surface.base);
 
     let curves = curve_plot::collect_curves(track, theme);
     let scene = ctx.active_scene.map(ToOwned::to_owned);
@@ -174,7 +174,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         egui::Align2::LEFT_CENTER,
         header,
         TextRole::BodyS.font_id(),
-        theme.text.secondary,
+        theme.palette.text.secondary,
     );
     if curves.is_empty() {
         painter.text(
@@ -183,7 +183,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             egui::Align2::CENTER_CENTER,
             "No keyframed properties to graph",
             TextRole::BodyS.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
         return;
     }
@@ -217,16 +217,16 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             egui::Align2::CENTER_CENTER,
             "All curves hidden",
             TextRole::BodyS.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
         return;
     }
 
-    painter.rect_filled(plot_rect, RADIUS_M, theme.surface.surface);
+    painter.rect_filled(plot_rect, RADIUS_M, theme.palette.surface.surface);
     painter.rect_stroke(
         plot_rect,
         RADIUS_M,
-        Stroke::new(STROKE_WIDTH, theme.border.default),
+        Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         egui::StrokeKind::Inside,
     );
 
@@ -290,7 +290,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             );
 
             let dot_color = if resp.hovered() || selected || is_time_dragged || value_dragged {
-                theme.accent.primary
+                theme.palette.accent.primary
             } else {
                 curve.color
             };
@@ -300,7 +300,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                 painter.circle_stroke(
                     draw_pos,
                     radius + 2.0,
-                    Stroke::new(STROKE_WIDTH, theme.text.primary),
+                    Stroke::new(STROKE_WIDTH, theme.palette.text.primary),
                 );
             }
 
@@ -603,7 +603,7 @@ fn draw_ruler(
     duration_s: f64,
     theme: Theme,
 ) {
-    painter.rect_filled(rect, RADIUS_S, theme.surface.surface);
+    painter.rect_filled(rect, RADIUS_S, theme.palette.surface.surface);
     let tick_step = if duration_s <= 2.0 {
         0.25
     } else if duration_s <= 5.0 {
@@ -623,7 +623,7 @@ fn draw_ruler(
                 Pos2::new(x, rect.bottom() - 6.0),
                 Pos2::new(x, rect.bottom()),
             ],
-            Stroke::new(STROKE_WIDTH, theme.border.default),
+            Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         );
         painter.text(
             Pos2::new(x, rect.top() + rect.height() * 0.35),
@@ -634,7 +634,7 @@ fn draw_ruler(
                 format!("{t:.1}s")
             },
             TextRole::Micro.font_id(),
-            theme.text.muted,
+            theme.palette.text.muted,
         );
         t += tick_step;
     }
