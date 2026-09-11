@@ -18,11 +18,12 @@ pub use crate::app::commands::{PropertyEdit, PropertyValue};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SidebarTab {
-    Explorer,
-    Layers,
-    Scenes,
-    Components,
-    Assets,
+    /// Files + assets (merged Explorer/Assets).
+    Project,
+    /// Composition structure: layers + scenes (merged Layers/Scenes).
+    Outline,
+    /// Reusable pieces: components.
+    Library,
 }
 
 /// Returns the canonical default actor type: the first non-advanced Shape actor.

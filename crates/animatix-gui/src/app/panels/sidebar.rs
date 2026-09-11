@@ -104,11 +104,11 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         let content_offset_id = ui.id().with("sidebar_slide");
         if prev_tab != active_tab {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
-            // Clear explorer/layers filters when switching away from those tabs
-            if active_tab != SidebarTab::Explorer {
+            // Clear the file-tree / layer filters when leaving their tabs.
+            if active_tab != SidebarTab::Project {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
             }
-            if active_tab != SidebarTab::Layers {
+            if active_tab != SidebarTab::Outline {
                 ui.data_mut(|d| d.remove::<String>(egui::Id::new(LAYERS_FILTER_ID)));
             }
         }
@@ -123,37 +123,77 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             |ui| {
                 ui.add_space(offset);
                 match active_tab {
-                    SidebarTab::Explorer => {
-                        let mut ectx = ExplorerContext {
-                            current_file: ctx.current_file,
-                            expanded_dirs: ctx.expanded_dirs,
-                            file_tree: ctx.file_tree,
-                            commands: ctx.commands,
-                        };
-                        explorer_content_ui(&mut ectx, ui);
+                    SidebarTab::Project => {
+                        let section = section_switcher(
+                            ui,
+                            ui.id().with("sidebar_project_section"),
+                            &[
+                                (ProjectSection::Files, egui_phosphor::regular::FOLDER, "Files"),
+                                (ProjectSection::Assets, egui_phosphor::regular::IMAGES, "Assets"),
+                            ],
+                            ProjectSection::Files,
+                        );
+                        ui.add_space(sp.base.space_2);
+                        match section {
+                            ProjectSection::Files => {
+                                let mut ectx = ExplorerContext {
+                                    current_file: ctx.current_file,
+                                    expanded_dirs: ctx.expanded_dirs,
+                                    file_tree: ctx.file_tree,
+                                    commands: ctx.commands,
+                                };
+                                explorer_content_ui(&mut ectx, ui);
+                            },
+                            ProjectSection::Assets => {
+                                let mut actx = AssetsContext {
+                                    asset_cache: ctx.asset_cache,
+                                    commands: ctx.commands,
+                                    scene_dimensions: ctx.scene_dimensions,
+                                };
+                                assets_content_ui(&mut actx, ui);
+                            },
+                        }
                     },
-                    SidebarTab::Layers => {
-                        let mut lctx = LayersContext {
-                            timeline: ctx.timeline,
-                            active_scene: ctx.active_scene,
-                            selected_actors: ctx.selected_actors,
-                            collapsed_actors: ctx.collapsed_actors,
-                            commands: ctx.commands,
-                            preview: ctx.preview,
-                            scene_dimensions: ctx.scene_dimensions,
-                            is_composition: ctx.is_composition,
-                        };
-                        layers_content_ui(&mut lctx, ui);
+                    SidebarTab::Outline => {
+                        let section = section_switcher(
+                            ui,
+                            ui.id().with("sidebar_outline_section"),
+                            &[
+                                (OutlineSection::Layers, egui_phosphor::regular::STACK, "Layers"),
+                                (
+                                    OutlineSection::Scenes,
+                                    egui_phosphor::regular::FILM_STRIP,
+                                    "Scenes",
+                                ),
+                            ],
+                            OutlineSection::Layers,
+                        );
+                        ui.add_space(sp.base.space_2);
+                        match section {
+                            OutlineSection::Layers => {
+                                let mut lctx = LayersContext {
+                                    timeline: ctx.timeline,
+                                    active_scene: ctx.active_scene,
+                                    selected_actors: ctx.selected_actors,
+                                    collapsed_actors: ctx.collapsed_actors,
+                                    commands: ctx.commands,
+                                    preview: ctx.preview,
+                                    scene_dimensions: ctx.scene_dimensions,
+                                    is_composition: ctx.is_composition,
+                                };
+                                layers_content_ui(&mut lctx, ui);
+                            },
+                            OutlineSection::Scenes => {
+                                let mut sctx = ScenesContext {
+                                    composition: ctx.composition,
+                                    active_scene: ctx.active_scene,
+                                    commands: ctx.commands,
+                                };
+                                scenes_content_ui(&mut sctx, ui);
+                            },
+                        }
                     },
-                    SidebarTab::Scenes => {
-                        let mut sctx = ScenesContext {
-                            composition: ctx.composition,
-                            active_scene: ctx.active_scene,
-                            commands: ctx.commands,
-                        };
-                        scenes_content_ui(&mut sctx, ui);
-                    },
-                    SidebarTab::Components => {
+                    SidebarTab::Library => {
                         let mut cctx = ComponentsContext {
                             components: ctx.components,
                             commands: ctx.commands,
@@ -161,14 +201,6 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                             source_text: ctx.editor.text(),
                         };
                         components_content_ui(&mut cctx, ui);
-                    },
-                    SidebarTab::Assets => {
-                        let mut actx = AssetsContext {
-                            asset_cache: ctx.asset_cache,
-                            commands: ctx.commands,
-                            scene_dimensions: ctx.scene_dimensions,
-                        };
-                        assets_content_ui(&mut actx, ui);
                     },
                 }
             },
@@ -178,13 +210,44 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     });
 }
 
+/// Sub-view within the merged Project tab.
+#[derive(Clone, Copy, PartialEq)]
+enum ProjectSection {
+    Files,
+    Assets,
+}
+
+/// Sub-view within the merged Outline tab.
+#[derive(Clone, Copy, PartialEq)]
+enum OutlineSection {
+    Layers,
+    Scenes,
+}
+
+/// Two-way section switcher for a merged sidebar tab.
+///
+/// Selection is kept in egui temp storage so merging tabs needs no extra
+/// persistent state.
+fn section_switcher<T: PartialEq + Copy + Send + Sync + 'static>(
+    ui: &mut egui::Ui,
+    id: egui::Id,
+    entries: &[(T, &'static str, &'static str)],
+    default: T,
+) -> T {
+    let current: T = ui.data_mut(|d| d.get_temp(id).unwrap_or(default));
+    if let Some(new) = layout::pill_tab_bar(ui, current, entries) {
+        ui.data_mut(|d| d.insert_temp(id, new));
+        new
+    } else {
+        current
+    }
+}
+
 fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
     let tabs = [
-        (SidebarTab::Explorer, egui_phosphor::regular::FOLDER, "Explorer"),
-        (SidebarTab::Layers, egui_phosphor::regular::STACK, "Layers"),
-        (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
-        (SidebarTab::Components, egui_phosphor::regular::CUBE, "Components"),
-        (SidebarTab::Assets, egui_phosphor::regular::IMAGES, "Assets"),
+        (SidebarTab::Project, egui_phosphor::regular::FOLDER, "Project"),
+        (SidebarTab::Outline, egui_phosphor::regular::STACK, "Outline"),
+        (SidebarTab::Library, egui_phosphor::regular::CUBE, "Library"),
     ];
     if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;

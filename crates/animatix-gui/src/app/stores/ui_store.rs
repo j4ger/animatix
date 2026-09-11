@@ -229,7 +229,7 @@ impl UiStore {
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
-            sidebar_tab: SidebarTab::Explorer,
+            sidebar_tab: SidebarTab::Project,
             property_view_mode: PropertyViewMode::Semantic,
             keyframe_view_mode: KeyframeViewMode::List,
             rebuild_debounce_ms: 150,
@@ -328,7 +328,7 @@ mod tests {
         assert!(store.editor_sync_enabled);
         assert!(!store.keyframe_mode);
         assert_eq!(store.cursor_time_s, None);
-        assert_eq!(store.sidebar_tab, SidebarTab::Explorer);
+        assert_eq!(store.sidebar_tab, SidebarTab::Project);
         assert_eq!(store.property_view_mode, PropertyViewMode::Semantic);
         assert_eq!(store.keyframe_view_mode, KeyframeViewMode::List);
         assert_eq!(store.scrub_step_s, 0.1);
