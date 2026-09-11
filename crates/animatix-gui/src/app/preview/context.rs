@@ -9,7 +9,8 @@ use animatix::timeline::{ActorKindId, SceneDimensions, Timeline};
 use egui::{Pos2, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue, SceneCommand,
+    ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
+    SceneCommand,
 };
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
@@ -484,12 +485,65 @@ impl PreviewContext<'_> {
 
         let mut menu_item_clicked = false;
         if self.selection.context_menu_open {
-            let (selected, close, _rect) =
-                selection::draw_context_menu(ui, self.selection, self.selected_actors);
+            let effective: Vec<String> = if self.selected_actors.is_empty() {
+                self.selection.context_menu_actors.first().cloned().into_iter().collect()
+            } else {
+                self.selected_actors.iter().cloned().collect()
+            };
+            let any_locked = effective.iter().any(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| tr.locked)
+                    .unwrap_or(false)
+            });
+            let any_hidden = effective.iter().any(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| !tr.visible)
+                    .unwrap_or(false)
+            });
+
+            let (selected, action, close, _rect) = selection::draw_context_menu(
+                ui,
+                self.selection,
+                self.selected_actors,
+                any_locked,
+                any_hidden,
+            );
             menu_item_clicked = close;
             if let Some(actor) = selected {
                 self.selected_actors.clear();
                 self.selected_actors.insert(actor);
+            } else if let Some(action) = action {
+                // Actions operate on the current selection; with nothing
+                // selected, fall back to the actor under the cursor.
+                if self.selected_actors.is_empty() {
+                    self.selected_actors.extend(effective.iter().cloned());
+                }
+                use selection::ContextMenuAction as A;
+                match action {
+                    A::Duplicate => {
+                        self.commands.push_back(ActorCommand::DuplicateSelectedActors.into())
+                    },
+                    A::Delete => self.commands.push_back(ActorCommand::DeleteSelectedActors.into()),
+                    A::Group => self.commands.push_back(ActorCommand::GroupSelectedActors.into()),
+                    A::Ungroup => {
+                        self.commands.push_back(ActorCommand::UngroupSelectedActors.into())
+                    },
+                    A::ToggleLock => {
+                        for label in &effective {
+                            self.commands
+                                .push_back(ActorCommand::ToggleActorLock(label.clone()).into());
+                        }
+                    },
+                    A::ToggleVisibility => {
+                        for label in &effective {
+                            self.commands.push_back(
+                                ActorCommand::ToggleActorVisibility(label.clone()).into(),
+                            );
+                        }
+                    },
+                }
             }
             if close {
                 self.selection.context_menu_open = false;

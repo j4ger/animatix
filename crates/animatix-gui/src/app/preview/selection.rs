@@ -172,44 +172,99 @@ pub(crate) fn handle_click(
 /// Draw the right-click context menu for actor selection.
 /// Returns the selected actor (if any), whether to close the menu,
 /// and the screen-space rect of the menu for outside-click detection.
+/// Actions offered by the canvas context menu (below the actor picker).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum ContextMenuAction {
+    Duplicate,
+    Delete,
+    Group,
+    Ungroup,
+    ToggleLock,
+    ToggleVisibility,
+}
+
 pub(crate) fn draw_context_menu(
     ui: &mut egui::Ui,
     selection: &SelectionState,
     current_selected: &HashSet<String>,
-) -> (Option<String>, bool, Option<egui::Rect>) {
+    any_locked: bool,
+    any_hidden: bool,
+) -> (Option<String>, Option<ContextMenuAction>, bool, Option<egui::Rect>) {
+    use egui_phosphor::regular as icons;
+
     let menu_pos = selection.context_menu_pos.unwrap_or_default();
     let actors = &selection.context_menu_actors;
+    let n = actors.len();
 
-    let entries: Vec<MenuEntry> = std::iter::once(MenuEntry::header("Select actor"))
-        .chain(std::iter::once(MenuEntry::separator()))
-        .chain(actors.iter().enumerate().map(|(i, actor)| {
-            let is_selected = current_selected.contains(actor);
-            let prefix = if i < 9 {
-                format!("{}.", i + 1)
-            } else {
-                "  ".to_string()
-            };
-            let label = format!("{} {}", prefix, actor);
-            MenuEntry::Item {
-                icon: None,
-                label,
-                shortcut: None,
-                checked: is_selected,
-                enabled: true,
-            }
-        }))
-        .collect();
+    let mut entries: Vec<MenuEntry> = Vec::new();
+    entries.push(MenuEntry::header("Select actor"));
+    entries.push(MenuEntry::separator());
+    entries.extend(actors.iter().enumerate().map(|(i, actor)| {
+        let is_selected = current_selected.contains(actor);
+        let prefix = if i < 9 {
+            format!("{}.", i + 1)
+        } else {
+            "  ".to_string()
+        };
+        MenuEntry::Item {
+            icon: None,
+            label: format!("{} {}", prefix, actor),
+            shortcut: None,
+            checked: is_selected,
+            enabled: true,
+        }
+    }));
+    entries.push(MenuEntry::separator());
+    entries.push(MenuEntry::item_with_icon(icons::COPY, "Duplicate"));
+    entries.push(MenuEntry::item_with_icon(icons::TRASH, "Delete"));
+    entries.push(MenuEntry::separator());
+    entries.push(MenuEntry::item_with_icon(icons::SELECTION_PLUS, "Group"));
+    entries.push(MenuEntry::item_with_icon(icons::SQUARES_FOUR, "Ungroup"));
+    entries.push(MenuEntry::separator());
+    entries.push(MenuEntry::item_with_icon(
+        if any_locked {
+            icons::LOCK_SIMPLE_OPEN
+        } else {
+            icons::LOCK_SIMPLE
+        },
+        if any_locked { "Unlock" } else { "Lock" },
+    ));
+    entries.push(MenuEntry::item_with_icon(
+        if any_hidden {
+            icons::EYE
+        } else {
+            icons::EYE_SLASH
+        },
+        if any_hidden { "Show" } else { "Hide" },
+    ));
 
     let (clicked_idx, menu_rect) =
         render_floating_menu(ui.ctx(), egui::Id::new("selection_context_menu"), menu_pos, &entries);
 
-    let selected = clicked_idx.and_then(|idx| {
-        // Subtract 2 for header + separator
-        actors.get(idx.saturating_sub(2)).cloned()
-    });
-    let close = selected.is_some();
+    // Index layout: 0 header, 1 separator, 2..2+n actors, then 2+n separator and
+    // the fixed action block.
+    let actor_base = 2usize;
+    let action_base = actor_base + n + 1;
+    let mut selected_actor = None;
+    let mut action = None;
+    if let Some(idx) = clicked_idx {
+        if idx >= actor_base && idx < actor_base + n {
+            selected_actor = actors.get(idx - actor_base).cloned();
+        } else {
+            action = match idx.checked_sub(action_base) {
+                Some(0) => Some(ContextMenuAction::Duplicate),
+                Some(1) => Some(ContextMenuAction::Delete),
+                Some(3) => Some(ContextMenuAction::Group),
+                Some(4) => Some(ContextMenuAction::Ungroup),
+                Some(6) => Some(ContextMenuAction::ToggleLock),
+                Some(7) => Some(ContextMenuAction::ToggleVisibility),
+                _ => None,
+            };
+        }
+    }
+    let close = selected_actor.is_some() || action.is_some();
 
-    (selected, close, Some(menu_rect))
+    (selected_actor, action, close, Some(menu_rect))
 }
 
 // Hover/cycle drawing now lives in `overlay_ops.rs` so overlay behavior can be
