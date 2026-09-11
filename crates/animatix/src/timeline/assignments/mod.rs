@@ -147,6 +147,40 @@ impl Timeline {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let instant_delayed = delay_ms > 0.0 && duration_ms == 0.0;
 
+        // ── Effect stage parameter: `scope.stage.param = value` ──
+        //
+        // Effects are not actors, so the target resolves as `[scope, stage]`
+        // rather than to a track. Handle it before the generic target walk.
+        #[cfg(feature = "render")]
+        if target.len() == 2 {
+            let scope_label = target[0].label_str();
+            let stage_label = target[1].label_str();
+            let stage_kind = self
+                .tracks
+                .get(scope_label)
+                .filter(|track| track.kind == ActorKindId::Filter)
+                .and_then(|track| track.effects.stage(stage_label))
+                .map(|stage| stage.kind);
+            if let Some(kind) = stage_kind {
+                write_effect_stage_param(
+                    self,
+                    scope_label,
+                    stage_label,
+                    kind,
+                    property,
+                    value,
+                    &eval_env,
+                    t_start_ms,
+                    t_end_ms,
+                    duration_ms,
+                    easing,
+                    diagnostics,
+                    &assignment_subject,
+                );
+                return;
+            }
+        }
+
         // ── Scene-level property (background_color) ──
         if target.len() == 1 && target[0].label_str() == "scene" {
             if property == "background_color" {
@@ -844,3 +878,86 @@ pub(crate) fn recompile_text_at_assignment(
 // ─────────────────────────────────────────────────────────────
 // Helper: rebuild vector paths
 // ─────────────────────────────────────────────────────────────
+
+/// Write a keyframed assignment for an effect stage parameter
+/// (`scope.stage.param = value`).
+///
+/// Reports a diagnostic (never silently drops) when the property is not a
+/// declared parameter of the stage's effect.
+#[cfg(feature = "render")]
+#[allow(clippy::too_many_arguments)]
+fn write_effect_stage_param(
+    timeline: &mut Timeline,
+    scope_label: &str,
+    stage_label: &str,
+    kind: crate::timeline::filter::EffectId,
+    property: &str,
+    value: &super::Expr,
+    eval_env: &Environment,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    duration_ms: f64,
+    easing: Easing,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) {
+    use crate::timeline::filter::{EffectParamKind, descriptor};
+    use crate::timeline::property_engine::PropertyValue;
+
+    let desc = descriptor(kind);
+    let (is_enabled, param_kind, identity) = if property == "enabled" {
+        (true, EffectParamKind::Bool, PropertyValue::Bool(true))
+    } else if let Some(spec) = desc.params.iter().find(|param| param.name == property) {
+        (false, spec.kind, crate::timeline::effect::identity_to_property(spec.identity))
+    } else {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!("Effect '{}' has no parameter '{}'", desc.type_name, property),
+            )
+            .with_subject(subject),
+        );
+        return;
+    };
+
+    let Some(evaluated) = crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
+        value,
+        eval_env,
+        diagnostics,
+        subject,
+    ) else {
+        return;
+    };
+    let parsed = if is_enabled {
+        match evaluated {
+            Value::Bool(enabled) => PropertyValue::Bool(enabled),
+            other => {
+                tracing::warn!("{subject}: 'enabled' expects a bool, got {other:?}; ignoring");
+                return;
+            },
+        }
+    } else {
+        match crate::timeline::effect::value_to_property(param_kind, evaluated, subject) {
+            Some(v) => v,
+            None => return,
+        }
+    };
+
+    let Some(scope) = timeline.tracks.get_mut(scope_label) else {
+        return;
+    };
+    let Some(stage) = scope.effects.stage_mut(stage_label) else {
+        return;
+    };
+    let track = if is_enabled {
+        &mut stage.enabled
+    } else {
+        stage.param_track_mut(property, param_kind)
+    };
+    if duration_ms > 0.0 {
+        let start = track.sample(t_start_ms).unwrap_or(identity);
+        track.add_keyframe_eased(t_start_ms, start, Easing::Linear);
+    }
+    track.add_keyframe_eased(t_end_ms, parsed, easing);
+}

@@ -338,6 +338,15 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
         collapse_dyn_track(&mut slot.track, time_ms);
     }
 
+    // Collapse effect chain parameters, which are `DynTrack`-backed.
+    #[cfg(feature = "render")]
+    for stage in snapshot.effects.stages.iter_mut() {
+        for param in stage.params.values_mut() {
+            collapse_dyn_track(param, time_ms);
+        }
+        collapse_dyn_track(&mut stage.enabled, time_ms);
+    }
+
     snapshot
 }
 

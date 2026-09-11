@@ -12,6 +12,9 @@
 use crate::timeline::SceneDimensions;
 use crate::timeline::image::SceneImage;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// A GPU texture that should be composited after the main Vello scene render.
 /// Used by the zero-readback filter compositing path.
 pub struct PendingComposite {
@@ -27,6 +30,7 @@ pub struct PendingComposite {
 
 /// Stable identity of an effect, used as the pipeline-cache key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum EffectId {
     /// Gaussian blur; two passes (horizontal, then vertical).
     Blur,
@@ -223,6 +227,18 @@ pub fn descriptor(id: EffectId) -> &'static EffectDescriptor {
     match id {
         EffectId::Blur => &BLUR_DESCRIPTOR,
         EffectId::ColorGrade => &COLOR_GRADE_DESCRIPTOR,
+    }
+}
+
+/// Look up a built-in effect descriptor by its authored type name.
+///
+/// Returns `None` for an unknown type; plugin effects go through the
+/// extension registry instead (Stage 4).
+pub fn descriptor_for_type(type_name: &str) -> Option<&'static EffectDescriptor> {
+    match type_name {
+        "Blur" => Some(&BLUR_DESCRIPTOR),
+        "ColorGrade" => Some(&COLOR_GRADE_DESCRIPTOR),
+        _ => None,
     }
 }
 

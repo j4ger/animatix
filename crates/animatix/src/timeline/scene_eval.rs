@@ -977,15 +977,21 @@ impl Timeline {
         }
 
         // If all filters are identity and no blur, just append sub-scene directly.
-        let chain = crate::timeline::filter::EffectChain::from_flat_filter(
-            time_ms as f32,
-            blur,
-            brightness,
-            contrast,
-            saturate,
-            hue_rotate,
-            sepia,
-        );
+        // Prefer the scope's lowered effect chain; fall back to the legacy flat
+        // Filter properties until they are retired (Phase 3).
+        let chain = if track.effects.is_empty() {
+            crate::timeline::filter::EffectChain::from_flat_filter(
+                time_ms as f32,
+                blur,
+                brightness,
+                contrast,
+                saturate,
+                hue_rotate,
+                sepia,
+            )
+        } else {
+            track.effects.build_chain(time_ms)
+        };
 
         if chain.is_empty() {
             scene.encoding_mut().append(sub_scene.encoding(), &None);

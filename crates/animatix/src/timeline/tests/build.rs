@@ -1413,6 +1413,78 @@ fn static_filter_properties_seed_tracks() {
     assert_eq!(track.filter.filter_brightness.get(0, 1.0), 0.5);
 }
 
+/// Effect children of a `Filter` scope lower into the scope's chain instead of
+/// becoming scene-graph actors.
+#[test]
+fn filter_effect_child_lowers_into_scope_chain() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    assert_eq!(scope.effects.stages.len(), 1);
+    assert_eq!(scope.effects.stages[0].label, "soft");
+
+    let chain = scope.effects.build_chain(0);
+    assert_eq!(chain.instances.len(), 1);
+    assert_eq!(chain.instances[0].id, crate::timeline::filter::EffectId::Blur);
+    assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
+
+    // Effects are not actors: no track is created for the stage label.
+    assert!(timeline.tracks.get("soft").is_none());
+}
+
+/// `scope.stage.param = value` animates an effect parameter over time.
+#[test]
+fn effect_stage_param_assignment_animates() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter {
+  soft: Blur, radius: 4
+  img: Rect, size: (100, 100)
+}
+#1s
+bg.soft.radius = 16 [1s]
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    assert_eq!(scope.effects.build_chain(0).instances[0].params.f32_at(0), 4.0);
+    assert_eq!(scope.effects.build_chain(2000).instances[0].params.f32_at(0), 16.0);
+}
+
+/// An effect declared outside a `Filter` scope reports a build diagnostic.
+#[test]
+fn effect_outside_filter_scope_reports_diagnostic() {
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+row: Row {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("must be declared inside a Filter scope")),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
+}
+
 /// Top-level `config { resolution: (w, h) }` is recorded on the timeline so
 /// export tooling can default its canvas to the authored size.
 #[test]

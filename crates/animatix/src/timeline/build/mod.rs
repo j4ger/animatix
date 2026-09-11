@@ -28,6 +28,8 @@ use crate::timeline::plot::PlotCurveKind;
 mod actor;
 mod colorscheme;
 mod container;
+#[cfg(feature = "render")]
+mod effect;
 mod entry;
 mod keyframe_utils;
 mod node;

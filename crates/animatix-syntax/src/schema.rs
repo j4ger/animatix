@@ -388,6 +388,79 @@ pub fn schema_child_processing(type_name: &str) -> ChildProcessingKind {
     }
 }
 
+/// One author-visible effect parameter: its name and value kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectParamSpecDef {
+    /// Parameter name as authored.
+    pub name: &'static str,
+    /// Declared value kind.
+    pub kind: PropertyValueKind,
+}
+
+/// One author-visible effect kind recognized inside a `Filter` scope.
+///
+/// Effects are not primitives and do not appear in
+/// [`builtin_primitive_specs`]; this table exists so the analyzer can validate
+/// and complete effect declarations and their parameters. The runtime effect
+/// descriptors must declare the same names and kinds (drift-tested in
+/// `animatix`).
+#[derive(Clone, Copy, Debug)]
+pub struct EffectSpecDef {
+    /// Authored type name (`Blur`).
+    pub type_name: &'static str,
+    /// Human-readable display name.
+    pub display_name: &'static str,
+    /// Declared marshalable parameters. Every effect also implicitly accepts
+    /// `enabled: Bool` (default `true`); it is not listed here because it is
+    /// not part of the shader's uniform layout.
+    pub params: &'static [EffectParamSpecDef],
+}
+
+/// Built-in effect kinds.
+pub fn effect_specs() -> &'static [EffectSpecDef] {
+    &[
+        EffectSpecDef {
+            type_name: "Blur",
+            display_name: "Blur",
+            params: &[EffectParamSpecDef {
+                name: "radius",
+                kind: PropertyValueKind::F32,
+            }],
+        },
+        EffectSpecDef {
+            type_name: "ColorGrade",
+            display_name: "Color Grade",
+            params: &[
+                EffectParamSpecDef {
+                    name: "brightness",
+                    kind: PropertyValueKind::F32,
+                },
+                EffectParamSpecDef {
+                    name: "contrast",
+                    kind: PropertyValueKind::F32,
+                },
+                EffectParamSpecDef {
+                    name: "saturate",
+                    kind: PropertyValueKind::F32,
+                },
+                EffectParamSpecDef {
+                    name: "hue_rotate",
+                    kind: PropertyValueKind::F32,
+                },
+                EffectParamSpecDef {
+                    name: "sepia",
+                    kind: PropertyValueKind::F32,
+                },
+            ],
+        },
+    ]
+}
+
+/// Look up an effect spec by authored type name.
+pub fn effect_spec(type_name: &str) -> Option<&'static EffectSpecDef> {
+    effect_specs().iter().find(|spec| spec.type_name == type_name)
+}
+
 /// All known built-in property specs with stable ids in declaration order.
 ///
 /// The ids are unique per property name and intentionally follow the runtime

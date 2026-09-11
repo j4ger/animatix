@@ -359,6 +359,28 @@ fn property_completions(
     let mut items = Vec::new();
 
     if let Some(ty) = actor_type {
+        // Effects are not primitives: offer their declared parameters plus the
+        // implicit `enabled` flag, and nothing else.
+        if let Some(effect) = animatix_syntax::schema::effect_spec(ty) {
+            for param in effect.params {
+                items.push(CompletionItem {
+                    label: param.name.to_string(),
+                    kind: CompletionKind::Property,
+                    detail: Some(format!("{} parameter", effect.display_name)),
+                    documentation: None,
+                    insert_text: Some(format!("{}: ", param.name)),
+                });
+            }
+            items.push(CompletionItem {
+                label: "enabled".to_string(),
+                kind: CompletionKind::Property,
+                detail: Some(format!("{} parameter", effect.display_name)),
+                documentation: None,
+                insert_text: Some("enabled: ".to_string()),
+            });
+            return items;
+        }
+
         if let Some(props) = symbols.properties.get(ty) {
             for prop in props {
                 let extension = manifest

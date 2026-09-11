@@ -43,6 +43,9 @@ mod builtins;
 pub mod callout_geometry;
 pub mod colorscheme;
 mod declarations_text;
+/// Effect chain storage owned by a compositing scope.
+#[cfg(feature = "render")]
+pub mod effect;
 /// Evaluation environment for expressions.
 pub mod env;
 pub(crate) mod env_keys;

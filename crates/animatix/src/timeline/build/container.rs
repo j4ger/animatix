@@ -27,6 +27,19 @@ impl Timeline {
                     ..
                 } => {
                     let id = format!("__anon_{}_{}", parent_label, index);
+                    #[cfg(feature = "render")]
+                    if let Some(desc) = crate::timeline::filter::descriptor_for_type(ty) {
+                        self.lower_effect_stage(
+                            parent_label,
+                            &id,
+                            desc,
+                            props,
+                            modifiers,
+                            time_ms,
+                            diagnostics,
+                        );
+                        continue;
+                    }
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
                         is_anonymous: true,
@@ -49,6 +62,19 @@ impl Timeline {
                     children,
                     ..
                 } => {
+                    #[cfg(feature = "render")]
+                    if let Some(desc) = crate::timeline::filter::descriptor_for_type(ty) {
+                        self.lower_effect_stage(
+                            parent_label,
+                            label,
+                            desc,
+                            props,
+                            modifiers,
+                            time_ms,
+                            diagnostics,
+                        );
+                        continue;
+                    }
                     let stmt = Stmt::ActorDecl {
                         is_pub: false,
                         is_anonymous: false,

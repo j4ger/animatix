@@ -125,6 +125,10 @@ pub struct AnimationTrack {
     /// Filter property tracks (blur, brightness, contrast, etc.).
     pub filter: FilterTracks,
 
+    /// Effect chain for compositing scopes; empty for non-scope actors.
+    #[cfg(feature = "render")]
+    pub effects: crate::timeline::effect::EffectChainTrack,
+
     // ── Shape tier (sub-struct) ──
     /// Shape property tracks (shape_type, line_from, line_to, etc.).
     pub shape: ShapeTracks,
@@ -256,6 +260,9 @@ impl AnimationTrack {
 
             // Filter tier (sub-struct)
             filter: FilterTracks::default(),
+
+            #[cfg(feature = "render")]
+            effects: crate::timeline::effect::EffectChainTrack::default(),
 
             // Shape tier (sub-struct)
             shape: ShapeTracks::default(),
