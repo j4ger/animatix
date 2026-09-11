@@ -93,6 +93,10 @@ pub enum UndoLabel {
         old_time_s: f64,
         new_time_s: f64,
     },
+    /// Undo label for a batched multi-keyframe drag.
+    MoveKeyframes,
+    /// Undo label for a batched multi-keyframe delete.
+    DeleteKeyframes,
     ResizeAction {
         verb: String,
         targets: Vec<String>,
@@ -212,6 +216,10 @@ impl From<UndoLabel> for Command {
                 old_time_s,
                 new_time_s,
             },
+            // Batch variants carry no payload in the undo label; undo restores
+            // source text directly rather than replaying the command.
+            UndoLabel::MoveKeyframes => Command::MoveKeyframes(Vec::new()),
+            UndoLabel::DeleteKeyframes => Command::DeleteKeyframes(Vec::new()),
             UndoLabel::ResizeAction {
                 verb,
                 targets,
@@ -374,6 +382,11 @@ pub enum Command {
         old_time_s: f64,
         new_time_s: f64,
     },
+    /// Move several keyframes as one undoable step. Emitted by a multi-keyframe
+    /// timeline drag so the whole selection shares one undo entry.
+    MoveKeyframes(Vec<MoveKeyframeSpec>),
+    /// Delete several keyframes as one undoable step.
+    DeleteKeyframes(Vec<KeyframeId>),
     /// Resize an action block's duration. Emitted by timeline drag handles.
     ResizeAction {
         verb: String,
@@ -414,6 +427,18 @@ pub enum Command {
 
     // ── Find / Replace ────────────────────────────────────────────────
     FindReplaceAll,
+}
+
+/// One keyframe move inside [`Command::MoveKeyframes`].
+///
+/// Times are scene-local seconds, matching [`Command::MoveKeyframe`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct MoveKeyframeSpec {
+    pub scene: Option<String>,
+    pub actor: String,
+    pub property: String,
+    pub old_time_s: f64,
+    pub new_time_s: f64,
 }
 
 /// Horizontal or vertical axis for distribute.

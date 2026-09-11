@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::source_edit;
@@ -432,46 +433,124 @@ impl DocumentController<'_> {
         }
     }
 
-    /// Move a keyframe from one time to another.
-    /// NOTE: The caller should have called `snapshot()` before this.
-    pub(crate) fn handle_move_keyframe(
+    /// Move several keyframes, applying each `SourceEdit::MoveKeyframeTime`
+    /// against the same AST so they share one undo snapshot.
+    ///
+    /// NOTE: The caller should have called `snapshot()` exactly once before this.
+    pub(crate) fn handle_move_keyframes(
         &mut self,
-        scene: Option<String>,
-        actor: &str,
-        property: &str,
-        old_time_s: f64,
-        new_time_s: f64,
+        specs: &[crate::app::commands::MoveKeyframeSpec],
     ) {
+        if specs.is_empty() {
+            self.document_store.abort_snapshot();
+            return;
+        }
         let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
             self.document_store.abort_snapshot();
             self.preview_store.preview.status =
-                "Failed to move keyframe — no AST available".to_string();
+                "Failed to move keyframes — no AST available".to_string();
             return;
         };
 
-        let edit = source_edit::SourceEdit::MoveKeyframeTime {
-            scene,
-            actor: actor.into(),
-            property: property.into(),
-            old_time_s,
-            new_time_s,
+        // One source keyframe block holds every assignment at a given actor
+        // time, and `MoveKeyframeTime` moves the whole block. Dedupe by block
+        // identity so coincident keyframes move once instead of logging a
+        // not-found failure for each sibling.
+        let mut moved_blocks: std::collections::HashSet<(Option<String>, String, u64)> =
+            std::collections::HashSet::new();
+        let mut moved = 0usize;
+        for spec in specs {
+            let block = (
+                spec.scene.clone(),
+                spec.actor.clone(),
+                (spec.old_time_s * 1000.0).round() as u64,
+            );
+            if !moved_blocks.insert(block) {
+                tracing::debug!(
+                    actor = %spec.actor,
+                    property = %spec.property,
+                    old_time_s = spec.old_time_s,
+                    "skipping coincident keyframe; its block already moved"
+                );
+                continue;
+            }
+            let edit = source_edit::SourceEdit::MoveKeyframeTime {
+                scene: spec.scene.clone(),
+                actor: spec.actor.clone(),
+                property: spec.property.clone(),
+                old_time_s: spec.old_time_s,
+                new_time_s: spec.new_time_s,
+            };
+            match source_edit::apply_edit(stmts, edit) {
+                Ok(()) => moved += 1,
+                Err(err) => tracing::warn!(
+                    actor = %spec.actor,
+                    property = %spec.property,
+                    old_time_s = spec.old_time_s,
+                    "failed to move keyframe in batch: {err}"
+                ),
+            }
+        }
+
+        if moved == 0 {
+            self.document_store.abort_snapshot();
+            self.preview_store.preview.status = "Failed to move keyframes — none found".to_string();
+            return;
+        }
+
+        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+        let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
+        self.apply_source(new_source, source_index);
+        self.preview_store.preview.status = format!("Moved {moved} keyframe(s)");
+    }
+
+    /// Delete several keyframes against the same AST so they share one undo
+    /// snapshot.
+    ///
+    /// NOTE: The caller should have called `snapshot()` exactly once before this.
+    pub(crate) fn handle_delete_keyframes(&mut self, ids: &[KeyframeId]) {
+        if ids.is_empty() {
+            self.document_store.abort_snapshot();
+            return;
+        }
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
+            self.preview_store
+                .preview
+                .set_status_error("Failed to delete keyframes — no AST available");
+            return;
         };
 
-        if source_edit::apply_edit(stmts, edit).is_ok() {
-            let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-            let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
-            self.apply_source(new_source, source_index);
-            self.preview_store.preview.status = format!(
-                "Moved keyframe '{}.{}' from {:.2}s to {:.2}s",
-                actor, property, old_time_s, new_time_s
-            );
-        } else {
-            self.document_store.abort_snapshot();
-            self.preview_store.preview.status = format!(
-                "Failed to move keyframe '{}.{}' from {:.2}s — not found",
-                actor, property, old_time_s
-            );
+        let mut deleted = 0usize;
+        for id in ids {
+            let edit = source_edit::SourceEdit::DeleteKeyframe {
+                scene: id.scene.clone(),
+                actor: id.actor.clone(),
+                property: id.property.clone(),
+                time_s: id.time_ms as f64 / 1000.0,
+            };
+            match source_edit::apply_edit(stmts, edit) {
+                Ok(()) => deleted += 1,
+                Err(err) => tracing::warn!(
+                    actor = %id.actor,
+                    property = %id.property,
+                    time_ms = id.time_ms,
+                    "failed to delete keyframe in batch: {err}"
+                ),
+            }
         }
+
+        if deleted == 0 {
+            self.document_store.abort_snapshot();
+            self.preview_store.preview.status =
+                "Failed to delete keyframes — none found".to_string();
+            return;
+        }
+
+        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
+        let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
+        self.apply_source(new_source, source_index);
+        self.preview_store.preview.status = format!("Deleted {deleted} keyframe(s)");
     }
 
     /// Resize an action block's duration.

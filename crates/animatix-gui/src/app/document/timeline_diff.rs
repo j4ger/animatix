@@ -7,6 +7,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
+use animatix::timeline::ActorField;
+
 use crate::document::DocumentSession;
 
 /// Stable identity of a keyframe selection.
@@ -83,6 +85,109 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.filter.filter_hue_rotate, "filter_hue_rotate");
     push(&mut result, &track.filter.filter_sepia, "filter_sepia");
     result
+}
+
+/// Canonical lane name and storage field for every keyframe-addressable
+/// property, in the order expanded property lanes render.
+///
+/// Names match [`collect_per_property_keyframes`] exactly so a lane identity
+/// lines up with keyframe selection and diff identities. Each `ActorField`
+/// appears once: registry aliases such as `background_color -> ActorField::Color`
+/// collapse onto the storage field and never create a duplicate lane.
+const PROPERTY_LANES: &[(&str, ActorField)] = &[
+    // Transform
+    ("position", ActorField::Position),
+    ("motion_offset", ActorField::MotionOffset),
+    ("rotation", ActorField::Rotation),
+    ("scale", ActorField::Scale),
+    ("size", ActorField::Size),
+    ("layout_size", ActorField::LayoutSize),
+    // Style
+    ("color", ActorField::Color),
+    ("opacity", ActorField::Opacity),
+    ("stroke_width", ActorField::StrokeWidth),
+    ("stroke_color", ActorField::StrokeColor),
+    ("stroke_progress", ActorField::StrokeProgress),
+    ("fill_opacity", ActorField::FillOpacity),
+    ("line_cap", ActorField::LineCap),
+    ("line_join", ActorField::LineJoin),
+    // Filter
+    ("filter_blur", ActorField::FilterBlur),
+    ("filter_brightness", ActorField::FilterBrightness),
+    ("filter_contrast", ActorField::FilterContrast),
+    ("filter_saturate", ActorField::FilterSaturate),
+    ("filter_hue_rotate", ActorField::FilterHueRotate),
+    ("filter_sepia", ActorField::FilterSepia),
+    // Shape
+    ("shape_type", ActorField::ShapeType),
+    ("line_from", ActorField::LineFrom),
+    ("line_to", ActorField::LineTo),
+    ("arc_angles", ActorField::ArcAngles),
+    ("points", ActorField::Points),
+    ("commands", ActorField::Commands),
+    ("vector_paths", ActorField::VectorPaths),
+    ("head_size", ActorField::HeadSize),
+    // Text
+    ("text_content", ActorField::TextContent),
+    ("font_family", ActorField::FontFamily),
+    ("font_size", ActorField::FontSize),
+];
+
+/// Collect every animatable property lane for an actor kind, including lanes
+/// whose property has never been keyframed (empty time list).
+///
+/// A lane is included when the registry marks its storage field applicable to
+/// the actor kind, or when the property already carries keyframes. Names are
+/// unique and match [`collect_per_property_keyframes`], which remains the
+/// authority for actual keyframe times.
+pub(crate) fn collect_property_lanes(
+    track: &animatix::timeline::AnimationTrack,
+) -> Vec<(&'static str, Vec<u64>)> {
+    use animatix::timeline::{
+        PROPERTY_REGISTRY, allowed_property_indices, property_keyframe_times,
+    };
+
+    // Storage fields the registry allows for this actor kind. Keying by field
+    // dedupes aliases that share one storage location.
+    let allowed_fields: Vec<ActorField> = allowed_property_indices(track.kind)
+        .into_iter()
+        .map(|idx| PROPERTY_REGISTRY[idx].field)
+        .collect();
+    // Fields with real keyframes keep a lane even when the registry does not
+    // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
+    let keyframed: Vec<&'static str> = collect_per_property_keyframes(track)
+        .into_iter()
+        .map(|(property, _)| property)
+        .collect();
+
+    PROPERTY_LANES
+        .iter()
+        .filter(|(property, field)| allowed_fields.contains(field) || keyframed.contains(property))
+        .map(|&(property, field)| (property, property_keyframe_times(track, field)))
+        .collect()
+}
+
+/// Resolve the writable registry schema that owns a property lane.
+///
+/// Lane names are typed-identity names (e.g. `motion_offset`, `filter_blur`)
+/// that do not always equal the source-text property name (`shift`, `blur`).
+/// This maps a lane back to the applicable schema so callers can key it with
+/// the canonical source name while reading the current value from the same
+/// storage field.
+pub(crate) fn lane_schema(
+    kind: animatix::timeline::ActorKindId,
+    lane: &str,
+) -> Option<&'static animatix::timeline::PropertySchema> {
+    use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
+
+    let field = PROPERTY_LANES.iter().find(|(name, _)| *name == lane).map(|(_, field)| *field)?;
+    let allowed = || allowed_property_indices(kind).into_iter().map(|idx| &PROPERTY_REGISTRY[idx]);
+    // Prefer a schema whose canonical name equals the lane name. This avoids
+    // matching derived component schemas first (e.g. `height`/`width` share
+    // `ActorField::Size` with `size`).
+    allowed()
+        .find(|schema| schema.name == lane)
+        .or_else(|| allowed().find(|schema| schema.field == field))
 }
 
 /// Collect one flattened keyframe time per actor property, sorted by time.
@@ -437,6 +542,83 @@ mod tests {
                 .any(|id| { id.actor == "box" && id.property == "color" && id.time_ms == 2000 })
         );
         assert!(diff.removed_actors.iter().all(|actor| actor != "box"));
+    }
+
+    #[test]
+    fn property_lanes_are_unique_and_cover_unkeyframed_properties() {
+        let document = load_session("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
+        let timeline = document.active_timeline().expect("single-scene timeline");
+        let track = timeline.get_track("box").expect("box track");
+
+        let lanes = collect_property_lanes(track);
+
+        // Lane names are unique (no duplicate rows from registry aliases).
+        let mut names: Vec<&str> = lanes.iter().map(|(name, _)| *name).collect();
+        let lane_count = names.len();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), lane_count, "lane names must be unique");
+
+        // Every keyframed property has a lane whose times match the typed
+        // collector exactly.
+        for (property, times) in collect_per_property_keyframes(track) {
+            let lane = lanes
+                .iter()
+                .find(|(name, _)| *name == property)
+                .unwrap_or_else(|| panic!("missing lane for keyframed property '{property}'"));
+            assert_eq!(lane.1, times, "lane '{property}' times must match typed collector");
+        }
+
+        // An unkeyframed but animatable property still gets an empty lane.
+        let rotation = lanes
+            .iter()
+            .find(|(name, _)| *name == "rotation")
+            .expect("rotation lane must exist for a Rect");
+        assert!(rotation.1.is_empty(), "unkeyframed rotation lane must be empty");
+    }
+
+    #[test]
+    fn property_lanes_dedupe_registry_alias_fields() {
+        let document = load_session("#0s\nbox: Rect\n");
+        let timeline = document.active_timeline().expect("single-scene timeline");
+        let track = timeline.get_track("box").expect("box track");
+
+        // `background_color` aliases `ActorField::Color`, so the alias must not
+        // surface as its own lane.
+        assert!(
+            !collect_property_lanes(track)
+                .iter()
+                .any(|(name, _)| *name == "background_color"),
+            "registry aliases must collapse onto the storage field's lane"
+        );
+    }
+
+    #[test]
+    fn lane_schema_maps_typed_lanes_to_writable_source_names() {
+        use animatix::timeline::ActorKindId;
+
+        // Internal lane names that differ from the source property name must
+        // resolve to the writable schema, not to an ambiguous sibling.
+        assert_eq!(
+            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "motion_offset")
+                .map(|schema| schema.name),
+            Some("shift")
+        );
+        assert_eq!(
+            lane_schema(ActorKindId::Filter, "filter_blur").map(|schema| schema.name),
+            Some("blur")
+        );
+        // `size` shares `ActorField::Size` with `height`/`width`; exact-name
+        // precedence must win.
+        assert_eq!(
+            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "size")
+                .map(|schema| schema.name),
+            Some("size")
+        );
+        // Unknown lane names resolve to nothing.
+        assert!(
+            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "nope").is_none()
+        );
     }
 
     #[test]

@@ -279,6 +279,18 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
+            Command::MoveKeyframes(specs) => keyframe::handle_move_keyframes(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                specs,
+            ),
+            Command::DeleteKeyframes(ids) => keyframe::handle_delete_keyframes(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                ids,
+            ),
             Command::SetSelectedKeyframes(keyframes) => {
                 ui::handle_set_selected_keyframes(&mut self.ui_store, keyframes)
             },
