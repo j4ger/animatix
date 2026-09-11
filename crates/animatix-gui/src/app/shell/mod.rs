@@ -407,6 +407,25 @@ impl GuiShell {
             ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
             ViewAction::ApplyLayout(preset) => ui::handle_apply_layout(&mut self.ui_store, preset),
             ViewAction::ResetLayout => ui::handle_reset_layout(&mut self.ui_store),
+            ViewAction::OpenFileDialog => {
+                match rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file() {
+                    Some(path) => self.handle_command(Command::OpenFile(path)),
+                    None => vec![],
+                }
+            },
+            ViewAction::OpenSettings => {
+                self.ui_store.view.settings_open = true;
+                vec![]
+            },
+            ViewAction::OpenShortcuts => {
+                self.ui_store.view.shortcuts_open = true;
+                vec![]
+            },
+            ViewAction::OpenInsertionPalette => {
+                use crate::app::shell::insertion_palette::PaletteMode;
+                self.insertion_palette.open(PaletteMode::Universal);
+                vec![]
+            },
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
             },
