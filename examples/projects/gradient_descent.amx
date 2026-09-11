@@ -176,6 +176,7 @@ always {
 #0.5s
 fade-in step3_title [500ms, ease: ease-out]
 fade-in contours_dim [600ms]
+fade-in descent_graph [600ms]
 
 #1.0s
 fade-in ball [400ms]
@@ -240,6 +241,7 @@ lesson: Text,
 #0.5s
 fade-in step4_title [500ms, ease: ease-out]
 fade-in contours_lr [600ms]
+fade-in lr_graph [600ms]
 
 #1.0s
 stagger [400ms] {

@@ -113,6 +113,10 @@ impl Timeline {
                 eval_env,
                 build_quality: self.build_quality,
                 label,
+                // This fallback drops diagnostics, so the frame-injected name
+                // set is irrelevant here; the plot-specific declaration path
+                // reports probe failures.
+                param_names: &[],
             };
             return build_plot_curve_paths(&curve_params, &mut ignored_diagnostics);
         }
@@ -375,6 +379,12 @@ impl Timeline {
         let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
+        // Deliberately computed after the early track creation above: recursive
+        // containers (Row/Col/Grid/Stack/Group/Mask/Filter) with children stay
+        // visible-by-default because `expand_group_targets` targets their leaves
+        // and skips the container, so a container-level seed could never be
+        // lifted. Self-drawing containers that are *not* expanded (Graph and the
+        // other plot hosts) are seeded in `process_plot_actor_dispatch` instead.
         let is_first_decl = !self.tracks.contains_key(label);
         let mut opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
@@ -1225,6 +1235,12 @@ impl Timeline {
             .cloned()
             .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
 
+        // Capture before `process_plot_actor` runs: it processes children,
+        // whose registration creates this container's track (`add_node`), which
+        // would make a first declaration with children look like a
+        // re-declaration and skip the hidden-by-default seed.
+        let is_first_decl = !self.tracks.contains_key(label);
+
         if let Some(ProcessedPlotActor {
             initial_size,
             line_from,
@@ -1288,7 +1304,6 @@ impl Timeline {
             );
             let size = initial_size;
             let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
-            let is_first_decl = !self.tracks.contains_key(label);
             let opacity = if is_first_decl && !has_explicit_opacity {
                 self.default_opacity
             } else {

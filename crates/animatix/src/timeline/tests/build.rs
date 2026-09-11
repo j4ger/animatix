@@ -250,6 +250,42 @@ fn container_fadein_reveals_graph_hosted_children() {
 }
 
 #[test]
+fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
+    // A container declared before the first keyframe must be seeded invisible
+    // like any other actor. The Graph paints its own axes, so without the seed
+    // those axes showed before `fade-in g` ever ran (07_plots shipped a
+    // floating crosshair for the first second of the scene). Root cause:
+    // `add_node` creates the parent's track while registering children, so a
+    // first declaration *with children* looked like a re-declaration and never
+    // received the hidden-by-default seed — it also gave the container a
+    // nonsensical 1 → 0 → 1 opacity dip instead of a clean reveal.
+    let source = r#"
+        g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
+            c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
+        }
+
+        #1.0s
+        fade-in g [300ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let graph = timeline.tracks.get("g").expect("graph track should exist");
+    assert!(!graph.hidden_by_default, "the entrance action consumes the flag");
+    let opacity = |ms: u64| graph.style.opacity.as_ref().map(|t| t.evaluate(ms)).unwrap_or(1.0);
+    assert_eq!(opacity(0), 0.0, "graph must start invisible before its entrance");
+    assert_eq!(opacity(900), 0.0, "graph must stay invisible until the entrance at 1.0s");
+    assert!(
+        (opacity(1300) - 1.0).abs() < 1e-6,
+        "graph must be fully visible after the fade completes"
+    );
+}
+
+#[test]
 fn unrevealed_graph_child_still_warns_never_revealed() {
     // Without any entrance action the hosted child stays invisible, and the
     // build must say so. The graph itself is visible-by-default (its
