@@ -132,12 +132,12 @@ fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDrag>) {
 /// coincident keyframe instead of an arbitrary one.
 fn collect_actor_keyframe_groups(
     track: &animatix::timeline::AnimationTrack,
-) -> Vec<(u64, Vec<&'static str>)> {
-    let mut by_time: std::collections::BTreeMap<u64, Vec<&'static str>> =
+) -> Vec<(u64, Vec<String>)> {
+    let mut by_time: std::collections::BTreeMap<u64, Vec<String>> =
         std::collections::BTreeMap::new();
     for (property, times) in collect_per_property_keyframes(track) {
         for time_ms in times {
-            by_time.entry(time_ms).or_default().push(property);
+            by_time.entry(time_ms).or_default().push(property.clone());
         }
     }
     by_time.into_iter().collect()
@@ -150,6 +150,7 @@ enum PropertyGroup {
     Style,
     Shape,
     Text,
+    Effects,
 }
 
 const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
@@ -204,6 +205,11 @@ const PROPERTY_GROUPS: &[(PropertyGroup, &str, &[&str])] = &[
 ];
 
 fn property_group_for_prop(prop: &str) -> Option<PropertyGroup> {
+    // Effect stage parameters (`stage.param`) form their own group; their lane
+    // names are runtime strings, not registry properties.
+    if prop.contains('.') {
+        return Some(PropertyGroup::Effects);
+    }
     for (group, _, props) in PROPERTY_GROUPS {
         if props.contains(&prop) {
             return Some(*group);
@@ -218,6 +224,7 @@ fn property_group_color(group: PropertyGroup, theme: eparts::Theme) -> Color32 {
         PropertyGroup::Style => theme.palette.status.success,
         PropertyGroup::Shape => theme.palette.status.warning,
         PropertyGroup::Text => theme.palette.accent.cyan,
+        PropertyGroup::Effects => theme.palette.accent.cyan,
     }
 }
 
@@ -1515,7 +1522,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     let kf_groups = collect_actor_keyframe_groups(track);
                     for (kf_ms, props) in kf_groups {
                         let prop_label = props.join(", ");
-                        let drag_prop = props.first().copied().unwrap_or("");
+                        let drag_prop = props.first().cloned().unwrap_or_default();
                         let kf_s = kf_ms as f64 / 1000.0;
                         let kf_x = time_to_x(kf_s);
                         if kf_x < bar_area.left() || kf_x > bar_area.right() {
@@ -1874,7 +1881,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             painter.text(
                                 Pos2::new(prop_label_x, prop_rect.center().y),
                                 Align2::LEFT_CENTER,
-                                *prop_name,
+                                prop_name.as_str(),
                                 TextRole::Micro.font_id(),
                                 theme.palette.text.muted,
                             );
@@ -1936,11 +1943,36 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     &format!("{}: add keyframe at playhead", prop_name),
                                 );
                                 if add_resp.clicked() {
+                                    // Effect stage parameters (`stage.param`)
+                                    // keyframe the currently sampled value; the
+                                    // dotted property routes through the scope's
+                                    // effect chain on both source and rebuild.
+                                    if prop_name.contains('.') {
+                                        let value = track
+                                            .effects
+                                            .sample_lane(
+                                                prop_name,
+                                                (playhead_s * 1000.0) as u64,
+                                            )
+                                            .unwrap_or(
+                                                animatix::timeline::PropertyValue::F32(0.0),
+                                            );
+                                        commands.push_back(
+                                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                                actor: actor_label.clone(),
+                                                property: prop_name.to_string(),
+                                                value,
+                                                create_keyframe: true,
+                                                time_s: Some(playhead_s),
+                                            })
+                                            .into(),
+                                        );
+                                    }
                                     // Lane names are typed identities; resolve
                                     // the registry schema so the keyframe uses
                                     // the canonical source property name (e.g.
                                     // `motion_offset` -> `shift`).
-                                    if let Some(schema) = lane_schema(track.kind, prop_name) {
+                                    else if let Some(schema) = lane_schema(track.kind, prop_name) {
                                         let value =
                                             animatix::timeline::read_property_value_or_default(
                                                 track,

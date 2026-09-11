@@ -146,6 +146,30 @@ impl EffectChainTrack {
         true
     }
 
+    /// Sample a `stage.param` lane (or `stage.enabled`) at `time_ms`.
+    ///
+    /// Returns the authored identity when the parameter has no keyframes yet.
+    /// Used by the GUI's empty-lane keyframe-add path.
+    pub fn sample_lane(&self, lane: &str, time_ms: u64) -> Option<PropertyValue> {
+        let (stage_label, param) = lane.split_once('.')?;
+        let stage = self.stage(stage_label)?;
+        if param == "enabled" {
+            return Some(match stage.enabled.sample(time_ms) {
+                Some(PropertyValue::Bool(enabled)) => PropertyValue::Bool(enabled),
+                _ => PropertyValue::Bool(true),
+            });
+        }
+        let desc = descriptor(stage.kind);
+        let spec = desc.params.iter().find(|spec| spec.name == param)?;
+        Some(
+            stage
+                .params
+                .get(param)
+                .and_then(|track| track.sample(time_ms))
+                .unwrap_or_else(|| identity_to_property(spec.identity)),
+        )
+    }
+
     /// Sample the chain at `time_ms`, dropping disabled and identity stages.
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();

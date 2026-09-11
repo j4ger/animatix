@@ -1,6 +1,6 @@
 //! Edits related to keyframes: insert, merge, delete, and easing updates.
 
-use animatix_syntax::ast::{ComponentDef, Expr, Stmt, Time};
+use animatix_syntax::ast::{ComponentDef, Expr, Stmt, TargetSegment, Time};
 
 use super::SourceEditError;
 use super::apply::{canonical_to_source, time_to_seconds};
@@ -8,6 +8,36 @@ use super::ast_utils::{
     adjust_following_relative_keyframe, find_keyframe_insertion_point,
     wrap_leading_decls_in_zero_keyframe,
 };
+
+/// Decompose a property key for assignment matching. `"stage.param"` addresses
+/// an effect stage parameter: the assignment target is `[scope, stage]` and the
+/// assignment property is `param`.
+fn split_property(property: &str) -> (Option<&str>, &str) {
+    match property.rsplit_once('.') {
+        Some((stage, param)) => (Some(stage), param),
+        None => (None, property),
+    }
+}
+
+/// Does an assignment with `target`/`prop` match the `actor` + `property` key?
+fn assignment_matches(target: &[TargetSegment], prop: &str, actor: &str, property: &str) -> bool {
+    let (stage, param) = split_property(property);
+    let actor_ok = target.iter().any(|t| t.label_str() == actor);
+    match stage {
+        Some(stage) => actor_ok && target.iter().any(|t| t.label_str() == stage) && prop == param,
+        None => actor_ok && prop == property,
+    }
+}
+
+/// Build the assignment target segments and property for `actor` + `property`.
+fn assignment_target(actor: &str, property: &str) -> (Vec<TargetSegment>, String) {
+    let (stage, param) = split_property(property);
+    let mut target = vec![TargetSegment::Static(actor.to_string())];
+    if let Some(stage) = stage {
+        target.push(TargetSegment::Static(stage.to_string()));
+    }
+    (target, param.to_string())
+}
 
 /// Return the body of a named composition scene, or `None` when absent.
 fn scene_body_mut<'a>(stmts: &'a mut [Stmt], scene_name: &str) -> Option<&'a mut Vec<Stmt>> {
@@ -148,7 +178,7 @@ fn update_assignment(
                 property: prop,
                 value: val,
                 ..
-            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
+            } if assignment_matches(target, prop, actor, property) => {
                 *val = value;
                 return Ok(());
             },
@@ -288,7 +318,7 @@ fn update_assignment_easing(
                 property: prop,
                 modifiers,
                 ..
-            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
+            } if assignment_matches(target, prop, actor, property) => {
                 if let Some(existing) =
                     modifiers.iter_mut().find(|m| m.name.as_deref() == Some("ease"))
                 {
@@ -420,7 +450,7 @@ fn remove_assignment_from_body(body: &mut Vec<Stmt>, actor: &str, property: &str
     body.retain(|stmt| {
         !matches!(stmt,
             Stmt::Assignment { target, property: prop, .. }
-                if target.iter().any(|t| t.label_str() == actor) && prop == property
+                if assignment_matches(target, prop, actor, property)
         )
     });
 }
@@ -467,7 +497,8 @@ fn insert_keyframe_inner(
         return Err(SourceEditError::InvalidKeyframeTime { time_s });
     }
 
-    let source_prop = canonical_to_source(property);
+    let (target_segments, source_prop) = assignment_target(actor, property);
+    let source_prop = canonical_to_source(&source_prop);
 
     // Format the time offset.
     let offset = if delta_s < 1.0 {
@@ -477,9 +508,7 @@ fn insert_keyframe_inner(
     };
 
     let assignment = Stmt::Assignment {
-        target: vec![animatix_syntax::ast::TargetSegment::Static(
-            actor.to_string(),
-        )],
+        target: target_segments,
         property: source_prop.into(),
         value,
         modifiers: vec![],
@@ -685,7 +714,7 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
                 target,
                 property: prop,
                 ..
-            } if target.iter().any(|t| t.label_str() == actor) && prop == property => {
+            } if assignment_matches(target, prop, actor, property) => {
                 return true;
             },
             Stmt::Keyframe { body, .. }
@@ -1269,6 +1298,99 @@ box.color = blue"#,
             })
             .and_then(|body| keyframe_time_with_property(body, "color"));
         assert_eq!(scene_b_color_time, Some(3.0));
+    }
+
+    #[test]
+    fn effect_param_keyframes_use_dotted_target() {
+        let mut stmts = parse(
+            r#"#0s
+bg: Filter {
+  soft: Blur, radius: 4
+  img: Rect, size: (100, 100)
+}
+"#,
+        );
+
+        let insert = SourceEdit::InsertKeyframe {
+            scene: None,
+            actor: "bg".into(),
+            property: "soft.radius".into(),
+            value: Expr::Num(16.0),
+            time_s: 1.0,
+            prev_time_s: 0.0,
+        };
+        assert!(apply_edit(&mut stmts, insert).is_ok());
+
+        // The keyframed assignment targets `[bg, soft]` with property `radius`.
+        if let Stmt::RelativeKeyframe { body, .. } = &stmts[1] {
+            if let Stmt::Assignment {
+                target, property, ..
+            } = &body[0]
+            {
+                assert_eq!(
+                    target,
+                    &vec![
+                        animatix_syntax::ast::TargetSegment::Static("bg".to_string()),
+                        animatix_syntax::ast::TargetSegment::Static("soft".to_string()),
+                    ]
+                );
+                assert_eq!(property, "radius");
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected RelativeKeyframe");
+        }
+
+        // Merging at the same time updates the effect assignment in place.
+        let merge = SourceEdit::MergeKeyframe {
+            scene: None,
+            actor: "bg".into(),
+            property: "soft.radius".into(),
+            value: Expr::Num(24.0),
+            time_s: 1.0,
+        };
+        assert!(apply_edit(&mut stmts, merge).is_ok());
+        if let Stmt::RelativeKeyframe { body, .. } = &stmts[1] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert_eq!(*value, Expr::Num(24.0));
+            }
+        }
+
+        // Easing and moving resolve the same dotted target.
+        let easing = SourceEdit::SetKeyframeEasing {
+            scene: None,
+            actor: "bg".into(),
+            property: "soft.radius".into(),
+            time_s: 1.0,
+            easing: animatix_syntax::easing::Easing::EaseInOut,
+        };
+        assert!(apply_edit(&mut stmts, easing).is_ok());
+
+        let move_edit = SourceEdit::MoveKeyframeTime {
+            scene: None,
+            actor: "bg".into(),
+            property: "soft.radius".into(),
+            old_time_s: 1.0,
+            new_time_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, move_edit).is_ok());
+
+        // Deleting removes the effect assignment (and the emptied block).
+        let delete = SourceEdit::DeleteKeyframe {
+            scene: None,
+            actor: "bg".into(),
+            property: "soft.radius".into(),
+            time_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, delete).is_ok());
+        let still_has_effect_assignment = stmts.iter().any(|stmt| match stmt {
+            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body.iter().any(
+                |stmt| matches!(stmt, Stmt::Assignment { property, .. } if property == "radius"),
+            ),
+            _ => false,
+        });
+        assert!(!still_has_effect_assignment);
     }
 
     fn keyframe_time_with_property(stmts: &[Stmt], property: &str) -> Option<f64> {

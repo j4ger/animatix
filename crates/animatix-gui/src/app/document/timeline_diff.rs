@@ -34,17 +34,17 @@ pub struct KeyframeId {
 /// phantom identities for the same keyframes.
 pub(crate) fn collect_per_property_keyframes(
     track: &animatix::timeline::AnimationTrack,
-) -> Vec<(&'static str, Vec<u64>)> {
+) -> Vec<(String, Vec<u64>)> {
     let mut result = Vec::new();
     use animatix::timeline::{Interpolate, PropertyTrack};
     fn push<T: Interpolate>(
-        result: &mut Vec<(&'static str, Vec<u64>)>,
+        result: &mut Vec<(String, Vec<u64>)>,
         opt: &Option<PropertyTrack<T>>,
         name: &'static str,
     ) {
         if let Some(pt) = opt {
             if !pt.keyframes().is_empty() {
-                result.push((name, pt.keyframes().keys().copied().collect()));
+                result.push((name.to_string(), pt.keyframes().keys().copied().collect()));
             }
         }
     }
@@ -77,6 +77,24 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.shape.commands, "commands");
     push(&mut result, &track.shape.vector_paths, "vector_paths");
     push(&mut result, &track.shape.head_size, "head_size");
+    // Effect stages: one lane per declared parameter plus the implicit `enabled`.
+    for stage in &track.effects.stages {
+        let desc = animatix::timeline::filter::descriptor(stage.kind);
+        for spec in desc.params {
+            let times = stage
+                .params
+                .get(spec.name)
+                .map(|param| param.keyframe_times())
+                .unwrap_or_default();
+            if !times.is_empty() {
+                result.push((format!("{}.{}", stage.label, spec.name), times));
+            }
+        }
+        let enabled_times = stage.enabled.keyframe_times();
+        if !enabled_times.is_empty() {
+            result.push((format!("{}.enabled", stage.label), enabled_times));
+        }
+    }
     result
 }
 
@@ -128,7 +146,7 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
 /// authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
     track: &animatix::timeline::AnimationTrack,
-) -> Vec<(&'static str, Vec<u64>)> {
+) -> Vec<(String, Vec<u64>)> {
     use animatix::timeline::{
         PROPERTY_REGISTRY, allowed_property_indices, property_keyframe_times,
     };
@@ -141,16 +159,34 @@ pub(crate) fn collect_property_lanes(
         .collect();
     // Fields with real keyframes keep a lane even when the registry does not
     // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
-    let keyframed: Vec<&'static str> = collect_per_property_keyframes(track)
+    let keyframed: Vec<String> = collect_per_property_keyframes(track)
         .into_iter()
         .map(|(property, _)| property)
         .collect();
 
-    PROPERTY_LANES
+    let mut lanes: Vec<(String, Vec<u64>)> = PROPERTY_LANES
         .iter()
-        .filter(|(property, field)| allowed_fields.contains(field) || keyframed.contains(property))
-        .map(|&(property, field)| (property, property_keyframe_times(track, field)))
-        .collect()
+        .filter(|(property, field)| {
+            allowed_fields.contains(field) || keyframed.iter().any(|name| name == property)
+        })
+        .map(|&(property, field)| (property.to_string(), property_keyframe_times(track, field)))
+        .collect();
+
+    // Effect stage lanes exist whenever the scope declares the stage.
+    for stage in &track.effects.stages {
+        let desc = animatix::timeline::filter::descriptor(stage.kind);
+        for spec in desc.params {
+            let times = stage
+                .params
+                .get(spec.name)
+                .map(|param| param.keyframe_times())
+                .unwrap_or_default();
+            lanes.push((format!("{}.{}", stage.label, spec.name), times));
+        }
+        lanes.push((format!("{}.enabled", stage.label), stage.enabled.keyframe_times()));
+    }
+
+    lanes
 }
 
 /// Resolve the writable registry schema that owns a property lane.
@@ -182,10 +218,10 @@ pub(crate) fn lane_schema(
 /// timeline UI renders one diamond per actor/time.
 pub(crate) fn collect_actor_keyframes(
     track: &animatix::timeline::AnimationTrack,
-) -> Vec<(u64, &'static str)> {
+) -> Vec<(u64, String)> {
     let mut result = Vec::new();
     for (property, times) in collect_per_property_keyframes(track) {
-        result.extend(times.into_iter().map(|time_ms| (time_ms, property)));
+        result.extend(times.into_iter().map(|time_ms| (time_ms, property.clone())));
     }
     result.sort_by_key(|(time_ms, _)| *time_ms);
     result.dedup_by(|a, b| a.0 == b.0);
@@ -539,7 +575,7 @@ mod tests {
         let lanes = collect_property_lanes(track);
 
         // Lane names are unique (no duplicate rows from registry aliases).
-        let mut names: Vec<&str> = lanes.iter().map(|(name, _)| *name).collect();
+        let mut names: Vec<String> = lanes.iter().map(|(name, _)| name.clone()).collect();
         let lane_count = names.len();
         names.sort_unstable();
         names.dedup();
