@@ -37,6 +37,16 @@ impl Primitive for FilterPrimitive {
         ActorKindId::Filter
     }
 
+    fn render_children(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+        _children: &[&str],
+    ) -> Result<(), crate::renderer::error::RenderError> {
+        let timeline = ctx.timeline;
+        timeline.render_filter_children_ctx(ctx);
+        Ok(())
+    }
+
     fn build(
         &self,
         _ctx: &mut BuildCtx,

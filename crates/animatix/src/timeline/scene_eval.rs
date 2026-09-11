@@ -855,35 +855,10 @@ impl Timeline {
     }
 
     /// Adapter used by the [`crate::primitives::Primitive::render_children`]
-    /// default: unpack the context and dispatch to the strategy implementation.
-    pub(crate) fn render_children_ctx(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        child_processing: crate::primitives::ChildProcessing,
-    ) {
-        self.render_children_by_strategy(
-            ctx.node_label,
-            ctx.time_ms,
-            ctx.global_transform,
-            ctx.global_opacity,
-            ctx.scene_dimensions,
-            ctx.debug_options,
-            &mut *ctx.scene,
-            ctx.overrides,
-            &mut *ctx.hit_regions,
-            ctx.frame_env,
-            &mut *ctx.filter_backend,
-            ctx.allow_pending_composites,
-            &mut *ctx.program_items,
-            child_processing,
-        );
-    }
-
-    /// Render `node_label`'s children by the given strategy. Kept as one
-    /// function so the `Filter`/`Mask`/`Equation`/`Generic` bodies share the
-    /// frame's locals; the pipeline reaches it only through
-    /// [`crate::primitives::Primitive::render_children`].
-    fn render_children_by_strategy(
+    /// Filter strategy: children render into an offscreen scene, the Filter's
+    /// post-processing is applied, and the result is composited back. Reached
+    /// only through `FilterPrimitive::render_children`.
+    fn render_filter_children(
         &self,
         node_label: &str,
         time_ms: u64,
@@ -898,7 +873,6 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
-        child_processing: crate::primitives::ChildProcessing,
     ) {
         let Some(track) = self.tracks.get(node_label) else {
             return;
@@ -909,52 +883,27 @@ impl Timeline {
         } else {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
+        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+        if children.is_empty() {
+            return;
+        }
 
-        if child_processing == crate::primitives::ChildProcessing::Filter {
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            if children.is_empty() {
-                return;
-            }
-
-            // Check if a filter backend is available
-            let has_backend = filter_backend.is_some();
-            if !has_backend {
-                // Surface the fallback: authored filter effects are silently
-                // dropped without it.
-                self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                    crate::diagnostics::Diagnostic::warning(
-                        crate::diagnostics::DiagnosticCode::RenderFailure,
-                        crate::diagnostics::DiagnosticPhase::Render,
-                        format!(
-                            "Filter '{node_label}' has no filter backend available; \
+        // Check if a filter backend is available
+        let has_backend = filter_backend.is_some();
+        if !has_backend {
+            // Surface the fallback: authored filter effects are silently
+            // dropped without it.
+            self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                crate::diagnostics::Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::RenderFailure,
+                    crate::diagnostics::DiagnosticPhase::Render,
+                    format!(
+                        "Filter '{node_label}' has no filter backend available; \
                              rendering children unfiltered"
-                        ),
                     ),
-                );
-                // Fallback: render children directly (no filtering)
-                for child in &children {
-                    self.evaluate_node(
-                        child,
-                        time_ms,
-                        global_transform,
-                        global_opacity,
-                        scene_dimensions,
-                        debug_options,
-                        scene,
-                        overrides,
-                        &child_layout_positions,
-                        hit_regions,
-                        frame_env,
-                        filter_backend,
-                        allow_pending_composites,
-                        program_items,
-                    );
-                }
-                return;
-            }
-
-            // Build sub-scene with children rendered at their world positions
-            let mut sub_scene = vello::Scene::new();
+                ),
+            );
+            // Fallback: render children directly (no filtering)
             for child in &children {
                 self.evaluate_node(
                     child,
@@ -963,91 +912,87 @@ impl Timeline {
                     global_opacity,
                     scene_dimensions,
                     debug_options,
-                    &mut sub_scene,
+                    scene,
                     overrides,
                     &child_layout_positions,
                     hit_regions,
                     frame_env,
                     filter_backend,
-                    false,
+                    allow_pending_composites,
                     program_items,
                 );
             }
+            return;
+        }
 
-            // Sample filter properties
-            let mut blur = track.filter.filter_blur.get(time_ms, 0.0);
-            let mut brightness = track.filter.filter_brightness.get(time_ms, 1.0);
-            let mut contrast = track.filter.filter_contrast.get(time_ms, 1.0);
-            let mut saturate = track.filter.filter_saturate.get(time_ms, 1.0);
-            let mut hue_rotate = track.filter.filter_hue_rotate.get(time_ms, 0.0);
-            let mut sepia = track.filter.filter_sepia.get(time_ms, 0.0);
+        // Build sub-scene with children rendered at their world positions
+        let mut sub_scene = vello::Scene::new();
+        for child in &children {
+            self.evaluate_node(
+                child,
+                time_ms,
+                global_transform,
+                global_opacity,
+                scene_dimensions,
+                debug_options,
+                &mut sub_scene,
+                overrides,
+                &child_layout_positions,
+                hit_regions,
+                frame_env,
+                filter_backend,
+                false,
+                program_items,
+            );
+        }
 
-            // Apply modifier overrides for filter properties
-            if let Some(ov) = overrides.get(node_label) {
-                if let Some(Value::Num(v)) = ov.get("blur") {
-                    blur = *v as f32;
-                }
-                if let Some(Value::Num(v)) = ov.get("brightness") {
-                    brightness = *v as f32;
-                }
-                if let Some(Value::Num(v)) = ov.get("contrast") {
-                    contrast = *v as f32;
-                }
-                if let Some(Value::Num(v)) = ov.get("saturate") {
-                    saturate = *v as f32;
-                }
-                if let Some(Value::Num(v)) = ov.get("hue_rotate") {
-                    hue_rotate = *v as f32;
-                }
-                if let Some(Value::Num(v)) = ov.get("sepia") {
-                    sepia = *v as f32;
-                }
+        // Sample filter properties
+        let mut blur = track.filter.filter_blur.get(time_ms, 0.0);
+        let mut brightness = track.filter.filter_brightness.get(time_ms, 1.0);
+        let mut contrast = track.filter.filter_contrast.get(time_ms, 1.0);
+        let mut saturate = track.filter.filter_saturate.get(time_ms, 1.0);
+        let mut hue_rotate = track.filter.filter_hue_rotate.get(time_ms, 0.0);
+        let mut sepia = track.filter.filter_sepia.get(time_ms, 0.0);
+
+        // Apply modifier overrides for filter properties
+        if let Some(ov) = overrides.get(node_label) {
+            if let Some(Value::Num(v)) = ov.get("blur") {
+                blur = *v as f32;
             }
-
-            // If all filters are identity and no blur, just append sub-scene directly
-            let needs_filter = blur > 0.5
-                || (brightness - 1.0).abs() > 0.001
-                || (contrast - 1.0).abs() > 0.001
-                || (saturate - 1.0).abs() > 0.001
-                || hue_rotate.abs() > 0.5
-                || sepia > 0.001;
-
-            if !needs_filter {
-                scene.encoding_mut().append(sub_scene.encoding(), &None);
-                return;
+            if let Some(Value::Num(v)) = ov.get("brightness") {
+                brightness = *v as f32;
             }
-
-            // Try zero-readback path when this filter is safely the last rendering element
-            if allow_pending_composites && self.can_post_composite_filter(node_label) {
-                if let Some(backend) = filter_backend.as_mut() {
-                    match backend.render_scene_to_pending_composite(
-                        &sub_scene,
-                        scene_dimensions,
-                        blur,
-                        brightness,
-                        contrast,
-                        saturate,
-                        hue_rotate,
-                        sepia,
-                        global_opacity,
-                    ) {
-                        Ok(()) => {
-                            // Filter output is stored as a pending GPU composite.
-                            // The renderer will blit it after the main scene render.
-                            return;
-                        },
-                        Err(e) => {
-                            tracing::warn!(
-                                "Zero-readback filter path failed, falling back to readback: {e}"
-                            );
-                        },
-                    }
-                }
+            if let Some(Value::Num(v)) = ov.get("contrast") {
+                contrast = *v as f32;
             }
+            if let Some(Value::Num(v)) = ov.get("saturate") {
+                saturate = *v as f32;
+            }
+            if let Some(Value::Num(v)) = ov.get("hue_rotate") {
+                hue_rotate = *v as f32;
+            }
+            if let Some(Value::Num(v)) = ov.get("sepia") {
+                sepia = *v as f32;
+            }
+        }
 
-            // Render sub-scene to image via backend, apply GPU filters, draw result
+        // If all filters are identity and no blur, just append sub-scene directly
+        let needs_filter = blur > 0.5
+            || (brightness - 1.0).abs() > 0.001
+            || (contrast - 1.0).abs() > 0.001
+            || (saturate - 1.0).abs() > 0.001
+            || hue_rotate.abs() > 0.5
+            || sepia > 0.001;
+
+        if !needs_filter {
+            scene.encoding_mut().append(sub_scene.encoding(), &None);
+            return;
+        }
+
+        // Try zero-readback path when this filter is safely the last rendering element
+        if allow_pending_composites && self.can_post_composite_filter(node_label) {
             if let Some(backend) = filter_backend.as_mut() {
-                match backend.render_scene_to_image_gpu_filtered(
+                match backend.render_scene_to_pending_composite(
                     &sub_scene,
                     scene_dimensions,
                     blur,
@@ -1056,314 +1001,442 @@ impl Timeline {
                     saturate,
                     hue_rotate,
                     sepia,
+                    global_opacity,
                 ) {
-                    Ok(filtered) => {
-                        let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
-                            .with_extend(vello::peniko::Extend::Pad)
-                            .with_quality(vello::peniko::ImageQuality::Medium)
-                            .with_alpha(global_opacity);
-                        scene.draw_image(&brush, kurbo::Affine::IDENTITY);
+                    Ok(()) => {
+                        // Filter output is stored as a pending GPU composite.
+                        // The renderer will blit it after the main scene render.
+                        return;
                     },
                     Err(e) => {
                         tracing::warn!(
-                            "Filter backend error, falling back to unfiltered rendering: {e}"
+                            "Zero-readback filter path failed, falling back to readback: {e}"
                         );
+                    },
+                }
+            }
+        }
+
+        // Render sub-scene to image via backend, apply GPU filters, draw result
+        if let Some(backend) = filter_backend.as_mut() {
+            match backend.render_scene_to_image_gpu_filtered(
+                &sub_scene,
+                scene_dimensions,
+                blur,
+                brightness,
+                contrast,
+                saturate,
+                hue_rotate,
+                sepia,
+            ) {
+                Ok(filtered) => {
+                    let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
+                        .with_extend(vello::peniko::Extend::Pad)
+                        .with_quality(vello::peniko::ImageQuality::Medium)
+                        .with_alpha(global_opacity);
+                    scene.draw_image(&brush, kurbo::Affine::IDENTITY);
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        "Filter backend error, falling back to unfiltered rendering: {e}"
+                    );
+                    self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                        crate::diagnostics::Diagnostic::warning(
+                            crate::diagnostics::DiagnosticCode::RenderFailure,
+                            crate::diagnostics::DiagnosticPhase::Render,
+                            format!(
+                                "Filter '{node_label}' backend failed ({e}); \
+                                     rendering children unfiltered"
+                            ),
+                        ),
+                    );
+                    scene.encoding_mut().append(sub_scene.encoding(), &None);
+                },
+            }
+        }
+    }
+
+    /// Mask strategy: children render inside the Mask's clip geometry. Reached
+    /// only through `MaskPrimitive::render_children`.
+    fn render_mask_children(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    ) {
+        let Some(track) = self.tracks.get(node_label) else {
+            return;
+        };
+
+        let child_layout_positions = if self.dynamic_layout {
+            self.compute_animated_layout(node_label, time_ms)
+        } else {
+            std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
+        };
+        let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+
+        // Resolve the clip geometry. A child labelled `clip_shape` defines
+        // the clip and is NOT rendered itself; its primitive supplies the
+        // geometry via `Primitive::clip_path`, so any shape (built-in or
+        // extension) works. Without one — or when the primitive has no clip
+        // geometry — the clip falls back to a rect covering the Mask's own
+        // size; the latter case warns instead of silently clipping wrong.
+        let clip_shape_track = track
+            .children
+            .iter()
+            .filter_map(|c| self.tracks.get(c))
+            .find(|c| c.label == "clip_shape");
+        let fallback_clip = || {
+            let w = half_size[0] as f64;
+            let h = half_size[1] as f64;
+            kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
+        };
+        let clip_path: kurbo::BezPath = match clip_shape_track {
+            Some(child) => {
+                match self.clip_path_for_child(child, time_ms, scene_dimensions, overrides) {
+                    Some(path) => path,
+                    None => {
                         self.eval_caches.runtime_diagnostics.borrow_mut().push(
                             crate::diagnostics::Diagnostic::warning(
                                 crate::diagnostics::DiagnosticCode::RenderFailure,
                                 crate::diagnostics::DiagnosticPhase::Render,
                                 format!(
-                                    "Filter '{node_label}' backend failed ({e}); \
-                                     rendering children unfiltered"
+                                    "Mask clip_shape '{}' provides no clip geometry; \
+                                         using a rectangular clip",
+                                    child.label
                                 ),
                             ),
                         );
-                        scene.encoding_mut().append(sub_scene.encoding(), &None);
+                        fallback_clip()
                     },
                 }
+            },
+            None => fallback_clip(),
+        };
+        let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
+
+        // Push clip layer. The clip path is in the mask's LOCAL space, so
+        // it must be transformed into scene space — pushing it with the
+        // identity transform pinned the clip at the scene origin, clipping
+        // away every child of any mask not positioned at the top-left
+        // corner (Mask + Image children were the visible symptom).
+        scene.push_layer(
+            vello::peniko::Fill::NonZero,
+            vello::peniko::BlendMode::default(),
+            1.0,
+            global_transform,
+            &clip_path,
+        );
+
+        // Render all children normally inside the clip
+        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+        for child in children {
+            if clip_child_label == Some(child) {
+                // The clip shape defines the clip geometry; it does not
+                // render itself.
+                continue;
             }
-        } else if child_processing == crate::primitives::ChildProcessing::Mask {
-            let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-
-            // Resolve the clip geometry. A child labelled `clip_shape` defines
-            // the clip and is NOT rendered itself; its primitive supplies the
-            // geometry via `Primitive::clip_path`, so any shape (built-in or
-            // extension) works. Without one — or when the primitive has no clip
-            // geometry — the clip falls back to a rect covering the Mask's own
-            // size; the latter case warns instead of silently clipping wrong.
-            let clip_shape_track = track
-                .children
-                .iter()
-                .filter_map(|c| self.tracks.get(c))
-                .find(|c| c.label == "clip_shape");
-            let fallback_clip = || {
-                let w = half_size[0] as f64;
-                let h = half_size[1] as f64;
-                kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
-            };
-            let clip_path: kurbo::BezPath = match clip_shape_track {
-                Some(child) => {
-                    match self.clip_path_for_child(child, time_ms, scene_dimensions, overrides) {
-                        Some(path) => path,
-                        None => {
-                            self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                                crate::diagnostics::Diagnostic::warning(
-                                    crate::diagnostics::DiagnosticCode::RenderFailure,
-                                    crate::diagnostics::DiagnosticPhase::Render,
-                                    format!(
-                                        "Mask clip_shape '{}' provides no clip geometry; \
-                                         using a rectangular clip",
-                                        child.label
-                                    ),
-                                ),
-                            );
-                            fallback_clip()
-                        },
-                    }
-                },
-                None => fallback_clip(),
-            };
-            let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
-
-            // Push clip layer. The clip path is in the mask's LOCAL space, so
-            // it must be transformed into scene space — pushing it with the
-            // identity transform pinned the clip at the scene origin, clipping
-            // away every child of any mask not positioned at the top-left
-            // corner (Mask + Image children were the visible symptom).
-            scene.push_layer(
-                vello::peniko::Fill::NonZero,
-                vello::peniko::BlendMode::default(),
-                1.0,
+            self.evaluate_node(
+                child,
+                time_ms,
                 global_transform,
-                &clip_path,
+                global_opacity,
+                scene_dimensions,
+                debug_options,
+                scene,
+                overrides,
+                &child_layout_positions,
+                hit_regions,
+                frame_env,
+                filter_backend,
+                allow_pending_composites,
+                program_items,
             );
+        }
 
-            // Render all children normally inside the clip
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            for child in children {
-                if clip_child_label == Some(child) {
-                    // The clip shape defines the clip geometry; it does not
-                    // render itself.
-                    continue;
-                }
-                self.evaluate_node(
-                    child,
-                    time_ms,
-                    global_transform,
-                    global_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
-                    &child_layout_positions,
-                    hit_regions,
-                    frame_env,
-                    filter_backend,
-                    allow_pending_composites,
-                    program_items,
-                );
-            }
+        // Pop clip layer
+        scene.pop_layer();
+    }
 
-            // Pop clip layer
-            scene.pop_layer();
-        } else if child_processing == crate::primitives::ChildProcessing::Equation {
-            // ── Equation: compile all child Fragments as one Typst document ──
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+    /// Equation strategy: fragment children aggregate into one Typst document.
+    /// Reached only through `EquationPrimitive::render_children`.
+    fn render_equation_children(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    ) {
+        let Some(track) = self.tracks.get(node_label) else {
+            return;
+        };
 
-            // Collect Fragment children with their content and highlight state.
-            struct FragInfo {
-                content: String,
-                hl_color: [f32; 4],
-                hl_opacity: f32,
-                hl_padding: f32,
-                hl_radius: f32,
-                hl_blend: vello::peniko::Mix,
-            }
-            let mut frags: Vec<FragInfo> = Vec::new();
-            for child_label in &children {
-                let Some(child_track) = self.tracks.get(*child_label) else {
-                    continue;
-                };
-                // A fragment is any child whose primitive opts into
-                // `equation_fragment` — not a hard-coded `ActorKindId::Fragment`.
-                let Some(primitive) = self.track_primitive(child_track) else {
-                    continue;
-                };
-                let child_vector_paths = child_track.evaluate_vector_paths(time_ms);
-                let ctx = crate::primitives::EvaluateCtx {
-                    track: child_track,
-                    time_ms,
-                    local_transform: kurbo::Affine::IDENTITY,
-                    opacity: 1.0,
-                    scene_dimensions,
-                    background_color: self.eval_caches.background_color.get(),
-                    overrides: overrides.get(&child_track.label),
-                    vector_paths: &child_vector_paths,
-                    asset_cache: &self.asset_cache,
-                    target_resolver: Some(self),
-                };
-                if let Some(fragment) = primitive.equation_fragment(&ctx) {
-                    frags.push(FragInfo {
-                        content: fragment.content,
-                        hl_color: fragment.highlight_color,
-                        hl_opacity: fragment.highlight_opacity,
-                        hl_padding: fragment.highlight_padding,
-                        hl_radius: fragment.highlight_radius,
-                        hl_blend: fragment.highlight_blend,
-                    });
-                }
-            }
-
-            if !frags.is_empty() {
-                // Build Typst string: each fragment wrapped in #box() so they
-                // produce separate Groups in the output frame.
-                let typst_body: String = frags
-                    .iter()
-                    .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                // Use equation-level font_size and color from the Equation track.
-                let font_size = track.text.font_size.get(time_ms, 48.0);
-                let eq_color = track.style.color.get(time_ms, DEFAULT_WHITE);
-                let font_family = track.text.font_family.get(time_ms, String::new());
-                let font_weight = track.text.font_weight.get(time_ms, 400.0);
-                let font_style = track.text.font_style.get(time_ms, "normal".to_string());
-                let line_height = track.text.line_height.get(time_ms, 1.2);
-                let letter_spacing = track.text.letter_spacing.get(time_ms, 0.0);
-                let word_spacing = track.text.word_spacing.get(time_ms, 0.0);
-
-                // Compile the Typst markup. Memoized process-wide: fragment
-                // content and font properties rarely change between frames, so
-                // scrubbing an equation-heavy scene reuses one compilation
-                // instead of re-running Typst every frame.
-                match crate::renderer::text::compile_typst_grouped_cached(
-                    &typst_body,
-                    font_size,
-                    eq_color,
-                    &font_family,
-                    self.font_context.as_ref(),
-                    font_weight,
-                    &font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                ) {
-                    Ok(compiled) => {
-                        // One glyph group per #box() wrapper, resolved at
-                        // compile time and shared through the memo.
-                        let all_glyphs: &[TextPath] = &compiled.glyphs;
-                        let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
-
-                        // Compute highlight bounding boxes from the shared
-                        // glyph groups before drawing them.
-                        let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
-                        for (frag_idx, frag) in frags.iter().enumerate() {
-                            if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
-                                let range = &ranges[frag_idx];
-                                let mut min_x = f64::INFINITY;
-                                let mut max_x = f64::NEG_INFINITY;
-                                let mut min_y = f64::INFINITY;
-                                let mut max_y = f64::NEG_INFINITY;
-                                for tp in &all_glyphs[range.start..range.end] {
-                                    use kurbo::Shape;
-                                    let b = tp.path.bounding_box();
-                                    min_x = min_x.min(b.x0);
-                                    max_x = max_x.max(b.x1);
-                                    min_y = min_y.min(b.y0);
-                                    max_y = max_y.max(b.y1);
-                                }
-                                if min_x.is_finite() && max_x.is_finite() {
-                                    let pad = frag.hl_padding as f64;
-                                    let hl_rect = kurbo::Rect::new(
-                                        min_x - pad,
-                                        min_y - pad,
-                                        max_x + pad,
-                                        max_y + pad,
-                                    );
-                                    let hl_color = vello::peniko::Color::from_rgba8(
-                                        (frag.hl_color[0] * 255.0) as u8,
-                                        (frag.hl_color[1] * 255.0) as u8,
-                                        (frag.hl_color[2] * 255.0) as u8,
-                                        255,
-                                    );
-                                    highlight_cmds.push(
-                                        crate::primitives::RenderCommand::HighlightLayer {
-                                            rect: hl_rect,
-                                            color: hl_color,
-                                            blend: frag.hl_blend,
-                                            alpha: frag.hl_opacity,
-                                            corner_radius: frag.hl_radius as f64,
-                                        },
-                                    );
-                                }
-                            }
-                        }
-
-                        // Render all glyphs as a single text command. The memo
-                        // owns the glyph slice, so share it by refcount instead
-                        // of re-wrapping a freshly built Vec.
-                        if !all_glyphs.is_empty() {
-                            let cmd = crate::primitives::RenderCommand::Text {
-                                paths: std::sync::Arc::clone(&compiled.glyphs),
-                            };
-                            cmd.execute(scene, &global_transform, global_opacity);
-                        }
-
-                        // Render highlight overlays.
-                        for cmd in &highlight_cmds {
-                            cmd.execute(scene, &global_transform, global_opacity);
-                        }
-                    },
-                    Err(e) => {
-                        tracing::warn!("Equation Typst compilation failed: {e}");
-                    },
-                }
-            }
-
-            // Render Fragment children. They return `None` from evaluate (no
-            // visual output of their own), so they draw nothing here and
-            // record no hit region; the parent Equation aggregates their
-            // content into one document.
-            for child in children {
-                self.evaluate_node(
-                    child,
-                    time_ms,
-                    global_transform,
-                    global_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
-                    &child_layout_positions,
-                    hit_regions,
-                    frame_env,
-                    filter_backend,
-                    allow_pending_composites,
-                    program_items,
-                );
-            }
+        let child_layout_positions = if self.dynamic_layout {
+            self.compute_animated_layout(node_label, time_ms)
         } else {
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            for child in children {
-                self.evaluate_node(
-                    child,
-                    time_ms,
-                    global_transform,
-                    global_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
-                    &child_layout_positions,
-                    hit_regions,
-                    frame_env,
-                    filter_backend,
-                    allow_pending_composites,
-                    program_items,
-                );
+            std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
+        };
+        // ── Equation: compile all child Fragments as one Typst document ──
+        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+
+        // Collect Fragment children with their content and highlight state.
+        struct FragInfo {
+            content: String,
+            hl_color: [f32; 4],
+            hl_opacity: f32,
+            hl_padding: f32,
+            hl_radius: f32,
+            hl_blend: vello::peniko::Mix,
+        }
+        let mut frags: Vec<FragInfo> = Vec::new();
+        for child_label in &children {
+            let Some(child_track) = self.tracks.get(*child_label) else {
+                continue;
+            };
+            // A fragment is any child whose primitive opts into
+            // `equation_fragment` — not a hard-coded `ActorKindId::Fragment`.
+            let Some(primitive) = self.track_primitive(child_track) else {
+                continue;
+            };
+            let child_vector_paths = child_track.evaluate_vector_paths(time_ms);
+            let ctx = crate::primitives::EvaluateCtx {
+                track: child_track,
+                time_ms,
+                local_transform: kurbo::Affine::IDENTITY,
+                opacity: 1.0,
+                scene_dimensions,
+                background_color: self.eval_caches.background_color.get(),
+                overrides: overrides.get(&child_track.label),
+                vector_paths: &child_vector_paths,
+                asset_cache: &self.asset_cache,
+                target_resolver: Some(self),
+            };
+            if let Some(fragment) = primitive.equation_fragment(&ctx) {
+                frags.push(FragInfo {
+                    content: fragment.content,
+                    hl_color: fragment.highlight_color,
+                    hl_opacity: fragment.highlight_opacity,
+                    hl_padding: fragment.highlight_padding,
+                    hl_radius: fragment.highlight_radius,
+                    hl_blend: fragment.highlight_blend,
+                });
             }
         }
+
+        if !frags.is_empty() {
+            // Build Typst string: each fragment wrapped in #box() so they
+            // produce separate Groups in the output frame.
+            let typst_body: String = frags
+                .iter()
+                .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            // Use equation-level font_size and color from the Equation track.
+            let font_size = track.text.font_size.get(time_ms, 48.0);
+            let eq_color = track.style.color.get(time_ms, DEFAULT_WHITE);
+            let font_family = track.text.font_family.get(time_ms, String::new());
+            let font_weight = track.text.font_weight.get(time_ms, 400.0);
+            let font_style = track.text.font_style.get(time_ms, "normal".to_string());
+            let line_height = track.text.line_height.get(time_ms, 1.2);
+            let letter_spacing = track.text.letter_spacing.get(time_ms, 0.0);
+            let word_spacing = track.text.word_spacing.get(time_ms, 0.0);
+
+            // Compile the Typst markup. Memoized process-wide: fragment
+            // content and font properties rarely change between frames, so
+            // scrubbing an equation-heavy scene reuses one compilation
+            // instead of re-running Typst every frame.
+            match crate::renderer::text::compile_typst_grouped_cached(
+                &typst_body,
+                font_size,
+                eq_color,
+                &font_family,
+                self.font_context.as_ref(),
+                font_weight,
+                &font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+            ) {
+                Ok(compiled) => {
+                    // One glyph group per #box() wrapper, resolved at
+                    // compile time and shared through the memo.
+                    let all_glyphs: &[TextPath] = &compiled.glyphs;
+                    let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
+
+                    // Compute highlight bounding boxes from the shared
+                    // glyph groups before drawing them.
+                    let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
+                    for (frag_idx, frag) in frags.iter().enumerate() {
+                        if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
+                            let range = &ranges[frag_idx];
+                            let mut min_x = f64::INFINITY;
+                            let mut max_x = f64::NEG_INFINITY;
+                            let mut min_y = f64::INFINITY;
+                            let mut max_y = f64::NEG_INFINITY;
+                            for tp in &all_glyphs[range.start..range.end] {
+                                use kurbo::Shape;
+                                let b = tp.path.bounding_box();
+                                min_x = min_x.min(b.x0);
+                                max_x = max_x.max(b.x1);
+                                min_y = min_y.min(b.y0);
+                                max_y = max_y.max(b.y1);
+                            }
+                            if min_x.is_finite() && max_x.is_finite() {
+                                let pad = frag.hl_padding as f64;
+                                let hl_rect = kurbo::Rect::new(
+                                    min_x - pad,
+                                    min_y - pad,
+                                    max_x + pad,
+                                    max_y + pad,
+                                );
+                                let hl_color = vello::peniko::Color::from_rgba8(
+                                    (frag.hl_color[0] * 255.0) as u8,
+                                    (frag.hl_color[1] * 255.0) as u8,
+                                    (frag.hl_color[2] * 255.0) as u8,
+                                    255,
+                                );
+                                highlight_cmds.push(
+                                    crate::primitives::RenderCommand::HighlightLayer {
+                                        rect: hl_rect,
+                                        color: hl_color,
+                                        blend: frag.hl_blend,
+                                        alpha: frag.hl_opacity,
+                                        corner_radius: frag.hl_radius as f64,
+                                    },
+                                );
+                            }
+                        }
+                    }
+
+                    // Render all glyphs as a single text command. The memo
+                    // owns the glyph slice, so share it by refcount instead
+                    // of re-wrapping a freshly built Vec.
+                    if !all_glyphs.is_empty() {
+                        let cmd = crate::primitives::RenderCommand::Text {
+                            paths: std::sync::Arc::clone(&compiled.glyphs),
+                        };
+                        cmd.execute(scene, &global_transform, global_opacity);
+                    }
+
+                    // Render highlight overlays.
+                    for cmd in &highlight_cmds {
+                        cmd.execute(scene, &global_transform, global_opacity);
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!("Equation Typst compilation failed: {e}");
+                },
+            }
+        }
+
+        // Render Fragment children. They return `None` from evaluate (no
+        // visual output of their own), so they draw nothing here and
+        // record no hit region; the parent Equation aggregates their
+        // content into one document.
+        for child in children {
+            self.evaluate_node(
+                child,
+                time_ms,
+                global_transform,
+                global_opacity,
+                scene_dimensions,
+                debug_options,
+                scene,
+                overrides,
+                &child_layout_positions,
+                hit_regions,
+                frame_env,
+                filter_backend,
+                allow_pending_composites,
+                program_items,
+            );
+        }
+    }
+
+    /// Apply the Filter strategy from a `RenderChildrenCtx`.
+    pub(crate) fn render_filter_children_ctx(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+    ) {
+        self.render_filter_children(
+            ctx.node_label,
+            ctx.time_ms,
+            ctx.global_transform,
+            ctx.global_opacity,
+            ctx.scene_dimensions,
+            ctx.debug_options,
+            &mut *ctx.scene,
+            ctx.overrides,
+            &mut *ctx.hit_regions,
+            ctx.frame_env,
+            &mut *ctx.filter_backend,
+            ctx.allow_pending_composites,
+            &mut *ctx.program_items,
+        );
+    }
+
+    /// Apply the Mask strategy from a `RenderChildrenCtx`.
+    pub(crate) fn render_mask_children_ctx(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+    ) {
+        self.render_mask_children(
+            ctx.node_label,
+            ctx.time_ms,
+            ctx.global_transform,
+            ctx.global_opacity,
+            ctx.scene_dimensions,
+            ctx.debug_options,
+            &mut *ctx.scene,
+            ctx.overrides,
+            &mut *ctx.hit_regions,
+            ctx.frame_env,
+            &mut *ctx.filter_backend,
+            ctx.allow_pending_composites,
+            &mut *ctx.program_items,
+        );
+    }
+
+    /// Apply the Equation strategy from a `RenderChildrenCtx`.
+    pub(crate) fn render_equation_children_ctx(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+    ) {
+        self.render_equation_children(
+            ctx.node_label,
+            ctx.time_ms,
+            ctx.global_transform,
+            ctx.global_opacity,
+            ctx.scene_dimensions,
+            ctx.debug_options,
+            &mut *ctx.scene,
+            ctx.overrides,
+            &mut *ctx.hit_regions,
+            ctx.frame_env,
+            &mut *ctx.filter_backend,
+            ctx.allow_pending_composites,
+            &mut *ctx.program_items,
+        );
     }
 
     /// Evaluate the timeline at the given time and return a rendered `vello::Scene`.

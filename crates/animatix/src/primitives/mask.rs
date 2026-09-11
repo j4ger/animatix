@@ -37,6 +37,16 @@ impl Primitive for MaskPrimitive {
         ActorKindId::Mask
     }
 
+    fn render_children(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+        _children: &[&str],
+    ) -> Result<(), crate::renderer::error::RenderError> {
+        let timeline = ctx.timeline;
+        timeline.render_mask_children_ctx(ctx);
+        Ok(())
+    }
+
     fn build(
         &self,
         _ctx: &mut BuildCtx,

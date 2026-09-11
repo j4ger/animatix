@@ -1142,17 +1142,15 @@ pub trait Primitive: Send + Sync {
     /// Render this primitive's children.
     ///
     /// This is the single entry point the scene renderer calls — it never
-    /// branches on the child-processing strategy. The default selects the
-    /// strategy from [`Self::child_processing`] (one overridable match);
-    /// a primitive may override this to render its children differently.
+    /// branches on the child-processing strategy. The default renders children
+    /// through the normal scene-graph recursion; container primitives that need
+    /// a dedicated pipeline (`Filter`, `Mask`, `Equation`) override it.
     fn render_children(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,
         children: &[&str],
     ) -> Result<(), RenderError> {
-        let _ = children;
-        let timeline = ctx.timeline;
-        timeline.render_children_ctx(ctx, self.child_processing());
+        ctx.render_children_default(children);
         Ok(())
     }
 
