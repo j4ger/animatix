@@ -17,6 +17,8 @@ use crate::{density, spatial};
 pub enum ButtonVariant {
     /// Filled accent background; for primary actions.
     Primary,
+    /// Filled neutral background; for secondary actions alongside a primary one.
+    Secondary,
     /// Transparent background, accent underline when active; for toolbar toggles.
     Ghost,
     /// Square icon-only button; for small icon commands.
@@ -72,6 +74,15 @@ impl Button {
         }
     }
 
+    /// Create a Secondary variant button (filled neutral) with the given label.
+    pub fn secondary(label: impl Into<String>) -> Self {
+        Self {
+            variant: ButtonVariant::Secondary,
+            label: Some(label.into()),
+            ..Self::new_base()
+        }
+    }
+
     /// Create a Ghost variant button with the given label.
     pub fn ghost(label: impl Into<String>) -> Self {
         Self {
@@ -114,6 +125,12 @@ impl Button {
     /// Set the active state (for Ghost toggle buttons).
     pub fn active(mut self, active: bool) -> Self {
         self.active = active;
+        self
+    }
+
+    /// Disable the button: it renders in the disabled slot and ignores clicks.
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
         self
     }
 
@@ -362,10 +379,11 @@ impl egui::Widget for Button {
                 // Principle 3: override egui's default PointingHand with Default arrow.
                 finish_response(ui, response, self.tooltip)
             },
-            ButtonVariant::Primary | ButtonVariant::Danger => {
+            ButtonVariant::Primary | ButtonVariant::Danger | ButtonVariant::Secondary => {
                 let slot_group = match self.variant {
                     ButtonVariant::Primary => &t.button.primary,
                     ButtonVariant::Danger => &t.button.danger,
+                    ButtonVariant::Secondary => &t.button.secondary,
                     _ => unreachable!(),
                 };
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);

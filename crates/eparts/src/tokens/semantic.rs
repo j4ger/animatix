@@ -139,13 +139,21 @@ pub mod border {
 pub mod lines {
     use super::*;
 
-    /// Light grid line (white, alpha 12).
+    /// Grid line for dark surfaces (white, alpha 12).
     pub fn grid_line() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 12)
     }
-    /// Guide / reference line (white, alpha 30).
+    /// Guide / reference line for dark surfaces (white, alpha 30).
     pub fn guide_line() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 30)
+    }
+    /// Grid line for light surfaces (dark ink, alpha 20).
+    pub fn grid_line_light() -> Color32 {
+        Color32::from_rgba_unmultiplied(10, 12, 16, 20)
+    }
+    /// Guide line for light surfaces (dark ink, alpha 48).
+    pub fn guide_line_light() -> Color32 {
+        Color32::from_rgba_unmultiplied(10, 12, 16, 48)
     }
 }
 

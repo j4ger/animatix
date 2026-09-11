@@ -360,7 +360,7 @@ pub struct Elevation {
 // ── Theme ─────────────────────────────────────────────────────────────
 
 /// The runtime theme.  Each field is a `Color32`; the struct is `Copy` so cloning is cheap.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
 pub struct Theme {
     pub surface: Surface,
@@ -391,6 +391,14 @@ pub struct Theme {
     /// chrome); use `raised` for popover/menu/toast/dropdown and `overlay`
     /// for dialog/modal.
     pub elevation: Elevation,
+}
+
+impl Default for Theme {
+    /// Fall back to the dark theme rather than an all-transparent struct, so a
+    /// host that renders a widget before calling `set_theme` is still legible.
+    fn default() -> Self {
+        Self::dark()
+    }
 }
 
 impl Theme {
@@ -583,10 +591,11 @@ impl Theme {
                 shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
                 shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
             },
-            // Neutral white-alpha lines read fine on light surfaces too; keep identical.
+            // White-alpha lines are invisible on a near-white surface; light
+            // surfaces need dark ink instead.
             lines: Lines {
-                grid: semantic::lines::grid_line(),
-                guide: semantic::lines::guide_line(),
+                grid: semantic::lines::grid_line_light(),
+                guide: semantic::lines::guide_line_light(),
             },
             button: light_button_slots(
                 widget,
