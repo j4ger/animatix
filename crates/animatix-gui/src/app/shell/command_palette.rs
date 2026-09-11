@@ -149,6 +149,18 @@ impl GuiShell {
             keywords: "open file load amx document",
         });
         items.push(PaletteItem {
+            label: "New Scene".into(),
+            icon: egui_phosphor::regular::FILE_PLUS,
+            action: ShellAction::View(ViewAction::NewFile),
+            keywords: "new create file scene document",
+        });
+        items.push(PaletteItem {
+            label: "Save As…".into(),
+            icon: egui_phosphor::regular::FLOPPY_DISK,
+            action: ShellAction::View(ViewAction::SaveAsDialog),
+            keywords: "save as file copy document",
+        });
+        items.push(PaletteItem {
             label: "Insert…".into(),
             icon: egui_phosphor::regular::PLUS,
             action: ShellAction::View(ViewAction::OpenInsertionPalette),

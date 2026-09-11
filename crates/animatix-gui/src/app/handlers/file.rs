@@ -220,6 +220,30 @@ pub fn handle_save(
     }
 }
 
+/// Save to a new path and rebind the document (and editor analyzer) to it.
+pub fn handle_save_as(
+    document_store: &mut DocumentStore,
+    _preview_store: &mut PreviewStore,
+    path: PathBuf,
+) -> Vec<Effect> {
+    let text = document_store.source.editor.text().to_string();
+    document_store.source.document.file_path = path.clone();
+    document_store.source.editor.set_document(&path, text);
+    match save_document(document_store) {
+        Ok(()) => vec![
+            Effect::Status(format!("Saved {}", path.display())),
+            Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
+        ],
+        Err(err) => {
+            tracing::warn!("Save As failed: {}", err);
+            vec![Effect::Toast(Toast::error(format!(
+                "Save As failed: {}",
+                err
+            )))]
+        },
+    }
+}
+
 pub fn handle_reload(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,

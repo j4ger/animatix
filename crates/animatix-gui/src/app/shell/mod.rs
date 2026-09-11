@@ -413,6 +413,37 @@ impl GuiShell {
                     None => vec![],
                 }
             },
+            ViewAction::NewFile => {
+                let path = crate::document::default_file_path();
+                match std::fs::write(&path, "#0s\n") {
+                    Ok(()) => self.handle_command(Command::OpenFile(path)),
+                    Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
+                        format!("Failed to create scene: {err}"),
+                    ))],
+                }
+            },
+            ViewAction::SaveAsDialog => {
+                let default_name = self
+                    .document_store
+                    .source
+                    .file_path()
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("untitled.amx")
+                    .to_string();
+                match rfd::FileDialog::new()
+                    .add_filter("Animatix", &["amx"])
+                    .set_file_name(&default_name)
+                    .save_file()
+                {
+                    Some(path) => file::handle_save_as(
+                        &mut self.document_store,
+                        &mut self.preview_store,
+                        path,
+                    ),
+                    None => vec![],
+                }
+            },
             ViewAction::OpenSettings => {
                 self.ui_store.view.settings_open = true;
                 vec![]

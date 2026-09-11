@@ -447,6 +447,8 @@ pub enum ViewAction {
     ApplyLayout(crate::app::LayoutPreset),
     ResetLayout,
     OpenFileDialog,
+    NewFile,
+    SaveAsDialog,
     OpenSettings,
     OpenShortcuts,
     OpenInsertionPalette,

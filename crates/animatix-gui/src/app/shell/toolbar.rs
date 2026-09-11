@@ -119,11 +119,31 @@ impl GuiShell {
                         ui.ctx(),
                     );
                     ui.menu_button(egui_phosphor::regular::CARET_DOWN, |ui| {
+                        let new_btn =
+                            ui.button(format!("{} New scene", egui_phosphor::regular::FILE_PLUS));
+                        if new_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::NewFile));
+                            ui.close();
+                        }
+                        let open_btn = ui
+                            .button(format!("{} Open file…", egui_phosphor::regular::FOLDER_OPEN));
+                        if open_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::OpenFileDialog));
+                            ui.close();
+                        }
+                        ui.separator();
+
                         let save_btn =
                             ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
                         text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, &save_tip);
                         if save_btn.clicked() {
                             commands.push_back(DocumentCommand::Save.into());
+                            ui.close();
+                        }
+                        let save_as_btn =
+                            ui.button(format!("{} Save As…", egui_phosphor::regular::FLOPPY_DISK));
+                        if save_as_btn.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::SaveAsDialog));
                             ui.close();
                         }
                         let export_btn =
