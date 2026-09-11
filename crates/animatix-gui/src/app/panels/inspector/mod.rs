@@ -228,43 +228,53 @@ fn render_scene_inspector(
 
         ui.add_space(sp.base.space_3);
 
-        // ── Play Edge ──
+        // ── Play edge (create / clear) ──
+        layout::group_box(ui, format!("{} Play Edge", egui_phosphor::regular::ARROW_RIGHT), |ui| {
+            let current_target =
+                composition.edges.get(active_scene).map(|edge| edge.to_scene.clone());
+            let other_scenes: Vec<&String> =
+                composition.declaration_order.iter().filter(|s| *s != active_scene).collect();
+            layout::labeled_row(ui, "Next scene", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
+                egui::ComboBox::from_id_salt(ui.id().with("play_edge_target"))
+                    .selected_text(current_target.as_deref().unwrap_or("\u{2014} None"))
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .stable_selectable_label(current_target.is_none(), "\u{2014} None")
+                            .clicked()
+                        {
+                            commands.push_back(
+                                SceneCommand::SetPlayTarget {
+                                    from_scene: active_scene.to_string(),
+                                    target: None,
+                                }
+                                .into(),
+                            );
+                        }
+                        for scene_name in &other_scenes {
+                            let selected = current_target.as_deref() == Some(scene_name.as_str());
+                            if ui.stable_selectable_label(selected, *scene_name).clicked() {
+                                commands.push_back(
+                                    SceneCommand::SetPlayTarget {
+                                        from_scene: active_scene.to_string(),
+                                        target: Some((*scene_name).clone()),
+                                    }
+                                    .into(),
+                                );
+                            }
+                        }
+                    });
+            });
+        });
+
+        ui.add_space(sp.base.space_3);
+
+        // ── Transition (edit an existing play edge) ──
         if let Some(edge) = composition.edges.get(active_scene) {
             layout::group_box(
                 ui,
                 format!("{} Transition", egui_phosphor::regular::ARROW_RIGHT),
                 |ui| {
-                    // Target scene dropdown
-                    let other_scenes: Vec<&String> = composition
-                        .declaration_order
-                        .iter()
-                        .filter(|s| *s != active_scene)
-                        .collect();
-                    layout::labeled_row(ui, "Target", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_target"))
-                            .selected_text(&edge.to_scene)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for scene_name in &other_scenes {
-                                    if ui
-                                        .stable_selectable_label(
-                                            *scene_name == &edge.to_scene,
-                                            *scene_name,
-                                        )
-                                        .clicked()
-                                    {
-                                        commands.push_back(
-                                            SceneCommand::SetPlayTarget {
-                                                from_scene: active_scene.to_string(),
-                                                target: Some((*scene_name).clone()),
-                                            }
-                                            .into(),
-                                        );
-                                    }
-                                }
-                            });
-                    });
-
                     // Transition type dropdown
                     let registry = animatix_syntax::transition_registry::REGISTRY;
                     layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {

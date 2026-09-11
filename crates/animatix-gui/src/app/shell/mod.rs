@@ -137,6 +137,12 @@ impl GuiShell {
                 &mut self.ui_store,
                 new_order,
             ),
+            Command::AddScene(scene) => scene::handle_add_scene(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
+            ),
             Command::DuplicateScene(scene) => scene::handle_duplicate_scene(
                 &mut self.document_store,
                 &mut self.preview_store,

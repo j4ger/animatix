@@ -103,6 +103,7 @@ pub enum UndoLabel {
 
     // Scene
     ReorderScenes,
+    AddScene(String),
     DuplicateScene(String),
     DeleteScene(String),
     SetTransition {
@@ -224,6 +225,7 @@ impl From<UndoLabel> for Command {
                 new_start_s,
                 new_duration_s,
             },
+            UndoLabel::AddScene(s) => Command::AddScene(s),
             UndoLabel::DuplicateScene(s) => Command::DuplicateScene(s),
             UndoLabel::DeleteScene(s) => Command::DeleteScene(s),
             UndoLabel::ReorderScenes => Command::ReorderScenes(Vec::new()),
@@ -306,6 +308,7 @@ pub enum Command {
     },
     DuplicateScene(String),
     DeleteScene(String),
+    AddScene(String),
 
     // ── Actor ─────────────────────────────────────────────────────────
     CreateActor {

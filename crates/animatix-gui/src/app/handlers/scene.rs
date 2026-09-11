@@ -161,3 +161,42 @@ pub fn handle_delete_scene(
         vec![]
     }
 }
+
+pub fn handle_add_scene(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    scene: String,
+) -> Vec<Effect> {
+    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::AddScene(scene.clone()));
+    let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        document_store.abort_snapshot();
+        return vec![];
+    };
+
+    if crate::source_edit::apply_edit(
+        stmts,
+        crate::source_edit::SourceEdit::AddScene {
+            name: scene.clone(),
+        },
+    )
+    .is_ok()
+    {
+        let (new_source, source_index) = (
+            animatix_syntax::to_source::stmts_to_source(stmts),
+            animatix_syntax::source_index::SourceIndex::build(stmts),
+        );
+        document_store.commit_source(
+            new_source,
+            source_index,
+            ui_store.snapshot_with_preview(preview_store),
+        );
+        preview_store.preview_dirty = true;
+        preview_store.preview.status = format!("Added scene '{}'", scene);
+        vec![Effect::Status(format!("Added scene '{}'", scene))]
+    } else {
+        document_store.abort_snapshot();
+        preview_store.preview.status = format!("Failed to add scene '{}'", scene);
+        vec![]
+    }
+}

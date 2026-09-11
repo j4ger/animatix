@@ -433,6 +433,29 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
     };
 
     let scene_names = &composition.declaration_order;
+
+    // ── Add scene ─────────────────────────────────────────────────────────
+    ui.horizontal(|ui| {
+        ui.add_space(sp.base.space_2);
+        let new_btn = ui.add(Button::ghost("New scene").with_icon(egui_phosphor::regular::PLUS));
+        text_tooltip(
+            ui,
+            new_btn.id.with("new_scene_tip"),
+            &new_btn,
+            "Add a scene at the end of the composition",
+        );
+        if new_btn.clicked() {
+            let mut n = scene_names.len() + 1;
+            let mut name = format!("scene{n}");
+            while scene_names.iter().any(|existing| existing == &name) {
+                n += 1;
+                name = format!("scene{n}");
+            }
+            ctx.commands.push_back(SceneCommand::AddScene(name).into());
+        }
+    });
+    ui.add_space(sp.base.space_2);
+
     if scene_names.is_empty() {
         layout::empty_state(
             ui,

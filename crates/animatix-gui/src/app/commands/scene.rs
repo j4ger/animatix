@@ -18,6 +18,7 @@ pub enum SceneCommand {
     },
     DuplicateScene(String),
     DeleteScene(String),
+    AddScene(String),
 }
 
 impl From<SceneCommand> for super::Command {
@@ -40,6 +41,7 @@ impl From<SceneCommand> for super::Command {
             },
             SceneCommand::DuplicateScene(v) => super::Command::DuplicateScene(v),
             SceneCommand::DeleteScene(v) => super::Command::DeleteScene(v),
+            SceneCommand::AddScene(v) => super::Command::AddScene(v),
         }
     }
 }
