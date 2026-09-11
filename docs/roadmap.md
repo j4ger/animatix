@@ -409,64 +409,103 @@ backlog is now fully worked through; new work should start from fresh
 `perf_driver`/`export_alloc_driver`/`export_perf_driver` evidence per
 §8 of the perf doc.
 
-### Post-Processing Effect Abstraction (planned, design-gated)
+### Post-Processing Effect Abstraction (decided direction, staged)
 
-Goal: turn pixel effects (today only `Filter`) into a first-class, registerable
-effect/pass axis instead of a hard-coded container strategy, and let native
-plugins author effects by shipping **WGSL source + a parameter schema** — the
-host compiles and runs the shader with its own device, so no GPU handle ever
-crosses the FFI boundary. Background and gaps: `primitive_abstraction.md` §6.
+Goal: make pixel effects first-class registerable primitives instead of a
+hard-coded container strategy, and let native plugins author effects by shipping
+**WGSL source + a parameter schema** — the host compiles and runs the shader on
+its own device, so no GPU handle crosses the FFI boundary. Background:
+`primitive_abstraction.md` §6.
 
-**Why it is not just "add a callback".** The effect parameter set is compiled
-into `FilterTracks` (six fixed `PropertyTrack<f32>`, `animation_track.rs:348`),
-the properties are registered per `"Filter"` actor type (`schema.rs:521`), the
-implementation is two fixed WGSL shaders plus pipelines and a CPU fallback
-(`filter_backend.rs:23/80`, `filter.rs:83`), and the actor can only apply the
-effect by *containing* children. `filter_*` / `FilterTracks` has 73 references
-across 10+ files including the GUI (timeline diff, timeline panel, inspector),
-persistence (`CarryBag` serialization), `property_engine`, and `dispatch` — so a
-migration is a renderer **plus** property/GUI/persistence change, not a renderer
-change alone.
+**Decided.**
 
-**WGSL contract to pin (Stage 0 deliverable).** Input/output texture format
-`Rgba8Unorm` with `TEXTURE_BINDING | STORAGE_BINDING`; bind group 0 bindings
-0/1/2 = `texture_2d<f32>` / `texture_storage_2d<rgba8unorm, write>` /
-`var<uniform>`; `@workgroup_size(16, 16)`, entry `main`, dispatch `div_ceil(16)`;
-an N-pass model (blur is H+V, so a single-shader model is insufficient); a
-minimal typed parameter model (f32/vec2/vec4/color/u32 with fixed alignment) that
-the host marshals into the plugin's declared uniform struct; host-owned
-ping-pong textures (a plugin must not assume source/destination).
+- **Effects are primitives.** New `ActorCategory::Effect`; registration reuses
+  `PrimitiveRegistry` / `ExtensionRegistry`. Effect parameters are ordinary
+  registered properties stored in `PropertyPlan` slots, so animation,
+  persistence (`CarryBag`), and GUI descriptors come for free.
+- **Not backward compatible.** The flat `Filter, blur: …` properties are removed;
+  effects are labeled child primitives of a compositing scope, applied in
+  declaration order. Examples and `docs/spec.md` are rewritten.
+- **Static chain membership.** Effects are fixed at build time; only parameters
+  animate.
+- **Contract:** `Rgba8Unorm` in/out with `TEXTURE_BINDING | STORAGE_BINDING`;
+  binding 0 `texture_2d<f32>`, binding 1 `texture_storage_2d<rgba8unorm, write>`,
+  binding 2 = effect parameters, binding 3 = host `EffectContext` (`tex_size`,
+  `inv_size`, `pass_index`, `pass_count`, `time_ms`); a linear sampler binding;
+  `@workgroup_size(16, 16)`, entry `main`; ordered N-pass per effect.
+- **Single input, no reserved slot.** A second input (bloom add-back, masks) is a
+  future deliberate ABI bump.
+- **GPU-only is expected.** No backend ⇒ "skip + warn" + diagnostic, uniformly
+  for built-ins and plugins.
+- **Parameters use dynamic property slots.** Effect params are registered
+  properties in `PropertyPlan` slots (not new `ActorField` variants), so
+  animation/persistence/GUI come from the existing machinery and
+  `ActorField::Filter*` is deleted. Every effect gets an implicit animatable
+  `enabled: Bool` (default `true`); no generic `mix` in v1. First effects:
+  `Blur`, `ColorGrade`. `Filter` is the only effect scope in v1.
+- **On-demand + ROI (decided).** Identity-defaulted params plus `enabled` let the
+  pipeline skip no-op effects; a declared spatial support sizes the offscreen
+  target to `content bounds ∪ max support` (worst-case support per track to keep
+  the PF-7 allocation budget). ROI is derived, with an optional
+  `Filter, bounds: auto | (x, y, w, h)` override. Rect-scoped blit changes the
+  `can_post_composite_filter` precondition to "no later sibling intersects ROI".
+
+**Why it is not just "add a callback".** The parameter set is compiled into
+`FilterTracks` (six fixed `PropertyTrack<f32>`, `animation_track.rs:348`),
+registered per `"Filter"` actor type (`schema.rs:521`), implemented by two fixed
+WGSL shaders (`filter_backend.rs:23/80`), and only applied by *containing*
+children. The true `FilterTracks` / `filter_*` / `ActorField::Filter*` surface is
+~141 identifier references across ~13 files including the GUI (timeline diff,
+timeline panel, inspector), persistence (`CarryBag`), `property_engine`, and
+`dispatch` — so this is a renderer **plus** property/GUI/persistence change. (The
+earlier "73 references" figure was a raw `filter` grep that also counted iterator
+`.filter()` calls.)
 
 **Stages (each independently reviewable):**
 
-1. **Stage 0 — contract design doc.** Write the effect contract (textures,
-   format, passes, parameter schema/uniform packing, blend, bounds/padding,
-   no-GPU policy, error handling, determinism, pipeline caching). No code.
-2. **Stage 1 — in-process seam.** Add an `Effect` trait + effect registry;
-   port the existing blur / color-matrix to be its first two effects behind the
-   generic offscreen→effect→composite pipeline; keep the `Filter` container as
-   the shell that applies an effect chain to its children. Do not touch the ABI
-   and do not yet migrate `FilterTracks` (adapt alongside); this is the contained
-   refactor.
-3. **Stage 2 — validate with a second effect.** Land one multi-pass effect
-   (e.g. bloom) authored as WGSL through the registry, proving "adding an effect
-   does not touch the core".
-4. **Stage 3 — native ABI.** Expose the effect descriptor (WGSL source +
-   parameter schema + passes) over FFI behind a new ABI snapshot; document that
-   effects are GPU-only (arbitrary WGSL has no CPU fallback; no backend means
-   "skip + warn").
-5. **Only after Stage 2/3 validate the contract:** migrate `FilterTracks` and the
-   six `filter_*` property tracks to the generic parameter model (the 73-reference
-   cleanup), with persistence/GUI/keyframe-diff updates.
+1. **Stage 0 — contract + authoring design.** Pin the texture/pass contract above,
+   the parameter/uniform layout (f32/u32/vec2/vec4/color; no `vec3`/arrays), the
+   identity and spatial-support metadata, `.amx` effect-chain syntax, error and
+   no-GPU policy, determinism, pipeline caching. No code.
+2. **Stage 1 — renderer seam.** Replace the six named `f32` parameters on the
+   `FilterBackend` methods with an effect-chain value type; add an ordered
+   multi-pass driver over the ping-pong textures; port blur and color-matrix to
+   it. No ABI, no property migration; regression-guard with the existing
+   content-level blur/desaturate tests.
+3. **Stage 2 — effects as primitives.** Introduce `ActorCategory::Effect`, the
+   `Blur` / `ColorGrade` primitives, and the child-effect chain syntax; retire
+   the flat `Filter` properties, `FilterTracks`, and the six `ActorField::Filter*`
+   variants in one pass (build, dispatch, persistence, GUI inspector/timeline
+   diff, tests).
+   **Prerequisite (discovered 2026-09-11).** Effect parameters must *not* be
+   registered through `ExtensionRegistry`: the primary build paths
+   (`Timeline::build(&ast)` in the GUI document, image/video export) construct a
+   timeline with `extensions: None` (`timeline/mod.rs:765`), so extension
+   properties are only written under `build_with_context`. Built-in effect
+   parameters therefore have to be intrinsic built-in registry properties
+   (`PROPERTY_REGISTRY` + `raw_property_specs`) with generic per-track storage
+   (a `Tagged`/plan-slot binding rather than per-parameter `ActorField` variants)
+   so they work without an extension context. Plugin-authored effects (Stage 4)
+   *do* imply a context and can use the extension path.
+4. **Stage 3 — validate with a second effect.** Land one more multi-pass effect
+   that fits the single-input contract (chromatic aberration or a registered
+   directional blur). **Bloom is not a valid validator** under the v1 contract —
+   add-back needs the original as a second input. If this step needs core match
+   arms, the Stage 0 contract is wrong; fix it before the ABI.
+5. **Stage 4 — native ABI.** Add an effect category to `NativePrimitive`
+   (WGSL source + pass list + parameter schema), bump `UNSTABLE_ABI_VERSION`
+   (currently 8) and the `extension_authoring.md` snapshot, document
+   GPU-only/trusted-authoring.
+6. **Stage 5 (optional) — ROI.** Sub-rect offscreen targets + rect-scoped
+   pending-composite blit, using the support metadata from Stage 0.
 
-**Risks / guardrails.** Must preserve the zero-readback `PendingComposite` park
-protocol, `RenderedFrame` buffer reuse, effect-order determinism, and per-frame
-allocation budget (the PF-7/PF-9 wins), or the change regresses measured
-performance. Arbitrary WGSL is not a sandbox — wgpu validates syntax but not
-termination, so effects are trusted-host-authored; pipeline creation must be
-cached on `(source, entry, layout)` and validation errors surfaced as
-diagnostics. Do not start Stage 1 before Stage 0 is reviewed, and do not freeze
-the ABI until Stage 2 has exercised the contract.
+**Risks / guardrails.** Preserve the zero-readback `PendingComposite` park
+protocol, `RenderedFrame` buffer reuse, effect-order determinism, and the PF-7/
+PF-9 per-frame allocation budget. Arbitrary WGSL is not a sandbox — wgpu
+validates syntax but not termination — so effects are trusted-authoring and
+pipeline creation must cache on `(source, entry, layout)` with validation errors
+surfaced as diagnostics. Do not freeze the ABI before Stage 3 has exercised the
+contract.
 
 ---
 

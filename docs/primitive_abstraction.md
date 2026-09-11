@@ -119,55 +119,111 @@ feature that hits the boundary) — not for purity.
 5. **G6/G8 — keep as-is.** Documented boundaries; do not expand the ABI without a
    concrete plugin need.
 
-## 6. Post-processing effects: a second abstraction?
+## 6. Post-processing effects: a primitive category, not a parallel axis
 
-`Filter` is currently a *container strategy* (`ChildProcessing::Filter`) whose
-parameter set is compiled into the track (`FilterTracks` — six fixed
+`Filter` today is a *container strategy* (`ChildProcessing::Filter`) whose
+parameter set is baked into the track (`FilterTracks` — six fixed
 `PropertyTrack<f32>`, `timeline/animation_track.rs:348`), registered per
 `"Filter"` actor type (`animatix-syntax/src/schema.rs:521`), and implemented by
-two fixed WGSL shaders plus a CPU fallback (`renderer/filter_backend.rs:23/80`,
-`timeline/filter.rs:83`). It can only be applied by containing children.
+two fixed WGSL shaders (`renderer/filter_backend.rs:23/80`,
+`timeline/filter.rs`). It can only be applied by containing children, and every
+new effect would touch `FilterTracks`, the property table, and `scene_eval`.
 
-Pulling effects out into their own axis — an effect descriptor + registry, and a
-generic offscreen→effect→composite pipeline — is a better separation of concerns:
-`ChildProcessing` returns to structural aggregation (`Mask` clip geometry,
-`Equation` aggregation) while visual post-processing becomes its own axis. Three
-tiers:
+**Direction (decided): effects are primitives.** A new `ActorCategory::Effect`
+family registers effects through the same `PrimitiveRegistry` → `ExtensionRegistry`
+path as every other primitive, and an effect's parameters are ordinary
+*registered properties*. Animation, persistence (`CarryBag`), and GUI descriptors
+therefore come from the existing `PropertyPlan` / `PropertyId` slot machinery
+(`timeline/plan.rs:70`, `property_engine.rs:694`) rather than a bespoke effect
+registry; an effect primitive additionally declares its shader passes and its
+spatial support. This avoids inventing a second registration mechanism and makes
+the plugin path a `NativePrimitive` category extension instead of a new ABI
+surface.
 
-1. **Seam (small).** An effect description (name + parameter schema) and a
-   registry; the `Filter` container becomes a generic "apply this effect chain to
-   my children" shell. Adding a host effect stops touching `FilterTracks`, the
-   property table, and `scene_eval`.
-2. **Pass / render-graph (medium).** Generalize offscreen→effect→composite into a
-   pass graph with ping-pong, chaining, and non-container targets (an actor or the
-   whole scene). Real renderer work that must preserve the PF-7/PF-9 buffer-reuse
-   and pending-composite invariants.
-3. **Plugin-authored effects (large, but viable).** Register effects through the
-   extension system; the key is that a plugin supplies **WGSL source + a parameter
-   schema**, never a GPU handle — the host owns the device, textures,
-   synchronization, and lifetime, so this *does* cross the FFI boundary (§2). The
-   contract to pin: `Rgba8Unorm` input/output with
-   `TEXTURE_BINDING | STORAGE_BINDING`; bind group 0 =
-   `texture_2d<f32>` / `texture_storage_2d<rgba8unorm, write>` / `var<uniform>`;
-   `@workgroup_size(16, 16)` with entry `main`; an N-pass model (blur is H+V); a
-   minimal typed parameter model the host marshals into the plugin's uniform
-   struct; host-owned ping-pong textures.
+**Authoring surface (decided, not backward compatible).** The flat
+`Filter, blur: …, brightness: …` properties are removed. Effects are declared as
+labeled child primitives of a compositing scope, applied in declaration order:
 
-Costs and limits: arbitrary WGSL has **no CPU fallback**, so with no GPU backend a
-plugin effect is "skip + warn" (unlike the built-in six, which keep a CPU
-implementation); wgpu validates syntax but not termination, so this is
-trusted-authoring rather than a sandbox; pipelines must be cached on
-`(source, entry, layout)`; and effects needing a second texture or geometry info
-are outside the contract.
+```animatix
+bg: Filter {
+  soft: Blur, radius: 10
+  warm: ColorGrade, contrast: 1.15, saturate: 0.9
+  photo: Image, url: "photo.jpg", size: fill
+}
+#1.5s
+bg.soft.radius = 24 [1.5s, ease: ease-out]
+```
 
-Migration blast radius: `FilterTracks` / `filter_*` has 73 references across 10+
-files (GUI timeline diff, timeline panel, inspector, persistence `CarryBag`,
-`property_engine`, `dispatch`, `scene_eval`, tests), so moving to a generic
-parameter model is a renderer **plus** property/GUI/persistence change. With only
-one effect today, the recommended path is staged: effect contract (design doc) →
-in-process seam → validate with a second effect → extend the ABI → migrate the
-property tracks last. Tracked in `roadmap.md` under "Post-Processing Effect
-Abstraction".
+The chain is **static in membership** (an effect child cannot appear or disappear
+over time); effect *parameters* animate like any other property. Children
+partition by category into effects vs. content, so no new block kind is
+introduced. `.amx` files, examples, and `docs/spec.md` are rewritten — no
+compatibility shim.
+
+`Filter` is the only effect scope in v1; an effect primitive declared outside one
+is a diagnostic. Effect parameters are stored in the **dynamic property slots**
+(`PropertyPlan` / `PropertyId`), not as new `ActorField` variants, so the
+`ActorField::Filter*` enum surface is deleted rather than extended. Every effect
+gets an implicit animatable `enabled: Bool` (default `true`) and there is no
+generic `mix` in v1. The first two effects are `Blur` and `ColorGrade`.
+
+> **Constraint (discovered 2026-09-11).** The slot *storage* is generic, but the
+> *registration* cannot go through `ExtensionRegistry` for built-in effects: the
+> primary build paths (`Timeline::build(&ast)` in the GUI document and in
+> image/video export) build with `extensions: None`
+> (`timeline/mod.rs:765`), and extension properties are only written by
+> `write_extension_properties_for_decl` when a context is attached. Built-in
+> effect parameters must be intrinsic built-in properties (`PROPERTY_REGISTRY` +
+> `raw_property_specs`) with a generic per-track binding (`Tagged`/plan-slot),
+> not per-parameter `ActorField` variants. Plugin effects (Stage 4) imply an
+> extension context and can use the extension-property path.
+
+**Texture / pass contract (decided).**
+
+- Input/output `Rgba8Unorm` with `TEXTURE_BINDING | STORAGE_BINDING`.
+- Bind group 0: binding 0 `texture_2d<f32>`, binding 1
+  `texture_storage_2d<rgba8unorm, write>`, binding 2 = the effect's own
+  parameters, binding 3 = a host-owned `EffectContext` (`tex_size`, `inv_size`,
+  `pass_index`, `pass_count`, `time_ms`). Host context is a separate binding so
+  context values never masquerade as author parameters (blur needs `direction`
+  and `tex_size`).
+- A linear sampler binding, so sub-pixel effects (chromatic aberration, motion
+  blur) are expressible.
+- `@workgroup_size(16, 16)`, entry `main`, dispatch `div_ceil(16)`.
+- An N-pass model; each effect declares an ordered pass list and reads
+  `pass_index` from `EffectContext` (blur is H+V).
+- **One input texture in v1.** A second input (original / mask) is deliberately
+  *not* reserved: when a real effect needs it (bloom add-back), that is a
+  deliberate ABI bump, not a speculative field.
+- Host owns ping-pong textures; a plugin never assumes source/destination.
+
+**On-demand and ROI (decided).** Because parameters are registered properties
+with declared identity defaults and each effect declares a spatial support, the
+pipeline skips any effect whose `enabled` is false or whose parameters are all
+identity, and sizes the offscreen target to `content bounds ∪ max support`
+instead of the full scene. ROI is derived, not authored: `soft.radius = 24`
+widens the support to 72px and the target follows. An optional
+`Filter, bounds: auto | (x, y, w, h)` override is the only explicit knob. Two
+accepted costs: (a) an animating support would resize the target per frame, so
+the target uses the track's worst-case support (full-scene fallback), preserving
+the PF-7 allocation budget; (b) a rect-scoped blit is applied after the full
+scene render, so the `can_post_composite_filter` precondition generalizes from
+"last rendered element" to "no later sibling intersects the ROI".
+
+Costs and limits: arbitrary WGSL has no CPU fallback (decided, expected — no
+backend means "skip + warn" with a diagnostic, uniformly for built-ins and
+plugins); wgpu validates syntax but not termination, so this is trusted-authoring
+rather than a sandbox; pipelines cache on `(source, entry, layout)`; effects
+needing a second texture or geometry info are outside the v1 contract.
+
+Migration blast radius: the true `FilterTracks` / `filter_*` /
+`ActorField::Filter*` surface is ~141 identifier references across ~13 files
+(`dispatch`, property registry, animation track, persistence, GUI timeline
+diff/panel/inspector, tests) — **not** the "73" raw grep count, which also
+matches iterator `.filter(|…|)` calls. Moving effects to a primitive category
+retires that surface rather than porting it.
+
+Stages live in `roadmap.md` under "Post-Processing Effect Abstraction".
 
 ## 7. Guardrails to preserve
 
