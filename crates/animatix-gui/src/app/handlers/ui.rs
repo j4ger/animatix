@@ -47,6 +47,7 @@ pub fn handle_apply_layout(
         ui_store.view.tree = crate::app::persistence::build_tree_for(preset, w, h);
     }
     ui_store.view.detail_visible = preset != crate::app::LayoutPreset::Focus;
+    ui_store.view.layout_preset = preset;
     vec![]
 }
 
@@ -56,6 +57,7 @@ pub fn handle_reset_layout(ui_store: &mut UiStore) -> Vec<Effect> {
     ui_store.view.tree =
         crate::app::persistence::build_tree_for(crate::app::LayoutPreset::Animate, w, h);
     ui_store.view.detail_visible = true;
+    ui_store.view.layout_preset = crate::app::LayoutPreset::Animate;
     vec![]
 }
 

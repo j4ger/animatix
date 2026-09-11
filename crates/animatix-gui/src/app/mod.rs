@@ -1053,6 +1053,18 @@ impl GuiShell {
         preview_texture_id: Option<egui::TextureId>,
         commands: &mut ActionQueue,
     ) {
+        // Keep region sizes inside the preset's pixel bounds before layout, so
+        // a window smaller than the build-time reference does not scale panels
+        // below their floors.
+        let avail = ui.available_size();
+        let preset = self.ui_store.view.layout_preset;
+        crate::app::persistence::enforce_layout_bounds(
+            &mut self.ui_store.view.tree,
+            preset,
+            avail.x,
+            avail.y,
+        );
+
         let tree = &mut self.ui_store.view.tree;
         let mut behavior = panels::behavior::WorkspaceBehavior {
             document_store: &mut self.document_store,

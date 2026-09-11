@@ -127,6 +127,8 @@ pub struct ViewStore {
     pub density: eparts::Density,
     /// Last observed window size, used to size layout presets/reset.
     pub layout_size: (f32, f32),
+    /// Active layout preset, used to derive per-frame pixel bounds.
+    pub layout_preset: crate::app::LayoutPreset,
 }
 
 impl ViewStore {
@@ -163,6 +165,7 @@ impl ViewStore {
             reduce_motion: false,
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
+            layout_preset: crate::app::LayoutPreset::Animate,
         }
     }
 }

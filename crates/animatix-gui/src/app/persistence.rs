@@ -212,6 +212,84 @@ pub(super) fn apply_layout_preset(
     true
 }
 
+/// Enforce the preset's pixel bounds on the docked regions each frame.
+///
+/// Shares are relative, so a window smaller than the reference size used at
+/// build time would scale every region down proportionally and drop them below
+/// their pixel floors. This pass reads the current widths, clamps them into
+/// `[min, max]`, and lets the preview absorb the difference — "proportion by
+/// default, pixels as the floor/ceiling" applied continuously. Regions already
+/// inside their bounds are left untouched, so user resizing is preserved.
+pub(super) fn enforce_layout_bounds(
+    tree: &mut Tree<WorkspaceTab>,
+    preset: LayoutPreset,
+    width: f32,
+    height: f32,
+) {
+    if width <= 0.0 || height <= 0.0 {
+        return;
+    }
+    let regions = preset_regions(preset);
+
+    let (Some(sidebar), Some(preview), Some(inspector), Some(timeline)) = (
+        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
+        tree.tiles.find_pane(&WorkspaceTab::Preview),
+        tree.tiles.find_pane(&WorkspaceTab::Inspector),
+        tree.tiles.find_pane(&WorkspaceTab::Timeline),
+    ) else {
+        return;
+    };
+    let Some(detail) = tree.tiles.parent_of(inspector) else {
+        return;
+    };
+    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
+        return;
+    };
+
+    // Horizontal: sidebar | preview (| detail).
+    if tree.is_visible(sidebar) && tree.is_visible(preview) {
+        let detail_visible = tree.is_visible(detail);
+        let mut kids = vec![sidebar, preview];
+        if detail_visible {
+            kids.push(detail);
+        }
+        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
+            let px = linear.shares.split(&kids, width);
+            let mut left = px[0].clamp(regions.left.1, regions.left.2);
+            let mut detail_px = if detail_visible {
+                px[2].clamp(regions.detail.1, regions.detail.2)
+            } else {
+                0.0
+            };
+            // Guarantee the preview floor by giving back from detail, then left.
+            let overflow = (metrics::PREVIEW_MIN + left + detail_px) - width;
+            if overflow > 0.0 {
+                let taken = detail_px.min(overflow);
+                detail_px -= taken;
+                left = (left - (overflow - taken)).max(0.0);
+            }
+            linear.shares.set_share(sidebar, left);
+            linear.shares.set_share(preview, (width - left - detail_px).max(0.0));
+            if detail_visible {
+                linear.shares.set_share(detail, detail_px);
+            }
+        }
+    }
+
+    // Vertical: top row above, timeline below.
+    if tree.is_visible(timeline) {
+        if let Some(root) = tree.root {
+            let kids = vec![top_row, timeline];
+            if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
+                let px = linear.shares.split(&kids, height);
+                let bottom = px[1].clamp(regions.bottom.1, regions.bottom.2);
+                linear.shares.set_share(top_row, (height - bottom).max(0.0));
+                linear.shares.set_share(timeline, bottom);
+            }
+        }
+    }
+}
+
 /// Show or hide the whole detail region (Inspector + Code tab group).
 pub(super) fn set_detail_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
     let Some(inspector) = tree.tiles.find_pane(&WorkspaceTab::Inspector) else {
