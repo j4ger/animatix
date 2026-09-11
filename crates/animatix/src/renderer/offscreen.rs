@@ -307,13 +307,14 @@ impl OffscreenRenderer {
             .unwrap_or_default();
 
         for composite in pending {
-            self.core.blit_texture(
+            let size = composite.texture.size();
+            self.core.blit_texture_rect(
                 &self.device,
                 &self.queue,
                 &composite.view,
                 output_view,
-                dimensions.width,
-                dimensions.height,
+                composite.origin,
+                [size.width, size.height],
                 composite.alpha,
             );
         }

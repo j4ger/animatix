@@ -1463,6 +1463,56 @@ row: Row {
     );
 }
 
+/// `Filter, bounds: (x, y, w, h)` yields a region of interest expanded by the
+/// chain's worst-case support.
+#[test]
+fn filter_bounds_yields_support_padded_region() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter, bounds: (40, 30, 120, 80) {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    assert!(!scope.effects.build_chain(0).is_empty());
+
+    let (width, height) = timeline.resolution().expect("configured resolution");
+    let region = timeline
+        .effect_scope_region(scope, crate::timeline::SceneDimensions { width, height }, 0)
+        .expect("authored bounds must produce a region");
+
+    // Worst-case support = blur radius (10), applied on every side.
+    assert_eq!(region.origin, [30.0, 20.0]);
+    assert_eq!(region.size.width, 140);
+    assert_eq!(region.size.height, 100);
+}
+
+/// Without authored bounds the scope keeps the full-scene path.
+#[test]
+fn filter_without_bounds_has_no_region() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    let (width, height) = timeline.resolution().expect("configured resolution");
+    assert!(
+        timeline
+            .effect_scope_region(scope, crate::timeline::SceneDimensions { width, height }, 0)
+            .is_none()
+    );
+}
+
 /// Top-level `config { resolution: (w, h) }` is recorded on the timeline so
 /// export tooling can default its canvas to the authored size.
 #[test]

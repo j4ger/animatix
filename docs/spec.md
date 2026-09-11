@@ -760,6 +760,13 @@ cannot appear or disappear over time). An effect declared outside a `Filter`
 scope is a build diagnostic. Nested `Filter` scopes are allowed; each level adds
 one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
 
+**Region of interest.** An optional `bounds: (x, y, w, h)` (scene pixels)
+restricts effect processing to that region — the seed image is cropped, the
+chain dispatches at the region size, and the result is composited back at the
+region origin. The region is automatically expanded by the chain's worst-case
+effect support (e.g. the blur radius) so padding never clips. Without `bounds`,
+the whole scene is processed.
+
 ### Audio
 
 `Audio` is a non-visual actor that embeds an external audio file into the exported video.

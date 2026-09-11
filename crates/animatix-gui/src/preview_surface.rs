@@ -208,13 +208,14 @@ impl PreviewSurface {
             .unwrap_or_default();
 
         for composite in pending {
-            self.renderer.blit_texture(
+            let size = composite.texture.size();
+            self.renderer.blit_texture_rect(
                 device,
                 queue,
                 &composite.view,
                 render_view,
-                self.dimensions.width,
-                self.dimensions.height,
+                composite.origin,
+                [size.width, size.height],
                 composite.alpha,
             );
         }

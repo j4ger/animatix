@@ -599,6 +599,7 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
         ("bar_colors", &["BarChart"], Type::Any, PropertyValueKind::Generic),
         ("bar_width", &["BarChart"], Type::Num, PropertyValueKind::F32),
         ("baseline", &[], Type::Num, PropertyValueKind::F32),
+        ("bounds", &["Filter"], Type::Vec4, PropertyValueKind::Vec4),
         (
             "char_progress",
             &["Text", "Math", "Code", "Typst"],

@@ -168,6 +168,33 @@ impl FullscreenBlitPipeline {
         _height: u32,
         alpha: f32,
     ) {
+        self.blit_rect_with_encoder(
+            device,
+            queue,
+            encoder,
+            src_view,
+            dst_view,
+            [0.0, 0.0],
+            None,
+            alpha,
+        );
+    }
+
+    /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`
+    /// pixels (defaults to the full target when `None`). The quad is clipped
+    /// and mapped through a render-pass viewport, so no shader change is
+    /// needed for region-scoped compositing.
+    pub fn blit_rect_with_encoder(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: Option<[u32; 2]>,
+        alpha: f32,
+    ) {
         queue.write_buffer(&self.alpha_buffer, 0, bytemuck::bytes_of(&alpha));
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -207,10 +234,41 @@ impl FullscreenBlitPipeline {
                 multiview_mask: None,
             });
 
+            if let Some([w, h]) = dst_size {
+                pass.set_viewport(dst_origin[0], dst_origin[1], w as f32, h as f32, 0.0, 1.0);
+            }
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
             pass.draw(0..4, 0..1);
         }
+    }
+
+    /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`.
+    /// Creates its own encoder and submits immediately.
+    pub fn blit_rect(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: [u32; 2],
+        alpha: f32,
+    ) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Fullscreen Blit Encoder"),
+        });
+        self.blit_rect_with_encoder(
+            device,
+            queue,
+            &mut encoder,
+            src_view,
+            dst_view,
+            dst_origin,
+            Some(dst_size),
+            alpha,
+        );
+        queue.submit(std::iter::once(encoder.finish()));
     }
 
     /// Blit `src_view` into `dst_view` with the given alpha. Both must be RGBA8Unorm.

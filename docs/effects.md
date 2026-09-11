@@ -76,27 +76,39 @@ Built-in examples:
 
 ## 3. Spatial support and ROI
 
-Every effect declares a **spatial support**: how far outside a pixel it reads
-(e.g. blur reads `ceil(radius)` texels; a colour matrix reads nothing).
-`ColorGrade` has support `0`.
+Every effect declares a **spatial support**: how far outside a pixel it reads,
+in scene pixels, as a function of its parameters (blur reads `radius` texels; a
+colour matrix reads nothing). The support functions live on the
+`EffectDescriptor`; the chain's `worst_case_support()` evaluates them over every
+parametric keyframe time and sums the per-stage maxima, so the result is
+constant per track (PF-7: no per-frame reallocation).
 
-The compositing scope sizes its offscreen target to
-`content bounds ∪ max support over the chain` rather than the full scene, which
-makes ROI computation derived rather than authored: animating `Blur.radius`
-widens the support and the target follows. An optional
-`Filter, bounds: auto | (x, y, w, h)` override is the only explicit knob.
+**Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts effect
+processing to that region: the rendered sub-scene is cropped to
+`bounds ∪ worst-case support` (clamped to the scene), the chain dispatches at
+the region size, and the result is composited back at the region origin —
+through the readback path (drawn at the origin) or the zero-readback path
+(a viewport-scoped blit). Textures stay at full scene capacity; only the seed
+copy, dispatch, and readback shrink. Without `bounds`, the whole scene is
+processed exactly as before.
+
+**Remaining (derived ROI).** Deriving the region from content bounds —
+`content bounds ∪ max support over the chain` instead of an authored box — needs
+a content-bounds pre-pass before the sub-scene render (bounds are currently only
+known during evaluation). Once that exists, an animated `Blur.radius` widens the
+region automatically.
 
 Two constraints:
 
 - **Allocation stability.** An animating support would resize the target every
-  frame. The target is sized from the *worst-case* support over the effect
-  track's parameter range (snapped to a small number of buckets); when that is
-  not statically known, the fallback is the full scene. This preserves the
-  PF-7/PF-9 per-frame allocation budget.
+  frame. The region uses the *worst-case* support over the effect track's
+  parameter range, and the GPU textures stay at full scene capacity (only the
+  seed copy, dispatch, and readback shrink), preserving the PF-7/PF-9 budget.
 - **Composite ordering.** A rect-scoped composite is applied after the full
   scene render, so it overwrites anything drawn later inside its rect. The
-  `can_post_composite_filter` precondition therefore generalises from "this
-  scope is the last rendered element" to "no later sibling intersects the ROI".
+  zero-readback path therefore keeps the existing `can_post_composite_filter`
+  precondition ("this scope is the last rendered element"); generalising it to
+  "no later sibling intersects the ROI" is part of the derived-ROI work.
 
 ## 4. GPU pass contract
 

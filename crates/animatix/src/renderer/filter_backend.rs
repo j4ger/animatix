@@ -18,7 +18,8 @@ use std::collections::HashMap;
 use crate::renderer::core::RendererCore;
 use crate::timeline::SceneDimensions;
 use crate::timeline::filter::{
-    EffectChain, EffectDescriptor, EffectId, FilterBackend, PendingComposite, descriptor,
+    EffectChain, EffectDescriptor, EffectId, EffectRegion, FilterBackend, PendingComposite,
+    descriptor,
 };
 use crate::timeline::image::SceneImage;
 
@@ -82,6 +83,9 @@ pub struct GpuFilterBackend {
     context_buffer: wgpu::Buffer,
     /// Which internal texture holds the most recent filtered result.
     last_filtered_source: FilteredSource,
+    /// Effect-space dimensions of the most recent run (region size when a
+    /// region of interest was used, otherwise the full scene).
+    last_effect_dims: SceneDimensions,
     /// Pending zero-readback filter textures to be composited after scene render.
     pending_composites: Vec<PendingComposite>,
 }
@@ -267,6 +271,7 @@ impl GpuFilterBackend {
             sampler,
             context_buffer,
             last_filtered_source: FilteredSource::Render,
+            last_effect_dims: dimensions,
             pending_composites: Vec::new(),
         })
     }
@@ -381,11 +386,15 @@ impl GpuFilterBackend {
     ///
     /// Returns the [`wgpu::TextureView`] holding the final image (the render
     /// texture when the chain is empty). `self.last_filtered_source` records
-    /// which texture it is so callers can read it back or copy it.
+    /// which texture it is so callers can read it back or copy it. When
+    /// `region` is `Some`, the seed copy crops that sub-rect and the chain
+    /// dispatches at the region size; the textures themselves stay at the full
+    /// scene capacity, so varying regions never reallocate (PF-7).
     fn render_and_filter_scene_to_view(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<&wgpu::TextureView, String> {
         self.core
@@ -405,8 +414,22 @@ impl GpuFilterBackend {
             return Ok(&self.render_view);
         }
 
-        let width = dimensions.width.max(1);
-        let height = dimensions.height.max(1);
+        // Region of interest: crop the seed copy to `region` and run the chain
+        // at the region size. `EffectContext.tex_size` tells the shaders to
+        // write only that sub-rect of the (full-size) storage views.
+        let (seed_origin, effect_dims) = match region {
+            Some(region) => (
+                region.origin,
+                SceneDimensions {
+                    width: region.size.width,
+                    height: region.size.height,
+                },
+            ),
+            None => ([0.0, 0.0], dimensions),
+        };
+        let width = effect_dims.width.max(1);
+        let height = effect_dims.height.max(1);
+        self.last_effect_dims = effect_dims;
 
         // Copy the render texture into ping-pong A as the starting point.
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -416,7 +439,11 @@ impl GpuFilterBackend {
             wgpu::TexelCopyTextureInfo {
                 texture: &self.render_texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
+                origin: wgpu::Origin3d {
+                    x: seed_origin[0].max(0.0) as u32,
+                    y: seed_origin[1].max(0.0) as u32,
+                    z: 0,
+                },
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
@@ -564,6 +591,7 @@ impl GpuFilterBackend {
         &self,
         dimensions: SceneDimensions,
         alpha: f32,
+        origin: [f32; 2],
     ) -> Result<PendingComposite, String> {
         let source = match self.last_filtered_source {
             FilteredSource::Render => &self.render_texture,
@@ -615,6 +643,7 @@ impl GpuFilterBackend {
             texture,
             view,
             alpha,
+            origin,
         })
     }
 }
@@ -624,27 +653,30 @@ impl FilterBackend for GpuFilterBackend {
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<SceneImage, String> {
-        self.render_and_filter_scene_to_view(scene, dimensions, chain)?;
+        self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
 
         let texture = match self.last_filtered_source {
             FilteredSource::Render => &self.render_texture,
             FilteredSource::TexA => &self.tex_a,
             FilteredSource::TexB => &self.tex_b,
         };
-        self.readback_to_scene_image(texture, dimensions)
+        self.readback_to_scene_image(texture, self.last_effect_dims)
     }
 
     fn render_scene_to_pending_composite(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
         chain: &EffectChain,
         alpha: f32,
     ) -> Result<(), String> {
-        self.render_and_filter_scene_to_view(scene, dimensions, chain)?;
-        let composite = self.copy_last_filtered_to_pending(dimensions, alpha)?;
+        let origin = region.map_or([0.0, 0.0], |region| region.origin);
+        self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
+        let composite = self.copy_last_filtered_to_pending(self.last_effect_dims, alpha, origin)?;
         self.pending_composites.push(composite);
         Ok(())
     }
@@ -747,8 +779,12 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result =
-                backend.render_scene_to_image_gpu_filtered(&scene, dims, &EffectChain::default());
+            let result = backend.render_scene_to_image_gpu_filtered(
+                &scene,
+                dims,
+                None,
+                &EffectChain::default(),
+            );
             assert!(result.is_ok(), "empty chain path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
@@ -769,7 +805,8 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, &blur_chain(5.0));
+            let result =
+                backend.render_scene_to_image_gpu_filtered(&scene, dims, None, &blur_chain(5.0));
             assert!(result.is_ok(), "GPU blur chain path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
@@ -791,7 +828,7 @@ mod tests {
 
             let scene = vello::Scene::new();
             let chain = color_grade_chain(1.5, 1.2, 0.5, 45.0, 0.3);
-            let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, &chain);
+            let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, None, &chain);
             assert!(result.is_ok(), "GPU color-grade path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
@@ -827,7 +864,7 @@ mod tests {
 
             let chain = chromatic_aberration_chain(8.0);
             let image = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, &chain)
+                .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
                 .expect("chromatic aberration path should succeed");
             let w = image.natural_size[0] as usize;
             let raw = image.data.data.data();
@@ -838,6 +875,64 @@ mod tests {
             let r = raw[(y * w + x) * 4];
             let b = raw[(y * w + x) * 4 + 2];
             assert!(b > r + 60, "expected a blue-dominant fringe at ({x},{y}), got r={r} b={b}");
+        }
+    }
+
+    /// Region-scoped chains crop the seed copy, dispatch at the region size,
+    /// and return a region-sized image: the world sub-rect maps to
+    /// region-local coordinates.
+    #[test]
+    fn region_scoped_chain_crops_and_filters() {
+        let maybe_device = pollster::block_on(create_headless_device());
+        if let Some((device, queue)) = maybe_device {
+            let dims = SceneDimensions {
+                width: 64,
+                height: 64,
+            };
+            let mut backend = GpuFilterBackend::new(device, queue, dims)
+                .expect("GpuFilterBackend should initialise");
+
+            // White half-plane for x < 32 on a transparent background.
+            let mut scene = vello::Scene::new();
+            use kurbo::Shape;
+            let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                kurbo::Affine::IDENTITY,
+                vello::peniko::Color::WHITE,
+                None,
+                &rect,
+            );
+
+            let region = EffectRegion {
+                origin: [16.0, 16.0],
+                size: SceneDimensions {
+                    width: 32,
+                    height: 32,
+                },
+            };
+            let image = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, Some(region), &blur_chain(4.0))
+                .expect("region-scoped chain should succeed");
+            assert_eq!(image.natural_size[0], 32.0);
+            assert_eq!(image.natural_size[1], 32.0);
+
+            let w = image.natural_size[0] as usize;
+            let raw = image.data.data.data();
+            // Region-local: world x < 32 maps to local x < 16, so (8, 16) sits
+            // well inside the white half-plane and stays opaque.
+            let a = raw[(16 * w + 8) * 4 + 3];
+            assert!(a > 200, "expected opaque white inside the region, got a={a}");
+            // World x = 32 maps to local x = 16; blur must soften the edge.
+            let mut soft = false;
+            for lx in 10..22usize {
+                let a = raw[(16 * w + lx) * 4 + 3];
+                if a > 40 && a < 215 {
+                    soft = true;
+                    break;
+                }
+            }
+            assert!(soft, "blur should soften the world boundary inside the region");
         }
     }
 
@@ -871,7 +966,7 @@ mod tests {
             );
 
             let image = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, &blur_chain(8.0))
+                .render_scene_to_image_gpu_filtered(&scene, dims, None, &blur_chain(8.0))
                 .expect("GPU blur path should succeed");
             let w = image.natural_size[0] as usize;
             let raw = image.data.data.data();
@@ -919,7 +1014,7 @@ mod tests {
 
             let chain = color_grade_chain(1.0, 1.0, 0.0, 0.0, 0.0);
             let image = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, &chain)
+                .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
                 .expect("color-grade path should succeed");
             let w = image.natural_size[0] as usize;
             let raw = image.data.data.data();

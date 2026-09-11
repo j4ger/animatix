@@ -761,6 +761,18 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Applicable::Never,
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
+    // Region of interest for a `Filter` scope: `(x, y, w, h)` in scene pixels.
+    // Stored in the generic tagged map (no plan slot: the shared id belongs to
+    // the canonical name, the tag scopes it to Filter scopes).
+    schema!(
+        "bounds",
+        ValueType::Vec4,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("filter_bounds"),
+        None,
+        Applicable::ActorKinds(&[A::Filter]),
+        |_| super::property_engine::PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0])
+    ),
     schema!(
         "char_progress",
         ValueType::F32,

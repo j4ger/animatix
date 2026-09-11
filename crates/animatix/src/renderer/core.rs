@@ -54,6 +54,23 @@ impl RendererCore {
         }
     }
 
+    /// Region-scoped [`Self::blit_texture`]: the source is drawn at
+    /// `dst_origin` covering `dst_size` pixels of the target.
+    pub fn blit_texture_rect(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: [u32; 2],
+        alpha: f32,
+    ) {
+        if let Some(ref blit) = self.blit {
+            blit.blit_rect(device, queue, src_view, dst_view, dst_origin, dst_size, alpha);
+        }
+    }
+
     /// Render a Vello `scene` into the provided `texture_view` at the given size.
     pub fn render_vello_scene(
         &mut self,

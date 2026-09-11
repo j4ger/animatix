@@ -955,12 +955,18 @@ impl Timeline {
             return;
         }
 
+        // Region of interest: an authored `bounds: (x, y, w, h)` expanded by
+        // the chain's worst-case support and clamped to the scene. `None`
+        // keeps the full-scene path.
+        let region = self.effect_scope_region(track, scene_dimensions, time_ms);
+
         // Try zero-readback path when this filter is safely the last rendering element
         if allow_pending_composites && self.can_post_composite_filter(node_label) {
             if let Some(backend) = filter_backend.as_mut() {
                 match backend.render_scene_to_pending_composite(
                     &sub_scene,
                     scene_dimensions,
+                    region,
                     &chain,
                     global_opacity,
                 ) {
@@ -980,13 +986,27 @@ impl Timeline {
 
         // Render sub-scene to image via backend, apply GPU filters, draw result
         if let Some(backend) = filter_backend.as_mut() {
-            match backend.render_scene_to_image_gpu_filtered(&sub_scene, scene_dimensions, &chain) {
+            match backend.render_scene_to_image_gpu_filtered(
+                &sub_scene,
+                scene_dimensions,
+                region,
+                &chain,
+            ) {
                 Ok(filtered) => {
+                    // A region-scoped result is composited back at its origin;
+                    // a full-scene result covers the target exactly.
+                    let transform = match region {
+                        Some(region) => kurbo::Affine::translate((
+                            region.origin[0] as f64,
+                            region.origin[1] as f64,
+                        )),
+                        None => kurbo::Affine::IDENTITY,
+                    };
                     let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
                         .with_extend(vello::peniko::Extend::Pad)
                         .with_quality(vello::peniko::ImageQuality::Medium)
                         .with_alpha(global_opacity);
-                    scene.draw_image(&brush, kurbo::Affine::IDENTITY);
+                    scene.draw_image(&brush, transform);
                 },
                 Err(e) => {
                     tracing::warn!(
@@ -1006,6 +1026,47 @@ impl Timeline {
                 },
             }
         }
+    }
+
+    /// Compute the region of interest for an effect scope.
+    ///
+    /// The scope's authored `bounds: (x, y, w, h)` (tagged `filter_bounds`
+    /// storage) is expanded by the chain's worst-case support and clamped to
+    /// the scene. Returns `None` when no bounds are authored, the region is
+    /// degenerate, or it already covers the whole scene (the historical
+    /// full-scene path, which then behaves exactly as before).
+    pub(crate) fn effect_scope_region(
+        &self,
+        track: &AnimationTrack,
+        scene_dimensions: SceneDimensions,
+        time_ms: u64,
+    ) -> Option<crate::timeline::filter::EffectRegion> {
+        let value = crate::timeline::dispatch::read_property_value(
+            track,
+            crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
+            time_ms,
+        );
+        let Some(crate::timeline::PropertyValue::Vec4([x, y, w, h])) = value else {
+            return None;
+        };
+        if w <= 0.0 || h <= 0.0 {
+            return None;
+        }
+
+        let pad = track.effects.worst_case_support();
+        let x0 = (x - pad).max(0.0);
+        let y0 = (y - pad).max(0.0);
+        let x1 = (x + w + pad).min(scene_dimensions.width as f32);
+        let y1 = (y + h + pad).min(scene_dimensions.height as f32);
+        let width = (x1 - x0).floor().max(1.0) as u32;
+        let height = (y1 - y0).floor().max(1.0) as u32;
+        if width >= scene_dimensions.width && height >= scene_dimensions.height {
+            return None;
+        }
+        Some(crate::timeline::filter::EffectRegion {
+            origin: [x0, y0],
+            size: SceneDimensions { width, height },
+        })
     }
 
     /// Mask strategy: children render inside the Mask's clip geometry. Reached

@@ -24,6 +24,10 @@ pub struct PendingComposite {
     pub view: wgpu::TextureView,
     /// Opacity to apply during compositing.
     pub alpha: f32,
+    /// Destination top-left corner in render-target pixels. The composite
+    /// covers `origin` + the texture's own size (full render target when the
+    /// scope did not use a region of interest).
+    pub origin: [f32; 2],
 }
 
 // ── Effect identity ─────────────────────────────────────────────────────────
@@ -129,6 +133,10 @@ pub struct EffectPassSpec {
 /// Packs author parameters into the uniform bytes for one effect.
 pub type EffectPackFn = fn(&EffectParams, &mut [u8]);
 
+/// Spatial support of one effect: how far outside a source pixel it reads, in
+/// scene pixels, for the given parameters.
+pub type EffectSupportFn = fn(&EffectParams) -> f32;
+
 /// A complete effect description.
 pub struct EffectDescriptor {
     /// Pipeline-cache identity.
@@ -143,6 +151,8 @@ pub struct EffectDescriptor {
     pub author_uniform_size: u32,
     /// Marshals parameters into `author_uniform_size` bytes.
     pub pack: EffectPackFn,
+    /// Spatial support used to pad a region of interest.
+    pub support: EffectSupportFn,
 }
 
 impl EffectDescriptor {
@@ -459,6 +469,7 @@ pub static BLUR_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
     ],
     author_uniform_size: 16,
     pack: pack_blur,
+    support: support_blur,
 };
 
 /// `ColorGrade` descriptor: one pass mapping five scalars to a colour matrix.
@@ -473,6 +484,7 @@ pub static COLOR_GRADE_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
     }],
     author_uniform_size: 64,
     pack: pack_color_grade,
+    support: support_color_grade,
 };
 
 /// `ChromaticAberration` descriptor: one pass with sub-pixel channel offsets.
@@ -487,6 +499,7 @@ pub static CHROMATIC_ABERRATION_DESCRIPTOR: EffectDescriptor = EffectDescriptor 
     }],
     author_uniform_size: 16,
     pack: pack_chromatic_aberration,
+    support: support_chromatic_aberration,
 };
 
 fn pack_blur(params: &EffectParams, out: &mut [u8]) {
@@ -519,6 +532,32 @@ fn pack_color_grade(params: &EffectParams, out: &mut [u8]) {
     }
 }
 
+fn support_blur(params: &EffectParams) -> f32 {
+    // The H/V passes sample ±radius texels (σ = radius / 3).
+    params.f32_at(0)
+}
+
+fn support_color_grade(_params: &EffectParams) -> f32 {
+    0.0
+}
+
+fn support_chromatic_aberration(params: &EffectParams) -> f32 {
+    params.f32_at(0)
+}
+
+/// A region of interest for an effect scope, in scene pixels.
+///
+/// When present, the backend crops the rendered sub-scene to `origin`/`size`,
+/// runs the chain at `size`, and the caller composites the result back at
+/// `origin`. `None` means the full `dimensions` (the historical behaviour).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EffectRegion {
+    /// Top-left corner of the region in scene pixels.
+    pub origin: [f32; 2],
+    /// Width and height of the region in scene pixels.
+    pub size: SceneDimensions,
+}
+
 // ── Backend boundary ────────────────────────────────────────────────────────
 
 /// Backend that can render a [`vello::Scene`] and apply an [`EffectChain`].
@@ -531,24 +570,31 @@ fn pack_color_grade(params: &EffectParams, out: &mut [u8]) {
 pub trait FilterBackend: Send {
     /// Render `scene` (covering `dimensions`), apply `chain`, and read the
     /// result back as a [`SceneImage`].
+    ///
+    /// When `region` is `Some`, the chain runs only inside that region and the
+    /// returned image covers the region (the caller composites it at
+    /// `region.origin`); otherwise the image covers `dimensions`.
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<SceneImage, String>;
 
     /// Render a scene with `chain` and store the result as a pending composite
-    /// that can be blitted onto the render target without CPU readback.
+    /// that can be blitted onto the render target without CPU readback. When
+    /// `region` is `Some`, the pending composite covers only that region.
     /// Returns `Err` if this backend doesn't support zero-readback compositing.
     fn render_scene_to_pending_composite(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
         chain: &EffectChain,
         alpha: f32,
     ) -> Result<(), String> {
-        let _ = (scene, dimensions, chain, alpha);
+        let _ = (scene, dimensions, region, chain, alpha);
         Err("zero-readback effect compositing is not supported by this backend".to_string())
     }
 

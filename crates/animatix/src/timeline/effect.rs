@@ -111,6 +111,32 @@ impl EffectChainTrack {
         })
     }
 
+    /// Worst-case spatial support across the chain, in scene pixels.
+    ///
+    /// Each stage's support is evaluated at every parametric keyframe time
+    /// (plus t=0) and the per-stage maxima are summed, so a padded region of
+    /// interest stays valid for the whole animation. This is the PF-7-friendly
+    /// "worst-case support" from `docs/effects.md` §3: constant per track, no
+    /// per-frame reallocation.
+    pub fn worst_case_support(&self) -> f32 {
+        let mut total = 0.0f32;
+        for stage in &self.stages {
+            let desc = descriptor(stage.kind);
+            let mut times: Vec<u64> =
+                stage.params.values().flat_map(|track| track.keyframe_times()).collect();
+            times.push(0);
+            times.sort_unstable();
+            times.dedup();
+            let mut stage_max = 0.0f32;
+            for time in times {
+                let params = sample_params(desc, stage, time);
+                stage_max = stage_max.max((desc.support)(&params));
+            }
+            total += stage_max;
+        }
+        total
+    }
+
     /// Write a keyframed value to a stage parameter (or its `enabled` flag).
     ///
     /// Returns `false` when the stage or parameter does not exist on the chain.
