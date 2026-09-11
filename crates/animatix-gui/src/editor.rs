@@ -22,8 +22,11 @@ pub struct EditorBuffer {
     analyzer: Analyzer,
     /// Completion popup state.
     completion: CompletionPopup,
-    /// Whether completion was just confirmed (to avoid re-triggering).
-    completion_confirmed: bool,
+    /// Where the current completion session should be applied.
+    completion_anchor: Option<completion::CompletionAnchor>,
+    /// (cell, caret) signature of the last auto-trigger, so a dismissed popup
+    /// is not immediately reopened for the same caret position.
+    completion_auto_armed: Option<(usize, usize)>,
     /// Cell-based editor state.
     cells: Vec<Cell>,
     cell_state: CellEditorState,
@@ -54,7 +57,8 @@ impl EditorBuffer {
             cached_highlight: None,
             analyzer,
             completion: CompletionPopup::new(),
-            completion_confirmed: false,
+            completion_anchor: None,
+            completion_auto_armed: None,
             cells,
             cell_state: CellEditorState::default(),
             pending_scroll_to_line: None,
@@ -73,6 +77,8 @@ impl EditorBuffer {
         self.analyzer
             .set_extension_manifest(crate::document::extension_manifest_for_path(path));
         self.completion.hide();
+        self.completion_anchor = None;
+        self.completion_auto_armed = None;
         self.cells = parse_cells(&text);
         self.cell_state = CellEditorState::default();
         self.pending_scroll_to_line = None;
@@ -102,6 +108,8 @@ impl EditorBuffer {
         self.cursor_line = None;
         self.keyframe_times_s.clear();
         self.pending_scrub_to_time = None;
+        self.completion_anchor = None;
+        self.completion_auto_armed = None;
     }
 
     pub fn scroll_to_line(&mut self, line: usize) {
@@ -436,9 +444,8 @@ impl EditorBuffer {
         }
 
         // Handle completion keyboard input
+        let mut completion_changed = false;
         let completion_consumed = self.completion.handle_input(ui.ctx());
-
-        // If completion consumed the input, don't process further
         if completion_consumed {
             let insert_text = self
                 .completion
@@ -447,7 +454,8 @@ impl EditorBuffer {
             if let Some(text) = insert_text {
                 self.insert_completion(&text);
                 self.completion.hide();
-                self.completion_confirmed = true;
+                self.completion_auto_armed = None;
+                completion_changed = true;
             }
         }
 
@@ -460,10 +468,8 @@ impl EditorBuffer {
             });
         }
 
-        // Reset completion_confirmed flag
-        if self.completion_confirmed {
-            self.completion_confirmed = false;
-        }
+        // Keep the session anchored to the live caret and auto-open after `.`.
+        self.sync_completion_session();
 
         // Show completion popup if visible
         if self.completion.is_visible() {
@@ -471,7 +477,18 @@ impl EditorBuffer {
             if let Some(insert_text) = self.completion.ui(ui, cursor_rect) {
                 self.insert_completion(&insert_text);
                 self.completion.hide();
+                self.completion_auto_armed = None;
+                completion_changed = true;
             }
+        }
+
+        if completion_changed {
+            // Completion edited the source in place; signal the caller so the
+            // document picks up the new text this frame.
+            let mut r =
+                ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+            r.mark_changed();
+            return r;
         }
 
         response
@@ -539,6 +556,45 @@ mod tests {
             },
         ]);
         render(ctx, store, raw);
+    }
+
+    #[test]
+    fn completion_splices_at_caret_instead_of_appending_to_document() {
+        let path = PathBuf::from("test.amx");
+        let source = "box: Rect, size: (100, 100)\n#0s\nbox.pos = (0, 0)\n";
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        let cell_idx = editor.cells.len() - 1;
+        let body_chars = editor.cells[cell_idx].body().chars().count();
+
+        // Anchor the caret at the end of the cell body, replacing the last
+        // three characters (`0)` etc.) with a completion.
+        editor.cell_state.focused_cell = Some(cell_idx);
+        editor.completion_anchor = Some(completion::CompletionAnchor {
+            cell: cell_idx,
+            caret: body_chars,
+            word_start: body_chars.saturating_sub(3),
+        });
+        editor.insert_completion("position");
+
+        let body = editor.cells[cell_idx].body();
+        assert!(body.ends_with("position"), "completion should splice at the caret: {body:?}");
+        assert!(
+            editor.text().ends_with('\n'),
+            "editing must not append past the final newline: {:?}",
+            editor.text()
+        );
+        assert_eq!(editor.cell_state.focused_cell, Some(cell_idx));
+        assert!(editor.cell_state.pending_cursor_char.is_some());
+    }
+
+    #[test]
+    fn completion_without_anchor_is_ignored() {
+        let path = PathBuf::from("test.amx");
+        let source = "box: Rect, size: (100, 100)\n#0s\n";
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        let before = editor.text().to_string();
+        editor.insert_completion("garbage");
+        assert_eq!(editor.text(), before, "an unanchored completion must not touch the document");
     }
 
     #[test]

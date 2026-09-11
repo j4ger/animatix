@@ -365,6 +365,7 @@ fn render_code_cell(
                             state.pending_cursor_cell = None;
                         }
                         track_focus(index, &response, state);
+                        track_cursor(&response, state);
 
                         // Draw wavy diagnostic underlines
                         let cell_underlines: Vec<CellDiagnostic> = state
@@ -575,6 +576,7 @@ fn render_keyframe_cell(
                                     state.pending_cursor_cell = None;
                                 }
                                 track_focus(index, &response, state);
+                                track_cursor(&response, state);
 
                                 // Draw wavy diagnostic underlines
                                 let cell_underlines: Vec<CellDiagnostic> = state
@@ -680,6 +682,20 @@ fn track_focus(index: usize, response: &egui::Response, state: &mut CellEditorSt
     if response.gained_focus() {
         state.focused_cell = Some(index);
         state.highlighted_cell = None;
+    }
+}
+
+/// Record the live caret char offset inside the focused cell body so callers
+/// (completion in particular) can operate at the caret rather than assuming
+/// end-of-document.
+fn track_cursor(response: &egui::Response, state: &mut CellEditorState) {
+    if !response.has_focus() {
+        return;
+    }
+    if let Some(te_state) = egui::text_edit::TextEditState::load(&response.ctx, response.id) {
+        if let Some(range) = te_state.cursor.char_range() {
+            state.focused_cursor_char = Some(range.primary.index);
+        }
     }
 }
 

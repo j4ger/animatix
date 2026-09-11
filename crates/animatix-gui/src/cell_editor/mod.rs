@@ -89,6 +89,10 @@ pub struct CellEditorState {
     pub pending_cursor_cell: Option<usize>,
     /// Char index within the cell body where the cursor should be placed.
     pub pending_cursor_char: Option<usize>,
+    /// Live caret char offset inside the focused cell's body, refreshed every
+    /// frame the cell editor has focus. Used by completion to operate at the
+    /// caret instead of at end-of-document.
+    pub focused_cursor_char: Option<usize>,
     /// Set of cell indices that are collapsed (applies to keyframes; code cells
     /// store expansion on the `Cell` enum itself).
     pub collapsed_cells: std::collections::HashSet<usize>,

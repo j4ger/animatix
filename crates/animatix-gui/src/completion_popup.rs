@@ -49,6 +49,32 @@ impl CompletionPopup {
         self.trigger_text = trigger_text;
     }
 
+    /// Refresh items and trigger text while the popup is already open.
+    ///
+    /// Keeps the current selection when the filter text is unchanged so the
+    /// highlighted entry survives continued typing.
+    pub fn refine(&mut self, items: Vec<CompletionItem>, trigger_text: String) {
+        let filter_changed = self.trigger_text != trigger_text;
+        self.items = items;
+        self.visible = !self.items.is_empty();
+        self.trigger_text = trigger_text;
+        if filter_changed || !self.visible {
+            self.selected = 0;
+            self.scroll_offset = 0;
+        }
+    }
+
+    /// Indices of items after applying the current trigger-text filter.
+    fn filtered_indices(&self) -> Vec<usize> {
+        let needle = self.trigger_text.to_lowercase();
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| needle.is_empty() || item.label.to_lowercase().starts_with(&needle))
+            .map(|(i, _)| i)
+            .collect()
+    }
+
     /// Hide the popup.
     pub fn hide(&mut self) {
         self.visible = false;
@@ -63,11 +89,11 @@ impl CompletionPopup {
 
     /// Get the currently selected item.
     pub fn selected_item(&self) -> Option<&CompletionItem> {
-        if self.visible {
-            self.items.get(self.selected)
-        } else {
-            None
+        if !self.visible {
+            return None;
         }
+        let idx = *self.filtered_indices().get(self.selected)?;
+        self.items.get(idx)
     }
 
     /// Handle keyboard input. Returns true if the popup consumed the input.
@@ -125,18 +151,7 @@ impl CompletionPopup {
         let mut result = None;
 
         // Filter items based on trigger text
-        let filtered: Vec<(usize, &CompletionItem)> = self
-            .items
-            .iter()
-            .enumerate()
-            .filter(|(_, item)| {
-                if self.trigger_text.is_empty() {
-                    true
-                } else {
-                    item.label.to_lowercase().starts_with(&self.trigger_text.to_lowercase())
-                }
-            })
-            .collect();
+        let filtered = self.filtered_indices();
 
         if filtered.is_empty() {
             self.hide();
@@ -181,11 +196,12 @@ impl CompletionPopup {
             Vec2::new(popup_width - 8.0, item_height),
         );
 
-        for (visible_idx, (original_idx, item)) in filtered.iter().enumerate() {
+        for (visible_idx, item_idx) in filtered.iter().enumerate() {
             if visible_idx >= self.scroll_offset
                 && visible_idx < self.scroll_offset + self.max_visible
             {
-                let is_selected = *original_idx == self.selected;
+                let item = &self.items[*item_idx];
+                let is_selected = visible_idx == self.selected;
 
                 // Highlight selected item
                 if is_selected {
@@ -345,5 +361,36 @@ mod tests {
         // Simulate arrow down (would need ctx in real usage)
         popup.selected = 1;
         assert_eq!(popup.selected, 1);
+    }
+
+    fn item(label: &str) -> CompletionItem {
+        CompletionItem {
+            label: label.to_string(),
+            kind: CompletionKind::Keyword,
+            detail: None,
+            documentation: None,
+            insert_text: None,
+        }
+    }
+
+    #[test]
+    fn selected_item_respects_active_filter() {
+        let mut popup = CompletionPopup::new();
+        popup.show(vec![item("beta"), item("alpha"), item("alphabet")], "al".to_string());
+        // Filtered order is [alpha, alphabet]; selection index 1 must resolve
+        // to the second filtered item, not the second raw item.
+        popup.selected = 1;
+        assert_eq!(popup.selected_item().map(|i| i.label.as_str()), Some("alphabet"));
+    }
+
+    #[test]
+    fn refine_keeps_selection_when_filter_text_is_unchanged() {
+        let mut popup = CompletionPopup::new();
+        popup.show(vec![item("alpha"), item("beta")], "a".to_string());
+        popup.selected = 1;
+        popup.refine(vec![item("alpha"), item("beta")], "a".to_string());
+        assert_eq!(popup.selected, 1);
+        popup.refine(vec![item("alpha"), item("beta")], "ab".to_string());
+        assert_eq!(popup.selected, 0, "changing the filter resets the selection");
     }
 }
