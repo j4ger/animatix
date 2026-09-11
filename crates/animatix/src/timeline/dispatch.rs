@@ -287,11 +287,13 @@ impl AnimationTrack {
         }
     }
 
-    /// Fixture/scratch constructor: a track for hand-built test fixtures and the
-    /// render memo's thread-local scratch track. Production tracks must be
-    /// created with [`Self::new`] and a real primitive type name.
-    #[doc(hidden)]
-    pub fn placeholder(label: String) -> Self {
+    /// Test-fixture constructor: a track with a placeholder `Rect` identity.
+    ///
+    /// Available only under `cfg(test)` so production code cannot construct a
+    /// track with an implicit type — production tracks go through
+    /// [`Self::new`] with a real primitive type name.
+    #[cfg(test)]
+    pub(crate) fn placeholder(label: String) -> Self {
         Self::new(label, "Rect")
     }
 

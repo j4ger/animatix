@@ -515,7 +515,10 @@ mod tests {
     use super::*;
 
     fn make_track(kind: ActorKindId) -> AnimationTrack {
-        let mut track = AnimationTrack::placeholder("test".to_string());
+        let type_name = animatix::timeline::actor_kind_meta(kind)
+            .expect("built-in kind has metadata")
+            .type_name;
+        let mut track = AnimationTrack::new("test".to_string(), type_name);
         track.kind = kind;
         track
     }
