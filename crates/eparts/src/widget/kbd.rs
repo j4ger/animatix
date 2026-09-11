@@ -19,9 +19,7 @@ use crate::tokens::typography::TextRole;
 /// A badge-style widget that renders a keyboard shortcut label.
 ///
 /// Colours and dimensions are entirely driven by the active [`crate::tokens::theme::Theme`]:
-///   - **Fill**: `theme.overlay.badge_bg`
-///   - **Text**: `theme.text.secondary`
-///   - **Border**: `theme.border.default`
+///   - **Fill / text / border**: `theme.kbd.{bg, fg, border}`
 ///   - **Corner radius**: `RADIUS_S`
 ///   - **Padding**: `SPACE_1` (inline and block)
 ///   - **Font**: [`TextRole::Caption`] — proportional 11 px.
@@ -44,8 +42,7 @@ impl Widget for Kbd {
         let font_id = TextRole::Caption.font_id();
 
         let galley =
-            ui.painter()
-                .layout(self.text.clone(), font_id, t.text.secondary, ui.available_width());
+            ui.painter().layout(self.text.clone(), font_id, t.kbd.fg, ui.available_width());
 
         let pad = s.space_1;
         let size = galley.size() + egui::vec2(pad * 2.0, pad * 2.0);
@@ -57,16 +54,16 @@ impl Widget for Kbd {
         let painter = ui.painter_at(rect);
 
         let corner = CornerRadius::same(RADIUS_S as u8);
-        painter.rect_filled(rect, corner, t.overlay.badge_bg);
+        painter.rect_filled(rect, corner, t.kbd.bg);
         // egui 0.34 `rect_stroke` takes a 4th `StrokeKind` argument.
         painter.rect_stroke(
             rect,
             corner,
-            Stroke::new(1.0, t.border.default),
+            Stroke::new(1.0, t.kbd.border),
             egui::StrokeKind::Outside,
         );
         // egui 0.34 `galley` requires a fallback colour for glyphs missing from the font.
-        painter.galley(rect.min + egui::vec2(pad, pad), galley, t.text.secondary);
+        painter.galley(rect.min + egui::vec2(pad, pad), galley, t.kbd.fg);
 
         response
     }

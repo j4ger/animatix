@@ -199,6 +199,161 @@ pub struct ScrollbarSlots {
     pub thumb_hover: Color32,
 }
 
+// ── Per-component slot groups (B) ─────────────────────────────────────
+//
+// These groups cover widgets that previously read palette/semantic colours
+// directly. `Slot`'s `border` field is `TRANSPARENT` where the widget paints no
+// outline.
+//
+// Deliberately NOT given a dedicated group (see the widget files for the
+// inline rationale): `widget/diagnostics.rs` already maps cleanly onto
+// `theme.list.*` + `theme.status.*`, and a single-consumer group that only
+// re-exported those shared colours would add indirection without theming value.
+
+/// Interaction states for checkbox / radio / switch controls.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct ToggleSlots {
+    /// Control background / border when the value is on.
+    pub checked: Slot,
+    /// Control background / border when the value is off.
+    pub unchecked: Slot,
+    /// Hovered (and enabled) appearance, used for the off state.
+    pub hover: Slot,
+    /// Disabled appearance, overriding checked/unchecked/hover.
+    pub disabled: Slot,
+    /// Switch knob fill.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub thumb: Color32,
+    /// Checkbox checkmark / radio dot fill.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub mark: Color32,
+}
+
+/// Progress-bar colour slots.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct ProgressSlots {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub track: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub fill: Color32,
+    /// Label colour over the unfilled track.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub label: Color32,
+    /// Label colour over the filled portion (for contrast against `fill`).
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub label_on_fill: Color32,
+}
+
+/// Tag / chip colour slots (normal + hover).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct TagSlots {
+    pub normal: Slot,
+    pub hover: Slot,
+}
+
+/// Per-level inline alert colours.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct AlertLevelSlots {
+    /// Banner background.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub bg: Color32,
+    /// Title / body text colour.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub fg: Color32,
+    /// Left accent bar colour.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub accent: Color32,
+    /// Leading icon colour.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub icon: Color32,
+}
+
+/// Alert colours for every level.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct AlertSlots {
+    pub info: AlertLevelSlots,
+    pub success: AlertLevelSlots,
+    pub warning: AlertLevelSlots,
+    pub error: AlertLevelSlots,
+}
+
+/// Per-level toast colours.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct ToastLevelSlots {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub fg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub border: Color32,
+    /// Accent bar + icon colour.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub accent: Color32,
+}
+
+/// Toast colours for every level.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct ToastSlots {
+    pub info: ToastLevelSlots,
+    pub success: ToastLevelSlots,
+    pub warning: ToastLevelSlots,
+    pub error: ToastLevelSlots,
+}
+
+/// Loading-skeleton colour slots.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct SkeletonSlots {
+    /// Base block fill.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub base: Color32,
+    /// Pulsing highlight colour (painted at a fraction of its alpha).
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub shimmer: Color32,
+}
+
+/// Colour-picker swatch slots. The trigger frame reuses `theme.input.*`.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct ColorPickerSlots {
+    /// Preset-swatch outline.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub swatch_border: Color32,
+    /// Preset-swatch outline when hovered.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub swatch_hover: Color32,
+    /// Checkerboard light square (shows behind translucent colours).
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub checker_light: Color32,
+    /// Checkerboard dark square.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub checker_dark: Color32,
+}
+
+/// Easing-curve editor slot colours.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[cfg_attr(feature = "theme-json", derive(serde::Serialize, serde::Deserialize))]
+pub struct EasingCurveSlots {
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub bg: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub grid: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub curve: Color32,
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub handle: Color32,
+    /// Handle colour while its control point is being dragged.
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub handle_active: Color32,
+}
+
 // ── Nested slot structs ───────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -386,6 +541,30 @@ pub struct Theme {
     /// Scrollbar thumb color slots.
     pub scrollbar: ScrollbarSlots,
 
+    // ── Per-component slots for widgets that formerly picked colours ──
+    /// Checkbox / radio / switch color slots.
+    pub toggle: ToggleSlots,
+    /// Progress-bar track/fill/label slots.
+    pub progress: ProgressSlots,
+    /// Badge fill/foreground/outline slot.
+    pub badge: Slot,
+    /// Tag / chip normal + hover slots.
+    pub tag: TagSlots,
+    /// Keyboard-shortcut badge fill/foreground/outline slot.
+    pub kbd: Slot,
+    /// Tooltip surface fill/foreground/outline slot.
+    pub tooltip: Slot,
+    /// Inline alert colors, per level.
+    pub alert: AlertSlots,
+    /// Toast colors, per level.
+    pub toast: ToastSlots,
+    /// Loading-skeleton base + shimmer colors.
+    pub skeleton: SkeletonSlots,
+    /// Colour-picker swatch + checkerboard colors (trigger reuses `input`).
+    pub color_picker: ColorPickerSlots,
+    /// Easing-curve editor colors.
+    pub easing_curve: EasingCurveSlots,
+
     // ── Elevation / shadow tokens (T2.7) ──
     /// Shadow tokens for floating surfaces.  `flat` has no shadow (in-panel
     /// chrome); use `raised` for popover/menu/toast/dropdown and `overlay`
@@ -407,6 +586,7 @@ impl Theme {
     /// Guarantees `Theme::dark() == tokens::semantic::*` field-for-field because every value
     /// is sourced directly from `crate::tokens::semantic`.
     pub fn dark() -> Self {
+        let components = dark_component_slots();
         Self {
             surface: Surface {
                 base: semantic::surface::BASE,
@@ -493,6 +673,17 @@ impl Theme {
                     color: Color32::from_rgba_unmultiplied(0, 0, 0, 80),
                 },
             },
+            toggle: components.toggle,
+            progress: components.progress,
+            badge: components.badge,
+            tag: components.tag,
+            kbd: components.kbd,
+            tooltip: components.tooltip,
+            alert: components.alert,
+            toast: components.toast,
+            skeleton: components.skeleton,
+            color_picker: components.color_picker,
+            easing_curve: components.easing_curve,
         }
     }
 
@@ -525,6 +716,24 @@ impl Theme {
         let border_focus = semantic::border::FOCUS;
         // Danger active (shared with dark): a darkened error red.
         let danger_active = Color32::from_rgb(200, 40, 40);
+        // Overlay fills (light variants); shared by the overlay tokens and the
+        // badge/kbd component slots below.
+        let badge_bg = Color32::from_rgba_unmultiplied(248, 249, 250, 235);
+        let tooltip_bg = Color32::from_rgba_unmultiplied(255, 255, 255, 245);
+        let components = light_component_slots(LightComponentPaint {
+            base,
+            surface: surf,
+            widget,
+            hover,
+            primary,
+            secondary,
+            disabled,
+            on_accent,
+            border_default,
+            border_strong,
+            badge_bg,
+            tooltip_bg,
+        });
 
         Self {
             surface: Surface {
@@ -586,8 +795,8 @@ impl Theme {
             },
             overlay: Overlay {
                 backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
-                badge_bg: Color32::from_rgba_unmultiplied(248, 249, 250, 235),
-                tooltip_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
+                badge_bg,
+                tooltip_bg,
                 shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
                 shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
             },
@@ -718,6 +927,17 @@ impl Theme {
                     color: Color32::from_rgba_unmultiplied(0, 0, 0, 60),
                 },
             },
+            toggle: components.toggle,
+            progress: components.progress,
+            badge: components.badge,
+            tag: components.tag,
+            kbd: components.kbd,
+            tooltip: components.tooltip,
+            alert: components.alert,
+            toast: components.toast,
+            skeleton: components.skeleton,
+            color_picker: components.color_picker,
+            easing_curve: components.easing_curve,
         }
     }
 
@@ -1222,6 +1442,323 @@ fn light_button_slots(
     }
 }
 
+// ── Per-component slot seeding (B) ────────────────────────────────────
+
+/// The 11 per-component slot groups, bundled so both `Theme::dark()` and
+/// `Theme::light()` can share one set of `Self { .. }` assignments.
+struct ComponentSlots {
+    toggle: ToggleSlots,
+    progress: ProgressSlots,
+    badge: Slot,
+    tag: TagSlots,
+    kbd: Slot,
+    tooltip: Slot,
+    alert: AlertSlots,
+    toast: ToastSlots,
+    skeleton: SkeletonSlots,
+    color_picker: ColorPickerSlots,
+    easing_curve: EasingCurveSlots,
+}
+
+/// Light-mode inputs the component slots need. Threading these avoids
+/// re-deriving the light palette inside the seeding function (the palette is
+/// authored once in `Theme::light()`).
+struct LightComponentPaint {
+    base: Color32,
+    surface: Color32,
+    widget: Color32,
+    hover: Color32,
+    primary: Color32,
+    secondary: Color32,
+    disabled: Color32,
+    on_accent: Color32,
+    border_default: Color32,
+    border_strong: Color32,
+    badge_bg: Color32,
+    tooltip_bg: Color32,
+}
+
+/// Seed the per-level alert colors from the shared status roles.
+///
+/// Info borrows the accent `faint` tint (there is no `info_faint` status token);
+/// every level's icon/accent uses its own status role.
+fn alert_level_slots(bg: Color32, accent: Color32, fg: Color32) -> AlertLevelSlots {
+    AlertLevelSlots {
+        bg,
+        fg,
+        accent,
+        icon: accent,
+    }
+}
+
+fn toast_level_slots(
+    bg: Color32,
+    fg: Color32,
+    border: Color32,
+    accent: Color32,
+) -> ToastLevelSlots {
+    ToastLevelSlots {
+        bg,
+        fg,
+        border,
+        accent,
+    }
+}
+
+fn dark_component_slots() -> ComponentSlots {
+    let transparent = Color32::TRANSPARENT;
+    ComponentSlots {
+        toggle: ToggleSlots {
+            checked: Slot {
+                bg: semantic::accent::PRIMARY,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY,
+            },
+            unchecked: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::border::DEFAULT,
+            },
+            hover: Slot {
+                bg: semantic::surface::HOVER,
+                fg: semantic::text::ON_ACCENT,
+                border: semantic::accent::PRIMARY,
+            },
+            disabled: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::DISABLED,
+                border: semantic::border::DEFAULT,
+            },
+            thumb: semantic::text::ON_ACCENT,
+            mark: semantic::text::ON_ACCENT,
+        },
+        progress: ProgressSlots {
+            track: semantic::surface::WIDGET,
+            fill: semantic::accent::PRIMARY,
+            label: semantic::text::PRIMARY,
+            label_on_fill: semantic::text::ON_ACCENT,
+        },
+        badge: Slot {
+            bg: semantic::overlay::badge_bg(),
+            fg: semantic::accent::PRIMARY,
+            border: transparent,
+        },
+        tag: TagSlots {
+            normal: Slot {
+                bg: semantic::surface::WIDGET,
+                fg: semantic::text::PRIMARY,
+                border: semantic::border::DEFAULT,
+            },
+            hover: Slot {
+                bg: semantic::surface::HOVER,
+                fg: semantic::text::PRIMARY,
+                border: semantic::accent::PRIMARY,
+            },
+        },
+        kbd: Slot {
+            bg: semantic::overlay::badge_bg(),
+            fg: semantic::text::SECONDARY,
+            border: semantic::border::DEFAULT,
+        },
+        tooltip: Slot {
+            bg: semantic::overlay::tooltip_bg(),
+            fg: semantic::text::PRIMARY,
+            border: semantic::border::DEFAULT,
+        },
+        alert: AlertSlots {
+            info: alert_level_slots(
+                semantic::accent::faint(),
+                semantic::status::INFO,
+                semantic::text::PRIMARY,
+            ),
+            success: alert_level_slots(
+                semantic::status::success_faint(),
+                semantic::status::SUCCESS,
+                semantic::text::PRIMARY,
+            ),
+            warning: alert_level_slots(
+                semantic::status::warning_subtle(),
+                semantic::status::WARNING,
+                semantic::text::PRIMARY,
+            ),
+            error: alert_level_slots(
+                semantic::status::error_faint(),
+                semantic::status::ERROR,
+                semantic::text::PRIMARY,
+            ),
+        },
+        toast: ToastSlots {
+            info: toast_level_slots(
+                semantic::surface::SURFACE,
+                semantic::text::PRIMARY,
+                semantic::border::DEFAULT,
+                semantic::accent::PRIMARY,
+            ),
+            success: toast_level_slots(
+                semantic::surface::SURFACE,
+                semantic::text::PRIMARY,
+                semantic::border::DEFAULT,
+                semantic::status::SUCCESS,
+            ),
+            warning: toast_level_slots(
+                semantic::surface::SURFACE,
+                semantic::text::PRIMARY,
+                semantic::border::DEFAULT,
+                semantic::status::WARNING,
+            ),
+            error: toast_level_slots(
+                semantic::surface::SURFACE,
+                semantic::text::PRIMARY,
+                semantic::border::DEFAULT,
+                semantic::status::ERROR,
+            ),
+        },
+        skeleton: SkeletonSlots {
+            base: semantic::surface::WIDGET,
+            shimmer: semantic::accent::PRIMARY,
+        },
+        color_picker: ColorPickerSlots {
+            swatch_border: semantic::border::DEFAULT,
+            swatch_hover: semantic::border::HOVER,
+            // Checkerboard: light square is a fixed white, dark square uses the
+            // disabled-neutral gray (matching the previous inline painting).
+            checker_light: Color32::WHITE,
+            checker_dark: semantic::text::DISABLED,
+        },
+        easing_curve: EasingCurveSlots {
+            bg: semantic::surface::BASE,
+            grid: semantic::lines::grid_line(),
+            curve: semantic::accent::PRIMARY,
+            handle: semantic::accent::PRIMARY,
+            handle_active: semantic::status::WARNING,
+        },
+    }
+}
+
+fn light_component_slots(p: LightComponentPaint) -> ComponentSlots {
+    let transparent = Color32::TRANSPARENT;
+    ComponentSlots {
+        toggle: ToggleSlots {
+            checked: Slot {
+                bg: semantic::accent::PRIMARY,
+                fg: p.on_accent,
+                border: semantic::accent::PRIMARY,
+            },
+            unchecked: Slot {
+                bg: p.widget,
+                fg: p.on_accent,
+                border: p.border_default,
+            },
+            hover: Slot {
+                bg: p.hover,
+                fg: p.on_accent,
+                border: semantic::accent::PRIMARY,
+            },
+            disabled: Slot {
+                bg: p.widget,
+                fg: p.disabled,
+                border: p.border_default,
+            },
+            thumb: p.on_accent,
+            mark: p.on_accent,
+        },
+        progress: ProgressSlots {
+            track: p.widget,
+            fill: semantic::accent::PRIMARY,
+            label: p.primary,
+            label_on_fill: p.on_accent,
+        },
+        badge: Slot {
+            bg: p.badge_bg,
+            fg: semantic::accent::PRIMARY,
+            border: transparent,
+        },
+        tag: TagSlots {
+            normal: Slot {
+                bg: p.widget,
+                fg: p.primary,
+                border: p.border_default,
+            },
+            hover: Slot {
+                bg: p.hover,
+                fg: p.primary,
+                border: semantic::accent::PRIMARY,
+            },
+        },
+        kbd: Slot {
+            bg: p.badge_bg,
+            fg: p.secondary,
+            border: p.border_default,
+        },
+        tooltip: Slot {
+            bg: p.tooltip_bg,
+            fg: p.primary,
+            border: p.border_default,
+        },
+        alert: AlertSlots {
+            info: alert_level_slots(semantic::accent::faint(), semantic::status::INFO, p.primary),
+            success: alert_level_slots(
+                semantic::status::success_faint(),
+                semantic::status::SUCCESS,
+                p.primary,
+            ),
+            warning: alert_level_slots(
+                semantic::status::warning_subtle(),
+                semantic::status::WARNING,
+                p.primary,
+            ),
+            error: alert_level_slots(
+                semantic::status::error_faint(),
+                semantic::status::ERROR,
+                p.primary,
+            ),
+        },
+        toast: ToastSlots {
+            info: toast_level_slots(
+                p.surface,
+                p.primary,
+                p.border_default,
+                semantic::accent::PRIMARY,
+            ),
+            success: toast_level_slots(
+                p.surface,
+                p.primary,
+                p.border_default,
+                semantic::status::SUCCESS,
+            ),
+            warning: toast_level_slots(
+                p.surface,
+                p.primary,
+                p.border_default,
+                semantic::status::WARNING,
+            ),
+            error: toast_level_slots(
+                p.surface,
+                p.primary,
+                p.border_default,
+                semantic::status::ERROR,
+            ),
+        },
+        skeleton: SkeletonSlots {
+            base: p.widget,
+            shimmer: semantic::accent::PRIMARY,
+        },
+        color_picker: ColorPickerSlots {
+            swatch_border: p.border_default,
+            swatch_hover: p.border_strong,
+            checker_light: Color32::WHITE,
+            checker_dark: p.disabled,
+        },
+        easing_curve: EasingCurveSlots {
+            bg: p.base,
+            grid: semantic::lines::grid_line_light(),
+            curve: semantic::accent::PRIMARY,
+            handle: semantic::accent::PRIMARY,
+            handle_active: semantic::status::WARNING,
+        },
+    }
+}
+
 // ── Immediate-mode Memory accessors ───────────────────────────────────
 
 /// Read the current `Theme` from the `Ui`'s `egui::Context`.
@@ -1487,6 +2024,120 @@ mod tests {
         assert_eq!(t.button.danger.hover.bg, semantic::status::ERROR);
         assert_eq!(t.tab.active.indicator, semantic::accent::PRIMARY);
         assert_eq!(t.input.focus.border, semantic::border::FOCUS);
+    }
+
+    /// Every per-component slot group this change introduced must be defined in
+    /// both themes, with non-transparent values where the widget paints them.
+    #[test]
+    fn per_component_slots_defined_in_both_themes() {
+        for (label, t) in [("dark", Theme::dark()), ("light", Theme::light())] {
+            // Toggle: all four states plus thumb/mark must be visible colours.
+            for (state, slot) in [
+                ("checked", t.toggle.checked),
+                ("unchecked", t.toggle.unchecked),
+                ("hover", t.toggle.hover),
+                ("disabled", t.toggle.disabled),
+            ] {
+                assert_ne!(slot.bg, Color32::TRANSPARENT, "{label} toggle.{state}.bg");
+                assert_ne!(slot.border, Color32::TRANSPARENT, "{label} toggle.{state}.border");
+                assert_ne!(slot.fg, Color32::TRANSPARENT, "{label} toggle.{state}.fg");
+            }
+            assert_ne!(t.toggle.thumb, Color32::TRANSPARENT, "{label} toggle.thumb");
+            assert_ne!(t.toggle.mark, Color32::TRANSPARENT, "{label} toggle.mark");
+
+            // Progress.
+            assert_ne!(t.progress.track, Color32::TRANSPARENT, "{label} progress.track");
+            assert_ne!(t.progress.fill, Color32::TRANSPARENT, "{label} progress.fill");
+            assert_ne!(t.progress.label, Color32::TRANSPARENT, "{label} progress.label");
+            assert_ne!(
+                t.progress.label_on_fill,
+                Color32::TRANSPARENT,
+                "{label} progress.label_on_fill"
+            );
+
+            // Badge / kbd / tooltip single Slots.
+            assert_ne!(t.badge.bg, Color32::TRANSPARENT, "{label} badge.bg");
+            assert_ne!(t.badge.fg, Color32::TRANSPARENT, "{label} badge.fg");
+            assert_ne!(t.kbd.bg, Color32::TRANSPARENT, "{label} kbd.bg");
+            assert_ne!(t.kbd.fg, Color32::TRANSPARENT, "{label} kbd.fg");
+            assert_ne!(t.kbd.border, Color32::TRANSPARENT, "{label} kbd.border");
+            assert_ne!(t.tooltip.bg, Color32::TRANSPARENT, "{label} tooltip.bg");
+            assert_ne!(t.tooltip.fg, Color32::TRANSPARENT, "{label} tooltip.fg");
+            assert_ne!(t.tooltip.border, Color32::TRANSPARENT, "{label} tooltip.border");
+
+            // Tag normal + hover.
+            for (state, slot) in [("normal", t.tag.normal), ("hover", t.tag.hover)] {
+                assert_ne!(slot.bg, Color32::TRANSPARENT, "{label} tag.{state}.bg");
+                assert_ne!(slot.fg, Color32::TRANSPARENT, "{label} tag.{state}.fg");
+                assert_ne!(slot.border, Color32::TRANSPARENT, "{label} tag.{state}.border");
+            }
+
+            // Alert: all four levels need a visible bg/accent/icon and fg.
+            for (level, slots) in [
+                ("info", t.alert.info),
+                ("success", t.alert.success),
+                ("warning", t.alert.warning),
+                ("error", t.alert.error),
+            ] {
+                assert_ne!(slots.bg, Color32::TRANSPARENT, "{label} alert.{level}.bg");
+                assert_ne!(slots.fg, Color32::TRANSPARENT, "{label} alert.{level}.fg");
+                assert_ne!(slots.accent, Color32::TRANSPARENT, "{label} alert.{level}.accent");
+                assert_ne!(slots.icon, Color32::TRANSPARENT, "{label} alert.{level}.icon");
+            }
+
+            // Toast: all four levels need visible bg/fg/border/accent.
+            for (level, slots) in [
+                ("info", t.toast.info),
+                ("success", t.toast.success),
+                ("warning", t.toast.warning),
+                ("error", t.toast.error),
+            ] {
+                assert_ne!(slots.bg, Color32::TRANSPARENT, "{label} toast.{level}.bg");
+                assert_ne!(slots.fg, Color32::TRANSPARENT, "{label} toast.{level}.fg");
+                assert_ne!(slots.border, Color32::TRANSPARENT, "{label} toast.{level}.border");
+                assert_ne!(slots.accent, Color32::TRANSPARENT, "{label} toast.{level}.accent");
+            }
+
+            // Skeleton / colour picker / easing curve.
+            assert_ne!(t.skeleton.base, Color32::TRANSPARENT, "{label} skeleton.base");
+            assert_ne!(t.skeleton.shimmer, Color32::TRANSPARENT, "{label} skeleton.shimmer");
+            assert_ne!(
+                t.color_picker.swatch_border,
+                Color32::TRANSPARENT,
+                "{label} color_picker.swatch_border"
+            );
+            assert_ne!(
+                t.color_picker.swatch_hover,
+                Color32::TRANSPARENT,
+                "{label} color_picker.swatch_hover"
+            );
+            assert_eq!(t.color_picker.checker_light, Color32::WHITE, "{label} checker_light");
+            assert_ne!(t.color_picker.checker_dark, Color32::TRANSPARENT, "{label} checker_dark");
+            for (name, value) in [
+                ("bg", t.easing_curve.bg),
+                ("curve", t.easing_curve.curve),
+                ("handle", t.easing_curve.handle),
+                ("handle_active", t.easing_curve.handle_active),
+            ] {
+                assert_ne!(value, Color32::TRANSPARENT, "{label} easing_curve.{name}");
+            }
+            // The grid line is a low-alpha neutral; assert it is a real colour
+            // (alpha > 0) rather than fully transparent.
+            assert!(t.easing_curve.grid.a() > 0, "{label} easing_curve.grid alpha");
+        }
+    }
+
+    /// The alert levels must keep their distinct status accents in both themes.
+    #[test]
+    fn alert_slots_use_distinct_status_accents() {
+        for t in [Theme::dark(), Theme::light()] {
+            assert_eq!(t.alert.success.accent, semantic::status::SUCCESS);
+            assert_eq!(t.alert.warning.accent, semantic::status::WARNING);
+            assert_eq!(t.alert.error.accent, semantic::status::ERROR);
+            assert_eq!(t.alert.info.accent, semantic::status::INFO);
+            // Info borrows the accent faint tint (no `info_faint` status token).
+            assert_eq!(t.alert.info.bg, semantic::accent::faint());
+        }
     }
 
     #[test]

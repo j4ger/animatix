@@ -53,6 +53,33 @@ fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Resp
     response
 }
 
+/// Pick the checkbox/radio/switch slot for the current interaction state.
+///
+/// Disabled wins over hover; hover applies only to the *unchecked* control
+/// (a checked control already reads as active, matching the previous
+/// `accent.primary` look).
+fn toggle_slot(t: &theme::Theme, value: bool, enabled: bool, hovered: bool) -> theme::Slot {
+    if !enabled {
+        t.toggle.disabled
+    } else if value {
+        t.toggle.checked
+    } else if hovered {
+        t.toggle.hover
+    } else {
+        t.toggle.unchecked
+    }
+}
+
+/// Mark colour for a checked toggle control: the dedicated `mark` slot when
+/// enabled, dimmed to the disabled slot's foreground when not.
+fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
+    if enabled {
+        t.toggle.mark
+    } else {
+        t.toggle.disabled.fg
+    }
+}
+
 // ── Checkbox ────────────────────────────────────────────────────────
 
 /// A themed checkbox with an animated checkmark crossfade.
@@ -151,23 +178,17 @@ impl<'a> egui::Widget for Checkbox<'a> {
         };
         let check_t = animate_bool_eased(ui.ctx(), id.with("check"), *self.value, transition);
 
-        // Draw checkbox box
-        let box_bg = if *self.value {
-            t.accent.primary
-        } else {
-            t.surface.widget
-        };
-        let box_border = if *self.value {
-            t.accent.primary
-        } else {
-            t.border.default
-        };
+        // Read the control's state slot from `theme.toggle`. Hover and enabled
+        // state come from the response; a disabled control overrides everything.
+        let enabled = ui.is_enabled();
+        let slot = toggle_slot(&t, *self.value, enabled, response.hovered());
 
-        ui.painter().rect_filled(checkbox_rect, RADIUS_M, box_bg);
+        // Draw checkbox box
+        ui.painter().rect_filled(checkbox_rect, RADIUS_M, slot.bg);
         ui.painter().rect_stroke(
             checkbox_rect,
             RADIUS_M,
-            Stroke::new(STROKE_WIDTH, box_border),
+            Stroke::new(STROKE_WIDTH, slot.border),
             StrokeKind::Inside,
         );
 
@@ -178,12 +199,8 @@ impl<'a> egui::Widget for Checkbox<'a> {
             let center = checkbox_rect.center();
             let arm = checkbox_rect.width() * 0.28;
 
-            let check_color = Color32::from_rgba_unmultiplied(
-                t.text.on_accent.r(),
-                t.text.on_accent.g(),
-                t.text.on_accent.b(),
-                alpha,
-            );
+            let mark = toggle_mark_color(&t, enabled);
+            let check_color = Color32::from_rgba_unmultiplied(mark.r(), mark.g(), mark.b(), alpha);
 
             let p1 = center + Vec2::new(-arm * 0.9 * scale, arm * 0.1 * scale);
             let p2 = center + Vec2::new(-arm * 0.1 * scale, arm * 0.8 * scale);
@@ -326,25 +343,23 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         };
         let dot_t = animate_bool_eased(ui.ctx(), id.with("dot"), selected, transition);
 
-        // Draw outer circle
-        let outer_color = if selected {
-            t.accent.primary
-        } else {
-            t.border.default
-        };
+        // Radio has no fill: the state slot's `border` carries the ring colour.
+        let enabled = ui.is_enabled();
+        let slot = toggle_slot(&t, selected, enabled, response.hovered());
         ui.painter().circle_stroke(
             outer_rect.center(),
             outer_size.x / 2.0,
-            Stroke::new(STROKE_WIDTH, outer_color),
+            Stroke::new(STROKE_WIDTH, slot.border),
         );
 
         // Draw animated inner dot
         if dot_t > 0.01 {
             let dot_radius = (outer_size.x / 2.0 - STROKE_WIDTH) * 0.6 * dot_t;
+            let mark = toggle_mark_color(&t, enabled);
             let dot_color = Color32::from_rgba_unmultiplied(
-                t.accent.primary.r(),
-                t.accent.primary.g(),
-                t.accent.primary.b(),
+                mark.r(),
+                mark.g(),
+                mark.b(),
                 (dot_t * 255.0).round() as u8,
             );
             ui.painter().circle_filled(outer_rect.center(), dot_radius, dot_color);
@@ -481,32 +496,48 @@ impl<'a> egui::Widget for Switch<'a> {
         let thumb_x =
             animate_lerp(ui.ctx(), id.with("thumb"), left_x, right_x, *self.value, transition);
 
+        // Track crossfades between the off/on slot fills. Hover brightens the off
+        // fill; disabled collapses both endpoints onto the disabled fill.
+        let enabled = ui.is_enabled();
+        let slot = toggle_slot(&t, *self.value, enabled, response.hovered());
+        let off_bg = if !enabled {
+            t.toggle.disabled.bg
+        } else if response.hovered() {
+            t.toggle.hover.bg
+        } else {
+            t.toggle.unchecked.bg
+        };
+        let on_bg = if enabled {
+            t.toggle.checked.bg
+        } else {
+            t.toggle.disabled.bg
+        };
+
         // Animated track color crossfade
-        let track_color = animate_lerp(
-            ui.ctx(),
-            id.with("track"),
-            t.surface.widget,
-            t.accent.primary,
-            *self.value,
-            transition,
-        );
+        let track_color =
+            animate_lerp(ui.ctx(), id.with("track"), off_bg, on_bg, *self.value, transition);
 
         // Draw track
         ui.painter().rect_filled(track_rect, track_height / 2.0, track_color);
         ui.painter().rect_stroke(
             track_rect,
             track_height / 2.0,
-            Stroke::new(STROKE_WIDTH, t.border.default),
+            Stroke::new(STROKE_WIDTH, slot.border),
             StrokeKind::Inside,
         );
 
         // Draw thumb
+        let thumb_color = if enabled {
+            t.toggle.thumb
+        } else {
+            t.toggle.disabled.fg
+        };
         let thumb_center = Pos2::new(thumb_x, track_center_y);
-        ui.painter().circle_filled(thumb_center, thumb_radius, t.text.on_accent);
+        ui.painter().circle_filled(thumb_center, thumb_radius, thumb_color);
         ui.painter().circle_stroke(
             thumb_center,
             thumb_radius,
-            Stroke::new(STROKE_WIDTH, t.border.default),
+            Stroke::new(STROKE_WIDTH, slot.border),
         );
 
         // Draw label
@@ -731,5 +762,46 @@ mod tests {
                 ui.add(Radio::new(&mut choice, 1).label("Radio"));
             });
         });
+    }
+
+    /// Representative slot-resolution test: the toggle control's colour is
+    /// chosen from `theme.toggle.*` and the dark/light seeds differ as expected.
+    #[test]
+    fn toggle_slot_resolves_per_state_in_both_themes() {
+        let dark = theme::Theme::dark();
+        let light = theme::Theme::light();
+
+        // State selection is theme-independent: disabled > checked > hover > unchecked.
+        for t in [&dark, &light] {
+            assert_eq!(toggle_slot(t, true, false, true), t.toggle.disabled);
+            assert_eq!(toggle_slot(t, true, true, false), t.toggle.checked);
+            assert_eq!(toggle_slot(t, false, true, true), t.toggle.hover);
+            assert_eq!(toggle_slot(t, false, true, false), t.toggle.unchecked);
+        }
+
+        // The checked fill comes from the accent slot, not a widget literal, and
+        // the light unchecked fill differs from the dark one.
+        assert_eq!(dark.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
+        assert_eq!(light.toggle.checked.bg, crate::tokens::semantic::accent::PRIMARY);
+        assert_ne!(dark.toggle.unchecked.bg, light.toggle.unchecked.bg);
+        assert_ne!(dark.toggle.mark, light.toggle.disabled.fg);
+    }
+
+    /// The toggle widgets render through the slots in both themes.
+    #[test]
+    fn toggle_widgets_render_in_both_themes() {
+        let ctx = egui::Context::default();
+        for t in [theme::Theme::dark(), theme::Theme::light()] {
+            crate::tokens::theme::set_theme(&ctx, t);
+            let mut flag = false;
+            let mut choice = 0u32;
+            let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+                ui.add(Checkbox::new(&mut flag).label("Check"));
+                ui.add(Switch::new(&mut flag).label("Switch"));
+                ui.add(Radio::new(&mut choice, 1).label("Radio"));
+                ui.add_enabled(false, Checkbox::new(&mut flag).label("Disabled"));
+                ui.add_enabled(false, Switch::new(&mut flag).label("Disabled"));
+            });
+        }
     }
 }

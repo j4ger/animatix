@@ -42,6 +42,12 @@ pub trait DiagnosticEntry {
 
 /// Renders a scrollable card of diagnostic messages.
 ///
+/// Diagnostics has no dedicated slot group: it deliberately reuses
+/// `theme.list.*` for row hover/normal text and `theme.status.*` for the
+/// error/warning accents, which already carry the right per-theme values. A
+/// one-consumer group that only re-exported those shared colours would add
+/// indirection without any theming benefit.
+///
 /// `visible` is set to `false` when the user clicks the close button.
 pub fn diagnostics_list<T: DiagnosticEntry>(
     ui: &mut egui::Ui,
@@ -164,13 +170,21 @@ fn diagnostic_row<T: DiagnosticEntry>(
     };
 
     let bg = if response.hovered() {
-        t.surface.hover
+        t.list.hover.bg
     } else {
         Color32::TRANSPARENT
     };
     if bg != Color32::TRANSPARENT {
         ui.painter().rect_filled(row_rect, 0.0, bg);
     }
+
+    // Row text uses the list slot for the current state (hover fg when hovered,
+    // otherwise the even-row fg, both of which resolve to `text.primary`).
+    let row_fg = if response.hovered() {
+        t.list.hover.fg
+    } else {
+        t.list.even.fg
+    };
 
     let accent_rect = Rect::from_min_size(row_rect.min, Vec2::new(2.0, row_rect.height()));
     ui.painter().rect_filled(accent_rect, 0.0, accent_color);
@@ -193,15 +207,10 @@ fn diagnostic_row<T: DiagnosticEntry>(
 
     let msg = diagnostic.message().lines().next().unwrap_or_default();
     let font_id = TextRole::Body.font_id();
-    let galley =
-        ui.painter()
-            .layout(msg.to_string(), font_id.clone(), t.text.primary, msg_max_width);
+    let galley = ui.painter().layout(msg.to_string(), font_id.clone(), row_fg, msg_max_width);
 
-    ui.painter().galley(
-        egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
-        galley,
-        t.text.primary,
-    );
+    ui.painter()
+        .galley(egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0), galley, row_fg);
 
     ui.painter().text(
         egui::pos2(row_rect.max.x - s.space_2, baseline_y),

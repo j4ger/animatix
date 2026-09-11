@@ -67,7 +67,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     };
 
     // Background
-    painter.rect_filled(rect, RADIUS_M, t.surface.base);
+    painter.rect_filled(rect, RADIUS_M, t.easing_curve.bg);
     painter.rect_stroke(
         rect,
         RADIUS_M,
@@ -85,14 +85,14 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
                 Pos2::new(x, plot_rect.top()),
                 Pos2::new(x, plot_rect.bottom()),
             ],
-            Stroke::new(STROKE_WIDTH, t.lines.grid),
+            Stroke::new(STROKE_WIDTH, t.easing_curve.grid),
         );
         painter.line_segment(
             [
                 Pos2::new(plot_rect.left(), y),
                 Pos2::new(plot_rect.right(), y),
             ],
-            Stroke::new(STROKE_WIDTH, t.lines.grid),
+            Stroke::new(STROKE_WIDTH, t.easing_curve.grid),
         );
     }
 
@@ -108,7 +108,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         let x = cubic_bezier_x(t_norm, cp);
         let y = cubic_bezier_y(t_norm, cp);
         let curr = map(x, y);
-        painter.line_segment([prev, curr], Stroke::new(2.5, t.accent.primary));
+        painter.line_segment([prev, curr], Stroke::new(2.5, t.easing_curve.curve));
         prev = curr;
     }
 
@@ -148,9 +148,9 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p1_color = if p1_response.dragged() {
-        t.status.warning
+        t.easing_curve.handle_active
     } else {
-        t.accent.primary
+        t.easing_curve.handle
     };
     painter.circle_filled(p1, handle_radius, p1_color);
     painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
@@ -171,9 +171,9 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
         changed = true;
     }
     let p2_color = if p2_response.dragged() {
-        t.status.warning
+        t.easing_curve.handle_active
     } else {
-        t.accent.primary
+        t.easing_curve.handle
     };
     painter.circle_filled(p2, handle_radius, p2_color);
     painter.circle_stroke(p2, handle_radius + 1.5, Stroke::new(1.5, t.text.primary));
