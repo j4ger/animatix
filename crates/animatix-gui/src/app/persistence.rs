@@ -529,12 +529,44 @@ pub(crate) struct WorkspacePersistence {
 
 // ── App state persistence (recent file, preferences) ─────────────────────
 
+/// Persisted crash-recovery autosave preferences.
+///
+/// Both fields are `#[serde(default)]` so an `app_state.ron` written before
+/// autosave existed (or by an older build) keeps loading.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub(crate) struct AutosavePrefs {
+    #[serde(default = "default_autosave_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_autosave_interval_s")]
+    pub interval_s: f64,
+}
+
+impl Default for AutosavePrefs {
+    fn default() -> Self {
+        Self {
+            enabled: default_autosave_enabled(),
+            interval_s: default_autosave_interval_s(),
+        }
+    }
+}
+
+fn default_autosave_enabled() -> bool {
+    true
+}
+
+fn default_autosave_interval_s() -> f64 {
+    crate::app::stores::ui_store::DEFAULT_AUTOSAVE_INTERVAL_S
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct AppState {
     #[serde(default)]
     recent_file: Option<PathBuf>,
     #[serde(default)]
     recent_files: Vec<PathBuf>,
+    /// Crash-recovery autosave preferences. Absent in pre-autosave files.
+    #[serde(default)]
+    autosave: AutosavePrefs,
 }
 
 /// Cap on the recent-files list.
@@ -552,6 +584,41 @@ pub(super) fn load_app_state() -> Option<PathBuf> {
     let content = fs::read_to_string(&path).ok()?;
     let state: AppState = ron::from_str(&content).ok()?;
     state.recent_file
+}
+
+/// Load persisted autosave preferences, falling back to defaults when absent.
+pub(super) fn load_autosave_prefs() -> AutosavePrefs {
+    let Some(content) = fs::read_to_string(app_state_path()).ok() else {
+        return AutosavePrefs::default();
+    };
+    ron::from_str::<AppState>(&content)
+        .map(|state| state.autosave)
+        .unwrap_or_default()
+}
+
+/// Merge `autosave` preferences into the existing app state, preserving the
+/// recent-file fields that `save_app_state` owns.
+pub(super) fn save_autosave_prefs(autosave: AutosavePrefs) {
+    let path = app_state_path();
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
+        }
+    }
+    let mut state = fs::read_to_string(&path)
+        .ok()
+        .and_then(|content| ron::from_str::<AppState>(&content).ok())
+        .unwrap_or_default();
+    state.autosave = autosave;
+
+    match ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
+        Ok(serialized) => {
+            if let Err(e) = fs::write(&path, serialized) {
+                tracing::warn!("Failed to write app state file {}: {}", path.display(), e);
+            }
+        },
+        Err(e) => tracing::warn!("Failed to serialize app state: {}", e),
+    }
 }
 
 /// Most-recently opened files, newest first.
@@ -629,6 +696,45 @@ mod tests {
         let parsed: SettingsPersistence =
             ron::from_str(&serialized).expect("parse settings roundtrip");
         assert_eq!(parsed.plugin_paths, settings.plugin_paths);
+    }
+
+    #[test]
+    fn app_state_roundtrips_autosave_prefs() {
+        let state = AppState {
+            recent_file: Some(PathBuf::from("/tmp/scene.amx")),
+            recent_files: vec![PathBuf::from("/tmp/scene.amx")],
+            autosave: AutosavePrefs {
+                enabled: false,
+                interval_s: 45.0,
+            },
+        };
+        let serialized =
+            ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()).unwrap();
+        let parsed: AppState = ron::from_str(&serialized).unwrap();
+
+        assert!(!parsed.autosave.enabled);
+        assert_eq!(parsed.autosave.interval_s, 45.0);
+        assert_eq!(parsed.recent_file, state.recent_file);
+    }
+
+    #[test]
+    fn app_state_without_autosave_field_uses_defaults() {
+        // Shape written before autosave existed: no `autosave` key at all.
+        let legacy = "(recent_file: Some(\"/tmp/scene.amx\"), recent_files: [\"/tmp/scene.amx\"])";
+        let parsed: AppState = ron::from_str(legacy).expect("legacy app state must still load");
+
+        assert!(parsed.autosave.enabled, "autosave defaults on");
+        assert_eq!(
+            parsed.autosave.interval_s,
+            crate::app::stores::ui_store::DEFAULT_AUTOSAVE_INTERVAL_S
+        );
+    }
+
+    #[test]
+    fn autosave_prefs_defaults_are_stable() {
+        let prefs = AutosavePrefs::default();
+        assert!(prefs.enabled);
+        assert_eq!(prefs.interval_s, 20.0);
     }
 
     #[test]

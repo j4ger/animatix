@@ -337,6 +337,48 @@ impl GuiShell {
             }
             ui.add_space(sp.base.space_3);
 
+            // ── Autosave & Recovery ──
+            layout::section_header(ui, egui_phosphor::regular::CLOCK, "Autosave", None);
+            ui.add_space(sp.base.space_2);
+
+            {
+                let autosave = &mut self.ui_store.view.autosave;
+                let mut enabled = autosave.enabled;
+                let mut interval_s = autosave.interval.as_secs_f64();
+                let previous = (enabled, interval_s);
+
+                eparts::widget::Form::new("autosave_form")
+                    .label_width(SETTINGS_INPUT_WIDTH)
+                    .show(ui, |f| {
+                        f.field("Autosave", |ui| {
+                            ui.checkbox(&mut enabled, "Write recovery file while dirty");
+                        });
+                        f.field("Interval", |ui| {
+                            ui.add_enabled_ui(enabled, |ui| {
+                                eparts::NumberField::new(&mut interval_s)
+                                    .range(
+                                        crate::app::stores::ui_store::MIN_AUTOSAVE_INTERVAL_S
+                                            ..=600.0,
+                                    )
+                                    .speed(1.0)
+                                    .suffix(" s")
+                                    .show(ui);
+                            });
+                        });
+                    });
+
+                autosave.enabled = enabled;
+                autosave.interval = std::time::Duration::from_secs_f64(interval_s.clamp(
+                    crate::app::stores::ui_store::MIN_AUTOSAVE_INTERVAL_S,
+                    crate::app::stores::ui_store::MAX_AUTOSAVE_INTERVAL_S,
+                ));
+                if (enabled, autosave.interval.as_secs_f64()) != previous {
+                    // Persist immediately so the preference survives a crash.
+                    self.persist_autosave_prefs();
+                }
+            }
+            ui.add_space(sp.base.space_3);
+
             // ── Shortcuts ──
             layout::section_header(ui, egui_phosphor::regular::KEYBOARD, "Shortcuts", None);
             ui.add_space(sp.base.space_2);

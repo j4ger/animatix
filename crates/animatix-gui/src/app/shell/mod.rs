@@ -1,3 +1,4 @@
+pub mod autosave;
 pub mod command_palette;
 pub mod export_dialog;
 pub mod find_replace;
@@ -32,14 +33,18 @@ impl GuiShell {
                     );
                     return vec![];
                 }
-                file::handle_open_file(
+                let effects = file::handle_open_file(
                     &mut self.document_store,
                     &mut self.workspace_store,
                     &mut self.preview_store,
                     &mut self.ui_store,
                     &mut self.plugin_manager,
                     path,
-                )
+                );
+                // The newly opened file may have a newer crash-recovery sidecar;
+                // surface it before autosave can overwrite it.
+                self.detect_recovery_prompt();
+                effects
             },
             Command::ToggleExpandDir(path) => file::handle_toggle_expand_dir(
                 &mut self.workspace_store,
@@ -59,7 +64,12 @@ impl GuiShell {
                 }
                 file::handle_switch_workspace(&mut self.workspace_store, &self.document_store, path)
             },
-            Command::Save => file::handle_save(&mut self.document_store, &mut self.preview_store),
+            Command::Save => {
+                if self.recovery_prompt_pending() {
+                    return vec![Effect::Toast(self.recovery_prompt_save_blocked())];
+                }
+                file::handle_save(&mut self.document_store, &mut self.preview_store)
+            },
             Command::Reload => {
                 if self.document_store.source.is_dirty() {
                     self.ui_store.unsaved_changes.open(
@@ -453,6 +463,11 @@ impl GuiShell {
                 }
             },
             ViewAction::SaveAsDialog => {
+                // Saving under a new name would clear the current document's
+                // sidecar, so require the recovery decision first.
+                if self.recovery_prompt_pending() {
+                    return vec![Effect::Toast(self.recovery_prompt_save_blocked())];
+                }
                 let default_name = self
                     .document_store
                     .source

@@ -567,6 +567,14 @@ impl GuiShell {
             ui_store.shortcut_overrides = s.shortcuts.clone();
         }
 
+        // Autosave preferences live in `app_state.ron` (not the workspace layout
+        // file), defaulting on when absent so older profiles gain recovery.
+        let autosave_prefs = crate::app::persistence::load_autosave_prefs();
+        ui_store.view.autosave = crate::app::stores::ui_store::AutosaveState::from_prefs(
+            autosave_prefs.enabled,
+            autosave_prefs.interval_s,
+        );
+
         let shortcut_registry = match ShortcutRegistry::with_overrides(&ui_store.shortcut_overrides)
         {
             Ok(registry) => registry,
@@ -628,6 +636,9 @@ impl GuiShell {
                 error.is_none()
                     && !has_source_load_failure(&shell.document_store.source.document.diagnostics),
             );
+            // Offer crash recovery when a newer sidecar exists. Runs before the
+            // UI loop so the prompt's `is_open` is set on the first frame.
+            shell.detect_recovery_prompt();
         }
         shell
     }
@@ -647,6 +658,10 @@ impl GuiShell {
 
         // Check for hot reload
         self.check_hot_reload(now);
+
+        // Crash-recovery autosave: write the live editor text to the sidecar
+        // when the document is dirty and the interval has elapsed.
+        self.autosave_tick(now);
 
         // Poll plugin manifests/libraries for changes and reload atomically.
         if self.plugin_manager.poll() {
@@ -971,6 +986,11 @@ impl GuiShell {
         // Unsaved changes dialog
         if self.ui_store.unsaved_changes.is_open {
             self.unsaved_changes_dialog_ui(ui);
+        }
+
+        // Crash-recovery prompt (startup, when a newer sidecar exists)
+        if self.ui_store.recovery_prompt.is_open {
+            self.recovery_prompt_ui(ui);
         }
 
         // Toast notifications
@@ -1437,8 +1457,13 @@ impl GuiShell {
                         Button::primary("Save").with_icon(egui_phosphor::regular::FLOPPY_DISK),
                     );
                     if save.clicked() {
-                        // Keep the dialog open if saving fails so unsaved edits are not lost.
-                        if let Err(err) = file::save_document(&mut self.document_store) {
+                        if self.recovery_prompt_pending() {
+                            // Saving here would clear a sidecar the user has not
+                            // decided on yet; make them resolve that first.
+                            self.ui_store.toasts.push(self.recovery_prompt_save_blocked());
+                            save_failed = true;
+                        } else if let Err(err) = file::save_document(&mut self.document_store) {
+                            // Keep the dialog open if saving fails so unsaved edits are not lost.
                             self.preview_store
                                 .preview
                                 .set_status_error(format!("Save failed: {err}"));
@@ -1463,6 +1488,11 @@ impl GuiShell {
                     if discard.clicked() {
                         // Mark document as no longer dirty, then execute pending
                         self.document_store.source.document.is_dirty = false;
+                        // The user explicitly threw the edits away, so the
+                        // recovery sidecar must not resurrect them. Skipped when
+                        // a recovery prompt is still pending, since that sidecar
+                        // is a separate, undecided copy.
+                        self.clear_recovery_for_current_document();
                         let was_close = self.ui_store.unsaved_changes.pending_close;
                         self.execute_unsaved_pending_action();
                         self.ui_store.unsaved_changes.close();

@@ -198,9 +198,14 @@ pub fn handle_toggle_expand_dir(
 }
 
 /// Persist the current source to disk atomically and mark the document saved.
+///
+/// A successful save makes the crash-recovery sidecar redundant, so it is
+/// removed here. Doing it in this single low-level helper covers every save
+/// path (`handle_save`, `handle_save_as`, and the unsaved-changes dialog).
 pub(crate) fn save_document(document_store: &mut DocumentStore) -> Result<(), String> {
     document_store.source.document.save_to_disk().map_err(|err| err.to_string())?;
     document_store.source.mark_saved();
+    crate::document::clear_recovery(document_store.source.file_path());
     Ok(())
 }
 
@@ -227,14 +232,23 @@ pub fn handle_save_as(
     _preview_store: &mut PreviewStore,
     path: PathBuf,
 ) -> Vec<Effect> {
+    let previous_path = document_store.source.file_path().to_path_buf();
     let text = document_store.source.editor.text().to_string();
     document_store.source.document.file_path = path.clone();
     document_store.source.editor.set_document(&path, text);
     match save_document(document_store) {
-        Ok(()) => vec![
-            Effect::Status(format!("Saved {}", path.display())),
-            Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
-        ],
+        Ok(()) => {
+            // The rebind means the edits now live in `path`; a sidecar left over
+            // from the old document no longer belongs to the current source and
+            // would otherwise be offered as recovery for a stale file.
+            if previous_path != path {
+                crate::document::clear_recovery(&previous_path);
+            }
+            vec![
+                Effect::Status(format!("Saved {}", path.display())),
+                Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
+            ]
+        },
         Err(err) => {
             tracing::warn!("Save As failed: {}", err);
             vec![Effect::Toast(Toast::error(format!(
@@ -256,6 +270,8 @@ pub fn handle_reload(
         Ok(text) => {
             document_store.replace_text(text);
             document_store.source.document.is_dirty = false;
+            // A deliberate reload from disk supersedes any recovery copy.
+            crate::document::clear_recovery(&path);
             preview_store.pending_rebuild_at = Some(
                 std::time::Instant::now()
                     + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),

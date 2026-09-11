@@ -801,6 +801,13 @@ impl eframe::App for AnimatixApp {
         if self.shell.ui_store.view.welcome_open {
             clear_app_state();
         } else {
+            // A clean shutdown leaves nothing to recover, so drop the sidecar.
+            // If the document is still dirty (an abnormal/forced exit), keep it
+            // so the next launch can offer the unsaved edits back. A pending
+            // recovery prompt also keeps it: the user has not chosen yet.
+            if !self.shell.document_store.source.is_dirty() {
+                self.shell.clear_recovery_for_current_document();
+            }
             save_app_state(&self.shell.document_store.source.document.file_path);
         }
     }
@@ -946,6 +953,10 @@ impl eframe::App for AnimatixApp {
             || self.shell.preview_store.rebuild_in_progress
         {
             ui.ctx().request_repaint();
+        } else if let Some(delay) = self.shell.autosave_repaint_delay(std::time::Instant::now()) {
+            // Wake up exactly when the next autosave is due; without this the
+            // app sleeping while idle would never reach the timer.
+            ui.ctx().request_repaint_after(delay);
         }
 
         #[cfg(feature = "dev-screenshots")]

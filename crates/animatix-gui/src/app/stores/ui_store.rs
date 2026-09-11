@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use egui_tiles::Tree;
 
@@ -83,6 +84,137 @@ impl ClipboardStore {
     }
 }
 
+/// Default autosave interval when the user has no persisted preference.
+pub const DEFAULT_AUTOSAVE_INTERVAL_S: f64 = 20.0;
+/// Lower/upper bounds applied to a persisted or user-entered interval.
+pub const MIN_AUTOSAVE_INTERVAL_S: f64 = 1.0;
+pub const MAX_AUTOSAVE_INTERVAL_S: f64 = 3600.0;
+
+/// Crash-recovery autosave preference plus timer bookkeeping.
+///
+/// The write itself is driven from `GuiShell::prepare_frame`; this only records
+/// whether it is on, how often it should fire, and when it last did. Defaults
+/// match `AppState`'s serde defaults so a fresh profile autosaves.
+#[derive(Debug, Clone)]
+pub struct AutosaveState {
+    pub enabled: bool,
+    pub interval: Duration,
+    /// Source path targeted by the most recent recovery write. A change here
+    /// means a different document is open, so the timer restarts and a stale
+    /// sidecar never gets attributed to the new source.
+    pub last_source_path: Option<PathBuf>,
+    /// When the most recent recovery write happened.
+    pub last_write: Option<Instant>,
+}
+
+impl Default for AutosaveState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AutosaveState {
+    pub fn new() -> Self {
+        Self {
+            enabled: true,
+            interval: Duration::from_secs_f64(DEFAULT_AUTOSAVE_INTERVAL_S),
+            last_source_path: None,
+            last_write: None,
+        }
+    }
+
+    /// Build from persisted preferences, clamping the interval to sane bounds.
+    /// Non-finite input (corrupt RON, hand-edited NaN) falls back to the default
+    /// rather than panicking in `Duration::from_secs_f64`.
+    pub fn from_prefs(enabled: bool, interval_s: f64) -> Self {
+        let interval_s = if interval_s.is_finite() {
+            interval_s.clamp(MIN_AUTOSAVE_INTERVAL_S, MAX_AUTOSAVE_INTERVAL_S)
+        } else {
+            DEFAULT_AUTOSAVE_INTERVAL_S
+        };
+        Self {
+            enabled,
+            interval: Duration::from_secs_f64(interval_s),
+            last_source_path: None,
+            last_write: None,
+        }
+    }
+
+    /// Preference pair for persistence.
+    pub fn prefs(&self) -> crate::app::persistence::AutosavePrefs {
+        crate::app::persistence::AutosavePrefs {
+            enabled: self.enabled,
+            interval_s: self.interval.as_secs_f64(),
+        }
+    }
+
+    /// Whether a write is due. `last_write == None` means the document just
+    /// became dirty (or the source path changed), so the first write is due
+    /// immediately — a crash within the first interval must still recover.
+    pub fn is_due(&self, now: Instant) -> bool {
+        self.last_write
+            .is_none_or(|last| now.saturating_duration_since(last) >= self.interval)
+    }
+
+    /// Time until the next write is due (zero when already due).
+    pub fn remaining(&self, now: Instant) -> Duration {
+        self.last_write.map_or(Duration::ZERO, |last| {
+            self.interval.saturating_sub(now.saturating_duration_since(last))
+        })
+    }
+
+    /// Point the timer at `source_path`, resetting it when the open document
+    /// changed so the first write for the new document is due immediately.
+    pub fn track_source(&mut self, source_path: &Path) {
+        if self.last_source_path.as_deref() != Some(source_path) {
+            self.last_source_path = Some(source_path.to_path_buf());
+            self.last_write = None;
+        }
+    }
+
+    /// Record that a recovery write was attempted at `now`.
+    pub fn note_write(&mut self, now: Instant) {
+        self.last_write = Some(now);
+    }
+}
+
+/// Startup prompt offering to restore a newer crash-recovery sidecar.
+///
+/// There is deliberately no default-close path: Escape and backdrop clicks are
+/// ignored by the renderer so the user must pick Recover or Discard. Until then
+/// the sidecar is the only copy of the previous session's edits, so autosave
+/// and save commands are held off (see `GuiShell::recovery_prompt_pending`).
+#[derive(Debug, Clone, Default)]
+pub struct RecoveryPrompt {
+    pub is_open: bool,
+    /// Document the sidecar belongs to (also the path the recovery will be
+    /// written back to on the next autosave).
+    pub source_path: Option<PathBuf>,
+    /// Sidecar holding the recovered text.
+    pub recovery_path: Option<PathBuf>,
+    pub message: String,
+}
+
+impl RecoveryPrompt {
+    pub fn open(&mut self, source_path: PathBuf, recovery_path: PathBuf) {
+        self.is_open = true;
+        self.message = format!(
+            "Animatix found unsaved changes from a previous session for \"{}\".\n\n\
+             Recover them into the editor, or discard the recovery file?",
+            source_path.display()
+        );
+        self.source_path = Some(source_path);
+        self.recovery_path = Some(recovery_path);
+    }
+
+    pub fn close(&mut self) {
+        self.is_open = false;
+        self.message.clear();
+        self.source_path = None;
+        self.recovery_path = None;
+    }
+}
+
 /// View settings and panel state.
 pub struct ViewStore {
     pub tree: Tree<crate::app::WorkspaceTab>,
@@ -127,6 +259,8 @@ pub struct ViewStore {
     pub layout_size: (f32, f32),
     /// Active layout preset, used to derive per-frame pixel bounds.
     pub layout_preset: crate::app::LayoutPreset,
+    /// Crash-recovery autosave preference and timer state.
+    pub autosave: AutosaveState,
 }
 
 impl ViewStore {
@@ -161,6 +295,7 @@ impl ViewStore {
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
             layout_preset: crate::app::LayoutPreset::Animate,
+            autosave: AutosaveState::new(),
         }
     }
 }
@@ -207,6 +342,8 @@ pub struct UiStore {
     pub find_regex: bool,
     /// Unsaved changes confirmation dialog state.
     pub unsaved_changes: UnsavedChangesDialog,
+    /// Startup crash-recovery prompt state.
+    pub recovery_prompt: RecoveryPrompt,
     /// Persisted shortcut overrides keyed by stable binding name.
     pub shortcut_overrides:
         std::collections::BTreeMap<String, crate::app::interaction::keyboard::SavedShortcut>,
@@ -252,6 +389,7 @@ impl UiStore {
             find_whole_word: false,
             find_regex: false,
             unsaved_changes: UnsavedChangesDialog::default(),
+            recovery_prompt: RecoveryPrompt::default(),
             shortcut_overrides: std::collections::BTreeMap::new(),
             recording_shortcut: None,
             plugin_path_input: String::new(),
@@ -383,5 +521,73 @@ mod tests {
         assert!(!store.view.debug_layout);
         assert!(!store.view.debug_spacing);
         assert_eq!(store.view.tool_mode, ToolMode::Select);
+    }
+
+    #[test]
+    fn autosave_defaults_to_enabled_twenty_seconds() {
+        let store = UiStore::new(default_tree());
+
+        assert!(store.view.autosave.enabled);
+        assert_eq!(store.view.autosave.interval.as_secs_f64(), DEFAULT_AUTOSAVE_INTERVAL_S);
+        assert!(store.view.autosave.is_due(Instant::now()), "first write is due immediately");
+    }
+
+    #[test]
+    fn autosave_from_prefs_clamps_interval() {
+        let tiny = AutosaveState::from_prefs(true, 0.0);
+        assert_eq!(tiny.interval.as_secs_f64(), MIN_AUTOSAVE_INTERVAL_S);
+
+        let huge = AutosaveState::from_prefs(false, 1.0e9);
+        assert_eq!(huge.interval.as_secs_f64(), MAX_AUTOSAVE_INTERVAL_S);
+        assert!(!huge.enabled);
+    }
+
+    #[test]
+    fn autosave_due_respects_interval_and_write_time() {
+        let mut state = AutosaveState::from_prefs(true, 5.0);
+        let start = Instant::now();
+        state.track_source(Path::new("/tmp/scene.amx"));
+        assert!(state.is_due(start), "newly tracked source is due");
+
+        state.note_write(start);
+        assert!(!state.is_due(start));
+        assert!(!state.is_due(start + Duration::from_secs(4)));
+        assert_eq!(state.remaining(start + Duration::from_secs(4)), Duration::from_secs(1));
+        assert!(state.is_due(start + Duration::from_secs(5)));
+        assert_eq!(state.remaining(start + Duration::from_secs(9)), Duration::ZERO);
+    }
+
+    #[test]
+    fn autosave_restarts_when_the_source_document_changes() {
+        let mut state = AutosaveState::from_prefs(true, 30.0);
+        let start = Instant::now();
+        state.track_source(Path::new("/tmp/a.amx"));
+        state.note_write(start);
+        assert!(!state.is_due(start + Duration::from_secs(1)));
+
+        // Re-tracking the same path keeps the timer...
+        state.track_source(Path::new("/tmp/a.amx"));
+        assert!(!state.is_due(start + Duration::from_secs(1)));
+
+        // ...but a different document resets it so it can be saved promptly.
+        state.track_source(Path::new("/tmp/b.amx"));
+        assert!(state.is_due(start + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn recovery_prompt_open_and_close_roundtrip() {
+        let mut prompt = RecoveryPrompt::default();
+        prompt.open(PathBuf::from("/tmp/scene.amx"), PathBuf::from("/tmp/scene.amx.autosave"));
+
+        assert!(prompt.is_open);
+        assert!(prompt.message.contains("scene.amx"));
+        assert_eq!(prompt.source_path.as_deref(), Some(Path::new("/tmp/scene.amx")));
+        assert_eq!(prompt.recovery_path.as_deref(), Some(Path::new("/tmp/scene.amx.autosave")));
+
+        prompt.close();
+        assert!(!prompt.is_open);
+        assert!(prompt.message.is_empty());
+        assert!(prompt.source_path.is_none());
+        assert!(prompt.recovery_path.is_none());
     }
 }
