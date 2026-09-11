@@ -436,18 +436,69 @@ impl GuiShell {
                             self.ui_store.view.diagnostics_panel_visible = !diag_active;
                         }
 
-                        // Inspector toggle
-                        let inspector_active = self.ui_store.view.inspector_visible;
-                        if ui
-                            .add(
-                                Button::ghost("")
-                                    .with_icon(egui_phosphor::regular::SLIDERS)
-                                    .with_tooltip("Toggle Inspector")
-                                    .active(inspector_active),
-                            )
-                            .clicked()
-                        {
+                        // Layout presets + reset (design doc §9.2)
+                        ui.menu_button("Layout", |ui| {
+                            for preset in crate::app::LayoutPreset::ALL {
+                                if ui.button(preset.label()).clicked() {
+                                    commands.push_back(ShellAction::View(ViewAction::ApplyLayout(
+                                        preset,
+                                    )));
+                                    ui.close();
+                                }
+                            }
+                            ui.separator();
+                            if ui.button("Reset layout").clicked() {
+                                commands.push_back(ShellAction::View(ViewAction::ResetLayout));
+                                ui.close();
+                            }
+                        });
+
+                        // Detail region: Inspector | Code share one tab group.
+                        let active_tab = if self.ui_store.view.detail_visible {
+                            crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
+                        } else {
+                            None
+                        };
+
+                        let inspector_tip =
+                            crate::app::interaction::keyboard::tooltip_with_shortcut(
+                                &self.shortcut_registry,
+                                "Inspector",
+                                &crate::app::interaction::keyboard::KeyboardAction::ToggleInspector,
+                                ui.ctx(),
+                            );
+                        let inspector_active =
+                            active_tab == Some(crate::app::WorkspaceTab::Inspector);
+                        let inspector_resp = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::SLIDERS)
+                                .active(inspector_active),
+                        );
+                        text_tooltip(
+                            ui,
+                            inspector_resp.id.with("inspector_tip"),
+                            &inspector_resp,
+                            &inspector_tip,
+                        );
+                        if inspector_resp.clicked() {
                             commands.push_back(ShellAction::View(ViewAction::ShowInspector));
+                        }
+
+                        let code_tip = crate::app::interaction::keyboard::tooltip_with_shortcut(
+                            &self.shortcut_registry,
+                            "Code",
+                            &crate::app::interaction::keyboard::KeyboardAction::ToggleCode,
+                            ui.ctx(),
+                        );
+                        let code_active = active_tab == Some(crate::app::WorkspaceTab::Code);
+                        let code_resp = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::CODE)
+                                .active(code_active),
+                        );
+                        text_tooltip(ui, code_resp.id.with("code_tip"), &code_resp, &code_tip);
+                        if code_resp.clicked() {
+                            commands.push_back(ShellAction::View(ViewAction::ShowCode));
                         }
                     });
                 });

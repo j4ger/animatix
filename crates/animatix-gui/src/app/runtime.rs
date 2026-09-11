@@ -587,6 +587,12 @@ impl AnimatixApp {
                         .pending_actions
                         .push_back(ShellAction::View(ViewAction::ShowInspector));
                 },
+                KeyboardAction::ToggleCode => {
+                    self.shell
+                        .ui_store
+                        .pending_actions
+                        .push_back(ShellAction::View(ViewAction::ShowCode));
+                },
             }
         }
     }

@@ -440,6 +440,9 @@ pub enum Align {
 #[derive(Debug, Clone)]
 pub enum ViewAction {
     ShowInspector,
+    ShowCode,
+    ApplyLayout(crate::app::LayoutPreset),
+    ResetLayout,
     OpenExportDialog,
     OpenCommandPalette,
     OpenPluginStatus,

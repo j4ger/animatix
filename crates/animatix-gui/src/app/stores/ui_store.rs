@@ -95,7 +95,8 @@ pub struct ViewStore {
     pub debug_layout: bool,
     pub debug_spacing: bool,
     pub shortcuts_open: bool,
-    pub inspector_visible: bool,
+    /// Whether the right detail region (Inspector | Code tab group) is shown.
+    pub detail_visible: bool,
     pub welcome_open: bool,
     pub workspace_switcher_open: bool,
     pub command_palette_open: bool,
@@ -124,6 +125,8 @@ pub struct ViewStore {
     pub reduce_motion: bool,
     /// Density preference for UI spacing.
     pub density: eparts::Density,
+    /// Last observed window size, used to size layout presets/reset.
+    pub layout_size: (f32, f32),
 }
 
 impl ViewStore {
@@ -139,7 +142,9 @@ impl ViewStore {
             debug_layout: false,
             debug_spacing: false,
             shortcuts_open: false,
-            inspector_visible: false,
+            // The detail region is part of the core editing loop, so it is
+            // visible by default (design doc §12.2).
+            detail_visible: true,
             welcome_open: false,
             workspace_switcher_open: false,
             command_palette_open: false,
@@ -157,6 +162,7 @@ impl ViewStore {
             timeline_focused: false,
             reduce_motion: false,
             density: eparts::Density::Default,
+            layout_size: (1440.0, 960.0),
         }
     }
 }

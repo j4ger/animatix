@@ -46,8 +46,6 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     ) -> UiResponse {
         match pane {
             WorkspaceTab::Sidebar => {
-                let diagnostics = self.document_store.combined_diagnostics();
-                let is_playing = self.preview_store.preview.playback.is_playing;
                 let timeline = self.document_store.source.document.timeline.as_ref();
                 let asset_cache = timeline.map(|t| t.asset_cache());
                 let mut ctx = sidebar::SidebarContext {
@@ -65,18 +63,14 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
                     editor: &mut self.document_store.source.editor,
-                    diagnostics: &diagnostics,
-                    source_dirty: &mut self.document_store.source.document.source_text,
-                    is_playing,
                     components: &self.document_store.source.document.components,
                     asset_cache,
                 };
                 sidebar::sidebar_ui(&mut ctx, ui);
             },
-            WorkspaceTab::Editor => {
-                // Editor is now rendered inside the Sidebar pane via the
-                // Editor tab. This branch remains for backward compatibility
-                // with old persisted layouts that still have an Editor pane.
+            WorkspaceTab::Code => {
+                // Source editor; shares the right detail tab group with the
+                // Inspector.
                 let diagnostics = self.document_store.combined_diagnostics();
                 let mut ctx = editor::EditorContext {
                     editor: &mut self.document_store.source.editor,
@@ -194,7 +188,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
     fn tab_title_for_pane(&mut self, pane: &WorkspaceTab) -> egui::WidgetText {
         match pane {
             WorkspaceTab::Sidebar => "Sidebar".into(),
-            WorkspaceTab::Editor => "Editor".into(),
+            WorkspaceTab::Code => "Code".into(),
             WorkspaceTab::Preview => "Preview".into(),
             WorkspaceTab::Inspector => "Inspector".into(),
             WorkspaceTab::Timeline => "Timeline".into(),
@@ -212,6 +206,12 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
 
     fn gap_width(&self, _style: &egui::Style) -> f32 {
         1.0
+    }
+
+    /// Pixel floor for every tile: panes never collapse into unusable slivers
+    /// (design doc §9 "px 兜底").
+    fn min_size(&self) -> f32 {
+        120.0
     }
 
     fn tab_bar_height(&self, _style: &egui::Style) -> f32 {

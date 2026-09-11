@@ -21,7 +21,6 @@ pub(crate) enum SidebarTab {
     Explorer,
     Layers,
     Scenes,
-    Editor,
     Components,
     Assets,
 }

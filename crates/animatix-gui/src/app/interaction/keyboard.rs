@@ -82,6 +82,7 @@ fn saved_key_name(key: &egui::Key) -> Option<&'static str> {
         A => "A",
         C => "C",
         D => "D",
+        E => "E",
         F => "F",
         G => "G",
         I => "I",
@@ -116,6 +117,7 @@ fn parse_saved_key(key: &str) -> Option<egui::Key> {
         "A" => A,
         "C" => C,
         "D" => D,
+        "E" => E,
         "F" => F,
         "G" => G,
         "I" => I,
@@ -224,6 +226,7 @@ pub enum KeyboardAction {
     ZoomToSelection,
     ZoomToAll,
     ToggleInspector,
+    ToggleCode,
     OpenCommandPalette,
     OpenFindReplace,
 
@@ -707,6 +710,16 @@ impl ShortcutRegistry {
                 name: "Toggle Inspector",
                 scope: ShortcutScope::Global,
                 action: KeyboardAction::ToggleInspector,
+            },
+        );
+
+        // Toggle Code (Global) — the Inspector and Code share one detail region.
+        self.register(
+            KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::E),
+            Shortcut {
+                name: "Toggle Code",
+                scope: ShortcutScope::Global,
+                action: KeyboardAction::ToggleCode,
             },
         );
 

@@ -397,6 +397,9 @@ impl GuiShell {
     fn handle_view_action(&mut self, view: ViewAction) -> Vec<Effect> {
         match view {
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
+            ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
+            ViewAction::ApplyLayout(preset) => ui::handle_apply_layout(&mut self.ui_store, preset),
+            ViewAction::ResetLayout => ui::handle_reset_layout(&mut self.ui_store),
             ViewAction::OpenExportDialog => {
                 ui::handle_open_export_dialog(&mut self.export_store, &self.document_store)
             },

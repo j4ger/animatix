@@ -6,12 +6,11 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use animatix::timeline::{SceneDimensions, Timeline};
-use animatix_syntax::diagnostics::Diagnostic;
 use animatix_syntax::to_source::ToSource;
 use egui::{RichText, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, ActorCommand, Command, PlaybackCommand, SceneCommand, ShellAction,
+    ActionQueue, ActorCommand, Command, SceneCommand, ShellAction, ViewAction,
 };
 use crate::app::components::button::Button;
 use crate::app::components::context_menu::{MenuEntry, render_menu};
@@ -47,9 +46,6 @@ pub(crate) struct SidebarContext<'a> {
     pub collapsed_actors: &'a mut HashSet<String>,
     pub sidebar_tab: &'a mut SidebarTab,
     pub editor: &'a mut EditorBuffer,
-    pub diagnostics: &'a [Diagnostic],
-    pub source_dirty: &'a mut String,
-    pub is_playing: bool,
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
     pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
     pub scene_dimensions: SceneDimensions,
@@ -81,22 +77,12 @@ pub(crate) struct ScenesContext<'a> {
     pub commands: &'a mut ActionQueue,
 }
 
-pub(crate) struct EditorContext<'a> {
-    pub editor: &'a mut EditorBuffer,
-    pub diagnostics: &'a [Diagnostic],
-    pub source_dirty: &'a mut String,
-    pub commands: &'a mut ActionQueue,
-    pub is_playing: bool,
-}
-
 pub(crate) struct ComponentsContext<'a> {
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
     pub commands: &'a mut ActionQueue,
     pub scene_dimensions: SceneDimensions,
     /// Source text for finding component definition lines (jump-to-definition).
     pub source_text: &'a str,
-    /// Sidebar tab for switching to editor on jump-to-definition.
-    pub sidebar_tab: &'a mut SidebarTab,
 }
 
 pub(crate) struct AssetsContext<'a> {
@@ -167,23 +153,12 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
                         };
                         scenes_content_ui(&mut sctx, ui);
                     },
-                    SidebarTab::Editor => {
-                        let mut ectx = EditorContext {
-                            editor: ctx.editor,
-                            diagnostics: ctx.diagnostics,
-                            source_dirty: ctx.source_dirty,
-                            commands: ctx.commands,
-                            is_playing: ctx.is_playing,
-                        };
-                        editor_content_ui(&mut ectx, ui);
-                    },
                     SidebarTab::Components => {
                         let mut cctx = ComponentsContext {
                             components: ctx.components,
                             commands: ctx.commands,
                             scene_dimensions: ctx.scene_dimensions,
                             source_text: ctx.editor.text(),
-                            sidebar_tab: ctx.sidebar_tab,
                         };
                         components_content_ui(&mut cctx, ui);
                     },
@@ -210,25 +185,9 @@ fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
         (SidebarTab::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
         (SidebarTab::Components, egui_phosphor::regular::CUBE, "Components"),
         (SidebarTab::Assets, egui_phosphor::regular::IMAGES, "Assets"),
-        (SidebarTab::Editor, egui_phosphor::regular::PENCIL_SIMPLE, "Editor"),
     ];
     if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
         *active_tab = new_tab;
-    }
-}
-
-fn editor_content_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
-    ctx.editor.set_diagnostics(ctx.diagnostics);
-    let response = ctx.editor.show(ui);
-    if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
-        *ctx.source_dirty = ctx.editor.text().to_string();
-        ctx.commands.push_back(PlaybackCommand::EditorChanged.into());
-    }
-    if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
-        ctx.commands.push_back(PlaybackCommand::ScrubTo(time_s).into());
-        if !ctx.is_playing {
-            ctx.commands.push_back(PlaybackCommand::TogglePlayback.into());
-        }
     }
 }
 
@@ -1089,7 +1048,9 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         if let Some(line) = found_line {
                             ctx.commands
                                 .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
-                            *ctx.sidebar_tab = SidebarTab::Editor;
+                            // The editor is no longer a sidebar tab; open the
+                            // Code tab in the detail region instead.
+                            ctx.commands.push_back(ShellAction::View(ViewAction::ShowCode));
                         }
                     }
                 })

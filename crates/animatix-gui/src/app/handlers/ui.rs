@@ -1,19 +1,61 @@
 use std::path::PathBuf;
 
+use crate::app::WorkspaceTab;
 use crate::app::commands::{Effect, UndoEntry};
 use crate::app::components::toast::Toast;
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 
+/// Show the Inspector tab, or hide the detail region when it is already the
+/// active, visible tab.
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
-    let new_visible = !ui_store.view.inspector_visible;
-    ui_store.view.inspector_visible = new_visible;
+    toggle_detail_tab(ui_store, WorkspaceTab::Inspector);
+    vec![]
+}
 
-    // Flip pane visibility in place so user rearrangement survives; only fall
-    // back to a fresh tree when the persisted layout predates the Inspector pane.
-    if !crate::app::persistence::set_inspector_visible(&mut ui_store.view.tree, new_visible) {
-        ui_store.view.tree = crate::app::persistence::build_tree(new_visible);
+/// Show the Code tab, or hide the detail region when it is already active.
+pub fn handle_show_code(ui_store: &mut UiStore) -> Vec<Effect> {
+    toggle_detail_tab(ui_store, WorkspaceTab::Code);
+    vec![]
+}
+
+fn toggle_detail_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
+    let already_active = ui_store.view.detail_visible
+        && crate::app::persistence::active_detail_tab(&ui_store.view.tree) == Some(tab);
+
+    if already_active {
+        ui_store.view.detail_visible = false;
+        crate::app::persistence::set_detail_visible(&mut ui_store.view.tree, false);
+        return;
     }
+
+    ui_store.view.detail_visible = true;
+    if !crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab) {
+        // Layout predates the detail region; rebuild then activate.
+        ui_store.view.tree = crate::app::persistence::default_tree();
+        crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab);
+    }
+}
+
+/// Apply a named layout preset to the current tree.
+pub fn handle_apply_layout(
+    ui_store: &mut UiStore,
+    preset: crate::app::LayoutPreset,
+) -> Vec<Effect> {
+    let (w, h) = ui_store.view.layout_size;
+    if !crate::app::persistence::apply_layout_preset(&mut ui_store.view.tree, preset, w, h) {
+        ui_store.view.tree = crate::app::persistence::build_tree_for(preset, w, h);
+    }
+    ui_store.view.detail_visible = preset != crate::app::LayoutPreset::Focus;
+    vec![]
+}
+
+/// Rebuild the default Animate layout.
+pub fn handle_reset_layout(ui_store: &mut UiStore) -> Vec<Effect> {
+    let (w, h) = ui_store.view.layout_size;
+    ui_store.view.tree =
+        crate::app::persistence::build_tree_for(crate::app::LayoutPreset::Animate, w, h);
+    ui_store.view.detail_visible = true;
     vec![]
 }
 

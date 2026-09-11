@@ -5,13 +5,14 @@ use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use egui::Vec2;
 
 use super::{
-    GuiShell, WorkspaceTab, default_tree, diagnostics_banner_message, diagnostics_summary_color,
-    fit_preview, has_source_load_failure, preview, primary_diagnostic_phase,
+    GuiShell, LayoutPreset, WorkspaceTab, default_tree, diagnostics_banner_message,
+    diagnostics_summary_color, fit_preview, has_source_load_failure, preview,
+    primary_diagnostic_phase,
 };
 use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
 
 #[test]
-fn default_workspace_keeps_inspector_pane_hidden() {
+fn default_workspace_has_detail_tabs_visible() {
     let tree = default_tree();
     let tabs: Vec<_> = tree
         .tiles
@@ -21,40 +22,56 @@ fn default_workspace_keeps_inspector_pane_hidden() {
             _ => None,
         })
         .collect();
-    // All four panes exist so toggling the Inspector never has to rebuild the
-    // layout; the Inspector is simply hidden by default. Editor is merged into
-    // the Sidebar pane via tabs.
-    assert_eq!(tabs.len(), 4);
+    // Five panes: the Inspector and Code share one detail tab group, visible
+    // by default with the Inspector active.
+    assert_eq!(tabs.len(), 5);
     assert!(tabs.contains(&WorkspaceTab::Sidebar));
-    assert!(!tabs.contains(&WorkspaceTab::Editor));
     assert!(tabs.contains(&WorkspaceTab::Preview));
     assert!(tabs.contains(&WorkspaceTab::Inspector));
+    assert!(tabs.contains(&WorkspaceTab::Code));
     assert!(tabs.contains(&WorkspaceTab::Timeline));
 
+    assert_eq!(
+        super::persistence::active_detail_tab(&tree),
+        Some(WorkspaceTab::Inspector),
+        "Inspector is the default detail tab"
+    );
     let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
-    assert!(!tree.is_visible(inspector), "inspector is hidden by default");
+    assert!(tree.is_visible(inspector), "detail region is visible by default");
 }
 
 #[test]
-fn workspace_with_inspector_has_four_panes() {
-    let tree = super::persistence::build_tree(true);
-    let tabs: Vec<_> = tree
-        .tiles
-        .iter()
-        .filter_map(|(_, tile)| match tile {
-            egui_tiles::Tile::Pane(tab) => Some(*tab),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(tabs.len(), 4);
-    assert!(tabs.contains(&WorkspaceTab::Sidebar));
-    assert!(!tabs.contains(&WorkspaceTab::Editor));
-    assert!(tabs.contains(&WorkspaceTab::Preview));
-    assert!(tabs.contains(&WorkspaceTab::Inspector));
-    assert!(tabs.contains(&WorkspaceTab::Timeline));
+fn layout_presets_switch_detail_tab_and_focus_hides_regions() {
+    let mut tree = default_tree();
 
-    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
-    assert!(tree.is_visible(inspector), "inspector is visible when requested");
+    assert!(super::persistence::apply_layout_preset(
+        &mut tree,
+        LayoutPreset::Code,
+        1440.0,
+        960.0
+    ));
+    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Code));
+
+    assert!(super::persistence::apply_layout_preset(
+        &mut tree,
+        LayoutPreset::Focus,
+        1440.0,
+        960.0
+    ));
+    let sidebar = tree.tiles.find_pane(&WorkspaceTab::Sidebar).unwrap();
+    let timeline = tree.tiles.find_pane(&WorkspaceTab::Timeline).unwrap();
+    assert!(!tree.is_visible(sidebar), "Focus hides the sidebar");
+    assert!(!tree.is_visible(timeline), "Focus hides the timeline");
+
+    assert!(super::persistence::apply_layout_preset(
+        &mut tree,
+        LayoutPreset::Animate,
+        1440.0,
+        960.0
+    ));
+    assert!(tree.is_visible(sidebar));
+    assert!(tree.is_visible(timeline));
+    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
 }
 
 #[test]

@@ -78,10 +78,40 @@ pub use runtime::run_gui;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WorkspaceTab {
     Sidebar,
-    Editor,
+    /// Source code editor. Shares the right "detail" tab group with the
+    /// Inspector; named `Editor` in layouts persisted before the rename.
+    #[serde(alias = "Editor")]
+    Code,
     Preview,
     Inspector,
     Timeline,
+}
+
+/// Named workspace layouts (design doc §9.2).
+///
+/// A preset adjusts region proportions and which detail tab is active on the
+/// existing tree, so it never discards a user's custom arrangement; only
+/// "Reset layout" rebuilds from scratch. `Focus` additionally hides the
+/// surrounding regions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LayoutPreset {
+    Animate,
+    Code,
+    Inspect,
+    Focus,
+}
+
+impl LayoutPreset {
+    pub const ALL: [Self; 4] = [Self::Animate, Self::Code, Self::Inspect, Self::Focus];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Animate => "Animate",
+            Self::Code => "Code",
+            Self::Inspect => "Inspect",
+            Self::Focus => "Focus",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -700,6 +730,9 @@ impl GuiShell {
 
     fn ui(&mut self, ui: &mut egui::Ui, preview_texture_id: Option<egui::TextureId>) {
         let theme = eparts::theme(ui);
+        // Track the window size so layout presets and reset can size themselves.
+        let screen = ui.ctx().content_rect();
+        self.ui_store.view.layout_size = (screen.width(), screen.height());
         let mut commands: ActionQueue = ActionQueue::default();
         commands.append(&mut self.ui_store.pending_actions);
         self.external_commands.drain_into(&mut commands);

@@ -1,81 +1,264 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use egui_tiles::{Linear, LinearDir, Tiles, Tree};
+use egui_tiles::{Container, Linear, LinearDir, Tile, Tiles, Tree};
 
 use super::*;
 use crate::app::interaction::keyboard::SavedShortcut;
 
-/// Build a workspace tree.
+/// Region proportions for the responsive default layout.
+///
+/// Every region is allocated as `clamp(ratio * available, min, max)`: a
+/// proportion by default, with pixel bounds as the floor/ceiling so extreme
+/// window sizes never produce unusable panes. `Behavior::min_size` is the final
+/// per-tile floor. Shares are relative, so the proportions hold as the window
+/// is resized.
+mod metrics {
+    pub const LEFT_RATIO: f32 = 0.16;
+    pub const LEFT_MIN: f32 = 200.0;
+    pub const LEFT_MAX: f32 = 360.0;
+
+    pub const DETAIL_INSPECTOR_RATIO: f32 = 0.21;
+    pub const DETAIL_INSPECTOR_MIN: f32 = 260.0;
+    pub const DETAIL_INSPECTOR_MAX: f32 = 420.0;
+
+    pub const DETAIL_CODE_RATIO: f32 = 0.38;
+    pub const DETAIL_CODE_MIN: f32 = 420.0;
+    pub const DETAIL_CODE_MAX: f32 = 720.0;
+
+    pub const PREVIEW_MIN: f32 = 360.0;
+
+    pub const BOTTOM_RATIO: f32 = 0.25;
+    pub const BOTTOM_MIN: f32 = 180.0;
+    pub const BOTTOM_MAX: f32 = 420.0;
+}
+
+/// Vertical chrome outside the dock area: toolbar + status bar.
+const VERTICAL_CHROME: f32 = 28.0 + 22.0;
+
+fn clamp_ratio(ratio: f32, available: f32, min: f32, max: f32) -> f32 {
+    (ratio * available).clamp(min, max)
+}
+
+/// Per-preset region preferences (ratios, pixel bounds, detail tab).
+struct PresetRegions {
+    left: (f32, f32, f32),
+    detail: (f32, f32, f32),
+    bottom: (f32, f32, f32),
+    tab: WorkspaceTab,
+    hide_surroundings: bool,
+}
+
+fn preset_regions(preset: LayoutPreset) -> PresetRegions {
+    use metrics::*;
+    match preset {
+        LayoutPreset::Animate => PresetRegions {
+            left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
+            detail: (DETAIL_INSPECTOR_RATIO, DETAIL_INSPECTOR_MIN, DETAIL_INSPECTOR_MAX),
+            bottom: (BOTTOM_RATIO, BOTTOM_MIN, BOTTOM_MAX),
+            tab: WorkspaceTab::Inspector,
+            hide_surroundings: false,
+        },
+        LayoutPreset::Code => PresetRegions {
+            left: (0.14, 180.0, 300.0),
+            detail: (DETAIL_CODE_RATIO, DETAIL_CODE_MIN, DETAIL_CODE_MAX),
+            bottom: (0.18, 160.0, 260.0),
+            tab: WorkspaceTab::Code,
+            hide_surroundings: false,
+        },
+        LayoutPreset::Inspect => PresetRegions {
+            left: (0.12, 160.0, 260.0),
+            detail: (0.30, 300.0, 460.0),
+            bottom: (0.30, 220.0, 420.0),
+            tab: WorkspaceTab::Inspector,
+            hide_surroundings: false,
+        },
+        LayoutPreset::Focus => PresetRegions {
+            left: (LEFT_RATIO, LEFT_MIN, LEFT_MAX),
+            detail: (DETAIL_INSPECTOR_RATIO, DETAIL_INSPECTOR_MIN, DETAIL_INSPECTOR_MAX),
+            bottom: (BOTTOM_RATIO, BOTTOM_MIN, BOTTOM_MAX),
+            tab: WorkspaceTab::Inspector,
+            hide_surroundings: true,
+        },
+    }
+}
+
+/// Build a workspace tree for a preset at a reference window size.
 ///
 /// Layout:
 /// ```text
-/// Without inspector (default):
-/// ┌─────────────────────────┬──────────────┐
-/// │ Sidebar | Editor (tabs) │   Preview    │
-/// │                         │              │
-/// ├─────────────────────────┴──────────────┤
-/// │          Timeline (full width)         │
-/// └────────────────────────────────────────┘
-///
-/// With inspector:
-/// ┌─────────────────────────┬──────────────┬──────────┐
-/// │ Sidebar | Editor (tabs) │   Preview    │ Inspector│
-/// │                         │              │          │
-/// ├─────────────────────────┴──────────────┴──────────┤
-/// │          Timeline (full width)                    │
-/// └───────────────────────────────────────────────────┘
+/// ┌───────────┬───────────────────────────┬─────────────┐
+/// │  Sidebar  │          Preview          │   Detail    │
+/// │           │                           │ ┌─────────┐ │
+/// │           │                           │ │Inspector│ │
+/// │           │                           │ │  Code   │ │
+/// │           │                           │ └─────────┘ │
+/// ├───────────┴───────────────────────────┴─────────────┤
+/// │                  Timeline (full width)               │
+/// └──────────────────────────────────────────────────────┘
 /// ```
 ///
-/// Sidebar and Editor live as tabs in a single pane on the left.
-/// Timeline always spans the full width at the bottom.
-/// Inspector is hidden by default and toggled via a toolbar button.
-pub(super) fn build_tree(inspector_visible: bool) -> Tree<WorkspaceTab> {
+/// The right "detail" region is a tab group holding the Inspector and the code
+/// editor, so only one of them is ever on screen. The Timeline spans the full
+/// width at the bottom.
+pub(super) fn build_tree_for(preset: LayoutPreset, width: f32, height: f32) -> Tree<WorkspaceTab> {
+    let regions = preset_regions(preset);
     let mut tiles = Tiles::default();
 
     let sidebar = tiles.insert_pane(WorkspaceTab::Sidebar);
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
     let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
+    let code = tiles.insert_pane(WorkspaceTab::Code);
     let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
 
-    // The Inspector pane always exists in the tree; toggling it flips
-    // visibility rather than rebuilding, so user rearrangement survives.
-    // Container layout skips invisible children.
-    let mut top_row = Linear::new(LinearDir::Horizontal, vec![sidebar, preview, inspector]);
-    top_row.shares[sidebar] = 0.22;
-    top_row.shares[preview] = 0.53;
-    top_row.shares[inspector] = 0.25;
+    // Inspector and Code share one tab group: mutually exclusive detail views.
+    let detail = tiles.insert_tab_tile(vec![inspector, code]);
+
+    let left_px = clamp_ratio(regions.left.0, width, regions.left.1, regions.left.2);
+    let detail_px = clamp_ratio(regions.detail.0, width, regions.detail.1, regions.detail.2);
+    let preview_px = (width - left_px - detail_px).max(metrics::PREVIEW_MIN);
+
+    let mut top_row = Linear::new(LinearDir::Horizontal, vec![sidebar, preview, detail]);
+    top_row.shares[sidebar] = left_px;
+    top_row.shares[preview] = preview_px;
+    top_row.shares[detail] = detail_px;
     let top_row = tiles.insert_container(top_row);
 
-    // Root: top row above, full-width timeline below.
+    let dock_h = (height - VERTICAL_CHROME).max(1.0);
+    let bottom_px = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
     let root = tiles.insert_container(Linear::new_binary(
         LinearDir::Vertical,
         [top_row, timeline],
-        0.65, // top row gets 65 %; timeline gets 35 %
+        (1.0 - bottom_px / dock_h).clamp(0.1, 0.9),
     ));
 
     let mut tree = Tree::new("workspace", root, tiles);
-    tree.set_visible(inspector, inspector_visible);
+    activate_detail_tab(&mut tree, regions.tab);
+    if regions.hide_surroundings {
+        set_pane_visible(&mut tree, WorkspaceTab::Sidebar, false);
+        set_pane_visible(&mut tree, WorkspaceTab::Timeline, false);
+        set_detail_visible(&mut tree, false);
+    }
     tree
 }
 
-/// Show or hide the Inspector pane without disturbing the rest of the layout.
+/// Default workspace layout: Animate, sized to the initial window.
+pub(super) fn default_tree() -> Tree<WorkspaceTab> {
+    build_tree_for(
+        LayoutPreset::Animate,
+        INITIAL_WINDOW_SIZE.0 as f32,
+        INITIAL_WINDOW_SIZE.1 as f32,
+    )
+}
+
+/// Apply a preset's proportions and detail tab to an existing tree.
 ///
-/// Returns `false` when the tree has no Inspector pane (a layout persisted
-/// before the pane existed); callers can fall back to a fresh tree.
-pub(super) fn set_inspector_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
-    match tree.tiles.find_pane(&WorkspaceTab::Inspector) {
+/// Returns `false` when the tree lacks the expected panes (e.g. a layout
+/// persisted before the detail region existed); callers rebuild in that case.
+pub(super) fn apply_layout_preset(
+    tree: &mut Tree<WorkspaceTab>,
+    preset: LayoutPreset,
+    width: f32,
+    height: f32,
+) -> bool {
+    let Some(sidebar) = tree.tiles.find_pane(&WorkspaceTab::Sidebar) else {
+        return false;
+    };
+    let Some(preview) = tree.tiles.find_pane(&WorkspaceTab::Preview) else {
+        return false;
+    };
+    let Some(inspector) = tree.tiles.find_pane(&WorkspaceTab::Inspector) else {
+        return false;
+    };
+    let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
+        return false;
+    };
+    let Some(detail) = tree.tiles.parent_of(inspector) else {
+        return false;
+    };
+    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
+        return false;
+    };
+
+    let regions = preset_regions(preset);
+    let left_px = clamp_ratio(regions.left.0, width, regions.left.1, regions.left.2);
+    let detail_px = clamp_ratio(regions.detail.0, width, regions.detail.1, regions.detail.2);
+    let preview_px = (width - left_px - detail_px).max(metrics::PREVIEW_MIN);
+    if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
+        linear.shares.set_share(sidebar, left_px);
+        linear.shares.set_share(preview, preview_px);
+        linear.shares.set_share(detail, detail_px);
+    }
+
+    let dock_h = (height - VERTICAL_CHROME).max(1.0);
+    let bottom_px = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
+    let top_frac = (1.0 - bottom_px / dock_h).clamp(0.1, 0.9);
+    if let Some(root) = tree.root {
+        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
+            linear.shares.set_share(top_row, top_frac);
+            linear.shares.set_share(timeline, 1.0 - top_frac);
+        }
+    }
+
+    let visible = !regions.hide_surroundings;
+    tree.set_visible(sidebar, visible);
+    tree.set_visible(timeline, visible);
+    set_pane_visible(tree, WorkspaceTab::Inspector, true);
+    set_pane_visible(tree, WorkspaceTab::Code, true);
+    set_detail_visible(tree, visible);
+    if visible {
+        activate_detail_tab(tree, regions.tab);
+    }
+    true
+}
+
+/// Show or hide the whole detail region (Inspector + Code tab group).
+pub(super) fn set_detail_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
+    let Some(inspector) = tree.tiles.find_pane(&WorkspaceTab::Inspector) else {
+        return false;
+    };
+    let Some(detail) = tree.tiles.parent_of(inspector) else {
+        return false;
+    };
+    tree.set_visible(detail, visible);
+    true
+}
+
+/// Activate a tab inside the detail region, making the region visible.
+pub(super) fn activate_detail_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
+    if tree.tiles.find_pane(&tab).is_none() {
+        return false;
+    }
+    set_detail_visible(tree, true);
+    tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
+}
+
+/// Which detail tab is currently active.
+pub(super) fn active_detail_tab(tree: &Tree<WorkspaceTab>) -> Option<WorkspaceTab> {
+    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector)?;
+    let detail = tree.tiles.parent_of(inspector)?;
+    let tabs = match tree.tiles.get_container(detail)? {
+        Container::Tabs(tabs) => tabs,
+        _ => return None,
+    };
+    for tab in [WorkspaceTab::Inspector, WorkspaceTab::Code] {
+        if let Some(id) = tree.tiles.find_pane(&tab) {
+            if tabs.is_active(id) {
+                return Some(tab);
+            }
+        }
+    }
+    None
+}
+
+fn set_pane_visible(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab, visible: bool) -> bool {
+    match tree.tiles.find_pane(&tab) {
         Some(id) => {
             tree.set_visible(id, visible);
             true
         },
         None => false,
     }
-}
-
-/// Default workspace layout — inspector hidden.
-pub(super) fn default_tree() -> Tree<WorkspaceTab> {
-    build_tree(false)
 }
 
 pub(super) fn persistence_path() -> PathBuf {
@@ -226,20 +409,24 @@ mod tests {
     }
 
     #[test]
-    fn inspector_pane_exists_and_toggles_without_rebuilding() {
-        let mut tree = build_tree(false);
-        let inspector = tree
-            .tiles
-            .find_pane(&WorkspaceTab::Inspector)
-            .expect("inspector pane is always present in the tree");
-        assert!(!tree.is_visible(inspector), "hidden by default");
+    fn detail_region_toggles_without_rebuilding() {
+        let mut tree = default_tree();
+        assert!(tree.tiles.find_pane(&WorkspaceTab::Inspector).is_some());
+        assert!(tree.tiles.find_pane(&WorkspaceTab::Code).is_some());
+        assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
 
-        assert!(set_inspector_visible(&mut tree, true));
-        assert!(tree.is_visible(inspector));
-        assert!(set_inspector_visible(&mut tree, false));
-        assert!(!tree.is_visible(inspector));
+        // Hiding the detail region keeps every pane in the tree.
+        assert!(set_detail_visible(&mut tree, false));
+        let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
+        let detail = tree.tiles.parent_of(inspector).unwrap();
+        assert!(!tree.is_visible(detail));
 
-        // Other panes must survive the toggle untouched.
+        // Activating a tab shows the region again and switches the tab.
+        assert!(activate_detail_tab(&mut tree, WorkspaceTab::Code));
+        assert!(tree.is_visible(detail));
+        assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Code));
+
+        // Other panes survive untouched.
         assert!(tree.tiles.find_pane(&WorkspaceTab::Timeline).is_some());
         assert!(tree.tiles.find_pane(&WorkspaceTab::Preview).is_some());
         assert!(tree.tiles.find_pane(&WorkspaceTab::Sidebar).is_some());
