@@ -28,6 +28,84 @@ pub(crate) enum SidebarTab {
     Library,
 }
 
+/// Top-level sidebar views, shared by the tab bar and the compact icon rail so
+/// both stay in sync (icon + tooltip come from one definition).
+pub(crate) const SIDEBAR_TABS: [(SidebarTab, &str, &str); 3] = [
+    (SidebarTab::Project, egui_phosphor::regular::FOLDER, "Project"),
+    (SidebarTab::Outline, egui_phosphor::regular::STACK, "Outline"),
+    (SidebarTab::Library, egui_phosphor::regular::CUBE, "Library"),
+];
+
+/// Human-readable label for a top-level sidebar view.
+pub(crate) fn sidebar_tab_label(tab: SidebarTab) -> &'static str {
+    match tab {
+        SidebarTab::Project => "Project",
+        SidebarTab::Outline => "Outline",
+        SidebarTab::Library => "Library",
+    }
+}
+
+/// Width of the compact-mode sidebar icon rail.
+pub(crate) const COMPACT_RAIL_WIDTH: f32 = 48.0;
+
+/// Compact-mode overlay drawers. Only one is open at a time, so a single
+/// `Option<CompactDrawer>` covers both (they sit on opposite edges).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CompactDrawer {
+    /// Sidebar content, promoted to a left overlay (opened from the icon rail).
+    Sidebar,
+    /// Inspector / Code, promoted to a right overlay.
+    Detail,
+}
+
+/// An in-flight Library/Asset row drag, carrying the actor to create at the
+/// drop point.
+///
+/// Built by the sidebar rows exactly like the double-click instantiate path
+/// (see `components_content_ui` / `assets_content_ui`) and consumed by the
+/// preview panel, which owns the scene transform.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LibraryDragPayload {
+    /// Actor type name (a component name, or `"Image"` / `"Svg"`).
+    pub ty: String,
+    /// Properties to attach (e.g. the asset `url`).
+    pub props: Vec<animatix_syntax::ast::Property>,
+}
+
+/// Well-known egui data id for the in-flight library drag payload.
+///
+/// egui's data store lives on the shared `Context`, so a payload inserted by a
+/// sidebar row is readable from the preview panel in the same frame.
+pub(crate) fn library_drag_id() -> egui::Id {
+    egui::Id::new("library_drag_payload")
+}
+
+/// Store the in-flight library drag payload.
+pub(crate) fn set_library_drag(ctx: &egui::Context, payload: LibraryDragPayload) {
+    ctx.data_mut(|d| d.insert_temp(library_drag_id(), payload));
+}
+
+/// Read the in-flight library drag payload, if a library row is being dragged.
+pub(crate) fn library_drag(ctx: &egui::Context) -> Option<LibraryDragPayload> {
+    ctx.data(|d| d.get_temp(library_drag_id()))
+}
+
+/// Drop the in-flight library drag payload (after a drop, Escape, or a release
+/// outside the canvas).
+pub(crate) fn clear_library_drag(ctx: &egui::Context) {
+    ctx.data_mut(|d| d.remove::<LibraryDragPayload>(library_drag_id()));
+}
+
+/// Label stem for a dropped payload: `Image`/`Svg` get lower-case asset stems,
+/// components keep their declared name.
+pub(crate) fn library_drag_label_base(payload: &LibraryDragPayload) -> String {
+    match payload.ty.as_str() {
+        "Image" => "image".to_string(),
+        "Svg" => "svg".to_string(),
+        other => other.to_string(),
+    }
+}
+
 /// Returns the canonical default actor type: the first non-advanced Shape actor.
 pub(crate) fn default_actor_type() -> &'static str {
     primitives::actor_kind_registry()
@@ -70,6 +148,62 @@ pub(crate) fn panel_frame() -> egui::Frame {
 #[cfg(test)]
 mod tests {
     use super::nice_tick_interval;
+    use super::{
+        LibraryDragPayload, clear_library_drag, library_drag, library_drag_id,
+        library_drag_label_base, set_library_drag,
+    };
+
+    fn url_property(url: &str) -> animatix_syntax::ast::Property {
+        animatix_syntax::ast::Property {
+            name: "url".into(),
+            value: animatix_syntax::ast::Expr::Str(url.to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }
+    }
+
+    #[test]
+    fn library_drag_payload_roundtrips_through_context_data() {
+        let ctx = egui::Context::default();
+        assert!(library_drag(&ctx).is_none());
+
+        let payload = LibraryDragPayload {
+            ty: "Image".into(),
+            props: vec![url_property("a.png")],
+        };
+        set_library_drag(&ctx, payload.clone());
+        assert_eq!(library_drag(&ctx), Some(payload));
+
+        clear_library_drag(&ctx);
+        assert!(library_drag(&ctx).is_none(), "cleared payload must not linger");
+    }
+
+    #[test]
+    fn library_drag_id_is_stable() {
+        // The sidebar writes and the preview panel reads this id; it must not
+        // drift between the two call sites.
+        assert_eq!(library_drag_id(), egui::Id::new("library_drag_payload"));
+    }
+
+    #[test]
+    fn library_drag_label_base_maps_assets_to_lowercase_stems() {
+        let image = LibraryDragPayload {
+            ty: "Image".into(),
+            props: vec![],
+        };
+        assert_eq!(library_drag_label_base(&image), "image");
+        let svg = LibraryDragPayload {
+            ty: "Svg".into(),
+            props: vec![],
+        };
+        assert_eq!(library_drag_label_base(&svg), "svg");
+        // Component types keep their declared name.
+        let component = LibraryDragPayload {
+            ty: "Badge".into(),
+            props: vec![],
+        };
+        assert_eq!(library_drag_label_base(&component), "Badge");
+    }
 
     #[test]
     fn nice_tick_interval_normal_range() {

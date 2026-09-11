@@ -259,6 +259,15 @@ pub struct ViewStore {
     pub layout_size: (f32, f32),
     /// Active layout preset, used to derive per-frame pixel bounds.
     pub layout_preset: crate::app::LayoutPreset,
+    /// True when the window is narrow enough to use the compact layout (icon
+    /// rail sidebar + overlay detail drawer). Recomputed from `layout_size`.
+    pub compact: bool,
+    /// Docked pane visibility captured when compact mode engaged, restored when
+    /// the window widens again.
+    pub compact_restore: Option<crate::app::persistence::CompactRestore>,
+    /// Active compact-mode overlay drawer. `None` when no drawer is open; the
+    /// sidebar and detail drawers are mutually exclusive.
+    pub compact_drawer: Option<crate::app::panels::CompactDrawer>,
     /// Crash-recovery autosave preference and timer state.
     pub autosave: AutosaveState,
 }
@@ -295,6 +304,9 @@ impl ViewStore {
             density: eparts::Density::Default,
             layout_size: (1440.0, 960.0),
             layout_preset: crate::app::LayoutPreset::Animate,
+            compact: false,
+            compact_restore: None,
+            compact_drawer: None,
             autosave: AutosaveState::new(),
         }
     }
@@ -395,6 +407,16 @@ impl UiStore {
             plugin_path_input: String::new(),
             recent_files: Vec::new(),
         }
+    }
+
+    /// Record a compact-layout breakpoint change and drop any open overlay
+    /// drawer (a drawer from the previous mode is stale).
+    ///
+    /// The flag is derived from the window width at the call site; the dock tree
+    /// is reconciled separately (`persistence::reconcile_compact`).
+    pub fn set_compact(&mut self, compact: bool) {
+        self.view.compact = compact;
+        self.view.compact_drawer = None;
     }
 
     /// Capture UI state plus playback/timeline state for undo/redo.
@@ -521,6 +543,25 @@ mod tests {
         assert!(!store.view.debug_layout);
         assert!(!store.view.debug_spacing);
         assert_eq!(store.view.tool_mode, ToolMode::Select);
+        // Compact mode starts off at the 1440x960 default window.
+        assert!(!store.view.compact);
+        assert!(store.view.compact_drawer.is_none());
+        assert!(store.view.compact_restore.is_none());
+    }
+
+    #[test]
+    fn set_compact_tracks_flag_and_clears_drawer() {
+        let mut store = UiStore::new(default_tree());
+        store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+
+        store.set_compact(true);
+        assert!(store.view.compact);
+        assert!(store.view.compact_drawer.is_none(), "entering compact starts with no drawer");
+
+        store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Sidebar);
+        store.set_compact(false);
+        assert!(!store.view.compact);
+        assert!(store.view.compact_drawer.is_none(), "leaving compact drops drawer state");
     }
 
     #[test]

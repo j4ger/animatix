@@ -39,6 +39,142 @@ const VERTICAL_CHROME: f32 = 28.0 + 22.0;
 /// Narrowest the sidebar may be squeezed before the preview starts giving ground.
 const RAIL_MIN: f32 = 48.0;
 
+/// Window width (logical px) below which the workspace downgrades to the compact
+/// layout: a sidebar icon rail instead of the tab bar + content, and the detail
+/// region promoted to an overlay drawer instead of a docked column.
+pub(super) const COMPACT_BREAKPOINT: f32 = 1000.0;
+
+/// Docked pane visibility captured when compact mode engages, restored when the
+/// window widens again. Preserving it (rather than forcing panes visible) keeps
+/// explicit user choices — a closed detail column, a Focus layout — intact
+/// across a resize round-trip.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct CompactRestore {
+    pub sidebar_visible: bool,
+    pub detail_visible: bool,
+}
+
+/// Outcome of reconciling the dock tree with the desired compact flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompactTransition {
+    /// The flag did not change; the tree was left untouched.
+    Unchanged,
+    /// Entered compact mode: the detail dock was hidden.
+    Entered,
+    /// Left compact mode: the captured pane visibility was restored.
+    Exited,
+}
+
+/// Whether a given window width should use the compact layout.
+pub(super) fn compact_for_width(width: f32) -> bool {
+    width > 0.0 && width < COMPACT_BREAKPOINT
+}
+
+/// Capture the docked pane visibility that compact mode must restore later.
+pub(super) fn capture_compact_restore(tree: &Tree<WorkspaceTab>) -> CompactRestore {
+    CompactRestore {
+        sidebar_visible: pane_visible(tree, WorkspaceTab::Sidebar),
+        detail_visible: detail_visible(tree),
+    }
+}
+
+/// Reconcile the dock tree with the desired compact flag.
+///
+/// On entry the detail dock is hidden (the overlay drawer replaces it; the
+/// sidebar tile stays visible and renders its icon rail). On exit the captured
+/// visibility is restored, so a user who had closed the detail column, or was
+/// in the Focus preset, does not get panes forced back open. The caller stores
+/// `restore` across frames (`ViewStore::compact_restore`).
+pub(super) fn reconcile_compact(
+    tree: &mut Tree<WorkspaceTab>,
+    was_compact: bool,
+    compact: bool,
+    restore: &mut Option<CompactRestore>,
+) -> CompactTransition {
+    if was_compact == compact {
+        return CompactTransition::Unchanged;
+    }
+    if compact {
+        *restore = Some(capture_compact_restore(tree));
+        apply_compact_entry(tree);
+        CompactTransition::Entered
+    } else {
+        let state = restore.take().unwrap_or(CompactRestore {
+            sidebar_visible: true,
+            detail_visible: true,
+        });
+        restore_compact_tree(tree, state);
+        CompactTransition::Exited
+    }
+}
+
+/// Force the dock into its compact shape: sidebar visible (as the icon rail)
+/// and the detail group hidden (it renders as an overlay drawer).
+///
+/// Idempotent, so a tree rebuilt while compact (preset apply, reset, migration)
+/// can be re-shaped without waiting for a transition.
+pub(super) fn apply_compact_entry(tree: &mut Tree<WorkspaceTab>) {
+    // The rail is the only way to reach the sidebar views in compact mode, so
+    // it stays visible even if the user had hidden the sidebar (e.g. the Focus
+    // preset). The captured state restores on widen.
+    set_pane_visible(tree, WorkspaceTab::Sidebar, true);
+    set_detail_visible(tree, false);
+}
+
+/// Apply a captured pane-visibility pair to the dock tree.
+pub(super) fn restore_compact_tree(tree: &mut Tree<WorkspaceTab>, state: CompactRestore) {
+    set_pane_visible(tree, WorkspaceTab::Sidebar, state.sidebar_visible);
+    set_detail_visible(tree, state.detail_visible);
+}
+
+/// Width of the compact sidebar rail as an actual allocation.
+///
+/// Kept below the sidebar's pixel floor on purpose: shares drive layout, and
+/// `Behavior::min_size` only constrains interactive resizing, so the rail can be
+/// narrower than `LEFT_MIN`.
+pub(super) fn enforce_compact_rail(tree: &mut Tree<WorkspaceTab>, width: f32) {
+    if width <= 0.0 {
+        return;
+    }
+    let (Some(sidebar), Some(preview)) = (
+        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
+        tree.tiles.find_pane(&WorkspaceTab::Preview),
+    ) else {
+        return;
+    };
+    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
+        return;
+    };
+    if !(tree.is_visible(sidebar) && tree.is_visible(preview)) {
+        return;
+    }
+    let rail = crate::app::panels::COMPACT_RAIL_WIDTH.min((width * 0.25).max(0.0));
+    if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(top_row) {
+        linear.shares.set_share(sidebar, rail);
+        linear.shares.set_share(preview, (width - rail).max(0.0));
+    }
+}
+
+/// Per-frame layout pass for compact mode: fixed rail on the left plus the
+/// vertical (bottom-region) bounds, which still apply at any width.
+pub(super) fn enforce_compact_layout(
+    tree: &mut Tree<WorkspaceTab>,
+    preset: LayoutPreset,
+    width: f32,
+    height: f32,
+) {
+    if width <= 0.0 || height <= 0.0 {
+        return;
+    }
+    enforce_compact_rail(tree, width);
+    enforce_vertical_bounds(tree, preset, height);
+}
+
+/// Whether a single pane tile (not its tab group) is currently visible.
+pub(super) fn pane_visible(tree: &Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
+    tree.tiles.find_pane(&tab).is_some_and(|id| tree.is_visible(id))
+}
+
 fn clamp_ratio(ratio: f32, available: f32, min: f32, max: f32) -> f32 {
     (ratio * available).clamp(min, max)
 }
@@ -253,31 +389,31 @@ pub(super) fn enforce_layout_bounds(
     if width <= 0.0 || height <= 0.0 {
         return;
     }
+    enforce_horizontal_bounds(tree, preset, width);
+    enforce_vertical_bounds(tree, preset, height);
+}
+
+/// Horizontal pass of [`enforce_layout_bounds`]: sidebar | preview (| detail).
+///
+/// Skipped in compact mode, where the sidebar is a fixed-width rail (see
+/// [`enforce_compact_rail`]) and the detail column is hidden.
+fn enforce_horizontal_bounds(tree: &mut Tree<WorkspaceTab>, preset: LayoutPreset, width: f32) {
     let regions = preset_regions(preset);
 
-    let (Some(sidebar), Some(preview), Some(inspector), Some(timeline)) = (
+    let (Some(sidebar), Some(preview), Some(inspector)) = (
         tree.tiles.find_pane(&WorkspaceTab::Sidebar),
         tree.tiles.find_pane(&WorkspaceTab::Preview),
         tree.tiles.find_pane(&WorkspaceTab::Inspector),
-        tree.tiles.find_pane(&WorkspaceTab::Timeline),
     ) else {
         return;
     };
     let Some(detail) = tree.tiles.parent_of(inspector) else {
         return;
     };
-    // The bottom region is a tab group; resize its container, not the pane, so
-    // the Timeline and Curves tabs share one allocation. A layout persisted
-    // before Curves has the Timeline directly under the root linear, so fall
-    // back to the pane itself (its old behavior) until a preset rebuilds it.
-    let Some(bottom_region) = bottom_region_child(tree, timeline) else {
-        return;
-    };
     let Some(top_row) = tree.tiles.parent_of(sidebar) else {
         return;
     };
 
-    // Horizontal: sidebar | preview (| detail).
     if tree.is_visible(sidebar) && tree.is_visible(preview) {
         let detail_visible = tree.is_visible(detail);
         let mut kids = vec![sidebar, preview];
@@ -316,8 +452,29 @@ pub(super) fn enforce_layout_bounds(
             }
         }
     }
+}
 
-    // Vertical: top row above, bottom tab group (Timeline | Curves) below.
+/// Vertical pass of [`enforce_layout_bounds`]: top row above the bottom tab
+/// group (Timeline | Curves). Runs in every mode, including compact.
+fn enforce_vertical_bounds(tree: &mut Tree<WorkspaceTab>, preset: LayoutPreset, height: f32) {
+    let regions = preset_regions(preset);
+    let (Some(sidebar), Some(timeline)) = (
+        tree.tiles.find_pane(&WorkspaceTab::Sidebar),
+        tree.tiles.find_pane(&WorkspaceTab::Timeline),
+    ) else {
+        return;
+    };
+    // The bottom region is a tab group; resize its container, not the pane, so
+    // the Timeline and Curves tabs share one allocation. A layout persisted
+    // before Curves has the Timeline directly under the root linear, so fall
+    // back to the pane itself (its old behavior) until a preset rebuilds it.
+    let Some(bottom_region) = bottom_region_child(tree, timeline) else {
+        return;
+    };
+    let Some(top_row) = tree.tiles.parent_of(sidebar) else {
+        return;
+    };
+
     if tree.is_visible(bottom_region) {
         if let Some(root) = tree.root {
             let kids = vec![top_row, bottom_region];
@@ -414,6 +571,19 @@ fn activate_group_tab(
         return false;
     }
     set_group_visible(tree, probe, true);
+    tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
+}
+
+/// Select a tab inside the detail region *without* changing the region's
+/// visibility.
+///
+/// Used by the compact overlay drawer, which renders the active detail tab
+/// while the docked region stays hidden. The dock tile and the drawer read the
+/// same active tab, so switching in either place stays consistent.
+pub(super) fn set_active_detail_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
+    if !DETAIL_TABS.contains(&tab) || tree.tiles.find_pane(&tab).is_none() {
+        return false;
+    }
     tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
 }
 
@@ -759,5 +929,108 @@ mod tests {
         assert!(tree.tiles.find_pane(&WorkspaceTab::Timeline).is_some());
         assert!(tree.tiles.find_pane(&WorkspaceTab::Preview).is_some());
         assert!(tree.tiles.find_pane(&WorkspaceTab::Sidebar).is_some());
+    }
+
+    // ── Compact (narrow-window) downgrade ─────────────────────────────────
+
+    #[test]
+    fn compact_decision_uses_the_breakpoint() {
+        assert!(compact_for_width(COMPACT_BREAKPOINT - 1.0));
+        assert!(!compact_for_width(COMPACT_BREAKPOINT));
+        assert!(!compact_for_width(COMPACT_BREAKPOINT + 1.0));
+        // A degenerate (unmeasured) width must not flip into compact mode.
+        assert!(!compact_for_width(0.0));
+        assert!(!compact_for_width(-100.0));
+    }
+
+    #[test]
+    fn compact_entry_hides_detail_and_restores_on_exit() {
+        let mut tree = default_tree();
+        let mut restore = None;
+        assert!(detail_visible(&tree), "detail starts docked");
+        assert!(pane_visible(&tree, WorkspaceTab::Sidebar));
+
+        let entered = reconcile_compact(&mut tree, false, true, &mut restore);
+        assert_eq!(entered, CompactTransition::Entered);
+        assert!(!detail_visible(&tree), "detail dock hidden while compact");
+        assert!(pane_visible(&tree, WorkspaceTab::Sidebar), "rail stays visible");
+        assert!(restore.is_some(), "entry captures state to restore");
+        // The dock is hidden, but the tab is still selectable (drawer reads it).
+        assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
+
+        let exited = reconcile_compact(&mut tree, true, false, &mut restore);
+        assert_eq!(exited, CompactTransition::Exited);
+        assert!(detail_visible(&tree), "widening restores the detail dock");
+        assert!(restore.is_none(), "restore state is consumed");
+
+        // A no-op transition leaves the tree alone.
+        assert_eq!(
+            reconcile_compact(&mut tree, false, false, &mut restore),
+            CompactTransition::Unchanged
+        );
+    }
+
+    #[test]
+    fn compact_exit_restores_a_user_hidden_sidebar() {
+        // The user collapsed the sidebar (or was in Focus mode); compact mode
+        // must still show the rail, but widening must return to *their* state,
+        // not force panes back open.
+        let mut tree = default_tree();
+        set_pane_visible(&mut tree, WorkspaceTab::Sidebar, false);
+        let mut restore = None;
+
+        reconcile_compact(&mut tree, false, true, &mut restore);
+        assert!(pane_visible(&tree, WorkspaceTab::Sidebar), "rail is reachable while compact");
+
+        reconcile_compact(&mut tree, true, false, &mut restore);
+        assert!(!pane_visible(&tree, WorkspaceTab::Sidebar), "user's hidden sidebar is restored");
+    }
+
+    #[test]
+    fn apply_compact_entry_reshapes_a_rebuilt_tree() {
+        // A preset/reset while compact rebuilds the tree with the detail
+        // visible; the migration path reshapes it without a transition.
+        let mut tree = default_tree();
+        assert!(detail_visible(&tree));
+        apply_compact_entry(&mut tree);
+        assert!(!detail_visible(&tree));
+        assert!(pane_visible(&tree, WorkspaceTab::Sidebar));
+        // Idempotent.
+        apply_compact_entry(&mut tree);
+        assert!(!detail_visible(&tree));
+    }
+
+    #[test]
+    fn enforce_compact_rail_gives_the_sidebar_a_fixed_width() {
+        let mut tree = default_tree();
+        let width = 900.0;
+        enforce_compact_layout(&mut tree, LayoutPreset::Animate, width, 700.0);
+
+        let sidebar = tree.tiles.find_pane(&WorkspaceTab::Sidebar).unwrap();
+        let preview = tree.tiles.find_pane(&WorkspaceTab::Preview).unwrap();
+        let top_row = tree.tiles.parent_of(sidebar).unwrap();
+        let egui_tiles::Tile::Container(Container::Linear(linear)) =
+            tree.tiles.get(top_row).unwrap()
+        else {
+            panic!("expected a linear top row");
+        };
+        let px = linear.shares.split(&[sidebar, preview], width);
+        assert!(
+            (px[0] - crate::app::panels::COMPACT_RAIL_WIDTH).abs() < 0.01,
+            "sidebar is the icon rail width, got {}",
+            px[0]
+        );
+        assert!((px[1] - (width - crate::app::panels::COMPACT_RAIL_WIDTH)).abs() < 0.01);
+    }
+
+    #[test]
+    fn set_active_detail_tab_does_not_show_the_region() {
+        let mut tree = default_tree();
+        set_detail_visible(&mut tree, false);
+        assert!(set_active_detail_tab(&mut tree, WorkspaceTab::Code));
+        assert_eq!(active_detail_tab(&tree), Some(WorkspaceTab::Code));
+        assert!(!detail_visible(&tree), "selecting a tab must not unhide the dock");
+        // A pane outside the detail group is rejected.
+        assert!(!set_active_detail_tab(&mut tree, WorkspaceTab::Preview));
     }
 }

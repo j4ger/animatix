@@ -32,6 +32,30 @@ pub fn handle_show_timeline(ui_store: &mut UiStore) -> Vec<Effect> {
 }
 
 fn toggle_detail_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
+    // ── Compact mode: the detail region is an overlay drawer ──
+    // The dock stays hidden; toggling the currently-drawn tab closes the
+    // drawer, any other tab switches the drawer's tab. The active tab lives on
+    // the dock tree, so this preserves the user's choice across a resize.
+    if ui_store.view.compact {
+        let drawer_open =
+            ui_store.view.compact_drawer == Some(crate::app::panels::CompactDrawer::Detail);
+        let active = crate::app::persistence::active_detail_tab(&ui_store.view.tree);
+        if drawer_open && active == Some(tab) {
+            ui_store.view.compact_drawer = None;
+            return;
+        }
+        let selected = crate::app::persistence::set_active_detail_tab(&mut ui_store.view.tree, tab);
+        if !selected {
+            // Layout predates the detail region; rebuild and retry once.
+            ui_store.view.tree = crate::app::persistence::default_tree();
+            crate::app::persistence::set_active_detail_tab(&mut ui_store.view.tree, tab);
+        }
+        // Keep the dock hidden — the drawer is the only detail surface.
+        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+        ui_store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
+        return;
+    }
+
     // Visibility is read from the tree so it cannot drift from the docked
     // state (the tree is what a user drag can mutate between frames).
     let already_active = crate::app::persistence::detail_visible(&ui_store.view.tree)
@@ -71,6 +95,9 @@ fn show_bottom_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
         let (w, h) = ui_store.view.layout_size;
         ui_store.view.tree =
             crate::app::persistence::build_tree_for(ui_store.view.layout_preset, w, h);
+        if ui_store.view.compact {
+            crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+        }
         crate::app::persistence::activate_bottom_tab(&mut ui_store.view.tree, tab);
     }
 }
@@ -84,6 +111,15 @@ pub fn handle_apply_layout(
     if !crate::app::persistence::apply_layout_preset(&mut ui_store.view.tree, preset, w, h) {
         ui_store.view.tree = crate::app::persistence::build_tree_for(preset, w, h);
     }
+    // Re-shape for compact: the preset must not un-hide the detail dock, which
+    // renders as an overlay drawer in that mode. Refresh the captured restore
+    // state first so widening later reflects *this* preset's intent, not the
+    // layout that was on screen when compact mode began.
+    if ui_store.view.compact {
+        ui_store.view.compact_restore =
+            Some(crate::app::persistence::capture_compact_restore(&ui_store.view.tree));
+        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+    }
     ui_store.view.layout_preset = preset;
     vec![]
 }
@@ -93,6 +129,13 @@ pub fn handle_reset_layout(ui_store: &mut UiStore) -> Vec<Effect> {
     let (w, h) = ui_store.view.layout_size;
     ui_store.view.tree =
         crate::app::persistence::build_tree_for(crate::app::LayoutPreset::Animate, w, h);
+    if ui_store.view.compact {
+        // Refresh the restore target to the fresh Animate layout (see
+        // `handle_apply_layout`).
+        ui_store.view.compact_restore =
+            Some(crate::app::persistence::capture_compact_restore(&ui_store.view.tree));
+        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+    }
     ui_store.view.layout_preset = crate::app::LayoutPreset::Animate;
     vec![]
 }
@@ -388,6 +431,67 @@ mod tests {
         assert_eq!(
             crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
             Some(WorkspaceTab::Curves)
+        );
+    }
+
+    #[test]
+    fn compact_inspector_toggle_opens_and_closes_the_drawer_without_docking() {
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        ui_store.set_compact(true);
+        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+
+        // First toggle opens the drawer without showing the docked column.
+        let _ = handle_show_inspector(&mut ui_store);
+        assert_eq!(ui_store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
+        assert!(
+            !crate::app::persistence::detail_visible(&ui_store.view.tree),
+            "compact mode never docks the detail region"
+        );
+
+        // Switching the drawer tab keeps it open.
+        let _ = handle_show_code(&mut ui_store);
+        assert_eq!(ui_store.view.compact_drawer, Some(crate::app::panels::CompactDrawer::Detail));
+        assert_eq!(
+            crate::app::persistence::active_detail_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Code)
+        );
+
+        // Toggling the drawn tab again closes the drawer.
+        let _ = handle_show_code(&mut ui_store);
+        assert!(ui_store.view.compact_drawer.is_none());
+    }
+
+    #[test]
+    fn compact_layout_preset_does_not_unhide_the_detail_dock() {
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        ui_store.set_compact(true);
+        crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
+
+        let _ = handle_apply_layout(&mut ui_store, crate::app::LayoutPreset::Code);
+
+        assert!(
+            !crate::app::persistence::detail_visible(&ui_store.view.tree),
+            "a preset must not re-dock the detail region while compact"
+        );
+        assert_eq!(
+            crate::app::persistence::active_detail_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Code),
+            "the preset still selects the detail tab for the drawer"
+        );
+
+        // Widening restores what this preset asked for (Code docks the detail).
+        let mut restore = ui_store.view.compact_restore.take();
+        crate::app::persistence::reconcile_compact(
+            &mut ui_store.view.tree,
+            true,
+            false,
+            &mut restore,
+        );
+        assert!(
+            crate::app::persistence::detail_visible(&ui_store.view.tree),
+            "widening after a preset restores that preset's docked layout"
         );
     }
 }

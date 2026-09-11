@@ -942,10 +942,15 @@ rebuilds from `build_tree_for` — that is the migration path.
 6. Presets are applied in place (proportions + active tab) and are not
    destructive; `Reset layout` is the only action that rebuilds the tree.
 7. `egui_tiles::Tree` remains the docking engine.
-
-**Not yet implemented:** the narrow-window downgrade modes (collapsing the
-sidebar to an icon rail and demoting the right column to an overlay drawer below
-their breakpoints); today the pixel floors are the only degradation.
+8. Below a 1000px window width the workspace downgrades to the compact layout:
+   the sidebar becomes a 48px icon rail (clicking an icon opens the sidebar
+   content as a left overlay drawer) and the detail column is hidden from the
+   dock, rendering instead as a right overlay drawer (Inspector/Code, switched
+   from the drawer's own tabs or the toolbar toggles). Widening past the
+   breakpoint restores the pane visibility captured when compact mode engaged,
+   so a user-closed detail column or the Focus preset survives a resize
+   round-trip. The bottom band is unaffected at any width (its vertical bounds
+   pass still runs).
 
 ---
 
@@ -1122,6 +1127,8 @@ Layout (2026-09-11, verified from workspace screenshots):
 | Sidebar | Merged 6 → 3 labeled tabs: Project (Files/Assets), Outline (Layers/Scenes), Library (Components) |
 | Editor home | Promoted out of the sidebar into the detail region; the dead sidebar Editor tab/renderer removed |
 | pill_tab_bar | Degrades label-first (icon+label → label → icon) and adds hover tooltips, so merged tabs stay legible at the 200px floor |
+| Library drag-to-place | Drag a Library component or an Asset (image/SVG) row onto the canvas to create the actor at the drop point; the payload is shared via egui context data and the preview panel owns the scene transform. Double-click still instantiates at scene centre |
+| Compact layout | Below 1000px: sidebar → 48px icon rail (opens the content as a left overlay drawer); detail column → right overlay drawer (Inspector/Code). Widening restores the captured pane visibility |
 
 Remaining, in order:
 
@@ -1133,10 +1140,9 @@ Remaining, in order:
 2. **Phase 2 — core loops.** Layer outliner editing; add scene / create a
    `play` edge from the UI; interactive Curves tab; editor find/replace
    options.
-3. **Phase 3 — information architecture (partly done).** Sidebar merge,
-   detail tab group, editor placement and presets have shipped; still open are
-   drag-to-place from the Library and the narrow-window downgrade modes (icon
-   rail / overlay drawer).
+3. **Phase 3 — information architecture (done).** Sidebar merge, detail tab
+   group, editor placement, presets, Library drag-to-place and the
+   narrow-window downgrade modes (icon rail / overlay drawer) have shipped.
 4. **Phase 4 — platform conventions.** App menu (New/Open/Recent/Save As),
    autosave + recovery, command palette superset, export/settings polish;
    diagnostics as a status-bar peek instead of a stacked bottom panel.

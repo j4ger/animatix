@@ -18,6 +18,7 @@ use crate::app::components::{anim, layout, row, text_tooltip};
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::SidebarTab;
+use crate::app::panels::{CompactDrawer, SIDEBAR_TABS};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 
@@ -49,6 +50,11 @@ pub(crate) struct SidebarContext<'a> {
     pub components: &'a HashMap<String, animatix_syntax::module::ComponentEntry>,
     pub asset_cache: Option<&'a animatix::timeline::assets::AssetCache>,
     pub scene_dimensions: SceneDimensions,
+    /// True when the window is narrow enough to render the compact icon rail
+    /// instead of the tab bar + content.
+    pub compact: bool,
+    /// Compact-mode overlay drawer slot; a rail click opens the sidebar drawer.
+    pub compact_drawer: &'a mut Option<CompactDrawer>,
 }
 
 // ─── Per-tab focused contexts ─────────────────────────────────────────────
@@ -94,6 +100,13 @@ pub(crate) struct AssetsContext<'a> {
 pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     super::panel_frame().show(ui, |ui| {
+        // Compact mode: a narrow icon rail replaces the tab bar + content. The
+        // full content lives in the overlay drawer (opened from the rail).
+        if ctx.compact {
+            sidebar_rail_ui(ctx, ui);
+            return;
+        }
+
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
 
@@ -122,92 +135,130 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             egui::Layout::top_down(egui::Align::Min),
             |ui| {
                 ui.add_space(offset);
-                match active_tab {
-                    SidebarTab::Project => {
-                        let section = section_switcher(
-                            ui,
-                            ui.id().with("sidebar_project_section"),
-                            &[
-                                (ProjectSection::Files, egui_phosphor::regular::FOLDER, "Files"),
-                                (ProjectSection::Assets, egui_phosphor::regular::IMAGES, "Assets"),
-                            ],
-                            ProjectSection::Files,
-                        );
-                        ui.add_space(sp.base.space_2);
-                        match section {
-                            ProjectSection::Files => {
-                                let mut ectx = ExplorerContext {
-                                    current_file: ctx.current_file,
-                                    expanded_dirs: ctx.expanded_dirs,
-                                    file_tree: ctx.file_tree,
-                                    commands: ctx.commands,
-                                };
-                                explorer_content_ui(&mut ectx, ui);
-                            },
-                            ProjectSection::Assets => {
-                                let mut actx = AssetsContext {
-                                    asset_cache: ctx.asset_cache,
-                                    commands: ctx.commands,
-                                    scene_dimensions: ctx.scene_dimensions,
-                                };
-                                assets_content_ui(&mut actx, ui);
-                            },
-                        }
-                    },
-                    SidebarTab::Outline => {
-                        let section = section_switcher(
-                            ui,
-                            ui.id().with("sidebar_outline_section"),
-                            &[
-                                (OutlineSection::Layers, egui_phosphor::regular::STACK, "Layers"),
-                                (
-                                    OutlineSection::Scenes,
-                                    egui_phosphor::regular::FILM_STRIP,
-                                    "Scenes",
-                                ),
-                            ],
-                            OutlineSection::Layers,
-                        );
-                        ui.add_space(sp.base.space_2);
-                        match section {
-                            OutlineSection::Layers => {
-                                let mut lctx = LayersContext {
-                                    timeline: ctx.timeline,
-                                    active_scene: ctx.active_scene,
-                                    selected_actors: ctx.selected_actors,
-                                    collapsed_actors: ctx.collapsed_actors,
-                                    commands: ctx.commands,
-                                    preview: ctx.preview,
-                                    scene_dimensions: ctx.scene_dimensions,
-                                    is_composition: ctx.is_composition,
-                                };
-                                layers_content_ui(&mut lctx, ui);
-                            },
-                            OutlineSection::Scenes => {
-                                let mut sctx = ScenesContext {
-                                    composition: ctx.composition,
-                                    active_scene: ctx.active_scene,
-                                    commands: ctx.commands,
-                                };
-                                scenes_content_ui(&mut sctx, ui);
-                            },
-                        }
-                    },
-                    SidebarTab::Library => {
-                        let mut cctx = ComponentsContext {
-                            components: ctx.components,
-                            commands: ctx.commands,
-                            scene_dimensions: ctx.scene_dimensions,
-                            source_text: ctx.editor.text(),
-                        };
-                        components_content_ui(&mut cctx, ui);
-                    },
-                }
+                sidebar_tab_content_ui(ctx, ui, active_tab);
             },
         );
 
         *ctx.sidebar_tab = active_tab;
     });
+}
+
+/// Narrow vertical icon rail shown in compact mode.
+///
+/// Clicking an icon selects that view and opens the sidebar overlay drawer, so
+/// every top-level view stays reachable without the tab bar.
+fn sidebar_rail_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
+    let rail_width = super::COMPACT_RAIL_WIDTH;
+    ui.allocate_ui_with_layout(
+        egui::Vec2::new(rail_width, ui.available_height()),
+        egui::Layout::top_down(egui::Align::Center),
+        |ui| {
+            ui.add_space(sp.base.space_3);
+            for (tab, icon, label) in SIDEBAR_TABS {
+                // The dot tracks both the selected view and whether its drawer
+                // is actually open, so the rail reflects what is on screen.
+                let active =
+                    *ctx.sidebar_tab == tab && *ctx.compact_drawer == Some(CompactDrawer::Sidebar);
+                let resp = ui.add(Button::icon(icon).active(active));
+                text_tooltip(ui, resp.id.with(("compact_rail", label)), &resp, label);
+                if resp.clicked() {
+                    *ctx.sidebar_tab = tab;
+                    *ctx.compact_drawer = Some(CompactDrawer::Sidebar);
+                }
+                ui.add_space(sp.base.space_2);
+            }
+        },
+    );
+}
+
+/// Render only the active tab's content (no tab bar).
+///
+/// Shared by the docked sidebar and the compact overlay drawer, so both render
+/// identical content and dispatch identical commands.
+pub(crate) fn sidebar_tab_content_ui(
+    ctx: &mut SidebarContext<'_>,
+    ui: &mut egui::Ui,
+    active_tab: SidebarTab,
+) {
+    let sp = crate::app::design_tokens::spatial::spatial(ui);
+    match active_tab {
+        SidebarTab::Project => {
+            let section = section_switcher(
+                ui,
+                ui.id().with("sidebar_project_section"),
+                &[
+                    (ProjectSection::Files, egui_phosphor::regular::FOLDER, "Files"),
+                    (ProjectSection::Assets, egui_phosphor::regular::IMAGES, "Assets"),
+                ],
+                ProjectSection::Files,
+            );
+            ui.add_space(sp.base.space_2);
+            match section {
+                ProjectSection::Files => {
+                    let mut ectx = ExplorerContext {
+                        current_file: ctx.current_file,
+                        expanded_dirs: ctx.expanded_dirs,
+                        file_tree: ctx.file_tree,
+                        commands: ctx.commands,
+                    };
+                    explorer_content_ui(&mut ectx, ui);
+                },
+                ProjectSection::Assets => {
+                    let mut actx = AssetsContext {
+                        asset_cache: ctx.asset_cache,
+                        commands: ctx.commands,
+                        scene_dimensions: ctx.scene_dimensions,
+                    };
+                    assets_content_ui(&mut actx, ui);
+                },
+            }
+        },
+        SidebarTab::Outline => {
+            let section = section_switcher(
+                ui,
+                ui.id().with("sidebar_outline_section"),
+                &[
+                    (OutlineSection::Layers, egui_phosphor::regular::STACK, "Layers"),
+                    (OutlineSection::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),
+                ],
+                OutlineSection::Layers,
+            );
+            ui.add_space(sp.base.space_2);
+            match section {
+                OutlineSection::Layers => {
+                    let mut lctx = LayersContext {
+                        timeline: ctx.timeline,
+                        active_scene: ctx.active_scene,
+                        selected_actors: ctx.selected_actors,
+                        collapsed_actors: ctx.collapsed_actors,
+                        commands: ctx.commands,
+                        preview: ctx.preview,
+                        scene_dimensions: ctx.scene_dimensions,
+                        is_composition: ctx.is_composition,
+                    };
+                    layers_content_ui(&mut lctx, ui);
+                },
+                OutlineSection::Scenes => {
+                    let mut sctx = ScenesContext {
+                        composition: ctx.composition,
+                        active_scene: ctx.active_scene,
+                        commands: ctx.commands,
+                    };
+                    scenes_content_ui(&mut sctx, ui);
+                },
+            }
+        },
+        SidebarTab::Library => {
+            let mut cctx = ComponentsContext {
+                components: ctx.components,
+                commands: ctx.commands,
+                scene_dimensions: ctx.scene_dimensions,
+                source_text: ctx.editor.text(),
+            };
+            components_content_ui(&mut cctx, ui);
+        },
+    }
 }
 
 /// Sub-view within the merged Project tab.
@@ -244,12 +295,7 @@ fn section_switcher<T: PartialEq + Copy + Send + Sync + 'static>(
 }
 
 fn render_sidebar_tab_bar(ui: &mut egui::Ui, active_tab: &mut SidebarTab) {
-    let tabs = [
-        (SidebarTab::Project, egui_phosphor::regular::FOLDER, "Project"),
-        (SidebarTab::Outline, egui_phosphor::regular::STACK, "Outline"),
-        (SidebarTab::Library, egui_phosphor::regular::CUBE, "Library"),
-    ];
-    if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &tabs) {
+    if let Some(new_tab) = layout::pill_tab_bar(ui, *active_tab, &SIDEBAR_TABS) {
         *active_tab = new_tab;
     }
 }
@@ -1198,6 +1244,7 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
             let response = row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(t.text.secondary)
+                .sense(egui::Sense::click_and_drag())
                 .right(|ui| {
                     let jump_btn = ui.add(
                         egui::Button::new(
@@ -1243,6 +1290,18 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                         props: vec![],
                     }
                     .into(),
+                );
+            }
+
+            // Drag-to-place: hand the preview panel the actor to create at the
+            // drop point. The payload mirrors the double-click instantiate above.
+            if response.drag_started {
+                super::set_library_drag(
+                    ui.ctx(),
+                    super::LibraryDragPayload {
+                        ty: (*name).clone(),
+                        props: vec![],
+                    },
                 );
             }
 
@@ -1372,8 +1431,15 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                 let response = row::Row::new(filename)
                     .icon(Some(egui_phosphor::regular::IMAGE))
                     .label_color(t.text.secondary)
+                    .sense(egui::Sense::click_and_drag())
                     .show(ui, row_id);
 
+                let props = vec![animatix_syntax::ast::Property {
+                    name: "url".into(),
+                    value: animatix_syntax::ast::Expr::Str(path.clone()),
+                    value_span: None,
+                    trailing_comment: None,
+                }];
                 if response.response.double_clicked() {
                     let label = crate::app::utils::labels::unique_label(None, "image");
                     let pos = [
@@ -1385,14 +1451,20 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                             ty: "Image".into(),
                             label,
                             position: pos,
-                            props: vec![animatix_syntax::ast::Property {
-                                name: "url".into(),
-                                value: animatix_syntax::ast::Expr::Str(path.clone()),
-                                value_span: None,
-                                trailing_comment: None,
-                            }],
+                            props: props.clone(),
                         }
                         .into(),
+                    );
+                }
+
+                // Drag-to-place onto the canvas (see `components_content_ui`).
+                if response.drag_started {
+                    super::set_library_drag(
+                        ui.ctx(),
+                        super::LibraryDragPayload {
+                            ty: "Image".into(),
+                            props: props.clone(),
+                        },
                     );
                 }
             }
@@ -1408,8 +1480,15 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                 let response = row::Row::new(filename)
                     .icon(Some(egui_phosphor::regular::FILE_SVG))
                     .label_color(t.text.secondary)
+                    .sense(egui::Sense::click_and_drag())
                     .show(ui, row_id);
 
+                let props = vec![animatix_syntax::ast::Property {
+                    name: "url".into(),
+                    value: animatix_syntax::ast::Expr::Str(path.clone()),
+                    value_span: None,
+                    trailing_comment: None,
+                }];
                 if response.response.double_clicked() {
                     let label = crate::app::utils::labels::unique_label(None, "svg");
                     let pos = [
@@ -1421,14 +1500,20 @@ fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) {
                             ty: "Svg".into(),
                             label,
                             position: pos,
-                            props: vec![animatix_syntax::ast::Property {
-                                name: "url".into(),
-                                value: animatix_syntax::ast::Expr::Str(path.clone()),
-                                value_span: None,
-                                trailing_comment: None,
-                            }],
+                            props: props.clone(),
                         }
                         .into(),
+                    );
+                }
+
+                // Drag-to-place onto the canvas (see `components_content_ui`).
+                if response.drag_started {
+                    super::set_library_drag(
+                        ui.ctx(),
+                        super::LibraryDragPayload {
+                            ty: "Svg".into(),
+                            props: props.clone(),
+                        },
                     );
                 }
             }

@@ -425,12 +425,21 @@ impl GuiShell {
                         });
 
                         // Detail region: Inspector | Code share one tab group.
-                        let active_tab =
-                            if crate::app::persistence::detail_visible(&self.ui_store.view.tree) {
-                                crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
-                            } else {
-                                None
-                            };
+                        // In compact mode the dock is hidden and the tab renders
+                        // in the overlay drawer, so light the toggle while its
+                        // drawer is open.
+                        let compact_detail_drawer = self.ui_store.view.compact
+                            && self.ui_store.view.compact_drawer
+                                == Some(crate::app::panels::CompactDrawer::Detail);
+                        let active_tab = if compact_detail_drawer
+                            || (!self.ui_store.view.compact
+                                && crate::app::persistence::detail_visible(
+                                    &self.ui_store.view.tree,
+                                )) {
+                            crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
+                        } else {
+                            None
+                        };
 
                         let inspector_tip =
                             crate::app::interaction::keyboard::tooltip_with_shortcut(

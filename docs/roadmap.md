@@ -332,7 +332,7 @@ Remaining phases, in order:
 |---|---|---|
 | 1 | Tool switcher UI in the preview header, transport moved to a global bar, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
 | 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, editor find/replace options | Partly done — bottom Timeline/Curves tab group + interactive Curves editor shipped |
-| 3 | Remaining IA: drag-to-place from the Library, narrow-window downgrade modes (icon rail, overlay drawer), diagnostics as a status-bar peek | Partly done — sidebar merge, detail tabs, editor placement and presets shipped |
+| 3 | Remaining IA: drag-to-place from the Library, narrow-window downgrade modes (icon rail, overlay drawer), diagnostics as a status-bar peek | Done except diagnostics peek — Library drag-to-place and the compact icon rail / overlay drawers shipped; sidebar merge, detail tabs, editor placement and presets shipped earlier |
 | 4 | App menu (New/Open/Recent/Save As), autosave + crash recovery, command palette superset with fuzzy search, export/settings polish | Not started |
 
 ### Resolved Engine Bugs (gallery-era)

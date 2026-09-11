@@ -26,6 +26,10 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) pivot_offsets: &'a mut HashMap<String, [f32; 2]>,
     pub(crate) tool_mode: &'a mut preview::ToolMode,
     pub(crate) sidebar_tab: &'a mut crate::app::panels::SidebarTab,
+    /// True when the window is narrow enough for the compact sidebar icon rail.
+    pub(crate) compact: bool,
+    /// Compact-mode overlay drawer slot (opened by the sidebar rail).
+    pub(crate) compact_drawer: &'a mut Option<crate::app::panels::CompactDrawer>,
     pub(crate) property_view_mode: &'a mut crate::app::panels::inspector::PropertyViewMode,
     pub(crate) keyframe_view_mode: &'a mut crate::app::panels::inspector::KeyframeViewMode,
     pub(crate) keyframe_mode: bool,
@@ -64,6 +68,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     selected_actors: self.selected_actors,
                     collapsed_actors: self.collapsed_actors,
                     sidebar_tab: self.sidebar_tab,
+                    compact: self.compact,
+                    compact_drawer: self.compact_drawer,
                     editor: &mut self.document_store.source.editor,
                     components: &self.document_store.source.document.components,
                     asset_cache,
