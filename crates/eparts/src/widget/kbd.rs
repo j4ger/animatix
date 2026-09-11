@@ -10,7 +10,7 @@
 //! let text = format_shortcut(&shortcut, ui.ctx());
 //! ```
 
-use egui::{Context, CornerRadius, Rect, Response, Sense, Stroke, Widget};
+use egui::{Context, CornerRadius, Response, Sense, Stroke, Widget};
 
 use crate::tokens::spatial::RADIUS_S;
 use crate::tokens::theme::theme;
@@ -49,10 +49,11 @@ impl Widget for Kbd {
 
         let pad = s.space_1;
         let size = galley.size() + egui::vec2(pad * 2.0, pad * 2.0);
-        // `min_rect()` returns a `Rect` whose `min` field is the top-left corner.
-        let rect = Rect::from_min_size(ui.min_rect().min, size);
-
-        let response = ui.allocate_rect(rect, Sense::hover());
+        // Allocate from the layout cursor (`allocate_exact_size`) rather than
+        // anchoring at `ui.min_rect().min`, which is the top-left of everything
+        // already allocated in the Ui and would make the badge overlap prior
+        // content in a vertical layout. The returned `Response` keeps hover sense.
+        let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let painter = ui.painter_at(rect);
 
         let corner = CornerRadius::same(RADIUS_S as u8);
@@ -102,6 +103,35 @@ mod tests {
         // We verify by checking it does not panic and produces the expected string.
         let text = "Ctrl+S";
         assert_eq!(badge.text, text);
+    }
+
+    /// Regression: the badge used to be painted at `ui.min_rect().min`, which is
+    /// the top-left of *all* previously allocated content. In a vertical layout
+    /// that made it overlap the widget above it.
+    #[test]
+    fn kbd_allocates_below_prior_content() {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 120.0));
+        let mut prior_bottom = 0.0;
+        let mut kbd_rect = None;
+        let _ = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ui| {
+                let prior = ui.label("above");
+                prior_bottom = prior.rect.bottom();
+                kbd_rect = Some(ui.add(Kbd::new("Ctrl+S")).rect);
+            },
+        );
+        let kbd_rect = kbd_rect.expect("kbd response");
+        assert!(
+            kbd_rect.top() >= prior_bottom - 0.5,
+            "Kbd must be allocated below the prior widget (kbd.top={}, prior.bottom={})",
+            kbd_rect.top(),
+            prior_bottom
+        );
     }
 
     #[test]

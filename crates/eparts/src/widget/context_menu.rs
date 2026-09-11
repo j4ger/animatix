@@ -224,6 +224,26 @@ pub fn render_floating_menu(
 
 // ─── Internals ──────────────────────────────────────────────────────────────
 
+/// Resolve the color slot for a menu item.
+///
+/// Reads `theme.menu_item.*` for the normal / hover / disabled states and
+/// keeps the accent fill for a checked item (accent emphasis, `on_accent` text).
+fn menu_item_slot(t: &theme::Theme, enabled: bool, checked: bool, hovered: bool) -> theme::Slot {
+    if !enabled {
+        t.menu_item.disabled
+    } else if checked {
+        theme::Slot {
+            bg: t.accent.primary,
+            fg: t.text.on_accent,
+            border: Color32::TRANSPARENT,
+        }
+    } else if hovered {
+        t.menu_item.hover
+    } else {
+        t.menu_item.normal
+    }
+}
+
 fn menu_frame(t: &theme::Theme) -> egui::Frame {
     egui::Frame::new()
         .fill(t.surface.surface)
@@ -254,17 +274,9 @@ fn render_menu_item(
         },
     );
 
-    // ── Background ──
-    let bg = if !enabled {
-        Color32::TRANSPARENT
-    } else if checked {
-        t.accent.primary
-    } else if response.hovered() {
-        t.surface.hover
-    } else {
-        Color32::TRANSPARENT
-    };
-
+    // ── Background / foreground from `theme.menu_item.*` slots ──
+    let slot = menu_item_slot(t, enabled, checked, response.hovered());
+    let bg = slot.bg;
     if bg != Color32::TRANSPARENT {
         ui.painter().rect_filled(rect, RADIUS_S, bg);
     }
@@ -289,15 +301,7 @@ fn render_menu_item(
     // ── Icon column ──
     if layout.icon_col {
         if let Some(icon_str) = icon {
-            let icon_color = if enabled {
-                if checked || response.hovered() {
-                    t.text.primary
-                } else {
-                    t.text.secondary
-                }
-            } else {
-                t.text.disabled
-            };
+            let icon_color = slot.fg;
             ui.painter().text(
                 egui::pos2(cursor_x + menu_spatial::ICON_WIDTH / 2.0, baseline_y),
                 Align2::CENTER_CENTER,
@@ -310,13 +314,7 @@ fn render_menu_item(
     }
 
     // ── Label ──
-    let label_color = if !enabled {
-        t.text.disabled
-    } else if checked || response.hovered() {
-        t.text.primary
-    } else {
-        t.text.secondary
-    };
+    let label_color = slot.fg;
 
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
@@ -418,5 +416,27 @@ mod tests {
             MenuEntry::Separator => {},
             _ => panic!("expected Separator variant"),
         }
+    }
+
+    /// Menu item colors must come from the `theme.menu_item.*` slots (both
+    /// themes seed them; before this they were unread and roles were hand-picked).
+    #[test]
+    fn menu_item_slot_reads_theme_slots() {
+        let dark = theme::Theme::dark();
+        let light = theme::Theme::light();
+
+        for t in [&dark, &light] {
+            assert_eq!(menu_item_slot(t, true, false, false).bg, t.menu_item.normal.bg);
+            assert_eq!(menu_item_slot(t, true, false, true).bg, t.menu_item.hover.bg);
+            assert_eq!(menu_item_slot(t, false, false, false).fg, t.menu_item.disabled.fg);
+            // Checked keeps accent emphasis with on-accent text.
+            let checked = menu_item_slot(t, true, true, false);
+            assert_eq!(checked.bg, t.accent.primary);
+            assert_eq!(checked.fg, t.text.on_accent);
+        }
+
+        // Hover is visibly distinct from the normal fill in both themes.
+        assert_ne!(dark.menu_item.hover.bg, dark.menu_item.normal.bg);
+        assert_ne!(light.menu_item.hover.bg, light.menu_item.normal.bg);
     }
 }

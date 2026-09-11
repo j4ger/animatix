@@ -74,6 +74,11 @@ impl<'a> List<'a> {
     }
 
     /// Render the list.
+    ///
+    /// The body is wrapped in a vertical [`egui::ScrollArea`] and only rows
+    /// intersecting the scroll viewport are painted / interacted with
+    /// (virtualized). The full-height space is still allocated inside the
+    /// scroll area so the scrollbar range reflects every item.
     pub fn show(self, ui: &mut egui::Ui, id_source: impl std::hash::Hash) -> ListResponse {
         let list_id = Id::new(id_source);
         let num_items = self.items.len();
@@ -99,175 +104,202 @@ impl<'a> List<'a> {
             ui.ctx().data(|d| d.get_temp::<f64>(list_id.with("ta_time"))).unwrap_or(0.0);
         let now = ui.input(|i| i.time);
 
-        // ── Allocate & read focus ───────────────────────────────────
-        // The outer response owns keyboard focus. Allocate it *before* reading
-        // events so keyboard handling can be gated on focus. The rect is
-        // interacted with under `list_id` (not an auto id) so focus, the focus
-        // lock filter, and `has_focus` all refer to the same stable id.
-        let total_height = num_items as f32 * row_h;
-        let (_, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_height));
-        let outer_resp = ui.interact(outer_rect, list_id, Sense::click());
+        // Scroll region honours the caller's available height, shrinking to the
+        // content when everything fits.
+        let scroll_height = ui.available_height();
 
-        let mut has_focus = outer_resp.has_focus();
-        if outer_resp.clicked() {
-            ui.memory_mut(|m| m.request_focus(list_id));
-            has_focus = true;
-        }
-        if has_focus {
-            // While the list is focused, arrow keys navigate it — they must not
-            // also move focus to a sibling widget via egui's focus traversal.
-            ui.memory_mut(|m| {
-                m.set_focus_lock_filter(
-                    list_id,
-                    egui::EventFilter {
-                        horizontal_arrows: true,
-                        vertical_arrows: true,
-                        tab: false,
-                        escape: false,
-                    },
-                );
-            });
-        }
+        let output = egui::ScrollArea::vertical()
+            .id_salt(list_id.with("__scroll"))
+            .auto_shrink([false, true])
+            .max_height(scroll_height)
+            .show_viewport(ui, |ui, viewport| {
+                // ── Allocate the full content rect ──────────────────
+                // Keep the full-height allocation *inside* the scroll area so the
+                // scrollbar range covers every row, even though only the visible
+                // window is painted below.
+                let total_height = num_items as f32 * row_h;
+                let (_, outer_rect) =
+                    ui.allocate_space(egui::vec2(ui.available_width(), total_height));
+                let outer_resp = ui.interact(outer_rect, list_id, Sense::click());
 
-        // ── Keyboard events (focused only, consumed) ────────────────
-        let mut action: Option<ListAction> = None;
+                let mut has_focus = outer_resp.has_focus();
+                if outer_resp.clicked() {
+                    ui.memory_mut(|m| m.request_focus(list_id));
+                    has_focus = true;
+                }
+                if has_focus {
+                    // While the list is focused, arrow keys navigate it — they must
+                    // not also move focus to a sibling via egui's focus traversal.
+                    ui.memory_mut(|m| {
+                        m.set_focus_lock_filter(
+                            list_id,
+                            egui::EventFilter {
+                                horizontal_arrows: true,
+                                vertical_arrows: true,
+                                tab: false,
+                                escape: false,
+                            },
+                        );
+                    });
+                }
 
-        if has_focus {
-            ui.input_mut(|i| {
-                i.events.retain(|ev| match ev {
-                    egui::Event::Key {
-                        key: egui::Key::ArrowDown,
-                        pressed: true,
-                        ..
-                    } if num_items > 0 => {
-                        sel_idx = Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
-                        false
-                    },
-                    egui::Event::Key {
-                        key: egui::Key::ArrowUp,
-                        pressed: true,
-                        ..
-                    } if num_items > 0 => {
-                        sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
-                        false
-                    },
-                    egui::Event::Key {
-                        key: egui::Key::Home,
-                        pressed: true,
-                        ..
-                    } if num_items > 0 => {
-                        sel_idx = Some(0);
-                        false
-                    },
-                    egui::Event::Key {
-                        key: egui::Key::End,
-                        pressed: true,
-                        ..
-                    } if num_items > 0 => {
-                        sel_idx = Some(num_items - 1);
-                        false
-                    },
-                    egui::Event::Key {
-                        key: egui::Key::Enter,
-                        pressed: true,
-                        ..
-                    } => {
-                        if let Some(idx) = sel_idx {
-                            action = Some(ListAction::Confirmed(idx));
-                        }
-                        false
-                    },
-                    egui::Event::Text(text) => {
-                        if now - ta_time > timeout_secs {
-                            ta_buffer.clear();
-                        }
-                        let ch = text.trim();
-                        if !ch.is_empty() && !text.contains(|c: char| c.is_control()) {
-                            ta_buffer.push_str(ch);
-                            ta_buffer.truncate(64);
-                            ta_time = now;
-                            if !ta_buffer.is_empty() && num_items > 0 {
-                                let prefix = ta_buffer.to_lowercase();
-                                let start = sel_idx.map(|i| i + 1).unwrap_or(0);
-                                let found = self.items[start..num_items]
-                                    .iter()
-                                    .enumerate()
-                                    .find(|(_, s)| s.to_lowercase().starts_with(&prefix))
-                                    .map(|(i, _)| start + i);
-                                let found = found.or_else(|| {
-                                    self.items[0..start.min(num_items)]
-                                        .iter()
-                                        .enumerate()
-                                        .find(|(_, s)| s.to_lowercase().starts_with(&prefix))
-                                        .map(|(i, _)| i)
-                                });
-                                sel_idx = found;
+                // ── Keyboard events (focused only, consumed) ────────
+                let mut action: Option<ListAction> = None;
+                let mut nav_moved = false;
+
+                if has_focus {
+                    ui.input_mut(|i| {
+                        i.events.retain(|ev| match ev {
+                            egui::Event::Key {
+                                key: egui::Key::ArrowDown,
+                                pressed: true,
+                                ..
+                            } if num_items > 0 => {
+                                sel_idx =
+                                    Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
+                                nav_moved = true;
+                                false
+                            },
+                            egui::Event::Key {
+                                key: egui::Key::ArrowUp,
+                                pressed: true,
+                                ..
+                            } if num_items > 0 => {
+                                sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
+                                nav_moved = true;
+                                false
+                            },
+                            egui::Event::Key {
+                                key: egui::Key::Home,
+                                pressed: true,
+                                ..
+                            } if num_items > 0 => {
+                                sel_idx = Some(0);
+                                nav_moved = true;
+                                false
+                            },
+                            egui::Event::Key {
+                                key: egui::Key::End,
+                                pressed: true,
+                                ..
+                            } if num_items > 0 => {
+                                sel_idx = Some(num_items - 1);
+                                nav_moved = true;
+                                false
+                            },
+                            egui::Event::Key {
+                                key: egui::Key::Enter,
+                                pressed: true,
+                                ..
+                            } => {
+                                if let Some(idx) = sel_idx {
+                                    action = Some(ListAction::Confirmed(idx));
+                                }
+                                false
+                            },
+                            egui::Event::Text(text) => {
+                                if now - ta_time > timeout_secs {
+                                    ta_buffer.clear();
+                                }
+                                let ch = text.trim();
+                                if !ch.is_empty() && !text.contains(|c: char| c.is_control()) {
+                                    ta_buffer.push_str(ch);
+                                    ta_buffer.truncate(64);
+                                    ta_time = now;
+                                    if !ta_buffer.is_empty() && num_items > 0 {
+                                        let prefix = ta_buffer.to_lowercase();
+                                        let start = sel_idx.map(|i| i + 1).unwrap_or(0);
+                                        let found = self.items[start..num_items]
+                                            .iter()
+                                            .enumerate()
+                                            .find(|(_, s)| s.to_lowercase().starts_with(&prefix))
+                                            .map(|(i, _)| start + i);
+                                        let found = found.or_else(|| {
+                                            self.items[0..start.min(num_items)]
+                                                .iter()
+                                                .enumerate()
+                                                .find(|(_, s)| {
+                                                    s.to_lowercase().starts_with(&prefix)
+                                                })
+                                                .map(|(i, _)| i)
+                                        });
+                                        sel_idx = found;
+                                        nav_moved = true;
+                                    }
+                                }
+                                false
+                            },
+                            _ => true,
+                        });
+                    });
+                }
+
+                // ── Click selection ─────────────────────────────────
+                if outer_resp.clicked() {
+                    if let Some(clicked_idx) =
+                        row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h)
+                    {
+                        if clicked_idx < num_items {
+                            sel_idx = Some(clicked_idx);
+                            if action.is_none() {
+                                action = Some(ListAction::Clicked(clicked_idx));
                             }
                         }
-                        false
-                    },
-                    _ => true,
-                });
-            });
-        }
-
-        // ── Click selection ─────────────────────────────────────────
-        if outer_resp.clicked() {
-            if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h)
-            {
-                if clicked_idx < num_items {
-                    sel_idx = Some(clicked_idx);
-                    if action.is_none() {
-                        action = Some(ListAction::Clicked(clicked_idx));
                     }
                 }
-            }
-        }
 
-        if !ui.is_rect_visible(outer_rect) {
-            persist_list_state(ui.ctx(), list_id, sel_idx, &ta_buffer, ta_time);
-            return ListResponse {
-                action,
-                selected_index: sel_idx,
-            };
-        }
+                // ── Virtualized window ──────────────────────────────
+                // `viewport` is content-relative (min == ZERO at the top), which
+                // lines up 1:1 with row offsets from `outer_rect.min.y`.
+                let window = visible_row_range(viewport, row_h, num_items);
 
-        let painter = ui.painter_at(outer_rect);
+                if ui.is_rect_visible(outer_rect) {
+                    // Clip row painting to the intersection of the content rect and
+                    // the visible scroll viewport (the parent clip already does this,
+                    // but be explicit so painting can never escape the viewport).
+                    let clip = outer_rect.intersect(ui.clip_rect());
+                    let painter = ui.painter_at(clip);
 
-        for (idx, label) in self.items.iter().enumerate() {
-            let y = outer_rect.min.y + idx as f32 * row_h;
-            let row_rect = egui::Rect::from_min_max(
-                egui::pos2(outer_rect.min.x, y),
-                egui::pos2(outer_rect.max.x, y + row_h),
-            );
-            let is_selected = sel_idx == Some(idx);
-            let row_resp = ui.interact(row_rect, list_id.with(idx), Sense::click());
+                    for idx in window.clone() {
+                        let row_rect = row_rect_for(outer_rect, row_h, idx);
+                        let is_selected = sel_idx == Some(idx);
+                        let row_resp = ui.interact(row_rect, list_id.with(idx), Sense::click());
 
-            // Row widgets sit above the outer frame, so they win the hit test;
-            // route their clicks back to the list and claim focus for it.
-            if row_resp.clicked() {
-                sel_idx = Some(idx);
-                ui.memory_mut(|m| m.request_focus(list_id));
-                if action.is_none() {
-                    action = Some(ListAction::Clicked(idx));
+                        // Row widgets sit above the outer frame, so they win the hit
+                        // test; route their clicks back to the list and claim focus.
+                        if row_resp.clicked() {
+                            sel_idx = Some(idx);
+                            ui.memory_mut(|m| m.request_focus(list_id));
+                            nav_moved = true;
+                            if action.is_none() {
+                                action = Some(ListAction::Clicked(idx));
+                            }
+                        }
+
+                        let _ = Row::new(self.items[idx])
+                            .height(row_h)
+                            .zebra(idx % 2 == 0)
+                            .selected(is_selected)
+                            .show_in_rect(ui, row_rect, row_resp, list_id.with(idx), &painter);
+                    }
+
+                    // Keyboard navigation moved the selection: bring it into view.
+                    if nav_moved {
+                        if let Some(idx) = sel_idx {
+                            ui.scroll_to_rect(row_rect_for(outer_rect, row_h, idx), None);
+                        }
+                    }
                 }
-            }
 
-            let _ = Row::new(label).height(row_h).selected(is_selected).show_in_rect(
-                ui,
-                row_rect,
-                row_resp,
-                list_id.with(idx),
-                &painter,
-            );
-        }
+                persist_list_state(ui.ctx(), list_id, sel_idx, &ta_buffer, ta_time);
 
-        persist_list_state(ui.ctx(), list_id, sel_idx, &ta_buffer, ta_time);
+                ListResponse {
+                    action,
+                    selected_index: sel_idx,
+                }
+            });
 
-        ListResponse {
-            action,
-            selected_index: sel_idx,
-        }
+        output.inner
     }
 }
 
@@ -424,6 +456,33 @@ fn row_at(
         return None;
     }
     Some((rel_y / row_height).floor() as usize)
+}
+
+/// The screen rect of row `idx` within a full-content `outer_rect`.
+pub(crate) fn row_rect_for(outer_rect: egui::Rect, row_height: f32, idx: usize) -> egui::Rect {
+    let y = outer_rect.min.y + idx as f32 * row_height;
+    egui::Rect::from_min_max(
+        egui::pos2(outer_rect.min.x, y),
+        egui::pos2(outer_rect.max.x, y + row_height),
+    )
+}
+
+/// Row indices intersecting a scroll viewport.
+///
+/// `viewport` is content-relative (`viewport.min == ZERO` at the top of the
+/// content, per [`egui::ScrollArea::show_viewport`]). One row of overscan is
+/// added on each side so partially scrolled rows still paint.
+pub(crate) fn visible_row_range(
+    viewport: egui::Rect,
+    row_height: f32,
+    count: usize,
+) -> std::ops::Range<usize> {
+    if count == 0 || row_height <= 0.0 {
+        return 0..0;
+    }
+    let first = ((viewport.min.y / row_height).floor().max(0.0) as usize).min(count);
+    let last = (((viewport.max.y / row_height).ceil() as usize) + 1).min(count);
+    first..last.max(first)
 }
 
 fn persist_list_state(
@@ -836,6 +895,171 @@ mod tests {
         assert_eq!(r[1], (1, "Beta"));
         assert_eq!(r[2], (2, "Gamma"));
         assert_eq!(r[3], (3, "Delta"));
+    }
+
+    // ── Scrolling / virtualization ──────────────────────────────────
+
+    /// Screen smaller than the content: the list must scroll rather than
+    /// growing to the full content height.
+    #[test]
+    fn list_scrolls_instead_of_growing() {
+        let ctx = egui::Context::default();
+        let owned: Vec<String> = (0..50).map(|i| format!("Row {i}")).collect();
+        let items: Vec<&str> = owned.iter().map(String::as_str).collect();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 120.0));
+
+        let mut used_height = 0.0;
+        let _ = ctx.run_ui(
+            egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            },
+            |ui| {
+                let _ = List::new(&items).row_height(24.0).show(ui, "tall_list");
+                used_height = ui.min_rect().height();
+            },
+        );
+
+        // 50 rows × 24 px = 1200 px of content; the widget must stay ≈ viewport tall.
+        assert!(
+            used_height <= 160.0,
+            "scrolling list should be capped to the viewport, got {used_height}"
+        );
+    }
+
+    /// Clicking a row inside the viewport still routes the click to the right
+    /// index through the scroll area.
+    #[test]
+    fn list_click_selects_visible_row_under_scroll() {
+        let ctx = egui::Context::default();
+        let owned: Vec<String> = (0..50).map(|i| format!("Row {i}")).collect();
+        let items: Vec<&str> = owned.iter().map(String::as_str).collect();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 120.0));
+        let input = || egui::RawInput {
+            screen_rect: Some(screen),
+            ..Default::default()
+        };
+        let run = |input: egui::RawInput| -> Option<usize> {
+            let mut sel = None;
+            let _ = ctx.run_ui(input, |ui| {
+                sel = List::new(&items).row_height(24.0).show(ui, "scroll_click").selected_index;
+            });
+            sel
+        };
+
+        // Warm-up registers the scroll area + widget rects.
+        let _ = run(input());
+
+        // Second visible row (y ≈ 24..48) → index 1.
+        let pos = egui::pos2(20.0, 30.0);
+        let mut click = input();
+        click.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        });
+        click.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        assert_eq!(run(click), Some(1), "clicking the 2nd visible row selects index 1");
+    }
+
+    /// Keyboard navigation must scroll the newly selected row into view: after
+    /// `End`, a click near the bottom of the viewport lands on the last row.
+    #[test]
+    fn list_end_scrolls_selection_into_view() {
+        let ctx = egui::Context::default();
+        let owned: Vec<String> = (0..50).map(|i| format!("Row {i}")).collect();
+        let items: Vec<&str> = owned.iter().map(String::as_str).collect();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 120.0));
+        let list_id = Id::new("end_scroll");
+
+        let base = || egui::RawInput {
+            screen_rect: Some(screen),
+            ..Default::default()
+        };
+        let run = |input: egui::RawInput| -> Option<usize> {
+            let mut sel = None;
+            let _ = ctx.run_ui(input, |ui| {
+                sel = List::new(&items).row_height(24.0).show(ui, "end_scroll").selected_index;
+            });
+            sel
+        };
+
+        // Warm up, focus the list, then press End.
+        let _ = run(base());
+        ctx.memory_mut(|m| m.request_focus(list_id));
+        let mut input = base();
+        input.events.push(egui::Event::Key {
+            key: egui::Key::End,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        assert_eq!(run(input), Some(49), "End should select the last item");
+
+        // Let the scroll animation settle.
+        for _ in 0..60 {
+            let _ = run(base());
+        }
+
+        // Bottom-most visible row should now be the last item.
+        let pos = egui::pos2(20.0, 110.0);
+        let mut click = base();
+        click.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        });
+        click.events.push(egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        assert_eq!(run(click), Some(49), "after End the last row must be scrolled into view");
+    }
+
+    /// `visible_row_range` spans the viewport with one row of overscan each side.
+    #[test]
+    fn visible_row_range_basic() {
+        let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0));
+        let range = visible_row_range(viewport, 20.0, 50);
+        assert_eq!(range.start, 0);
+        // 100/20 = 5 rows visible + 1 overscan.
+        assert_eq!(range.end, 6);
+    }
+
+    #[test]
+    fn visible_row_range_scrolled_clamps_to_count() {
+        let viewport = egui::Rect::from_min_max(egui::pos2(0.0, 980.0), egui::pos2(100.0, 1080.0));
+        let range = visible_row_range(viewport, 20.0, 50);
+        assert_eq!(range.start, 49);
+        assert_eq!(range.end, 50, "range must not exceed the item count");
+    }
+
+    #[test]
+    fn visible_row_range_empty_or_zero_height() {
+        let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0));
+        assert_eq!(visible_row_range(viewport, 20.0, 0), 0..0);
+        assert_eq!(visible_row_range(viewport, 0.0, 10), 0..0);
+    }
+
+    #[test]
+    fn row_rect_for_offsets_by_row_height() {
+        let outer = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(100.0, 240.0));
+        let r0 = row_rect_for(outer, 24.0, 0);
+        let r2 = row_rect_for(outer, 24.0, 2);
+        assert_eq!(r0.min, egui::pos2(10.0, 20.0));
+        assert_eq!(r0.height(), 24.0);
+        assert_eq!(r2.min.y, 20.0 + 48.0);
+        assert_eq!(r2.width(), 100.0);
     }
 
     #[test]

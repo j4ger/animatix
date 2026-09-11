@@ -33,6 +33,11 @@ pub struct Row<'a> {
     #[allow(clippy::type_complexity)]
     pub right: Option<Box<dyn FnOnce(&mut egui::Ui) + 'a>>,
     pub sense: egui::Sense,
+    /// Zebra parity for the base row fill: `Some(true)` paints
+    /// `theme.list.even`, `Some(false)` paints `theme.list.odd`, and `None`
+    /// (default) leaves the background transparent. Containers that own row
+    /// parity (e.g. `List`, `Tree`) set this.
+    pub zebra: Option<bool>,
 }
 
 impl<'a> Row<'a> {
@@ -50,7 +55,17 @@ impl<'a> Row<'a> {
             label_color: None,
             right: None,
             sense: egui::Sense::click(),
+            zebra: None,
         }
+    }
+
+    /// Set the zebra parity of this row's base fill (`true` = even row).
+    ///
+    /// Colours come from `theme.list.even` / `theme.list.odd`. Default `None`
+    /// leaves the background transparent for standalone rows.
+    pub fn zebra(mut self, even: bool) -> Self {
+        self.zebra = Some(even);
+        self
     }
 
     pub fn sense(mut self, sense: egui::Sense) -> Self {
@@ -145,12 +160,18 @@ impl<'a> Row<'a> {
         let row_clicked = row_response.clicked();
         let hovered = row_response.hovered();
 
+        // Row fills come from the `theme.list.*` slots (previously these fields
+        // were seeded but unread; the widget hand-picked surface/accent roles).
+        // `ListSlots` has no dedicated secondary-selection slot, so that state
+        // keeps the accent role and the indicator stripe stays accent-driven.
         let bg = if self.is_selected {
-            t.surface.widget
+            t.list.selected.bg
         } else if self.secondary_selected {
             t.accent.faint
         } else if hovered {
-            t.surface.hover
+            t.list.hover.bg
+        } else if let Some(even) = self.zebra {
+            if even { t.list.even.bg } else { t.list.odd.bg }
         } else {
             Color32::TRANSPARENT
         };
@@ -382,5 +403,34 @@ mod tests {
     fn builder_sense() {
         let row = Row::new("test").sense(egui::Sense::drag());
         assert_eq!(row.sense, egui::Sense::drag());
+    }
+
+    #[test]
+    fn builder_zebra() {
+        let row = Row::new("test").zebra(true);
+        assert_eq!(row.zebra, Some(true));
+        let row = Row::new("test").zebra(false);
+        assert_eq!(row.zebra, Some(false));
+        // Default: no zebra fill.
+        assert_eq!(Row::new("test").zebra, None);
+    }
+
+    /// The row fill resolution must read the `theme.list.*` slots rather than
+    /// the previously hand-picked `surface`/`accent` roles.
+    #[test]
+    fn row_fill_uses_list_slots() {
+        use crate::tokens::theme::Theme;
+        let dark = Theme::dark();
+        let light = Theme::light();
+
+        // Dark: `list.selected` is the accent-selection alpha fill.
+        assert_eq!(dark.list.selected.bg, crate::tokens::semantic::accent::selection());
+        assert_ne!(dark.list.selected.bg, dark.surface.widget);
+        // Hover slot is the surface hover role in dark (seeded that way).
+        assert_eq!(dark.list.hover.bg, crate::tokens::semantic::surface::HOVER);
+        assert_ne!(dark.list.hover.bg, light.list.hover.bg);
+
+        // Light: rows still get distinct even/odd fills.
+        assert_ne!(light.list.even.bg, light.list.odd.bg);
     }
 }
