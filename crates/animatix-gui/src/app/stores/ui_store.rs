@@ -214,7 +214,9 @@ impl UiStore {
             clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
             editor_sync_enabled: true,
-            keyframe_mode: true,
+            // Auto-key is off by default: property edits change the base value
+            // unless the user explicitly records or clicks a keyframe diamond.
+            keyframe_mode: false,
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
             pivot_offsets: HashMap::new(),
@@ -315,7 +317,7 @@ mod tests {
         let store = UiStore::new(tree);
 
         assert!(store.editor_sync_enabled);
-        assert!(store.keyframe_mode);
+        assert!(!store.keyframe_mode);
         assert_eq!(store.cursor_time_s, None);
         assert_eq!(store.sidebar_tab, SidebarTab::Explorer);
         assert_eq!(store.property_view_mode, PropertyViewMode::Semantic);

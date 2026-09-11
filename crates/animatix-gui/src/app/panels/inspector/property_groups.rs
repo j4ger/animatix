@@ -14,7 +14,7 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::row;
-use crate::app::components::{Badge, ColorPicker};
+use crate::app::components::{Badge, ColorPicker, text_tooltip};
 use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,
@@ -601,7 +601,8 @@ pub(crate) fn render_property_row(
         egui::Sense::click(),
     );
 
-    // Draw diamond icon — dimmed when keyframe_mode is off and no keyframe exists
+    // Draw the keyframe diamond. It is always visible: it is the explicit
+    // "add/remove a key at the playhead" affordance, independent of auto-key.
     let kf_color = if entry.has_keyframe_at_current_time {
         theme.status.warning
     } else if entry.has_keyframes {
@@ -610,17 +611,10 @@ pub(crate) fn render_property_row(
         } else {
             theme.text.muted
         }
-    } else if !keyframe_mode {
-        // Show faint outline when keyframe mode is off
-        if kf_btn_resp.hovered() {
-            theme.text.disabled
-        } else {
-            Color32::TRANSPARENT
-        }
     } else if kf_btn_resp.hovered() {
         theme.text.secondary
     } else {
-        Color32::TRANSPARENT
+        theme.text.disabled
     };
     if kf_color != Color32::TRANSPARENT {
         let center = kf_btn_rect.center();
@@ -646,9 +640,29 @@ pub(crate) fn render_property_row(
             ));
         }
     }
-    // Click keyframe button to create a keyframe (when not already present)
-    if kf_btn_resp.clicked() && keyframe_mode && !entry.has_keyframe_at_current_time {
-        if let Some(value) = entry_to_gui_value(entry) {
+    let kf_tip = if entry.has_keyframe_at_current_time {
+        "Keyframe at the playhead — click to remove"
+    } else if keyframe_mode {
+        "Add a keyframe at the playhead (auto-key is on)"
+    } else {
+        "Add a keyframe at the playhead"
+    };
+    text_tooltip(ui, kf_btn_resp.id.with("kf_tip"), &kf_btn_resp, kf_tip);
+
+    // Click toggles a keyframe at the playhead. Explicit keying works whether
+    // or not auto-key is enabled, so creation is never unavailable.
+    if kf_btn_resp.clicked() {
+        if entry.has_keyframe_at_current_time {
+            commands.push_back(
+                KeyframeCommand::DeleteKeyframe {
+                    scene: active_scene.map(ToOwned::to_owned),
+                    actor: actor_label.to_string(),
+                    property: entry.name.to_string(),
+                    time_s: current_time_s,
+                }
+                .into(),
+            );
+        } else if let Some(value) = entry_to_gui_value(entry) {
             commands.push_back(
                 DocumentCommand::PropertyEdit(PropertyEdit {
                     time_s: None,
@@ -1419,8 +1433,9 @@ fn vec2_labels(name: &str) -> (&'static str, &'static str) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix_syntax::typing::Type;
+
+    use super::*;
 
     #[test]
     fn extension_value_to_kind_uses_manifest_types() {

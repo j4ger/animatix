@@ -274,6 +274,32 @@ impl GuiShell {
                             self.preview_store.preview.overlay.show_actor_labels = !labels;
                         }
 
+                        ui.separator();
+
+                        // Auto-key / record toggle. This is the single control
+                        // that decides whether property edits write keyframes at
+                        // the playhead, so it must always be visible.
+                        let recording = self.ui_store.keyframe_mode;
+                        let rec_btn = ui.add(
+                            Button::ghost("")
+                                .with_icon(egui_phosphor::regular::RECORD)
+                                .with_tooltip(if recording {
+                                    "Auto-key ON — property edits write keyframes at the playhead"
+                                } else {
+                                    "Auto-key OFF — edits change the base value; click a ◆ to key"
+                                })
+                                .active(recording)
+                                .icon_color(if recording {
+                                    t.status.error
+                                } else {
+                                    t.text.muted
+                                })
+                                .hover_icon_color(t.status.error),
+                        );
+                        if rec_btn.clicked() {
+                            self.ui_store.keyframe_mode = !recording;
+                        }
+
                         // Debug dropdown (grouped debug toggles)
                         ui.menu_button(
                             RichText::new("Debug")
