@@ -774,9 +774,20 @@ impl Timeline {
         let path = primitive.clip_path(&ctx);
         // Consume the memo-bounds handoff so it can't leak into the next node.
         let _ = child.take_shape_command_bounds();
-        let pos = child.geometry.position.last([0.0, 0.0]);
+        // Place the (origin-centered) clip geometry with the child's fully
+        // resolved local transform — anchor/offset/rotation/scale included, not
+        // just its raw position.
+        let node = self.evaluate_node_transform(
+            child,
+            time_ms,
+            1.0,
+            kurbo::Affine::IDENTITY,
+            scene_dimensions,
+            None,
+            overrides.get(&child.label),
+        );
         path.map(|mut path| {
-            path.apply_affine(kurbo::Affine::translate((pos[0] as f64, pos[1] as f64)));
+            path.apply_affine(node.local_transform);
             path
         })
     }
@@ -817,7 +828,6 @@ impl Timeline {
         let mut ctx = crate::primitives::RenderChildrenCtx {
             timeline: self,
             node_label,
-            children: &track.children,
             time_ms,
             global_transform,
             global_opacity,
@@ -833,13 +843,12 @@ impl Timeline {
             filter_backend,
         };
         if let Err(e) = primitive.render_children(&mut ctx, &children) {
-            let _ = e;
             let label = node_label.to_string();
             self.eval_caches.runtime_diagnostics.borrow_mut().push(
                 crate::diagnostics::Diagnostic::warning(
                     crate::diagnostics::DiagnosticCode::RenderFailure,
                     crate::diagnostics::DiagnosticPhase::Render,
-                    format!("failed to render children of '{label}'"),
+                    format!("failed to render children of '{label}': {e}"),
                 ),
             );
         }

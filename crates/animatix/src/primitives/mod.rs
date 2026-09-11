@@ -627,8 +627,6 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     pub timeline: &'a Timeline,
     /// Label of the container whose children are being rendered.
     pub node_label: &'a str,
-    /// The container's child labels, in scene order.
-    pub children: &'a [String],
     /// Current time in milliseconds.
     pub time_ms: u64,
     /// The container's world transform.
@@ -992,6 +990,23 @@ pub struct EquationFragment {
     pub highlight_blend: vello::peniko::Mix,
 }
 
+/// Concatenate every vector path emitted by `commands` into one clip geometry.
+///
+/// All `Paths` commands and all subpaths contribute: a multi-path shape (e.g. an
+/// `Svg` with several path elements, or a plot emitting multiple curves) must
+/// not silently lose geometry when used as a `clip_shape`.
+pub(crate) fn clip_bezpath_from_commands(commands: &[RenderCommand]) -> Option<kurbo::BezPath> {
+    let mut path = kurbo::BezPath::new();
+    for command in commands {
+        if let RenderCommand::Paths { paths } = command {
+            for vello_path in paths {
+                path.extend(vello_path.path.iter());
+            }
+        }
+    }
+    (!path.elements().is_empty()).then_some(path)
+}
+
 /// Every actor type in Animatix implements this trait.
 ///
 /// Metadata, build logic, and (optionally) render logic live in one place.
@@ -1110,10 +1125,7 @@ pub trait Primitive: Send + Sync {
     /// child transform and the mask transform.
     fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
         let commands = self.evaluate(ctx, None).ok()??;
-        let path = commands.iter().find_map(|command| match command {
-            RenderCommand::Paths { paths } => paths.first().map(|p| (*p.path).clone()),
-            _ => None,
-        });
+        let path = clip_bezpath_from_commands(&commands);
         // Return the memo payload for reuse (shape primitives take/recycle it).
         ctx.track.recycle_shape_commands(commands);
         path
@@ -1498,6 +1510,38 @@ mod tests {
             assert_eq!(meta.icon_id, prim.icon_id());
             assert_eq!(meta.advanced, prim.is_advanced());
         }
+    }
+
+    #[test]
+    fn clip_bezpath_concatenates_every_path_and_command() {
+        use kurbo::Shape;
+        // A multi-path shape must contribute all its geometry to the clip; the
+        // earlier default dropped everything but the first path.
+        let rect_path = |x: f64| VelloPath {
+            path: std::sync::Arc::new(kurbo::Rect::new(x, 0.0, x + 10.0, 10.0).into_path(1e-3)),
+            ..VelloPath::default()
+        };
+        let one = clip_bezpath_from_commands(&[RenderCommand::Paths {
+            paths: vec![rect_path(0.0)],
+        }])
+        .expect("one path");
+        let two_commands = clip_bezpath_from_commands(&[
+            RenderCommand::Paths {
+                paths: vec![rect_path(0.0)],
+            },
+            RenderCommand::Paths {
+                paths: vec![rect_path(20.0)],
+            },
+        ])
+        .expect("two commands");
+        let two_paths_one_command = clip_bezpath_from_commands(&[RenderCommand::Paths {
+            paths: vec![rect_path(0.0), rect_path(20.0)],
+        }])
+        .expect("two paths");
+
+        assert_eq!(two_commands.elements().len(), one.elements().len() * 2);
+        assert_eq!(two_paths_one_command.elements().len(), one.elements().len() * 2);
+        assert!(clip_bezpath_from_commands(&[]).is_none());
     }
 
     #[test]

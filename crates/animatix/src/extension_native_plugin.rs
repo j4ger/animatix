@@ -42,7 +42,6 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::extension_context::ExtensionContext;
 use crate::primitives::{
     AssignmentCtx, BuildCtx, ChildProcessing, EquationFragment, EvaluateCtx, Primitive,
-    RenderCommand,
 };
 use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
@@ -967,15 +966,7 @@ impl Primitive for NativePrimitiveAdapter {
             return None;
         }
         // Concatenate every emitted subpath into one clip geometry.
-        let mut path = kurbo::BezPath::new();
-        for command in host.commands {
-            if let RenderCommand::Paths { paths } = command {
-                for vello_path in paths {
-                    path.extend(vello_path.path.iter());
-                }
-            }
-        }
-        (!path.elements().is_empty()).then_some(path)
+        crate::primitives::clip_bezpath_from_commands(&host.commands)
     }
 
     fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
@@ -3531,6 +3522,121 @@ mod tests {
         let commands =
             adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
         assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));
+    }
+
+    #[test]
+    fn native_primitive_clip_path_and_equation_fragment_flow_through_adapter() {
+        use crate::primitives::Primitive;
+        use animatix_plugin_api::{
+            NATIVE_PATH_RECT, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
+            NativeClipPathCtx, NativePrimitiveEquationFragmentCtx,
+        };
+
+        fn rect_command(x: f64) -> NativePathCommand {
+            NativePathCommand {
+                kind: NATIVE_PATH_RECT,
+                x,
+                y: 0.0,
+                width: 10.0,
+                height: 10.0,
+                x1: 0.0,
+                y1: 0.0,
+                x2: 0.0,
+                y2: 0.0,
+                points: std::ptr::null(),
+                point_len: 0,
+                radius: 0.0,
+                start_angle: 0.0,
+                sweep_angle: 0.0,
+                fill: [1.0, 1.0, 1.0, 1.0],
+                stroke: [0.0; 4],
+                stroke_width: 0.0,
+                line_cap: 0,
+                line_join: 0,
+            }
+        }
+
+        unsafe extern "C" fn pulse_clip_path(ctx: *mut NativeClipPathCtx) -> i32 {
+            let Some(ctx) = (unsafe { ctx.as_mut() }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let Some(append) = ctx.append_path else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            // Two disjoint rects: both must survive into the clip geometry.
+            for x in [0.0, 40.0] {
+                let status = unsafe { append(ctx.host, rect_command(x)) };
+                if status != NATIVE_STATUS_OK {
+                    return status;
+                }
+            }
+            NATIVE_STATUS_OK
+        }
+
+        unsafe extern "C" fn pulse_equation_fragment(
+            ctx: *mut NativePrimitiveEquationFragmentCtx,
+        ) -> i32 {
+            let Some(ctx) = (unsafe { ctx.as_mut() }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let Some(write) = ctx.write_content else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let content = c"x^2";
+            let status = unsafe { write(ctx.host, content.as_ptr(), content.to_bytes().len()) };
+            if status != NATIVE_STATUS_OK {
+                return status;
+            }
+            ctx.highlight_color = [1.0, 0.0, 0.0, 1.0];
+            ctx.highlight_opacity = 0.5;
+            NATIVE_STATUS_OK
+        }
+
+        let primitive = NativePrimitive {
+            type_name: c"Pulse".as_ptr(),
+            display_name: c"Pulse".as_ptr(),
+            icon_id: c"extension:pulse".as_ptr(),
+            category: NATIVE_PRIMITIVE_CATEGORY_SHAPE,
+            capabilities: 0,
+            properties: std::ptr::null(),
+            property_len: 0,
+            advanced: false,
+            child_processing: NATIVE_PRIMITIVE_CHILD_GENERIC,
+            resize_mode: NATIVE_RESIZE_MODE_SIZE,
+            build: None,
+            evaluate: None,
+            handle_assignment: None,
+            finalize_container_build: None,
+            default_props: None,
+            default_color_key: None,
+            clip_path: Some(pulse_clip_path),
+            equation_fragment: Some(pulse_equation_fragment),
+        };
+        let adapter = NativePrimitiveAdapter::new(
+            primitive,
+            Arc::new(()) as Arc<dyn Any + Send + Sync>,
+            HashMap::new(),
+            HashMap::new(),
+            HashMap::new(),
+        )
+        .expect("adapter");
+
+        let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+        let asset_cache = crate::timeline::assets::AssetCache::new();
+        let ctx = sample_evaluate_ctx(&track, &asset_cache);
+
+        let clip = adapter.clip_path(&ctx).expect("native clip path");
+        // Two rects (5 path elements each) must both be present.
+        assert!(
+            clip.elements().len() >= 10,
+            "clip must contain both rects, got {} elements",
+            clip.elements().len()
+        );
+
+        let fragment = adapter.equation_fragment(&ctx).expect("native equation fragment");
+        assert_eq!(fragment.content, "x^2");
+        assert_eq!(fragment.highlight_color, [1.0, 0.0, 0.0, 1.0]);
+        assert!((fragment.highlight_opacity - 0.5).abs() < 1e-6);
     }
 
     #[test]
