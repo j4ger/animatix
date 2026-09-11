@@ -59,6 +59,10 @@ const PREV_FOCUS_KEY: &str = "__popover_prev_focus";
 const OPENED_KEY: &str = "__popover_opened";
 /// Per-popover "closing-this-instance" key.
 const CLOSING_KEY: &str = "__popover_closing";
+/// Set only by [`Popover::open`]; signals that the caller owns the open state.
+/// Kept separate from `OPEN_KEY`, which the auto-toggle path also writes — using
+/// one key for both permanently disabled auto-toggle after the first open.
+const EXTERNAL_KEY: &str = "__popover_external";
 
 // ─── Public response ─────────────────────────────────────────────────────────
 
@@ -180,6 +184,7 @@ impl Popover {
     pub fn open(&self, ctx: &Context, open: bool) {
         ctx.data_mut(|data| {
             data.insert_temp(open_key(self.id), open);
+            data.insert_temp(external_key(self.id), true);
         });
     }
 
@@ -229,9 +234,11 @@ impl Popover {
         let mut is_open: bool = ctx.data(|d| d.get_temp::<bool>(is_open_key).unwrap_or(false));
         let mut is_closing: bool = ctx.data(|d| d.get_temp::<bool>(closing_key).unwrap_or(false));
 
-        // ── Detect external control: if the caller has written the open
-        //    state at least once, they own the toggle logic.
-        let externally_controlled: bool = ctx.data(|d| d.get_temp::<bool>(is_open_key).is_some());
+        // ── Detect external control: only `.open()` marks the caller as owner.
+        //    The auto-toggle path must not set this flag, or the trigger could
+        //    never reopen the popover after the first open.
+        let externally_controlled: bool =
+            ctx.data(|d| d.get_temp::<bool>(external_key(self.id)).unwrap_or(false));
 
         if externally_controlled {
             if !is_open && is_closing {
@@ -372,6 +379,9 @@ fn opened_key(id: Id) -> Id {
 }
 fn closing_key(id: Id) -> Id {
     id.with(CLOSING_KEY)
+}
+fn external_key(id: Id) -> Id {
+    id.with(EXTERNAL_KEY)
 }
 
 // ─── Position computation ───────────────────────────────────────────────────
@@ -526,6 +536,29 @@ mod tests {
 
         popover.open(&ctx, true);
         assert!(Popover::is_open(&ctx, "p3"));
+    }
+
+    /// Regression: the auto-toggle open path writes `OPEN_KEY`, which used to
+    /// be the same signal as "externally controlled", so a popover could be
+    /// opened by its trigger exactly once and never reopened.
+    #[test]
+    fn auto_toggle_open_does_not_mark_external_control() {
+        let ctx = Context::default();
+        let popover = Popover::new("auto_reopen");
+
+        // Mirror what the auto-toggle open branch writes.
+        ctx.data_mut(|d| d.insert_temp(open_key(popover.id), true));
+        assert!(
+            !ctx.data(|d| d.get_temp::<bool>(external_key(popover.id)).unwrap_or(false)),
+            "auto-toggle must not mark the popover as externally controlled"
+        );
+
+        // `.open()` is the only thing that claims ownership.
+        popover.open(&ctx, true);
+        assert!(
+            ctx.data(|d| d.get_temp::<bool>(external_key(popover.id)).unwrap_or(false)),
+            "open() marks the caller as the owner"
+        );
     }
 
     // ── Overlay coordination ─────────────────────────────────────────────
