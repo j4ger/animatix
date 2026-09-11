@@ -1447,7 +1447,7 @@ mod tests {
         use crate::renderer::text::{FontContext, TextCompiler, TextKind};
         use crate::timeline::{AnimationTrack, SceneDimensions, property_track::PropertyTrack};
 
-        let mut track = AnimationTrack::new("label".to_string());
+        let mut track = AnimationTrack::placeholder("label".to_string());
         track.kind = ActorKindId::Text;
         let mut content = PropertyTrack::new("Hello".to_string());
         content.add_keyframe(0, "Hello".to_string(), Easing::Linear);

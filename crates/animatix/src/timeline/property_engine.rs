@@ -1013,9 +1013,7 @@ pub(crate) fn inject_extension_properties_into_env(
     let Some(ctx) = ctx else {
         return;
     };
-    let Some(actor_type) = track.actor_type.as_deref() else {
-        return;
-    };
+    let actor_type = track.actor_type.as_str();
 
     // Same shared-buffer discipline as `inject_property_into_env` (PF-6).
     key.clear();
@@ -1256,7 +1254,7 @@ mod tests {
 
     #[test]
     fn tagged_property_routes_through_actor_plan() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.rebuild_property_plan();
         let field = ActorField::Tagged("legend_title");
         write_property_field(
@@ -1290,7 +1288,7 @@ mod tests {
 
     #[test]
     fn property_plan_slot_writes_and_reads_without_string_lookup() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.rebuild_property_plan();
         let position = crate::timeline::property_id("position").expect("position is registered");
 
@@ -1338,7 +1336,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_f32() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result =
             write_read_roundtrip(&mut track, ActorField::Opacity, PropertyValue::F32(0.75), 500);
         assert_eq!(result, Some(PropertyValue::F32(0.75)));
@@ -1346,7 +1344,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_vec2() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::Position,
@@ -1358,7 +1356,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_color() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::Color,
@@ -1370,7 +1368,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_vec4() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::StrokeColor,
@@ -1382,7 +1380,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_transform() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::Transform,
@@ -1394,7 +1392,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_string() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::FontFamily,
@@ -1406,7 +1404,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_tagged_bool() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::Tagged("legend"),
@@ -1439,7 +1437,7 @@ mod tests {
 
     #[test]
     fn test_tagged_auto_transition_snaps_cross_variant() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let mut diag = Vec::new();
         write_property_field(
             &mut track,
@@ -1472,7 +1470,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_min_width() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result =
             write_read_roundtrip(&mut track, ActorField::MinWidth, PropertyValue::F32(200.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(200.0)));
@@ -1480,7 +1478,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_max_height() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result =
             write_read_roundtrip(&mut track, ActorField::MaxHeight, PropertyValue::F32(800.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(800.0)));
@@ -1488,7 +1486,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_filter_brightness() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::FilterBrightness,
@@ -1500,7 +1498,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_highlight_color() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::HighlightColor,
@@ -1512,7 +1510,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_highlight_opacity() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::HighlightOpacity,
@@ -1524,7 +1522,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_min_height() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result =
             write_read_roundtrip(&mut track, ActorField::MinHeight, PropertyValue::F32(300.0), 500);
         assert_eq!(result, Some(PropertyValue::F32(300.0)));
@@ -1532,7 +1530,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_letter_spacing() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let result = write_read_roundtrip(
             &mut track,
             ActorField::LetterSpacing,
@@ -1544,7 +1542,7 @@ mod tests {
 
     #[test]
     fn test_write_read_roundtrip_with_duration_uses_linear_easing_at_start() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let mut diag = vec![];
         write_property_field(
             &mut track,
@@ -1564,7 +1562,7 @@ mod tests {
 
     #[test]
     fn test_read_property_value_or_default_falls_back() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let schema = crate::timeline::property_registry::lookup_property("opacity").unwrap();
         let val = read_property_value_or_default(&track, schema, 0);
         assert_eq!(val, PropertyValue::F32(1.0));
@@ -1572,7 +1570,7 @@ mod tests {
 
     #[test]
     fn test_property_has_keyframes() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert!(property_has_keyframes(&track, ActorField::Opacity));
         assert!(!property_has_keyframes(&track, ActorField::Rotation));
@@ -1580,7 +1578,7 @@ mod tests {
 
     #[test]
     fn test_property_has_keyframe_at() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert!(property_has_keyframe_at(&track, ActorField::Opacity, 500));
         assert!(!property_has_keyframe_at(&track, ActorField::Opacity, 0));
@@ -1588,7 +1586,7 @@ mod tests {
 
     #[test]
     fn test_property_keyframe_times_sorted() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         let times = property_keyframe_times(&track, ActorField::Opacity);
@@ -1597,7 +1595,7 @@ mod tests {
 
     #[test]
     fn test_property_keyframe_count() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         assert_eq!(property_keyframe_count(&track, ActorField::Opacity), 2);
@@ -1606,7 +1604,7 @@ mod tests {
 
     #[test]
     fn test_property_keyframe_easing() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseInOut);
         let easing = property_keyframe_easing(&track, ActorField::Opacity, 0);
         assert_eq!(easing, Some(Easing::EaseInOut));

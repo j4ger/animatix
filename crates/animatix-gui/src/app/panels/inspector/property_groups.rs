@@ -234,9 +234,9 @@ pub(crate) fn build_property_groups(
     }
 
     let mut extension_props = Vec::new();
-    let actor_type = track.actor_type.as_deref();
+    let actor_type = track.actor_type.as_str();
     for descriptor in timeline.extension_property_descriptors() {
-        if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
+        if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
             continue;
         }
         let id = animatix::property_descriptor::runtime_id(&descriptor);

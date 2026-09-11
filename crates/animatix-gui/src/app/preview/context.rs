@@ -100,10 +100,8 @@ impl PreviewContext<'_> {
                 // capability and the conventional `content` alias. Keep the
                 // snapshot Arc alive while `find` borrows from it.
                 let registry = timeline.primitive_registry_snapshot();
-                track
-                    .actor_type
-                    .as_deref()
-                    .and_then(|ty| registry.find(ty))
+                registry
+                    .find(&track.actor_type)
                     .filter(|p| p.capabilities().text_paths)
                     .map(|_| "content")
             },

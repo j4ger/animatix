@@ -161,6 +161,10 @@ fn inject_entry(
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut track = entry.track.clone();
+    // A carry entry may come from a legacy payload with no recorded
+    // `actor_type`; resolve it from `kind` once here (the single compatibility
+    // boundary — runtime lookups never fall back).
+    track.normalize_identity();
 
     // ── Phase 3: re-root layout-managed entries to absolute world position ──
     if is_root {
@@ -470,13 +474,13 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Create a simple Rect actor
-        let mut rect = AnimationTrack::new("rect1".to_string());
+        let mut rect = AnimationTrack::placeholder("rect1".to_string());
         rect.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         rect.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
         timeline.tracks.insert("rect1".to_string(), rect);
 
         // Create a child actor
-        let mut child = AnimationTrack::new("child1".to_string());
+        let mut child = AnimationTrack::placeholder("child1".to_string());
         child
             .geometry
             .position
@@ -504,7 +508,7 @@ mod tests {
 
     #[test]
     fn snapshot_collapses_opacity_to_single_keyframe() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
 
@@ -516,7 +520,7 @@ mod tests {
 
     #[test]
     fn snapshot_collapses_position_to_single_keyframe() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track
             .geometry
             .position
@@ -536,14 +540,14 @@ mod tests {
 
     #[test]
     fn snapshot_preserves_kind() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let snapshot = snapshot_track_at(&track, 0);
         assert_eq!(snapshot.kind, track.kind);
     }
 
     #[test]
     fn snapshot_sets_first_seen_ms_to_zero() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.first_seen_ms = 500;
         let snapshot = snapshot_track_at(&track, 500);
         assert_eq!(snapshot.first_seen_ms, 0);
@@ -552,7 +556,7 @@ mod tests {
     #[test]
     fn snapshot_preserves_svg_paths() {
         use crate::timeline::VelloPath;
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.svg_paths.push(VelloPath::default());
         let snapshot = snapshot_track_at(&track, 0);
         assert_eq!(snapshot.svg_paths.len(), 1);
@@ -560,7 +564,7 @@ mod tests {
 
     #[test]
     fn snapshot_clears_func_transitions() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.func_transitions.push(crate::timeline::plot::FuncTransition {
             start_ms: 0,
             end_ms: 1000,
@@ -588,7 +592,7 @@ mod tests {
     #[test]
     fn snapshot_preserves_procedural_plot() {
         use crate::ast::Expr;
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
                 crate::timeline::plot::PlotCurveKind::Cartesian,
@@ -623,7 +627,7 @@ mod tests {
 
     #[test]
     fn snapshot_empty_track_has_no_keyframes() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let snapshot = snapshot_track_at(&track, 0);
         // No property tracks should have keyframes
         assert!(
@@ -689,11 +693,11 @@ mod tests {
     fn compute_carry_bag_skips_non_persistent_actors() {
         let mut timeline = Timeline::new();
 
-        let mut rect1 = AnimationTrack::new("rect1".to_string());
+        let mut rect1 = AnimationTrack::placeholder("rect1".to_string());
         rect1.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         timeline.tracks.insert("rect1".to_string(), rect1);
 
-        let mut rect2 = AnimationTrack::new("rect2".to_string());
+        let mut rect2 = AnimationTrack::placeholder("rect2".to_string());
         rect2.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         timeline.tracks.insert("rect2".to_string(), rect2);
 
@@ -714,7 +718,7 @@ mod tests {
     fn compute_carry_bag_carries_auto_color_slot() {
         let mut timeline = Timeline::new();
 
-        let mut actor = AnimationTrack::new("circle".to_string());
+        let mut actor = AnimationTrack::placeholder("circle".to_string());
         actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         timeline.tracks.insert("circle".to_string(), actor);
 
@@ -732,7 +736,7 @@ mod tests {
     #[test]
     fn inject_carry_bag_seeds_auto_color_assignments() {
         let mut source = Timeline::new();
-        let mut actor = AnimationTrack::new("dot".to_string());
+        let mut actor = AnimationTrack::placeholder("dot".to_string());
         actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         source.tracks.insert("dot".to_string(), actor);
         source.auto_color_assignments.insert("dot".to_string(), 2);
@@ -762,7 +766,7 @@ mod tests {
 
     #[test]
     fn snapshot_preserves_svg_actor_kind() {
-        let mut track = AnimationTrack::new("icon".to_string());
+        let mut track = AnimationTrack::placeholder("icon".to_string());
         track.kind = crate::timeline::ActorKindId::Svg;
         track.svg_paths.push(crate::timeline::VelloPath::default());
 
@@ -773,7 +777,7 @@ mod tests {
 
     #[test]
     fn snapshot_preserves_image_actor_kind() {
-        let mut track = AnimationTrack::new("pic".to_string());
+        let mut track = AnimationTrack::placeholder("pic".to_string());
         track.kind = crate::timeline::ActorKindId::Image;
 
         let snapshot = snapshot_track_at(&track, 0);
@@ -785,7 +789,7 @@ mod tests {
         use crate::timeline::VelloPath;
 
         let mut source = Timeline::new();
-        let mut actor = AnimationTrack::new("icon".to_string());
+        let mut actor = AnimationTrack::placeholder("icon".to_string());
         actor.kind = crate::timeline::ActorKindId::Svg;
         actor.svg_paths.push(VelloPath::default());
         actor.svg_paths.push(VelloPath::default());
@@ -808,7 +812,7 @@ mod tests {
         use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
 
         let mut source = Timeline::new();
-        let mut actor = AnimationTrack::new("curve".to_string());
+        let mut actor = AnimationTrack::placeholder("curve".to_string());
         actor.kind = crate::timeline::ActorKindId::PlotCurve;
         actor.procedural_plot = Some(ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
@@ -852,11 +856,11 @@ mod tests {
     fn compute_carry_bag_propagates_child_persistence_flag() {
         let mut timeline = Timeline::new();
 
-        let mut parent = AnimationTrack::new("parent".to_string());
+        let mut parent = AnimationTrack::placeholder("parent".to_string());
         parent.children.push("child".to_string());
         timeline.tracks.insert("parent".to_string(), parent);
 
-        let mut child = AnimationTrack::new("child".to_string());
+        let mut child = AnimationTrack::placeholder("child".to_string());
         child
             .geometry
             .position

@@ -21,7 +21,7 @@ use std::collections::HashMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::actor_kind::{ActorKindId, ShapeKind};
+use super::actor_kind::ActorKindId;
 use super::animation_track::{
     CalloutPlace, FilterTracks, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding,
     ShapeTracks, StyleTracks, TextTracks,
@@ -55,12 +55,13 @@ pub struct AnimationTrack {
     pub label: String,
     /// Compile-time kind of this actor.
     pub kind: ActorKindId,
-    /// Source type name from the declaration, when known.
-    ///
-    /// Built-in actors can resolve through [`ActorKindId`], but extension
-    /// primitives need the original name to look themselves up again during
-    /// scene evaluation.
-    pub actor_type: Option<String>,
+    /// Source type name for this actor's primitive (e.g. `"Rect"`, `"Text"`,
+    /// or an extension's type name). Required and non-optional: it is the
+    /// single registry key the frame path resolves the primitive with, so no
+    /// lookup needs a kind fallback. Empty only across a legacy deserialization
+    /// boundary, which [`Self::normalize_identity`] resolves once on load.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub actor_type: String,
     /// Registry-derived property plan for this actor.
     ///
     /// Built after the actor kind is known; frame-time extension paths can use
@@ -219,13 +220,21 @@ pub struct AnimationTrack {
 }
 
 impl AnimationTrack {
-    /// Create a new empty animation track with the given label.
-    pub fn new(label: String) -> Self {
+    /// Create a new empty animation track for an actor of primitive type
+    /// `actor_type` (e.g. `"Rect"`, `"Text"`, or an extension's type name).
+    ///
+    /// The primitive identity is required at construction: `kind` is derived
+    /// from it (extension primitives map to [`ActorKindId::Extension`]), so no
+    /// later lookup needs a kind fallback for a track that was built without a
+    /// type name.
+    pub fn new(label: String, actor_type: impl Into<String>) -> Self {
+        let actor_type = actor_type.into();
+        let kind = ActorKindId::from_type_name(&actor_type).unwrap_or(ActorKindId::Extension);
         Self {
             // Identity
             label: label.clone(),
-            kind: ActorKindId::Shape(ShapeKind::Rect),
-            actor_type: None,
+            kind,
+            actor_type,
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
             children: Vec::new(),
@@ -275,6 +284,34 @@ impl AnimationTrack {
 
             // Legend tier
             legend: super::legend::LegendTracks::default(),
+        }
+    }
+
+    /// Fixture/scratch constructor: a track for hand-built test fixtures and the
+    /// render memo's thread-local scratch track. Production tracks must be
+    /// created with [`Self::new`] and a real primitive type name.
+    #[doc(hidden)]
+    pub fn placeholder(label: String) -> Self {
+        Self::new(label, "Rect")
+    }
+
+    /// Resolve an empty `actor_type` (legacy deserialized tracks) from `kind`.
+    /// This is the single compatibility boundary — runtime lookups never fall
+    /// back.
+    pub fn normalize_identity(&mut self) {
+        if !self.actor_type.is_empty() {
+            return;
+        }
+        if let Some(meta) = crate::primitives::actor_kind_meta(self.kind) {
+            self.actor_type = meta.type_name.to_string();
+        } else {
+            // Only `ActorKindId::Extension` has no built-in meta; such a track
+            // cannot be resolved without the plugin-provided type name.
+            tracing::warn!(
+                "track '{}' has no actor type and no built-in kind metadata; \
+                 it cannot be rendered",
+                self.label
+            );
         }
     }
 

@@ -468,10 +468,12 @@ pub fn build_vector_shape_vello_path(
             // dozen property tracks, and this runs inside `Timeline::build` —
             // allocating one per call showed up as a rebuild regression in the
             // 2026-09-04 full-suite gate. The memo is self-validating (keyed on
-            // the sampled `KurboShape`), so cross-call reuse is safe.
+            // the sampled `KurboShape`), so cross-call reuse is safe. The
+            // scratch track's declared type is irrelevant — `render()` reads
+            // only the memoized shape, never the track's identity.
             thread_local! {
                 static SCRATCH_TRACK: crate::timeline::AnimationTrack =
-                    crate::timeline::AnimationTrack::new(String::new());
+                    crate::timeline::AnimationTrack::new(String::new(), "Rect");
             }
             SCRATCH_TRACK.with(|scratch| {
                 primitive.render(&crate::primitives::RenderCtx {

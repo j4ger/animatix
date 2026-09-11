@@ -621,6 +621,27 @@ impl Timeline {
             );
         }
 
+        // Every track's primitive identity must resolve. `actor_type` is
+        // required at construction, so a miss means the declared primitive is
+        // not registered (typically an extension whose plugin is not loaded).
+        // Warn once here rather than silently rendering nothing every frame.
+        for (label, track) in &timeline.tracks {
+            if timeline.primitive_registry.find(&track.actor_type).is_none() {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownActorType,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Actor `{label}` is type `{}`, which is not a registered primitive; \
+                             it will not render. Load the extension that provides it.",
+                            track.actor_type
+                        ),
+                    )
+                    .with_subject(label),
+                );
+            }
+        }
+
         // Check for always-blocks overriding keyframed properties.
         for stmt in &timeline.modifiers {
             if let crate::ast::Stmt::Assignment {

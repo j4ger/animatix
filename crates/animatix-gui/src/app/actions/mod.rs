@@ -943,27 +943,17 @@ pub fn default_props_for_actor(
 
 /// Whether the GUI may offer to nest a new actor inside `track`.
 ///
-/// Registry-first so extension containers with generic child processing
-/// participate (their `ActorKindId::Extension` matches nothing else); falls
-/// back to the built-in container kinds for hand-built tracks without an
-/// `actor_type` string.
+/// Resolved from the live registry via the track's required `actor_type`, so
+/// extension containers with generic child processing participate.
 pub(crate) fn track_is_nestable_container(
     timeline: &animatix::timeline::Timeline,
     track: &animatix::timeline::AnimationTrack,
 ) -> bool {
-    if let Some(ty) = track.actor_type.as_deref() {
-        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
-            return primitive.is_nestable_container();
-        }
-    }
-    matches!(
-        track.kind,
-        animatix::timeline::ActorKindId::Row
-            | animatix::timeline::ActorKindId::Col
-            | animatix::timeline::ActorKindId::Grid
-            | animatix::timeline::ActorKindId::Stack
-            | animatix::timeline::ActorKindId::Group
-    )
+    timeline
+        .primitive_registry_snapshot()
+        .find(&track.actor_type)
+        .map(|primitive| primitive.is_nestable_container())
+        .unwrap_or(false)
 }
 
 /// Whether `track` is a plain structural group (the ungroup action target).
@@ -971,10 +961,9 @@ pub(crate) fn track_is_group_like(
     timeline: &animatix::timeline::Timeline,
     track: &animatix::timeline::AnimationTrack,
 ) -> bool {
-    if let Some(ty) = track.actor_type.as_deref() {
-        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
-            return primitive.is_group_like();
-        }
-    }
-    track.kind == animatix::timeline::ActorKindId::Group
+    timeline
+        .primitive_registry_snapshot()
+        .find(&track.actor_type)
+        .map(|primitive| primitive.is_group_like())
+        .unwrap_or(false)
 }

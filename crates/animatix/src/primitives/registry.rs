@@ -189,11 +189,10 @@ mod tests {
             _modifiers: &[Modifier],
             _children: &[InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
-            let track = ctx
-                .timeline
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            let track =
+                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                    crate::timeline::AnimationTrack::placeholder(label.to_string())
+                });
             track.kind = ActorKindId::Text;
             track.rebuild_property_plan();
             Ok(())
@@ -281,7 +280,7 @@ mod tests {
         );
         let track = report.output.tracks.get("g").expect("custom actor track");
         assert_eq!(track.kind, ActorKindId::Text);
-        assert_eq!(track.actor_type.as_deref(), Some("Gauge"));
+        assert_eq!(track.actor_type, "Gauge");
 
         let _scene = report.output.evaluate(0.0, crate::timeline::SceneDimensions::default());
     }

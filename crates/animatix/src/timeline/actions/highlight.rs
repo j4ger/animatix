@@ -3,7 +3,6 @@ use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::ChildProcessing;
-use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
@@ -52,12 +51,11 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
 }
 
 fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
-    if let Some(primitive) =
-        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
-    {
-        return primitive.child_processing() == ChildProcessing::Equation;
-    }
-    track.kind == ActorKindId::Equation
+    timeline
+        .primitive_registry
+        .find(&track.actor_type)
+        .map(|primitive| primitive.child_processing() == ChildProcessing::Equation)
+        .unwrap_or(false)
 }
 
 /// Find the parent Equation track label for a given Fragment label, if any.

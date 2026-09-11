@@ -34,6 +34,8 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::extension_context::ExtensionContext;
 use crate::timeline::Timeline;
+// ActorKindId is used by test fixtures only.
+#[cfg(test)]
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
 
@@ -244,22 +246,14 @@ pub(crate) fn expand_group_targets(
 /// expanded by `expand_group_targets`. Equation containers aggregate children
 /// into one renderable document and stay leaf-like for action targeting.
 fn is_recursive_container(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
-    if let Some(primitive) =
-        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
-    {
-        return crate::timeline::PrimitiveFamilyDescriptor::from_primitive(primitive)
-            .is_recursive_container();
-    }
-    matches!(
-        track.kind,
-        ActorKindId::Row
-            | ActorKindId::Col
-            | ActorKindId::Grid
-            | ActorKindId::Stack
-            | ActorKindId::Group
-            | ActorKindId::Mask
-            | ActorKindId::Filter
-    )
+    timeline
+        .primitive_registry
+        .find(&track.actor_type)
+        .map(|primitive| {
+            crate::timeline::PrimitiveFamilyDescriptor::from_primitive(primitive)
+                .is_recursive_container()
+        })
+        .unwrap_or(false)
 }
 
 pub(crate) fn ensure_vector_reveal_target(
@@ -280,15 +274,12 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    let capabilities = track
-        .actor_type
-        .as_deref()
-        .and_then(|ty| timeline.primitive_registry.find(ty))
+    let capabilities = timeline
+        .primitive_registry
+        .find(&track.actor_type)
         .map(|primitive| primitive.capabilities());
 
-    if track.kind == crate::timeline::ActorKindId::Image
-        || capabilities.is_some_and(|caps| caps.image_payload)
-    {
+    if capabilities.is_some_and(|caps| caps.image_payload) {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -539,7 +530,7 @@ mod tests {
                 .timeline
                 .tracks
                 .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+                .or_insert_with(|| AnimationTrack::placeholder(label.to_string()));
             track.kind = ActorKindId::Extension;
             track.rebuild_property_plan();
             Ok(())
@@ -655,7 +646,7 @@ mod tests {
     #[test]
     fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
         let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::new("row".to_string());
+        let mut track = AnimationTrack::placeholder("row".to_string());
         track.children.push("row.child".to_string());
         timeline.tracks.insert("row".to_string(), track);
 
@@ -717,8 +708,12 @@ mod tests {
     #[test]
     fn swap_action_requires_common_parent() {
         let mut timeline = Timeline::new();
-        timeline.tracks.insert("a".to_string(), AnimationTrack::new("a".to_string()));
-        timeline.tracks.insert("b".to_string(), AnimationTrack::new("b".to_string()));
+        timeline
+            .tracks
+            .insert("a".to_string(), AnimationTrack::placeholder("a".to_string()));
+        timeline
+            .tracks
+            .insert("b".to_string(), AnimationTrack::placeholder("b".to_string()));
 
         let action = Action {
             verb: "swap".to_string(),
@@ -744,17 +739,17 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::new("row".to_string());
+        let mut parent_track = AnimationTrack::placeholder("row".to_string());
         parent_track.children.push("a".to_string());
         parent_track.children.push("b".to_string());
         timeline.tracks.insert("row".to_string(), parent_track);
 
         // Set up child tracks with layout size so they're admitted
-        let mut child_a = AnimationTrack::new("a".to_string());
+        let mut child_a = AnimationTrack::placeholder("a".to_string());
         child_a.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.tracks.insert("a".to_string(), child_a);
 
-        let mut child_b = AnimationTrack::new("b".to_string());
+        let mut child_b = AnimationTrack::placeholder("b".to_string());
         child_b.geometry.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
         timeline.tracks.insert("b".to_string(), child_b);
 
@@ -803,14 +798,14 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::new("row".to_string());
+        let mut parent_track = AnimationTrack::placeholder("row".to_string());
         parent_track.children.push("a".to_string());
         parent_track.children.push("b".to_string());
         parent_track.children.push("c".to_string());
         timeline.tracks.insert("row".to_string(), parent_track);
 
         for label in ["a", "b", "c"] {
-            let mut child = AnimationTrack::new(label.to_string());
+            let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
@@ -889,7 +884,7 @@ mod tests {
         let mut timeline = Timeline::new();
         timeline
             .tracks
-            .insert("row".to_string(), AnimationTrack::new("row".to_string()));
+            .insert("row".to_string(), AnimationTrack::placeholder("row".to_string()));
 
         let action = Action {
             verb: "reorder".to_string(),
@@ -915,14 +910,14 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::new("row".to_string());
+        let mut parent_track = AnimationTrack::placeholder("row".to_string());
         parent_track.children.push("a".to_string());
         parent_track.children.push("b".to_string());
         parent_track.children.push("c".to_string());
         timeline.tracks.insert("row".to_string(), parent_track);
 
         for label in ["a", "b", "c"] {
-            let mut child = AnimationTrack::new(label.to_string());
+            let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
@@ -981,13 +976,13 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::new("row".to_string());
+        let mut parent_track = AnimationTrack::placeholder("row".to_string());
         parent_track.children.push("a".to_string());
         parent_track.children.push("b".to_string());
         timeline.tracks.insert("row".to_string(), parent_track);
 
         for label in ["a", "b"] {
-            let mut child = AnimationTrack::new(label.to_string());
+            let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
@@ -1066,12 +1061,12 @@ mod tests {
         // that spans the gap between the end of swap N and the end of swap N+1.
         let mut timeline = Timeline::new();
 
-        let mut parent_track = AnimationTrack::new("row".to_string());
+        let mut parent_track = AnimationTrack::placeholder("row".to_string());
         parent_track.children = vec!["a".to_string(), "b".to_string(), "c".to_string()];
         timeline.tracks.insert("row".to_string(), parent_track);
 
         for label in ["a", "b", "c"] {
-            let mut child = AnimationTrack::new(label.to_string());
+            let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
             timeline.tracks.insert(label.to_string(), child);
         }
@@ -1141,7 +1136,7 @@ mod tests {
         let mut timeline = Timeline::new();
         timeline.dynamic_layout = true;
 
-        let mut parent_track = AnimationTrack::new("bars".to_string());
+        let mut parent_track = AnimationTrack::placeholder("bars".to_string());
         parent_track.children = vec![
             "bar1".to_string(),
             "bar2".to_string(),
@@ -1153,7 +1148,7 @@ mod tests {
 
         let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
         for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
-            let mut child = AnimationTrack::new(label.to_string());
+            let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new(sizes));
             timeline.tracks.insert(label.to_string(), child);
         }

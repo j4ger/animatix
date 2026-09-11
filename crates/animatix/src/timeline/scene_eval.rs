@@ -1,9 +1,9 @@
 use kurbo::Shape;
 
 use super::{
-    ActorKindId, AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, DebugRenderOptions,
-    EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value,
-    VelloPath, resolve_bound_position,
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, DebugRenderOptions, EvalError,
+    PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value, VelloPath,
+    resolve_bound_position,
 };
 use crate::renderer::types::TextPath;
 
@@ -599,17 +599,7 @@ impl Timeline {
             // "no drawable content" — nothing is drawn and no hit region or
             // precise bounds are recorded for it.
             let primitive_dispatch = {
-                // The kind→type-name scan is the fallback path only: when the
-                // track carries an explicit `actor_type` it always resolves
-                // first, so avoid paying for the scan on every node.
-                let primitive = track
-                    .actor_type
-                    .as_deref()
-                    .and_then(|ty| self.primitive_registry.find(ty))
-                    .or_else(|| {
-                        crate::primitives::actor_kind_meta(track.kind)
-                            .and_then(|m| self.primitive_registry.find(m.type_name))
-                    });
+                let primitive = self.track_primitive(track);
                 if let Some(primitive) = primitive {
                     // Clear the shape-memo bounds handoff: a non-shape
                     // primitive must never observe the previous node's data.
@@ -744,42 +734,24 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve the child-rendering strategy for a track.
-    ///
-    /// The primitive registry is the source of truth. The `ActorKindId` match
-    /// below is only a fallback for hand-built test tracks without an actor
-    /// type name.
+    /// Resolve the child-rendering strategy for a track from its primitive.
     fn primitive_child_processing(
         &self,
         track: &AnimationTrack,
     ) -> crate::primitives::ChildProcessing {
-        if let Some(type_name) = track.actor_type.as_deref() {
-            if let Some(primitive) = self.primitive_registry.find(type_name) {
-                return primitive.child_processing();
-            }
-        }
-        match track.kind {
-            ActorKindId::Filter => crate::primitives::ChildProcessing::Filter,
-            ActorKindId::Mask => crate::primitives::ChildProcessing::Mask,
-            ActorKindId::Equation => crate::primitives::ChildProcessing::Equation,
-            _ => crate::primitives::ChildProcessing::Generic,
-        }
+        self.track_primitive(track)
+            .map(|primitive| primitive.child_processing())
+            .unwrap_or(crate::primitives::ChildProcessing::Generic)
     }
 
-    /// Resolve a track's primitive: its `actor_type` first, else the kind
-    /// fallback used by hand-built tracks without a type name.
+    /// Resolve a track's primitive from its required `actor_type` registry key.
+    /// No kind fallback: a track without a resolvable type is a build-time
+    /// error, validated once at the end of `Timeline::build`.
     fn track_primitive<'a>(
         &'a self,
         track: &AnimationTrack,
     ) -> Option<&'a dyn crate::primitives::Primitive> {
-        track
-            .actor_type
-            .as_deref()
-            .and_then(|ty| self.primitive_registry.find(ty))
-            .or_else(|| {
-                crate::primitives::actor_kind_meta(track.kind)
-                    .and_then(|m| self.primitive_registry.find(m.type_name))
-            })
+        self.primitive_registry.find(&track.actor_type)
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
@@ -1750,7 +1722,7 @@ mod tests {
     /// Helper to create a minimal Timeline with one root track.
     fn make_minimal_timeline() -> Timeline {
         let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::new("test_box".to_string());
+        let mut track = AnimationTrack::placeholder("test_box".to_string());
         // Set first_seen_ms to 0 so the actor is visible from time 0
         track.first_seen_ms = 0;
         // Give it a shape type
@@ -2043,10 +2015,10 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // A Group container: evaluate() -> Some(vec![]) (empty command list).
-        let mut group = AnimationTrack::new("grp".to_string());
+        let mut group = AnimationTrack::placeholder("grp".to_string());
         group.first_seen_ms = 0;
         group.kind = crate::timeline::ActorKindId::Group;
-        group.actor_type = Some("Group".to_string());
+        group.actor_type = "Group".to_string();
         group.geometry.size = {
             let mut t = PropertyTrack::new([40.0, 30.0]);
             t.add_keyframe(0, [40.0, 30.0], Easing::Linear);
@@ -2055,10 +2027,10 @@ mod tests {
         timeline.tracks.insert("grp".to_string(), group);
 
         // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
-        let mut empty_text = AnimationTrack::new("empty".to_string());
+        let mut empty_text = AnimationTrack::placeholder("empty".to_string());
         empty_text.first_seen_ms = 0;
         empty_text.kind = crate::timeline::ActorKindId::Text;
-        empty_text.actor_type = Some("Text".to_string());
+        empty_text.actor_type = "Text".to_string();
         empty_text.geometry.size = {
             let mut t = PropertyTrack::new([60.0, 20.0]);
             t.add_keyframe(0, [60.0, 20.0], Easing::Linear);
@@ -2126,7 +2098,7 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Create child actor
-        let mut child_track = AnimationTrack::new("child".to_string());
+        let mut child_track = AnimationTrack::placeholder("child".to_string());
         child_track.first_seen_ms = 0;
         child_track.shape.shape_type = Some({
             let mut t = PropertyTrack::new(ShapeType::Rect);
@@ -2146,9 +2118,9 @@ mod tests {
         timeline.tracks.insert("child".to_string(), child_track);
 
         // Create Mask actor
-        let mut mask_track = AnimationTrack::new("mask".to_string());
+        let mut mask_track = AnimationTrack::placeholder("mask".to_string());
         mask_track.first_seen_ms = 0;
-        mask_track.kind = ActorKindId::Mask;
+        mask_track.kind = crate::timeline::ActorKindId::Mask;
         mask_track.geometry.size = Some({
             let mut t = PropertyTrack::new([100.0, 100.0]);
             t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
@@ -2227,7 +2199,7 @@ mod tests {
     }
 
     fn make_root_track(label: &str) -> AnimationTrack {
-        let mut track = AnimationTrack::new(label.to_string());
+        let mut track = AnimationTrack::placeholder(label.to_string());
         track.first_seen_ms = 0;
         track
     }

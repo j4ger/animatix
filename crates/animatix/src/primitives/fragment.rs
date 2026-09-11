@@ -75,8 +75,9 @@ impl Primitive for FragmentPrimitive {
             .timeline
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Fragment"));
         track.kind = ActorKindId::Fragment;
+        track.actor_type = "Fragment".to_string();
         track.first_seen_ms = ctx.time_ms as u64;
 
         // Extract `content` property and store as text_content.

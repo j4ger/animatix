@@ -230,10 +230,12 @@ impl Timeline {
             },
         };
 
-        let track = self
-            .tracks
-            .entry(target_key.clone())
-            .or_insert_with(|| AnimationTrack::new(target_key.clone()));
+        // The target was resolved above, so its track must exist; never create
+        // one with no primitive identity.
+        let Some(track) = self.tracks.get_mut(&target_key) else {
+            tracing::warn!("assignment target '{target_key}' has no track; skipping");
+            return;
+        };
 
         // ── Special cases that can't go through the generic engine ──
 
@@ -294,11 +296,7 @@ impl Timeline {
         }
 
         // ── Primitive dispatch: let each primitive handle its own special cases ──
-        let type_name = track
-            .actor_type
-            .as_deref()
-            .or_else(|| super::actor_kind_meta(track.kind).map(|m| m.type_name));
-        let primitive = type_name.and_then(|ty| self.primitive_registry.find(ty));
+        let primitive = self.primitive_registry.find(&track.actor_type);
         if let Some(primitive) = primitive {
             let mut ctx = AssignmentCtx {
                 t_start_ms,
@@ -595,11 +593,7 @@ impl Timeline {
         } else {
             // Extension properties registered on this actor type.
             if let Some(ctx) = self.extensions.clone() {
-                let actor_type = track.actor_type.clone();
-                let spec = actor_type
-                    .as_deref()
-                    .and_then(|actor_type| ctx.property_spec(actor_type, property))
-                    .cloned();
+                let spec = ctx.property_spec(&track.actor_type, property).cloned();
                 if let Some(spec) = spec {
                     if let Some(pv) =
                         crate::timeline::property_engine::parse_extension_property_value(

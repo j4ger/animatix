@@ -30,6 +30,16 @@ impl TextDeclarationKind {
         }
     }
 
+    /// Registry type name for this text-like actor.
+    fn type_name(self) -> &'static str {
+        match self {
+            Self::Text => "Text",
+            Self::Code => "Code",
+            Self::Typst => "Typst",
+            Self::Math => "Math",
+        }
+    }
+
     fn modifier_host(self) -> ModifierHost {
         match self {
             Self::Text => ModifierHost::Text,
@@ -319,7 +329,7 @@ impl Timeline {
         let track = self
             .tracks
             .entry(label_str.clone())
-            .or_insert_with(|| AnimationTrack::new(label_str.clone()));
+            .or_insert_with(|| AnimationTrack::new(label_str.clone(), kind.type_name()));
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.
@@ -329,6 +339,7 @@ impl Timeline {
             TextDeclarationKind::Typst => super::ActorKindId::Typst,
             TextDeclarationKind::Math => super::ActorKindId::Math,
         };
+        track.actor_type = kind.type_name().to_string();
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

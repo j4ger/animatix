@@ -256,7 +256,7 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
-                    track.actor_type = Some(ty.to_string());
+                    track.actor_type = ty.to_string();
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
@@ -318,7 +318,7 @@ impl Timeline {
             .tracks
             .get(label)
             .cloned()
-            .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
+            .unwrap_or_else(|| AnimationTrack::new(label.to_string(), ty));
 
         // Math coordinate auto-mapping: if parent is a Graph, map child positions
         // from math coordinates to screen pixels.
@@ -361,9 +361,9 @@ impl Timeline {
             let early_track = self
                 .tracks
                 .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
             early_track.kind = kind_id;
-            early_track.actor_type = Some(ty.to_string());
+            early_track.actor_type = ty.to_string();
             early_track.rebuild_property_plan();
         }
 
@@ -701,9 +701,9 @@ impl Timeline {
         let track = self
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
         track.kind = kind_id;
-        track.actor_type = Some(ty.to_string());
+        track.actor_type = ty.to_string();
         track.rebuild_property_plan();
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
@@ -1229,17 +1229,27 @@ impl Timeline {
             return;
         };
 
+        // First-declaration status must be captured BEFORE the track exists:
+        // a first declaration with children is seeded hidden-by-default.
+        let is_first_decl = !self.tracks.contains_key(label);
+
+        // Create the plot host's track before `process_plot_actor` runs: it
+        // processes children, and `add_node` requires the parent track to exist
+        // rather than defaulting one in.
+        {
+            let entry = self
+                .tracks
+                .entry(label.to_string())
+                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
+            entry.kind = kind_id;
+            entry.actor_type = ty.to_string();
+            entry.rebuild_property_plan();
+        }
         let existing_track = self
             .tracks
             .get(label)
             .cloned()
-            .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
-
-        // Capture before `process_plot_actor` runs: it processes children,
-        // whose registration creates this container's track (`add_node`), which
-        // would make a first declaration with children look like a
-        // re-declaration and skip the hidden-by-default seed.
-        let is_first_decl = !self.tracks.contains_key(label);
+            .expect("plot host track created immediately above");
 
         if let Some(ProcessedPlotActor {
             initial_size,
@@ -1328,9 +1338,9 @@ impl Timeline {
             let track = self
                 .tracks
                 .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string()));
+                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
             track.kind = kind_id;
-            track.actor_type = Some(ty.to_string());
+            track.actor_type = ty.to_string();
             track.rebuild_property_plan();
             track.procedural_plot = procedural_plot;
             if let Some(pl) = parent_label {

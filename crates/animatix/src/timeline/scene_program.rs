@@ -77,7 +77,7 @@ mod tests {
     #[test]
     fn timeline_program_collects_primitive_items() {
         let mut timeline = crate::timeline::Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("box".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("box".to_string());
         track.first_seen_ms = 0;
         track.shape.shape_type = Some({
             let mut t = crate::timeline::PropertyTrack::new(crate::timeline::ShapeType::Rect);

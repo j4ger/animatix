@@ -79,22 +79,12 @@ impl GestureHandler for ScaleGesture {
                     .timeline
                     .and_then(|t| {
                         t.get_track(&actor).map(|tr| {
-                            // Prefer the live timeline registry (covers
-                            // extension primitives, whose
-                            // `ActorKindId::Extension` has no static
-                            // metadata); fall back to the static built-in
-                            // lookup for hand-built tracks without an actor
-                            // type. The snapshot Arc must stay alive while
-                            // `find` borrows from it.
+                            // Resolve the resize mode from the live timeline
+                            // registry via the track's required `actor_type`
+                            // (covers extension primitives). The snapshot Arc
+                            // must stay alive while `find` borrows from it.
                             let registry = t.primitive_registry_snapshot();
-                            let mode = if let Some(primitive) =
-                                tr.actor_type.as_deref().and_then(|ty| registry.find(ty)).or_else(
-                                    || {
-                                        animatix::timeline::actor_kind_meta(tr.kind).and_then(|m| {
-                                            animatix::primitives::find_primitive(m.type_name)
-                                        })
-                                    },
-                                ) {
+                            let mode = if let Some(primitive) = registry.find(&tr.actor_type) {
                                 match primitive.resize_mode() {
                                     animatix::timeline::ResizeMode::Scale => {
                                         preview::ResizeMode::Scale

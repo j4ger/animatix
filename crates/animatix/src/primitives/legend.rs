@@ -213,8 +213,9 @@ impl Primitive for LegendPrimitive {
             .timeline
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Legend"));
         track.kind = ActorKindId::Legend;
+        track.actor_type = "Legend".to_string();
 
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = ctx.time_ms as u64;

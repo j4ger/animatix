@@ -14,7 +14,7 @@ fn keyframe_times_s_timeline() -> Timeline {
 #[test]
 fn test_keyframe_times_s_collects_all_fields() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track = AnimationTrack::new("test".to_string());
+    let mut track = AnimationTrack::placeholder("test".to_string());
 
     // Add keyframes to various fields
     track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
@@ -42,7 +42,7 @@ fn test_keyframe_times_s_collects_all_fields() {
 fn test_keyframe_times_s_includes_highlight_fields() {
     let mut timeline = keyframe_times_s_timeline();
     // Highlight fields apply to Equation/Fragment actors
-    let mut track = AnimationTrack::new("test".to_string());
+    let mut track = AnimationTrack::placeholder("test".to_string());
     track.kind = ActorKindId::Equation;
 
     track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
@@ -65,10 +65,10 @@ fn test_keyframe_times_s_includes_highlight_fields() {
 #[test]
 fn test_keyframe_times_s_returns_unique_times() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track_a = AnimationTrack::new("a".to_string());
+    let mut track_a = AnimationTrack::placeholder("a".to_string());
     track_a.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
 
-    let mut track_b = AnimationTrack::new("b".to_string());
+    let mut track_b = AnimationTrack::placeholder("b".to_string());
     track_b.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
 
     timeline.tracks.insert("a".to_string(), track_a);
@@ -82,7 +82,7 @@ fn test_keyframe_times_s_returns_unique_times() {
 #[test]
 fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track = AnimationTrack::new("test".to_string());
+    let mut track = AnimationTrack::placeholder("test".to_string());
     track.style.opacity.ensure(1.0).add_keyframe(5000, 0.5, Easing::Linear);
     timeline.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
@@ -104,7 +104,7 @@ fn test_keyframe_times_s_includes_background_color() {
 fn test_keyframe_times_s_includes_filter_fields() {
     let mut timeline = keyframe_times_s_timeline();
     // Filter fields apply to Filter actor kind
-    let mut track = AnimationTrack::new("test".to_string());
+    let mut track = AnimationTrack::placeholder("test".to_string());
     track.kind = ActorKindId::Filter;
     track
         .filter
@@ -123,7 +123,7 @@ fn test_keyframe_times_s_includes_filter_fields() {
 #[test]
 fn test_keyframe_times_s_includes_plot_param_tracks() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track = AnimationTrack::new("test".to_string());
+    let mut track = AnimationTrack::placeholder("test".to_string());
     track
         .plot_param_tracks
         .entry("freq".to_string())

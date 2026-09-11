@@ -7,11 +7,17 @@ impl Timeline {
         if let Some(parent) = parent_label {
             self.root_nodes.retain(|root| root != &label);
 
-            // Add child to parent's children list
-            let parent_track = self
-                .tracks
-                .entry(parent.to_string())
-                .or_insert_with(|| AnimationTrack::new(parent.to_string()));
+            // Add child to parent's children list. The parent's own declaration
+            // creates its track before processing children (the generic path's
+            // early track and `process_plot_actor_dispatch`), so a missing
+            // parent here is a bug — never default in a track with no identity.
+            let Some(parent_track) = self.tracks.get_mut(parent) else {
+                tracing::warn!(
+                    "child '{label}' registered before parent '{parent}' has a track; \
+                     skipping hierarchy link"
+                );
+                return;
+            };
             if !parent_track.children.contains(&label) {
                 parent_track.children.push(label.clone());
             }

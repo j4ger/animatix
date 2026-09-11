@@ -958,7 +958,7 @@ use crate::timeline::actor_kind::ShapeKind;
 
 /// Make a minimal target track with a given position and half-size.
 fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
-    let mut track = AnimationTrack::new(label.to_string());
+    let mut track = AnimationTrack::placeholder(label.to_string());
     track.kind = ActorKindId::Shape(ShapeKind::Rect);
     track.first_seen_ms = 0;
     track.geometry.position = Some({
@@ -977,7 +977,7 @@ fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTra
 /// Make a Callout track that targets another actor (place=right, standoff=0).
 fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
     use crate::timeline::animation_track::CalloutPlace;
-    let mut track = AnimationTrack::new(label.to_string());
+    let mut track = AnimationTrack::placeholder(label.to_string());
     track.kind = ActorKindId::Callout;
     track.first_seen_ms = 0;
     track.geometry.callout_target = Some({

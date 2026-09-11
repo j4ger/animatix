@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn persist_sets_flag() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("actor".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
         timeline.tracks.insert("actor".to_string(), track);
 
@@ -260,7 +260,7 @@ mod tests {
     fn persist_supports_multiple_targets() {
         let mut timeline = Timeline::new();
         for label in ["a", "b", "c"] {
-            let mut track = crate::timeline::AnimationTrack::new(label.to_string());
+            let mut track = crate::timeline::AnimationTrack::placeholder(label.to_string());
             track.style.opacity.ensure(1.0);
             timeline.tracks.insert(label.to_string(), track);
         }
@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn persist_emits_warning_for_duration_modifier() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("actor".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
         timeline.tracks.insert("actor".to_string(), track);
 
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn remove_clears_persistence_flag() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("actor".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
         timeline.tracks.insert("actor".to_string(), track);
         timeline.persistence_flags.insert("actor".to_string(), true);
@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn remove_instant_sets_opacity_to_zero() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("actor".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         timeline.tracks.insert("actor".to_string(), track);
 
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn remove_animated_sets_fade_out_keyframes() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("actor".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         timeline.tracks.insert("actor".to_string(), track);
 

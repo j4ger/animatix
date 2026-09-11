@@ -134,7 +134,7 @@ impl Timeline {
         let track = self
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| AnimationTrack::new(label.to_string(), actor_type));
 
         // Ensure the track kind matches the declaration type.
         // Resolved via `ActorKindId::from_type_name` instead of string
@@ -148,6 +148,7 @@ impl Timeline {
             (_, true) => super::ActorKindId::Image,
             _ => track.kind,
         };
+        track.actor_type = actor_type.to_string();
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
@@ -298,8 +299,9 @@ impl Timeline {
         let track = self
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Audio"));
         track.kind = super::ActorKindId::Audio;
+        track.actor_type = "Audio".to_string();
 
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = time_ms as u64;

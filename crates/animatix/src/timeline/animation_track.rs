@@ -727,7 +727,7 @@ mod tests {
         time_ms: u64,
         value: f32,
     ) -> AnimationTrack {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::F32(opt) => {
@@ -744,7 +744,7 @@ mod tests {
         time_ms: u64,
         value: [f32; 4],
     ) -> AnimationTrack {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::Vec4(opt) => {
@@ -761,7 +761,7 @@ mod tests {
         time_ms: u64,
         value: [f32; 2],
     ) -> AnimationTrack {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::Vec2(opt) => {
@@ -778,7 +778,7 @@ mod tests {
         time_ms: u64,
         value: &str,
     ) -> AnimationTrack {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         if let Some(mut f) = track.field_mut(field) {
             match &mut f {
                 TrackFieldMut::String(opt) => {
@@ -906,7 +906,7 @@ mod tests {
 
     #[test]
     fn test_field_ref_vector_paths_returns_vector_paths() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::VectorPaths);
         assert!(rf.is_some());
         assert!(matches!(rf.unwrap(), TrackFieldRef::VectorPaths(_)));
@@ -914,7 +914,7 @@ mod tests {
 
     #[test]
     fn test_field_ref_text_paths_returns_text_paths() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::TextPaths);
         assert!(rf.is_some());
         assert!(matches!(rf.unwrap(), TrackFieldRef::TextPaths(_)));
@@ -922,7 +922,7 @@ mod tests {
 
     #[test]
     fn test_field_ref_position_binding_returns_position_binding() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::PositionBinding);
         assert!(rf.is_some());
         assert!(matches!(rf.unwrap(), TrackFieldRef::PositionBinding(_)));
@@ -930,42 +930,42 @@ mod tests {
 
     #[test]
     fn test_field_ref_svg_paths_returns_none() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::SvgPaths);
         assert!(rf.is_none());
     }
 
     #[test]
     fn test_field_ref_returns_correct_type_for_position() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::Position).unwrap();
         assert!(matches!(rf, TrackFieldRef::Vec2(_)));
     }
 
     #[test]
     fn test_field_ref_returns_correct_type_for_transform() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::Transform).unwrap();
         assert!(matches!(rf, TrackFieldRef::Transform(_)));
     }
 
     #[test]
     fn test_field_mut_returns_correct_type_for_highlight_color() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let f = track.field_mut(ActorField::HighlightColor).unwrap();
         assert!(matches!(f, TrackFieldMut::Vec4(_)));
     }
 
     #[test]
     fn test_field_mut_returns_correct_type_for_font_weight() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let f = track.field_mut(ActorField::FontWeight).unwrap();
         assert!(matches!(f, TrackFieldMut::F32(_)));
     }
 
     #[test]
     fn test_field_mut_returns_correct_type_for_font_style() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         let f = track.field_mut(ActorField::FontStyle).unwrap();
         assert!(matches!(f, TrackFieldMut::String(_)));
     }
@@ -976,7 +976,7 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_with_transform() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).add_keyframe(
             5000,
             [2.0, 0.0, 0.0, 2.0, 100.0, 200.0],
@@ -987,7 +987,7 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_with_highlight_color() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
             3000,
             [1.0, 0.0, 0.0, 0.5],
@@ -998,14 +998,14 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_with_filter_blur() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.filter.filter_blur.ensure(0.0).add_keyframe(2000, 5.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(2000));
     }
 
     #[test]
     fn test_max_keyframe_time_with_filter_brightness() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track
             .filter
             .filter_brightness
@@ -1016,7 +1016,7 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_returns_max_across_all_fields() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
         track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
             5000,
@@ -1033,13 +1033,13 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_returns_none_for_empty_track() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         assert_eq!(track.max_keyframe_time(), None);
     }
 
     #[test]
     fn test_has_any_keyframes_returns_true_for_highlight_fields() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
             1000,
             [1.0, 0.0, 0.0, 0.5],
@@ -1050,27 +1050,27 @@ mod tests {
 
     #[test]
     fn test_has_any_keyframes_returns_true_for_font_metrics() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.text.ascent.ensure(0.0).add_keyframe(500, 10.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
 
     #[test]
     fn test_has_any_keyframes_returns_false_for_empty_track() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         assert!(!track.has_any_keyframes());
     }
 
     #[test]
     fn test_has_any_keyframes_returns_false_for_single_keyframe_at_time_zero() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
         assert!(!track.has_any_keyframes());
     }
 
     #[test]
     fn test_has_any_keyframes_returns_true_for_multiple_keyframes() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
         track.style.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
         assert!(track.has_any_keyframes());
@@ -1078,7 +1078,7 @@ mod tests {
 
     #[test]
     fn test_has_any_keyframes_returns_true_for_filter_contrast() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.filter.filter_contrast.ensure(1.0).add_keyframe(2000, 2.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
@@ -1209,7 +1209,7 @@ mod tests {
 
     #[test]
     fn test_max_keyframe_time_iterates_through_all_registry_fields() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         // Expect max_keyframe_time to iterate registry-driven fields
         // Put a keyframe on an unconventional registry field
         track.geometry.min_width.ensure(0.0).add_keyframe(7777, 50.0, Easing::Linear);
@@ -1218,7 +1218,7 @@ mod tests {
 
     #[test]
     fn test_has_any_keyframes_iterates_through_all_registry_fields() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         // Put a keyframe on a field that might have been missed
         track
             .highlight
@@ -1230,21 +1230,21 @@ mod tests {
 
     #[test]
     fn test_registry_driven_max_keyframe_time_finds_min_width() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.geometry.min_height.ensure(0.0).add_keyframe(4000, 200.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(4000));
     }
 
     #[test]
     fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.text.letter_spacing.ensure(0.0).add_keyframe(2500, 1.0, Easing::Linear);
         assert_eq!(track.max_keyframe_time(), Some(2500));
     }
 
     #[test]
     fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.text.word_spacing.ensure(0.0).add_keyframe(1000, 5.0, Easing::Linear);
         assert!(track.has_any_keyframes());
     }
@@ -1282,7 +1282,7 @@ mod tests {
 
     #[test]
     fn test_track_field_ref_has_keyframe_at() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         assert!(rf.has_keyframe_at(500));
@@ -1292,7 +1292,7 @@ mod tests {
 
     #[test]
     fn test_track_field_ref_keyframe_count() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
         track.style.opacity.ensure(0.5).add_keyframe(1000, 0.0, Easing::Linear);
@@ -1302,7 +1302,7 @@ mod tests {
 
     #[test]
     fn test_track_field_ref_keyframe_times() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
@@ -1313,7 +1313,7 @@ mod tests {
 
     #[test]
     fn test_track_field_ref_keyframe_easing() {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseOut);
         track.style.opacity.ensure(0.0).add_keyframe(500, 0.0, Easing::Linear);
         let rf = track.field_ref(ActorField::Opacity).unwrap();
@@ -1324,21 +1324,21 @@ mod tests {
 
     #[test]
     fn test_track_field_ref_keyframe_count_none_for_empty() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::Opacity).unwrap();
         assert_eq!(rf.keyframe_count(), 0);
     }
 
     #[test]
     fn test_track_field_ref_evaluate_value_none_for_vector_paths() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::VectorPaths).unwrap();
         assert!(rf.evaluate_value(0).is_none());
     }
 
     #[test]
     fn test_track_field_ref_evaluate_value_none_for_position_binding() {
-        let track = AnimationTrack::new("test".to_string());
+        let track = AnimationTrack::placeholder("test".to_string());
         let rf = track.field_ref(ActorField::PositionBinding).unwrap();
         assert!(rf.evaluate_value(0).is_none());
     }
@@ -1436,7 +1436,7 @@ mod tests {
 
     #[test]
     fn test_missing_properties() {
-        let track = AnimationTrack::new("empty_actor".to_string());
+        let track = AnimationTrack::placeholder("empty_actor".to_string());
 
         assert_eq!(track.geometry.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
         assert_eq!(

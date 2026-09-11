@@ -656,11 +656,10 @@ mod tests {
             _modifiers: &[crate::ast::Modifier],
             _children: &[crate::ast::InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
-            let track = ctx
-                .timeline
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            let track =
+                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                    crate::timeline::AnimationTrack::placeholder(label.to_string())
+                });
             track.kind = ActorKindId::Text;
             track.rebuild_property_plan();
             Ok(())
@@ -1016,7 +1015,7 @@ mod tests {
         );
 
         let track = report.output.tracks.get("g").expect("gauge track");
-        assert_eq!(track.actor_type.as_deref(), Some("Gauge"));
+        assert_eq!(track.actor_type, "Gauge");
         let level = animatix_syntax::schema::PropertyId(1_000_000);
         assert_eq!(
             track.property_plan.get(level).and_then(|slot| slot.track.sample(0)),

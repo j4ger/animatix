@@ -2,6 +2,8 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+// ActorKindId is used by test fixtures only.
+#[cfg(test)]
 use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifiers};
@@ -26,15 +28,13 @@ fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u6
         .add_keyframe(time_ms, color, Easing::Linear);
 }
 
-/// Returns true when a primitive emits text glyph paths. The `ActorKindId`
-/// fallback covers hand-built test tracks without an actor type name.
+/// Returns true when a primitive emits text glyph paths.
 fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
-    if let Some(primitive) =
-        track.actor_type.as_deref().and_then(|ty| timeline.primitive_registry.find(ty))
-    {
-        return primitive.capabilities().text_paths;
-    }
-    matches!(track.kind, ActorKindId::Text | ActorKindId::Code | ActorKindId::Typst)
+    timeline
+        .primitive_registry
+        .find(&track.actor_type)
+        .map(|primitive| primitive.capabilities().text_paths)
+        .unwrap_or(false)
 }
 
 /// Draws in vector targets by animating stroke progress first, then revealing fill.
@@ -551,11 +551,10 @@ mod tests {
             _modifiers: &[crate::ast::Modifier],
             _children: &[crate::ast::InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
-            let track = ctx
-                .timeline
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            let track =
+                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                    crate::timeline::AnimationTrack::placeholder(label.to_string())
+                });
             track.kind = ActorKindId::Extension;
             track.rebuild_property_plan();
             Ok(())

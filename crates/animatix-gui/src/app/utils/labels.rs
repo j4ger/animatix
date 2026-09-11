@@ -30,7 +30,7 @@ mod tests {
         let mut timeline = Timeline::new();
         timeline
             .tracks_mut()
-            .insert("rect1".into(), AnimationTrack::new("rect1".into()));
+            .insert("rect1".into(), AnimationTrack::placeholder("rect1".into()));
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect2");
     }
@@ -46,10 +46,10 @@ mod tests {
         let mut timeline = Timeline::new();
         timeline
             .tracks_mut()
-            .insert("rect1".into(), AnimationTrack::new("rect1".into()));
+            .insert("rect1".into(), AnimationTrack::placeholder("rect1".into()));
         timeline
             .tracks_mut()
-            .insert("rect2".into(), AnimationTrack::new("rect2".into()));
+            .insert("rect2".into(), AnimationTrack::placeholder("rect2".into()));
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect3");
     }

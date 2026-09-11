@@ -757,12 +757,11 @@ impl Primitive for NativePrimitiveAdapter {
         let time_ms = *time_ms;
         let parent_label = *parent_label;
         {
-            let track = timeline
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            let track = timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                crate::timeline::AnimationTrack::new(label.to_string(), self.type_name.clone())
+            });
             track.kind = ActorKindId::Extension;
-            track.actor_type = Some(self.type_name.clone());
+            track.actor_type = self.type_name.clone();
             track.rebuild_property_plan();
         }
         let Some(build) = self.build else {
@@ -2388,8 +2387,8 @@ mod tests {
             .register_property("Pulse", "glow", PropertyValueKind::F32, true)
             .expect("register property");
         let mut timeline = crate::timeline::Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::new("p".to_string());
-        track.actor_type = Some("Pulse".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("p".to_string());
+        track.actor_type = "Pulse".to_string();
         timeline.tracks.insert("p".to_string(), track);
 
         let adapter = NativeActionAdapter {
@@ -2889,7 +2888,7 @@ mod tests {
 
     #[test]
     fn native_path_commands_become_render_commands() {
-        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
@@ -2940,7 +2939,7 @@ mod tests {
     fn native_append_text_produces_text_command() {
         use animatix_plugin_api::NATIVE_TEXT_KIND_TEXT;
 
-        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
@@ -2997,7 +2996,7 @@ mod tests {
 
     #[test]
     fn native_append_highlight_produces_highlight_command() {
-        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
@@ -3035,7 +3034,7 @@ mod tests {
 
     #[test]
     fn native_append_image_uses_actor_image() {
-        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let image = crate::timeline::image::SceneImage {
             data: vello::peniko::ImageData {
                 data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
@@ -3086,7 +3085,7 @@ mod tests {
 
     #[test]
     fn native_append_image_rejects_uncached_explicit_url() {
-        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let image = crate::timeline::image::SceneImage {
             data: vello::peniko::ImageData {
                 data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
@@ -3147,7 +3146,7 @@ mod tests {
         let mut asset_cache = crate::timeline::assets::AssetCache::new();
         asset_cache.load_image_for(&path.to_string_lossy(), "p").expect("cache image");
 
-        let track = crate::timeline::AnimationTrack::new("p".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("p".to_string());
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
         let service_values = HashMap::new();
@@ -3243,7 +3242,7 @@ mod tests {
                 true,
             )
             .expect("register property");
-        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         crate::timeline::property_engine::write_property_plan_slot(
             &mut track,
             id,
@@ -3400,7 +3399,7 @@ mod tests {
         let property_ids = HashMap::from([("glow".to_string(), id)]);
         let property_kinds =
             HashMap::from([("glow".to_string(), animatix_syntax::schema::PropertyValueKind::F32)]);
-        let mut track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let mut host = NativeAssignmentHost {
             track: &mut track,
             property_ids: &property_ids,
@@ -3526,7 +3525,7 @@ mod tests {
         )
         .expect("adapter");
         assert_eq!(adapter.kind_id(), ActorKindId::Extension);
-        let track = crate::timeline::AnimationTrack::new("pulse".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let ctx = sample_evaluate_ctx(&track, &asset_cache);
         let commands =

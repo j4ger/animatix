@@ -45,7 +45,7 @@ fn build_legend_timeline() -> Timeline {
 fn test_legend_wrapped_label_respects_max_width() {
     use kurbo::{Affine, Shape};
 
-    let mut track = AnimationTrack::new("legend".to_string());
+    let mut track = AnimationTrack::placeholder("legend".to_string());
     track.kind = ActorKindId::Legend;
     track.legend.entries =
         vec![("A very long series label that should wrap".to_string(), [1.0, 0.0, 0.0, 1.0])];
@@ -195,7 +195,7 @@ fn test_legend_empty() {
     // the build-time placeholder insertion.
     use kurbo::Affine;
 
-    let mut track = AnimationTrack::new("empty_legend".to_string());
+    let mut track = AnimationTrack::placeholder("empty_legend".to_string());
     track.kind = ActorKindId::Legend;
 
     // Ensure entries are empty (default)
@@ -593,7 +593,7 @@ fn test_legend_render_commands_produced() {
     // Create a track with entries and verify evaluate returns Some(commands)
     use kurbo::Affine;
 
-    let mut track = AnimationTrack::new("legend".to_string());
+    let mut track = AnimationTrack::placeholder("legend".to_string());
     track.kind = ActorKindId::Legend;
 
     // Set manual entries to exercise label rendering without a scene build.

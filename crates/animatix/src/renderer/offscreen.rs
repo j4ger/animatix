@@ -724,7 +724,7 @@ mod readback_reuse_tests {
 
     fn solid_rect_timeline() -> Timeline {
         let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::new("r".to_string());
+        let mut track = AnimationTrack::placeholder("r".to_string());
         track.first_seen_ms = 0;
         track.shape.shape_type = Some({
             let mut t = crate::timeline::PropertyTrack::new(crate::timeline::ShapeType::Rect);
@@ -1193,7 +1193,7 @@ g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100)
 
         // Create a minimal timeline
         let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.first_seen_ms = 0;
         track.style.color = Some({
             let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);

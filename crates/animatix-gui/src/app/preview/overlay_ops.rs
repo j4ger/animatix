@@ -1439,7 +1439,7 @@ mod tests {
         // Minimal timeline with two position keyframes.
         let timeline = Timeline::new();
         let mut timeline = timeline;
-        let mut track = animatix::timeline::AnimationTrack::new("box".to_string());
+        let mut track = animatix::timeline::AnimationTrack::placeholder("box".to_string());
         track
             .geometry
             .position

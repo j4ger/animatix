@@ -403,10 +403,10 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         });
     }
 
-    let actor_type = track.actor_type.as_deref();
+    let actor_type = track.actor_type.as_str();
     let mut extensions = Vec::new();
     for descriptor in timeline.extension_property_descriptors() {
-        if !descriptor.actor_types.iter().any(|ty| Some(ty.as_str()) == actor_type) {
+        if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
             continue;
         }
         let id = animatix::property_descriptor::runtime_id(&descriptor);
@@ -515,7 +515,7 @@ mod tests {
     use super::*;
 
     fn make_track(kind: ActorKindId) -> AnimationTrack {
-        let mut track = AnimationTrack::new("test".to_string());
+        let mut track = AnimationTrack::placeholder("test".to_string());
         track.kind = kind;
         track
     }

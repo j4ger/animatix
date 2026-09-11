@@ -998,13 +998,12 @@ fn extension_actor_at_position_regression() {
             _modifiers: &[animatix_syntax::ast::Modifier],
             _children: &[animatix_syntax::ast::InlineItem],
         ) -> Result<(), Vec<animatix_syntax::diagnostics::Diagnostic>> {
-            let track = ctx
-                .timeline
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            let track =
+                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                    crate::timeline::AnimationTrack::placeholder(label.to_string())
+                });
             track.kind = crate::timeline::ActorKindId::Extension;
-            track.actor_type = Some("StubPulse".to_string());
+            track.actor_type = "StubPulse".to_string();
             track.rebuild_property_plan();
             Ok(())
         }

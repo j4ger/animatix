@@ -23,18 +23,15 @@ pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
     }
 }
 
-/// Icon for a track, honoring extension primitives whose
-/// `ActorKindId::Extension` has no static [`ActorKindMeta`] entry: their
-/// `icon_id()` comes from the live timeline registry instead. Falls back to
-/// the static metadata for built-ins and an empty string when nothing
-/// matches.
+/// Icon for a track, resolved from the live registry via its required
+/// `actor_type` (so extension primitives participate); falls back to the static
+/// kind metadata only when the primitive is not registered.
 pub fn actor_icon_for_track(track: &AnimationTrack, timeline: &Timeline) -> String {
-    if let Some(ty) = track.actor_type.as_deref() {
-        if let Some(primitive) = timeline.primitive_registry_snapshot().find(ty) {
-            return primitive.icon_id().to_string();
-        }
-    }
-    actor_icon_str(track.kind).to_string()
+    timeline
+        .primitive_registry_snapshot()
+        .find(&track.actor_type)
+        .map(|primitive| primitive.icon_id().to_string())
+        .unwrap_or_else(|| actor_icon_str(track.kind).to_string())
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────

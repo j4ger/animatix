@@ -119,7 +119,7 @@ impl Primitive for PlotExt {
             .timeline
             .tracks
             .entry(label.to_string())
-            .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
+            .or_insert_with(|| crate::timeline::AnimationTrack::placeholder(label.to_string()));
         track.kind = ActorKindId::Extension;
         track.procedural_plot = Some(ProceduralPlot {
             plot_type: ProceduralPlotKind::default(),
