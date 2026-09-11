@@ -145,6 +145,19 @@ pub enum ToolMode {
     Pivot,
 }
 
+/// Per-actor start state captured when a group transform begins.
+#[derive(Debug, Clone)]
+pub struct GroupTransformActor {
+    pub label: String,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub rotation: f32,
+    /// `size` (geometry) or `scale` (whole-block) — see [`ResizeMode`].
+    pub resize_mode: ResizeMode,
+    /// Transform scale at drag start (used when `resize_mode == Scale`).
+    pub scale: f32,
+}
+
 /// Tracks the current drag interaction on the preview canvas.
 ///
 /// - `Move`, `Scale`, `Rotate` manipulate absolutely positioned actors.
@@ -198,6 +211,24 @@ pub enum DragState {
         start_rotation: f32,
         /// Pivot point in world space at drag start.
         pivot: [f32; 2],
+    },
+    /// Dragging a group scale handle across a multi-selection.
+    GroupScale {
+        actors: Vec<GroupTransformActor>,
+        /// Union bounds of the selection in scene space at drag start.
+        union: kurbo::Rect,
+        /// Handle index 0-7 on the union box.
+        handle: usize,
+        /// Preserve aspect ratio (Shift held).
+        uniform: bool,
+    },
+    /// Rotating a multi-selection around its union centre.
+    GroupRotate {
+        actors: Vec<GroupTransformActor>,
+        /// Rotation centre in scene space.
+        center: [f32; 2],
+        /// Angle from centre to pointer at drag start (radians).
+        start_angle: f32,
     },
     /// Dragging a layout-managed child to reorder within its container.
     Reorder {

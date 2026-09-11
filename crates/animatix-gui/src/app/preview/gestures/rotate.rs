@@ -26,6 +26,29 @@ impl GestureHandler for RotateGesture {
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
+                // Multi-selection: rotate the whole group around its union centre.
+                if ctx.selected_actors.len() > 1 && *ctx.tool_mode == ToolMode::Rotate {
+                    let Some(union) = ctx.selected_union_rect() else {
+                        return GestureResult::Ignored;
+                    };
+                    let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
+                    let center = union.center();
+                    if !union.contains(kurbo::Point::new(scene.x, scene.y)) {
+                        return GestureResult::Ignored;
+                    }
+                    let actors = ctx.capture_group_actors();
+                    if actors.is_empty() {
+                        return GestureResult::Ignored;
+                    }
+                    let angle = ((scene.y - center.y) as f32).atan2((scene.x - center.x) as f32);
+                    *ctx.drag_state = DragState::GroupRotate {
+                        actors,
+                        center: [center.x as f32, center.y as f32],
+                        start_angle: angle,
+                    };
+                    return GestureResult::Claimed;
+                }
+
                 // Get first selected actor
                 let actor = match ctx.selected_actors.iter().next().cloned() {
                     Some(a) => a,
@@ -101,6 +124,52 @@ impl GestureHandler for RotateGesture {
                 GestureResult::Claimed
             },
             Gesture::DragMove { pos, modifiers, .. } => {
+                // Group rotate: rotate every member around the union centre.
+                let group = match &*ctx.drag_state {
+                    DragState::GroupRotate {
+                        actors,
+                        center,
+                        start_angle,
+                    } => Some((actors.clone(), *center, *start_angle)),
+                    _ => None,
+                };
+                if let Some((actors, center, start_angle)) = group {
+                    let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
+                    let angle = ((scene.y - center[1] as f64) as f32)
+                        .atan2((scene.x - center[0] as f64) as f32);
+                    let mut delta = angle - start_angle;
+                    while delta > std::f32::consts::PI {
+                        delta -= 2.0 * std::f32::consts::PI;
+                    }
+                    while delta < -std::f32::consts::PI {
+                        delta += 2.0 * std::f32::consts::PI;
+                    }
+                    let snap = ctx.rotation_snap_degrees.to_radians();
+                    let (sin_d, cos_d) = (delta.sin(), delta.cos());
+                    for a in &actors {
+                        let mut new_rot = a.rotation + delta;
+                        if modifiers.shift {
+                            new_rot = (new_rot / snap).round() * snap;
+                        }
+                        let dx = a.position[0] - center[0];
+                        let dy = a.position[1] - center[1];
+                        let nx = center[0] + dx * cos_d - dy * sin_d;
+                        let ny = center[1] + dx * sin_d + dy * cos_d;
+                        ctx.commands.push_back(
+                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                time_s: None,
+                                actor: a.label.clone(),
+                                property: "rotation".into(),
+                                value: PropertyValue::F32(new_rot),
+                                create_keyframe: ctx.keyframe_mode,
+                            })
+                            .into(),
+                        );
+                        drag_utils::emit_position_edit(a.label.clone(), nx, ny, ctx);
+                    }
+                    return GestureResult::Claimed;
+                }
+
                 // Only handle if we are already in Rotate state
                 let (actor, start_angle, start_rotation, pivot) = match &*ctx.drag_state {
                     DragState::Rotate {
@@ -146,7 +215,7 @@ impl GestureHandler for RotateGesture {
 
                 // Only handle if we were in Rotate state
                 match &old_drag_state {
-                    DragState::Rotate { .. } => {},
+                    DragState::Rotate { .. } | DragState::GroupRotate { .. } => {},
                     _ => return GestureResult::Ignored,
                 }
 

@@ -34,6 +34,10 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 names: &["Prev Keyframe", "Next Keyframe"],
                 desc: "Prev / Next keyframe",
             },
+            CheatSheetEntry::Bindings {
+                names: &["Step Back 1 Frame", "Step Forward 1 Frame"],
+                desc: "Prev / Next frame",
+            },
             CheatSheetEntry::Gesture {
                 key: "T (hold)",
                 desc: "Time lens scrub",
@@ -50,6 +54,10 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
             CheatSheetEntry::Gesture {
                 key: "Esc",
                 desc: "Select (default)",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Select Tool"],
+                desc: "Select",
             },
             CheatSheetEntry::Bindings {
                 names: &["Move Tool"],

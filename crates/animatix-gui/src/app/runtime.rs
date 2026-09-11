@@ -448,6 +448,10 @@ impl AnimatixApp {
                         .pending_actions
                         .push_back(ShellAction::View(ViewAction::OpenFindReplace));
                 },
+                KeyboardAction::SetSelectTool => {
+                    self.shell.ui_store.view.tool_mode = ToolMode::Select;
+                    self.shell.preview_store.preview.status = "Tool: Select".to_string();
+                },
                 KeyboardAction::SetMoveTool => {
                     self.shell.ui_store.view.tool_mode = ToolMode::Move;
                     self.shell.preview_store.preview.status = "Tool: Move".to_string();

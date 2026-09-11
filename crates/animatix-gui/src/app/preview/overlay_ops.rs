@@ -499,7 +499,7 @@ const ROTATION_OFFSET: f32 = 24.0;
 const ROTATION_RADIUS: f32 = 6.0;
 const CROSS_SIZE: f32 = 8.0;
 
-fn scale_handle_positions(sel_rect: kurbo::Rect) -> [kurbo::Point; 8] {
+pub(super) fn scale_handle_positions(sel_rect: kurbo::Rect) -> [kurbo::Point; 8] {
     [
         kurbo::Point::new(sel_rect.x0, sel_rect.y0),
         kurbo::Point::new(sel_rect.x1, sel_rect.y0),

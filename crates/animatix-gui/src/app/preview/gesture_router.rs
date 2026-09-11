@@ -18,7 +18,9 @@ impl GestureRouter {
         // Capture drag_state and marquee state before any mutable borrows
         let is_active_pivot = matches!(ctx.drag_state, DragState::MovePivot { .. });
         let is_active_rotate = matches!(ctx.drag_state, DragState::Rotate { .. });
+        let is_active_group_rotate = matches!(ctx.drag_state, DragState::GroupRotate { .. });
         let is_active_scale = matches!(ctx.drag_state, DragState::Scale { .. });
+        let is_active_group_scale = matches!(ctx.drag_state, DragState::GroupScale { .. });
         let is_active_motion_path = matches!(ctx.drag_state, DragState::MotionPath { .. });
         let is_active_move = matches!(ctx.drag_state, DragState::Move { .. });
         let is_active_reorder = matches!(ctx.drag_state, DragState::Reorder { .. });
@@ -69,7 +71,15 @@ impl GestureRouter {
             route_active(&mut super::gestures::rotate::RotateGesture);
             return;
         }
+        if is_active_group_rotate {
+            route_active(&mut super::gestures::rotate::RotateGesture);
+            return;
+        }
         if is_active_scale {
+            route_active(&mut super::gestures::scale::ScaleGesture);
+            return;
+        }
+        if is_active_group_scale {
             route_active(&mut super::gestures::scale::ScaleGesture);
             return;
         }

@@ -43,6 +43,11 @@ impl SavedShortcut {
     }
 
     /// Platform-neutral display, e.g. `Cmd+Shift+Z`.
+    ///
+    /// The `command` flag is shown literally as `Cmd`; use [`display_with`] for
+    /// UI text so it renders as `Ctrl` on Linux/Windows.
+    ///
+    /// [`display_with`]: SavedShortcut::display_with
     pub fn display(&self) -> String {
         let mut out = String::new();
         if self.command {
@@ -59,6 +64,15 @@ impl SavedShortcut {
         }
         out.push_str(&self.key);
         out
+    }
+
+    /// Platform-aware display for UI text: `Ctrl+S` on Linux/Windows,
+    /// `⌘S` on macOS. Falls back to the neutral form for unrepresentable keys.
+    pub fn display_with(&self, ctx: &Context) -> String {
+        match self.to_shortcut() {
+            Some(shortcut) => ctx.format_shortcut(&shortcut),
+            None => self.display(),
+        }
     }
 }
 
@@ -197,9 +211,7 @@ pub enum KeyboardAction {
     TogglePlayback,
     PrevKeyframe,
     NextKeyframe,
-    #[allow(dead_code)] // Reserved for explicit key binding (handled via NudgeSelected fallback)
     FrameStepForward,
-    #[allow(dead_code)] // Reserved for explicit key binding (handled via NudgeSelected fallback)
     FrameStepBackward,
 
     // Actor editing
@@ -216,6 +228,7 @@ pub enum KeyboardAction {
     OpenFindReplace,
 
     // Tool switching
+    SetSelectTool,
     SetMoveTool,
     SetScaleTool,
     SetRotateTool,
@@ -223,10 +236,7 @@ pub enum KeyboardAction {
     SetPivotTool,
 
     // Nudge (arrow keys with context-dependent step size)
-    NudgeSelected {
-        dx: f32,
-        dy: f32,
-    },
+    NudgeSelected { dx: f32, dy: f32 },
 
     // Editor / insertion palette
     EditSync,
@@ -444,6 +454,22 @@ impl ShortcutRegistry {
                 action: KeyboardAction::NextKeyframe,
             },
         );
+        self.register(
+            KeyboardShortcut::new(Modifiers::SHIFT, Key::Comma),
+            Shortcut {
+                name: "Step Back 1 Frame",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::FrameStepBackward,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::SHIFT, Key::Period),
+            Shortcut {
+                name: "Step Forward 1 Frame",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::FrameStepForward,
+            },
+        );
         // Selection editing (Canvas)
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::D),
@@ -620,21 +646,25 @@ impl ShortcutRegistry {
             },
         );
 
-        // Tool switching (Canvas)
+        // Tool switching (Canvas).
+        //
+        // V/A follow the Adobe convention (select / direct-select) and the rest
+        // are mnemonics: R rotate, S scale, G grab/move, P pivot. These are
+        // secondary to the visible tool switcher in the preview header.
         self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::M),
+            KeyboardShortcut::new(Modifiers::NONE, Key::V),
             Shortcut {
-                name: "Move Tool",
+                name: "Select Tool",
                 scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetMoveTool,
+                action: KeyboardAction::SetSelectTool,
             },
         );
         self.register(
-            KeyboardShortcut::new(Modifiers::SHIFT, Key::S),
+            KeyboardShortcut::new(Modifiers::NONE, Key::A),
             Shortcut {
-                name: "Scale Tool",
+                name: "Vertex Tool",
                 scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetScaleTool,
+                action: KeyboardAction::SetVertexTool,
             },
         );
         self.register(
@@ -646,11 +676,19 @@ impl ShortcutRegistry {
             },
         );
         self.register(
-            KeyboardShortcut::new(Modifiers::NONE, Key::V),
+            KeyboardShortcut::new(Modifiers::NONE, Key::S),
             Shortcut {
-                name: "Vertex Tool",
+                name: "Scale Tool",
                 scope: ShortcutScope::Canvas,
-                action: KeyboardAction::SetVertexTool,
+                action: KeyboardAction::SetScaleTool,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::G),
+            Shortcut {
+                name: "Move Tool",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::SetMoveTool,
             },
         );
         self.register(
@@ -950,6 +988,7 @@ mod tests {
     #[test]
     fn tool_shortcuts_are_unambiguous() {
         let registry = ShortcutRegistry::new();
+        assert_eq!(registry.shortcuts_for_name("Select Tool").len(), 1);
         assert_eq!(registry.shortcuts_for_name("Move Tool").len(), 1);
         assert_eq!(registry.shortcuts_for_name("Scale Tool").len(), 1);
         assert_eq!(registry.shortcuts_for_name("Rotate Tool").len(), 1);
@@ -957,7 +996,9 @@ mod tests {
         assert_eq!(registry.shortcuts_for_name("Pivot Tool").len(), 1);
 
         let vertex = registry.shortcut_for(&KeyboardAction::SetVertexTool).unwrap();
-        assert_eq!(vertex.logical_key, Key::V);
+        assert_eq!(vertex.logical_key, Key::A);
+        let select = registry.shortcut_for(&KeyboardAction::SetSelectTool).unwrap();
+        assert_eq!(select.logical_key, Key::V);
     }
 
     #[test]

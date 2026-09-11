@@ -376,7 +376,7 @@ impl GuiShell {
                     let current = self
                         .shortcut_registry
                         .current_saved(&name)
-                        .map(|s| s.display())
+                        .map(|s| s.display_with(ui.ctx()))
                         .unwrap_or_default();
                     let is_recording = recording.as_deref() == Some(name.as_str());
                     ui.horizontal(|ui| {
@@ -441,7 +441,7 @@ impl GuiShell {
                         self.ui_store.recording_shortcut = None;
                         self.save_persistence();
                         self.preview_store.preview.status =
-                            format!("Shortcut '{}' set to {}", name, saved.display());
+                            format!("Shortcut '{}' set to {}", name, saved.display_with(ui.ctx()));
                     },
                     Err(error) => {
                         self.ui_store.recording_shortcut = None;

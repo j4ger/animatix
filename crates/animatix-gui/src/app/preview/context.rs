@@ -85,6 +85,97 @@ impl PreviewContext<'_> {
         })
     }
 
+    /// Union of the selected actors' rotation-aware scene bounds, falling back
+    /// to cached hit regions. Shared by the multi-selection overlay and the
+    /// group transform gestures so the drawn box and the hit box agree.
+    pub(crate) fn selected_union_rect(&self) -> Option<kurbo::Rect> {
+        let mut union: Option<kurbo::Rect> = None;
+        for actor in self.selected_actors.iter() {
+            let bounds = if let Some(props) = self.get_actor_props(actor) {
+                let hw = props.size[0] / 2.0;
+                let hh = props.size[1] / 2.0;
+                let local_corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
+                let (mut min_x, mut min_y) = (f64::INFINITY, f64::INFINITY);
+                let (mut max_x, mut max_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
+                for corner in &local_corners {
+                    let world = preview::local_to_world(*corner, props.position, props.rotation);
+                    min_x = min_x.min(world.x);
+                    min_y = min_y.min(world.y);
+                    max_x = max_x.max(world.x);
+                    max_y = max_y.max(world.y);
+                }
+                kurbo::Rect::new(min_x, min_y, max_x, max_y)
+            } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
+                *bounds
+            } else {
+                continue;
+            };
+            union = Some(match union {
+                None => bounds,
+                Some(u) => kurbo::Rect::new(
+                    u.x0.min(bounds.x0),
+                    u.y0.min(bounds.y0),
+                    u.x1.max(bounds.x1),
+                    u.y1.max(bounds.y1),
+                ),
+            });
+        }
+        union
+    }
+
+    /// Resize mode and current transform scale for an actor's primitive.
+    /// Mirrors the single-actor scale path so group scaling stays consistent.
+    pub(crate) fn actor_resize_mode(&self, actor: &str) -> (preview::ResizeMode, f32) {
+        use animatix::timeline::TrackAccessor;
+        let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
+        self.timeline
+            .and_then(|t| {
+                t.get_track(actor).map(|tr| {
+                    let registry = t.primitive_registry_snapshot();
+                    let mode = if let Some(primitive) =
+                        tr.actor_type.as_deref().and_then(|ty| registry.find(ty)).or_else(|| {
+                            animatix::timeline::actor_kind_meta(tr.kind)
+                                .and_then(|m| animatix::primitives::find_primitive(m.type_name))
+                        }) {
+                        match primitive.resize_mode() {
+                            animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
+                            _ => preview::ResizeMode::Size,
+                        }
+                    } else {
+                        preview::ResizeMode::Size
+                    };
+                    (mode, tr.geometry.scale.get(time_ms, 1.0))
+                })
+            })
+            .unwrap_or((preview::ResizeMode::Size, 1.0))
+    }
+
+    /// Capture per-actor start state for a group transform. Locked actors are
+    /// excluded, matching single-actor behaviour.
+    pub(crate) fn capture_group_actors(&self) -> Vec<preview::GroupTransformActor> {
+        self.selected_actors
+            .iter()
+            .filter(|label| {
+                self.timeline
+                    .and_then(|t| t.get_track(label))
+                    .map(|tr| !tr.locked)
+                    .unwrap_or(true)
+            })
+            .filter_map(|label| {
+                let props = self.get_actor_props(label)?;
+                let (resize_mode, scale) = self.actor_resize_mode(label);
+                Some(preview::GroupTransformActor {
+                    label: label.clone(),
+                    position: props.position,
+                    size: props.size,
+                    rotation: props.rotation,
+                    resize_mode,
+                    scale,
+                })
+            })
+            .collect()
+    }
+
     /// Get the text content property name for a text-type actor.
     /// Returns `Some(property_name)` for Text, Math, Code, Typst actors;
     /// extension primitives that emit text paths default to `"content"`.
@@ -946,38 +1037,16 @@ impl PreviewContext<'_> {
         let theme = eparts::theme(ui);
         let tx = self.preview_transform(preview_rect);
         if self.selected_actors.len() > 1 {
-            let mut scene_rects = Vec::new();
-            for actor in self.selected_actors.iter() {
-                if let Some(props) = self.get_actor_props(actor) {
-                    let hw = props.size[0] / 2.0;
-                    let hh = props.size[1] / 2.0;
-                    let local_corners = [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]];
-                    let mut min_x = f64::INFINITY;
-                    let mut min_y = f64::INFINITY;
-                    let mut max_x = f64::NEG_INFINITY;
-                    let mut max_y = f64::NEG_INFINITY;
-                    for corner in &local_corners {
-                        let world =
-                            preview::local_to_world(*corner, props.position, props.rotation);
-                        min_x = min_x.min(world.x);
-                        min_y = min_y.min(world.y);
-                        max_x = max_x.max(world.x);
-                        max_y = max_y.max(world.y);
-                    }
-                    scene_rects.push(kurbo::Rect::new(min_x, min_y, max_x, max_y));
-                } else if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor)
-                {
-                    scene_rects.push(*bounds);
-                }
+            if let Some(union) = self.selected_union_rect() {
+                let ops = multi_selection_overlay_ops(
+                    &theme,
+                    &[union],
+                    is_dragging,
+                    ui.ctx().pixels_per_point(),
+                    tx,
+                );
+                execute_overlay_ops(ui.painter(), &ops, &tx);
             }
-            let ops = multi_selection_overlay_ops(
-                &theme,
-                &scene_rects,
-                is_dragging,
-                ui.ctx().pixels_per_point(),
-                tx,
-            );
-            execute_overlay_ops(ui.painter(), &ops, &tx);
             return;
         }
 
