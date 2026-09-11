@@ -188,10 +188,12 @@ impl SymbolTable {
         for spec in crate::schema::effect_specs() {
             table.types.insert(spec.type_name.to_string());
             table.effect_names.insert(spec.type_name.to_string());
-            table.properties.insert(
-                spec.type_name.to_string(),
-                spec.params.iter().map(|param| param.name.to_string()).collect(),
-            );
+            let mut names: Vec<String> =
+                spec.params.iter().map(|param| param.name.to_string()).collect();
+            // Every effect has the implicit `enabled` toggle (runtime default
+            // `true`); seed it so `soft.enabled = true` validates.
+            names.push("enabled".to_string());
+            table.properties.insert(spec.type_name.to_string(), names.clone());
             for param in spec.params {
                 if let Some(ty) = effect_param_type(param.kind) {
                     table
@@ -199,6 +201,9 @@ impl SymbolTable {
                         .insert((spec.type_name.to_string(), param.name.to_string()), ty);
                 }
             }
+            table
+                .property_types
+                .insert((spec.type_name.to_string(), "enabled".to_string()), typing::Type::Bool);
         }
 
         for stmt in stmts {

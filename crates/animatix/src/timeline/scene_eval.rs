@@ -968,6 +968,7 @@ impl Timeline {
                 let mut content: Option<kurbo::Rect> = None;
                 for child in &track.children {
                     self.subtree_bounds_union(child, &mut content);
+                    eprintln!("[roi-dbg] after child {child}: out={content:?}");
                 }
                 content.and_then(|rect| {
                     Self::region_from_rect(

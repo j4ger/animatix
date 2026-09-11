@@ -527,6 +527,14 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
    snapshot does not yet round-trip the `[[effects]]` section from runtime
    registrations (the analyzer reads effects from the authored manifest
    directly).
+3. **Dogfood finding (probe 010, container-layout workstream):** a Text child
+   of an effect scope renders at different positions depending on whether the
+   scope's chain is active (container-relative, correct) or empty (full-scene
+   fast path, scene bottom-right corner). The two paths disagree on the child
+   coordinate space for at-less children when the container has an explicit
+   `at`; also, container `at` is parent-center-relative, not absolute. Minimal
+   repro: `dogfood/probes/010-effect-chains/enabled_toggle.amx` at t=0.5 vs
+   t=2.0.
 
 **Guardrails.** Preserve the zero-readback `PendingComposite` park protocol,
 `RenderedFrame` buffer reuse, chain/declaration order determinism, and the PF-7/

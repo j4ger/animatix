@@ -1,0 +1,24 @@
+// Animated chain: blur radius + chroma offset + colour grade all animate;
+// derived ROI must follow the growing support (worst-case over keyframes).
+config { resolution: (640, 360) }
+
+#0s
+backdrop: Rect, size: (640, 360), color: (0.05, 0.07, 0.1, 1)
+
+fx: Filter {
+  soft: Blur, radius: 2
+  chroma: ChromaticAberration, offset: 2
+  grade: ColorGrade, saturate: 1.0
+  stripes: Rect, size: (360, 200), color: (0.95, 0.3, 0.25, 1), at: (140, 80)
+  stripes2: Rect, size: (360, 200), color: (0.25, 0.55, 0.95, 1), at: (142, 82)
+}
+
+#1s
+soft.radius = 10 [1s, ease: ease-in-out]
+chroma.offset = 8 [1s, ease: ease-in-out]
+grade.saturate = 0.2 [1s, ease: ease-in-out]
+
+#3s
+soft.radius = 2 [1s, ease: ease-in-out]
+chroma.offset = 2 [1s, ease: ease-in-out]
+grade.saturate = 1.0 [1s, ease: ease-in-out]

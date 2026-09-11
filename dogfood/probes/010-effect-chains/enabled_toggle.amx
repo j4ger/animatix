@@ -1,0 +1,20 @@
+// `enabled` toggle: the blur must fully disappear while enabled is false and
+// reappear exactly when the second keyframe lands — no stale frame caching.
+config { resolution: (640, 360) }
+
+#0s
+backdrop: Rect, size: (640, 360), color: (0.05, 0.07, 0.1, 1), at: (320, 180)
+
+fx: Filter {
+  soft: Blur, radius: 14, enabled: false
+  target: Text, text: "SHARP", font_size: 64, color: (1, 1, 1, 1), at: (320, 160)
+}
+
+#1s
+soft.enabled = true [200ms]
+
+#2.5s
+soft.enabled = false [200ms]
+
+#4s
+soft.enabled = true [200ms]

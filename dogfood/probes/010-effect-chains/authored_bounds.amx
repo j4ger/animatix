@@ -1,0 +1,13 @@
+// Authored `bounds:` knob: the effect chain only processes the declared
+// region — the card straddles the region edge so the sharp/processed split
+// and the composite-at-origin semantics are both visible.
+config { resolution: (640, 360) }
+
+#0s
+backdrop: Rect, size: (640, 360), color: (0.05, 0.07, 0.1, 1), at: (320, 180)
+
+fx: Filter, at: (320, 180), bounds: (120, 80, 300, 200) {
+  soft: Blur, radius: 12
+  card: Rect, size: (420, 240), color: (0.2, 0.75, 0.5, 1), at: (0, 0)
+}
+label: Text, text: "outside region -> sharp backdrop", font_size: 15, color: (0.8, 0.8, 0.8, 1), at: (320, 330)
