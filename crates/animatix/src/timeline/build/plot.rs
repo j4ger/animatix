@@ -62,6 +62,11 @@ pub(crate) struct PlotCurveParams<'a> {
     pub(super) kind: PlotCurveKind,
     /// Actor label, used in evaluation-failure diagnostics.
     pub(super) label: &'a str,
+    /// Declared plot parameter names (`freq: 2`). These are injected at frame
+    /// time from `plot_param_tracks`, so their absence from the build-time
+    /// probe environment is the designed handoff to per-frame resampling, not
+    /// an evaluation error.
+    pub(super) param_names: &'a [String],
     pub(super) func: &'a Option<(
         Vec<String>,
         Box<crate::timeline::modifier_runtime::ir::CompiledExpr>,
@@ -153,10 +158,14 @@ pub(crate) fn build_plot_curve_paths(
             env_copy.set_binding(&arg_name, Value::Num(min_t));
             let start_eval = match evaluate_compiled_expr(body, &env_copy) {
                 Ok(v) => v,
-                // `t` and the plot argument are frame-time names; their
-                // absence at build time is the designed handoff to per-frame
-                // resampling, not an error.
-                Err(EvalError::UndefinedVariable(name)) if name == "t" || name == arg_name => {
+                // `t`, the plot argument, and declared plot params are
+                // frame-time names; their absence at build time is the designed
+                // handoff to per-frame resampling, not an error.
+                Err(EvalError::UndefinedVariable(name))
+                    if name == "t"
+                        || name == arg_name
+                        || params.param_names.iter().any(|param| param == &name) =>
+                {
                     Value::Num(f64::NAN)
                 },
                 Err(e) => {
@@ -198,7 +207,11 @@ pub(crate) fn build_plot_curve_paths(
             env_copy.set_binding(&arg_name, Value::Num(max_t));
             let end_eval = match evaluate_compiled_expr(body, &env_copy) {
                 Ok(v) => v,
-                Err(EvalError::UndefinedVariable(name)) if name == "t" || name == arg_name => {
+                Err(EvalError::UndefinedVariable(name))
+                    if name == "t"
+                        || name == arg_name
+                        || params.param_names.iter().any(|param| param == &name) =>
+                {
                     Value::Num(f64::NAN)
                 },
                 Err(e) => {
@@ -1384,6 +1397,8 @@ impl Timeline {
                 })
                 .unwrap_or([0.0; 4]);
 
+            let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
+
             if let Some(key) = cache_key {
                 if let Some(cached) = self.plot_path_cache.get(&key) {
                     vello_paths = cached.clone();
@@ -1404,6 +1419,7 @@ impl Timeline {
                         eval_env: &eval_env,
                         build_quality: self.build_quality,
                         label,
+                        param_names: &param_names,
                     };
                     vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
                     self.plot_path_cache.insert(key, vello_paths.clone());
@@ -1425,6 +1441,7 @@ impl Timeline {
                     eval_env: &eval_env,
                     build_quality: self.build_quality,
                     label,
+                    param_names: &param_names,
                 };
                 vello_paths = build_plot_curve_paths(&curve_params, diagnostics);
             }
@@ -1435,8 +1452,6 @@ impl Timeline {
             // time by `is_dynamic()` in scene_eval.rs, so they keep using the
             // cached build-time paths with zero per-frame overhead.
             if let Some((args, body, captures)) = func.as_ref() {
-                let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
-
                 procedural_plot = Some(ProceduralPlot {
                     plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(kind),
                     kind,

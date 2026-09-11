@@ -273,3 +273,34 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
     let _scene_1 = timeline.evaluate(1.0, DIMS);
     let _scene_2 = timeline.evaluate(2.0, DIMS);
 }
+
+// ─────────────────────────────────────────────────────────────
+// Test 6: a genuine undefined name still warns
+// ─────────────────────────────────────────────────────────────
+
+#[test]
+fn undefined_name_in_plot_func_still_warns_at_build_time() {
+    // The build-time probe exempts frame-injected names (`t`, the closure
+    // argument, and *declared* plot params like `freq: 2`) because their
+    // absence is the designed handoff to per-frame resampling. It must NOT
+    // exempt a genuine typo — otherwise the diagnostic that surfaced probe
+    // 012's silent NaN would be gone. Here `freq` is neither declared nor
+    // written by an `always` block, so the probe should still warn.
+    let source = r#"
+#0s
+curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
+"#;
+    let temp_path = std::env::temp_dir().join("animatix_plot_params_test_typo.amx");
+    fs::write(&temp_path, source).expect("write temp fixture should succeed");
+    let ast = ModuleGraph::new()
+        .load_program(&temp_path)
+        .expect("program should load")
+        .expand_components(&mut Vec::new());
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let messages: Vec<String> = report.diagnostics.iter().map(|d| format!("{d:?}")).collect();
+    assert!(
+        messages.iter().any(|m| m.contains("func evaluation failed")),
+        "an undeclared plot variable should still produce a probe warning, got: {messages:?}"
+    );
+}
