@@ -1,0 +1,38 @@
+# Taylor-sin dogfood project — content-level checks (`animatix verify`).
+#
+# Global times. Scene table (`animatix timeline`):
+#   Title 0.00-3.40 | Target 3.00-7.80 | PartialSums 7.40-13.40
+#   Sweep 13.00-19.10 | Outro 18.70-22.10
+# Every time below sits inside one scene and clear of the 400ms fade blends.
+
+# Scene 1 — Title: headline and subtitle fade in.
+visible 2.5 title
+visible 2.5 subtitle
+reveals title 0.0 2.0
+
+# Scene 2 — Target: the Graph-hosted sine must be revealed by the container
+# fade-in. This is the probe-010 regression; before the fix the curve stayed
+# invisible for the whole scene while the axes drew.
+visible 6.5 step_title
+visible 6.5 sine_graph
+reveals sine 3.6 6.5 0.005
+
+# Scene 3 — PartialSums: partial sums fade in over the base sine, one at a
+# time. A single term's own footprint is only a few dozen pixels here (the
+# higher-degree curves overlap their siblings almost everywhere), so a
+# per-term `reveals` cannot clear a useful threshold — assert the build-up at
+# scene level instead.
+visible 12.5 sum_graph
+visible 12.5 p7
+differs 8.2 12.5 0.005
+
+# Scene 4 — Sweep: the Taylor curve re-samples as n sweeps 1 -> 13. `reveals`
+# fails if the plot stays static — the LG-3 / Stage B regression where the
+# build-time curve was cached forever.
+visible 16.0 sw_graph
+visible 16.0 readout
+reveals taylor 13.6 18.0 0.005
+
+# Scene 5 — Outro.
+visible 20.5 final_eq
+visible 20.5 tag

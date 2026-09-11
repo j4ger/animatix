@@ -31,6 +31,10 @@ is clearer for the same content?"
    cargo run --bin animatix -- lint dogfood/projects/<name>/entry.amx
    cargo run --bin animatix -- image dogfood/projects/<name>/entry.amx --time 1.0 --output /tmp/dogfood.png
    ```
+   When the project has a `verify.txt`, run the content checks too:
+   ```bash
+   cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
+   ```
 4. When the grammar blocks the intent, create a minimal probe under
    `probes/`. The probe should reproduce the gap with the smallest possible
    `.amx`, not with the whole project.
@@ -60,6 +64,49 @@ A new run must satisfy the same rules as a real review experiment:
 
 See `runs/README.md` for the full agent workflow, human controls, review
 signals, and the decision options.
+
+## Content Checks (`verify.txt`)
+
+`check`/`lint` only see the build model, and a whole-frame render smoke stays
+green while a single actor silently disappears — `examples/data/07_plots.amx`
+shipped with an invisible headline curve through both gates. A `verify.txt`
+beside a project's `entry.amx` asserts what is *actually on screen*:
+
+```bash
+cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
+```
+
+It renders the frame(s) at the named times and prints one PASS/FAIL per line.
+The file is line-based: one check per line, `#` comments and blank lines
+ignored, times are **global** composition times (see `animatix timeline`).
+Copy `templates/verify.txt` to start.
+
+| Check | Meaning |
+|---|---|
+| `visible <t> <label>` | the actor put ink inside its evaluated bounds at `t` |
+| `invisible <t> <label>` | it did not |
+| `reveals <label> <t_before> <t_after> [min_fraction]` | the actor's bounds region changed between the two times — the robust "did it appear?" check |
+| `differs <t1> <t2> [min_fraction]` | the two frames differ (the animation actually animates) |
+| `ink <t> <min_fraction>` | the whole frame is not blank |
+
+Thresholds default to 0.01 (1%) for `reveals` and 0.001 for `differs`.
+
+**Choosing the right check.** `visible` is cheap but weak when the actor's
+bounds contain other painted content: a `Graph` paints its generated axes inside
+the hosted curve's bounding box, so `visible <curve>` passes even with the curve
+missing. Use `reveals <curve> <hidden_t> <shown_t>` for that class — it measures
+the change in the actor's region, so a curve that never appears fails. A single
+actor's footprint can also be too small to threshold (a high-degree partial sum
+overlaps its siblings almost everywhere); use a scene-level `differs` there.
+
+Run every project through the content gate plus the `check` warning allowlist:
+
+```bash
+bash scripts/dogfood-verify.sh
+```
+
+This is intentionally local-only, not CI: dogfood content tracks the language as
+it changes and the render checks need a GPU.
 
 ## Rules
 

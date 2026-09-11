@@ -24,3 +24,5 @@ pub mod property_descriptor;
 pub mod renderer;
 /// Timeline construction, evaluation, and animation engine.
 pub mod timeline;
+/// Content-level frame verification (what is actually visible on screen).
+pub mod verify;

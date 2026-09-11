@@ -1,0 +1,23 @@
+# Sorting-visualizer dogfood project — content-level checks.
+#
+# Global times. Scene table (`animatix timeline`):
+#   Title 0.00-2.50 | Steps 2.10-6.60 | Result 6.20-10.20
+# Times sit inside one scene and clear of the 400ms fade blends.
+
+# Scene 1 — Title.
+visible 1.8 title
+visible 1.8 subtitle
+visible 1.8 hint
+reveals title 0.0 1.5
+
+# Scene 2 — Steps: the insertion sort runs through a timeline function and
+# emits each swap. The bars must actually reorder across the scene; a broken
+# `fn`/component expansion leaves them static.
+visible 5.0 step_title
+visible 5.0 bars
+differs 2.8 6.0 0.005
+
+# Scene 3 — Result: the sorted bars appear (4,1,3,2 -> 1,2,3,4).
+visible 8.5 result_title
+visible 8.5 result_bars
+reveals result_bars 6.6 8.5 0.005

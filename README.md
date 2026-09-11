@@ -58,7 +58,7 @@ supported; CI validates the supported combination with
 
 **Multi-scene:** Scene declarations, transitions (fade/wipe/cut), cross-file composition, auto-routed CLI export
 
-**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), GUI shell, Tree-sitter grammar, LSP server
+**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), scene checker/verifier (`animatix check`, `animatix verify`), GUI shell, Tree-sitter grammar, LSP server
 
 Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/primitives.md`](docs/primitives.md) · All properties: [`docs/properties.md`](docs/properties.md)
 

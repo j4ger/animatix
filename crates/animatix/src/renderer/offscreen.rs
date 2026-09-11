@@ -211,6 +211,45 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
+        self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options, false)
+            .map(|_| ())
+    }
+
+    /// Render a frame and return both its pixels and the observable
+    /// [`SceneProgram`] (per-actor `precise_bounds`, items, diagnostics) from
+    /// the *same* evaluation.
+    ///
+    /// This is the content-level verification entry point (see
+    /// [`crate::verify`]): the pixels answer "did it actually draw?", the
+    /// bounds answer "where should it have drawn?". Calling the scene-only
+    /// path plus a separate `evaluate_program_*` call would evaluate twice and
+    /// could disagree; this keeps them consistent.
+    pub fn render_timeline_observable(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+    ) -> Result<(RenderedFrame, crate::timeline::scene_program::SceneProgram), String> {
+        let program = self
+            .render_to_output_texture_inner(timeline, time_s, dimensions, debug_options, true)?
+            .expect("collect_items=true always returns a program");
+        let frame = self.readback_output(dimensions)?;
+        Ok((frame, program))
+    }
+
+    /// Shared tail of [`Self::render_to_output_texture`] and
+    /// [`Self::render_timeline_observable`]. `collect_items` selects the
+    /// observable evaluation path and makes the program available to the
+    /// caller.
+    fn render_to_output_texture_inner(
+        &mut self,
+        timeline: &Timeline,
+        time_s: f64,
+        dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        collect_items: bool,
+    ) -> Result<Option<crate::timeline::scene_program::SceneProgram>, String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -226,7 +265,23 @@ impl OffscreenRenderer {
         }
         let filter_backend = self.filter_backend.as_mut().unwrap();
         let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(filter_backend);
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
+        let program = if collect_items {
+            Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb))
+        } else {
+            None
+        };
+        // The observable path borrows the scene out of `program`; the
+        // scene-only path evaluates directly. Either way `scene` is a borrow
+        // that ends before the render call returns.
+        let scene_owned;
+        let scene: &vello::Scene = match program.as_ref() {
+            Some(program) => &program.scene,
+            None => {
+                scene_owned =
+                    timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
+                &scene_owned
+            },
+        };
 
         let output_view = self
             .output_view
@@ -240,7 +295,7 @@ impl OffscreenRenderer {
                 output_view,
                 dimensions.width,
                 dimensions.height,
-                &scene,
+                scene,
             )
             .map_err(|e| e.to_string())?;
 
@@ -262,7 +317,7 @@ impl OffscreenRenderer {
                 composite.alpha,
             );
         }
-        Ok(())
+        Ok(program)
     }
 
     /// Render a timeline to the primary offscreen texture (texture_a).

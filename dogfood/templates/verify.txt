@@ -1,0 +1,20 @@
+# Content checks for <project> — see dogfood/README.md for the grammar.
+# Times are GLOBAL composition times (`animatix timeline <entry.amx>`).
+# Delete the checks that do not apply; keep at least one per scene.
+
+# An actor that should be on screen: its bounds contain ink.
+# visible 2.5 title
+
+# An actor that should NOT be on screen yet.
+# invisible 0.5 title
+
+# The robust reveal check: the actor's region changes between the two times.
+# Prefer this for an actor whose bounds contain other painted content (a curve
+# inside a Graph, where the axes already provide ink).
+# reveals sine 3.6 6.5 0.005
+
+# The animation actually animates between two times.
+# differs 8.2 12.5 0.005
+
+# The whole frame is not blank.
+# ink 3.0 0.005
