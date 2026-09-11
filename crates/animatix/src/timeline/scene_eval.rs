@@ -276,7 +276,7 @@ impl Timeline {
     /// Check whether a filter actor can safely use zero-readback post-render compositing.
     /// This is only safe when the filter is the last child in every ancestor container
     /// (nothing renders after the filter in the scene graph).
-    fn can_post_composite_filter(&self, node_label: &str) -> bool {
+    pub(crate) fn can_post_composite_filter(&self, node_label: &str) -> bool {
         // Find the path from root to this actor
         let Some(path) = self.find_path_to_actor(node_label) else {
             return false;
@@ -317,7 +317,7 @@ impl Timeline {
         true
     }
 
-    fn evaluate_node(
+    pub(crate) fn evaluate_node(
         &self,
         node_label: &str,
         time_ms: u64,
@@ -734,20 +734,10 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve the child-rendering strategy for a track from its primitive.
-    fn primitive_child_processing(
-        &self,
-        track: &AnimationTrack,
-    ) -> crate::primitives::ChildProcessing {
-        self.track_primitive(track)
-            .map(|primitive| primitive.child_processing())
-            .unwrap_or(crate::primitives::ChildProcessing::Generic)
-    }
-
     /// Resolve a track's primitive from its required `actor_type` registry key.
     /// No kind fallback: a track without a resolvable type is a build-time
     /// error, validated once at the end of `Timeline::build`.
-    fn track_primitive<'a>(
+    pub(crate) fn track_primitive<'a>(
         &'a self,
         track: &AnimationTrack,
     ) -> Option<&'a dyn crate::primitives::Primitive> {
@@ -759,7 +749,7 @@ impl Timeline {
     /// child's declared position (the default clip geometry is origin-centered)
     /// to match the previous Rect/Ellipse behavior. `None` means the primitive
     /// has no clip geometry — the caller warns and falls back to a rectangle.
-    fn clip_path_for_child(
+    pub(crate) fn clip_path_for_child(
         &self,
         child: &AnimationTrack,
         time_ms: u64,
@@ -792,7 +782,7 @@ impl Timeline {
     }
 
     /// Recursively render child nodes using the primitive capability hook.
-    fn render_node_children(
+    pub(crate) fn render_node_children(
         &self,
         node_label: &str,
         time_ms: u64,
@@ -811,20 +801,105 @@ impl Timeline {
         let Some(track) = self.tracks.get(node_label) else {
             return;
         };
+        // The primitive is the single child-rendering entry point; the pipeline
+        // no longer branches on the child-processing strategy. A primitive
+        // without a registered type renders nothing (validated at build time).
+        let Some(primitive) = self.track_primitive(track) else {
+            return;
+        };
 
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_label, time_ms)
         } else {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
+        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+        let mut ctx = crate::primitives::RenderChildrenCtx {
+            timeline: self,
+            node_label,
+            children: &track.children,
+            time_ms,
+            global_transform,
+            global_opacity,
+            scene_dimensions,
+            debug_options,
+            overrides,
+            layout_positions: child_layout_positions,
+            frame_env,
+            allow_pending_composites,
+            scene,
+            hit_regions,
+            program_items,
+            filter_backend,
+        };
+        if let Err(e) = primitive.render_children(&mut ctx, &children) {
+            let _ = e;
+            let label = node_label.to_string();
+            self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                crate::diagnostics::Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::RenderFailure,
+                    crate::diagnostics::DiagnosticPhase::Render,
+                    format!("failed to render children of '{label}'"),
+                ),
+            );
+        }
+    }
 
-        // ── Special child-rendering strategies ──
-        // `Filter`, `Mask`, and `Equation` children render through dedicated
-        // off-screen/aggregation pipelines below, dispatched on the
-        // primitive's `child_processing()` capability. Adding a new
-        // `ChildProcessing` variant requires a new branch here plus the
-        // matching `ChildProcessingKind` in the shared schema.
-        let child_processing = self.primitive_child_processing(track);
+    /// Adapter used by the [`crate::primitives::Primitive::render_children`]
+    /// default: unpack the context and dispatch to the strategy implementation.
+    pub(crate) fn render_children_ctx(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+        child_processing: crate::primitives::ChildProcessing,
+    ) {
+        self.render_children_by_strategy(
+            ctx.node_label,
+            ctx.time_ms,
+            ctx.global_transform,
+            ctx.global_opacity,
+            ctx.scene_dimensions,
+            ctx.debug_options,
+            &mut *ctx.scene,
+            ctx.overrides,
+            &mut *ctx.hit_regions,
+            ctx.frame_env,
+            &mut *ctx.filter_backend,
+            ctx.allow_pending_composites,
+            &mut *ctx.program_items,
+            child_processing,
+        );
+    }
+
+    /// Render `node_label`'s children by the given strategy. Kept as one
+    /// function so the `Filter`/`Mask`/`Equation`/`Generic` bodies share the
+    /// frame's locals; the pipeline reaches it only through
+    /// [`crate::primitives::Primitive::render_children`].
+    fn render_children_by_strategy(
+        &self,
+        node_label: &str,
+        time_ms: u64,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        scene: &mut vello::Scene,
+        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+        hit_regions: &mut Vec<(String, kurbo::Rect)>,
+        frame_env: Option<&super::Environment>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        allow_pending_composites: bool,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        child_processing: crate::primitives::ChildProcessing,
+    ) {
+        let Some(track) = self.tracks.get(node_label) else {
+            return;
+        };
+
+        let child_layout_positions = if self.dynamic_layout {
+            self.compute_animated_layout(node_label, time_ms)
+        } else {
+            std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
+        };
 
         if child_processing == crate::primitives::ChildProcessing::Filter {
             let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();

@@ -614,6 +614,113 @@ pub struct EvaluateCtx<'a> {
     pub target_resolver: Option<&'a dyn TargetResolver>,
 }
 
+/// Mutable context passed to [`Primitive::render_children`].
+///
+/// The scene-subtree renderer hands each container primitive this context so the
+/// primitive drives its own recursion, instead of the pipeline branching on a
+/// `ChildProcessing` value. `scene`, `hit_regions`, `program_items`, and
+/// `filter_backend` are the caller-local outputs; every other field is
+/// read-only frame state. The recursion entry point (`Timeline::evaluate_node`)
+/// and the frame caches are reached through [`Self::timeline`].
+pub struct RenderChildrenCtx<'a, 'b, 'c> {
+    /// The timeline being rendered.
+    pub timeline: &'a Timeline,
+    /// Label of the container whose children are being rendered.
+    pub node_label: &'a str,
+    /// The container's child labels, in scene order.
+    pub children: &'a [String],
+    /// Current time in milliseconds.
+    pub time_ms: u64,
+    /// The container's world transform.
+    pub global_transform: kurbo::Affine,
+    /// The container's inherited opacity.
+    pub global_opacity: f32,
+    /// Scene dimensions.
+    pub scene_dimensions: SceneDimensions,
+    /// Debug overlay options for this frame.
+    pub debug_options: crate::timeline::DebugRenderOptions,
+    /// Property overrides from modifiers, keyed by actor label.
+    pub overrides: &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    /// Resolved child layout positions for this frame (shared by refcount, so
+    /// storing it by value is a cheap clone).
+    pub layout_positions: std::sync::Arc<crate::timeline::layout::LayoutPositions>,
+    /// The frame environment, when one was built.
+    pub frame_env: Option<&'a Environment>,
+    /// Whether the caller may park GPU filter composites for a later blit.
+    pub allow_pending_composites: bool,
+    /// Output scene for this frame.
+    pub scene: &'b mut vello::Scene,
+    /// Output hit regions (world bounds) for this frame.
+    pub hit_regions: &'b mut Vec<(String, kurbo::Rect)>,
+    /// Output observable scene items, when item collection was requested.
+    pub program_items: &'b mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    /// The active filter backend, when one is available.
+    pub filter_backend: &'b mut Option<&'c mut dyn crate::timeline::filter::FilterBackend>,
+}
+
+impl RenderChildrenCtx<'_, '_, '_> {
+    /// The container track these children belong to.
+    pub fn track(&self) -> Option<&AnimationTrack> {
+        self.timeline.tracks.get(self.node_label)
+    }
+
+    /// Render one child into this context's scene, preserving the caller's
+    /// `allow_pending_composites` flag.
+    pub fn render_child(&mut self, child: &str) {
+        let allow_pending_composites = self.allow_pending_composites;
+        self.timeline.evaluate_node(
+            child,
+            self.time_ms,
+            self.global_transform,
+            self.global_opacity,
+            self.scene_dimensions,
+            self.debug_options,
+            &mut *self.scene,
+            self.overrides,
+            &self.layout_positions,
+            &mut *self.hit_regions,
+            self.frame_env,
+            &mut *self.filter_backend,
+            allow_pending_composites,
+            &mut *self.program_items,
+        );
+    }
+
+    /// Render one child into a caller-provided scene (the Filter strategy
+    /// renders into an offscreen sub-scene, which never parks composites).
+    pub fn render_child_into(&mut self, scene: &mut vello::Scene, child: &str) {
+        self.timeline.evaluate_node(
+            child,
+            self.time_ms,
+            self.global_transform,
+            self.global_opacity,
+            self.scene_dimensions,
+            self.debug_options,
+            scene,
+            self.overrides,
+            &self.layout_positions,
+            &mut *self.hit_regions,
+            self.frame_env,
+            &mut *self.filter_backend,
+            false,
+            &mut *self.program_items,
+        );
+    }
+
+    /// Default child rendering: every child in order into this context's scene.
+    pub fn render_children_default(&mut self, children: &[&str]) {
+        for child in children {
+            self.render_child(child);
+        }
+    }
+
+    /// Push a runtime render diagnostic (surfaced through the frame's
+    /// diagnostics, e.g. for a filter fallback).
+    pub fn push_diagnostic(&self, diagnostic: Diagnostic) {
+        self.timeline.eval_caches.runtime_diagnostics.borrow_mut().push(diagnostic);
+    }
+}
+
 /// Mutable context for text recompilation.
 ///
 /// Only text primitives need this. Shape, image, and SVG primitives
@@ -1016,6 +1123,25 @@ pub trait Primitive: Send + Sync {
     /// `None` when it is not an equation fragment.
     fn equation_fragment(&self, _ctx: &EvaluateCtx) -> Option<EquationFragment> {
         None
+    }
+
+    // ── Child rendering (containers) ──
+
+    /// Render this primitive's children.
+    ///
+    /// This is the single entry point the scene renderer calls — it never
+    /// branches on the child-processing strategy. The default selects the
+    /// strategy from [`Self::child_processing`] (one overridable match);
+    /// a primitive may override this to render its children differently.
+    fn render_children(
+        &self,
+        ctx: &mut RenderChildrenCtx<'_, '_, '_>,
+        children: &[&str],
+    ) -> Result<(), RenderError> {
+        let _ = children;
+        let timeline = ctx.timeline;
+        timeline.render_children_ctx(ctx, self.child_processing());
+        Ok(())
     }
 
     // ── Build-time shape state (for vector shapes) ──

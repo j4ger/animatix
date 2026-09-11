@@ -55,7 +55,7 @@ pub(crate) mod fn_eval;
 #[cfg(feature = "render")]
 pub mod image;
 pub mod kurbo_shapes;
-mod layout;
+pub(crate) mod layout;
 #[cfg(feature = "render")]
 mod media;
 /// Modifier statement execution (IR interpreter).
@@ -567,7 +567,7 @@ pub struct Timeline {
     /// text content / font_family / font_size and have glyphs recompiled on-demand.
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Per-frame evaluation caches and transient state. Reset on clone.
-    eval_caches: EvalCaches,
+    pub(crate) eval_caches: EvalCaches,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -621,7 +621,7 @@ pub(crate) struct FrameCacheEntry {
 /// scene data. `Clone` therefore returns `Default` rather than copying cache
 /// contents.
 #[derive(Default)]
-struct EvalCaches {
+pub(crate) struct EvalCaches {
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
     transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     static_subtree_cache: std::cell::RefCell<
@@ -646,7 +646,7 @@ struct EvalCaches {
     /// rebuilt lazily (cleared by `invalidate_frame_cache`, whose funnel
     /// invariant covers every track mutation). `None` until first needed.
     bounds_registry: std::cell::RefCell<Option<BoundsRegistry>>,
-    runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
+    pub(crate) runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
     /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling
