@@ -6,6 +6,7 @@
 | [`primitives.md`](primitives.md) | Users | Quick reference for every scene primitive, graph primitive, and container |
 | [`properties.md`](properties.md) | Users | Property registry reference: all actor properties, types, and applicability |
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
+| [`primitive_abstraction.md`](primitive_abstraction.md) | Contributors | Primitive trait model: what is unified, accepted boundaries, remaining non-uniformity, deferred decisions, and a recommended order |
 | [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
 | [`roadmap.md`](roadmap.md) | Both | Canonical planned work, known gaps, migration plans |
 | [`extension_abstraction_plan.md`](extension_abstraction_plan.md) | Contributors | Large refactor plan for dynamic primitives/properties |
@@ -22,6 +23,7 @@
 - **All primitives**: `primitives.md`
 - **All properties**: `properties.md`
 - **System architecture**: `architecture.md`
+- **Primitive abstraction status/gaps**: `primitive_abstraction.md`
 - **How to build/test**: `contributing.md` §Development Workflows
 - **What's next**: `roadmap.md`
 - **Dogfooding**: `../dogfood/README.md`
