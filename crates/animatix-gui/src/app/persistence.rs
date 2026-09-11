@@ -35,25 +35,16 @@ pub(super) fn build_tree(inspector_visible: bool) -> Tree<WorkspaceTab> {
 
     let sidebar = tiles.insert_pane(WorkspaceTab::Sidebar);
     let preview = tiles.insert_pane(WorkspaceTab::Preview);
+    let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
     let timeline = tiles.insert_pane(WorkspaceTab::Timeline);
 
-    // Top row: sidebar | preview (| inspector if visible).
-    let (top_children, inspector_id) = if inspector_visible {
-        let inspector = tiles.insert_pane(WorkspaceTab::Inspector);
-        (vec![sidebar, preview, inspector], Some(inspector))
-    } else {
-        (vec![sidebar, preview], None)
-    };
-
-    let mut top_row = Linear::new(LinearDir::Horizontal, top_children);
-    if let Some(inspector_id) = inspector_id {
-        top_row.shares[sidebar] = 0.22;
-        top_row.shares[preview] = 0.53;
-        top_row.shares[inspector_id] = 0.25;
-    } else {
-        top_row.shares[sidebar] = 0.30;
-        top_row.shares[preview] = 0.70;
-    }
+    // The Inspector pane always exists in the tree; toggling it flips
+    // visibility rather than rebuilding, so user rearrangement survives.
+    // Container layout skips invisible children.
+    let mut top_row = Linear::new(LinearDir::Horizontal, vec![sidebar, preview, inspector]);
+    top_row.shares[sidebar] = 0.22;
+    top_row.shares[preview] = 0.53;
+    top_row.shares[inspector] = 0.25;
     let top_row = tiles.insert_container(top_row);
 
     // Root: top row above, full-width timeline below.
@@ -63,7 +54,23 @@ pub(super) fn build_tree(inspector_visible: bool) -> Tree<WorkspaceTab> {
         0.65, // top row gets 65 %; timeline gets 35 %
     ));
 
-    Tree::new("workspace", root, tiles)
+    let mut tree = Tree::new("workspace", root, tiles);
+    tree.set_visible(inspector, inspector_visible);
+    tree
+}
+
+/// Show or hide the Inspector pane without disturbing the rest of the layout.
+///
+/// Returns `false` when the tree has no Inspector pane (a layout persisted
+/// before the pane existed); callers can fall back to a fresh tree.
+pub(super) fn set_inspector_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -> bool {
+    match tree.tiles.find_pane(&WorkspaceTab::Inspector) {
+        Some(id) => {
+            tree.set_visible(id, visible);
+            true
+        },
+        None => false,
+    }
 }
 
 /// Default workspace layout — inspector hidden.
@@ -216,5 +223,25 @@ mod tests {
         let parsed: SettingsPersistence =
             ron::from_str(&serialized).expect("parse settings roundtrip");
         assert_eq!(parsed.plugin_paths, settings.plugin_paths);
+    }
+
+    #[test]
+    fn inspector_pane_exists_and_toggles_without_rebuilding() {
+        let mut tree = build_tree(false);
+        let inspector = tree
+            .tiles
+            .find_pane(&WorkspaceTab::Inspector)
+            .expect("inspector pane is always present in the tree");
+        assert!(!tree.is_visible(inspector), "hidden by default");
+
+        assert!(set_inspector_visible(&mut tree, true));
+        assert!(tree.is_visible(inspector));
+        assert!(set_inspector_visible(&mut tree, false));
+        assert!(!tree.is_visible(inspector));
+
+        // Other panes must survive the toggle untouched.
+        assert!(tree.tiles.find_pane(&WorkspaceTab::Timeline).is_some());
+        assert!(tree.tiles.find_pane(&WorkspaceTab::Preview).is_some());
+        assert!(tree.tiles.find_pane(&WorkspaceTab::Sidebar).is_some());
     }
 }

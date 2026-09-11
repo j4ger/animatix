@@ -33,9 +33,26 @@ use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::document::timeline_diff::{
-    KeyframeId, collect_actor_keyframes, collect_per_property_keyframes,
-};
+use crate::app::document::timeline_diff::{KeyframeId, collect_per_property_keyframes};
+
+/// Group an actor's keyframes by time, preserving every property keyed at that
+/// time.
+///
+/// The aggregate timeline row draws one diamond per time; carrying the whole
+/// property set lets the tooltip and context menu report and edit every
+/// coincident keyframe instead of an arbitrary one.
+fn collect_actor_keyframe_groups(
+    track: &animatix::timeline::AnimationTrack,
+) -> Vec<(u64, Vec<&'static str>)> {
+    let mut by_time: std::collections::BTreeMap<u64, Vec<&'static str>> =
+        std::collections::BTreeMap::new();
+    for (property, times) in collect_per_property_keyframes(track) {
+        for time_ms in times {
+            by_time.entry(time_ms).or_default().push(property);
+        }
+    }
+    by_time.into_iter().collect()
+}
 
 /// Property groups for per-property lanes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -470,13 +487,24 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         ..
     } = ctx;
 
-    // Reset timeline-focus flag; will be set to true below if the panel
-    // or any of its children receives pointer interaction this frame.
-    *ctx.timeline_focused = false;
+    // Focus the panel on click, not on hover. Hover-based focus silently
+    // repurposed Delete whenever the pointer crossed the timeline; clicking
+    // the timeline focuses it and clicking anywhere else releases it.
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     let timeline_outer_rect = ui.available_rect_before_wrap();
-    if ui.input(|i| i.pointer.has_pointer()) && ui.rect_contains_pointer(timeline_outer_rect) {
-        *ctx.timeline_focused = true;
+    if ui.input(|i| i.pointer.primary_pressed()) {
+        *ctx.timeline_focused = ui.rect_contains_pointer(timeline_outer_rect);
+    }
+    // Visible cue for the focus state that scopes Delete to keyframes.
+    if *ctx.timeline_focused {
+        let layer =
+            egui::LayerId::new(egui::Order::Foreground, ui.id().with("timeline_focus_ring"));
+        ui.ctx().layer_painter(layer).rect_stroke(
+            timeline_outer_rect.shrink(1.0),
+            egui::CornerRadius::ZERO,
+            Stroke::new(STROKE_WIDTH, eparts::theme(ui).border.focus),
+            egui::StrokeKind::Inside,
+        );
     }
 
     // Empty state when no timeline is loaded
@@ -1485,8 +1513,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             // Keyframe diamonds (computed from timeline)
             if let Some(tl) = timeline {
                 if let Some(track) = tl.get_track(actor_label) {
-                    let kf_props = collect_actor_keyframes(track);
-                    for (kf_ms, prop) in kf_props {
+                    let kf_groups = collect_actor_keyframe_groups(track);
+                    for (kf_ms, props) in kf_groups {
+                        let prop_label = props.join(", ");
+                        let drag_prop = props.first().copied().unwrap_or("");
                         let kf_s = kf_ms as f64 / 1000.0;
                         let kf_x = time_to_x(kf_s);
                         if kf_x < bar_area.left() || kf_x > bar_area.right() {
@@ -1550,13 +1580,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 ui,
                                 dresp.id.with("tooltip"),
                                 &dresp,
-                                &format!("{prop} @ {:.2}s", kf_s),
+                                &format!("{prop_label} @ {:.2}s", kf_s),
                             );
                         }
 
                         dresp.context_menu(|ui| {
                             ui.set_min_width(140.0);
-                            ui.strong(format!("{} @ {:.2}s", prop, kf_s));
+                            ui.strong(format!("{prop_label} @ {:.2}s", kf_s));
                             ui.separator();
                             ui.menu_button("Easing", |ui| {
                                 for &(id_str, display_name) in
@@ -1566,15 +1596,19 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         let variant =
                                             animatix_syntax::easing::parse_easing_name(id_str)
                                                 .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                                        commands.push_back(ShellAction::Command(
-                                            Command::SetKeyframeEasing {
-                                                scene: ctx.active_scene.map(ToOwned::to_owned),
-                                                actor: actor_label.clone(),
-                                                property: prop.to_string(),
-                                                time_s: kf_s,
-                                                easing: variant,
-                                            },
-                                        ));
+                                        // Apply to every property keyed at this time so
+                                        // the aggregate diamond stays consistent.
+                                        for prop in &props {
+                                            commands.push_back(ShellAction::Command(
+                                                Command::SetKeyframeEasing {
+                                                    scene: ctx.active_scene.map(ToOwned::to_owned),
+                                                    actor: actor_label.clone(),
+                                                    property: prop.to_string(),
+                                                    time_s: kf_s,
+                                                    easing: variant,
+                                                },
+                                            ));
+                                        }
                                         ui.close();
                                     }
                                 }
@@ -1587,12 +1621,16 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 ))
                                 .clicked()
                             {
-                                commands.push_back(ShellAction::Command(Command::DeleteKeyframe {
-                                    scene: ctx.active_scene.map(ToOwned::to_owned),
-                                    actor: actor_label.clone(),
-                                    property: prop.to_string(),
-                                    time_s: kf_s,
-                                }));
+                                for prop in &props {
+                                    commands.push_back(ShellAction::Command(
+                                        Command::DeleteKeyframe {
+                                            scene: ctx.active_scene.map(ToOwned::to_owned),
+                                            actor: actor_label.clone(),
+                                            property: prop.to_string(),
+                                            time_s: kf_s,
+                                        },
+                                    ));
+                                }
                                 ui.close();
                             }
                         });
@@ -1622,7 +1660,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             }
                         }
                         if dresp.drag_started() {
-                            new_kf_drag = Some((actor_label.clone(), prop, kf_ms, kf_s));
+                            new_kf_drag = Some((actor_label.clone(), drag_prop, kf_ms, kf_s));
                             if !shift_held
                                 && !multi_selected.iter().any(|(scene, l, t)| {
                                     scene.as_deref() == ctx.active_scene
@@ -1647,7 +1685,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 } else {
                                     (nt * ctx.snap_fps as f64).round() / ctx.snap_fps as f64
                                 };
-                                new_kf_drag = Some((actor_label.clone(), prop, kf_ms, snapped));
+                                new_kf_drag =
+                                    Some((actor_label.clone(), drag_prop, kf_ms, snapped));
                                 let gx = time_to_x(snapped);
                                 painter.line_segment(
                                     [
@@ -1673,17 +1712,21 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             }
                         }
                         if dresp.drag_stopped() && is_drag {
-                            if let Some((ref actor, prop_name, _, n)) = new_kf_drag {
+                            if let Some((ref actor, _, _, n)) = new_kf_drag {
                                 if (n - kf_s).abs() > 0.01 {
-                                    commands.push_back(ShellAction::Command(
-                                        Command::MoveKeyframe {
-                                            scene: ctx.active_scene.map(ToOwned::to_owned),
-                                            actor: actor.clone(),
-                                            property: prop_name.to_string(),
-                                            old_time_s: kf_s,
-                                            new_time_s: n,
-                                        },
-                                    ));
+                                    // Move every property keyed at this aggregate
+                                    // time so coincident keyframes stay together.
+                                    for prop in &props {
+                                        commands.push_back(ShellAction::Command(
+                                            Command::MoveKeyframe {
+                                                scene: ctx.active_scene.map(ToOwned::to_owned),
+                                                actor: actor.clone(),
+                                                property: prop.to_string(),
+                                                old_time_s: kf_s,
+                                                new_time_s: n,
+                                            },
+                                        ));
+                                    }
                                 }
                             }
                             new_kf_drag = None;

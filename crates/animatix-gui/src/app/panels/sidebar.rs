@@ -901,82 +901,86 @@ fn render_actor_tree(
     response.response.context_menu(|ui| {
         let has_multi = selected_actors.len() >= 2;
 
-        // Build entries dynamically based on selection count.
-        // Index layout (separators are NOT clickable):
-        //   has_multi=false: 0=Duplicate, 2=Delete
-        //   has_multi=true:  0=Duplicate, 2-7=Align, 9-10=Distribute, 12=Delete
-        let mut entries = vec![MenuEntry::item_with_icon(
-            egui_phosphor::regular::COPY,
-            "Duplicate",
-        )];
+        // Each row carries an explicit action identity, so a click can never
+        // fall through to a destructive action when the menu layout changes.
+        #[derive(Clone, Copy)]
+        enum LayerMenuAction {
+            Duplicate,
+            Align(crate::app::commands::Align),
+            Distribute(crate::app::commands::Axis),
+            Delete,
+        }
+
+        use egui_phosphor::regular as icons;
+
+        let mut menu: Vec<(MenuEntry, Option<LayerMenuAction>)> = Vec::new();
+        menu.push((
+            MenuEntry::item_with_icon(icons::COPY, "Duplicate"),
+            Some(LayerMenuAction::Duplicate),
+        ));
         if has_multi {
-            entries.push(MenuEntry::separator());
-            entries
-                .push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_LEFT, "Align Left"));
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
-                "Align Center",
+            use crate::app::commands::{Align, Axis};
+            menu.push((MenuEntry::separator(), None));
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_LEFT, "Align Left"),
+                Some(LayerMenuAction::Align(Align::Left)),
             ));
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ALIGN_RIGHT,
-                "Align Right",
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_CENTER_HORIZONTAL_SIMPLE, "Align Center"),
+                Some(LayerMenuAction::Align(Align::Center)),
             ));
-            entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::ALIGN_TOP, "Align Top"));
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
-                "Align Middle",
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_RIGHT, "Align Right"),
+                Some(LayerMenuAction::Align(Align::Right)),
             ));
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ALIGN_BOTTOM,
-                "Align Bottom",
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_TOP, "Align Top"),
+                Some(LayerMenuAction::Align(Align::Top)),
             ));
-            entries.push(MenuEntry::separator());
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
-                "Distribute Horizontally",
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_CENTER_VERTICAL_SIMPLE, "Align Middle"),
+                Some(LayerMenuAction::Align(Align::Middle)),
             ));
-            entries.push(MenuEntry::item_with_icon(
-                egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
-                "Distribute Vertically",
+            menu.push((
+                MenuEntry::item_with_icon(icons::ALIGN_BOTTOM, "Align Bottom"),
+                Some(LayerMenuAction::Align(Align::Bottom)),
+            ));
+            menu.push((MenuEntry::separator(), None));
+            menu.push((
+                MenuEntry::item_with_icon(
+                    icons::ARROWS_OUT_LINE_HORIZONTAL,
+                    "Distribute Horizontally",
+                ),
+                Some(LayerMenuAction::Distribute(Axis::Horizontal)),
+            ));
+            menu.push((
+                MenuEntry::item_with_icon(icons::ARROWS_OUT_LINE_VERTICAL, "Distribute Vertically"),
+                Some(LayerMenuAction::Distribute(Axis::Vertical)),
             ));
         }
-        entries.push(MenuEntry::separator());
-        entries.push(MenuEntry::item_with_icon(egui_phosphor::regular::TRASH, "Delete"));
+        menu.push((MenuEntry::separator(), None));
+        menu.push((
+            MenuEntry::item_with_icon(icons::TRASH, "Delete"),
+            Some(LayerMenuAction::Delete),
+        ));
 
+        let entries: Vec<MenuEntry> = menu.iter().map(|(entry, _)| entry.clone()).collect();
         if let Some(idx) = render_menu(ui, &entries) {
-            match idx {
-                0 => commands
+            match menu.get(idx).and_then(|(_, action)| *action) {
+                Some(LayerMenuAction::Duplicate) => commands
                     .push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
-                2 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Left,
-                ))),
-                3 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Center,
-                ))),
-                4 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Right,
-                ))),
-                5 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Top,
-                ))),
-                6 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Middle,
-                ))),
-                7 if has_multi => commands.push_back(ShellAction::Command(Command::AlignActors(
-                    crate::app::commands::Align::Bottom,
-                ))),
-                9 if has_multi => commands.push_back(ShellAction::Command(
-                    Command::DistributeActors(crate::app::commands::Axis::Horizontal),
-                )),
-                10 if has_multi => commands.push_back(ShellAction::Command(
-                    Command::DistributeActors(crate::app::commands::Axis::Vertical),
-                )),
-                _ => {
-                    // Delete is always the last item
+                Some(LayerMenuAction::Align(align)) => {
+                    commands.push_back(ShellAction::Command(Command::AlignActors(align)))
+                },
+                Some(LayerMenuAction::Distribute(axis)) => {
+                    commands.push_back(ShellAction::Command(Command::DistributeActors(axis)))
+                },
+                Some(LayerMenuAction::Delete) => {
                     selected_actors.clear();
                     selected_actors.insert(label.to_string());
                     commands.push_back(ActorCommand::DeleteSelectedActors.into());
                 },
+                None => {}, // Separator or out-of-range index: no action.
             }
             ui.close();
         }

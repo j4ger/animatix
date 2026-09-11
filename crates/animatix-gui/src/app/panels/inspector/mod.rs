@@ -114,9 +114,16 @@ fn render_scene_inspector(
         ui.painter().text(
             Pos2::new(row_rect.min.x + sp.base.space_2, row_rect.center().y),
             egui::Align2::LEFT_CENTER,
-            format!("{} {}", egui_phosphor::regular::FILM_STRIP, active_scene),
+            format!("{} Scene: {}", egui_phosphor::regular::FILM_STRIP, active_scene),
             TextRole::Heading.font_id(),
             theme.accent.primary,
+        );
+        // Make the mode explicit. This panel is reached by deselecting every
+        // actor, which is otherwise an invisible context switch.
+        ui.label(
+            RichText::new("No actor selected — showing scene properties")
+                .size(TextRole::Caption.size())
+                .color(theme.text.muted),
         );
         ui.add_space(sp.base.space_3);
 

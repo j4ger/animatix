@@ -11,7 +11,7 @@ use super::{
 use crate::app::design_tokens::semantic::status::DIAGNOSTIC_ERROR;
 
 #[test]
-fn default_workspace_has_three_panes() {
+fn default_workspace_keeps_inspector_pane_hidden() {
     let tree = default_tree();
     let tabs: Vec<_> = tree
         .tiles
@@ -21,13 +21,18 @@ fn default_workspace_has_three_panes() {
             _ => None,
         })
         .collect();
-    // Inspector hidden; Editor merged into Sidebar pane via tabs.
-    assert_eq!(tabs.len(), 3);
+    // All four panes exist so toggling the Inspector never has to rebuild the
+    // layout; the Inspector is simply hidden by default. Editor is merged into
+    // the Sidebar pane via tabs.
+    assert_eq!(tabs.len(), 4);
     assert!(tabs.contains(&WorkspaceTab::Sidebar));
     assert!(!tabs.contains(&WorkspaceTab::Editor));
     assert!(tabs.contains(&WorkspaceTab::Preview));
-    assert!(!tabs.contains(&WorkspaceTab::Inspector));
+    assert!(tabs.contains(&WorkspaceTab::Inspector));
     assert!(tabs.contains(&WorkspaceTab::Timeline));
+
+    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
+    assert!(!tree.is_visible(inspector), "inspector is hidden by default");
 }
 
 #[test]
@@ -47,6 +52,9 @@ fn workspace_with_inspector_has_four_panes() {
     assert!(tabs.contains(&WorkspaceTab::Preview));
     assert!(tabs.contains(&WorkspaceTab::Inspector));
     assert!(tabs.contains(&WorkspaceTab::Timeline));
+
+    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
+    assert!(tree.is_visible(inspector), "inspector is visible when requested");
 }
 
 #[test]

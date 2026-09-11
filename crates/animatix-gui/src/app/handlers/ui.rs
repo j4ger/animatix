@@ -8,7 +8,12 @@ use crate::app::stores::{DocumentStore, ExportStore, PreviewStore, UiStore};
 pub fn handle_show_inspector(ui_store: &mut UiStore) -> Vec<Effect> {
     let new_visible = !ui_store.view.inspector_visible;
     ui_store.view.inspector_visible = new_visible;
-    ui_store.view.tree = crate::app::persistence::build_tree(new_visible);
+
+    // Flip pane visibility in place so user rearrangement survives; only fall
+    // back to a fresh tree when the persisted layout predates the Inspector pane.
+    if !crate::app::persistence::set_inspector_visible(&mut ui_store.view.tree, new_visible) {
+        ui_store.view.tree = crate::app::persistence::build_tree(new_visible);
+    }
     vec![]
 }
 
