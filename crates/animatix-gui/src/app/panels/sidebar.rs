@@ -598,6 +598,20 @@ fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) {
     });
 }
 
+/// Temp-data id for the inline layer rename bar.
+fn layer_rename_id() -> egui::Id {
+    egui::Id::new("layer_rename_target")
+}
+
+/// Begin renaming a layer: seed the edit buffer for the rename bar.
+fn start_layer_rename(ui: &mut egui::Ui, label: &str) {
+    let id = layer_rename_id();
+    ui.data_mut(|d| {
+        d.insert_temp(id, label.to_string());
+        d.insert_temp(id.with("buf"), label.to_string());
+    });
+}
+
 fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
     let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
@@ -625,6 +639,50 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
         }
     });
     ui.add_space(sp.base.space_2);
+
+    // ── Inline rename bar (context-menu "Rename…" or double-click a layer) ──
+    let rename_id = layer_rename_id();
+    if let Some(target) = ui.data(|d| d.get_temp::<String>(rename_id)) {
+        let buf_id = rename_id.with("buf");
+        let mut buf = ui.data(|d| d.get_temp::<String>(buf_id)).unwrap_or_else(|| target.clone());
+        ui.horizontal(|ui| {
+            ui.add_space(sp.base.space_2);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("{} Rename", egui_phosphor::regular::PENCIL_SIMPLE))
+                        .size(TextRole::BodyS.size())
+                        .color(t.text.muted),
+                )
+                .selectable(false),
+            );
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut buf)
+                    .hint_text("New name")
+                    .desired_width(f32::INFINITY),
+            );
+            response.request_focus();
+            if response.lost_focus() {
+                ui.data_mut(|d| d.remove::<String>(rename_id));
+                ui.data_mut(|d| d.remove::<String>(buf_id));
+                let new_label = buf.trim().to_string();
+                if !new_label.is_empty() && new_label != target {
+                    ctx.commands.push_back(
+                        ActorCommand::RenameActor {
+                            old_label: target.clone(),
+                            new_label,
+                        }
+                        .into(),
+                    );
+                }
+            } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                ui.data_mut(|d| d.remove::<String>(rename_id));
+                ui.data_mut(|d| d.remove::<String>(buf_id));
+            } else {
+                ui.data_mut(|d| d.insert_temp(buf_id, buf.clone()));
+            }
+        });
+        ui.add_space(sp.base.space_2);
+    }
 
     let filter_lower = filter.to_lowercase();
     let has_filter = !filter_lower.is_empty();
@@ -928,8 +986,11 @@ fn render_actor_tree(
         #[derive(Clone, Copy)]
         enum LayerMenuAction {
             Duplicate,
+            Rename,
             Align(crate::app::commands::Align),
             Distribute(crate::app::commands::Axis),
+            Group,
+            Ungroup,
             Delete,
         }
 
@@ -939,6 +1000,10 @@ fn render_actor_tree(
         menu.push((
             MenuEntry::item_with_icon(icons::COPY, "Duplicate"),
             Some(LayerMenuAction::Duplicate),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::PENCIL_SIMPLE, "Rename…"),
+            Some(LayerMenuAction::Rename),
         ));
         if has_multi {
             use crate::app::commands::{Align, Axis};
@@ -982,6 +1047,15 @@ fn render_actor_tree(
         }
         menu.push((MenuEntry::separator(), None));
         menu.push((
+            MenuEntry::item_with_icon(icons::SELECTION_PLUS, "Group"),
+            Some(LayerMenuAction::Group),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::SQUARES_FOUR, "Ungroup"),
+            Some(LayerMenuAction::Ungroup),
+        ));
+        menu.push((MenuEntry::separator(), None));
+        menu.push((
             MenuEntry::item_with_icon(icons::TRASH, "Delete"),
             Some(LayerMenuAction::Delete),
         ));
@@ -991,11 +1065,18 @@ fn render_actor_tree(
             match menu.get(idx).and_then(|(_, action)| *action) {
                 Some(LayerMenuAction::Duplicate) => commands
                     .push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
+                Some(LayerMenuAction::Rename) => start_layer_rename(ui, label),
                 Some(LayerMenuAction::Align(align)) => {
                     commands.push_back(ShellAction::Command(Command::AlignActors(align)))
                 },
                 Some(LayerMenuAction::Distribute(axis)) => {
                     commands.push_back(ShellAction::Command(Command::DistributeActors(axis)))
+                },
+                Some(LayerMenuAction::Group) => {
+                    commands.push_back(ActorCommand::GroupSelectedActors.into())
+                },
+                Some(LayerMenuAction::Ungroup) => {
+                    commands.push_back(ActorCommand::UngroupSelectedActors.into())
                 },
                 Some(LayerMenuAction::Delete) => {
                     selected_actors.clear();
@@ -1007,6 +1088,11 @@ fn render_actor_tree(
             ui.close();
         }
     });
+
+    // Double-click a layer name to rename it inline in the panel header bar.
+    if response.response.double_clicked() && !is_anonymous {
+        start_layer_rename(ui, label);
+    }
 
     if response.chevron_clicked {
         if collapsed_actors.contains(&label_owned) {
