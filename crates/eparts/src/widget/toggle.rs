@@ -33,6 +33,16 @@ fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
     }
 }
 
+/// Build the animation-state base id shared by `Checkbox`/`Switch`/`Radio`.
+///
+/// The salt is the address of the caller-owned value, but it is namespaced
+/// under the parent [`egui::Ui`]'s id: two controls can otherwise collide when
+/// their backing values happen to share a recycled stack address, and state
+/// would leak across panels.
+fn animation_id(ui: &egui::Ui, value: impl Hash) -> egui::Id {
+    ui.id().with(value)
+}
+
 /// Apply the default arrow cursor and render tooltips with the grace-period
 /// eparts `Tooltip` instead of egui's immediate hover text.
 fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
@@ -95,7 +105,9 @@ impl<'a> Checkbox<'a> {
 impl<'a> egui::Widget for Checkbox<'a> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let id = egui::Id::new(self.value as *const _);
+        // Namespace the animation id under the parent `Ui` so two checkboxes in
+        // different panels (or frames) can't collide on a recycled address.
+        let id = animation_id(ui, self.value as *const bool);
 
         // Layout calculations
         let s = crate::spatial(ui);
@@ -266,11 +278,12 @@ impl<'a, T: PartialEq + Clone + Hash> egui::Widget for Radio<'a, T> {
         let t = theme(ui);
         let selected = *self.value == self.this_value;
 
-        // Stable id derived from the value pointer + option identity
+        // Stable id derived from the value pointer + option identity, namespaced
+        // under the parent `Ui` so it can't collide across panels.
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         (self.value as *const T as usize).hash(&mut hasher);
         self.this_value.hash(&mut hasher);
-        let id = egui::Id::new(hasher.finish());
+        let id = animation_id(ui, hasher.finish());
 
         // Layout
         let s = crate::spatial(ui);
@@ -414,7 +427,8 @@ impl<'a> Switch<'a> {
 impl<'a> egui::Widget for Switch<'a> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
         let t = theme(ui);
-        let id = egui::Id::new(self.value as *const _);
+        // Namespace the animation id under the parent `Ui` (see `Checkbox`).
+        let id = animation_id(ui, self.value as *const bool);
 
         // Dimensions
         let s = crate::spatial(ui);
@@ -666,5 +680,56 @@ mod tests {
         assert_eq!(s.label, Some("L"));
         assert_eq!(s.label_side, Side::Left);
         assert_eq!(s.tooltip, "T");
+    }
+
+    // ── Animation id namespacing ───────────────────────────────────
+
+    /// Collect `animation_id` results for the same value pointer under
+    /// different parent `Ui` ids.
+    fn ids_for_same_ptr() -> (egui::Id, egui::Id, egui::Id, egui::Id) {
+        let ctx = egui::Context::default();
+        let value = 0u32;
+        let mut under_a = egui::Id::NULL;
+        let mut under_b = egui::Id::NULL;
+        let mut top_level = egui::Id::NULL;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            top_level = animation_id(ui, &value as *const u32);
+            ui.push_id("panel_a", |ui| {
+                under_a = animation_id(ui, &value as *const u32);
+            });
+            ui.push_id("panel_b", |ui| {
+                under_b = animation_id(ui, &value as *const u32);
+            });
+        });
+        // The pre-fix construction: keyed on the raw address alone.
+        let legacy = egui::Id::new(&value as *const u32);
+        (under_a, under_b, top_level, legacy)
+    }
+
+    #[test]
+    fn animation_id_is_namespaced_by_parent_ui() {
+        let (under_a, under_b, top_level, legacy) = ids_for_same_ptr();
+        assert_ne!(
+            under_a, under_b,
+            "the same value rendered under different parent Uis must not share animation state"
+        );
+        assert_ne!(under_a, top_level);
+        assert_ne!(under_b, top_level);
+        assert_ne!(under_a, legacy);
+        assert_ne!(under_b, legacy);
+    }
+
+    #[test]
+    fn toggle_widgets_render_with_namespaced_animation_ids() {
+        let ctx = egui::Context::default();
+        let mut flag = false;
+        let mut choice = 0u32;
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+            ui.push_id("ns_panel", |ui| {
+                ui.add(Checkbox::new(&mut flag).label("Check"));
+                ui.add(Switch::new(&mut flag).label("Switch"));
+                ui.add(Radio::new(&mut choice, 1).label("Radio"));
+            });
+        });
     }
 }

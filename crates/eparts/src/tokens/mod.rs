@@ -28,4 +28,4 @@ pub use theme_registry::{ThemeRegistry, ThemeRegistryError};
 pub use theme_registry_watcher::{ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 #[cfg(feature = "theme-json")]
 pub use theme_watcher::{ThemeWatcher, ThemeWatcherEvent};
-pub use util::{lerp_color, multiply_alpha};
+pub use util::{lerp_color, multiply_alpha, with_alpha};

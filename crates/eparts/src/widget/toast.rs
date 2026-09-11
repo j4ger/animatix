@@ -6,6 +6,7 @@ use crate::tokens::spatial::component::TOAST_WIDTH;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::tokens::theme::{Theme, theme};
 use crate::tokens::typography::TextRole;
+use crate::tokens::util::with_alpha;
 
 /// Toast severity level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -193,27 +194,27 @@ impl ToastQueue {
 
             // Elevated shadow behind the toast (faded with alpha)
             let mut shadow = theme.elevation.raised;
-            shadow.color = shadow.color.linear_multiply(alpha);
+            shadow.color = with_alpha(shadow.color, alpha);
             ui.painter().add(shadow.as_shape(rect, RADIUS_M));
 
             // Background with alpha
-            let bg = theme.surface.surface.linear_multiply(alpha);
+            let bg = with_alpha(theme.surface.surface, alpha);
             ui.painter().rect_filled(rect, RADIUS_M as u8, bg);
             ui.painter().rect_stroke(
                 rect,
                 RADIUS_M as u8,
-                egui::Stroke::new(STROKE_WIDTH, theme.border.default.linear_multiply(alpha)),
+                egui::Stroke::new(STROKE_WIDTH, with_alpha(theme.border.default, alpha)),
                 egui::StrokeKind::Outside,
             );
 
             // Left accent bar
             let accent_rect = Rect::from_min_size(rect.min, Vec2::new(s.space_2, toast_h));
-            let accent_color = toast.color(&theme).linear_multiply(alpha);
+            let accent_color = with_alpha(toast.color(&theme), alpha);
             ui.painter().rect_filled(accent_rect, RADIUS_S, accent_color);
 
             // Icon
             let icon_x = rect.min.x + s.space_6;
-            let icon_color = toast.color(&theme).linear_multiply(alpha);
+            let icon_color = with_alpha(toast.color(&theme), alpha);
             ui.painter().text(
                 Pos2::new(icon_x, rect.center().y),
                 egui::Align2::CENTER_CENTER,
@@ -224,7 +225,7 @@ impl ToastQueue {
 
             // Message (wrapped to toast width so it doesn't overflow)
             let text_x = icon_x + s.space_6;
-            let text_color = theme.text.primary.linear_multiply(alpha);
+            let text_color = with_alpha(theme.text.primary, alpha);
             let text_max_w = (toast_w - (text_x - rect.min.x) - s.space_6).max(40.0);
             let display_message = if toast.count > 1 {
                 format!("{} (x{})", toast.message, toast.count)

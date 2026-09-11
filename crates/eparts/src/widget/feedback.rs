@@ -8,6 +8,7 @@ use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui,
 use crate::theme;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::tokens::typography::TextRole;
+use crate::tokens::util::with_alpha;
 
 // ── Skeleton (G2) ──────────────────────────────────────────────────
 
@@ -67,7 +68,7 @@ impl Widget for Skeleton {
         // Subtle pulsing highlight using the accent color at low alpha.
         let time = ui.input(|i| i.time) as f32;
         let alpha = 0.3 + 0.7 * ((time * 2.5).sin() * 0.5 + 0.5);
-        let shimmer = t.accent.primary.linear_multiply(alpha * 0.15);
+        let shimmer = with_alpha(t.accent.primary, alpha * 0.15);
         ui.painter().rect_filled(rect, radius, shimmer);
 
         // Keep the shimmer alive.
@@ -303,6 +304,11 @@ pub enum AlertLevel {
     Error,
 }
 
+/// Minimum width for an inline alert so a short message doesn't collapse into a
+/// cramped pill. Content wider than this sizes to fit rather than being
+/// force-stretched to (and overflowing) the panel width.
+const ALERT_MIN_WIDTH: f32 = 220.0;
+
 /// An inline status banner.
 ///
 /// Paints a rounded rect with a faint tinted background (from `status.*_faint`
@@ -380,7 +386,7 @@ impl Widget for Alert {
             height = tg.size().y + spacing + body_galley.size().y;
         }
 
-        let size = Vec2::new(ui.available_width().max(width), height);
+        let size = Vec2::new(width.max(ALERT_MIN_WIDTH), height);
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = RADIUS_M as u8;
 
@@ -534,5 +540,48 @@ mod tests {
             let a = Alert::new("x", lvl);
             assert_eq!(a.level, lvl);
         }
+    }
+
+    fn screen() -> egui::Rect {
+        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0))
+    }
+
+    fn base_input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(screen()),
+            ..Default::default()
+        }
+    }
+
+    fn alert_width(alert: Alert, ctx: &egui::Context) -> f32 {
+        let mut width = 0.0;
+        // Two frames so layout is stable.
+        for _ in 0..2 {
+            let _ = ctx.run_ui(base_input(), |ui| {
+                width = ui.add(alert.clone()).rect.width();
+            });
+        }
+        width
+    }
+
+    #[test]
+    fn alert_does_not_force_fill_available_width() {
+        let ctx = egui::Context::default();
+        let width = alert_width(Alert::new("Saved.", AlertLevel::Success), &ctx);
+
+        // A short message should sit at the min width, well below the 600px panel.
+        assert!(
+            (width - ALERT_MIN_WIDTH).abs() < 1.0,
+            "short alert should use the min width, got {width}"
+        );
+        assert!(width < screen().width(), "alert must not stretch to the full panel width");
+    }
+
+    #[test]
+    fn alert_grows_past_min_width_for_long_content() {
+        let ctx = egui::Context::default();
+        let long = "This is a considerably longer alert message that needs more room than the minimum width allows.";
+        let width = alert_width(Alert::new(long, AlertLevel::Info), &ctx);
+        assert!(width > ALERT_MIN_WIDTH, "long alert should size to its content, got {width}");
     }
 }

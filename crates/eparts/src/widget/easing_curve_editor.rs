@@ -8,6 +8,7 @@ use egui::{Pos2, Rect, Sense, Stroke, Vec2};
 use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme::theme;
+use crate::tokens::util::with_alpha;
 
 /// State for the easing curve editor widget.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -118,8 +119,9 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     let p3 = map(1.0, 1.0);
 
     // Control lines (dashed-ish via alpha)
-    painter.line_segment([p0, p1], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
-    painter.line_segment([p2, p3], Stroke::new(1.0, t.text.disabled.gamma_multiply(0.5)));
+    let control_line = with_alpha(t.text.disabled, 0.5);
+    painter.line_segment([p0, p1], Stroke::new(1.0, control_line));
+    painter.line_segment([p2, p3], Stroke::new(1.0, control_line));
 
     // Endpoints
     painter.circle_filled(p0, 3.0, t.text.secondary);

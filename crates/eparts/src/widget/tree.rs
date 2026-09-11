@@ -159,11 +159,6 @@ impl<'a> Tree<'a> {
             }
         }
 
-        let mut has_focus: bool = ui
-            .ctx()
-            .data(|d| d.get_temp::<bool>(tree_id.with("has_focus")))
-            .unwrap_or(false);
-
         // Type-ahead buffer + last-keystroke time (lives in Memory).
         let mut ta_buffer: String = ui
             .ctx()
@@ -178,9 +173,38 @@ impl<'a> Tree<'a> {
         let mut toggled_id: Option<TreeId> = None;
         let mut selected_id: Option<TreeId> = None;
 
-        ui.input(|i| {
-            for ev in &i.events {
-                match ev {
+        // ── Allocate the outer frame & resolve focus ────────────────
+        // The outer response owns keyboard focus, so allocate before reading
+        // events. Interact under `tree_id` (not an auto id) so focus and the
+        // focus lock filter refer to the same stable id.
+        let total_height = num_items as f32 * row_h;
+        let (_, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_height));
+        let outer_resp = ui.interact(outer_rect, tree_id, Sense::click());
+        let mut has_focus = outer_resp.has_focus();
+        if outer_resp.clicked() {
+            ui.memory_mut(|m| m.request_focus(tree_id));
+            has_focus = true;
+        }
+        if has_focus {
+            // Arrow keys navigate the tree; keep egui's focus traversal from
+            // also moving focus to a sibling widget on the same key press.
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(
+                    tree_id,
+                    egui::EventFilter {
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        tab: false,
+                        escape: false,
+                    },
+                );
+            });
+        }
+
+        // ── Keyboard events (focused only, consumed) ────────────────
+        if has_focus {
+            ui.input_mut(|i| {
+                i.events.retain(|ev| match ev {
                     egui::Event::Key {
                         key: egui::Key::ArrowDown,
                         pressed: true,
@@ -189,6 +213,7 @@ impl<'a> Tree<'a> {
                         let next = sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0);
                         sel_idx = Some(next);
                         selected_id = Some(self.items[next].id.clone());
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowUp,
@@ -198,6 +223,7 @@ impl<'a> Tree<'a> {
                         let prev = sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0);
                         sel_idx = Some(prev);
                         selected_id = Some(self.items[prev].id.clone());
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::Home,
@@ -206,6 +232,7 @@ impl<'a> Tree<'a> {
                     } if num_items > 0 => {
                         sel_idx = Some(0);
                         selected_id = Some(self.items[0].id.clone());
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::End,
@@ -214,6 +241,7 @@ impl<'a> Tree<'a> {
                     } if num_items > 0 => {
                         sel_idx = Some(num_items - 1);
                         selected_id = Some(self.items[num_items - 1].id.clone());
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowLeft,
@@ -241,6 +269,7 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowRight,
@@ -262,6 +291,7 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::Enter,
@@ -275,6 +305,7 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
+                        false
                     },
                     egui::Event::Text(text) => {
                         // Type-ahead: reset buffer on timeout.
@@ -311,24 +342,10 @@ impl<'a> Tree<'a> {
                                 }
                             }
                         }
+                        false
                     },
-                    _ => {},
-                }
-            }
-        });
-
-        // ── Allocate the outer frame ────────────────────────────────
-        let total_height = num_items as f32 * row_h;
-        let (outer_rect, outer_resp) =
-            ui.allocate_exact_size(egui::vec2(ui.available_width(), total_height), Sense::click());
-
-        if outer_resp.clicked() {
-            has_focus = true;
-            ui.ctx().data_mut(|d| {
-                d.insert_temp(tree_id.with("sel_idx"), sel_idx);
-                d.insert_temp(tree_id.with("has_focus"), true);
-                d.insert_temp(tree_id.with("ta_buf"), ta_buffer.clone());
-                d.insert_temp(tree_id.with("ta_time"), ta_time);
+                    _ => true,
+                });
             });
         }
 
@@ -356,6 +373,9 @@ impl<'a> Tree<'a> {
             if row_resp.clicked() {
                 sel_idx = Some(idx);
                 selected_id = Some(item.id.clone());
+                // Rows sit above the outer frame in the hit-test order, so a
+                // row click is what claims keyboard focus for the tree.
+                ui.memory_mut(|m| m.request_focus(tree_id));
             }
 
             let _ = Row::new(&item.label)
@@ -598,5 +618,126 @@ mod tests {
         let items: Vec<TreeItem> = vec![];
         let tree = Tree::new(&items).indent_step(24.0);
         assert_eq!(tree.indent_step, 24.0);
+    }
+
+    // ── Keyboard focus gating ───────────────────────────────────────
+
+    fn screen() -> egui::Rect {
+        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))
+    }
+
+    fn base_input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(screen()),
+            ..Default::default()
+        }
+    }
+
+    fn arrow_down() -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::ArrowDown,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::default(),
+        }
+    }
+
+    fn run_tree_frame(
+        ctx: &egui::Context,
+        input: egui::RawInput,
+        id: &str,
+        items: &[TreeItem],
+    ) -> (Option<usize>, Vec<egui::Event>) {
+        let mut selected = None;
+        let mut remaining = Vec::new();
+        let _ = ctx.run_ui(input, |ui| {
+            selected = Tree::new(items).show(ui, id).selected_index;
+            remaining = ui.input(|i| i.events.clone());
+        });
+        (selected, remaining)
+    }
+
+    #[test]
+    fn tree_keyboard_ignored_when_unfocused() {
+        let ctx = egui::Context::default();
+        let items = build_flat(&HashSet::new());
+
+        let mut input = base_input();
+        input.events.push(arrow_down());
+        let (sel, remaining) = run_tree_frame(&ctx, input, "unfocused_tree", &items);
+
+        assert_eq!(sel, None, "unfocused tree must not react to arrow keys");
+        assert!(
+            remaining.iter().any(|e| matches!(
+                e,
+                egui::Event::Key {
+                    key: egui::Key::ArrowDown,
+                    ..
+                }
+            )),
+            "unfocused tree must not consume the arrow key"
+        );
+    }
+
+    #[test]
+    fn tree_keyboard_navigates_when_focused_and_consumes_event() {
+        let ctx = egui::Context::default();
+        let tree_id = Id::new("focused_tree");
+        let items = build_flat(&HashSet::new());
+
+        ctx.memory_mut(|m| m.request_focus(tree_id));
+
+        let mut input = base_input();
+        input.events.push(arrow_down());
+        let (sel, remaining) = run_tree_frame(&ctx, input, "focused_tree", &items);
+
+        assert_eq!(sel, Some(0), "focused tree should select the first item");
+        assert!(
+            !remaining.iter().any(|e| matches!(
+                e,
+                egui::Event::Key {
+                    key: egui::Key::ArrowDown,
+                    ..
+                }
+            )),
+            "focused tree must consume the arrow key it handled"
+        );
+    }
+
+    #[test]
+    fn tree_row_click_claims_focus() {
+        let ctx = egui::Context::default();
+        let items = build_flat(&HashSet::new());
+        let row_pos = screen().left_top() + egui::vec2(20.0, 5.0);
+
+        // Warm-up frame registers widget rects for hit-testing.
+        let _ = ctx.run_ui(base_input(), |ui| {
+            let _ = Tree::new(&items).show(ui, "click_tree");
+        });
+
+        let mut sel = None;
+        let mut input = base_input();
+        input.events.push(egui::Event::PointerButton {
+            pos: row_pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::default(),
+        });
+        input.events.push(egui::Event::PointerButton {
+            pos: row_pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::default(),
+        });
+        let _ = ctx.run_ui(input, |ui| {
+            sel = Tree::new(&items).show(ui, "click_tree").selected_index;
+        });
+
+        assert_eq!(sel, Some(0), "clicking a row should select it");
+        assert!(
+            ctx.memory(|m| m.has_focus(Id::new("click_tree"))),
+            "clicking a tree row must claim keyboard focus for the tree"
+        );
     }
 }

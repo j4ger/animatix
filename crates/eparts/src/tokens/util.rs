@@ -16,15 +16,27 @@ pub fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
     )
 }
 
-/// Multiply a color's alpha by a factor.
-pub fn multiply_alpha(c: Color32, factor: f32) -> Color32 {
+/// Return `color` with its premultiplied channels scaled by `factor`.
+///
+/// This is the widget-facing replacement for calling
+/// [`egui::Color32::linear_multiply`] / `gamma_multiply` at runtime: it derives
+/// a faded alpha variant of a theme token without any per-frame colour math on
+/// the token itself. Rounding matches `Color32::gamma_multiply`.
+pub fn with_alpha(color: Color32, factor: f32) -> Color32 {
     let factor = factor.clamp(0.0, 1.0);
     Color32::from_rgba_premultiplied(
-        (c.r() as f32 * factor) as u8,
-        (c.g() as f32 * factor) as u8,
-        (c.b() as f32 * factor) as u8,
-        (c.a() as f32 * factor) as u8,
+        (color.r() as f32 * factor).round() as u8,
+        (color.g() as f32 * factor).round() as u8,
+        (color.b() as f32 * factor).round() as u8,
+        (color.a() as f32 * factor).round() as u8,
     )
+}
+
+/// Multiply a color's alpha by a factor.
+///
+/// Alias of [`with_alpha`], retained for the `design_tokens` re-export.
+pub fn multiply_alpha(c: Color32, factor: f32) -> Color32 {
+    with_alpha(c, factor)
 }
 
 /// WCAG AA contrast threshold for normal body text (4.5:1).
@@ -90,5 +102,49 @@ mod tests {
         let blended = contrast_ratio(half_black, Color32::WHITE);
         let direct = contrast_ratio(composited_gray, Color32::WHITE);
         assert!((blended - direct).abs() < 0.01);
+    }
+
+    #[test]
+    fn with_alpha_scales_all_premultiplied_channels() {
+        let opaque = Color32::from_rgba_premultiplied(200, 100, 50, 255);
+        let half = with_alpha(opaque, 0.5);
+        assert_eq!(half.r(), 100);
+        assert_eq!(half.g(), 50);
+        assert_eq!(half.b(), 25);
+        assert_eq!(half.a(), 128); // 127.5 rounds up
+
+        assert_eq!(with_alpha(opaque, 0.0), Color32::TRANSPARENT);
+        assert_eq!(with_alpha(opaque, 1.0), opaque);
+    }
+
+    #[test]
+    fn with_alpha_clamps_out_of_range_factors() {
+        let c = Color32::from_rgba_premultiplied(10, 20, 30, 255);
+        assert_eq!(with_alpha(c, 2.0), c);
+        assert_eq!(with_alpha(c, -1.0), Color32::TRANSPARENT);
+    }
+
+    #[test]
+    fn with_alpha_agrees_with_gamma_multiply_for_opaque_colors() {
+        // The replacement must stay visually equivalent to the egui method it
+        // replaces (modulo rounding).
+        let c = Color32::from_rgb(120, 60, 30);
+        for factor in [0.0_f32, 0.1, 0.25, 0.5, 0.75, 1.0] {
+            let ours = with_alpha(c, factor);
+            let theirs = c.gamma_multiply(factor);
+            assert!(
+                (ours.r() as i32 - theirs.r() as i32).abs() <= 1,
+                "r mismatch at {factor}: {ours:?} vs {theirs:?}"
+            );
+            assert!((ours.g() as i32 - theirs.g() as i32).abs() <= 1);
+            assert!((ours.b() as i32 - theirs.b() as i32).abs() <= 1);
+            assert!((ours.a() as i32 - theirs.a() as i32).abs() <= 1);
+        }
+    }
+
+    #[test]
+    fn multiply_alpha_is_with_alpha() {
+        let c = Color32::from_rgba_premultiplied(200, 100, 50, 255);
+        assert_eq!(multiply_alpha(c, 0.4), with_alpha(c, 0.4));
     }
 }

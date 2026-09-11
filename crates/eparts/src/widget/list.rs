@@ -99,18 +99,49 @@ impl<'a> List<'a> {
             ui.ctx().data(|d| d.get_temp::<f64>(list_id.with("ta_time"))).unwrap_or(0.0);
         let now = ui.input(|i| i.time);
 
-        // ── Keyboard events ─────────────────────────────────────────
+        // ── Allocate & read focus ───────────────────────────────────
+        // The outer response owns keyboard focus. Allocate it *before* reading
+        // events so keyboard handling can be gated on focus. The rect is
+        // interacted with under `list_id` (not an auto id) so focus, the focus
+        // lock filter, and `has_focus` all refer to the same stable id.
+        let total_height = num_items as f32 * row_h;
+        let (_, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_height));
+        let outer_resp = ui.interact(outer_rect, list_id, Sense::click());
+
+        let mut has_focus = outer_resp.has_focus();
+        if outer_resp.clicked() {
+            ui.memory_mut(|m| m.request_focus(list_id));
+            has_focus = true;
+        }
+        if has_focus {
+            // While the list is focused, arrow keys navigate it — they must not
+            // also move focus to a sibling widget via egui's focus traversal.
+            ui.memory_mut(|m| {
+                m.set_focus_lock_filter(
+                    list_id,
+                    egui::EventFilter {
+                        horizontal_arrows: true,
+                        vertical_arrows: true,
+                        tab: false,
+                        escape: false,
+                    },
+                );
+            });
+        }
+
+        // ── Keyboard events (focused only, consumed) ────────────────
         let mut action: Option<ListAction> = None;
 
-        ui.input(|i| {
-            for ev in &i.events {
-                match ev {
+        if has_focus {
+            ui.input_mut(|i| {
+                i.events.retain(|ev| match ev {
                     egui::Event::Key {
                         key: egui::Key::ArrowDown,
                         pressed: true,
                         ..
                     } if num_items > 0 => {
                         sel_idx = Some(sel_idx.map(|i| (i + 1).min(num_items - 1)).unwrap_or(0));
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::ArrowUp,
@@ -118,6 +149,7 @@ impl<'a> List<'a> {
                         ..
                     } if num_items > 0 => {
                         sel_idx = Some(sel_idx.map(|i| i.saturating_sub(1)).unwrap_or(0));
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::Home,
@@ -125,6 +157,7 @@ impl<'a> List<'a> {
                         ..
                     } if num_items > 0 => {
                         sel_idx = Some(0);
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::End,
@@ -132,6 +165,7 @@ impl<'a> List<'a> {
                         ..
                     } if num_items > 0 => {
                         sel_idx = Some(num_items - 1);
+                        false
                     },
                     egui::Event::Key {
                         key: egui::Key::Enter,
@@ -141,6 +175,7 @@ impl<'a> List<'a> {
                         if let Some(idx) = sel_idx {
                             action = Some(ListAction::Confirmed(idx));
                         }
+                        false
                     },
                     egui::Event::Text(text) => {
                         if now - ta_time > timeout_secs {
@@ -169,17 +204,14 @@ impl<'a> List<'a> {
                                 sel_idx = found;
                             }
                         }
+                        false
                     },
-                    _ => {},
-                }
-            }
-        });
+                    _ => true,
+                });
+            });
+        }
 
-        // ── Allocate & paint ────────────────────────────────────────
-        let total_height = num_items as f32 * row_h;
-        let (outer_rect, outer_resp) =
-            ui.allocate_exact_size(egui::vec2(ui.available_width(), total_height), Sense::click());
-
+        // ── Click selection ─────────────────────────────────────────
         if outer_resp.clicked() {
             if let Some(clicked_idx) = row_at(outer_resp.interact_pointer_pos(), outer_rect, row_h)
             {
@@ -210,6 +242,16 @@ impl<'a> List<'a> {
             );
             let is_selected = sel_idx == Some(idx);
             let row_resp = ui.interact(row_rect, list_id.with(idx), Sense::click());
+
+            // Row widgets sit above the outer frame, so they win the hit test;
+            // route their clicks back to the list and claim focus for it.
+            if row_resp.clicked() {
+                sel_idx = Some(idx);
+                ui.memory_mut(|m| m.request_focus(list_id));
+                if action.is_none() {
+                    action = Some(ListAction::Clicked(idx));
+                }
+            }
 
             let _ = Row::new(label).height(row_h).selected(is_selected).show_in_rect(
                 ui,
@@ -279,7 +321,7 @@ impl<'a> SearchableList<'a> {
         let root_id = Id::new(id_source);
 
         // Filter + selection state in Memory.
-        let filter: String = ui
+        let mut filter: String = ui
             .ctx()
             .data(|d| d.get_temp::<String>(root_id.with("filter")))
             .unwrap_or_default();
@@ -291,8 +333,8 @@ impl<'a> SearchableList<'a> {
 
         // ── Filter TextField ────────────────────────────────────────
         ui.horizontal(|ui| {
-            let mut f = filter.clone();
-            let tf = TextField::new(&mut f)
+            // Edit the persisted buffer in place so typing actually filters.
+            let tf = TextField::new(&mut filter)
                 .placeholder(self.placeholder.unwrap_or("Filter…"))
                 .cleanable(true)
                 .desired_width(ui.available_width());
@@ -476,6 +518,239 @@ mod tests {
     use super::*;
 
     const ITEMS: [&str; 5] = ["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+
+    // ── Interaction test harness ────────────────────────────────────
+
+    fn screen() -> egui::Rect {
+        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))
+    }
+
+    fn base_input() -> egui::RawInput {
+        egui::RawInput {
+            screen_rect: Some(screen()),
+            ..Default::default()
+        }
+    }
+
+    fn press_release(pos: egui::Pos2) -> [egui::Event; 2] {
+        [
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::default(),
+            },
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::default(),
+            },
+        ]
+    }
+
+    fn arrow_down() -> egui::Event {
+        egui::Event::Key {
+            key: egui::Key::ArrowDown,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::default(),
+        }
+    }
+
+    fn has_arrow_down(events: &[egui::Event]) -> bool {
+        events.iter().any(|e| {
+            matches!(
+                e,
+                egui::Event::Key {
+                    key: egui::Key::ArrowDown,
+                    ..
+                }
+            )
+        })
+    }
+
+    /// Run one frame for a `List`; returns `(selected_index, leftover_events)`.
+    fn run_list_frame(
+        ctx: &egui::Context,
+        input: egui::RawInput,
+        id: &str,
+        items: &[&str],
+    ) -> (Option<usize>, Vec<egui::Event>) {
+        let mut selected = None;
+        let mut remaining = Vec::new();
+        let _ = ctx.run_ui(input, |ui| {
+            selected = List::new(items).show(ui, id).selected_index;
+            remaining = ui.input(|i| i.events.clone());
+        });
+        (selected, remaining)
+    }
+
+    #[test]
+    fn list_keyboard_ignored_when_unfocused() {
+        let ctx = egui::Context::default();
+        let (sel0, _) = run_list_frame(&ctx, base_input(), "unfocused_list", &ITEMS);
+        assert_eq!(sel0, None);
+
+        // Arrow key with nothing focused must not touch the list.
+        let mut input = base_input();
+        input.events.push(arrow_down());
+        let (sel1, remaining) = run_list_frame(&ctx, input, "unfocused_list", &ITEMS);
+        assert_eq!(sel1, None, "unfocused list must not react to arrow keys");
+        assert!(has_arrow_down(&remaining), "unfocused list must not consume the arrow key");
+    }
+
+    #[test]
+    fn list_keyboard_navigates_when_focused_and_consumes_event() {
+        let ctx = egui::Context::default();
+        let list_id = Id::new("focused_list");
+
+        // Give the list keyboard focus.
+        ctx.memory_mut(|m| m.request_focus(list_id));
+
+        let mut input = base_input();
+        input.events.push(arrow_down());
+        let (sel, remaining) = run_list_frame(&ctx, input, "focused_list", &ITEMS);
+        assert_eq!(sel, Some(0), "focused list should move selection down");
+        assert!(
+            !has_arrow_down(&remaining),
+            "focused list must consume the arrow key it handled"
+        );
+
+        let mut input = base_input();
+        input.events.push(arrow_down());
+        let (sel, _) = run_list_frame(&ctx, input, "focused_list", &ITEMS);
+        assert_eq!(sel, Some(1));
+    }
+
+    #[test]
+    fn list_type_ahead_ignored_while_a_text_field_is_focused() {
+        let ctx = egui::Context::default();
+        let pos = screen().left_top() + egui::vec2(20.0, 5.0);
+        let mut text = String::new();
+        let mut selected = None;
+
+        // Frame 1: warm up so the TextField's widgets are registered.
+        let _ = ctx.run_ui(base_input(), |ui| {
+            let _ = TextField::new(&mut text).desired_width(200.0).show(ui);
+        });
+        // Frame 2: click the TextField to focus it.
+        let mut input = base_input();
+        input.events.extend(press_release(pos));
+        let _ = ctx.run_ui(input, |ui| {
+            let _ = TextField::new(&mut text).desired_width(200.0).show(ui);
+        });
+
+        // Frame 3: type — the list rendered alongside must not type-ahead.
+        let mut input = base_input();
+        input.events.push(egui::Event::Text("Esto".to_owned()));
+        let _ = ctx.run_ui(input, |ui| {
+            let _ = TextField::new(&mut text).desired_width(200.0).show(ui);
+            selected = List::new(&ITEMS).show(ui, "typeahead_list").selected_index;
+        });
+        assert_eq!(selected, None, "typing in a TextField must not drive list type-ahead");
+    }
+
+    #[test]
+    fn list_click_claims_focus_and_routes_selection() {
+        let ctx = egui::Context::default();
+        let row_pos = screen().left_top() + egui::vec2(20.0, 5.0);
+
+        // Warm-up frame registers the widget rects needed for hit-testing.
+        let _ = ctx.run_ui(base_input(), |ui| {
+            let _ = List::new(&ITEMS).show(ui, "click_list");
+        });
+
+        let mut sel = None;
+        let mut input = base_input();
+        input.events.extend(press_release(row_pos));
+        let _ = ctx.run_ui(input, |ui| {
+            sel = List::new(&ITEMS).show(ui, "click_list").selected_index;
+        });
+        assert_eq!(sel, Some(0), "clicking a row should select it");
+        assert!(
+            ctx.memory(|m| m.has_focus(Id::new("click_list"))),
+            "clicking the list must claim keyboard focus"
+        );
+    }
+
+    #[test]
+    fn two_lists_only_the_focused_one_reacts() {
+        let ctx = egui::Context::default();
+        ctx.memory_mut(|m| m.request_focus(Id::new("list_b")));
+
+        let mut first = None;
+        let mut second = None;
+        let run = |first: &mut Option<usize>, second: &mut Option<usize>| {
+            let _ = ctx.run_ui(input_with(arrow_down()), |ui| {
+                *first = List::new(&ITEMS).row_height(24.0).show(ui, "list_a").selected_index;
+                ui.add_space(4.0);
+                *second = List::new(&ITEMS).row_height(24.0).show(ui, "list_b").selected_index;
+            });
+        };
+        run(&mut first, &mut second);
+
+        assert_eq!(first, None, "unfocused list must not react to the arrow key");
+        assert_eq!(second, Some(0), "focused list should react to the arrow key");
+    }
+
+    fn input_with(event: egui::Event) -> egui::RawInput {
+        let mut input = base_input();
+        input.events.push(event);
+        input
+    }
+
+    // ── SearchableList filter ───────────────────────────────────────
+
+    const FILTER_ITEMS: [&str; 3] = ["Alpha", "Beta", "Gamma"];
+
+    #[test]
+    fn searchable_list_respects_persisted_filter() {
+        let ctx = egui::Context::default();
+        let root = Id::new("searchable_persisted");
+        ctx.data_mut(|d| d.insert_temp(root.with("filter"), "Beta".to_owned()));
+
+        let mut resp = None;
+        let _ = ctx.run_ui(base_input(), |ui| {
+            resp = Some(SearchableList::new(&FILTER_ITEMS).show(ui, "searchable_persisted"));
+        });
+        let resp = resp.expect("response");
+        assert_eq!(resp.filtered_count, 1, "filtering must use the persisted filter");
+    }
+
+    #[test]
+    fn searchable_list_typing_persists_and_narrows_filter() {
+        let ctx = egui::Context::default();
+        // The filter field occupies the first row of the widget.
+        let field_pos = screen().left_top() + egui::vec2(60.0, 8.0);
+
+        let show = |ctx: &egui::Context, input: egui::RawInput| -> SearchableListResponse {
+            let mut resp = None;
+            let _ = ctx.run_ui(input, |ui| {
+                resp = Some(SearchableList::new(&FILTER_ITEMS).show(ui, "searchable_typed"));
+            });
+            resp.expect("response")
+        };
+
+        // Warm-up, then click the filter field to focus its TextEdit.
+        let _ = show(&ctx, base_input());
+        let mut input = base_input();
+        input.events.extend(press_release(field_pos));
+        let _ = show(&ctx, input);
+
+        // Now type "Gamma" and verify the filter narrows + is persisted.
+        let mut input = base_input();
+        input.events.push(egui::Event::Text("Gamma".to_owned()));
+        let resp = show(&ctx, input);
+
+        assert_eq!(resp.filtered_count, 1, "typing in the filter must narrow the list");
+        assert_eq!(resp.confirmed, None);
+        let stored: String = ctx
+            .data(|d| d.get_temp(Id::new("searchable_typed").with("filter")))
+            .unwrap_or_default();
+        assert_eq!(stored, "Gamma", "edited filter must be persisted to Memory");
+    }
 
     #[test]
     fn next_index_basic() {
