@@ -197,6 +197,7 @@ dependencies = [
  "image",
  "kurbo",
  "notify",
+ "regex",
  "rfd",
  "rodio",
  "ron",

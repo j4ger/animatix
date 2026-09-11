@@ -204,6 +204,12 @@ pub struct UiStore {
     pub replace_query: String,
     /// Byte offset of the last Find Next match, for cursor-relative search.
     pub find_last_match: Option<usize>,
+    /// Match case when searching.
+    pub find_case_sensitive: bool,
+    /// Match whole words only.
+    pub find_whole_word: bool,
+    /// Treat the find query as a regular expression.
+    pub find_regex: bool,
     /// Unsaved changes confirmation dialog state.
     pub unsaved_changes: UnsavedChangesDialog,
     /// Persisted shortcut overrides keyed by stable binding name.
@@ -246,6 +252,9 @@ impl UiStore {
             find_query: String::new(),
             replace_query: String::new(),
             find_last_match: None,
+            find_case_sensitive: false,
+            find_whole_word: false,
+            find_regex: false,
             unsaved_changes: UnsavedChangesDialog::default(),
             shortcut_overrides: std::collections::BTreeMap::new(),
             recording_shortcut: None,
