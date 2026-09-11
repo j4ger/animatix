@@ -1,4 +1,13 @@
-//! Filter system — backend trait and CPU-based image processing.
+//! Effect chain model and the GPU filter backend boundary.
+//!
+//! Post-processing is modelled as an ordered [`EffectChain`] of
+//! [`EffectInstance`]s, each described by an [`EffectDescriptor`] (parameters,
+//! spatial support, and an ordered list of compute passes). The renderer
+//! implements [`FilterBackend`] and owns all device resources; this module is
+//! pure data so it stays free of `wgpu`/`vello` scene types.
+//!
+//! The normative contract for the pass layout, uniforms, identity semantics,
+//! and failure policy lives in `docs/effects.md`.
 
 use crate::timeline::SceneDimensions;
 use crate::timeline::image::SceneImage;
@@ -14,58 +23,466 @@ pub struct PendingComposite {
     pub alpha: f32,
 }
 
-/// Backend that can render a [`vello::Scene`] to a [`SceneImage`].
-///
-/// The timeline uses this to capture a Filter actor's children into a bitmap,
-/// then applies CPU-based post-processing (blur, brightness, etc.) and draws
-/// the result back into the main scene.
-pub trait FilterBackend: Send {
-    /// Render `scene` (which covers `dimensions`) into a [`SceneImage`].
-    fn render_scene_to_image(
-        &mut self,
-        scene: &vello::Scene,
-        dimensions: SceneDimensions,
-    ) -> Result<SceneImage, String>;
+// ── Effect identity ─────────────────────────────────────────────────────────
 
-    /// GPU-accelerated version: render the scene and apply filters on the GPU,
-    /// then readback once.  The default implementation delegates to
-    /// `render_scene_to_image` followed by `apply_cpu_filters`.
+/// Stable identity of an effect, used as the pipeline-cache key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EffectId {
+    /// Gaussian blur; two passes (horizontal, then vertical).
+    Blur,
+    /// Colour matrix built from brightness/contrast/saturate/hue/sepia.
+    ColorGrade,
+}
+
+// ── Parameter schema ────────────────────────────────────────────────────────
+
+/// Value type of an effect parameter.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EffectParamKind {
+    /// 32-bit float.
+    F32,
+    /// 32-bit unsigned integer.
+    U32,
+    /// Two 32-bit floats.
+    Vec2,
+    /// Four 32-bit floats.
+    Vec4,
+    /// Boolean, marshalled as `u32`.
+    Bool,
+}
+
+/// One resolved parameter value for a frame.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EffectParamValue {
+    /// `f32`
+    F32(f32),
+    /// `u32`
+    U32(u32),
+    /// `[f32; 2]`
+    Vec2([f32; 2]),
+    /// `[f32; 4]`
+    Vec4([f32; 4]),
+    /// `bool`
+    Bool(bool),
+}
+
+/// Declares one author parameter: its type, the identity value that means "no
+/// contribution", and where it lands in the author uniform buffer.
+#[derive(Clone, Copy, Debug)]
+pub struct EffectParamSpec {
+    /// Parameter name as authored in `.amx`.
+    pub name: &'static str,
+    /// Value type.
+    pub kind: EffectParamKind,
+    /// Value at which this parameter contributes nothing.
+    pub identity: EffectParamValue,
+    /// Byte offset in the author uniform buffer (generic packing).
+    pub offset: u32,
+    /// Byte size in the author uniform buffer.
+    pub size: u32,
+}
+
+/// Resolved parameters for one effect instance in a frame.
+#[derive(Clone, Debug, Default)]
+pub struct EffectParams {
+    /// Values index-aligned with [`EffectDescriptor::params`].
+    pub values: Vec<EffectParamValue>,
+}
+
+impl EffectParams {
+    /// Read parameter `index` as `f32` (0.0 for non-numeric or out of range).
+    pub fn f32_at(&self, index: usize) -> f32 {
+        match self.values.get(index) {
+            Some(EffectParamValue::F32(v)) => *v,
+            Some(EffectParamValue::U32(v)) => *v as f32,
+            _ => 0.0,
+        }
+    }
+}
+
+// ── Passes and descriptors ──────────────────────────────────────────────────
+
+/// One compute pass of an effect: shader source plus entry point.
+#[derive(Clone, Copy, Debug)]
+pub struct EffectPassSpec {
+    /// Human-readable label for the pipeline/pass.
+    pub label: &'static str,
+    /// WGSL source. May be shared between passes (blur uses one shader twice).
+    pub wgsl: &'static str,
+    /// Entry point name.
+    pub entry: &'static str,
+}
+
+/// Packs author parameters into the uniform bytes for one effect.
+pub type EffectPackFn = fn(&EffectParams, &mut [u8]);
+
+/// A complete effect description.
+pub struct EffectDescriptor {
+    /// Pipeline-cache identity.
+    pub id: EffectId,
+    /// Authored type name (`.amx`).
+    pub type_name: &'static str,
+    /// Parameter schema, index-aligned with [`EffectParams::values`].
+    pub params: &'static [EffectParamSpec],
+    /// Ordered compute passes.
+    pub passes: &'static [EffectPassSpec],
+    /// Size in bytes of the author uniform buffer (multiple of 16).
+    pub author_uniform_size: u32,
+    /// Marshals parameters into `author_uniform_size` bytes.
+    pub pack: EffectPackFn,
+}
+
+impl EffectDescriptor {
+    /// `true` when every parameter equals its identity value — the effect
+    /// contributes nothing and its passes can be skipped.
+    pub fn is_identity(&self, params: &EffectParams) -> bool {
+        self.params
+            .iter()
+            .enumerate()
+            .all(|(i, spec)| params.values.get(i).is_none_or(|value| *value == spec.identity))
+    }
+}
+
+/// One resolved effect in a chain.
+#[derive(Clone, Debug)]
+pub struct EffectInstance {
+    /// Which effect to run.
+    pub id: EffectId,
+    /// Whether the instance is enabled this frame.
+    pub enabled: bool,
+    /// Resolved parameters.
+    pub params: EffectParams,
+}
+
+/// An ordered list of effects to apply to a compositing scope.
+#[derive(Clone, Debug, Default)]
+pub struct EffectChain {
+    /// Active instances, in application order.
+    pub instances: Vec<EffectInstance>,
+    /// Timeline time in milliseconds, supplied to shaders as `time_ms`.
+    pub time_ms: f32,
+}
+
+impl EffectChain {
+    /// `true` when no effect will run (empty or every instance disabled).
+    pub fn is_empty(&self) -> bool {
+        self.instances.iter().all(|instance| !instance.enabled)
+    }
+
+    /// Build a chain from the legacy flat `Filter` properties.
+    ///
+    /// Temporary bridge while the flat `blur:`/`brightness:`/... properties
+    /// still exist; removed when effects become child primitives. Instances at
+    /// their identity values are omitted, so `is_empty` mirrors the old
+    /// "needs filter" test.
+    pub fn from_flat_filter(
+        time_ms: f32,
+        blur: f32,
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+    ) -> Self {
+        let mut instances = Vec::new();
+        if blur > 0.5 {
+            instances.push(EffectInstance {
+                id: EffectId::Blur,
+                enabled: true,
+                params: EffectParams {
+                    values: vec![EffectParamValue::F32(blur)],
+                },
+            });
+        }
+        let color_is_identity = (brightness - 1.0).abs() <= 0.001
+            && (contrast - 1.0).abs() <= 0.001
+            && (saturate - 1.0).abs() <= 0.001
+            && hue_rotate.abs() <= 0.5
+            && sepia <= 0.001;
+        if !color_is_identity {
+            instances.push(EffectInstance {
+                id: EffectId::ColorGrade,
+                enabled: true,
+                params: EffectParams {
+                    values: vec![
+                        EffectParamValue::F32(brightness),
+                        EffectParamValue::F32(contrast),
+                        EffectParamValue::F32(saturate),
+                        EffectParamValue::F32(hue_rotate),
+                        EffectParamValue::F32(sepia),
+                    ],
+                },
+            });
+        }
+        Self { instances, time_ms }
+    }
+}
+
+/// Descriptor for a built-in effect.
+pub fn descriptor(id: EffectId) -> &'static EffectDescriptor {
+    match id {
+        EffectId::Blur => &BLUR_DESCRIPTOR,
+        EffectId::ColorGrade => &COLOR_GRADE_DESCRIPTOR,
+    }
+}
+
+// ── Built-in parameter schemas ──────────────────────────────────────────────
+
+/// `Blur` parameters.
+pub const BLUR_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
+    name: "radius",
+    kind: EffectParamKind::F32,
+    identity: EffectParamValue::F32(0.0),
+    offset: 0,
+    size: 4,
+}];
+
+/// `ColorGrade` parameters.
+pub const COLOR_GRADE_PARAMS: &[EffectParamSpec] = &[
+    EffectParamSpec {
+        name: "brightness",
+        kind: EffectParamKind::F32,
+        identity: EffectParamValue::F32(1.0),
+        offset: 0,
+        size: 4,
+    },
+    EffectParamSpec {
+        name: "contrast",
+        kind: EffectParamKind::F32,
+        identity: EffectParamValue::F32(1.0),
+        offset: 4,
+        size: 4,
+    },
+    EffectParamSpec {
+        name: "saturate",
+        kind: EffectParamKind::F32,
+        identity: EffectParamValue::F32(1.0),
+        offset: 8,
+        size: 4,
+    },
+    EffectParamSpec {
+        name: "hue_rotate",
+        kind: EffectParamKind::F32,
+        identity: EffectParamValue::F32(0.0),
+        offset: 12,
+        size: 4,
+    },
+    EffectParamSpec {
+        name: "sepia",
+        kind: EffectParamKind::F32,
+        identity: EffectParamValue::F32(0.0),
+        offset: 16,
+        size: 4,
+    },
+];
+
+// ── Built-in WGSL ───────────────────────────────────────────────────────────
+
+const BLUR_WGSL: &str = r#"
+struct BlurParams {
+    radius: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
+}
+
+struct EffectContext {
+    tex_size: vec2<u32>,
+    _pad0: vec2<u32>,
+    inv_size: vec2<f32>,
+    _pad1: vec2<f32>,
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
+}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: BlurParams;
+@group(0) @binding(3) var<uniform> ctx: EffectContext;
+@group(0) @binding(4) var samp: sampler;
+
+fn gaussian_weight(x: f32, sigma: f32) -> f32 {
+    return exp(-(x * x) / (2.0 * sigma * sigma));
+}
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let coord = vec2<i32>(i32(gid.x), i32(gid.y));
+    let size = vec2<i32>(ctx.tex_size);
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    if (params.radius < 0.5) {
+        textureStore(dst, coord, textureLoad(src, coord, 0));
+        return;
+    }
+
+    let sigma = params.radius / 3.0;
+    let radius = i32(ceil(params.radius));
+
+    var color = vec4<f32>(0.0);
+    var weight_sum = 0.0;
+
+    for (var i = -radius; i <= radius; i = i + 1) {
+        var offset: vec2<i32>;
+        if (ctx.pass_index == 0u) {
+            offset = vec2<i32>(i, 0);
+        } else {
+            offset = vec2<i32>(0, i);
+        }
+        let sample_coord = clamp(coord + offset, vec2<i32>(0), size - vec2<i32>(1));
+        let w = gaussian_weight(f32(i), sigma);
+        color = color + textureLoad(src, sample_coord, 0) * w;
+        weight_sum = weight_sum + w;
+    }
+
+    textureStore(dst, coord, color / weight_sum);
+}
+"#;
+
+const COLOR_GRADE_WGSL: &str = r#"
+struct ColorGradeParams {
+    m0: vec4<f32>,
+    m1: vec4<f32>,
+    m2: vec4<f32>,
+    m3: vec4<f32>,
+}
+
+struct EffectContext {
+    tex_size: vec2<u32>,
+    _pad0: vec2<u32>,
+    inv_size: vec2<f32>,
+    _pad1: vec2<f32>,
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
+}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: ColorGradeParams;
+@group(0) @binding(3) var<uniform> ctx: EffectContext;
+@group(0) @binding(4) var samp: sampler;
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let coord = vec2<u32>(gid.x, gid.y);
+    let size = vec2<u32>(textureDimensions(src));
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    let texel = textureLoad(src, vec2<i32>(coord), 0);
+    let rgba = vec4<f32>(texel.r, texel.g, texel.b, texel.a);
+
+    let r = dot(params.m0, rgba);
+    let g = dot(params.m1, rgba);
+    let b = dot(params.m2, rgba);
+    let a = dot(params.m3, rgba);
+
+    let out = vec4<f32>(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), clamp(a, 0.0, 1.0));
+    textureStore(dst, coord, out);
+}
+"#;
+
+// ── Built-in descriptors ────────────────────────────────────────────────────
+
+/// `Blur` descriptor: one shader, two passes (horizontal then vertical).
+pub static BLUR_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
+    id: EffectId::Blur,
+    type_name: "Blur",
+    params: BLUR_PARAMS,
+    passes: &[
+        EffectPassSpec {
+            label: "blur-horizontal",
+            wgsl: BLUR_WGSL,
+            entry: "main",
+        },
+        EffectPassSpec {
+            label: "blur-vertical",
+            wgsl: BLUR_WGSL,
+            entry: "main",
+        },
+    ],
+    author_uniform_size: 16,
+    pack: pack_blur,
+};
+
+/// `ColorGrade` descriptor: one pass mapping five scalars to a colour matrix.
+pub static COLOR_GRADE_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
+    id: EffectId::ColorGrade,
+    type_name: "ColorGrade",
+    params: COLOR_GRADE_PARAMS,
+    passes: &[EffectPassSpec {
+        label: "color-grade",
+        wgsl: COLOR_GRADE_WGSL,
+        entry: "main",
+    }],
+    author_uniform_size: 64,
+    pack: pack_color_grade,
+};
+
+fn pack_blur(params: &EffectParams, out: &mut [u8]) {
+    out.fill(0);
+    let radius = params.f32_at(0);
+    out[0..4].copy_from_slice(&radius.to_le_bytes());
+}
+
+fn pack_color_grade(params: &EffectParams, out: &mut [u8]) {
+    out.fill(0);
+    let matrix = compose_color_matrix(
+        params.f32_at(0),
+        params.f32_at(1),
+        params.f32_at(2),
+        params.f32_at(3),
+        params.f32_at(4),
+    );
+    for (row, values) in matrix.iter().enumerate() {
+        let base = row * 16;
+        for (column, value) in values.iter().enumerate() {
+            let start = base + column * 4;
+            out[start..start + 4].copy_from_slice(&value.to_le_bytes());
+        }
+    }
+}
+
+// ── Backend boundary ────────────────────────────────────────────────────────
+
+/// Backend that can render a [`vello::Scene`] and apply an [`EffectChain`].
+///
+/// The timeline captures a `Filter` scope's content children into an offscreen
+/// scene, hands the chain to the backend, and composites the result back into
+/// the parent scene. There is no CPU fallback: a backend that cannot run the
+/// chain reports an error and the timeline renders the children unfiltered with
+/// a diagnostic (`docs/effects.md` §5).
+pub trait FilterBackend: Send {
+    /// Render `scene` (covering `dimensions`), apply `chain`, and read the
+    /// result back as a [`SceneImage`].
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
-    ) -> Result<SceneImage, String> {
-        let image = self.render_scene_to_image(scene, dimensions)?;
-        Ok(apply_cpu_filters(
-            image, blur, brightness, contrast, saturate, hue_rotate, sepia,
-        ))
-    }
+        chain: &EffectChain,
+    ) -> Result<SceneImage, String>;
 
-    /// Render a scene with GPU filtering and store the result as a pending
-    /// composite that can be blitted onto the render target without CPU readback.
-    /// Returns Err if this backend doesn't support zero-readback compositing.
+    /// Render a scene with `chain` and store the result as a pending composite
+    /// that can be blitted onto the render target without CPU readback.
+    /// Returns `Err` if this backend doesn't support zero-readback compositing.
     fn render_scene_to_pending_composite(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
+        chain: &EffectChain,
         alpha: f32,
     ) -> Result<(), String> {
-        let _ = (
-            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia, alpha,
-        );
-        Err("zero-readback filter compositing is not supported by this backend".to_string())
+        let _ = (scene, dimensions, chain, alpha);
+        Err("zero-readback effect compositing is not supported by this backend".to_string())
     }
 
     /// Drain any pending composites produced by `render_scene_to_pending_composite`.
@@ -74,64 +491,9 @@ pub trait FilterBackend: Send {
     }
 }
 
-/// Apply CPU-based filter operations to a [`SceneImage`].
-///
-/// Uses the `image` crate for Gaussian blur, brightness, contrast, hue rotate,
-/// and grayscale. Sepia is implemented as a custom color matrix.
-///
-/// The pipeline order is: **blur → color matrix**.
-pub fn apply_cpu_filters(
-    image: SceneImage,
-    blur: f32,
-    brightness: f32,
-    contrast: f32,
-    saturate: f32,
-    hue_rotate: f32,
-    sepia: f32,
-) -> SceneImage {
-    let width = image.natural_size[0] as u32;
-    let height = image.natural_size[1] as u32;
+// ── Colour matrix helpers (used by the ColorGrade packer) ───────────────────
 
-    // Convert peniko ImageData to image::RgbaImage
-    let raw: Vec<u8> = image.data.data.data().to_vec();
-    let mut img = match image::RgbaImage::from_raw(width, height, raw) {
-        Some(img) => img,
-        None => return image,
-    };
-
-    // ── Blur ──
-    if blur > 0.5 {
-        let sigma = blur / 3.0;
-        img = image::imageops::blur(&img, sigma);
-    }
-
-    // ── Color matrix (brightness, contrast, saturate, hue, sepia) ──
-    let needs_color_matrix = (brightness - 1.0).abs() > 0.001
-        || (contrast - 1.0).abs() > 0.001
-        || saturate < 0.999
-        || hue_rotate.abs() > 0.5
-        || sepia > 0.001;
-
-    if needs_color_matrix {
-        apply_color_matrix(&mut img, brightness, contrast, saturate, hue_rotate, sepia);
-    }
-
-    let raw_out = img.into_raw();
-    let data = vello::peniko::ImageData {
-        data: raw_out.into(),
-        format: vello::peniko::ImageFormat::Rgba8,
-        alpha_type: vello::peniko::ImageAlphaType::Alpha,
-        width,
-        height,
-    };
-
-    SceneImage {
-        data,
-        natural_size: image.natural_size,
-    }
-}
-
-/// Compose a 4×4 color matrix from individual transforms.
+/// Compose a 4×4 colour matrix from individual transforms.
 ///
 /// Order of composition: **sepia → hue → saturate → contrast → brightness**.
 /// Returns the matrix in row-major form.
@@ -161,36 +523,6 @@ pub fn compose_color_matrix(
     }
 
     m
-}
-
-/// Apply a combined color matrix for brightness, contrast, saturation,
-/// hue rotation, and sepia.
-fn apply_color_matrix(
-    img: &mut image::RgbaImage,
-    brightness: f32,
-    contrast: f32,
-    saturate: f32,
-    hue_rotate: f32,
-    sepia: f32,
-) {
-    let m = compose_color_matrix(brightness, contrast, saturate, hue_rotate, sepia);
-
-    for pixel in img.pixels_mut() {
-        let r = pixel[0] as f32 / 255.0;
-        let g = pixel[1] as f32 / 255.0;
-        let b = pixel[2] as f32 / 255.0;
-        let a = pixel[3] as f32 / 255.0;
-
-        let nr = m[0][0] * r + m[0][1] * g + m[0][2] * b + m[0][3] * a;
-        let ng = m[1][0] * r + m[1][1] * g + m[1][2] * b + m[1][3] * a;
-        let nb = m[2][0] * r + m[2][1] * g + m[2][2] * b + m[2][3] * a;
-        let na = m[3][0] * r + m[3][1] * g + m[3][2] * b + m[3][3] * a;
-
-        pixel[0] = (nr.clamp(0.0, 1.0) * 255.0) as u8;
-        pixel[1] = (ng.clamp(0.0, 1.0) * 255.0) as u8;
-        pixel[2] = (nb.clamp(0.0, 1.0) * 255.0) as u8;
-        pixel[3] = (na.clamp(0.0, 1.0) * 255.0) as u8;
-    }
 }
 
 fn identity_matrix() -> [[f32; 4]; 4] {

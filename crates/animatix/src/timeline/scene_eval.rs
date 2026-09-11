@@ -976,15 +976,18 @@ impl Timeline {
             }
         }
 
-        // If all filters are identity and no blur, just append sub-scene directly
-        let needs_filter = blur > 0.5
-            || (brightness - 1.0).abs() > 0.001
-            || (contrast - 1.0).abs() > 0.001
-            || (saturate - 1.0).abs() > 0.001
-            || hue_rotate.abs() > 0.5
-            || sepia > 0.001;
+        // If all filters are identity and no blur, just append sub-scene directly.
+        let chain = crate::timeline::filter::EffectChain::from_flat_filter(
+            time_ms as f32,
+            blur,
+            brightness,
+            contrast,
+            saturate,
+            hue_rotate,
+            sepia,
+        );
 
-        if !needs_filter {
+        if chain.is_empty() {
             scene.encoding_mut().append(sub_scene.encoding(), &None);
             return;
         }
@@ -995,12 +998,7 @@ impl Timeline {
                 match backend.render_scene_to_pending_composite(
                     &sub_scene,
                     scene_dimensions,
-                    blur,
-                    brightness,
-                    contrast,
-                    saturate,
-                    hue_rotate,
-                    sepia,
+                    &chain,
                     global_opacity,
                 ) {
                     Ok(()) => {
@@ -1019,16 +1017,7 @@ impl Timeline {
 
         // Render sub-scene to image via backend, apply GPU filters, draw result
         if let Some(backend) = filter_backend.as_mut() {
-            match backend.render_scene_to_image_gpu_filtered(
-                &sub_scene,
-                scene_dimensions,
-                blur,
-                brightness,
-                contrast,
-                saturate,
-                hue_rotate,
-                sepia,
-            ) {
+            match backend.render_scene_to_image_gpu_filtered(&sub_scene, scene_dimensions, &chain) {
                 Ok(filtered) => {
                     let brush = vello::peniko::ImageBrush::new(filtered.data.clone())
                         .with_extend(vello::peniko::Extend::Pad)

@@ -1,144 +1,60 @@
-//! Shared GPU filter backend for preview and export renderers.
+//! GPU effect backend for preview and export renderers.
 //!
 //! Both [`crate::renderer::offscreen::OffscreenRenderer`] and the GUI's
-//! `PreviewSurface` need identical
-//! offscreen → GPU filter → readback behaviour for [`Filter`](crate::timeline::ActorKindId::Filter)
-//! actors.  This module provides a single `GpuFilterBackend` implementation
-//! that can be instantiated by any renderer that owns (or can borrow) a
-//! [`wgpu::Device`] and [`wgpu::Queue`].
+//! `PreviewSurface` need identical offscreen → effect → composite behaviour for
+//! [`Filter`](crate::timeline::ActorKindId::Filter) scopes. This module provides
+//! a single [`GpuFilterBackend`] that runs an [`EffectChain`] as an ordered list
+//! of compute passes over host-owned ping-pong textures.
 //!
-//! Phase 8.6a: filter operations (blur + color matrix) run on the GPU via
-//! WGSL compute shaders.  One CPU readback per filter actor still occurs so
-//! the result can be drawn back into the parent Vello scene.
+//! The pass/uniform contract lives in `docs/effects.md`. Each pass is submitted
+//! in its own encoder: back-to-back compute passes sharing ping-pong textures in
+//! one encoder do not make a storage write visible to the next pass on every
+//! driver (probe 009), and a submit boundary is a portable synchronisation
+//! point.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use crate::renderer::core::RendererCore;
 use crate::timeline::SceneDimensions;
-use crate::timeline::filter::{FilterBackend, PendingComposite};
+use crate::timeline::filter::{
+    EffectChain, EffectDescriptor, EffectId, FilterBackend, PendingComposite, descriptor,
+};
 use crate::timeline::image::SceneImage;
-
-// ── WGSL compute shaders ────────────────────────────────────────────────────
-
-const BLUR_SHADER_WGSL: &str = r#"
-struct BlurParams {
-    radius: f32,
-    direction: i32,
-    tex_size: vec2<u32>,
-}
-
-@group(0) @binding(0) var src: texture_2d<f32>;
-@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(2) var<uniform> params: BlurParams;
-
-fn gaussian_weight(x: f32, sigma: f32) -> f32 {
-    return exp(-(x * x) / (2.0 * sigma * sigma));
-}
-
-@compute @workgroup_size(16, 16)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let coord = vec2<i32>(i32(gid.x), i32(gid.y));
-    let size = vec2<i32>(i32(params.tex_size.x), i32(params.tex_size.y));
-
-    if (coord.x >= size.x || coord.y >= size.y) {
-        return;
-    }
-
-    if (params.radius < 0.5) {
-        let texel = textureLoad(src, coord, 0);
-        textureStore(dst, coord, texel);
-        return;
-    }
-
-    let sigma = params.radius / 3.0;
-    let radius = i32(ceil(params.radius));
-
-    var color = vec4<f32>(0.0);
-    var weight_sum = 0.0;
-
-    if (params.direction == 0) {
-        for (var i = -radius; i <= radius; i = i + 1) {
-            let sample_coord = clamp(coord + vec2<i32>(i, 0), vec2<i32>(0), size - vec2<i32>(1));
-            let w = gaussian_weight(f32(i), sigma);
-            color = color + textureLoad(src, sample_coord, 0) * w;
-            weight_sum = weight_sum + w;
-        }
-    } else {
-        for (var i = -radius; i <= radius; i = i + 1) {
-            let sample_coord = clamp(coord + vec2<i32>(0, i), vec2<i32>(0), size - vec2<i32>(1));
-            let w = gaussian_weight(f32(i), sigma);
-            color = color + textureLoad(src, sample_coord, 0) * w;
-            weight_sum = weight_sum + w;
-        }
-    }
-
-    color = color / weight_sum;
-    textureStore(dst, coord, color);
-}
-"#;
-
-const COLOR_MATRIX_SHADER_WGSL: &str = r#"
-struct ColorMatrixParams {
-    m0: vec4<f32>,
-    m1: vec4<f32>,
-    m2: vec4<f32>,
-    m3: vec4<f32>,
-}
-
-@group(0) @binding(0) var src: texture_2d<f32>;
-@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(2) var<uniform> params: ColorMatrixParams;
-
-@compute @workgroup_size(16, 16)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-    let coord = vec2<u32>(gid.x, gid.y);
-    let size = vec2<u32>(textureDimensions(src));
-    
-    if (coord.x >= size.x || coord.y >= size.y) {
-        return;
-    }
-    
-    let texel = textureLoad(src, vec2<i32>(coord), 0);
-    let rgba = vec4<f32>(texel.r, texel.g, texel.b, texel.a);
-
-    let r = dot(params.m0, rgba);
-    let g = dot(params.m1, rgba);
-    let b = dot(params.m2, rgba);
-    let a = dot(params.m3, rgba);
-
-    let out = vec4<f32>(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), clamp(a, 0.0, 1.0));
-    textureStore(dst, coord, out);
-}
-"#;
 
 // ── Uniform structs ─────────────────────────────────────────────────────────
 
+/// Host-owned per-pass context (bind group 0, binding 3).
+///
+/// Layout must match the `EffectContext` WGSL struct in `timeline/filter.rs`.
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct BlurParams {
-    radius: f32,
-    direction: i32,
+struct EffectContextUniform {
     tex_size: [u32; 2],
+    _pad0: [u32; 2],
+    inv_size: [f32; 2],
+    _pad1: [f32; 2],
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-struct ColorMatrixParams {
-    m0: [f32; 4],
-    m1: [f32; 4],
-    m2: [f32; 4],
-    m3: [f32; 4],
-}
+const EFFECT_CONTEXT_SIZE: u64 = std::mem::size_of::<EffectContextUniform>() as u64;
 
 // ── Backend struct ──────────────────────────────────────────────────────────
 
+/// GPU-backed effect backend that owns its own temporary targets and a
+/// dedicated [`RendererCore`] so it never contends with the main renderer.
+struct EffectPipeline {
+    /// One compute pipeline per pass, index-aligned with the descriptor.
+    passes: Vec<wgpu::ComputePipeline>,
+    /// Author parameter uniform buffer (binding 2).
+    uniform_buffer: wgpu::Buffer,
+}
+
 /// GPU-backed filter backend that owns its own temporary targets and a
 /// dedicated [`RendererCore`] so it never contends with the main renderer.
-///
-/// Created on-demand per evaluation by cloning the caller's `Device`/`Queue`
-/// and spinning up a fresh Vello renderer.  The overhead is acceptable because
-/// filter evaluation is only triggered when a `Filter` actor is present and
-/// its properties are non-identity.
 pub struct GpuFilterBackend {
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -155,17 +71,16 @@ pub struct GpuFilterBackend {
     output_buffer: wgpu::Buffer,
     bytes_per_row: u32,
     _dimensions: SceneDimensions,
-    // Compute pipelines
-    blur_pipeline: wgpu::ComputePipeline,
-    blur_bind_group_layout: wgpu::BindGroupLayout,
-    color_matrix_pipeline: wgpu::ComputePipeline,
-    color_matrix_bind_group_layout: wgpu::BindGroupLayout,
-    // Uniform buffers
-    blur_uniform_buffer: wgpu::Buffer,
-    color_matrix_uniform_buffer: wgpu::Buffer,
-    /// GPU texture view of the most recent filtered result (zero-readback path).
-    last_filtered_view: Option<wgpu::TextureView>,
-    /// Which internal texture `last_filtered_view` points to, for readback.
+    // Shared effect binding layout (bindings 0-4) and pipeline layout.
+    bind_group_layout: wgpu::BindGroupLayout,
+    pipeline_layout: wgpu::PipelineLayout,
+    /// Lazily built pipelines, keyed by effect identity.
+    pipelines: HashMap<EffectId, EffectPipeline>,
+    /// Linear clamp sampler (binding 4).
+    sampler: wgpu::Sampler,
+    /// Per-pass host context uniform (binding 3).
+    context_buffer: wgpu::Buffer,
+    /// Which internal texture holds the most recent filtered result.
     last_filtered_source: FilteredSource,
     /// Pending zero-readback filter textures to be composited after scene render.
     pending_composites: Vec<PendingComposite>,
@@ -174,7 +89,7 @@ pub struct GpuFilterBackend {
 /// Identifies which internal texture holds the filtered result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FilteredSource {
-    /// The render texture (fast path, no filters applied).
+    /// The render texture (fast path, no effects applied).
     Render,
     /// Ping-pong texture A.
     TexA,
@@ -196,13 +111,15 @@ impl GpuFilterBackend {
             .map_err(|e| format!("Failed to create filter renderer core: {e}"))?;
         let bytes_per_row = (dimensions.width * 4 + 255) & !255;
 
+        let texture_size = wgpu::Extent3d {
+            width: dimensions.width,
+            height: dimensions.height,
+            depth_or_array_layers: 1,
+        };
+
         // Render target: needs RENDER_ATTACHMENT for Vello + STORAGE_BINDING for compute
         let render_texture = device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth_or_array_layers: 1,
-            },
+            size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
@@ -215,42 +132,29 @@ impl GpuFilterBackend {
         });
         let render_view = render_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Ping-pong texture A: read by compute (TEXTURE_BINDING), written by compute
-        // (STORAGE_BINDING)
+        let ping_pong_usage = wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST;
         let tex_a = device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth_or_array_layers: 1,
-            },
+            size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::COPY_DST,
+            usage: ping_pong_usage,
             label: Some("Animatix Filter PingPong A"),
             view_formats: &[],
         });
         let tex_a_view = tex_a.create_view(&wgpu::TextureViewDescriptor::default());
 
-        // Ping-pong texture B
         let tex_b = device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth_or_array_layers: 1,
-            },
+            size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::STORAGE_BINDING
-                | wgpu::TextureUsages::COPY_SRC
-                | wgpu::TextureUsages::COPY_DST,
+            usage: ping_pong_usage,
             label: Some("Animatix Filter PingPong B"),
             view_formats: &[],
         });
@@ -263,140 +167,83 @@ impl GpuFilterBackend {
             mapped_at_creation: false,
         });
 
-        // ── Blur compute pipeline ──
-        let blur_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Animatix Blur Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(BLUR_SHADER_WGSL)),
+        // Fixed layout shared by every effect (docs/effects.md §4.2).
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Animatix Effect Bind Group Layout"),
+            entries: &[
+                // 0: input texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                // 1: output storage texture
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                },
+                // 2: author parameters
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // 3: host context
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(EFFECT_CONTEXT_SIZE),
+                    },
+                    count: None,
+                },
+                // 4: linear sampler
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
         });
 
-        let blur_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Animatix Blur Bind Group Layout"),
-                entries: &[
-                    // src texture
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    // dst storage texture
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::WriteOnly,
-                            format: wgpu::TextureFormat::Rgba8Unorm,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    // uniform buffer
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let blur_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Animatix Blur Pipeline Layout"),
-            bind_group_layouts: &[Some(&blur_bind_group_layout)],
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Animatix Effect Pipeline Layout"),
+            bind_group_layouts: &[Some(&bind_group_layout)],
             immediate_size: 0,
         });
 
-        let blur_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Animatix Blur Pipeline"),
-            layout: Some(&blur_pipeline_layout),
-            module: &blur_shader,
-            entry_point: Some("main"),
-            compilation_options: wgpu::PipelineCompilationOptions::default(),
-            cache: None,
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Animatix Effect Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
         });
 
-        let blur_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Animatix Blur Uniforms"),
-            size: std::mem::size_of::<BlurParams>() as wgpu::BufferAddress,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        // ── Color matrix compute pipeline ──
-        let color_matrix_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Animatix Color Matrix Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(COLOR_MATRIX_SHADER_WGSL)),
-        });
-
-        let color_matrix_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Animatix Color Matrix Bind Group Layout"),
-                entries: &[
-                    // src texture
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    // dst storage texture
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::StorageTexture {
-                            access: wgpu::StorageTextureAccess::WriteOnly,
-                            format: wgpu::TextureFormat::Rgba8Unorm,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    // uniform buffer
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let color_matrix_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Animatix Color Matrix Pipeline Layout"),
-                bind_group_layouts: &[Some(&color_matrix_bind_group_layout)],
-                immediate_size: 0,
-            });
-
-        let color_matrix_pipeline =
-            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("Animatix Color Matrix Pipeline"),
-                layout: Some(&color_matrix_pipeline_layout),
-                module: &color_matrix_shader,
-                entry_point: Some("main"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                cache: None,
-            });
-
-        let color_matrix_uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Animatix Color Matrix Uniforms"),
-            size: std::mem::size_of::<ColorMatrixParams>() as wgpu::BufferAddress,
+        let context_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Animatix Effect Context Uniforms"),
+            size: EFFECT_CONTEXT_SIZE,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -414,89 +261,83 @@ impl GpuFilterBackend {
             output_buffer,
             bytes_per_row,
             _dimensions: dimensions,
-            blur_pipeline,
-            blur_bind_group_layout,
-            color_matrix_pipeline,
-            color_matrix_bind_group_layout,
-            blur_uniform_buffer,
-            color_matrix_uniform_buffer,
-            last_filtered_view: None,
+            bind_group_layout,
+            pipeline_layout,
+            pipelines: HashMap::new(),
+            sampler,
+            context_buffer,
             last_filtered_source: FilteredSource::Render,
             pending_composites: Vec::new(),
         })
     }
 
-    /// Dispatch a single blur compute pass.
-    fn dispatch_blur(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        src_view: &wgpu::TextureView,
-        dst_view: &wgpu::TextureView,
-        radius: f32,
-        direction: i32,
-        width: u32,
-        height: u32,
-    ) {
-        let params = BlurParams {
-            radius,
-            direction,
-            tex_size: [width, height],
-        };
-        self.queue
-            .write_buffer(&self.blur_uniform_buffer, 0, bytemuck::bytes_of(&params));
-
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Animatix Blur Bind Group"),
-            layout: &self.blur_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(src_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(dst_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.blur_uniform_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        {
-            let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Animatix Blur Pass"),
-                timestamp_writes: None,
-            });
-            pass.set_pipeline(&self.blur_pipeline);
-            pass.set_bind_group(0, &bind_group, &[]);
-            let dispatch_x = width.div_ceil(16);
-            let dispatch_y = height.div_ceil(16);
-            pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+    /// Build (once) the pipelines and uniform buffer for `desc`.
+    fn ensure_effect_pipeline(&mut self, desc: &EffectDescriptor) {
+        if self.pipelines.contains_key(&desc.id) {
+            return;
         }
+        let mut passes = Vec::with_capacity(desc.passes.len());
+        for pass in desc.passes {
+            let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some(pass.label),
+                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(pass.wgsl)),
+            });
+            let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some(pass.label),
+                layout: Some(&self.pipeline_layout),
+                module: &module,
+                entry_point: Some(pass.entry),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+            passes.push(pipeline);
+        }
+        let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Animatix Effect Uniforms"),
+            size: u64::from(desc.author_uniform_size.max(16)),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        self.pipelines.insert(
+            desc.id,
+            EffectPipeline {
+                passes,
+                uniform_buffer,
+            },
+        );
     }
 
-    /// Dispatch a single color-matrix compute pass.
-    fn dispatch_color_matrix(
+    /// Dispatch one effect pass, src → dst, in its own submitted encoder.
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_effect_pass(
         &self,
-        encoder: &mut wgpu::CommandEncoder,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
-        matrix: &[[f32; 4]; 4],
+        pipeline: &wgpu::ComputePipeline,
+        uniform_buffer: &wgpu::Buffer,
+        width: u32,
+        height: u32,
+        pass_index: u32,
+        pass_count: u32,
+        time_ms: f32,
     ) {
-        let params = ColorMatrixParams {
-            m0: matrix[0],
-            m1: matrix[1],
-            m2: matrix[2],
-            m3: matrix[3],
+        let width = width.max(1);
+        let height = height.max(1);
+        let context = EffectContextUniform {
+            tex_size: [width, height],
+            _pad0: [0, 0],
+            inv_size: [1.0 / width as f32, 1.0 / height as f32],
+            _pad1: [0.0, 0.0],
+            pass_index,
+            pass_count,
+            time_ms,
+            _pad2: 0.0,
         };
-        self.queue
-            .write_buffer(&self.color_matrix_uniform_buffer, 0, bytemuck::bytes_of(&params));
+        self.queue.write_buffer(&self.context_buffer, 0, bytemuck::bytes_of(&context));
 
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Animatix Color Matrix Bind Group"),
-            layout: &self.color_matrix_bind_group_layout,
+            label: Some("Animatix Effect Bind Group"),
+            layout: &self.bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -508,25 +349,136 @@ impl GpuFilterBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: self.color_matrix_uniform_buffer.as_entire_binding(),
+                    resource: uniform_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: self.context_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ],
         });
 
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Effect Encoder"),
+        });
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Animatix Color Matrix Pass"),
+                label: Some("Animatix Effect Pass"),
                 timestamp_writes: None,
             });
-            pass.set_pipeline(&self.color_matrix_pipeline);
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, &bind_group, &[]);
-            // Dimensions come from src_view which matches scene dimensions
-            let width = self._dimensions.width;
-            let height = self._dimensions.height;
-            let dispatch_x = width.div_ceil(16);
-            let dispatch_y = height.div_ceil(16);
-            pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+            pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
+        self.queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Render a scene and apply `chain`, keeping the result on the GPU.
+    ///
+    /// Returns the [`wgpu::TextureView`] holding the final image (the render
+    /// texture when the chain is empty). `self.last_filtered_source` records
+    /// which texture it is so callers can read it back or copy it.
+    fn render_and_filter_scene_to_view(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        chain: &EffectChain,
+    ) -> Result<&wgpu::TextureView, String> {
+        self.core
+            .render_vello_scene_with_background(
+                &self.device,
+                &self.queue,
+                &self.render_view,
+                dimensions.width,
+                dimensions.height,
+                scene,
+                vello::peniko::Color::TRANSPARENT,
+            )
+            .map_err(|e| e.to_string())?;
+
+        if chain.is_empty() {
+            self.last_filtered_source = FilteredSource::Render;
+            return Ok(&self.render_view);
+        }
+
+        let width = dimensions.width.max(1);
+        let height = dimensions.height.max(1);
+
+        // Copy the render texture into ping-pong A as the starting point.
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Effect Seed Encoder"),
+        });
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.render_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.tex_a,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        let mut current = FilteredSource::TexA;
+        for instance in chain.instances.iter().filter(|instance| instance.enabled) {
+            let effect = descriptor(instance.id);
+            self.ensure_effect_pipeline(effect);
+            let Some(pipeline) = self.pipelines.get(&effect.id) else {
+                continue;
+            };
+
+            let mut uniforms = vec![0u8; effect.author_uniform_size as usize];
+            (effect.pack)(&instance.params, &mut uniforms);
+            self.queue.write_buffer(&pipeline.uniform_buffer, 0, &uniforms);
+
+            let pass_count = pipeline.passes.len() as u32;
+            for (index, pass_pipeline) in pipeline.passes.iter().enumerate() {
+                let (src_view, dst_view, next) = match current {
+                    FilteredSource::TexA => {
+                        (&self.tex_a_view, &self.tex_b_view, FilteredSource::TexB)
+                    },
+                    FilteredSource::TexB => {
+                        (&self.tex_b_view, &self.tex_a_view, FilteredSource::TexA)
+                    },
+                    FilteredSource::Render => {
+                        unreachable!("render texture is never a ping-pong source")
+                    },
+                };
+                self.dispatch_effect_pass(
+                    src_view,
+                    dst_view,
+                    pass_pipeline,
+                    &pipeline.uniform_buffer,
+                    width,
+                    height,
+                    index as u32,
+                    pass_count,
+                    chain.time_ms,
+                );
+                current = next;
+            }
+        }
+
+        self.last_filtered_source = current;
+        Ok(match current {
+            FilteredSource::TexA => &self.tex_a_view,
+            FilteredSource::TexB => &self.tex_b_view,
+            FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
+        })
     }
 
     /// Read a texture back into a [`SceneImage`].
@@ -605,157 +557,9 @@ impl GpuFilterBackend {
             natural_size: [dimensions.width as f32, dimensions.height as f32],
         })
     }
-}
 
-impl GpuFilterBackend {
-    /// Render and filter a scene, keeping the result on the GPU.
-    ///
-    /// Returns the [`wgpu::TextureView`] that holds the final filtered image.
-    /// The view is also stored in `self.last_filtered_view` so callers can
-    /// retrieve it later via [`take_last_filtered_view`](Self::take_last_filtered_view).
-    pub fn render_and_filter_scene_to_view(
-        &mut self,
-        scene: &vello::Scene,
-        dimensions: SceneDimensions,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
-    ) -> Result<&wgpu::TextureView, String> {
-        // 1. Render Vello scene to render texture
-        self.core
-            .render_vello_scene_with_background(
-                &self.device,
-                &self.queue,
-                &self.render_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
-                vello::peniko::Color::TRANSPARENT,
-            )
-            .map_err(|e| e.to_string())?;
-
-        let needs_blur = blur > 0.5;
-        let needs_color_matrix = (brightness - 1.0).abs() > 0.001
-            || (contrast - 1.0).abs() > 0.001
-            || (saturate - 1.0).abs() > 0.001
-            || hue_rotate.abs() > 0.5
-            || sepia > 0.001;
-
-        if !needs_blur && !needs_color_matrix {
-            // Fast path: no filters needed, return the render view directly
-            self.last_filtered_view = Some(self.render_view.clone());
-            self.last_filtered_source = FilteredSource::Render;
-            return Ok(self.last_filtered_view.as_ref().unwrap());
-        }
-
-        let tex_a_view = &self.tex_a_view;
-        let tex_b_view = &self.tex_b_view;
-
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix GPU Filter Encoder"),
-        });
-
-        let render_texture = &self.render_texture;
-        let tex_a = &self.tex_a;
-
-        // Copy render texture to tex_a as the starting point
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: render_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: tex_a,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        // Blur + color-matrix passes. Each compute pass gets its OWN encoder +
-        // submit: back-to-back compute passes sharing the ping-pong textures in
-        // a single encoder do not make one pass's storage write visible to the
-        // next on every driver (verified by probe 009 — the blur ping-pong
-        // returned the untouched copy until the passes were split). A submit
-        // boundary is a synchronization point, so this is robust everywhere.
-        if needs_blur {
-            // Horizontal pass (copy + h): tex_a → tex_b.
-            self.dispatch_blur(
-                &mut encoder,
-                tex_a_view,
-                tex_b_view,
-                blur,
-                0,
-                dimensions.width,
-                dimensions.height,
-            );
-        }
-        self.queue.submit(std::iter::once(encoder.finish()));
-
-        if needs_blur {
-            // Vertical pass: tex_b → tex_a.
-            let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Filter Vertical Blur Encoder"),
-            });
-            self.dispatch_blur(
-                &mut enc,
-                tex_b_view,
-                tex_a_view,
-                blur,
-                1,
-                dimensions.width,
-                dimensions.height,
-            );
-            self.queue.submit(std::iter::once(enc.finish()));
-        }
-
-        if needs_color_matrix {
-            let matrix = crate::timeline::filter::compose_color_matrix(
-                brightness, contrast, saturate, hue_rotate, sepia,
-            );
-            let mut enc = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Animatix Filter Color Matrix Encoder"),
-            });
-            self.dispatch_color_matrix(&mut enc, tex_a_view, tex_b_view, &matrix);
-            self.queue.submit(std::iter::once(enc.finish()));
-        }
-
-        // The final result: tex_b after a color matrix, otherwise tex_a.
-        let active = if needs_color_matrix {
-            FilteredSource::TexB
-        } else {
-            FilteredSource::TexA
-        };
-        let final_view = match active {
-            FilteredSource::TexA => tex_a_view.clone(),
-            FilteredSource::TexB => tex_b_view.clone(),
-            FilteredSource::Render => unreachable!("render texture is never a ping-pong result"),
-        };
-
-        self.last_filtered_view = Some(final_view);
-        self.last_filtered_source = active;
-        Ok(self.last_filtered_view.as_ref().unwrap())
-    }
-
-    /// Take the most recent filtered GPU texture view, if any.
-    ///
-    /// This clears the internal slot so subsequent calls return `None` until
-    /// the next filter render pass completes.
-    pub fn take_last_filtered_view(&mut self) -> Option<wgpu::TextureView> {
-        self.last_filtered_view.take()
-    }
-
-    /// Copy the most recent filtered view to a dedicated texture for deferred compositing.
+    /// Copy the most recent filtered view to a dedicated texture for deferred
+    /// compositing.
     fn copy_last_filtered_to_pending(
         &self,
         dimensions: SceneDimensions,
@@ -816,42 +620,14 @@ impl GpuFilterBackend {
 }
 
 impl FilterBackend for GpuFilterBackend {
-    fn render_scene_to_image(
-        &mut self,
-        scene: &vello::Scene,
-        dimensions: SceneDimensions,
-    ) -> Result<SceneImage, String> {
-        self.core
-            .render_vello_scene_with_background(
-                &self.device,
-                &self.queue,
-                &self.render_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
-                vello::peniko::Color::TRANSPARENT,
-            )
-            .map_err(|e| e.to_string())?;
-
-        self.readback_to_scene_image(&self.render_texture, dimensions)
-    }
-
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
+        chain: &EffectChain,
     ) -> Result<SceneImage, String> {
-        self.render_and_filter_scene_to_view(
-            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia,
-        )?;
+        self.render_and_filter_scene_to_view(scene, dimensions, chain)?;
 
-        // Readback from the final texture
         let texture = match self.last_filtered_source {
             FilteredSource::Render => &self.render_texture,
             FilteredSource::TexA => &self.tex_a,
@@ -864,17 +640,10 @@ impl FilterBackend for GpuFilterBackend {
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
-        blur: f32,
-        brightness: f32,
-        contrast: f32,
-        saturate: f32,
-        hue_rotate: f32,
-        sepia: f32,
+        chain: &EffectChain,
         alpha: f32,
     ) -> Result<(), String> {
-        self.render_and_filter_scene_to_view(
-            scene, dimensions, blur, brightness, contrast, saturate, hue_rotate, sepia,
-        )?;
+        self.render_and_filter_scene_to_view(scene, dimensions, chain)?;
         let composite = self.copy_last_filtered_to_pending(dimensions, alpha)?;
         self.pending_composites.push(composite);
         Ok(())
@@ -888,6 +657,45 @@ impl FilterBackend for GpuFilterBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::timeline::filter::{EffectInstance, EffectParamValue, EffectParams};
+
+    fn blur_chain(radius: f32) -> EffectChain {
+        EffectChain {
+            instances: vec![EffectInstance {
+                id: EffectId::Blur,
+                enabled: true,
+                params: EffectParams {
+                    values: vec![EffectParamValue::F32(radius)],
+                },
+            }],
+            time_ms: 0.0,
+        }
+    }
+
+    fn color_grade_chain(
+        brightness: f32,
+        contrast: f32,
+        saturate: f32,
+        hue_rotate: f32,
+        sepia: f32,
+    ) -> EffectChain {
+        EffectChain {
+            instances: vec![EffectInstance {
+                id: EffectId::ColorGrade,
+                enabled: true,
+                params: EffectParams {
+                    values: vec![
+                        EffectParamValue::F32(brightness),
+                        EffectParamValue::F32(contrast),
+                        EffectParamValue::F32(saturate),
+                        EffectParamValue::F32(hue_rotate),
+                        EffectParamValue::F32(sepia),
+                    ],
+                },
+            }],
+            time_ms: 0.0,
+        }
+    }
 
     async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
@@ -913,10 +721,9 @@ mod tests {
         Some((device, queue))
     }
 
-    /// Smoke test: GpuFilterBackend can be created and the GPU filter path
-    /// produces a valid SceneImage for identity filters.
+    /// Smoke test: an empty chain returns a valid image of the right size.
     #[test]
-    fn gpu_filter_backend_identity_filter_produces_image() {
+    fn gpu_filter_backend_empty_chain_produces_image() {
         let maybe_device = pollster::block_on(create_headless_device());
         if let Some((device, queue)) = maybe_device {
             let dims = SceneDimensions {
@@ -927,19 +734,18 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0);
-            assert!(result.is_ok(), "GPU identity filter path should succeed");
+            let result =
+                backend.render_scene_to_image_gpu_filtered(&scene, dims, &EffectChain::default());
+            assert!(result.is_ok(), "empty chain path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
             assert_eq!(image.natural_size[1], 64.0);
         }
     }
 
-    /// Smoke test: GpuFilterBackend GPU filter path with non-identity blur
-    /// produces a valid SceneImage.
+    /// Smoke test: the blur chain produces a valid SceneImage.
     #[test]
-    fn gpu_filter_backend_blur_filter_produces_image() {
+    fn gpu_filter_backend_blur_chain_produces_image() {
         let maybe_device = pollster::block_on(create_headless_device());
         if let Some((device, queue)) = maybe_device {
             let dims = SceneDimensions {
@@ -950,19 +756,17 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, 5.0, 1.0, 1.0, 1.0, 0.0, 0.0);
-            assert!(result.is_ok(), "GPU blur filter path should succeed");
+            let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, &blur_chain(5.0));
+            assert!(result.is_ok(), "GPU blur chain path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
             assert_eq!(image.natural_size[1], 64.0);
         }
     }
 
-    /// Smoke test: GpuFilterBackend GPU filter path with non-identity color
-    /// matrix produces a valid SceneImage.
+    /// Smoke test: the colour-grade chain produces a valid SceneImage.
     #[test]
-    fn gpu_filter_backend_color_matrix_produces_image() {
+    fn gpu_filter_backend_color_grade_produces_image() {
         let maybe_device = pollster::block_on(create_headless_device());
         if let Some((device, queue)) = maybe_device {
             let dims = SceneDimensions {
@@ -973,9 +777,9 @@ mod tests {
                 .expect("GpuFilterBackend should initialise");
 
             let scene = vello::Scene::new();
-            let result = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.5, 1.2, 0.5, 45.0, 0.3);
-            assert!(result.is_ok(), "GPU color-matrix path should succeed");
+            let chain = color_grade_chain(1.5, 1.2, 0.5, 45.0, 0.3);
+            let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, &chain);
+            assert!(result.is_ok(), "GPU color-grade path should succeed");
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
             assert_eq!(image.natural_size[1], 64.0);
@@ -984,14 +788,10 @@ mod tests {
 
     /// Content-level check that blur actually softens a hard boundary.
     ///
-    /// The smoke tests above only assert the backend returns a correctly sized
-    /// image; this one reads the pixels back and verifies a sharp black/white
-    /// edge becomes a gradient (intermediate alpha) inside the blur radius.
-    /// Known bug (probe 009): the blur compute passes write nothing — the
-    /// result is the unblurred copy (verified: the color-matrix pass in the
-    /// SAME backend works, so it is not an environment limitation). The test
-    /// is kept #[ignore] as runnable evidence until the blur shader/pass chain
-    /// is fixed.
+    /// Probe 009 root cause: back-to-back compute passes sharing ping-pong
+    /// textures in one encoder did not synchronise; the passes are now split by
+    /// submit. This test reads pixels back and verifies a sharp black/white edge
+    /// becomes a gradient (intermediate alpha) inside the blur radius.
     #[test]
     fn gpu_filter_blur_softens_a_hard_boundary() {
         let maybe_device = pollster::block_on(create_headless_device());
@@ -1003,7 +803,7 @@ mod tests {
             let mut backend = GpuFilterBackend::new(device, queue, dims)
                 .expect("GpuFilterBackend should initialise");
 
-            // Sharp boundary at x=0: left half white, right half empty.
+            // Sharp boundary at x=32: left half white, right half empty.
             let mut scene = vello::Scene::new();
             use kurbo::Shape;
             let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
@@ -1016,20 +816,16 @@ mod tests {
             );
 
             let image = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, 8.0, 1.0, 1.0, 1.0, 0.0, 0.0)
+                .render_scene_to_image_gpu_filtered(&scene, dims, &blur_chain(8.0))
                 .expect("GPU blur path should succeed");
             let w = image.natural_size[0] as usize;
-            let blob = &image.data.data;
-            let raw = blob.data();
+            let raw = image.data.data.data();
             // Middle row: within ±8px of the boundary (x=32), expect an
             // intermediate alpha (soft edge), not a hard 0/255 step.
             let y = 32usize;
             let mut soft = false;
-            let mut rowvals = Vec::new();
             for x in 20..44usize {
                 let a = raw[(y * w + x) * 4 + 3];
-                eprintln!("blur-debug x={x} a={a}");
-                rowvals.push(a);
                 if a > 40 && a < 215 {
                     soft = true;
                     break;
@@ -1042,10 +838,8 @@ mod tests {
         }
     }
 
-    /// Check whether ANY compute-filter path mutates pixels in this
-    /// environment. A red rectangle through `saturate: 0` must desaturate to
-    /// gray; if it stays red, the compute passes are not executing at all
-    /// (a strong signal for an environment limitation).
+    /// Check that the colour-grade pass mutates pixels: a red rectangle with
+    /// `saturate: 0` must desaturate to gray.
     #[test]
     fn color_matrix_actually_desaturates() {
         let maybe_device = pollster::block_on(create_headless_device());
@@ -1068,12 +862,12 @@ mod tests {
                 &rect,
             );
 
+            let chain = color_grade_chain(1.0, 1.0, 0.0, 0.0, 0.0);
             let image = backend
-                .render_scene_to_image_gpu_filtered(&scene, dims, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0)
-                .expect("color-matrix path should succeed");
+                .render_scene_to_image_gpu_filtered(&scene, dims, &chain)
+                .expect("color-grade path should succeed");
             let w = image.natural_size[0] as usize;
-            let blob = &image.data.data;
-            let raw = blob.data();
+            let raw = image.data.data.data();
             let (r, g, b) =
                 (raw[(32 * w + 32) * 4], raw[(32 * w + 32) * 4 + 1], raw[(32 * w + 32) * 4 + 2]);
             // Desaturated red → channels roughly equal (gray).
