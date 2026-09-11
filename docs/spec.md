@@ -753,6 +753,7 @@ nothing (the pass and the offscreen round-trip are skipped).
 |--------|------------|-------------|
 | `Blur` | `radius` (default 0) | Gaussian blur radius in px; two passes (H then V) |
 | `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
+| `ChromaticAberration` | `offset` (default 0) | Radial RGB channel separation in px; single pass through the linear sampler |
 
 Chain order is declaration order; the chain is fixed at build time (effects
 cannot appear or disappear over time). An effect declared outside a `Filter`

@@ -313,8 +313,8 @@ mod tests {
     /// must declare the same parameter names and kinds.
     #[test]
     fn effect_descriptors_match_shared_effect_specs() {
-        for id in [EffectId::Blur, EffectId::ColorGrade] {
-            let desc = descriptor(id);
+        for id in crate::timeline::filter::BUILT_IN_EFFECTS {
+            let desc = descriptor(*id);
             let shared = animatix_syntax::schema::effect_spec(desc.type_name)
                 .unwrap_or_else(|| panic!("missing shared effect spec for {}", desc.type_name));
             assert_eq!(

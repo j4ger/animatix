@@ -453,6 +453,14 @@ pub fn effect_specs() -> &'static [EffectSpecDef] {
                 },
             ],
         },
+        EffectSpecDef {
+            type_name: "ChromaticAberration",
+            display_name: "Chromatic Aberration",
+            params: &[EffectParamSpecDef {
+                name: "offset",
+                kind: PropertyValueKind::F32,
+            }],
+        },
     ]
 }
 

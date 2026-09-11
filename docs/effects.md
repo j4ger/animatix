@@ -72,6 +72,7 @@ Built-in examples:
 | `ColorGrade` | `saturate` | `1.0` |
 | `ColorGrade` | `hue_rotate` | `0` |
 | `ColorGrade` | `sepia` | `0` |
+| `ChromaticAberration` | `offset` | `0` |
 
 ## 3. Spatial support and ROI
 

@@ -36,7 +36,16 @@ pub enum EffectId {
     Blur,
     /// Colour matrix built from brightness/contrast/saturate/hue/sepia.
     ColorGrade,
+    /// Radial channel separation; single pass through the linear sampler.
+    ChromaticAberration,
 }
+
+/// All built-in effects, in registration order.
+pub const BUILT_IN_EFFECTS: &[EffectId] = &[
+    EffectId::Blur,
+    EffectId::ColorGrade,
+    EffectId::ChromaticAberration,
+];
 
 // ── Parameter schema ────────────────────────────────────────────────────────
 
@@ -179,6 +188,7 @@ pub fn descriptor(id: EffectId) -> &'static EffectDescriptor {
     match id {
         EffectId::Blur => &BLUR_DESCRIPTOR,
         EffectId::ColorGrade => &COLOR_GRADE_DESCRIPTOR,
+        EffectId::ChromaticAberration => &CHROMATIC_ABERRATION_DESCRIPTOR,
     }
 }
 
@@ -190,6 +200,7 @@ pub fn descriptor_for_type(type_name: &str) -> Option<&'static EffectDescriptor>
     match type_name {
         "Blur" => Some(&BLUR_DESCRIPTOR),
         "ColorGrade" => Some(&COLOR_GRADE_DESCRIPTOR),
+        "ChromaticAberration" => Some(&CHROMATIC_ABERRATION_DESCRIPTOR),
         _ => None,
     }
 }
@@ -243,6 +254,15 @@ pub const COLOR_GRADE_PARAMS: &[EffectParamSpec] = &[
         size: 4,
     },
 ];
+
+/// `ChromaticAberration` parameters.
+pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
+    name: "offset",
+    kind: EffectParamKind::F32,
+    identity: EffectParamValue::F32(0.0),
+    offset: 0,
+    size: 4,
+}];
 
 // ── Built-in WGSL ───────────────────────────────────────────────────────────
 
@@ -359,6 +379,65 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 "#;
 
+const CHROMATIC_ABERRATION_WGSL: &str = r#"
+struct ChromaOffsetParams {
+    offset: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
+}
+
+struct EffectContext {
+    tex_size: vec2<u32>,
+    _pad0: vec2<u32>,
+    inv_size: vec2<f32>,
+    _pad1: vec2<f32>,
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
+}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: ChromaOffsetParams;
+@group(0) @binding(3) var<uniform> ctx: EffectContext;
+@group(0) @binding(4) var samp: sampler;
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let coord = vec2<u32>(gid.x, gid.y);
+    let size = ctx.tex_size;
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    let texel = textureLoad(src, vec2<i32>(coord), 0);
+
+    if (params.offset < 0.25) {
+        textureStore(dst, coord, texel);
+        return;
+    }
+
+    let size_f = vec2<f32>(size);
+    let center = size_f * 0.5;
+    let pos = vec2<f32>(coord);
+    let to_pixel = pos - center;
+    let dir = to_pixel / max(length(to_pixel), 1.0);
+    let duv = dir * params.offset / size_f;
+    let uv = (pos + vec2<f32>(0.5)) / size_f;
+
+    // Sub-pixel channel offsets need the linear sampler, so sample with an
+    // explicit level (textureSample is fragment-only).
+    let r = textureSampleLevel(src, samp, uv + duv, 0.0).r;
+    let g = textureSampleLevel(src, samp, uv, 0.0).g;
+    let b = textureSampleLevel(src, samp, uv - duv, 0.0).b;
+
+    textureStore(dst, coord, vec4<f32>(r, g, b, texel.a));
+}
+"#;
+
 // ── Built-in descriptors ────────────────────────────────────────────────────
 
 /// `Blur` descriptor: one shader, two passes (horizontal then vertical).
@@ -396,10 +475,30 @@ pub static COLOR_GRADE_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
     pack: pack_color_grade,
 };
 
+/// `ChromaticAberration` descriptor: one pass with sub-pixel channel offsets.
+pub static CHROMATIC_ABERRATION_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
+    id: EffectId::ChromaticAberration,
+    type_name: "ChromaticAberration",
+    params: CHROMATIC_ABERRATION_PARAMS,
+    passes: &[EffectPassSpec {
+        label: "chromatic-aberration",
+        wgsl: CHROMATIC_ABERRATION_WGSL,
+        entry: "main",
+    }],
+    author_uniform_size: 16,
+    pack: pack_chromatic_aberration,
+};
+
 fn pack_blur(params: &EffectParams, out: &mut [u8]) {
     out.fill(0);
     let radius = params.f32_at(0);
     out[0..4].copy_from_slice(&radius.to_le_bytes());
+}
+
+fn pack_chromatic_aberration(params: &EffectParams, out: &mut [u8]) {
+    out.fill(0);
+    let offset = params.f32_at(0);
+    out[0..4].copy_from_slice(&offset.to_le_bytes());
 }
 
 fn pack_color_grade(params: &EffectParams, out: &mut [u8]) {

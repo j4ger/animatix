@@ -488,35 +488,41 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
   texture, author uniforms, host `EffectContext`, linear sampler.
 - **On-demand.** Identity-defaulted parameters and `enabled` let the pipeline
   skip no-op stages; a fully identity chain skips the offscreen round-trip.
-- **Built-ins:** `Blur` (radius, 2 passes) and `ColorGrade`
-  (brightness/contrast/saturate/hue_rotate/sepia, 1 pass).
+- **Built-ins:** `Blur` (radius, 2 passes), `ColorGrade`
+  (brightness/contrast/saturate/hue_rotate/sepia, 1 pass), and
+  `ChromaticAberration` (offset, 1 pass through the linear sampler).
+  `ChromaticAberration` landed as the seam validator: the diff touched only the
+  descriptor table, the analyzer `effect_specs()` table, docs, and tests — no
+  core match arms.
 - **GUI.** The inspector gains an "Effects" group listing each stage's
   parameters; edits route through a new `SourceEdit::{Set,Insert}EffectParam`
-  and the in-memory `EffectChainTrack::write_param`.
+  and the in-memory `EffectChainTrack::write_param`. Effect parameters have
+  timeline lanes (`stage.param`, `stage.enabled`), and keyframe
+  create/delete/easing/move work end-to-end: `keyframe_edits` matches dotted
+  targets (`[scope, stage]`, property `param`), and lane adds keyframe the
+  currently sampled value.
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
-- **A second effect and native ABI are not yet landed.** Bloom remains invalid
-  under the single-input contract (add-back needs the original); a future
-  validator should be chromatic aberration or a registered directional blur.
-  Plugin effects will register a descriptor (WGSL + parameter schema + passes),
-  most likely as a dedicated `register_effect` surface rather than a primitive
-  category, behind an `UNSTABLE_ABI_VERSION` bump (currently 8).
+- **Native ABI is not yet landed.** Plugin effects will register a descriptor
+  (WGSL source + parameter schema + passes), most likely as a dedicated
+  `register_effect` surface rather than a primitive category, behind an
+  `UNSTABLE_ABI_VERSION` bump (currently 8).
 
 **Remaining.**
 
-1. **Effect keyframe lanes + toggle.** `timeline_diff.rs` / `timeline_panel.rs`
-   still render only primitive-property lanes; effect-parameter lanes and the
-   inspector keyframe toggle (create/delete/easing for `stage.param`) need
-   keyframe `SourceEdit` support for the dotted path. Value edits already work.
-2. **ROI.** Declared spatial support → sub-rect offscreen targets and a
+1. **ROI.** Declared spatial support → sub-rect offscreen targets and a
    rect-scoped pending-composite blit; generalise the
    `can_post_composite_filter` precondition to "no later sibling intersects ROI".
+   This needs a content-bounds pre-pass before the sub-scene render (bounds are
+   currently only known during evaluation), which is the main renderer work.
    Keep the PF-7/PF-9 allocation budget (worst-case support, full-scene fallback).
-3. **Plugin-authored effects + ABI.** Descriptor (WGSL source + parameter schema
+2. **Plugin-authored effects + ABI.** Descriptor (WGSL source + parameter schema
    + pass list), validation at registration (shader compiles; uniform size matches
    the schema), plugin-namespaced effect identity, GPU-only/trusted-authoring
-   documentation.
+   documentation. The `EffectId` enum is built-in-only today; plugin effects need
+   a descriptor-carrying chain entry (`EffectId::Extension` + registry lookup) so
+   the backend can compile their WGSL.
 
 **Guardrails.** Preserve the zero-readback `PendingComposite` park protocol,
 `RenderedFrame` buffer reuse, chain/declaration order determinism, and the PF-7/

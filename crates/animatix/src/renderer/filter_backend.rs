@@ -697,6 +697,19 @@ mod tests {
         }
     }
 
+    fn chromatic_aberration_chain(offset: f32) -> EffectChain {
+        EffectChain {
+            instances: vec![EffectInstance {
+                id: EffectId::ChromaticAberration,
+                enabled: true,
+                params: EffectParams {
+                    values: vec![EffectParamValue::F32(offset)],
+                },
+            }],
+            time_ms: 0.0,
+        }
+    }
+
     async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let adapter = instance
@@ -783,6 +796,48 @@ mod tests {
             let image = result.unwrap();
             assert_eq!(image.natural_size[0], 64.0);
             assert_eq!(image.natural_size[1], 64.0);
+        }
+    }
+
+    /// Content-level check that chromatic aberration separates channels across
+    /// a hard edge: with radial offset, pixels just outside a white region pick
+    /// up blue from the far sample while red (sampled further out) stays dark.
+    #[test]
+    fn chromatic_aberration_fringes_a_hard_edge() {
+        let maybe_device = pollster::block_on(create_headless_device());
+        if let Some((device, queue)) = maybe_device {
+            let dims = SceneDimensions {
+                width: 64,
+                height: 64,
+            };
+            let mut backend = GpuFilterBackend::new(device, queue, dims)
+                .expect("GpuFilterBackend should initialise");
+
+            // White half-plane for x < 32 on a transparent background.
+            let mut scene = vello::Scene::new();
+            use kurbo::Shape;
+            let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
+            scene.fill(
+                vello::peniko::Fill::NonZero,
+                kurbo::Affine::IDENTITY,
+                vello::peniko::Color::WHITE,
+                None,
+                &rect,
+            );
+
+            let chain = chromatic_aberration_chain(8.0);
+            let image = backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, &chain)
+                .expect("chromatic aberration path should succeed");
+            let w = image.natural_size[0] as usize;
+            let raw = image.data.data.data();
+            // Pixel right of the boundary, on the horizontal through the
+            // centre: blue samples back into the white half-plane, red
+            // samples further out into the empty half.
+            let (x, y) = (36usize, 32usize);
+            let r = raw[(y * w + x) * 4];
+            let b = raw[(y * w + x) * 4 + 2];
+            assert!(b > r + 60, "expected a blue-dominant fringe at ({x},{y}), got r={r} b={b}");
         }
     }
 
