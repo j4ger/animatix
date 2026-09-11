@@ -1050,6 +1050,8 @@ impl PreviewContext<'_> {
             return;
         }
 
+        let show_pivot = *self.tool_mode == crate::app::preview::ToolMode::Pivot
+            || matches!(self.drag_state, DragState::MovePivot { .. });
         for actor in self.selected_actors.iter() {
             let props = self.get_actor_props(actor);
             let fallback =
@@ -1059,6 +1061,7 @@ impl PreviewContext<'_> {
                 props.as_ref(),
                 fallback,
                 is_dragging,
+                show_pivot,
                 ui.ctx().pixels_per_point(),
                 tx,
             );

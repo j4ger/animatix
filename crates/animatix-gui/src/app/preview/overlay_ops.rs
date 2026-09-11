@@ -518,6 +518,10 @@ pub fn selection_overlay_ops(
     props: Option<&ActorProps>,
     fallback_rect: Option<kurbo::Rect>,
     is_dragging: bool,
+    // Draw the pivot crosshair. Only true in Pivot mode (or while dragging the
+    // pivot): an always-on crosshair at the actor centre implied a handle that
+    // also stole centre drags.
+    show_pivot: bool,
     pixels_per_point: f32,
     tx: PreviewTransform,
 ) -> Vec<PreviewOverlayOp> {
@@ -624,27 +628,29 @@ pub fn selection_overlay_ops(
             OverlayStroke::new(STROKE_WIDTH, selection_color),
         );
 
-        let pivot_world_pt = pivot_world(p);
-        let pivot_world = kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64);
-        let cross_size = px_to_scene(&tx, CROSS_SIZE * pixels_per_point);
-        push_line(
-            &mut ops,
-            kurbo::Point::new(pivot_world.x - cross_size as f64, pivot_world.y),
-            kurbo::Point::new(pivot_world.x + cross_size as f64, pivot_world.y),
-            OverlayStroke::new(1.5, cross_color),
-        );
-        push_line(
-            &mut ops,
-            kurbo::Point::new(pivot_world.x, pivot_world.y - cross_size as f64),
-            kurbo::Point::new(pivot_world.x, pivot_world.y + cross_size as f64),
-            OverlayStroke::new(1.5, cross_color),
-        );
-        push_circle_stroke(
-            &mut ops,
-            pivot_world,
-            cross_size + px_to_scene(&tx, 2.0 * pixels_per_point),
-            OverlayStroke::new(STROKE_WIDTH, cross_color),
-        );
+        if show_pivot {
+            let pivot_world_pt = pivot_world(p);
+            let pivot_world = kurbo::Point::new(pivot_world_pt[0] as f64, pivot_world_pt[1] as f64);
+            let cross_size = px_to_scene(&tx, CROSS_SIZE * pixels_per_point);
+            push_line(
+                &mut ops,
+                kurbo::Point::new(pivot_world.x - cross_size as f64, pivot_world.y),
+                kurbo::Point::new(pivot_world.x + cross_size as f64, pivot_world.y),
+                OverlayStroke::new(1.5, cross_color),
+            );
+            push_line(
+                &mut ops,
+                kurbo::Point::new(pivot_world.x, pivot_world.y - cross_size as f64),
+                kurbo::Point::new(pivot_world.x, pivot_world.y + cross_size as f64),
+                OverlayStroke::new(1.5, cross_color),
+            );
+            push_circle_stroke(
+                &mut ops,
+                pivot_world,
+                cross_size + px_to_scene(&tx, 2.0 * pixels_per_point),
+                OverlayStroke::new(STROKE_WIDTH, cross_color),
+            );
+        }
     } else if let Some(sel_rect) = fallback_rect {
         push_rect_stroke(&mut ops, sel_rect, 0.0, stroke, StrokeKind::Outside);
         if is_dragging {
@@ -1408,7 +1414,7 @@ mod tests {
             rotation: 0.0,
             pivot_offset: [0.0, 0.0],
         };
-        let ops = selection_overlay_ops(&theme(), Some(&props), None, false, 1.0, tx());
+        let ops = selection_overlay_ops(&theme(), Some(&props), None, false, true, 1.0, tx());
         assert!(
             ops.iter().any(|op| matches!(op, PreviewOverlayOp::Line { .. })),
             "selection overlay should emit bounding-box lines"
