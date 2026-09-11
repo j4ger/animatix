@@ -1111,6 +1111,46 @@ fade-in m [1ms]
         );
     }
 
+    /// Plot geometry is not a clip provider (it is time-varying and
+    /// `stroke_progress`-trimmed), so a plot `clip_shape` warns and falls back
+    /// to a rectangular clip instead of clipping to a moving partial curve.
+    #[test]
+    fn mask_clip_shape_plot_falls_back_with_warning() {
+        let source = r#"
+config { resolution: (400, 300) }
+
+m: Mask, size: (100, 75), at: (200, 150) {
+  clip_shape: PlotCurve, kind: "cartesian", func: (x) => x
+  big: Rect, size: (400, 300), color: (1, 0, 0, 1)
+}
+
+#0s
+fade-in m [1ms]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        let timeline = report.output;
+
+        let _ = timeline.evaluate(
+            0.5,
+            SceneDimensions {
+                width: 400,
+                height: 300,
+            },
+        );
+        let warnings = timeline.runtime_diagnostics();
+        assert!(
+            warnings.iter().any(|d| d.message.contains("provides no clip geometry")),
+            "expected a clip-geometry warning for a plot clip_shape, got {:?}",
+            warnings.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn hosted_bar_chart_paints_bars_across_the_full_graph_axis() {
         let mut renderer = match OffscreenRenderer::new() {

@@ -1119,11 +1119,17 @@ pub trait Primitive: Send + Sync {
     ///
     /// The default reuses the primitive's own evaluation output, so any shape
     /// (built-in or extension) that produces vector paths can define a clip
-    /// without a per-primitive override. Returning `None` means "not usable as
-    /// a clip"; the caller then warns and falls back to a rectangular clip.
-    /// The path is in the primitive's local space — the caller composes the
-    /// child transform and the mask transform.
+    /// without a per-primitive override. Plot geometry is excluded: it is
+    /// time-varying / `stroke_progress`-trimmed and is not a fill region, so a
+    /// plot used as a `clip_shape` would clip to a moving (or empty) partial
+    /// curve. Returning `None` means "not usable as a clip"; the caller then
+    /// warns and falls back to a rectangular clip. The path is in the
+    /// primitive's local space — the caller composes the child transform and
+    /// the mask transform.
     fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
+        if self.capabilities().plot_geometry {
+            return None;
+        }
         let commands = self.evaluate(ctx, None).ok()??;
         let path = clip_bezpath_from_commands(&commands);
         // Return the memo payload for reuse (shape primitives take/recycle it).

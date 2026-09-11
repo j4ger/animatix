@@ -536,7 +536,10 @@ region, so `at`, `anchor`, `offset`, `rotation`, and `scale` on it move and scal
 clip. Any primitive that produces vector geometry can be a clip shape — the built-in
 shapes (`Rect`, `Ellipse`, `Polygon`, `Path`, `Line`, `Arrow`, `Svg`) and extension
 primitives that implement `clip_path`. A shape that produces no geometry (for example
-`Text`) makes the Mask warn and fall back to a rectangular clip.
+`Text`) makes the Mask warn and fall back to a rectangular clip. Plot geometry is not
+a clip provider — `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`,
+`NumberPlane`, and `BarChart` are time-varying/`stroke_progress`-trimmed, so using one
+as a `clip_shape` warns and falls back to a rectangular clip.
 
 ---
 
