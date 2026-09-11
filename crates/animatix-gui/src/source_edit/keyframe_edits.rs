@@ -56,7 +56,24 @@ fn merge_keyframe_inner(
     value: Expr,
     time_s: f64,
 ) -> Result<(), SourceEditError> {
-    let source_prop = canonical_to_source(property);
+    with_keyframe_block(stmts, actor, property, time_s, move |body| {
+        update_assignment(body, actor, canonical_to_source(property), value)
+    })
+}
+
+/// Run `f` against the body of the keyframe block whose time is `time_s`,
+/// exactly.
+///
+/// Unlike the `keyframe_merge_window_s` merge heuristic used by property edits,
+/// this targets the requested time precisely: the drag of an existing keyframe
+/// must edit that keyframe's block, never a neighbour within the merge window.
+fn with_keyframe_block<T>(
+    stmts: &mut [Stmt],
+    actor: &str,
+    property: &str,
+    time_s: f64,
+    f: impl FnOnce(&mut [Stmt]) -> Result<T, SourceEditError>,
+) -> Result<T, SourceEditError> {
     let mut current_time = 0.0f64;
 
     for stmt in stmts.iter_mut() {
@@ -64,13 +81,13 @@ fn merge_keyframe_inner(
             Stmt::Keyframe { time, body, .. } => {
                 current_time = time_to_seconds(time);
                 if (current_time - time_s).abs() < 0.001 {
-                    return update_assignment(body, actor, source_prop, value);
+                    return f(body);
                 }
             },
             Stmt::RelativeKeyframe { offset, body, .. } => {
                 current_time += time_to_seconds(offset);
                 if (current_time - time_s).abs() < 0.001 {
-                    return update_assignment(body, actor, source_prop, value);
+                    return f(body);
                 }
             },
             _ => {},
@@ -81,6 +98,40 @@ fn merge_keyframe_inner(
         actor: actor.to_string(),
         property: property.to_string(),
         time_s,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// SetKeyframeValue
+// ---------------------------------------------------------------------------
+
+/// Replace the RHS of `actor.property` inside the keyframe block at `time_s`.
+///
+/// This is an exact edit: it does not insert, move, or merge any keyframe. It
+/// is the graph editor's vertical-drag write-back.
+pub(super) fn set_keyframe_value(
+    stmts: &mut [Stmt],
+    scene: Option<&str>,
+    actor: &str,
+    property: &str,
+    value: Expr,
+    time_s: f64,
+) -> Result<(), SourceEditError> {
+    let target = match scene {
+        Some(name) => match scene_body_mut(stmts, name) {
+            Some(body) => body,
+            None => {
+                return Err(SourceEditError::KeyframeNotFound {
+                    actor: actor.to_string(),
+                    property: property.to_string(),
+                    time_s,
+                });
+            },
+        },
+        None => stmts,
+    };
+    with_keyframe_block(target, actor, property, time_s, move |body| {
+        update_assignment(body, actor, canonical_to_source(property), value)
     })
 }
 
@@ -876,6 +927,112 @@ btn.color = red"#,
             }
         } else {
             panic!("Expected RelativeKeyframe");
+        }
+    }
+
+    #[test]
+    fn set_keyframe_value_replaces_rhs_at_exact_time_without_moving_it() {
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, size: (100, 200)
+btn.opacity = 1
+
+#2s
+btn.opacity = 0.5"#,
+        );
+
+        let edit = SourceEdit::SetKeyframeValue {
+            scene: None,
+            actor: "btn".into(),
+            property: "opacity".into(),
+            value: Expr::Num(0.75),
+            time_s: 2.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        // The #2s block keeps its time; only the RHS changed.
+        assert_eq!(keyframe_time_with_property(&stmts, "opacity"), Some(0.0));
+        if let Stmt::Keyframe { time, body, .. } = &stmts[1] {
+            assert_eq!(*time, Time::Seconds(2.0));
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert_eq!(*value, Expr::Num(0.75));
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected the #2s keyframe block to survive");
+        }
+    }
+
+    #[test]
+    fn set_keyframe_value_ignores_merge_window_and_reports_missing_time() {
+        // A keyframe exists at 1s only. Asking for 1.02s (inside the property
+        // merge window) must fail rather than editing the 1s keyframe.
+        let mut stmts = parse(
+            r#"#0s
+btn: Rect, size: (100, 200)
+
+#1s
+btn.opacity = 0.5"#,
+        );
+        let edit = SourceEdit::SetKeyframeValue {
+            scene: None,
+            actor: "btn".into(),
+            property: "opacity".into(),
+            value: Expr::Num(0.9),
+            time_s: 1.02,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
+
+        // The exact time is still editable.
+        let edit = SourceEdit::SetKeyframeValue {
+            scene: None,
+            actor: "btn".into(),
+            property: "opacity".into(),
+            value: Expr::Num(0.9),
+            time_s: 1.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+    }
+
+    #[test]
+    fn set_keyframe_value_is_scoped_to_named_scene() {
+        let mut stmts = parse(
+            r#"# A
+#0s
+box: Rect, size: (10, 10)
+
+# B
+#0s
+box: Rect, size: (10, 10)
+#1s
+box.opacity = 0.25"#,
+        );
+
+        let edit = SourceEdit::SetKeyframeValue {
+            scene: Some("B".into()),
+            actor: "box".into(),
+            property: "opacity".into(),
+            value: Expr::Num(0.8),
+            time_s: 1.0,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        let scene_b = stmts
+            .iter()
+            .find_map(|stmt| match stmt {
+                Stmt::Scene { name, body, .. } if name == "B" => Some(body),
+                _ => None,
+            })
+            .expect("scene B");
+        if let Stmt::Keyframe { body, .. } = &scene_b[1] {
+            if let Stmt::Assignment { value, .. } = &body[0] {
+                assert_eq!(*value, Expr::Num(0.8));
+            } else {
+                panic!("Expected Assignment");
+            }
+        } else {
+            panic!("Expected keyframe in scene B");
         }
     }
 

@@ -196,6 +196,18 @@ impl GuiShell {
             action: ShellAction::View(ViewAction::ShowCode),
             keywords: "code source editor panel detail",
         });
+        items.push(PaletteItem {
+            label: "Toggle Curves Editor".into(),
+            icon: egui_phosphor::regular::CHART_LINE,
+            action: ShellAction::View(ViewAction::ShowCurves),
+            keywords: "curves graph fcurve keyframe easing panel bottom",
+        });
+        items.push(PaletteItem {
+            label: "Show Timeline".into(),
+            icon: egui_phosphor::regular::FILM_STRIP,
+            action: ShellAction::View(ViewAction::ShowTimeline),
+            keywords: "timeline keyframes panel bottom",
+        });
         for preset in crate::app::LayoutPreset::ALL {
             items.push(PaletteItem {
                 label: format!("Layout: {}", preset.label()),

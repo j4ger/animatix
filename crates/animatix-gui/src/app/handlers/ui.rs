@@ -19,21 +19,59 @@ pub fn handle_show_code(ui_store: &mut UiStore) -> Vec<Effect> {
     vec![]
 }
 
+/// Show the Curves tab, or hide the bottom region when it is already active.
+pub fn handle_show_curves(ui_store: &mut UiStore) -> Vec<Effect> {
+    toggle_bottom_tab(ui_store, WorkspaceTab::Curves);
+    vec![]
+}
+
+/// Show the Timeline tab (never hides the bottom region).
+pub fn handle_show_timeline(ui_store: &mut UiStore) -> Vec<Effect> {
+    show_bottom_tab(ui_store, WorkspaceTab::Timeline);
+    vec![]
+}
+
 fn toggle_detail_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
-    let already_active = ui_store.view.detail_visible
+    // Visibility is read from the tree so it cannot drift from the docked
+    // state (the tree is what a user drag can mutate between frames).
+    let already_active = crate::app::persistence::detail_visible(&ui_store.view.tree)
         && crate::app::persistence::active_detail_tab(&ui_store.view.tree) == Some(tab);
 
     if already_active {
-        ui_store.view.detail_visible = false;
         crate::app::persistence::set_detail_visible(&mut ui_store.view.tree, false);
         return;
     }
 
-    ui_store.view.detail_visible = true;
     if !crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab) {
         // Layout predates the detail region; rebuild then activate.
         ui_store.view.tree = crate::app::persistence::default_tree();
         crate::app::persistence::activate_detail_tab(&mut ui_store.view.tree, tab);
+    }
+}
+
+/// Toggle the bottom region: pressing the active tab hides the region, any
+/// other tab shows and activates it. Visibility is read from the tree so it
+/// cannot drift from the docked state.
+fn toggle_bottom_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
+    let already_active = crate::app::persistence::bottom_visible(&ui_store.view.tree)
+        && crate::app::persistence::active_bottom_tab(&ui_store.view.tree) == Some(tab);
+
+    if already_active {
+        crate::app::persistence::set_bottom_visible(&mut ui_store.view.tree, false);
+        return;
+    }
+
+    show_bottom_tab(ui_store, tab);
+}
+
+fn show_bottom_tab(ui_store: &mut UiStore, tab: WorkspaceTab) {
+    if !crate::app::persistence::activate_bottom_tab(&mut ui_store.view.tree, tab) {
+        // Layout predates the Curves pane (or the bottom tab group); rebuild
+        // from the preset, which contains it, then activate.
+        let (w, h) = ui_store.view.layout_size;
+        ui_store.view.tree =
+            crate::app::persistence::build_tree_for(ui_store.view.layout_preset, w, h);
+        crate::app::persistence::activate_bottom_tab(&mut ui_store.view.tree, tab);
     }
 }
 
@@ -46,7 +84,6 @@ pub fn handle_apply_layout(
     if !crate::app::persistence::apply_layout_preset(&mut ui_store.view.tree, preset, w, h) {
         ui_store.view.tree = crate::app::persistence::build_tree_for(preset, w, h);
     }
-    ui_store.view.detail_visible = preset != crate::app::LayoutPreset::Focus;
     ui_store.view.layout_preset = preset;
     vec![]
 }
@@ -56,7 +93,6 @@ pub fn handle_reset_layout(ui_store: &mut UiStore) -> Vec<Effect> {
     let (w, h) = ui_store.view.layout_size;
     ui_store.view.tree =
         crate::app::persistence::build_tree_for(crate::app::LayoutPreset::Animate, w, h);
-    ui_store.view.detail_visible = true;
     ui_store.view.layout_preset = crate::app::LayoutPreset::Animate;
     vec![]
 }
@@ -306,5 +342,52 @@ mod tests {
         let second = vec![keyframe_id(Some("Intro"), "B", "q", 2)];
         let _ = handle_set_selected_keyframes(&mut ui_store, second.clone());
         assert_eq!(ui_store.selection.selected_keyframes, second);
+    }
+
+    #[test]
+    fn show_curves_activates_the_bottom_tab_and_toggles_off_on_repeat() {
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        assert_eq!(
+            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Timeline)
+        );
+
+        let _ = handle_show_curves(&mut ui_store);
+        assert_eq!(
+            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Curves)
+        );
+        assert!(crate::app::persistence::bottom_visible(&ui_store.view.tree));
+
+        // Pressing the active Curves tab again hides the region.
+        let _ = handle_show_curves(&mut ui_store);
+        assert!(!crate::app::persistence::bottom_visible(&ui_store.view.tree));
+
+        // The Timeline action always shows it again.
+        let _ = handle_show_timeline(&mut ui_store);
+        assert!(crate::app::persistence::bottom_visible(&ui_store.view.tree));
+        assert_eq!(
+            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Timeline)
+        );
+    }
+
+    #[test]
+    fn show_curves_migrates_a_layout_missing_the_curves_pane() {
+        let mut ui_store =
+            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        // Simulate a pre-Curves persisted tree: drop the Curves pane and make
+        // the Timeline a direct root child.
+        let curves = ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).unwrap();
+        let _ = ui_store.view.tree.tiles.remove(curves);
+
+        let _ = handle_show_curves(&mut ui_store);
+
+        assert!(ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).is_some());
+        assert_eq!(
+            crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
+            Some(WorkspaceTab::Curves)
+        );
     }
 }

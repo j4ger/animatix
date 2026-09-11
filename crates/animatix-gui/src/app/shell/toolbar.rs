@@ -425,11 +425,12 @@ impl GuiShell {
                         });
 
                         // Detail region: Inspector | Code share one tab group.
-                        let active_tab = if self.ui_store.view.detail_visible {
-                            crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
-                        } else {
-                            None
-                        };
+                        let active_tab =
+                            if crate::app::persistence::detail_visible(&self.ui_store.view.tree) {
+                                crate::app::persistence::active_detail_tab(&self.ui_store.view.tree)
+                            } else {
+                                None
+                            };
 
                         let inspector_tip =
                             crate::app::interaction::keyboard::tooltip_with_shortcut(
@@ -471,6 +472,9 @@ impl GuiShell {
                         if code_resp.clicked() {
                             commands.push_back(ShellAction::View(ViewAction::ShowCode));
                         }
+                        // Timeline | Curves are switched from the bottom band's
+                        // own tab bar (and the command palette); no toolbar
+                        // duplicate, which was crowding the transport.
                     });
                 });
             });

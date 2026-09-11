@@ -279,6 +279,22 @@ impl GuiShell {
                 old_time_s,
                 new_time_s,
             ),
+            Command::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+                value,
+            } => keyframe::handle_set_keyframe_value(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                scene,
+                actor,
+                property,
+                time_s,
+                value,
+            ),
             Command::MoveKeyframes(specs) => keyframe::handle_move_keyframes(
                 &mut self.document_store,
                 &mut self.preview_store,
@@ -417,6 +433,8 @@ impl GuiShell {
         match view {
             ViewAction::ShowInspector => ui::handle_show_inspector(&mut self.ui_store),
             ViewAction::ShowCode => ui::handle_show_code(&mut self.ui_store),
+            ViewAction::ShowCurves => ui::handle_show_curves(&mut self.ui_store),
+            ViewAction::ShowTimeline => ui::handle_show_timeline(&mut self.ui_store),
             ViewAction::ApplyLayout(preset) => ui::handle_apply_layout(&mut self.ui_store, preset),
             ViewAction::ResetLayout => ui::handle_reset_layout(&mut self.ui_store),
             ViewAction::OpenFileDialog => {

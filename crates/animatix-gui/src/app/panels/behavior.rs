@@ -6,7 +6,7 @@ use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 use crate::app::commands::ActionQueue;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
-use crate::app::panels::{editor, inspector, preview_panel, sidebar, timeline_panel};
+use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
 use crate::app::{WorkspaceTab, preview};
@@ -35,6 +35,8 @@ pub(crate) struct WorkspaceBehavior<'a> {
     pub(crate) debug_spacing: bool,
     /// Set by the timeline panel each frame; true when the panel has pointer interaction.
     pub(crate) timeline_focused: &'a mut bool,
+    /// Canonical keyframe selection, shared by the timeline and Curves editor.
+    pub(crate) selected_keyframes: &'a mut Vec<crate::app::document::timeline_diff::KeyframeId>,
 }
 
 impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
@@ -181,6 +183,29 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                 };
                 timeline_panel::timeline_panel_ui(&mut ctx, ui);
             },
+            WorkspaceTab::Curves => {
+                let resolved_timeline = self.document_store.source.document.active_timeline();
+                let active_scene =
+                    self.document_store.source.document.active_scene.as_deref().or_else(|| {
+                        self.document_store
+                            .source
+                            .document
+                            .composition
+                            .as_ref()
+                            .and_then(|c| c.declaration_order.first().map(String::as_str))
+                    });
+                let mut ctx = curves_panel::CurvesContext {
+                    preview: &mut self.preview_store.preview,
+                    timeline: resolved_timeline,
+                    active_scene,
+                    selected_actors: self.selected_actors,
+                    selected_keyframes: self.selected_keyframes,
+                    commands: self.commands,
+                    snap_fps: self.snap_fps,
+                    timeline_focused: self.timeline_focused,
+                };
+                curves_panel::curves_panel_ui(&mut ctx, ui);
+            },
         }
         UiResponse::None
     }
@@ -192,6 +217,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
             WorkspaceTab::Preview => "Preview".into(),
             WorkspaceTab::Inspector => "Inspector".into(),
             WorkspaceTab::Timeline => "Timeline".into(),
+            WorkspaceTab::Curves => "Curves".into(),
         }
     }
 

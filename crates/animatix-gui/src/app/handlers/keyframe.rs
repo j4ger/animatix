@@ -73,6 +73,37 @@ pub fn handle_delete_keyframe(
     vec![]
 }
 
+/// Replace a keyframe's value in place with a single undo snapshot.
+pub fn handle_set_keyframe_value(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    scene: Option<String>,
+    actor: String,
+    property: String,
+    time_s: f64,
+    value: crate::app::commands::PropertyValue,
+) -> Vec<Effect> {
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        UndoLabel::SetKeyframeValue {
+            scene: scene.clone(),
+            actor: actor.clone(),
+            property: property.clone(),
+            time_s,
+        },
+    );
+    let mut ctrl = DocumentController {
+        document_store,
+        preview_store,
+        ui_store,
+    };
+    ctrl.handle_set_keyframe_value(scene, &actor, &property, time_s, value);
+    vec![]
+}
+
 pub fn handle_move_keyframe(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -205,6 +236,58 @@ mod tests {
 
     fn preview_store(dimensions: animatix::timeline::SceneDimensions) -> PreviewStore {
         PreviewStore::new(PreviewPaneState::new(5.0, dimensions))
+    }
+
+    #[test]
+    fn set_keyframe_value_replaces_value_with_one_undo_snapshot() {
+        let mut document_store =
+            make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
+        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+
+        let effects = handle_set_keyframe_value(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            None,
+            "box".to_string(),
+            "opacity".to_string(),
+            1.0,
+            crate::app::commands::PropertyValue::F32(0.8),
+        );
+
+        assert!(effects.is_empty());
+        assert_eq!(document_store.history.undo_stack.len(), 1);
+        let source = document_store.source.text();
+        assert!(source.contains("0.8"), "new value written to source: {source}");
+        assert!(source.contains("#1s"), "keyframe time must not move: {source}");
+    }
+
+    #[test]
+    fn set_keyframe_value_missing_keyframe_aborts_snapshot() {
+        let mut document_store =
+            make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
+        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+
+        let _ = handle_set_keyframe_value(
+            &mut document_store,
+            &mut preview_store,
+            &mut ui_store,
+            None,
+            "box".to_string(),
+            "opacity".to_string(),
+            // No keyframe here; the exact-time edit must not fall back to the
+            // 1s block via the property merge window.
+            1.02,
+            crate::app::commands::PropertyValue::F32(0.8),
+        );
+
+        assert!(
+            document_store.history.undo_stack.is_empty(),
+            "a failed edit must not leave an undo entry"
+        );
+        assert!(document_store.source.text().contains("0.5"));
     }
 
     #[test]

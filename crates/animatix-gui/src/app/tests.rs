@@ -22,22 +22,54 @@ fn default_workspace_has_detail_tabs_visible() {
             _ => None,
         })
         .collect();
-    // Five panes: the Inspector and Code share one detail tab group, visible
-    // by default with the Inspector active.
-    assert_eq!(tabs.len(), 5);
+    // Six panes: Inspector|Code share the detail tab group, Timeline|Curves
+    // share the bottom tab group, both visible by default.
+    assert_eq!(tabs.len(), 6);
     assert!(tabs.contains(&WorkspaceTab::Sidebar));
     assert!(tabs.contains(&WorkspaceTab::Preview));
     assert!(tabs.contains(&WorkspaceTab::Inspector));
     assert!(tabs.contains(&WorkspaceTab::Code));
     assert!(tabs.contains(&WorkspaceTab::Timeline));
+    assert!(tabs.contains(&WorkspaceTab::Curves));
 
     assert_eq!(
         super::persistence::active_detail_tab(&tree),
         Some(WorkspaceTab::Inspector),
         "Inspector is the default detail tab"
     );
-    let inspector = tree.tiles.find_pane(&WorkspaceTab::Inspector).unwrap();
-    assert!(tree.is_visible(inspector), "detail region is visible by default");
+    assert_eq!(
+        super::persistence::active_bottom_tab(&tree),
+        Some(WorkspaceTab::Timeline),
+        "Timeline is the default bottom tab"
+    );
+    assert!(super::persistence::detail_visible(&tree), "detail region is visible by default");
+    assert!(super::persistence::bottom_visible(&tree), "bottom region is visible by default");
+}
+
+#[test]
+fn bottom_tab_group_switches_between_timeline_and_curves() {
+    let mut tree = default_tree();
+    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
+
+    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Curves));
+    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Curves));
+    // Switching the bottom tab leaves the detail tab untouched.
+    assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
+
+    // Hiding and reactivating keeps both bottom panes in the tree.
+    assert!(super::persistence::set_bottom_visible(&mut tree, false));
+    assert!(!super::persistence::bottom_visible(&tree));
+    assert!(tree.tiles.find_pane(&WorkspaceTab::Curves).is_some());
+    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Curves));
+    assert!(super::persistence::bottom_visible(&tree));
+    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Curves));
+
+    // Returning to the Timeline works and is a valid bottom tab.
+    assert!(super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Timeline));
+    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
+
+    // A pane outside the bottom group is rejected.
+    assert!(!super::persistence::activate_bottom_tab(&mut tree, WorkspaceTab::Preview));
 }
 
 #[test]
@@ -59,9 +91,9 @@ fn layout_presets_switch_detail_tab_and_focus_hides_regions() {
         960.0
     ));
     let sidebar = tree.tiles.find_pane(&WorkspaceTab::Sidebar).unwrap();
-    let timeline = tree.tiles.find_pane(&WorkspaceTab::Timeline).unwrap();
     assert!(!tree.is_visible(sidebar), "Focus hides the sidebar");
-    assert!(!tree.is_visible(timeline), "Focus hides the timeline");
+    assert!(!super::persistence::bottom_visible(&tree), "Focus hides the bottom region");
+    assert!(!super::persistence::detail_visible(&tree), "Focus hides the detail region");
 
     assert!(super::persistence::apply_layout_preset(
         &mut tree,
@@ -70,7 +102,8 @@ fn layout_presets_switch_detail_tab_and_focus_hides_regions() {
         960.0
     ));
     assert!(tree.is_visible(sidebar));
-    assert!(tree.is_visible(timeline));
+    assert!(super::persistence::bottom_visible(&tree));
+    assert_eq!(super::persistence::active_bottom_tab(&tree), Some(WorkspaceTab::Timeline));
     assert_eq!(super::persistence::active_detail_tab(&tree), Some(WorkspaceTab::Inspector));
 }
 

@@ -433,6 +433,64 @@ impl DocumentController<'_> {
         }
     }
 
+    /// Replace a keyframe's value in place.
+    ///
+    /// The edit targets the block at exactly `time_s`; it never inserts a new
+    /// block and never applies the `keyframe_merge_window_s` heuristic, so a
+    /// vertical drag in the Curves panel cannot silently rewrite a neighbour.
+    ///
+    /// NOTE: The caller should have called `snapshot()` before this.
+    pub(crate) fn handle_set_keyframe_value(
+        &mut self,
+        scene: Option<String>,
+        actor: &str,
+        property: &str,
+        time_s: f64,
+        value: crate::app::commands::PropertyValue,
+    ) {
+        let expr = match crate::app::commands::property_value_to_expr(value) {
+            Ok(expr) => expr,
+            Err(err) => {
+                self.document_store.abort_snapshot();
+                self.preview_store
+                    .preview
+                    .set_status_error(format!("Failed to set keyframe value: {err}"));
+                return;
+            },
+        };
+
+        let Some(ref mut stmts) = self.document_store.source.document.raw_statements else {
+            self.document_store.abort_snapshot();
+            self.preview_store.preview.status =
+                "Failed to set keyframe value — no AST available".to_string();
+            return;
+        };
+
+        let edit = source_edit::SourceEdit::SetKeyframeValue {
+            scene,
+            actor: actor.into(),
+            property: property.into(),
+            value: expr,
+            time_s,
+        };
+
+        if source_edit::apply_edit(stmts, edit).is_ok() {
+            let (new_source, source_index) = (
+                animatix_syntax::to_source::stmts_to_source(stmts),
+                animatix_syntax::source_index::SourceIndex::build(stmts),
+            );
+            self.apply_source(new_source, source_index);
+            self.preview_store.preview.status =
+                format!("Set '{}.{}' @ {:.2}s", actor, property, time_s);
+        } else {
+            self.document_store.abort_snapshot();
+            self.preview_store.preview.set_status_error(format!(
+                "Failed to set '{}.{}' @ {:.2}s — keyframe not found",
+                actor, property, time_s
+            ));
+        }
+    }
+
     /// Move several keyframes, applying each `SourceEdit::MoveKeyframeTime`
     /// against the same AST so they share one undo snapshot.
     ///

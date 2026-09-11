@@ -93,6 +93,12 @@ pub enum UndoLabel {
         old_time_s: f64,
         new_time_s: f64,
     },
+    SetKeyframeValue {
+        scene: Option<String>,
+        actor: String,
+        property: String,
+        time_s: f64,
+    },
     /// Undo label for a batched multi-keyframe drag.
     MoveKeyframes,
     /// Undo label for a batched multi-keyframe delete.
@@ -215,6 +221,20 @@ impl From<UndoLabel> for Command {
                 property,
                 old_time_s,
                 new_time_s,
+            },
+            // The value payload is not needed to replay undo (source text is
+            // restored directly), so the label carries only identity/time.
+            UndoLabel::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+            } => Command::SetKeyframeValue {
+                scene,
+                actor,
+                property,
+                time_s,
+                value: PropertyValue::F32(0.0),
             },
             // Batch variants carry no payload in the undo label; undo restores
             // source text directly rather than replaying the command.
@@ -382,6 +402,15 @@ pub enum Command {
         old_time_s: f64,
         new_time_s: f64,
     },
+    /// Replace a keyframe's value in place, without moving or merging it.
+    /// Emitted by the Curves panel's vertical keyframe drag.
+    SetKeyframeValue {
+        scene: Option<String>,
+        actor: String,
+        property: String,
+        time_s: f64,
+        value: PropertyValue,
+    },
     /// Move several keyframes as one undoable step. Emitted by a multi-keyframe
     /// timeline drag so the whole selection shares one undo entry.
     MoveKeyframes(Vec<MoveKeyframeSpec>),
@@ -469,6 +498,11 @@ pub enum Align {
 pub enum ViewAction {
     ShowInspector,
     ShowCode,
+    /// Show the bottom Curves tab (or hide the bottom region when it is
+    /// already the active tab).
+    ShowCurves,
+    /// Show the bottom Timeline tab.
+    ShowTimeline,
     ApplyLayout(crate::app::LayoutPreset),
     ResetLayout,
     OpenFileDialog,

@@ -5,6 +5,8 @@
 //! canvas interaction. `shell/` owns modal dialogs and floating overlays.
 
 pub mod behavior;
+pub mod curve_plot;
+pub mod curves_panel;
 pub mod inspector;
 pub mod timeline_panel;
 

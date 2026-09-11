@@ -887,8 +887,9 @@ Sizes are **proportion-first with pixel bounds**: a region is allocated as
 `clamp(ratio × available, min, max)`. Shares are relative, so proportions hold
 as the window resizes; a per-frame pass clamps each region back into its pixel
 bounds so a small window cannot scale panels below their floors (§9.3). The
-right column is one region with two tabs (Inspector | Code), so its bounds
-depend on the active tab.
+right column is one region with two tabs (Inspector | Code) and the bottom band
+is one region with two tabs (Timeline | Curves), so their bounds depend on the
+active tab.
 
 | Region | Ratio | Min | Max | Default at 1440px |
 |--------|-------|-----|-----|-------------------|
@@ -896,7 +897,8 @@ depend on the active tab.
 | Preview | remainder | 360 | ∞ | 908 |
 | Right column · Inspector | 0.21 W | 260 | 420 | 302 |
 | Right column · Code | 0.38 W | 420 | 720 | 547 |
-| Timeline | 0.25 H | 180 | 420 | 227 |
+| Bottom band · Timeline | 0.25 H | 180 | 420 | 227 |
+| Bottom band · Curves | 0.25 H | 180 | 420 | 227 |
 | Toolbar | fixed | — | — | 28 |
 | Status bar | fixed | — | — | 22 |
 
@@ -910,12 +912,17 @@ A preset adjusts proportions and the active detail tab on the existing tree — 
 never rebuilds, so a user's custom arrangement survives. `Focus` also hides the
 surrounding regions.
 
-| Preset | Sidebar | Right column | Timeline |
-|--------|---------|--------------|----------|
+| Preset | Sidebar | Right column | Bottom band |
+|--------|---------|--------------|-------------|
 | Animate (default) | 0.16 W | Inspector | 0.25 H |
 | Code | 0.14 W | **Code** | 0.18 H |
 | Inspect | 0.12 W | Inspector (wider, 300–460) | 0.30 H |
 | Focus | hidden | hidden | hidden |
+
+Presets set the active tab in each group but preserve a user's choice when the
+group still has one; a layout persisted before the Curves pane (or before the
+detail group) makes `apply_layout_preset` return `false`, and the caller
+rebuilds from `build_tree_for` — that is the migration path.
 
 ### 9.3 Layout Constraints
 
@@ -923,14 +930,18 @@ surrounding regions.
    floor/ceiling that keeps extreme window sizes usable.
 2. `egui_tiles::Behavior::min_size` adds a 120px floor to every tile so no pane
    collapses into a sliver.
-3. The Inspector and the code editor share one tab group and are mutually
+3. The Inspector and the code editor share the right tab group and are mutually
    exclusive; `Cmd+Shift+I` / `Cmd+Shift+E` show each, toggling the region off
    when the same tab is already active.
-4. Focus mode hides the sidebar, detail column and timeline; the preview fills
-   the window.
-5. Presets are applied in place (proportions + active tab) and are not
+4. The Timeline and the interactive Curves editor share the bottom tab group.
+   Timeline is the default tab; `ShowCurves` / `ShowTimeline` (toolbar,
+   command palette) switch between them. The Curves pane is absent from layouts
+   persisted before it, which the preset-apply path migrates by rebuilding.
+5. Focus mode hides the sidebar, detail column and bottom band; the preview
+   fills the window.
+6. Presets are applied in place (proportions + active tab) and are not
    destructive; `Reset layout` is the only action that rebuilds the tree.
-6. `egui_tiles::Tree` remains the docking engine.
+7. `egui_tiles::Tree` remains the docking engine.
 
 **Not yet implemented:** the narrow-window downgrade modes (collapsing the
 sidebar to an icon rail and demoting the right column to an overlay drawer below

@@ -85,6 +85,9 @@ pub enum WorkspaceTab {
     Preview,
     Inspector,
     Timeline,
+    /// Interactive F-curve editor. Shares the bottom tab group with the
+    /// Timeline; absent from layouts persisted before it was introduced.
+    Curves,
 }
 
 /// Named workspace layouts (design doc §9.2).
@@ -1131,6 +1134,7 @@ impl GuiShell {
             debug_layout: self.ui_store.view.debug_layout,
             debug_spacing: self.ui_store.view.debug_spacing,
             timeline_focused: &mut self.ui_store.view.timeline_focused,
+            selected_keyframes: &mut self.ui_store.selection.selected_keyframes,
         };
         tree.ui(&mut behavior, ui);
     }

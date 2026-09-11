@@ -317,12 +317,21 @@ Code / Inspect / Focus presets plus Reset layout; sidebar merged 6 → 3 labeled
 tabs (Project / Outline / Library) with the editor promoted into the detail
 region; `pill_tab_bar` degrades label-first.
 
+Bottom tab group shipped 2026-09-11: Timeline and Curves share one bottom tab
+group (Timeline active by default). The Curves tab is an interactive F-curve
+editor over the selected actor — horizontal drag retimes through the batched
+`MoveKeyframes`, vertical drag rewrites a keyframe value through the new exact
+`SetKeyframeValue` command, right-click sets easing, click/Shift+click selects
+(the selection is shared with the timeline), and a ruler scrubs the playhead.
+Reachable from the toolbar, command palette, and `ViewAction::ShowCurves` /
+`ShowTimeline`.
+
 Remaining phases, in order:
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Tool switcher UI in the preview header, transport moved to a global bar, pivot demotion, snap toggle, select-on-mousedown, canvas context menu + numeric entry, timeline playhead drag and property-granular keyframe editing | Not started |
-| 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, interactive Curves tab, editor find/replace options | Not started |
+| 2 | Layer outliner editing (rename/reorder/z-order/group), add scene + create `play` edge from UI, editor find/replace options | Partly done — bottom Timeline/Curves tab group + interactive Curves editor shipped |
 | 3 | Remaining IA: drag-to-place from the Library, narrow-window downgrade modes (icon rail, overlay drawer), diagnostics as a status-bar peek | Partly done — sidebar merge, detail tabs, editor placement and presets shipped |
 | 4 | App menu (New/Open/Recent/Save As), autosave + crash recovery, command palette superset with fuzzy search, export/settings polish | Not started |
 
