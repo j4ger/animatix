@@ -459,10 +459,10 @@ backlog is now fully worked through; new work should start from fresh
 `perf_driver`/`export_alloc_driver`/`export_perf_driver` evidence per
 §8 of the perf doc.
 
-### Post-Processing Effect Abstraction (implemented; ROI + plugin ABI remaining)
+### Post-Processing Effect Abstraction (implemented; derived ROI remaining)
 
 Goal: make pixel effects a first-class, composable chain owned by a `Filter`
-compositing scope, and later let native plugins author effects by shipping
+compositing scope, and let native plugins author effects by shipping
 **WGSL source + a parameter schema** — the host compiles and runs the shader on
 its own device, so no GPU handle crosses the FFI boundary. Contract:
 `docs/effects.md`. Rationale: `primitive_abstraction.md` §6.
@@ -504,25 +504,30 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
-- **Native ABI is not yet landed.** Plugin effects will register a descriptor
-  (WGSL source + parameter schema + passes), most likely as a dedicated
-  `register_effect` surface rather than a primitive category, behind an
-  `UNSTABLE_ABI_VERSION` bump (currently 8).
+- **Plugin-authored effects (ABI snapshot 9).**
+  `NativePluginApi.register_effect(host, NativeEffectDescriptor)` — WGSL source
+  + parameter schema (declared uniform offsets + identity values) + ordered
+  passes + `support_px`. Registered descriptors live in a process-wide effect
+  registry (`EffectId::Extension(slot)`); the lowering path is identical to
+  built-ins, and uniform packing uses a generic layout packer. Registration
+  validates kinds/alignment/size and rejects name collisions; WGSL compiles
+  lazily at first render with errors surfaced as diagnostics. Rollback of a
+  failed install unregisters the plugin's effects. The demo plugin ships a
+  `Pixelate` effect. Extension manifests do not yet carry effect metadata, so
+  analyzer completion for plugin effect parameters is future work.
 
 **Remaining.**
 
-1. **ROI.** Declared spatial support → sub-rect offscreen targets and a
-   rect-scoped pending-composite blit; generalise the
-   `can_post_composite_filter` precondition to "no later sibling intersects ROI".
-   This needs a content-bounds pre-pass before the sub-scene render (bounds are
-   currently only known during evaluation), which is the main renderer work.
-   Keep the PF-7/PF-9 allocation budget (worst-case support, full-scene fallback).
-2. **Plugin-authored effects + ABI.** Descriptor (WGSL source + parameter schema
-   + pass list), validation at registration (shader compiles; uniform size matches
-   the schema), plugin-namespaced effect identity, GPU-only/trusted-authoring
-   documentation. The `EffectId` enum is built-in-only today; plugin effects need
-   a descriptor-carrying chain entry (`EffectId::Extension` + registry lookup) so
-   the backend can compile their WGSL.
+1. **Derived ROI.** The explicit `Filter, bounds: (x, y, w, h)` knob is
+   implemented (crop → effect dispatch at region size → composite at origin,
+   zero-readback blit is viewport-scoped). Deriving the region from content
+   bounds still needs a content-bounds pre-pass before the sub-scene render,
+   plus generalising `can_post_composite_filter` to "no later sibling
+   intersects the ROI". PF-7 is already protected: GPU textures stay at full
+   scene capacity and only seed/dispatch/readback shrink to the region.
+2. **Analyzer metadata for plugin effects.** Extension manifests do not yet
+   describe effects, so completion/validation for plugin effect parameters is
+   unavailable (built-in effects are fully covered by `effect_specs()`).
 
 **Guardrails.** Preserve the zero-readback `PendingComposite` park protocol,
 `RenderedFrame` buffer reuse, chain/declaration order determinism, and the PF-7/

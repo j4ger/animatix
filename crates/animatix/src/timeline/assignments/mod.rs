@@ -904,7 +904,10 @@ fn write_effect_stage_param(
     use crate::timeline::filter::{EffectParamKind, descriptor};
     use crate::timeline::property_engine::PropertyValue;
 
-    let desc = descriptor(kind);
+    let Some(desc) = descriptor(kind) else {
+        tracing::warn!("effect stage '{scope_label}.{stage_label}' has no registered descriptor");
+        return;
+    };
     let (is_enabled, param_kind, identity) = if property == "enabled" {
         (true, EffectParamKind::Bool, PropertyValue::Bool(true))
     } else if let Some(spec) = desc.params.iter().find(|param| param.name == property) {

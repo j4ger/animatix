@@ -132,11 +132,12 @@ A plugin exports:
 - `animatix_plugin_name() -> *const c_char`
 - `animatix_plugin_install(api, host) -> i32`
 
-The current unstable ABI snapshot is 8 and has exactly one install entry. The
+The current unstable ABI snapshot is 9 and has exactly one install entry. The
 snapshot is not a compatibility version: plugins must be rebuilt from the same
 source tree as the host whenever it changes. It can register
 external properties with full tooling metadata, native expression functions,
-primitives, actions, and service values with optional destructors. Native
+primitives, actions, service values with optional destructors, and
+plugin-authored post-processing effects. Native
 primitive descriptors carry `NATIVE_CAP_*` capability flags, declared property
 names, a `NATIVE_RESIZE_MODE_*` value so the GUI, actions, and generic
 property writer can route them without string matching. Native primitives have
@@ -235,6 +236,46 @@ type = "Num"
 Primitives, actions, and services now share one native ABI path with
 properties and functions. The host keeps each loaded `Library` alive through the
 registered callbacks and the disposer returned by install.
+
+### Plugin-authored effects (ABI 9)
+
+A native plugin can author post-processing effects by shipping **WGSL source
+text and a parameter schema** — never a GPU handle. The host compiles and runs
+the shader with its own device, owns every texture, and marshals parameters
+into the declared uniform layout, so no GPU type ever crosses the FFI
+boundary.
+
+Register effects from `animatix_plugin_install` through
+`NativePluginApi.register_effect(host, NativeEffectDescriptor)`:
+
+- `name` is the authored type name (`soft: Pixelate` inside a `Filter` scope).
+  It must not collide with a built-in effect or a previously registered plugin
+  effect; duplicates are rejected.
+- `params` are declared at their **uniform offsets verbatim**: scalars and
+  booleans must be 4-byte aligned, `vec2` 8-byte aligned, `vec4` 16-byte
+  aligned. The host computes the uniform buffer size (largest offset + size,
+  padded to 16) and rejects misaligned declarations. Each parameter declares
+  an `identity` value — when every parameter of a stage is at identity the
+  host skips the stage entirely, so a pass-through default costs nothing.
+- `passes` are ordered compute passes, each with its own WGSL text and entry
+  point (conventionally `main`). The binding layout is fixed
+  (`docs/effects.md` §4): input texture, output storage texture, author
+  parameters, host `EffectContext`, and a linear sampler.
+- `support_px` is the conservative spatial support used to pad regions of
+  interest.
+
+Validation and trust: the uniform layout is validated at registration
+(misaligned or unknown-kinded parameters reject the effect with a
+`NATIVE_STATUS_TYPE_ERROR`); WGSL itself is compiled at first render, where
+errors surface as runtime diagnostics and the stage is skipped. wgpu validates
+syntax but not termination — effects are **trusted-authoring**, not a
+sandbox, and they are **GPU-only** (no backend means the stage is skipped with
+a warning, exactly like built-ins).
+
+Every string handed to `register_effect` must outlive the call; leaking them
+is expected (registration happens once per plugin load, so the allocation is
+bounded by the number of effects). Rollback of a partially failed install
+unregisters the plugin's effects.
 
 ## Current Limits
 

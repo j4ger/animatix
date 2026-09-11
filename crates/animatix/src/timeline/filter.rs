@@ -42,6 +42,10 @@ pub enum EffectId {
     ColorGrade,
     /// Radial channel separation; single pass through the linear sampler.
     ChromaticAberration,
+    /// A plugin-authored effect, identified by its registry slot. The slot is
+    /// assigned by [`register_extension_effect`] and stays valid for the
+    /// process lifetime (descriptors are leaked once, never freed).
+    Extension(u32),
 }
 
 /// All built-in effects, in registration order.
@@ -131,7 +135,30 @@ pub struct EffectPassSpec {
 }
 
 /// Packs author parameters into the uniform bytes for one effect.
-pub type EffectPackFn = fn(&EffectParams, &mut [u8]);
+///
+/// Receives the descriptor so plugin effects can use one generic packer driven
+/// by their declared parameter layout (built-in packers ignore it).
+pub type EffectPackFn = fn(&EffectDescriptor, &EffectParams, &mut [u8]);
+
+/// Spatial support of one effect: how far outside a source pixel it reads, in
+/// scene pixels.
+pub enum EffectSupport {
+    /// Built-in effects compute support from the sampled parameters.
+    Fn(EffectSupportFn),
+    /// Plugin effects declare one conservative constant (their parameter
+    /// schema crosses the FFI boundary, functions do not).
+    Constant(f32),
+}
+
+impl EffectSupport {
+    /// Support in scene pixels for the given parameters.
+    pub fn value(&self, params: &EffectParams) -> f32 {
+        match self {
+            Self::Fn(f) => f(params),
+            Self::Constant(px) => *px,
+        }
+    }
+}
 
 /// Spatial support of one effect: how far outside a source pixel it reads, in
 /// scene pixels, for the given parameters.
@@ -152,7 +179,7 @@ pub struct EffectDescriptor {
     /// Marshals parameters into `author_uniform_size` bytes.
     pub pack: EffectPackFn,
     /// Spatial support used to pad a region of interest.
-    pub support: EffectSupportFn,
+    pub support: EffectSupport,
 }
 
 impl EffectDescriptor {
@@ -193,25 +220,151 @@ impl EffectChain {
     }
 }
 
-/// Descriptor for a built-in effect.
-pub fn descriptor(id: EffectId) -> &'static EffectDescriptor {
+/// Descriptor for a built-in effect, or a registered plugin effect.
+///
+/// Returns `None` when an `Extension` slot is not (or no longer) registered —
+/// callers must skip the stage with a diagnostic instead of panicking.
+pub fn descriptor(id: EffectId) -> Option<&'static EffectDescriptor> {
     match id {
-        EffectId::Blur => &BLUR_DESCRIPTOR,
-        EffectId::ColorGrade => &COLOR_GRADE_DESCRIPTOR,
-        EffectId::ChromaticAberration => &CHROMATIC_ABERRATION_DESCRIPTOR,
+        EffectId::Blur => Some(&BLUR_DESCRIPTOR),
+        EffectId::ColorGrade => Some(&COLOR_GRADE_DESCRIPTOR),
+        EffectId::ChromaticAberration => Some(&CHROMATIC_ABERRATION_DESCRIPTOR),
+        EffectId::Extension(slot) => extension_effect(slot),
     }
 }
 
-/// Look up a built-in effect descriptor by its authored type name.
+/// Look up an effect descriptor by its authored type name: built-ins first,
+/// then plugin-registered effects.
+pub fn descriptor_for_type(type_name: &str) -> Option<(EffectId, &'static EffectDescriptor)> {
+    match type_name {
+        "Blur" => Some((EffectId::Blur, &BLUR_DESCRIPTOR)),
+        "ColorGrade" => Some((EffectId::ColorGrade, &COLOR_GRADE_DESCRIPTOR)),
+        "ChromaticAberration" => {
+            Some((EffectId::ChromaticAberration, &CHROMATIC_ABERRATION_DESCRIPTOR))
+        },
+        other => {
+            extension_effect_by_type(other).map(|(slot, desc)| (EffectId::Extension(slot), desc))
+        },
+    }
+}
+
+// ── Extension (plugin-authored) effect registry ─────────────────────────────
+
+fn extension_effects()
+-> &'static std::sync::Mutex<std::collections::BTreeMap<u32, &'static EffectDescriptor>> {
+    static REGISTRY: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::BTreeMap<u32, &'static EffectDescriptor>>,
+    > = std::sync::OnceLock::new();
+    REGISTRY.get_or_init(|| std::sync::Mutex::new(std::collections::BTreeMap::new()))
+}
+
+/// Register a plugin-authored effect and return its registry slot.
 ///
-/// Returns `None` for an unknown type; plugin effects go through the
-/// extension registry instead (Stage 4).
-pub fn descriptor_for_type(type_name: &str) -> Option<&'static EffectDescriptor> {
+/// The descriptor is leaked into `&'static` storage: registration happens once
+/// per plugin load and the allocation is bounded by the number of effects.
+/// Re-registering an existing type name is idempotent (it returns the
+/// existing slot); a name that collides with a built-in effect is rejected.
+pub fn register_extension_effect(descriptor: EffectDescriptor) -> Option<u32> {
+    if builtin_effect_by_type(descriptor.type_name).is_some() {
+        tracing::warn!(
+            effect = %descriptor.type_name,
+            "plugin effect name collides with a built-in effect; rejected"
+        );
+        return None;
+    }
+    let mut registry = extension_effects().lock().ok()?;
+    if let Some((slot, _)) =
+        registry.iter().find(|(_, existing)| existing.type_name == descriptor.type_name)
+    {
+        return Some(*slot);
+    }
+    let slot = next_extension_effect_slot();
+    let mut descriptor = descriptor;
+    descriptor.id = EffectId::Extension(slot);
+    let leaked: &'static EffectDescriptor = Box::leak(Box::new(descriptor));
+    registry.insert(slot, leaked);
+    Some(slot)
+}
+
+/// Remove a plugin effect registration (rollback of a partially failed
+/// plugin install). Stages already built against the slot will skip with a
+/// diagnostic until rebuilt.
+pub fn unregister_extension_effect(slot: u32) {
+    if let Some(registry) = extension_effects().lock().ok().as_mut() {
+        registry.remove(&slot);
+    }
+}
+
+fn next_extension_effect_slot() -> u32 {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+fn extension_effect(slot: u32) -> Option<&'static EffectDescriptor> {
+    extension_effects().lock().ok()?.get(&slot).copied()
+}
+
+fn extension_effect_by_type(type_name: &str) -> Option<(u32, &'static EffectDescriptor)> {
+    let registry = extension_effects().lock().ok()?;
+    registry
+        .iter()
+        .find(|(_, desc)| desc.type_name == type_name)
+        .map(|(slot, desc)| (*slot, *desc))
+}
+
+fn builtin_effect_by_type(type_name: &str) -> Option<&'static EffectDescriptor> {
     match type_name {
         "Blur" => Some(&BLUR_DESCRIPTOR),
         "ColorGrade" => Some(&COLOR_GRADE_DESCRIPTOR),
         "ChromaticAberration" => Some(&CHROMATIC_ABERRATION_DESCRIPTOR),
         _ => None,
+    }
+}
+
+/// Generic uniform packer for plugin effects: lays each declared parameter out
+/// at its declared offset (the host assigns 4-byte-aligned offsets for
+/// scalars, 8 for vec2, 16 for vec4 when registering).
+pub fn pack_generic(descriptor: &EffectDescriptor, params: &EffectParams, out: &mut [u8]) {
+    use EffectParamKind as K;
+    use EffectParamValue as V;
+    out.fill(0);
+    for (index, spec) in descriptor.params.iter().enumerate() {
+        let Some(value) = params.values.get(index) else {
+            continue;
+        };
+        let offset = spec.offset as usize;
+        let write = |out: &mut [u8], bytes: &[u8]| {
+            let end = (offset + bytes.len()).min(out.len());
+            if offset < end {
+                out[offset..end].copy_from_slice(&bytes[..end - offset]);
+            }
+        };
+        match (spec.kind, value) {
+            (K::F32, V::F32(v)) => write(out, &v.to_le_bytes()),
+            (K::U32, V::U32(v)) => write(out, &v.to_le_bytes()),
+            (K::Bool, V::Bool(v)) => write(out, &[u8::from(*v), 0, 0, 0]),
+            (K::Vec2, V::Vec2(v)) => {
+                let mut bytes = [0u8; 8];
+                for (i, scalar) in v.iter().enumerate() {
+                    bytes[i * 4..i * 4 + 4].copy_from_slice(&scalar.to_le_bytes());
+                }
+                write(out, &bytes);
+            },
+            (K::Vec4, V::Vec4(v)) => {
+                let mut bytes = [0u8; 16];
+                for (i, scalar) in v.iter().enumerate() {
+                    bytes[i * 4..i * 4 + 4].copy_from_slice(&scalar.to_le_bytes());
+                }
+                write(out, &bytes);
+            },
+            (kind, value) => {
+                tracing::warn!(
+                    "effect parameter '{}' stored as {value:?} does not match declared {kind:?}",
+                    spec.name
+                );
+            },
+        }
     }
 }
 
@@ -469,7 +622,7 @@ pub static BLUR_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
     ],
     author_uniform_size: 16,
     pack: pack_blur,
-    support: support_blur,
+    support: EffectSupport::Fn(support_blur),
 };
 
 /// `ColorGrade` descriptor: one pass mapping five scalars to a colour matrix.
@@ -484,7 +637,7 @@ pub static COLOR_GRADE_DESCRIPTOR: EffectDescriptor = EffectDescriptor {
     }],
     author_uniform_size: 64,
     pack: pack_color_grade,
-    support: support_color_grade,
+    support: EffectSupport::Fn(support_color_grade),
 };
 
 /// `ChromaticAberration` descriptor: one pass with sub-pixel channel offsets.
@@ -499,22 +652,26 @@ pub static CHROMATIC_ABERRATION_DESCRIPTOR: EffectDescriptor = EffectDescriptor 
     }],
     author_uniform_size: 16,
     pack: pack_chromatic_aberration,
-    support: support_chromatic_aberration,
+    support: EffectSupport::Fn(support_chromatic_aberration),
 };
 
-fn pack_blur(params: &EffectParams, out: &mut [u8]) {
+fn pack_blur(_descriptor: &EffectDescriptor, params: &EffectParams, out: &mut [u8]) {
     out.fill(0);
     let radius = params.f32_at(0);
     out[0..4].copy_from_slice(&radius.to_le_bytes());
 }
 
-fn pack_chromatic_aberration(params: &EffectParams, out: &mut [u8]) {
+fn pack_chromatic_aberration(
+    _descriptor: &EffectDescriptor,
+    params: &EffectParams,
+    out: &mut [u8],
+) {
     out.fill(0);
     let offset = params.f32_at(0);
     out[0..4].copy_from_slice(&offset.to_le_bytes());
 }
 
-fn pack_color_grade(params: &EffectParams, out: &mut [u8]) {
+fn pack_color_grade(_descriptor: &EffectDescriptor, params: &EffectParams, out: &mut [u8]) {
     out.fill(0);
     let matrix = compose_color_matrix(
         params.f32_at(0),

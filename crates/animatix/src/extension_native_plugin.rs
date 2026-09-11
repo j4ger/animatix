@@ -15,21 +15,23 @@ use animatix_plugin_api::{
     NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
     NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
     NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
-    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE,
-    NATIVE_PATH_LINE, NATIVE_PATH_POLYGON, NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT,
-    NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL, NATIVE_PROPERTY_ENUM, NATIVE_PROPERTY_F32,
-    NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST, NATIVE_PROPERTY_STRING,
-    NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4, NATIVE_RESIZE_MODE_SCALE,
-    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_STATUS_UNSUPPORTED, NATIVE_TEXT_KIND_CODE,
-    NATIVE_TEXT_KIND_TYST, NATIVE_VALUE_BOOL, NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST,
-    NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST, NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST,
-    NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST, NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32,
-    NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2, NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction,
-    NativeActionContext, NativeActionExecuteFn, NativeActionParam, NativeAssignmentContext,
-    NativeAssignmentFn, NativeChild, NativeClipPathCtx, NativeClipPathFn, NativeDefaultColorKeyFn,
-    NativeDefaultPropsCtx, NativeDefaultPropsFn, NativeFinalizeContext, NativeFinalizeFn,
-    NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand,
-    NativeInstallFn, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
+    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_EFFECT_PARAM_KIND_BOOL, NATIVE_EFFECT_PARAM_KIND_F32,
+    NATIVE_EFFECT_PARAM_KIND_U32, NATIVE_EFFECT_PARAM_KIND_VEC2, NATIVE_EFFECT_PARAM_KIND_VEC4,
+    NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON,
+    NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL,
+    NATIVE_PROPERTY_ENUM, NATIVE_PROPERTY_F32, NATIVE_PROPERTY_GENERIC, NATIVE_PROPERTY_POINT_LIST,
+    NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_U32, NATIVE_PROPERTY_VEC2, NATIVE_PROPERTY_VEC4,
+    NATIVE_RESIZE_MODE_SCALE, NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR,
+    NATIVE_STATUS_UNSUPPORTED, NATIVE_TEXT_KIND_CODE, NATIVE_TEXT_KIND_TYST, NATIVE_VALUE_BOOL,
+    NATIVE_VALUE_COLOR, NATIVE_VALUE_COMMAND_LIST, NATIVE_VALUE_ENUM, NATIVE_VALUE_LIST,
+    NATIVE_VALUE_NUM, NATIVE_VALUE_POINT_LIST, NATIVE_VALUE_STRING, NATIVE_VALUE_STRING_LIST,
+    NATIVE_VALUE_TRANSFORM, NATIVE_VALUE_U32, NATIVE_VALUE_VARIANT, NATIVE_VALUE_VEC2,
+    NATIVE_VALUE_VEC3, NATIVE_VALUE_VEC4, NativeAction, NativeActionContext, NativeActionExecuteFn,
+    NativeActionParam, NativeAssignmentContext, NativeAssignmentFn, NativeChild, NativeClipPathCtx,
+    NativeClipPathFn, NativeDefaultColorKeyFn, NativeDefaultPropsCtx, NativeDefaultPropsFn,
+    NativeEffectDescriptor, NativeFinalizeContext, NativeFinalizeFn, NativeFunctionContext,
+    NativeFunctionDescriptor, NativeHighlightCommand, NativeImageCommand, NativeInstallFn,
+    NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
     NativePrimitiveBuildCtx, NativePrimitiveBuildFn, NativePrimitiveEquationFragmentCtx,
     NativePrimitiveEquationFragmentFn, NativePrimitiveEvaluateCtx, NativePrimitiveEvaluateFn,
     NativePropertyDescriptor, NativePropertyValue, NativeService, NativeTextCommand, NativeValue,
@@ -114,6 +116,7 @@ impl NativePlugin {
                 register_primitive: native_register_primitive,
                 register_action: native_register_action,
                 provide_service: native_provide_service,
+                register_effect: native_register_effect,
             };
 
             Ok(Self {
@@ -145,6 +148,7 @@ impl ExtensionPlugin for NativePlugin {
                 primitives: Vec::new(),
                 actions: Vec::new(),
                 services: Vec::new(),
+                effects: Vec::new(),
             };
             let install = self.install.expect("install symbol checked during load");
             let status = unsafe { (install)(&self.api, (&mut host as *mut NativeHost).cast()) };
@@ -190,6 +194,8 @@ struct NativeHost<'a> {
     primitives: Vec<String>,
     actions: Vec<String>,
     services: Vec<String>,
+    /// Registered effect slots as `(name, registry slot)`.
+    effects: Vec<(String, u32)>,
 }
 
 impl NativeHost<'_> {
@@ -209,6 +215,9 @@ impl NativeHost<'_> {
         }
         for name in self.services.drain(..) {
             ctx.remove_service(&name);
+        }
+        for (_, slot) in self.effects.drain(..) {
+            crate::timeline::filter::unregister_extension_effect(slot);
         }
     }
 }
@@ -533,6 +542,181 @@ unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeSe
     host.service_values.insert(name.clone(), service.value);
     host.services.push(name);
     NATIVE_STATUS_OK
+}
+
+/// Register a plugin-authored post-processing effect.
+///
+/// The plugin ships WGSL source text and a parameter schema — never a GPU
+/// handle. The host validates the declared uniform layout at registration and
+/// compiles the shader with its own device at first render (`docs/effects.md`
+/// §5/§7): wgpu validates syntax but not termination, so this is
+/// trusted-authoring, and effects are GPU-only (no backend means
+/// "skip + warn" with a diagnostic, like built-ins).
+#[cfg(feature = "render")]
+unsafe extern "C" fn native_register_effect(
+    host: *mut c_void,
+    descriptor: NativeEffectDescriptor,
+) -> i32 {
+    use crate::timeline::filter::{
+        EffectDescriptor, EffectParamKind, EffectParamSpec, EffectPassSpec, EffectSupport,
+        register_extension_effect,
+    };
+
+    let Some(host) = (unsafe { (host as *mut NativeHost).as_mut() }) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
+
+    let effect_name = match unsafe { read_c_string(descriptor.name) } {
+        Some(name) if !name.is_empty() => name,
+        _ => {
+            tracing::warn!("plugin effect registration rejected: missing name");
+            return NATIVE_STATUS_TYPE_ERROR;
+        },
+    };
+    let display_name = unsafe { read_c_string(descriptor.display_name) }.unwrap_or_default();
+    if descriptor.pass_len == 0 || descriptor.passes.is_null() {
+        tracing::warn!(
+            effect = %effect_name,
+            "plugin effect registration rejected: no compute passes"
+        );
+        return NATIVE_STATUS_TYPE_ERROR;
+    }
+
+    // ── Parameters ──
+    let kind_size = |kind: u32| -> Option<(EffectParamKind, u32, u32)> {
+        // (kind, required alignment, byte size)
+        match kind {
+            NATIVE_EFFECT_PARAM_KIND_F32 => Some((EffectParamKind::F32, 4, 4)),
+            NATIVE_EFFECT_PARAM_KIND_U32 => Some((EffectParamKind::U32, 4, 4)),
+            NATIVE_EFFECT_PARAM_KIND_BOOL => Some((EffectParamKind::Bool, 4, 4)),
+            NATIVE_EFFECT_PARAM_KIND_VEC2 => Some((EffectParamKind::Vec2, 8, 8)),
+            NATIVE_EFFECT_PARAM_KIND_VEC4 => Some((EffectParamKind::Vec4, 16, 16)),
+            _ => None,
+        }
+    };
+    // SAFETY: the plugin passes a valid `param_len`-sized array of
+    // `NativeEffectParam` for the duration of this call.
+    let raw_params = unsafe { std::slice::from_raw_parts(descriptor.params, descriptor.param_len) };
+    let mut params = Vec::with_capacity(descriptor.param_len);
+    for (index, raw) in raw_params.iter().enumerate() {
+        let Some(name) = (unsafe { read_c_string(raw.name) }) else {
+            tracing::warn!(
+                effect = %effect_name,
+                "plugin effect registration rejected: parameter {index} has no name"
+            );
+            return NATIVE_STATUS_TYPE_ERROR;
+        };
+        let Some((kind, alignment, size)) = kind_size(raw.kind) else {
+            tracing::warn!(
+                effect = %effect_name,
+                param = %name,
+                "plugin effect registration rejected: unknown parameter kind"
+            );
+            return NATIVE_STATUS_TYPE_ERROR;
+        };
+        if raw.offset % alignment != 0 {
+            tracing::warn!(
+                effect = %effect_name,
+                param = %name,
+                "plugin effect registration rejected: offset {} is not {alignment}-byte aligned",
+                raw.offset
+            );
+            return NATIVE_STATUS_TYPE_ERROR;
+        }
+        let identity = match kind {
+            EffectParamKind::F32 => crate::timeline::filter::EffectParamValue::F32(raw.identity[0]),
+            EffectParamKind::U32 => {
+                crate::timeline::filter::EffectParamValue::U32(raw.identity[0].max(0.0) as u32)
+            },
+            EffectParamKind::Bool => {
+                crate::timeline::filter::EffectParamValue::Bool(raw.identity[0] != 0.0)
+            },
+            EffectParamKind::Vec2 => {
+                crate::timeline::filter::EffectParamValue::Vec2([raw.identity[0], raw.identity[1]])
+            },
+            EffectParamKind::Vec4 => crate::timeline::filter::EffectParamValue::Vec4(raw.identity),
+        };
+        params.push(EffectParamSpec {
+            name: Box::leak(name.clone().into_boxed_str()),
+            kind,
+            identity,
+            offset: raw.offset,
+            size,
+        });
+    }
+    // The uniform buffer must cover every declared parameter and stay a
+    // multiple of 16 bytes.
+    let mut uniform_size = 0usize;
+    for spec in &params {
+        uniform_size = uniform_size.max(spec.offset as usize + spec.size as usize);
+    }
+    let uniform_size = uniform_size.div_ceil(16) * 16;
+    let uniform_size = uniform_size.max(16) as u32;
+
+    // ── Passes ──
+    // SAFETY: the plugin passes a valid `pass_len`-sized array of
+    // `NativeEffectPass` for the duration of this call.
+    let raw_passes = unsafe { std::slice::from_raw_parts(descriptor.passes, descriptor.pass_len) };
+    let mut passes = Vec::with_capacity(descriptor.pass_len);
+    for (index, raw) in raw_passes.iter().enumerate() {
+        let Some(wgsl) = (unsafe { read_c_string(raw.wgsl) }) else {
+            tracing::warn!(
+                effect = %effect_name,
+                "plugin effect registration rejected: pass {index} has no WGSL source"
+            );
+            return NATIVE_STATUS_TYPE_ERROR;
+        };
+        let entry = unsafe { read_c_string(raw.entry) }.unwrap_or_else(|| "main".to_string());
+        let label: &'static str = Box::leak(format!("{effect_name}.pass{index}").into_boxed_str());
+        passes.push(EffectPassSpec {
+            label,
+            wgsl: Box::leak(wgsl.into_boxed_str()),
+            entry: Box::leak(entry.into_boxed_str()),
+        });
+    }
+
+    let type_name: &'static str = Box::leak(effect_name.clone().into_boxed_str());
+    let descriptor = EffectDescriptor {
+        // `register_extension_effect` overwrites this with the assigned slot.
+        id: crate::timeline::filter::EffectId::Extension(0),
+        type_name,
+        params: Box::leak(params.into_boxed_slice()),
+        passes: Box::leak(passes.into_boxed_slice()),
+        author_uniform_size: uniform_size,
+        pack: crate::timeline::filter::pack_generic,
+        support: EffectSupport::Constant(descriptor.support_px),
+    };
+
+    match register_extension_effect(descriptor) {
+        Some(slot) => {
+            tracing::debug!(
+                effect = %effect_name,
+                display = %display_name,
+                slot,
+                "registered plugin effect"
+            );
+            // Idempotent re-registration (plugin hot reload) reuses the slot;
+            // track it once so rollback unregisters exactly once.
+            if !host
+                .effects
+                .iter()
+                .any(|(name, existing)| name == &effect_name && *existing == slot)
+            {
+                host.effects.push((effect_name, slot));
+            }
+            NATIVE_STATUS_OK
+        },
+        None => NATIVE_STATUS_TYPE_ERROR,
+    }
+}
+
+/// No-render builds have no effect backend; plugin effects are unavailable.
+#[cfg(not(feature = "render"))]
+unsafe extern "C" fn native_register_effect(
+    _host: *mut c_void,
+    _descriptor: NativeEffectDescriptor,
+) -> i32 {
+    NATIVE_STATUS_TYPE_ERROR
 }
 
 /// Host-side adapter that turns a native primitive descriptor into a runtime
@@ -2566,6 +2750,7 @@ mod tests {
             primitives: Vec::new(),
             actions: Vec::new(),
             services: Vec::new(),
+            effects: Vec::new(),
         };
         let mut property_id = 0;
         assert_eq!(
@@ -2725,6 +2910,7 @@ mod tests {
             primitives: Vec::new(),
             actions: Vec::new(),
             services: Vec::new(),
+            effects: Vec::new(),
         };
         let mut property_id = 0;
         assert_eq!(
@@ -2852,6 +3038,7 @@ mod tests {
             primitives: Vec::new(),
             actions: Vec::new(),
             services: Vec::new(),
+            effects: Vec::new(),
         };
         let mut first_id = 0;
         assert_eq!(
@@ -4033,5 +4220,109 @@ mod tests {
             unsafe { read_c_string_len(out.string, out.string_len) }.as_deref(),
             Some("ring")
         );
+    }
+
+    #[test]
+    fn zz_probe_registers_here() {
+        assert!(true);
+    }
+
+    #[cfg(feature = "render")]
+    #[test]
+    fn native_register_effect_registers_and_rejects_bad_layout() {
+        use animatix_plugin_api::{
+            NATIVE_EFFECT_PARAM_KIND_F32, NATIVE_EFFECT_PARAM_KIND_VEC2, NativeEffectDescriptor,
+            NativeEffectParam, NativeEffectPass,
+        };
+
+        let mut ctx = ExtensionContext::new();
+        let mut host = NativeHost {
+            ctx: &mut ctx,
+            library: Some(Arc::new(()) as Arc<dyn Any + Send + Sync>),
+            properties: Vec::new(),
+            property_ids: HashMap::new(),
+            property_kinds: HashMap::new(),
+            service_values: HashMap::new(),
+            functions: Vec::new(),
+            primitives: Vec::new(),
+            actions: Vec::new(),
+            services: Vec::new(),
+            effects: Vec::new(),
+        };
+
+        let params = [
+            NativeEffectParam {
+                name: c"amount".as_ptr(),
+                kind: NATIVE_EFFECT_PARAM_KIND_F32,
+                offset: 0,
+                identity: [0.0; 4],
+            },
+            NativeEffectParam {
+                name: c"centre".as_ptr(),
+                kind: NATIVE_EFFECT_PARAM_KIND_VEC2,
+                offset: 8,
+                identity: [0.5; 4],
+            },
+        ];
+        let passes = [NativeEffectPass {
+            wgsl: c"@compute fn main() {}".as_ptr(),
+            entry: c"main".as_ptr(),
+        }];
+        let descriptor = NativeEffectDescriptor {
+            name: c"MockGlow".as_ptr(),
+            display_name: c"Mock Glow".as_ptr(),
+            params: params.as_ptr(),
+            param_len: params.len(),
+            passes: passes.as_ptr(),
+            pass_len: passes.len(),
+            support_px: 3.0,
+        };
+
+        let status = unsafe {
+            native_register_effect((&mut host as *mut NativeHost).cast::<c_void>(), descriptor)
+        };
+        assert_eq!(status, NATIVE_STATUS_OK);
+        assert_eq!(host.effects.len(), 1);
+        let (name, slot) = &host.effects[0];
+        assert_eq!(name, "MockGlow");
+
+        let (id, registered) = crate::timeline::filter::descriptor_for_type("MockGlow")
+            .expect("plugin effect registered");
+        let id = match id {
+            crate::timeline::filter::EffectId::Extension(slot) => slot,
+            other => panic!("expected an extension effect id, got {other:?}"),
+        };
+        assert_eq!(id, *slot);
+        assert_eq!(registered.type_name, "MockGlow");
+        assert_eq!(registered.author_uniform_size, 16);
+        assert_eq!(registered.params.len(), 2);
+        assert_eq!(registered.passes.len(), 1);
+
+        // A misaligned parameter offset is rejected.
+        let bad_params = [NativeEffectParam {
+            name: c"offset".as_ptr(),
+            kind: NATIVE_EFFECT_PARAM_KIND_VEC2,
+            offset: 3,
+            identity: [0.0; 4],
+        }];
+        let bad = NativeEffectDescriptor {
+            name: c"BadGlow".as_ptr(),
+            display_name: c"Bad Glow".as_ptr(),
+            params: bad_params.as_ptr(),
+            param_len: bad_params.len(),
+            passes: passes.as_ptr(),
+            pass_len: passes.len(),
+            support_px: 0.0,
+        };
+        let status =
+            unsafe { native_register_effect((&mut host as *mut NativeHost).cast::<c_void>(), bad) };
+        assert_eq!(status, NATIVE_STATUS_TYPE_ERROR);
+
+        // Re-registering the same name is idempotent: same slot, no duplicate.
+        let again = unsafe {
+            native_register_effect((&mut host as *mut NativeHost).cast::<c_void>(), descriptor)
+        };
+        assert_eq!(again, NATIVE_STATUS_OK);
+        assert_eq!(host.effects.len(), 1);
     }
 }

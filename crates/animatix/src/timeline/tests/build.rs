@@ -1513,6 +1513,68 @@ bg: Filter {
     );
 }
 
+/// A plugin effect registered in the extension registry lowers like a
+/// built-in: `descriptor_for_type` finds it and the scope chain carries an
+/// `EffectId::Extension` stage.
+#[test]
+fn plugin_effect_lowers_into_scope_chain() {
+    use crate::timeline::filter::{
+        EffectDescriptor, EffectId, EffectParamKind, EffectParamSpec, EffectParamValue,
+        EffectPassSpec, EffectSupport, pack_generic, register_extension_effect,
+    };
+
+    let params: &'static [EffectParamSpec] = Box::leak(
+        vec![EffectParamSpec {
+            name: "size",
+            kind: EffectParamKind::F32,
+            identity: EffectParamValue::F32(0.0),
+            offset: 0,
+            size: 4,
+        }]
+        .into_boxed_slice(),
+    );
+    let passes: &'static [EffectPassSpec] = Box::leak(
+        vec![EffectPassSpec {
+            label: "mock-pixelate",
+            wgsl: "@compute fn main() {}",
+            entry: "main",
+        }]
+        .into_boxed_slice(),
+    );
+    let slot = register_extension_effect(EffectDescriptor {
+        id: EffectId::Extension(0),
+        type_name: "MockPixelate",
+        params,
+        passes,
+        author_uniform_size: 16,
+        pack: pack_generic,
+        support: EffectSupport::Constant(0.0),
+    })
+    .expect("plugin effect registers");
+
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter {
+  fx: MockPixelate, size: 8
+  img: Rect, size: (100, 100)
+}
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    assert_eq!(scope.effects.stages.len(), 1);
+    assert_eq!(scope.effects.stages[0].label, "fx");
+
+    let chain = scope.effects.build_chain(0);
+    assert_eq!(chain.instances.len(), 1);
+    match chain.instances[0].id {
+        EffectId::Extension(stage_slot) => assert_eq!(stage_slot, slot),
+        other => panic!("expected an extension effect id, got {other:?}"),
+    }
+    assert_eq!(chain.instances[0].params.f32_at(0), 8.0);
+}
+
 /// Top-level `config { resolution: (w, h) }` is recorded on the timeline so
 /// export tooling can default its canvas to the authored size.
 #[test]

@@ -24,16 +24,65 @@ use std::ffi::{c_char, c_void};
 
 use animatix_plugin_api::{
     NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_CAP_VECTOR_REVEAL_TARGET,
-    NATIVE_EASING_OUT, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PRIMITIVE_CATEGORY_SHAPE,
-    NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PROPERTY_ENUM, NATIVE_PROPERTY_F32,
-    NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_VEC2, NATIVE_RESIZE_MODE_SIZE, NATIVE_STATUS_OK,
-    NATIVE_STATUS_TYPE_ERROR, NATIVE_TEXT_KIND_CODE, NATIVE_TEXT_KIND_TEXT, NATIVE_VALUE_ENUM,
-    NATIVE_VALUE_NUM, NATIVE_VALUE_STRING, NATIVE_VALUE_VEC2, NativeAction, NativeActionContext,
-    NativeActionParam, NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand,
+    NATIVE_EASING_OUT, NATIVE_EFFECT_PARAM_KIND_F32, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE,
+    NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NATIVE_PROPERTY_ENUM,
+    NATIVE_PROPERTY_F32, NATIVE_PROPERTY_STRING, NATIVE_PROPERTY_VEC2, NATIVE_RESIZE_MODE_SIZE,
+    NATIVE_STATUS_OK, NATIVE_STATUS_TYPE_ERROR, NATIVE_TEXT_KIND_CODE, NATIVE_TEXT_KIND_TEXT,
+    NATIVE_VALUE_ENUM, NATIVE_VALUE_NUM, NATIVE_VALUE_STRING, NATIVE_VALUE_VEC2, NativeAction,
+    NativeActionContext, NativeActionParam, NativeEffectDescriptor, NativeEffectParam,
+    NativeEffectPass, NativeFunctionContext, NativeFunctionDescriptor, NativeHighlightCommand,
     NativeImageCommand, NativeModifierValue, NativePathCommand, NativePluginApi, NativePrimitive,
     NativePrimitiveEvaluateCtx, NativePropertyDescriptor, NativeService, NativeTextCommand,
     NativeValue,
 };
+
+/// WGSL for the demo `Pixelate` effect: one pass that samples the centre of
+/// each `size`-texel block through the linear sampler. `size < 1.5` is a
+/// pass-through so the effect's identity default costs nothing.
+const PIXELATE_WGSL: &str = r#"
+struct PixelateParams {
+    size: f32,
+    _pad0: f32,
+    _pad1: f32,
+    _pad2: f32,
+}
+
+struct EffectContext {
+    tex_size: vec2<u32>,
+    _pad0: vec2<u32>,
+    inv_size: vec2<f32>,
+    _pad1: vec2<f32>,
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
+}
+
+@group(0) @binding(0) var src: texture_2d<f32>;
+@group(0) @binding(1) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(2) var<uniform> params: PixelateParams;
+@group(0) @binding(3) var<uniform> ctx: EffectContext;
+@group(0) @binding(4) var samp: sampler;
+
+@compute @workgroup_size(16, 16)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    let coord = vec2<u32>(gid.x, gid.y);
+    let size = ctx.tex_size;
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+    let texel = textureLoad(src, vec2<i32>(coord), 0);
+    if (params.size < 1.5) {
+        textureStore(dst, coord, texel);
+        return;
+    }
+    let block = max(params.size, 2.0);
+    let cell = (floor(vec2<f32>(coord) / vec2<f32>(block)) + vec2<f32>(0.5)) * vec2<f32>(block);
+    let uv = cell / vec2<f32>(size);
+    let sampled = textureSampleLevel(src, samp, uv, 0.0);
+    textureStore(dst, coord, vec4<f32>(sampled.rgb, texel.a));
+}
+"#;
 
 /// Return the unstable ABI snapshot implemented by this plugin.
 #[unsafe(no_mangle)]
@@ -210,6 +259,43 @@ pub unsafe extern "C" fn animatix_plugin_install(
     let action_status = unsafe { (api.register_action)(host, action) };
     if action_status != NATIVE_STATUS_OK {
         return action_status;
+    }
+
+    // ── Plugin-authored post-processing effect ─────────────────────────────
+    //
+    // The host keeps the descriptor for the process lifetime, so every string
+    // and the parameter/pass arrays are leaked on purpose — the allocation is
+    // bounded by the number of registered effects.
+    let effect_params = [NativeEffectParam {
+        name: c"size".as_ptr(),
+        kind: NATIVE_EFFECT_PARAM_KIND_F32,
+        offset: 0,
+        identity: [0.0; 4],
+    }];
+    let pixelate_wgsl: &'static std::ffi::CStr = Box::leak(Box::new(
+        std::ffi::CString::new(PIXELATE_WGSL).expect("WGSL source has no NUL bytes"),
+    ))
+    .as_c_str();
+    let effect_passes = [NativeEffectPass {
+        wgsl: pixelate_wgsl.as_ptr(),
+        entry: c"main".as_ptr(),
+    }];
+    let effect_status = unsafe {
+        (api.register_effect)(
+            host,
+            NativeEffectDescriptor {
+                name: c"Pixelate".as_ptr(),
+                display_name: c"Pixelate".as_ptr(),
+                params: effect_params.as_ptr(),
+                param_len: effect_params.len(),
+                passes: effect_passes.as_ptr(),
+                pass_len: effect_passes.len(),
+                support_px: 0.0,
+            },
+        )
+    };
+    if effect_status != NATIVE_STATUS_OK {
+        return effect_status;
     }
 
     // ── Typed service with an explicit destructor ──────────────────────────

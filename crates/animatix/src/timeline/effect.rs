@@ -121,7 +121,9 @@ impl EffectChainTrack {
     pub fn worst_case_support(&self) -> f32 {
         let mut total = 0.0f32;
         for stage in &self.stages {
-            let desc = descriptor(stage.kind);
+            let Some(desc) = descriptor(stage.kind) else {
+                continue;
+            };
             let mut times: Vec<u64> =
                 stage.params.values().flat_map(|track| track.keyframe_times()).collect();
             times.push(0);
@@ -130,7 +132,7 @@ impl EffectChainTrack {
             let mut stage_max = 0.0f32;
             for time in times {
                 let params = sample_params(desc, stage, time);
-                stage_max = stage_max.max((desc.support)(&params));
+                stage_max = stage_max.max(desc.support.value(&params));
             }
             total += stage_max;
         }
@@ -154,7 +156,10 @@ impl EffectChainTrack {
         let Some(stage) = self.stage_mut(stage_label) else {
             return false;
         };
-        let desc = descriptor(stage.kind);
+        let Some(desc) = descriptor(stage.kind) else {
+            tracing::warn!("effect stage '{stage_label}' has no registered descriptor");
+            return false;
+        };
         let (track, default) = if param == "enabled" {
             (&mut stage.enabled, PropertyValue::Bool(true))
         } else {
@@ -185,7 +190,7 @@ impl EffectChainTrack {
                 _ => PropertyValue::Bool(true),
             });
         }
-        let desc = descriptor(stage.kind);
+        let desc = descriptor(stage.kind)?;
         let spec = desc.params.iter().find(|spec| spec.name == param)?;
         Some(
             stage
@@ -200,7 +205,13 @@ impl EffectChainTrack {
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();
         for stage in &self.stages {
-            let desc = descriptor(stage.kind);
+            let Some(desc) = descriptor(stage.kind) else {
+                tracing::warn!(
+                    "effect stage '{}' has no registered descriptor; skipping",
+                    stage.label
+                );
+                continue;
+            };
             let enabled = match stage.enabled.sample(time_ms) {
                 Some(PropertyValue::Bool(enabled)) => enabled,
                 _ => true,
@@ -340,7 +351,7 @@ mod tests {
     #[test]
     fn effect_descriptors_match_shared_effect_specs() {
         for id in crate::timeline::filter::BUILT_IN_EFFECTS {
-            let desc = descriptor(*id);
+            let desc = descriptor(*id).expect("built-in effect descriptor");
             let shared = animatix_syntax::schema::effect_spec(desc.type_name)
                 .unwrap_or_else(|| panic!("missing shared effect spec for {}", desc.type_name));
             assert_eq!(

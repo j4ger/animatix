@@ -207,17 +207,27 @@ evidence.
   cache is per-device and lives with the backend. Dimension changes recreate
   targets but must not recreate pipelines whose key is unchanged.
 
-## 7. Plugin authoring (Stage 4)
+## 7. Plugin authoring (implemented, ABI snapshot 9)
 
 A plugin supplies **WGSL source text and a parameter schema, never a GPU
 handle**. The host compiles the shader with its own device, owns all textures
-and synchronisation, and marshals parameters into the declared uniform layout.
+and synchronisation, and marshals parameters into the declared uniform layout
+(`pack_generic` driven by the declared offsets). Registration goes through
+`NativePluginApi.register_effect(host, NativeEffectDescriptor)`; see
+`docs/extension_authoring.md` ("Plugin-authored effects") for the full surface.
+
 At registration the host:
 
-- validates the WGSL and the declared uniform size against the parameter schema,
-  rejecting the effect with a diagnostic on mismatch;
-- assigns the effect a namespaced identity (plugin name prefix) so it cannot
-  collide with host or other-plugin effects.
+- validates the declared uniform layout — known parameter kinds, declared
+  offsets aligned to their kinds, buffer size a multiple of 16 — rejecting the
+  effect with `NATIVE_STATUS_TYPE_ERROR` on mismatch;
+- rejects name collisions with built-in effects or previously registered
+  plugin effects (re-registering the same plugin name is idempotent);
+- assigns the effect a registry slot (`EffectId::Extension(slot)`), tracked for
+  install rollback;
+- compiles the WGSL lazily at first render, where wgpu validation errors
+  surface as runtime diagnostics and the stage is skipped.
 
 wgpu validates syntax but not termination: this is **trusted authoring**, not a
-sandbox.
+sandbox. Effects are GPU-only — no backend means the stage is skipped with a
+warning, exactly like built-ins.

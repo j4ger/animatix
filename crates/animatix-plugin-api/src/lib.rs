@@ -18,7 +18,7 @@ use std::ffi::{c_char, c_void};
 ///
 /// Keep `docs/extension_authoring.md` ("The current unstable ABI snapshot is N")
 /// in sync with this value whenever it is bumped.
-pub const UNSTABLE_ABI_VERSION: u32 = 8;
+pub const UNSTABLE_ABI_VERSION: u32 = 9;
 
 /// Numeric runtime value tag.
 pub const NATIVE_VALUE_NUM: u32 = 0;
@@ -745,6 +745,75 @@ pub struct NativePrimitive {
     pub equation_fragment: Option<NativePrimitiveEquationFragmentFn>,
 }
 
+/// `NativeEffectParam.kind`: a 32-bit float.
+pub const NATIVE_EFFECT_PARAM_KIND_F32: u32 = 0;
+/// `NativeEffectParam.kind`: a 32-bit unsigned integer.
+pub const NATIVE_EFFECT_PARAM_KIND_U32: u32 = 1;
+/// `NativeEffectParam.kind`: a boolean.
+pub const NATIVE_EFFECT_PARAM_KIND_BOOL: u32 = 2;
+/// `NativeEffectParam.kind`: two 32-bit floats.
+pub const NATIVE_EFFECT_PARAM_KIND_VEC2: u32 = 3;
+/// `NativeEffectParam.kind`: four 32-bit floats.
+pub const NATIVE_EFFECT_PARAM_KIND_VEC4: u32 = 4;
+
+/// One author parameter of a plugin-authored effect.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeEffectParam {
+    /// Parameter name as authored in `.amx`.
+    pub name: *const c_char,
+    /// `NATIVE_EFFECT_PARAM_KIND_*` value.
+    pub kind: u32,
+    /// Byte offset of this parameter inside the effect's uniform buffer. The
+    /// host uses the declared offsets verbatim: scalars and booleans must be
+    /// 4-byte aligned, `vec2` 8-byte aligned, `vec4` 16-byte aligned, and the
+    /// total buffer size a multiple of 16.
+    pub offset: u32,
+    /// Value at which this parameter contributes nothing (interpreted per
+    /// kind: `f32`/`u32` read `identity[0]`, `bool` reads `identity[0] != 0`,
+    /// `vec2`/`vec4` read the first components).
+    pub identity: [f32; 4],
+}
+
+/// One compute pass of a plugin-authored effect.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeEffectPass {
+    /// WGSL source text for this pass.
+    pub wgsl: *const c_char,
+    /// Entry point name (conventionally `"main"`).
+    pub entry: *const c_char,
+}
+
+/// Descriptor passed from a native plugin to register a post-processing effect.
+///
+/// The plugin ships WGSL source text and a parameter schema — never a GPU
+/// handle. The host compiles and runs the shader with its own device, owns all
+/// textures and synchronisation, and marshals parameters into the declared
+/// uniform layout. Effects are GPU-only and trusted-authored: wgpu validates
+/// syntax but not termination, and there is no CPU fallback.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct NativeEffectDescriptor {
+    /// Authored type name used in `.amx` (`soft: Pixelate`). Must not collide
+    /// with a built-in effect or a previously registered plugin effect.
+    pub name: *const c_char,
+    /// Human-readable name for GUI labels.
+    pub display_name: *const c_char,
+    /// Declared parameters, laid out at their declared uniform offsets.
+    pub params: *const NativeEffectParam,
+    /// Number of parameters in `params`.
+    pub param_len: usize,
+    /// Ordered compute passes. An empty pass list is rejected.
+    pub passes: *const NativeEffectPass,
+    /// Number of passes in `passes`.
+    pub pass_len: usize,
+    /// Conservative spatial support in scene pixels: how far outside a source
+    /// pixel the effect reads at any parameter value (used to pad regions of
+    /// interest). Zero for purely per-pixel effects.
+    pub support_px: f32,
+}
+
 /// Host callbacks available to a native plugin during install.
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -765,6 +834,8 @@ pub struct NativePluginApi {
     pub register_action: unsafe extern "C" fn(*mut c_void, NativeAction) -> i32,
     /// Provide a native service value with an optional destructor.
     pub provide_service: unsafe extern "C" fn(*mut c_void, NativeService) -> i32,
+    /// Register a plugin-authored post-processing effect.
+    pub register_effect: unsafe extern "C" fn(*mut c_void, NativeEffectDescriptor) -> i32,
 }
 
 /// Native plugin install entry point.

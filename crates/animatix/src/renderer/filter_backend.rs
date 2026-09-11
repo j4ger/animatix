@@ -462,14 +462,17 @@ impl GpuFilterBackend {
 
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
-            let effect = descriptor(instance.id);
+            let Some(effect) = descriptor(instance.id) else {
+                tracing::warn!("chain effect has no registered descriptor; skipping");
+                continue;
+            };
             self.ensure_effect_pipeline(effect);
             let Some(pipeline) = self.pipelines.get(&effect.id) else {
                 continue;
             };
 
             let mut uniforms = vec![0u8; effect.author_uniform_size as usize];
-            (effect.pack)(&instance.params, &mut uniforms);
+            (effect.pack)(effect, &instance.params, &mut uniforms);
             self.queue.write_buffer(&pipeline.uniform_buffer, 0, &uniforms);
 
             let pass_count = pipeline.passes.len() as u32;

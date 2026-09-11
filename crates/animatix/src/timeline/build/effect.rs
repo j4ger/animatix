@@ -22,6 +22,7 @@ impl Timeline {
         &mut self,
         parent_label: &str,
         label: &str,
+        kind: crate::timeline::filter::EffectId,
         desc: &'static EffectDescriptor,
         props: &[crate::ast::Property],
         modifiers: &[Modifier],
@@ -59,7 +60,7 @@ impl Timeline {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let eval_env = self.build_eval_env(time_ms as u64);
 
-        let mut stage = EffectStage::new(label.to_string(), desc.id);
+        let mut stage = EffectStage::new(label.to_string(), kind);
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
 

@@ -249,7 +249,9 @@ pub(crate) fn build_property_groups(
     // the property-edit handler routes the dotted form to the effect chain.
     let mut effect_props = Vec::new();
     for stage in &track.effects.stages {
-        let desc = animatix::timeline::filter::descriptor(stage.kind);
+        let Some(desc) = animatix::timeline::filter::descriptor(stage.kind) else {
+            continue;
+        };
         for spec in desc.params {
             let track_opt = stage.params.get(spec.name);
             let value = track_opt

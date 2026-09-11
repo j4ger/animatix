@@ -28,10 +28,11 @@ impl Timeline {
                 } => {
                     let id = format!("__anon_{}_{}", parent_label, index);
                     #[cfg(feature = "render")]
-                    if let Some(desc) = crate::timeline::filter::descriptor_for_type(ty) {
+                    if let Some((kind, desc)) = crate::timeline::filter::descriptor_for_type(ty) {
                         self.lower_effect_stage(
                             parent_label,
                             &id,
+                            kind,
                             desc,
                             props,
                             modifiers,
@@ -63,10 +64,11 @@ impl Timeline {
                     ..
                 } => {
                     #[cfg(feature = "render")]
-                    if let Some(desc) = crate::timeline::filter::descriptor_for_type(ty) {
+                    if let Some((kind, desc)) = crate::timeline::filter::descriptor_for_type(ty) {
                         self.lower_effect_stage(
                             parent_label,
                             label,
+                            kind,
                             desc,
                             props,
                             modifiers,
