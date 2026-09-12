@@ -155,7 +155,7 @@ pub(crate) fn collect_property_lanes(
 
     // Storage fields the registry allows for this actor kind. Keying by field
     // dedupes aliases that share one storage location.
-    let allowed_fields: Vec<ActorField> = allowed_property_indices(track.kind)
+    let allowed_fields: Vec<ActorField> = allowed_property_indices(&track.caps, &track.actor_type)
         .into_iter()
         .map(|idx| PROPERTY_REGISTRY[idx].field)
         .collect();
@@ -201,13 +201,18 @@ pub(crate) fn collect_property_lanes(
 /// the canonical source name while reading the current value from the same
 /// storage field.
 pub(crate) fn lane_schema(
-    kind: animatix::timeline::ActorKindId,
+    caps: &animatix::timeline::ActorCaps,
+    actor_type: &str,
     lane: &str,
 ) -> Option<&'static animatix::timeline::PropertySchema> {
     use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
 
     let field = PROPERTY_LANES.iter().find(|(name, _)| *name == lane).map(|(_, field)| *field)?;
-    let allowed = || allowed_property_indices(kind).into_iter().map(|idx| &PROPERTY_REGISTRY[idx]);
+    let allowed = || {
+        allowed_property_indices(caps, actor_type)
+            .into_iter()
+            .map(|idx| &PROPERTY_REGISTRY[idx])
+    };
     // Prefer a schema whose canonical name equals the lane name. This avoids
     // matching derived component schemas first (e.g. `height`/`width` share
     // `ActorField::Size` with `size`).
@@ -621,26 +626,21 @@ mod tests {
 
     #[test]
     fn lane_schema_maps_typed_lanes_to_writable_source_names() {
-        use animatix::timeline::ActorKindId;
+        use animatix::timeline::ActorCaps;
+
+        let rect_caps = ActorCaps::of_type("Rect").expect("Rect is a built-in");
 
         // Internal lane names that differ from the source property name must
         // resolve to the writable schema, not to an ambiguous sibling.
         assert_eq!(
-            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "motion_offset")
-                .map(|schema| schema.name),
+            lane_schema(&rect_caps, "Rect", "motion_offset").map(|schema| schema.name),
             Some("shift")
         );
         // `size` shares `ActorField::Size` with `height`/`width`; exact-name
         // precedence must win.
-        assert_eq!(
-            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "size")
-                .map(|schema| schema.name),
-            Some("size")
-        );
+        assert_eq!(lane_schema(&rect_caps, "Rect", "size").map(|schema| schema.name), Some("size"));
         // Unknown lane names resolve to nothing.
-        assert!(
-            lane_schema(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect), "nope").is_none()
-        );
+        assert!(lane_schema(&rect_caps, "Rect", "nope").is_none());
     }
 
     #[test]

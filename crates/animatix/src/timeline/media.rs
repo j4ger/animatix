@@ -141,10 +141,8 @@ impl Timeline {
         track.set_identity(actor_type);
 
         // Media-specific decode below distinguishes Svg from raster Image.
-        let is_svg =
-            super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Svg);
-        let is_image =
-            super::ActorKindId::from_type_name(actor_type) == Some(super::ActorKindId::Image);
+        let is_svg = actor_type == "Svg";
+        let is_image = actor_type == "Image";
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

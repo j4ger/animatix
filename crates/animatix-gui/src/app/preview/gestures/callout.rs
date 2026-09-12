@@ -8,9 +8,9 @@
 //! - **Standoff handle** (circle at `from`, targeted only): dragging updates `standoff` scalar.
 //! - **Shift+drag** on targeted callout: converts to manual mode (detach).
 
+use animatix::timeline::TrackAccessor;
 use animatix::timeline::animation_track::CalloutPlace;
 use animatix::timeline::callout_geometry::derive_callout_geometry;
-use animatix::timeline::{ActorKindId, TrackAccessor};
 
 use crate::app::commands::{
     Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
@@ -54,7 +54,7 @@ impl GestureHandler for CalloutGesture {
                     None => return GestureResult::Ignored,
                 };
 
-                if track.kind != ActorKindId::Callout || track.locked {
+                if track.actor_type != "Callout" || track.locked {
                     return GestureResult::Ignored;
                 }
 

@@ -984,11 +984,8 @@ fn extension_actor_at_position_regression() {
         fn category(&self) -> crate::timeline::ActorCategory {
             crate::timeline::ActorCategory::Shape
         }
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "stub"
-        }
-        fn kind_id(&self) -> crate::timeline::ActorKindId {
-            crate::timeline::ActorKindId::Extension
         }
         fn build(
             &self,
@@ -1002,7 +999,6 @@ fn extension_actor_at_position_regression() {
                 ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
-            track.kind = crate::timeline::ActorKindId::Extension;
             track.actor_type = "StubPulse".to_string();
             track.rebuild_property_plan();
             Ok(())

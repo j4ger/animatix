@@ -1972,7 +1972,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     // the registry schema so the keyframe uses
                                     // the canonical source property name (e.g.
                                     // `motion_offset` -> `shift`).
-                                    else if let Some(schema) = lane_schema(track.kind, prop_name) {
+                                    else if let Some(schema) = lane_schema(&track.caps, &track.actor_type, prop_name) {
                                         let value =
                                             animatix::timeline::read_property_value_or_default(
                                                 track,

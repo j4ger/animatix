@@ -541,7 +541,7 @@ mod tests {
     fn snapshot_preserves_kind() {
         let track = AnimationTrack::placeholder("test".to_string());
         let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.kind, track.kind);
+        assert_eq!(snapshot.actor_type, track.actor_type);
     }
 
     #[test]
@@ -766,21 +766,21 @@ mod tests {
     #[test]
     fn snapshot_preserves_svg_actor_kind() {
         let mut track = AnimationTrack::placeholder("icon".to_string());
-        track.kind = crate::timeline::ActorKindId::Svg;
+        track.set_identity("Svg");
         track.svg_paths.push(crate::timeline::VelloPath::default());
 
         let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.kind, crate::timeline::ActorKindId::Svg);
+        assert_eq!(snapshot.actor_type, "Svg");
         assert_eq!(snapshot.svg_paths.len(), 1, "svg_paths must survive snapshot");
     }
 
     #[test]
     fn snapshot_preserves_image_actor_kind() {
         let mut track = AnimationTrack::placeholder("pic".to_string());
-        track.kind = crate::timeline::ActorKindId::Image;
+        track.set_identity("Image");
 
         let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.kind, crate::timeline::ActorKindId::Image);
+        assert_eq!(snapshot.actor_type, "Image");
     }
 
     #[test]
@@ -789,7 +789,7 @@ mod tests {
 
         let mut source = Timeline::new();
         let mut actor = AnimationTrack::placeholder("icon".to_string());
-        actor.kind = crate::timeline::ActorKindId::Svg;
+        actor.set_identity("Svg");
         actor.svg_paths.push(VelloPath::default());
         actor.svg_paths.push(VelloPath::default());
         source.tracks.insert("icon".to_string(), actor);
@@ -801,7 +801,7 @@ mod tests {
         dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
         let icon = dest.tracks.get("icon").expect("icon must be carried");
-        assert_eq!(icon.kind, crate::timeline::ActorKindId::Svg);
+        assert_eq!(icon.actor_type, "Svg");
         assert_eq!(icon.svg_paths.len(), 2, "svg_paths must survive carry");
     }
 
@@ -812,7 +812,7 @@ mod tests {
 
         let mut source = Timeline::new();
         let mut actor = AnimationTrack::placeholder("curve".to_string());
-        actor.kind = crate::timeline::ActorKindId::PlotCurve;
+        actor.set_identity("PlotCurve");
         actor.procedural_plot = Some(ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
             kind: PlotCurveKind::Cartesian,
@@ -847,7 +847,7 @@ mod tests {
         dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
         let carried = dest.tracks.get("curve").expect("curve must be carried");
-        assert_eq!(carried.kind, crate::timeline::ActorKindId::PlotCurve);
+        assert_eq!(carried.actor_type, "PlotCurve");
         assert!(carried.procedural_plot.is_some(), "procedural_plot must survive carry");
     }
 

@@ -2235,7 +2235,7 @@ mod tests {
         // A Group container: evaluate() -> Some(vec![]) (empty command list).
         let mut group = AnimationTrack::placeholder("grp".to_string());
         group.first_seen_ms = 0;
-        group.kind = crate::timeline::ActorKindId::Group;
+        group.set_identity("Group");
         group.actor_type = "Group".to_string();
         group.geometry.size = {
             let mut t = PropertyTrack::new([40.0, 30.0]);
@@ -2247,7 +2247,7 @@ mod tests {
         // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
         let mut empty_text = AnimationTrack::placeholder("empty".to_string());
         empty_text.first_seen_ms = 0;
-        empty_text.kind = crate::timeline::ActorKindId::Text;
+        empty_text.set_identity("Text");
         empty_text.actor_type = "Text".to_string();
         empty_text.geometry.size = {
             let mut t = PropertyTrack::new([60.0, 20.0]);
@@ -2338,7 +2338,7 @@ mod tests {
         // Create Mask actor
         let mut mask_track = AnimationTrack::placeholder("mask".to_string());
         mask_track.first_seen_ms = 0;
-        mask_track.kind = crate::timeline::ActorKindId::Mask;
+        mask_track.set_identity("Mask");
         mask_track.geometry.size = Some({
             let mut t = PropertyTrack::new([100.0, 100.0]);
             t.add_keyframe(0, [100.0, 100.0], Easing::Linear);

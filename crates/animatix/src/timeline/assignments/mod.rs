@@ -14,7 +14,6 @@ use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::primitives::AssignmentCtx;
 use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
-use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::build::build_graph_axis_paths;
 use crate::timeline::plot::FuncSource;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
@@ -160,7 +159,7 @@ impl Timeline {
             let mut owners: Vec<String> = self
                 .tracks
                 .iter()
-                .filter(|(_, track)| track.kind == ActorKindId::Filter)
+                .filter(|(_, track)| track.caps.is_effect_scope())
                 .filter(|(_, track)| track.effects.stage(stage_label).is_some())
                 .map(|(label, _)| label.clone())
                 .collect();
@@ -212,7 +211,7 @@ impl Timeline {
             let stage_kind = self
                 .tracks
                 .get(scope_label)
-                .filter(|track| track.kind == ActorKindId::Filter)
+                .filter(|track| track.caps.is_effect_scope())
                 .and_then(|track| track.effects.stage(stage_label))
                 .map(|stage| stage.kind.clone());
             if let Some(kind) = stage_kind {
@@ -416,11 +415,8 @@ impl Timeline {
         let is_plot_actor = primitive
             .is_some_and(|primitive| primitive.capabilities().plot_geometry)
             || matches!(
-                track.kind,
-                ActorKindId::VectorField
-                    | ActorKindId::Heatmap
-                    | ActorKindId::ContourSet
-                    | ActorKindId::PlotCurve
+                track.actor_type.as_str(),
+                "VectorField" | "Heatmap" | "ContourSet" | "PlotCurve"
             );
         if property == "func" && is_plot_actor {
             // Evaluate RHS to a closure.
@@ -578,7 +574,7 @@ impl Timeline {
                     for child_label in &children {
                         if let Some(child_track) = self.tracks.get_mut(child_label) {
                             // Scale PlotCurve paths
-                            if child_track.kind == super::ActorKindId::PlotCurve {
+                            if child_track.actor_type == "PlotCurve" {
                                 scale_plot_curve_paths(
                                     child_track,
                                     scale_x,
@@ -590,7 +586,7 @@ impl Timeline {
                             }
                             // Scale tick label positions (Text children named {label}_tick_x_N /
                             // _tick_y_N)
-                            if child_track.kind == super::ActorKindId::Text
+                            if child_track.actor_type == "Text"
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
                             {
@@ -644,9 +640,7 @@ impl Timeline {
 
                 // For Line actors, `color` assignment also sets `stroke_color` (Line is
                 // stroke-only)
-                if property == "color"
-                    && track.kind == super::ActorKindId::Shape(super::ShapeKind::Line)
-                {
+                if property == "color" && track.caps.shape == Some(super::ShapeKind::Line) {
                     if let Some(spv) = parse_property_value(
                         schema.value_type,
                         value,
@@ -807,10 +801,11 @@ pub(crate) fn recompile_text_at_assignment(
         easing,
     );
 
-    let text_kind = match track.kind {
-        super::ActorKindId::Text => crate::renderer::text::TextKind::Text,
-        super::ActorKindId::Code => crate::renderer::text::TextKind::Code,
-        super::ActorKindId::Typst => crate::renderer::text::TextKind::Typst,
+    let text_kind = match track.caps.text {
+        Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
+        Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,
+        Some(crate::timeline::TextKind::Typst) => crate::renderer::text::TextKind::Typst,
+        // `Math` never recompiled on `text` assignment (no plain-text body).
         _ => return Ok(()),
     };
 

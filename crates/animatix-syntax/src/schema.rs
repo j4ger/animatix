@@ -209,7 +209,7 @@ pub struct PrimitiveCapabilities {
 }
 
 /// Child-rendering strategy selected by a primitive.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum ChildProcessingKind {
     /// Render children through the normal scene graph recursion.
     #[default]

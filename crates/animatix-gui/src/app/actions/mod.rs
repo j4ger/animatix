@@ -640,7 +640,7 @@ fn apply_property_edit_to_track(
         return;
     }
 
-    if track.kind == animatix::timeline::ActorKindId::Legend {
+    if track.actor_type == "Legend" {
         match property {
             "title" => {
                 if let PV::String(v) = value {

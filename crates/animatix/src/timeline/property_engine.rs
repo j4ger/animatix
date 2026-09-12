@@ -302,7 +302,7 @@ pub(crate) fn write_property_field(
     let pv_default = ActorField::default_value(field);
     let tagged_default = match field {
         ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
-            .map(|schema| (schema.default_value)(track.kind)),
+            .map(|schema| (schema.default_value)(&track.caps)),
         _ => None,
     };
     if field == ActorField::Tagged("legend") {
@@ -971,7 +971,7 @@ pub(crate) fn inject_property_into_env(
             None => {
                 // No track value — fall back to schema default.
                 // For Component sources, extract the indexed component.
-                let write_default = (schema.default_value)(track.kind);
+                let write_default = (schema.default_value)(&track.caps);
                 match schema.read_source {
                     ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
                     ReadSource::Component { index, scale, .. } => {

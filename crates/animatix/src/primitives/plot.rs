@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::primitives::{ActorCategory, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The `Graph` plot primitive.
@@ -27,11 +27,8 @@ impl Primitive for GraphPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::CHART_BAR
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Graph
     }
 
     fn evaluate(
@@ -85,20 +82,21 @@ impl Primitive for PlotCurvePrimitive {
     fn type_name(&self) -> &str {
         "PlotCurve"
     }
+
+    fn has_stroke_path(&self) -> bool {
+        true
+    }
     fn display_name(&self) -> &str {
         "Plot Curve"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::CHART_LINE_UP
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::PlotCurve
     }
 
     fn evaluate(
@@ -195,14 +193,11 @@ impl Primitive for VectorFieldPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::ARROWS_OUT_CARDINAL
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::VectorField
     }
 
     fn evaluate(
@@ -276,14 +271,11 @@ impl Primitive for HeatmapPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::GRADIENT
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Heatmap
     }
 
     fn evaluate(
@@ -354,14 +346,11 @@ impl Primitive for ContourSetPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::CHART_DONUT
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::ContourSet
     }
 
     fn evaluate(
@@ -434,11 +423,8 @@ impl Primitive for NumberPlanePrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Plot
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::SQUARES_FOUR
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::NumberPlane
     }
 
     fn evaluate(

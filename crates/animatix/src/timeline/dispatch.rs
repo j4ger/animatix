@@ -21,7 +21,7 @@ use std::collections::HashMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::actor_kind::ActorKindId;
+use super::actor_caps::ActorCaps;
 use super::animation_track::{
     CalloutPlace, GeometryTracks, HighlightTracks, PlacementMode, PositionBinding, ShapeTracks,
     StyleTracks, TextTracks,
@@ -45,16 +45,17 @@ use crate::timeline::property_registry::{ActorField, PropertySchema};
 ///
 /// Every actor in the scene graph has exactly one `AnimationTrack`.  The track
 /// stores typed optional property tracks (geometry, style, filter, shape, text,
-/// highlight tiers), along with metadata such as `kind` (`ActorKindId`),
-/// `children` (scene-graph hierarchy), and `visible`.
+/// highlight tiers), along with metadata such as the derived capability
+/// projection `caps`, `children` (scene-graph hierarchy), and `visible`.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnimationTrack {
     // ── Identity / metadata ──
     /// Human-readable identifier for the actor.
     pub label: String,
-    /// Compile-time kind of this actor.
-    pub kind: ActorKindId,
+    /// Capability projection of this actor's primitive kind, derived once at
+    /// identity time.
+    pub caps: ActorCaps,
     /// Source type name for this actor's primitive (e.g. `"Rect"`, `"Text"`,
     /// or an extension's type name). Required and non-optional: it is the
     /// single registry key the frame path resolves the primitive with, so no
@@ -64,8 +65,8 @@ pub struct AnimationTrack {
     pub actor_type: String,
     /// Registry-derived property plan for this actor.
     ///
-    /// Built after the actor kind is known; frame-time extension paths can use
-    /// this instead of string lookups.
+    /// Built after the actor identity is known; frame-time extension paths can
+    /// use this instead of string lookups.
     pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
@@ -224,17 +225,16 @@ impl AnimationTrack {
     /// Create a new empty animation track for an actor of primitive type
     /// `actor_type` (e.g. `"Rect"`, `"Text"`, or an extension's type name).
     ///
-    /// The primitive identity is required at construction: `kind` is derived
-    /// from it (extension primitives map to [`ActorKindId::Extension`]), so no
-    /// later lookup needs a kind fallback for a track that was built without a
-    /// type name.
+    /// The primitive identity is required at construction: capabilities are
+    /// derived from it, so no later lookup needs a fallback for a track that
+    /// was built without a type name.
     pub fn new(label: String, actor_type: impl Into<String>) -> Self {
         let actor_type = actor_type.into();
-        let kind = ActorKindId::from_type_name(&actor_type).unwrap_or(ActorKindId::Extension);
+        let caps = ActorCaps::of_type(&actor_type).unwrap_or_default();
         Self {
             // Identity
             label: label.clone(),
-            kind,
+            caps,
             actor_type,
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
@@ -298,40 +298,37 @@ impl AnimationTrack {
         Self::new(label, "Rect")
     }
 
-    /// Resolve an empty `actor_type` (legacy deserialized tracks) from `kind`.
-    /// This is the single compatibility boundary — runtime lookups never fall
-    /// back.
+    /// Resolve tracks whose identity was never set. The authored type name is
+    /// the only identity — there is nothing to derive it from.
     pub fn normalize_identity(&mut self) {
-        if !self.actor_type.is_empty() {
-            return;
-        }
-        if let Some(meta) = crate::primitives::actor_kind_meta(self.kind) {
-            self.actor_type = meta.type_name.to_string();
-        } else {
-            // Only `ActorKindId::Extension` has no built-in meta; such a track
-            // cannot be resolved without the plugin-provided type name.
-            tracing::warn!(
-                "track '{}' has no actor type and no built-in kind metadata; \
-                 it cannot be rendered",
-                self.label
-            );
+        if self.actor_type.is_empty() {
+            tracing::warn!("track '{}' has an empty actor type; it cannot be rendered", self.label);
         }
     }
 
-    /// Set this track's primitive identity, deriving `kind` from it.
+    /// Set this track's primitive identity, deriving capabilities from it.
     ///
-    /// The single funnel for identity writes, so `actor_type` and `kind` cannot
-    /// drift: built-in type names map to their `ActorKindId`, and anything
-    /// unregistered (extension primitives) maps to [`ActorKindId::Extension`].
+    /// The single funnel for identity writes, so `actor_type` and `caps`
+    /// cannot drift: built-in type names derive their caps from the registry,
+    /// and anything unregistered (extension primitives) keeps all-false caps
+    /// until its build path refines them.
     pub(crate) fn set_identity(&mut self, actor_type: &str) {
         self.actor_type = actor_type.to_string();
-        self.kind = ActorKindId::from_type_name(actor_type).unwrap_or(ActorKindId::Extension);
+        self.caps = ActorCaps::of_type(actor_type).unwrap_or_default();
     }
 
-    /// Rebuild the property plan from the current actor kind.
+    /// Refine this track's capabilities from the registered primitive.
+    ///
+    /// Extension builds call this after `set_identity`: an unregistered type
+    /// name has no built-in caps, but the registry primitive knows its own.
+    pub(crate) fn set_caps_from(&mut self, primitive: &dyn crate::primitives::Primitive) {
+        self.caps = ActorCaps::of(primitive);
+    }
+
+    /// Rebuild the property plan from the current actor identity.
     pub fn rebuild_property_plan(&mut self) {
         let previous = std::mem::take(&mut self.property_plan);
-        self.property_plan = super::plan::PropertyPlan::for_actor_kind(self.kind);
+        self.property_plan = super::plan::PropertyPlan::for_actor(&self.caps, &self.actor_type);
         self.property_plan.preserve_extension_slots(&previous);
     }
 
@@ -1164,7 +1161,7 @@ impl AnimationTrack {
             _ => return false,
         };
 
-        if field == ImageData && self.kind == ActorKindId::Svg {
+        if field == ImageData && self.actor_type == "Svg" {
             return self
                 .svg_paths_track
                 .as_ref()
@@ -1217,7 +1214,7 @@ impl AnimationTrack {
             _ => return false,
         };
 
-        if field == ImageData && self.kind == ActorKindId::Svg {
+        if field == ImageData && self.actor_type == "Svg" {
             return self.svg_paths_track.as_ref().is_some_and(|track| !track.keyframes.is_empty());
         }
 
@@ -1268,7 +1265,7 @@ impl AnimationTrack {
             _ => return Vec::new(),
         };
 
-        let mut times: Vec<u64> = if field == ImageData && self.kind == ActorKindId::Svg {
+        let mut times: Vec<u64> = if field == ImageData && self.actor_type == "Svg" {
             self.svg_paths_track
                 .as_ref()
                 .map_or(Vec::new(), |track| track.keyframes.keys().copied().collect())
@@ -1289,7 +1286,7 @@ fn svg_paths_track_for(
     track: &AnimationTrack,
     field: ActorField,
 ) -> Option<&PropertyTrack<Option<Vec<VelloPath>>>> {
-    if track.kind == ActorKindId::Svg && field == ActorField::ImageData {
+    if track.actor_type == "Svg" && field == ActorField::ImageData {
         track.svg_paths_track.as_ref()
     } else {
         None
@@ -1322,7 +1319,7 @@ pub fn read_property_value_or_default(
     time_ms: u64,
 ) -> PropertyValue {
     read_property_value(track, schema.field, time_ms)
-        .unwrap_or_else(|| (schema.default_value)(track.kind))
+        .unwrap_or_else(|| (schema.default_value)(&track.caps))
 }
 
 /// Returns whether a property has any keyframes on the given track.

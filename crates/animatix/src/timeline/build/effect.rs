@@ -27,10 +27,8 @@ impl Timeline {
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let is_scope = self
-            .tracks
-            .get(parent_label)
-            .is_some_and(|track| track.kind == ActorKindId::Filter);
+        let is_scope =
+            self.tracks.get(parent_label).is_some_and(|track| track.caps.is_effect_scope());
         if !is_scope {
             diagnostics.push(
                 Diagnostic::error(

@@ -2,7 +2,7 @@
 
 use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::primitives::{ActorCategory, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The `Group` primitive.
@@ -21,14 +21,11 @@ impl Primitive for GroupPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::FOLDER
     }
     fn is_container(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Group
     }
 
     fn build(

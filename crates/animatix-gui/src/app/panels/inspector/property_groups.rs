@@ -75,7 +75,7 @@ pub(crate) fn build_property_groups(
     track: &AnimationTrack,
     time_ms: u64,
 ) -> Vec<PropertyGroup> {
-    let indices = allowed_property_indices(track.kind);
+    let indices = allowed_property_indices(&track.caps, &track.actor_type);
 
     let mut geometry = Vec::new();
     let mut style = Vec::new();
@@ -106,7 +106,7 @@ pub(crate) fn build_property_groups(
         let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
         let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
 
-        let value = convert_for_display(value, schema.name, track.kind);
+        let value = convert_for_display(value, schema.name);
         let kind = match schema.value_type {
             ValueType::Union(variants) => PropertyKind::Union { variants, value },
             ValueType::Sum(variants) => PropertyKind::Sum { variants, value },
@@ -204,7 +204,7 @@ pub(crate) fn build_property_groups(
     }
 
     let mut legend_props = Vec::new();
-    if track.kind == animatix::timeline::ActorKindId::Legend {
+    if track.actor_type == "Legend" {
         legend_props.extend(legend_style_entries(track));
     }
     let mode = animatix::timeline::legend::legend_mode_for_track(track);
@@ -413,11 +413,7 @@ fn color_display(color: [f32; 4]) -> String {
 /// Several properties are stored on shared fields (e.g. `radius` is stored
 /// in the `size` Vec2 track) or use half-extent internally while the UI
 /// shows full dimensions.  This function normalises those cases.
-fn convert_for_display(
-    value: PropertyValue,
-    name: &str,
-    _kind: animatix::timeline::ActorKindId,
-) -> PropertyValue {
+fn convert_for_display(value: PropertyValue, name: &str) -> PropertyValue {
     match name {
         // Radius properties are stored as the x or y component of `size`.
         "radius" | "radius_x" => {

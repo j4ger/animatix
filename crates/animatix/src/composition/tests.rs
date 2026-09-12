@@ -897,7 +897,7 @@ fn test_auto_color_slot_preserved_across_carry() {
     assert_eq!(slot_a, slot_b, "auto_color slot must be the same in both scenes");
 }
 
-/// `PlotCurve` actor must carry its `ActorKindId::PlotCurve` kind and
+/// `PlotCurve` actor must carry its identity and
 /// `procedural_plot` to the next scene intact.
 #[test]
 fn test_plot_curve_carry() {
@@ -940,8 +940,8 @@ fn test_plot_curve_carry() {
 
     let curve_track = scene_b.timeline.tracks.get("curve").unwrap();
     assert_eq!(
-        curve_track.kind,
-        crate::timeline::ActorKindId::PlotCurve,
+        curve_track.actor_type,
+        "PlotCurve".to_string(),
         "carried PlotCurve track must retain PlotCurve kind"
     );
     assert!(
@@ -950,7 +950,7 @@ fn test_plot_curve_carry() {
     );
 }
 
-/// `Svg` actor must carry its `ActorKindId::Svg` kind to the next scene.
+/// `Svg` actor must carry its identity to the next scene.
 #[test]
 fn test_svg_actor_carry() {
     // Svg actor declaration with an inline path (no file loading needed for kind carry test)
@@ -977,13 +977,13 @@ fn test_svg_actor_carry() {
     );
     let icon_track = scene_b.timeline.tracks.get("icon").unwrap();
     assert_eq!(
-        icon_track.kind,
-        crate::timeline::ActorKindId::Svg,
+        icon_track.actor_type,
+        "Svg".to_string(),
         "carried Svg track must retain Svg kind"
     );
 }
 
-/// `Image` actor must carry its `ActorKindId::Image` kind to the next scene.
+/// `Image` actor must carry its identity to the next scene.
 #[test]
 fn test_image_actor_carry() {
     // Image actor declaration with a placeholder path
@@ -1010,8 +1010,8 @@ fn test_image_actor_carry() {
     );
     let pic_track = scene_b.timeline.tracks.get("pic").unwrap();
     assert_eq!(
-        pic_track.kind,
-        crate::timeline::ActorKindId::Image,
+        pic_track.actor_type,
+        "Image".to_string(),
         "carried Image track must retain Image kind"
     );
 }

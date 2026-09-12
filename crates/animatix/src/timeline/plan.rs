@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::easing::Easing;
 use crate::timeline::property_registry::{PROPERTY_REGISTRY, ValueType};
 use crate::timeline::property_track::PropertyTrack;
-use crate::timeline::{ActorKindId, PropertyValue};
+use crate::timeline::{ActorCaps, PropertyValue};
 
 /// Finite value kinds understood by dynamic property tracks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -100,15 +100,15 @@ impl PropertyPlan {
         }
     }
 
-    /// Build the default plan for an actor kind from the property registry.
+    /// Build the default plan for an actor from the property registry.
     ///
     /// This is the first registry-driven producer for plans. Later phases can
     /// replace it with per-primitive descriptors while keeping the same
     /// `PropertyId`/slot access model.
-    pub fn for_actor_kind(kind: ActorKindId) -> Self {
+    pub fn for_actor(caps: &ActorCaps, actor_type: &str) -> Self {
         let slots = PROPERTY_REGISTRY
             .iter()
-            .filter(|schema| schema.applicable.includes(kind))
+            .filter(|schema| schema.applicable.includes(caps, actor_type))
             .filter_map(|schema| {
                 let id = crate::timeline::property_id(schema.name)?;
                 let kind = property_kind_from_value_type(schema.value_type);
@@ -435,7 +435,7 @@ impl DynTrack {
 #[cfg(test)]
 mod tests {
     use super::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
-    use crate::timeline::{ActorKindId, PropertyValue, property_id};
+    use crate::timeline::{ActorCaps, PropertyValue, property_id};
 
     #[test]
     fn plan_binary_searches_by_property_id() {
@@ -500,8 +500,10 @@ mod tests {
 
     #[test]
     fn actor_kind_plan_maps_registry_properties_by_id() {
-        let mut plan =
-            PropertyPlan::for_actor_kind(ActorKindId::Shape(crate::timeline::ShapeKind::Rect));
+        let mut plan = PropertyPlan::for_actor(
+            &ActorCaps::of_type("Rect").expect("Rect is a built-in"),
+            "Rect",
+        );
         let position = property_id("position").expect("position is registered");
 
         let slot = plan.get(position).expect("position is applicable to Rect");

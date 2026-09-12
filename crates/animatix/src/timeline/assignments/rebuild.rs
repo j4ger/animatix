@@ -232,7 +232,7 @@ pub(super) fn rebuild_vector_paths(
     let line_to = track.shape.line_to.last([50.0, 0.0]);
     let arc_angles = track.shape.arc_angles.last(default_arc);
     let color = track.style.color.last(DEFAULT_WHITE);
-    let stroke_width = track.style.stroke_width.last(default_stroke_width(track.kind));
+    let stroke_width = track.style.stroke_width.last(default_stroke_width(&track.actor_type));
     let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.style.fill_opacity.last(1.0);
 

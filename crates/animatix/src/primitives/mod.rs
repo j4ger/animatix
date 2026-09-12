@@ -55,9 +55,8 @@ use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
-    ActorCategory, ActorKindId, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
-    Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
-    default_stroke_width,
+    ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions, Timeline,
+    TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath, default_stroke_width,
 };
 
 /// Map the runtime UI category onto the schema category used by tooling.
@@ -243,7 +242,8 @@ pub fn sample_shape_style(
     overrides: Option<&std::collections::HashMap<String, Value>>,
 ) -> VectorShapeStyle {
     let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width = track.style.stroke_width.get(time_ms, default_stroke_width(track.kind));
+    let mut stroke_width =
+        track.style.stroke_width.get(time_ms, default_stroke_width(&track.actor_type));
     let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
     let mut line_cap = track.style.line_cap.get(time_ms, 0);
@@ -1023,7 +1023,7 @@ pub trait Primitive: Send + Sync {
     fn category(&self) -> ActorCategory;
 
     /// Opaque icon identifier. The GUI maps this to a concrete icon.
-    fn icon_id(&self) -> &str;
+    fn icon_id(&self) -> &'static str;
 
     /// When true, shown in a "More..." submenu instead of top-level.
     fn is_advanced(&self) -> bool {
@@ -1091,8 +1091,23 @@ pub trait Primitive: Send + Sync {
         self.declared_property_names().contains(&name)
     }
 
-    /// Returns the corresponding `ActorKindId` variant.
-    fn kind_id(&self) -> ActorKindId;
+    /// The concrete shape geometry, for shape primitives.
+    ///
+    /// Replaces the old `ActorKindId::Shape(ShapeKind)` identity: the
+    /// capability is data on the primitive, not an enum variant.
+    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
+        None
+    }
+
+    /// The text engine backing this actor, for text-like primitives.
+    fn text_kind(&self) -> Option<crate::timeline::TextKind> {
+        None
+    }
+
+    /// Renders as a stroke-based path (shapes and `PlotCurve`).
+    fn has_stroke_path(&self) -> bool {
+        self.is_shape()
+    }
 
     // ── Build: AST → Timeline ──
 
@@ -1339,8 +1354,6 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
 /// Static metadata generated from `PRIMITIVES`.
 /// Built once at first access via `OnceLock`.
 pub struct ActorKindMeta {
-    /// Actor kind identifier.
-    pub kind: ActorKindId,
     /// Source-text type name.
     pub type_name: &'static str,
     /// Human-readable display name.
@@ -1361,7 +1374,6 @@ fn build_registry() -> Vec<ActorKindMeta> {
     PRIMITIVES
         .iter()
         .map(|p| ActorKindMeta {
-            kind: p.kind_id(),
             type_name: p.type_name(),
             display_name: p.display_name(),
             category: p.category(),
@@ -1374,11 +1386,6 @@ fn build_registry() -> Vec<ActorKindMeta> {
 /// Get the auto-generated metadata registry.
 pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
     REGISTRY_LOCK.get_or_init(build_registry)
-}
-
-/// Look up metadata by `ActorKindId`.
-pub fn actor_kind_meta(kind: ActorKindId) -> Option<&'static ActorKindMeta> {
-    actor_kind_registry().iter().find(|m| m.kind == kind)
 }
 
 /// Look up metadata by type name.
@@ -1507,7 +1514,6 @@ mod tests {
         let registry = actor_kind_registry();
         assert_eq!(registry.len(), PRIMITIVES.len());
         for (meta, prim) in registry.iter().zip(PRIMITIVES.iter()) {
-            assert_eq!(meta.kind, prim.kind_id());
             assert_eq!(meta.type_name, prim.type_name());
             assert_eq!(meta.display_name, prim.display_name());
             assert_eq!(meta.category, prim.category());
@@ -1561,58 +1567,11 @@ mod tests {
     }
 
     #[test]
-    fn every_kind_id_has_meta() {
-        // This enumerates all variants and verifies they're in the registry
-        use crate::timeline::ShapeKind;
-        let registry = actor_kind_registry();
-        let kinds: std::collections::HashSet<_> = registry.iter().map(|m| m.kind).collect();
-
-        let shape_kinds = [
-            ShapeKind::Rect,
-            ShapeKind::Ellipse,
-            ShapeKind::Line,
-            ShapeKind::Polygon,
-            ShapeKind::Path,
-            ShapeKind::Arrow,
-        ];
-        for sk in &shape_kinds {
-            let id = ActorKindId::Shape(*sk);
-            assert!(kinds.contains(&id), "Missing ActorKindMeta for ShapeKind::{:?}", sk);
+    fn every_primitive_derives_caps() {
+        for prim in PRIMITIVES.iter() {
+            let caps = crate::timeline::ActorCaps::of(*prim);
+            let _ = caps; // derivation must be total over built-ins
         }
-
-        for id in [
-            ActorKindId::Text,
-            ActorKindId::Code,
-            ActorKindId::Typst,
-            ActorKindId::Math,
-            ActorKindId::Image,
-            ActorKindId::Svg,
-            ActorKindId::Graph,
-            ActorKindId::PlotCurve,
-            ActorKindId::VectorField,
-            ActorKindId::Heatmap,
-            ActorKindId::ContourSet,
-            ActorKindId::NumberPlane,
-            ActorKindId::Row,
-            ActorKindId::Col,
-            ActorKindId::Grid,
-            ActorKindId::Stack,
-            ActorKindId::Group,
-            ActorKindId::Mask,
-            ActorKindId::Filter,
-            ActorKindId::Audio,
-            ActorKindId::Equation,
-            ActorKindId::Fragment,
-            ActorKindId::Callout,
-            ActorKindId::Legend,
-        ] {
-            assert!(kinds.contains(&id), "Missing ActorKindMeta for {:?}", id);
-        }
-
-        assert!(
-            !kinds.contains(&ActorKindId::Extension),
-            "Extension is a dynamic kind without static built-in metadata"
-        );
     }
 
     #[test]
@@ -1622,7 +1581,6 @@ mod tests {
         use crate::timeline::{AnimationTrack, SceneDimensions, property_track::PropertyTrack};
 
         let mut track = AnimationTrack::placeholder("label".to_string());
-        track.kind = ActorKindId::Text;
         let mut content = PropertyTrack::new("Hello".to_string());
         content.add_keyframe(0, "Hello".to_string(), Easing::Linear);
         content.add_keyframe(1000, "Hello".to_string(), Easing::Linear);

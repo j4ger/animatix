@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::lookup::parse_numeric_vec2;
 use super::{Diagnostic, Environment, Interpolate, KurboShape, VelloPath, evaluate_expr};
 use crate::ast::Expr;
-use crate::timeline::actor_kind::{ActorKindId, ShapeKind};
+use crate::timeline::ShapeKind;
 
 /// Discriminant for the kind of geometric shape an actor represents.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -338,17 +338,15 @@ pub struct VectorShapeStyle {
 /// Stroke-only actors need a visible outline by default; filled shapes do not,
 /// and a hidden white outline was visible as asymmetric edge artifacts on
 /// plain `Rect`s.
-pub fn default_stroke_width(kind: ActorKindId) -> f32 {
-    match kind {
-        ActorKindId::Shape(ShapeKind::Line | ShapeKind::Arrow)
-        | ActorKindId::Callout
-        | ActorKindId::PlotCurve
+pub fn default_stroke_width(actor_type: &str) -> f32 {
+    match actor_type {
+        "Line" | "Arrow" | "Callout" | "PlotCurve"
         // Stroke-drawn plots: VectorField/ContourSet draw arrows/contours via
         // `stroke`, so a zero default width makes them invisible when the user
         // sets only `color:`. `color` is used as their stroke color, so a
         // non-zero default renders them as authored.
-        | ActorKindId::VectorField
-        | ActorKindId::ContourSet => 2.0,
+        | "VectorField"
+        | "ContourSet" => 2.0,
         _ => 0.0,
     }
 }
@@ -358,13 +356,16 @@ mod primitives;
 
 /// Map an actor type string to its corresponding `ShapeType`, if any.
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
-    // Resolve through the primitive's `kind_id()` instead of a parallel
-    // string table, so the mapping cannot drift from `ActorKindId`.
-    match crate::primitives::find_primitive(ty).map(|p| p.kind_id()) {
-        Some(ActorKindId::Shape(kind)) => Some(shape_kind_to_shape_type(kind)),
+    // Resolve through the primitive's derived caps instead of a parallel
+    // string table, so the mapping cannot drift from the primitive.
+    let caps = crate::timeline::ActorCaps::of_type(ty)?;
+    if let Some(kind) = caps.shape {
+        return Some(shape_kind_to_shape_type(kind));
+    }
+    match ty {
         // Plot-host kinds reuse the Graph command geometry for edit handles.
-        Some(ActorKindId::Graph | ActorKindId::NumberPlane) => Some(ShapeType::Graph),
-        Some(ActorKindId::PlotCurve) => Some(ShapeType::Plot),
+        "Graph" | "NumberPlane" => Some(ShapeType::Graph),
+        "PlotCurve" => Some(ShapeType::Plot),
         _ => None,
     }
 }
@@ -851,10 +852,10 @@ mod tests {
         // Regression: VectorField/ContourSet draw arrows/contours via `stroke`,
         // so a zero default stroke width made them invisible when the user set
         // only `color:` (which is used as their stroke color).
-        assert_eq!(default_stroke_width(ActorKindId::VectorField), 2.0);
-        assert_eq!(default_stroke_width(ActorKindId::ContourSet), 2.0);
+        assert_eq!(default_stroke_width("VectorField"), 2.0);
+        assert_eq!(default_stroke_width("ContourSet"), 2.0);
         // Filled shapes stay stroke-less by default.
-        assert_eq!(default_stroke_width(ActorKindId::Shape(ShapeKind::Rect)), 0.0);
-        assert_eq!(default_stroke_width(ActorKindId::Shape(ShapeKind::Ellipse)), 0.0);
+        assert_eq!(default_stroke_width("Rect"), 0.0);
+        assert_eq!(default_stroke_width("Ellipse"), 0.0);
     }
 }

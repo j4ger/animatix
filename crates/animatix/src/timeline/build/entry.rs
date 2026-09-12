@@ -640,22 +640,6 @@ impl Timeline {
                     .with_subject(label),
                 );
             }
-            // `actor_type` and `kind` are written together through
-            // `AnimationTrack::set_identity` (built-ins) or by the primitive's
-            // own `kind_id()` (extensions); anything else would show as drift.
-            let expected_kind = timeline
-                .primitive_registry
-                .find(&track.actor_type)
-                .map(|primitive| primitive.kind_id())
-                .unwrap_or(crate::timeline::ActorKindId::Extension);
-            if track.kind != expected_kind {
-                tracing::warn!(
-                    "track '{label}' kind {:?} disagrees with actor_type '{}' (expected {:?})",
-                    track.kind,
-                    track.actor_type,
-                    expected_kind
-                );
-            }
         }
 
         // Check for always-blocks overriding keyframed properties.
@@ -697,7 +681,7 @@ impl Timeline {
         // Validate Callout `target` references after all actors are built.
         // This is a post-build pass so forward declarations are visible.
         for (label, track) in &timeline.tracks {
-            if track.kind == crate::timeline::ActorKindId::Callout {
+            if track.actor_type == "Callout" {
                 use crate::timeline::TrackAccessor;
                 let target = track.geometry.callout_target.get(0, String::new());
                 if !target.is_empty() && !timeline.tracks.contains_key(&target) {
@@ -721,7 +705,7 @@ impl Timeline {
         let legend_labels = timeline
             .tracks
             .iter()
-            .filter(|(_, track)| track.kind == crate::timeline::ActorKindId::Legend)
+            .filter(|(_, track)| track.actor_type == "Legend")
             .map(|(label, _)| label.clone())
             .collect::<Vec<_>>();
         if !legend_labels.is_empty() {

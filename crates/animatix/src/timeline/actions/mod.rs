@@ -34,9 +34,6 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::extension_context::ExtensionContext;
 use crate::timeline::Timeline;
-// ActorKindId is used by test fixtures only.
-#[cfg(test)]
-use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
 
 fn push_unknown_action_diagnostic(
@@ -502,12 +499,8 @@ mod tests {
             ActorCategory::Container
         }
 
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "flex"
-        }
-
-        fn kind_id(&self) -> ActorKindId {
-            ActorKindId::Extension
         }
 
         fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
@@ -531,7 +524,6 @@ mod tests {
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::placeholder(label.to_string()));
-            track.kind = ActorKindId::Extension;
             track.rebuild_property_plan();
             Ok(())
         }

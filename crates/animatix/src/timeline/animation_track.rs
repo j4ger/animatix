@@ -560,105 +560,59 @@ pub struct GeometryTracks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::actor_kind::{ActorKindId, ShapeKind, actor_kind_registry};
+    use crate::timeline::actor_caps::{ShapeKind, actor_kind_registry};
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::TrackAccessor;
 
-    /// Every ActorKindId variant must have a corresponding ActorKindMeta entry.
-    /// This test enumerates all variants and verifies they are in the registry.
+    /// Every built-in primitive must appear in the metadata registry and
+    /// derive a complete capability projection.
     #[test]
     fn actor_kind_registry_is_complete() {
-        // Build a set of all registered kinds
-        let registered: std::collections::HashSet<ActorKindId> =
-            actor_kind_registry().iter().map(|m| m.kind).collect();
+        use crate::primitives::find_primitive;
+        use crate::timeline::ActorCaps;
 
-        // Enumerate all ShapeKind variants
-        let shape_kinds = [
-            ShapeKind::Rect,
-            ShapeKind::Ellipse,
-            ShapeKind::Line,
-            ShapeKind::Polygon,
-            ShapeKind::Path,
-        ];
-
-        for sk in &shape_kinds {
-            let kind = ActorKindId::Shape(*sk);
-            assert!(registered.contains(&kind), "ActorKindMeta missing for ShapeKind::{:?}", sk);
-        }
-
-        // Non-shape kinds
-        let non_shapes = [
-            ActorKindId::Text,
-            ActorKindId::Code,
-            ActorKindId::Typst,
-            ActorKindId::Image,
-            ActorKindId::Svg,
-            ActorKindId::Graph,
-            ActorKindId::PlotCurve,
-            ActorKindId::VectorField,
-            ActorKindId::Heatmap,
-            ActorKindId::ContourSet,
-            ActorKindId::NumberPlane,
-            ActorKindId::BarChart,
-            ActorKindId::Callout,
-            ActorKindId::Legend,
-            ActorKindId::Row,
-            ActorKindId::Col,
-            ActorKindId::Grid,
-            ActorKindId::Stack,
-            ActorKindId::Group,
-        ];
-
-        for kind in &non_shapes {
-            assert!(registered.contains(kind), "ActorKindMeta missing for {:?}", kind);
-        }
-
-        assert!(
-            !registered.contains(&ActorKindId::Extension),
-            "Extension is a dynamic kind resolved through actor_type/primitive registry"
-        );
-    }
-
-    /// Every registry entry must have a non-empty type_name and display_name.
-    #[test]
-    fn actor_kind_meta_has_valid_fields() {
-        for meta in actor_kind_registry().iter() {
+        for meta in actor_kind_registry() {
             assert!(
-                !meta.type_name.is_empty(),
-                "ActorKindMeta for {:?} has empty type_name",
-                meta.kind
-            );
-            assert!(
-                !meta.display_name.is_empty(),
-                "ActorKindMeta for {:?} has empty display_name",
-                meta.kind
-            );
-            assert!(
-                !meta.icon_id.is_empty(),
-                "ActorKindMeta for {:?} has empty icon_id",
-                meta.kind
-            );
-        }
-    }
-
-    /// type_name must round-trip through from_type_name.
-    #[test]
-    fn actor_kind_type_name_roundtrips() {
-        for meta in actor_kind_registry().iter() {
-            let parsed = ActorKindId::from_type_name(meta.type_name);
-            assert!(
-                parsed.is_some(),
-                "ActorKindId::from_type_name({:?}) returned None",
+                find_primitive(meta.type_name).is_some(),
+                "registry metadata for {:?} has no primitive",
                 meta.type_name
             );
-            assert_eq!(
-                parsed.unwrap(),
-                meta.kind,
-                "ActorKindId::from_type_name({:?}) returned {:?}, expected {:?}",
-                meta.type_name,
-                parsed,
-                meta.kind
-            );
+            let caps = ActorCaps::of_type(meta.type_name)
+                .unwrap_or_else(|| panic!("caps missing for {:?}", meta.type_name));
+            let _ = caps; // derivation must not panic; contents are per-primitive
+        }
+
+        // Spot-check the derived projections for representative kinds.
+        let rect = ActorCaps::of_type("Rect").unwrap();
+        assert_eq!(rect.shape, Some(ShapeKind::Rect));
+        assert!(rect.is_shape);
+        assert!(rect.stroke_path);
+
+        let text = ActorCaps::of_type("Text").unwrap();
+        assert_eq!(text.text, Some(crate::timeline::TextKind::Text));
+        assert!(text.text_paths);
+
+        let filter = ActorCaps::of_type("Filter").unwrap();
+        assert!(filter.is_effect_scope());
+
+        let gauge_like_group = ActorCaps::of_type("Group").unwrap();
+        assert!(gauge_like_group.group_like);
+        assert!(!gauge_like_group.layout_container);
+
+        let row = ActorCaps::of_type("Row").unwrap();
+        assert!(row.layout_container);
+    }
+
+    /// A track built from a registry type name must derive caps from that
+    /// primitive, and the name must survive unchanged.
+    #[test]
+    fn track_identity_derives_caps_from_registry() {
+        for meta in actor_kind_registry().iter() {
+            let track = super::AnimationTrack::new(format!("t"), meta.type_name);
+            assert_eq!(track.actor_type, meta.type_name);
+            if let Some(expected) = crate::timeline::ActorCaps::of_type(meta.type_name) {
+                assert_eq!(track.caps, expected, "caps drifted for {}", meta.type_name);
+            }
         }
     }
 

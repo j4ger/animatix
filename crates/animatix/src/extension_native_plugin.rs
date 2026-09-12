@@ -48,9 +48,7 @@ use crate::primitives::{
 use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAction};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{
-    ActorCategory, ActorKindId, Environment, EvalError, PropertyValue, ResizeMode, Value,
-};
+use crate::timeline::{ActorCategory, Environment, EvalError, PropertyValue, ResizeMode, Value};
 
 use super::{ExtensionPlugin, PluginDisposer, PluginError};
 
@@ -707,7 +705,7 @@ unsafe extern "C" fn native_register_effect(
 struct NativePrimitiveAdapter {
     type_name: String,
     display_name: String,
-    icon_id: String,
+    icon_id: &'static str,
     category: ActorCategory,
     advanced: bool,
     child_processing: ChildProcessing,
@@ -739,8 +737,14 @@ impl NativePrimitiveAdapter {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
         let display_name =
             unsafe { read_c_string(primitive.display_name) }.unwrap_or_else(|| type_name.clone());
-        let icon_id =
-            unsafe { read_c_string(primitive.icon_id) }.unwrap_or_else(|| "extension".to_string());
+        // Leaked: `Primitive::icon_id` returns `&'static str` (the GUI row
+        // builder stores `Option<&'static str>`), and registration happens
+        // once per plugin load.
+        let icon_id: &'static str = Box::leak(
+            unsafe { read_c_string(primitive.icon_id) }
+                .unwrap_or_else(|| "extension".to_string())
+                .into_boxed_str(),
+        );
         let category = native_primitive_category(primitive.category)?;
         let declared_properties = if primitive.properties.is_null() || primitive.property_len == 0 {
             Vec::new()
@@ -814,7 +818,7 @@ impl Primitive for NativePrimitiveAdapter {
         self.category
     }
 
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         &self.icon_id
     }
 
@@ -902,10 +906,6 @@ impl Primitive for NativePrimitiveAdapter {
         }
     }
 
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Extension
-    }
-
     fn build(
         &self,
         ctx: &mut BuildCtx,
@@ -929,8 +929,8 @@ impl Primitive for NativePrimitiveAdapter {
             let type_name = self.type_name.clone();
             track.actor_type = type_name;
             // Native adapters report `ActorKindId::Extension`; use the primitive's
-            // own kind so the identity stays consistent with `kind_id()`.
-            track.kind = self.kind_id();
+            // capabilities stay consistent with the primitive's own.
+            track.set_caps_from(self);
             track.rebuild_property_plan();
         }
         let Some(build) = self.build else {
@@ -3707,7 +3707,6 @@ mod tests {
             HashMap::new(),
         )
         .expect("adapter");
-        assert_eq!(adapter.kind_id(), ActorKindId::Extension);
         let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let ctx = sample_evaluate_ctx(&track, &asset_cache);

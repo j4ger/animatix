@@ -33,7 +33,7 @@
 //! and component expansion—not the raw parser AST.
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
-mod actor_kind;
+pub mod actor_caps;
 /// Asset loading and caching.
 #[cfg(feature = "render")]
 pub mod assets;
@@ -126,7 +126,7 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action_with_extensions;
-pub use actor_kind::ActorKind;
+pub use actor_caps::ActorKind;
 pub(crate) use assignments::recompile_text_at_assignment;
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
@@ -219,8 +219,8 @@ impl BuildQuality {
         }
     }
 }
-pub use actor_kind::{
-    ActorCategory, ActorKindId, ActorKindMeta, ShapeKind, actor_kind_meta, actor_kind_meta_by_name,
+pub use actor_caps::{
+    ActorCaps, ActorCategory, ActorKindMeta, ShapeKind, TextKind, actor_kind_meta_by_name,
     actor_kind_registry,
 };
 pub use animation_track::{
@@ -238,7 +238,7 @@ use timing::{
 /// `AnimationTrack`, using the property registry to discover all possible fields.
 /// Used by the GUI to show keyframe markers on the mini timeline and time lens.
 pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
-    let indices = property_registry::allowed_property_indices(track.kind);
+    let indices = property_registry::allowed_property_indices(&track.caps, &track.actor_type);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {

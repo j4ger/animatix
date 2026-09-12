@@ -3,35 +3,21 @@
 //! The `ActorKindMeta.icon_id` field already contains the concrete glyph string
 //! (defined in the core crate's `icon_glyphs` module to avoid a GUI dependency).
 
-// Re-export the language-level metadata so callers don't need a second import.
-pub use animatix::primitives::actor_kind_meta;
-use animatix::timeline::{ActorKindId, AnimationTrack, Timeline};
+use animatix::timeline::{AnimationTrack, Timeline};
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 
 // ── Primary API ─────────────────────────────────────────────────────────
 
-/// Shorthand that returns only the icon string.
-///
-/// `ActorKindId::Extension` has no static metadata; a generic extension glyph
-/// is returned instead of an empty string (the plugin's own `icon_id()` is
-/// only reachable through the live registry — see [`actor_icon_for_track`]).
-pub fn actor_icon_str(kind: ActorKindId) -> &'static str {
-    match kind {
-        ActorKindId::Extension => egui_phosphor::regular::PUZZLE_PIECE,
-        _ => actor_kind_meta(kind).map(|m| m.icon_id).unwrap_or(""),
-    }
-}
-
 /// Icon for a track, resolved from the live registry via its required
-/// `actor_type` (so extension primitives participate); falls back to the static
-/// kind metadata only when the primitive is not registered.
-pub fn actor_icon_for_track(track: &AnimationTrack, timeline: &Timeline) -> String {
+/// `actor_type` (so extension primitives participate); unregistered type
+/// names get a generic extension glyph.
+pub fn actor_icon_for_track(track: &AnimationTrack, timeline: &Timeline) -> &'static str {
     timeline
         .primitive_registry_snapshot()
         .find(&track.actor_type)
-        .map(|primitive| primitive.icon_id().to_string())
-        .unwrap_or_else(|| actor_icon_str(track.kind).to_string())
+        .map(|primitive| primitive.icon_id())
+        .unwrap_or(egui_phosphor::regular::PUZZLE_PIECE)
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────
@@ -48,8 +34,8 @@ mod tests {
             assert_ne!(
                 meta.icon_id,
                 egui_phosphor::regular::QUESTION,
-                "ActorKind {:?} has unmapped icon_id: {:?}",
-                meta.kind,
+                "ActorKind {} has unmapped icon_id: {:?}",
+                meta.type_name,
                 meta.icon_id
             );
         }

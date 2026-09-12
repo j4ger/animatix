@@ -94,7 +94,7 @@ pub enum PropertyBinding {
         /// Runtime feature flags.
         flags: crate::timeline::property_registry::PropertyFlags,
         /// Default value, potentially actor-kind dependent.
-        default_value: fn(crate::timeline::ActorKindId) -> crate::timeline::PropertyValue,
+        default_value: fn(&crate::timeline::ActorCaps) -> crate::timeline::PropertyValue,
     },
     /// Property lives in a dynamic `PropertyPlan` slot.
     Plan {
@@ -586,7 +586,7 @@ mod tests {
     use crate::easing::Easing;
     use crate::primitives::{BuildCtx, Primitive};
     use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
-    use crate::timeline::{ActorCategory, ActorKindId, TrackAccessor};
+    use crate::timeline::{ActorCategory, TextKind, TrackAccessor};
     use crate::timeline::{Timeline, Value};
     use std::sync::Arc;
 
@@ -605,12 +605,12 @@ mod tests {
             ActorCategory::Annotation
         }
 
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "marker"
         }
 
-        fn kind_id(&self) -> ActorKindId {
-            ActorKindId::Text
+        fn text_kind(&self) -> Option<TextKind> {
+            Some(TextKind::Text)
         }
 
         fn build(
@@ -640,12 +640,12 @@ mod tests {
             ActorCategory::Plot
         }
 
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "gauge"
         }
 
-        fn kind_id(&self) -> ActorKindId {
-            ActorKindId::Text
+        fn text_kind(&self) -> Option<TextKind> {
+            Some(TextKind::Text)
         }
 
         fn build(
@@ -660,7 +660,10 @@ mod tests {
                 ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
-            track.kind = ActorKindId::Text;
+            // The fixture historically claimed the `Text` kind so its plan
+            // carries text slots; derive Text's caps while keeping the
+            // extension's own actor type.
+            track.caps = crate::timeline::ActorCaps::of_type("Text").unwrap_or_default();
             track.rebuild_property_plan();
             Ok(())
         }

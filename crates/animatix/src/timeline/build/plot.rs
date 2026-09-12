@@ -628,8 +628,7 @@ impl Timeline {
         let mut y_scale = super::utils::ScaleType::Linear;
         let mut x_range = [-10.0, 10.0, 2.0];
         let mut y_range = [-10.0, 10.0, 2.0];
-        let is_number_plane =
-            super::ActorKindId::from_type_name(ty) == Some(super::ActorKindId::NumberPlane);
+        let is_number_plane = ty == "NumberPlane";
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Graph plot-area padding [left, right, top, bottom] in pixels.
@@ -652,8 +651,7 @@ impl Timeline {
 
         // Start with track defaults, override from props.
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
-        let default_stroke =
-            ActorKindId::from_type_name(ty).map(default_stroke_width).unwrap_or(0.0);
+        let default_stroke = default_stroke_width(ty);
         let mut stroke_width = existing_track.style.stroke_width.last(default_stroke);
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
@@ -969,12 +967,10 @@ impl Timeline {
         }
 
         // Validate plot func signature if present (BarChart does not take func).
-        // Resolved via `ActorKindId` instead of type-name strings.
-        let kind_id = super::ActorKindId::from_type_name(ty);
-        let is_vector_field = kind_id == Some(super::ActorKindId::VectorField);
-        let is_heatmap = kind_id == Some(super::ActorKindId::Heatmap);
-        let is_contour_set = kind_id == Some(super::ActorKindId::ContourSet);
-        let is_bar_chart = kind_id == Some(super::ActorKindId::BarChart);
+        let is_vector_field = ty == "VectorField";
+        let is_heatmap = ty == "Heatmap";
+        let is_contour_set = ty == "ContourSet";
+        let is_bar_chart = ty == "BarChart";
         if let Some((ref args, ref body, _)) = func {
             if !is_bar_chart {
                 let (expected_arity, expected_ty) = if is_vector_field {
@@ -1528,8 +1524,7 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
-            tick_label_data: if (primitive.is_graph_host()
-                || super::ActorKindId::from_type_name(ty) == Some(super::ActorKindId::BarChart))
+            tick_label_data: if (primitive.is_graph_host() || ty == "BarChart")
                 && (!tick_label_data.x_labels.is_empty()
                     || !tick_label_data.y_labels.is_empty()
                     || !tick_label_data.bar_labels.is_empty())

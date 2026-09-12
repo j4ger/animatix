@@ -152,7 +152,7 @@ mod tests {
     use crate::ast::{InlineItem, Modifier, Property};
     use crate::diagnostics::Diagnostic;
     use crate::primitives::{
-        ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+        ActorCategory, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
     };
     use crate::renderer::error::RenderError;
     use std::collections::HashMap;
@@ -173,12 +173,8 @@ mod tests {
             ActorCategory::Plot
         }
 
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "gauge"
-        }
-
-        fn kind_id(&self) -> ActorKindId {
-            ActorKindId::Text
         }
 
         fn build(
@@ -193,7 +189,7 @@ mod tests {
                 ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
-            track.kind = ActorKindId::Text;
+            track.set_identity("Text");
             track.rebuild_property_plan();
             Ok(())
         }
@@ -279,7 +275,7 @@ mod tests {
             report.diagnostics
         );
         let track = report.output.tracks.get("g").expect("custom actor track");
-        assert_eq!(track.kind, ActorKindId::Text);
+        assert_eq!(track.actor_type, "Gauge");
         assert_eq!(track.actor_type, "Gauge");
 
         let _scene = report.output.evaluate(0.0, crate::timeline::SceneDimensions::default());

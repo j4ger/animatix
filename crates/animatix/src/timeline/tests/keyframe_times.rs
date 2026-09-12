@@ -43,7 +43,7 @@ fn test_keyframe_times_s_includes_highlight_fields() {
     let mut timeline = keyframe_times_s_timeline();
     // Highlight fields apply to Equation/Fragment actors
     let mut track = AnimationTrack::placeholder("test".to_string());
-    track.kind = ActorKindId::Equation;
+    track.set_identity("Equation");
 
     track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
         500,

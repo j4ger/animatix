@@ -91,12 +91,8 @@ impl Primitive for PlotExt {
         ActorCategory::Plot
     }
 
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         "plot-ext"
-    }
-
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Extension
     }
 
     fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
@@ -120,7 +116,6 @@ impl Primitive for PlotExt {
             .tracks
             .entry(label.to_string())
             .or_insert_with(|| crate::timeline::AnimationTrack::placeholder(label.to_string()));
-        track.kind = ActorKindId::Extension;
         track.procedural_plot = Some(ProceduralPlot {
             plot_type: ProceduralPlotKind::default(),
             kind: PlotCurveKind::Cartesian,

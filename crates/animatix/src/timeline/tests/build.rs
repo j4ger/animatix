@@ -312,15 +312,11 @@ fn every_built_track_identity_is_consistent() {
     let timeline = report.output;
 
     for (label, track) in &timeline.tracks {
-        let expected = timeline
-            .primitive_registry
-            .find(&track.actor_type)
-            .map(|primitive| primitive.kind_id())
-            .unwrap_or(crate::timeline::ActorKindId::Extension);
+        let expected = crate::timeline::ActorCaps::of_type(&track.actor_type).unwrap_or_default();
         assert_eq!(
-            track.kind, expected,
-            "track '{label}' kind {:?} drifted from actor_type '{}'",
-            track.kind, track.actor_type
+            track.caps, expected,
+            "track '{label}' caps drifted from actor_type '{}'",
+            track.actor_type
         );
     }
 }

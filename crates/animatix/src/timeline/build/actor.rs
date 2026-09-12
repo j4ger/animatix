@@ -4,7 +4,7 @@
 use super::plot::ProcessedPlotActor;
 use super::*;
 use crate::ast::{Expr, InlineItem, Property};
-use crate::timeline::actor_kind::find_actor_kind;
+use crate::timeline::actor_caps::find_actor_kind;
 use crate::timeline::plot::PlotCurveKind;
 use crate::timeline::vello_path::VelloPath;
 
@@ -50,17 +50,8 @@ impl Timeline {
         // VectorField, Heatmap, ContourSet, and NumberPlane are handled by
         // process_plot_actor (without build-time path generation — vector/
         // heatmap/contour plots are re-sampled at frame time when dynamic or
-        // transitioning). Resolved via `kind_id()` so the branch is
-        // compiler-checked against `ActorKindId`.
-        if matches!(
-            self.primitive_registry.find(ty).map(|p| p.kind_id()),
-            Some(
-                super::ActorKindId::VectorField
-                    | super::ActorKindId::Heatmap
-                    | super::ActorKindId::ContourSet
-                    | super::ActorKindId::NumberPlane
-            )
-        ) {
+        // transitioning).
+        if matches!(ty, "VectorField" | "Heatmap" | "ContourSet" | "NumberPlane") {
             return vec![];
         }
 
@@ -256,11 +247,12 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
-                    // Only the registry key here: an extension primitive owns its
-                    // `kind` through `kind_id()` (an in-process extension can
-                    // opt into a built-in kind like `Text`), so we must not
-                    // overwrite it with the `Extension` fallback.
+                    // Capabilities come from the registered primitive, not the
+                    // built-in registry: an in-process extension can be a
+                    // text-like or shape-like primitive and must get the full
+                    // built-in treatment.
                     track.actor_type = ty.to_string();
+                    track.set_caps_from(primitive);
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
@@ -301,7 +293,7 @@ impl Timeline {
             }
         }
 
-        let Some(kind_id) = super::ActorKindId::from_type_name(ty) else {
+        let Some(caps) = super::ActorCaps::of_type(ty) else {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,
@@ -394,8 +386,7 @@ impl Timeline {
         } else {
             existing_track.style.opacity.last(1.0)
         };
-        let mut stroke_width =
-            existing_track.style.stroke_width.last(default_stroke_width(kind_id));
+        let mut stroke_width = existing_track.style.stroke_width.last(default_stroke_width(ty));
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let legend_color = existing_track.legend.color;
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
@@ -588,9 +579,7 @@ impl Timeline {
         };
 
         // For Line actors, inherit stroke_color from color since Line is stroke-only
-        if !stroke_color_explicitly_set
-            && kind_id == super::ActorKindId::Shape(super::ShapeKind::Line)
-        {
+        if !stroke_color_explicitly_set && caps.shape == Some(super::ShapeKind::Line) {
             stroke_color = color;
         }
 
@@ -614,7 +603,7 @@ impl Timeline {
         if has_explicit_stroke
             && !has_explicit_color
             && !props.iter().any(|p| p.name == "fill_opacity")
-            && matches!(kind_id, super::ActorKindId::Shape(super::ShapeKind::Path))
+            && caps.shape == Some(super::ShapeKind::Path)
         {
             fill_opacity = 0.0;
         }
@@ -625,10 +614,7 @@ impl Timeline {
         // G6: Detect actor-anchor refs in `from`/`to` property declarations.
         // Store them in the track's side-channel so the primitive's frame-time
         // `evaluate` method can resolve them each frame.
-        if matches!(
-            kind_id,
-            super::ActorKindId::Shape(super::ShapeKind::Line | super::ShapeKind::Arrow)
-        ) {
+        if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow)) {
             if let Some(track) = self.tracks.get_mut(label) {
                 for prop in props {
                     if prop.name == "from" || prop.name == "to" {
@@ -670,10 +656,7 @@ impl Timeline {
         // Layout-managed children should use `transform` for visual offsets.
         if let Some(parent) = parent_label {
             if let Some(parent_track) = self.tracks.get(parent) {
-                if matches!(
-                    parent_track.kind,
-                    ActorKindId::Row | ActorKindId::Col | ActorKindId::Grid | ActorKindId::Stack
-                ) {
+                if parent_track.caps.layout_container {
                     let has_at = extracted.at_expr.is_some();
                     let has_position = props.iter().any(|p| p.name == "position");
                     if has_at || has_position {
@@ -717,7 +700,7 @@ impl Timeline {
 
         // Seed Callout defaults before user properties so fields used by targeted
         // geometry and text evaluation are always present, even without explicit props.
-        if kind_id == super::ActorKindId::Callout {
+        if ty == "Callout" {
             let defaults = [
                 (
                     crate::timeline::property_registry::ActorField::TextContent,
@@ -791,7 +774,7 @@ impl Timeline {
         // Callout annotation properties that live outside the tagged storage map.
         // These are handled by the generic build path now; the primitive no longer
         // re-implements keyframe writing for them.
-        if kind_id == super::ActorKindId::Callout {
+        if ty == "Callout" {
             for prop in props {
                 let prop_subject = format!("{label}.{}", prop.name);
                 if prop.name == "target" {
@@ -1185,7 +1168,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if super::ActorKindId::from_type_name(ty).is_none() {
+        if super::ActorCaps::of_type(ty).is_none() {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,

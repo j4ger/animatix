@@ -117,7 +117,7 @@ fn tagged_color_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> 
 }
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{
-    ActorCategory, ActorKindId, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+    ActorCategory, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
 };
 use crate::renderer::error::RenderError;
 use crate::timeline::{AnimationTrack, SceneDimensions};
@@ -141,12 +141,8 @@ impl Primitive for LegendPrimitive {
         ActorCategory::Annotation
     }
 
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::CHART_LINE_UP
-    }
-
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Legend
     }
 
     fn is_shape(&self) -> bool {

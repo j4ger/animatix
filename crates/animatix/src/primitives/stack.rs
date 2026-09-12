@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::primitives::{ActorCategory, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{SceneDimensions, Value};
 
@@ -22,14 +22,11 @@ impl Primitive for StackPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Container
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::STACK
     }
     fn is_container(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Stack
     }
 
     fn build(

@@ -46,7 +46,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     use kurbo::{Affine, Shape};
 
     let mut track = AnimationTrack::placeholder("legend".to_string());
-    track.kind = ActorKindId::Legend;
+    track.set_identity("Legend");
     track.legend.entries =
         vec![("A very long series label that should wrap".to_string(), [1.0, 0.0, 0.0, 1.0])];
     track.legend.text_max_width = 80.0;
@@ -165,7 +165,7 @@ fn test_legend_basic_rendering() {
     let timeline = build_legend_timeline();
 
     let track = timeline.get_track("legend").expect("legend track should exist");
-    assert_eq!(track.kind, ActorKindId::Legend, "track kind should be Legend");
+    assert_eq!(track.actor_type, "Legend", "track kind should be Legend");
 
     // A legend-only scene has no color-bearing candidates.
     assert!(track.legend.entries.is_empty(), "legend should have no entries");
@@ -196,7 +196,7 @@ fn test_legend_empty() {
     use kurbo::Affine;
 
     let mut track = AnimationTrack::placeholder("empty_legend".to_string());
-    track.kind = ActorKindId::Legend;
+    track.set_identity("Legend");
 
     // Ensure entries are empty (default)
     assert!(track.legend.entries.is_empty(), "fresh track should have empty legend entries");
@@ -594,7 +594,7 @@ fn test_legend_render_commands_produced() {
     use kurbo::Affine;
 
     let mut track = AnimationTrack::placeholder("legend".to_string());
-    track.kind = ActorKindId::Legend;
+    track.set_identity("Legend");
 
     // Set manual entries to exercise label rendering without a scene build.
     track.legend.entries = vec![

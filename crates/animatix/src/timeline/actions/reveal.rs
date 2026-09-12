@@ -2,9 +2,6 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-// ActorKindId is used by test fixtures only.
-#[cfg(test)]
-use crate::timeline::actor_kind::ActorKindId;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifiers};
 
@@ -15,7 +12,7 @@ fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u6
     let current_width = track
         .style
         .stroke_width
-        .get(time_ms, crate::timeline::default_stroke_width(track.kind));
+        .get(time_ms, crate::timeline::default_stroke_width(&track.actor_type));
     if current_width > 0.0 {
         return;
     }
@@ -526,12 +523,8 @@ mod tests {
             ActorCategory::Text
         }
 
-        fn icon_id(&self) -> &str {
+        fn icon_id(&self) -> &'static str {
             "text-ext"
-        }
-
-        fn kind_id(&self) -> ActorKindId {
-            ActorKindId::Extension
         }
 
         fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
@@ -555,7 +548,6 @@ mod tests {
                 ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
-            track.kind = ActorKindId::Extension;
             track.rebuild_property_plan();
             Ok(())
         }

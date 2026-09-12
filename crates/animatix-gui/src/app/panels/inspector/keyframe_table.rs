@@ -28,7 +28,7 @@ struct TrackGroup {
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
 pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
-    let indices = allowed_property_indices(track.kind);
+    let indices = allowed_property_indices(&track.caps, &track.actor_type);
     let builtin = indices
         .iter()
         .filter_map(|&idx| {
@@ -309,7 +309,7 @@ fn render_compact_track_row(
 // ─── Collection (generic via registry) ────────────────────────────────────
 
 fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<TrackGroup> {
-    let indices = allowed_property_indices(track.kind);
+    let indices = allowed_property_indices(&track.caps, &track.actor_type);
 
     let mut transform = Vec::new();
     let mut style = Vec::new();
@@ -508,30 +508,24 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use animatix::timeline::ActorKindId;
     use animatix::timeline::property_track::PropertyTrack;
     use animatix_syntax::easing::Easing;
 
     use super::*;
 
-    fn make_track(kind: ActorKindId) -> AnimationTrack {
-        let type_name = animatix::timeline::actor_kind_meta(kind)
-            .expect("built-in kind has metadata")
-            .type_name;
-        let mut track = AnimationTrack::new("test".to_string(), type_name);
-        track.kind = kind;
-        track
+    fn make_track(actor_type: &str) -> AnimationTrack {
+        AnimationTrack::new("test".to_string(), actor_type)
     }
 
     #[test]
     fn test_count_keyframes_empty_track() {
-        let track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+        let track = make_track("Rect");
         assert_eq!(count_keyframes(&track), 0);
     }
 
     #[test]
     fn test_count_keyframes_one_keyframe() {
-        let mut track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+        let mut track = make_track("Rect");
         let mut pt = PropertyTrack::new([0.0, 0.0]);
         pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
         track.geometry.position = Some(pt);
@@ -540,7 +534,7 @@ mod tests {
 
     #[test]
     fn test_count_keyframes_multiple_properties() {
-        let mut track = make_track(ActorKindId::Shape(animatix::timeline::ShapeKind::Rect));
+        let mut track = make_track("Rect");
 
         // Two keyframes on position
         let mut pos = PropertyTrack::new([0.0, 0.0]);
@@ -559,7 +553,7 @@ mod tests {
     #[test]
     fn test_count_keyframes_skips_non_applicable_properties() {
         // Text kinds do not have shape-specific properties like stroke_width applicable
-        let mut track = make_track(ActorKindId::Text);
+        let mut track = make_track("Text");
 
         // position is applicable to Everything
         let mut pos = PropertyTrack::new([0.0, 0.0]);

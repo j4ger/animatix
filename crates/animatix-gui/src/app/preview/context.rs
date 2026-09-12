@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use animatix::timeline::{ActorKindId, SceneDimensions, Timeline};
+use animatix::timeline::{SceneDimensions, Timeline};
 use egui::{Pos2, Stroke, Vec2};
 
 use crate::app::commands::{
@@ -133,18 +133,15 @@ impl PreviewContext<'_> {
             .and_then(|t| {
                 t.get_track(actor).map(|tr| {
                     let registry = t.primitive_registry_snapshot();
-                    let mode: preview::ResizeMode = if let Some(primitive) =
-                        registry.find(&tr.actor_type).or_else(|| {
-                            animatix::timeline::actor_kind_meta(tr.kind)
-                                .and_then(|m| animatix::primitives::find_primitive(m.type_name))
-                        }) {
-                        match primitive.resize_mode() {
-                            animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
-                            _ => preview::ResizeMode::Size,
-                        }
-                    } else {
-                        preview::ResizeMode::Size
-                    };
+                    let mode: preview::ResizeMode =
+                        if let Some(primitive) = registry.find(&tr.actor_type) {
+                            match primitive.resize_mode() {
+                                animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
+                                _ => preview::ResizeMode::Size,
+                            }
+                        } else {
+                            preview::ResizeMode::Size
+                        };
                     (mode, tr.geometry.scale.get(time_ms, 1.0))
                 })
             })
@@ -183,11 +180,13 @@ impl PreviewContext<'_> {
     pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
-        match track.kind {
-            ActorKindId::Text | ActorKindId::Math => Some("text"),
-            ActorKindId::Code => Some("code"),
-            ActorKindId::Typst => Some("content"),
-            _ => {
+        match track.caps.text {
+            Some(animatix::timeline::TextKind::Text) | Some(animatix::timeline::TextKind::Math) => {
+                Some("text")
+            },
+            Some(animatix::timeline::TextKind::Code) => Some("code"),
+            Some(animatix::timeline::TextKind::Typst) => Some("content"),
+            None => {
                 // Extension text primitives: inline editing uses the registry
                 // capability and the conventional `content` alias. Keep the
                 // snapshot Arc alive while `find` borrows from it.
@@ -1160,7 +1159,7 @@ impl PreviewContext<'_> {
             let is_callout = self
                 .timeline
                 .and_then(|t| t.get_track(actor))
-                .map(|tr| tr.kind == animatix::timeline::ActorKindId::Callout)
+                .map(|tr| tr.actor_type == "Callout")
                 .unwrap_or(false);
             if is_callout {
                 if let Some(timeline) = self.timeline {

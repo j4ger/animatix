@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{ActorCategory, AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
@@ -16,20 +16,21 @@ impl Primitive for CodePrimitive {
     fn type_name(&self) -> &str {
         "Code"
     }
+
+    fn text_kind(&self) -> Option<crate::timeline::TextKind> {
+        Some(crate::timeline::TextKind::Code)
+    }
     fn display_name(&self) -> &str {
         "Code"
     }
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::CODE
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Code
     }
 
     fn build(

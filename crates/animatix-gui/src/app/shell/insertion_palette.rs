@@ -300,9 +300,7 @@ impl GuiShell {
             .cloned()
             .filter(|selected| {
                 self.document_store.source.document.active_timeline().is_some_and(|timeline| {
-                    timeline
-                        .get_track(selected)
-                        .is_some_and(|track| track.kind == animatix::timeline::ActorKindId::Filter)
+                    timeline.get_track(selected).is_some_and(|track| track.caps.is_effect_scope())
                 })
             })
     }

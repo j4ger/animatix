@@ -105,7 +105,7 @@ fn test_callout_basic_rendering() {
 
     // Verify the track exists
     let track = timeline.get_track("callout").expect("callout track should exist");
-    assert_eq!(track.kind, ActorKindId::Callout, "track kind should be Callout");
+    assert_eq!(track.actor_type, "Callout", "track kind should be Callout");
 
     // Verify line_from and line_to tracks are populated
     let from = track.shape.line_from.get(0, [0.0; 2]);
@@ -317,7 +317,7 @@ fn test_callout_no_label_does_not_set_text_content() {
     let timeline = report.output;
 
     let track = timeline.get_track("no_label").expect("no_label track should exist");
-    assert_eq!(track.kind, ActorKindId::Callout);
+    assert_eq!(track.actor_type, "Callout");
 
     // The text_content should be empty string (default)
     let label_val = track.text.text_content.get(0, String::new());
@@ -953,13 +953,11 @@ fn test_callout_place_default_is_right() {
 // position / scale / rotation / parent-child relationships precisely without
 // relying on how declaration-time props map to internal tracks.
 
-use crate::timeline::ActorKindId;
-use crate::timeline::actor_kind::ShapeKind;
-
 /// Make a minimal target track with a given position and half-size.
 fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
     let mut track = AnimationTrack::placeholder(label.to_string());
-    track.kind = ActorKindId::Shape(ShapeKind::Rect);
+    track.actor_type = "Rect".to_string();
+    track.caps = crate::timeline::ActorCaps::of_type("Rect").unwrap();
     track.first_seen_ms = 0;
     track.geometry.position = Some({
         let mut t = PropertyTrack::new(pos);
@@ -978,7 +976,8 @@ fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTra
 fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
     use crate::timeline::animation_track::CalloutPlace;
     let mut track = AnimationTrack::placeholder(label.to_string());
-    track.kind = ActorKindId::Callout;
+    track.actor_type = "Callout".to_string();
+    track.caps = crate::timeline::ActorCaps::of_type("Callout").unwrap();
     track.first_seen_ms = 0;
     track.geometry.callout_target = Some({
         let mut t = PropertyTrack::new(target.to_string());

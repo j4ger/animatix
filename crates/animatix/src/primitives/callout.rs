@@ -2,8 +2,8 @@ use crate::ast::{Expr, InlineItem, Modifier, Property, array_actor_label};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
-    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand,
-    TextCompileCtx, evaluate_text_paths, sample_shape_style,
+    ActorCategory, AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+    evaluate_text_paths, sample_shape_style,
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
@@ -58,14 +58,11 @@ impl Primitive for CalloutPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Annotation
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::TEXT_T
     }
     fn is_advanced(&self) -> bool {
         false
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Callout
     }
 
     fn build(

@@ -51,7 +51,7 @@ pub(crate) struct CurveChannel {
 pub(crate) fn collect_curves(track: &AnimationTrack, theme: Theme) -> Vec<CurveChannel> {
     let mut curves: Vec<CurveChannel> = Vec::new();
 
-    for &idx in &allowed_property_indices(track.kind) {
+    for &idx in &allowed_property_indices(&track.caps, &track.actor_type) {
         let schema = &PROPERTY_REGISTRY[idx];
         if !property_has_keyframes(track, schema.field) {
             continue;

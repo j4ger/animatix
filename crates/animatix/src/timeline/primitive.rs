@@ -200,7 +200,7 @@ mod tests {
     fn sloppy_container_category_gets_layout_defaults() {
         use crate::ast::{InlineItem, Modifier, Property};
         use crate::primitives::BuildCtx;
-        use crate::timeline::{ActorCategory, ActorKindId};
+        use crate::timeline::ActorCategory;
 
         // A plugin that declares only a Container category inherits the
         // schema's container capability defaults (layout_container +
@@ -217,11 +217,8 @@ mod tests {
             fn category(&self) -> ActorCategory {
                 ActorCategory::Container
             }
-            fn icon_id(&self) -> &str {
+            fn icon_id(&self) -> &'static str {
                 "sloppy"
-            }
-            fn kind_id(&self) -> ActorKindId {
-                ActorKindId::Group
             }
             fn build(
                 &self,

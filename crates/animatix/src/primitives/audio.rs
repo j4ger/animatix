@@ -1,5 +1,5 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::primitives::{ActorCategory, ActorKindId, BuildCtx, Primitive};
+use crate::primitives::{ActorCategory, BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The singleton primitive descriptor for `Audio` actors.
@@ -17,14 +17,11 @@ impl Primitive for AudioPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Media
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::SPEAKER_HIGH
     }
     fn is_advanced(&self) -> bool {
         true
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Audio
     }
 
     fn build(

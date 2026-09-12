@@ -911,7 +911,7 @@ fn render_actor_tree(
     let (icon, display_label, label_color) = if is_anonymous {
         (Some(egui_phosphor::regular::GHOST), "anon", Some(t.palette.text.muted))
     } else {
-        let icon = Some(crate::app::icons::actor_icon_str(track.kind));
+        let icon = Some(crate::app::icons::actor_icon_for_track(track, timeline));
         (icon, label, None)
     };
 

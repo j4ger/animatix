@@ -530,12 +530,14 @@ pub struct GroupMembership {
 // Applicability — which actor kinds a property is valid for
 // ─────────────────────────────────────────────────────────────
 
-/// Declares which actor kinds a property applies to.
+/// Declares which actors a property applies to.
 ///
 /// This eliminates the need for a separate `allowed_property_indices` match
-/// block.  When adding a new property, you specify its applicability right
-/// here in the registry entry.  The inspector and keyframe table use
-/// `schema.applicable.includes(kind)` to decide whether to show the property.
+/// block. When adding a new property, you specify its applicability right
+/// here in the registry entry; the inspector and keyframe table use
+/// `schema.applicable.includes(caps, actor_type)` to decide whether to show
+/// the property. Capability-shaped variants read the derived `ActorCaps`, so
+/// adding a primitive never requires touching these lists.
 #[derive(Clone, Copy, Debug)]
 pub enum Applicable {
     /// Applies to every actor kind including Group.
@@ -544,63 +546,54 @@ pub enum Applicable {
     EveryActorExceptGroup,
     /// Applies to all shape kinds.
     AllShapes,
-    /// All actors with stroke-based path rendering (shapes + PlotCurve).
+    /// All actors with stroke-based path rendering (shapes + `PlotCurve`).
     AllStrokePaths,
     /// Applies to all shapes except Line (fill-related properties).
     AllShapesExceptLine,
-    /// Applies to shapes and text/math/code (actors with fillable/colorable content).
+    /// Applies to shapes and text-like actors with fillable/colorable content.
     AllDrawables,
-    /// Applies to shapes, image, plots, and containers (actors with meaningful bounds).
+    /// Applies to shapes, image, plots, and layout containers (actors with
+    /// meaningful bounds).
     SizedActors,
     /// Applies to specific shape kinds.
-    ShapeKinds(&'static [super::ShapeKind]),
-    /// Applies to specific non-shape actor kinds.
-    ActorKinds(&'static [super::ActorKindId]),
+    ShapeKinds(&'static [ShapeKind]),
+    /// Applies to the listed authored actor type names — for genuinely
+    /// name-specific properties (e.g. `code` only on `Code`).
+    Actors(&'static [&'static str]),
+    /// Applies when any child applicability matches.
+    Any(&'static [Applicable]),
     /// Never shown in the inspector (build-time only, aliases, compounds).
     Never,
 }
 
 impl Applicable {
-    /// Returns `true` if this applicability includes the given actor kind.
-    pub fn includes(self, kind: super::ActorKindId) -> bool {
-        use super::ActorKindId::*;
-        use super::ShapeKind;
+    /// Returns `true` if this applicability includes the given actor.
+    ///
+    /// Capability-shaped variants read the actor's [`ActorCaps`]; the
+    /// `Actors` variant matches the authored type name for genuinely
+    /// name-specific properties (e.g. `code` only on `Code`).
+    pub fn includes(self, caps: &super::ActorCaps, actor_type: &str) -> bool {
         match self {
             Applicable::Everything => true,
-            Applicable::EveryActorExceptGroup => !matches!(kind, Group),
-            Applicable::AllShapes => matches!(kind, Shape(_)),
-            Applicable::AllStrokePaths => {
-                matches!(kind, Shape(_) | PlotCurve)
-            },
-            Applicable::AllShapesExceptLine => {
-                matches!(kind, Shape(sk) if sk != ShapeKind::Line)
-            },
+            Applicable::EveryActorExceptGroup => !caps.group_like,
+            Applicable::AllShapes => caps.shape.is_some(),
+            Applicable::AllStrokePaths => caps.stroke_path,
+            Applicable::AllShapesExceptLine => caps.shape.is_some_and(|sk| sk != ShapeKind::Line),
             Applicable::AllDrawables => {
-                matches!(kind, Shape(_) | Text | Typst | Code | BarChart)
+                caps.is_shape || caps.text.is_some() || actor_type == "BarChart"
             },
             Applicable::SizedActors => {
-                matches!(
-                    kind,
-                    Shape(_)
-                        | Image
-                        | Graph
-                        | PlotCurve
-                        | VectorField
-                        | Heatmap
-                        | ContourSet
-                        | NumberPlane
-                        | BarChart
-                        | Row
-                        | Col
-                        | Grid
-                        | Stack
-                        | Filter
-                )
+                caps.is_shape
+                    || caps.image_payload
+                    || caps.plot_geometry
+                    || caps.layout_container
+                    || caps.is_effect_scope()
             },
-            Applicable::ShapeKinds(kinds) => {
-                matches!(kind, Shape(sk) if kinds.contains(&sk))
+            Applicable::ShapeKinds(kinds) => caps.shape.is_some_and(|sk| kinds.contains(&sk)),
+            Applicable::Actors(actors) => actors.contains(&actor_type),
+            Applicable::Any(children) => {
+                children.iter().any(|child| child.includes(caps, actor_type))
             },
-            Applicable::ActorKinds(kinds) => kinds.contains(&kind),
             Applicable::Never => false,
         }
     }
@@ -634,7 +627,7 @@ pub struct PropertySchema {
     /// Default value for this property when the actor does not declare it.
     /// Computed at runtime because some defaults depend on actor kind
     /// (e.g. `font_size` is 48 for Text, 36 for Typst, 24 for Code).
-    pub default_value: fn(super::ActorKindId) -> super::property_engine::PropertyValue,
+    pub default_value: fn(&super::ActorCaps) -> super::property_engine::PropertyValue,
     /// How this property is read at frame time (env injection, `_animating` flags).
     pub read_source: ReadSource,
 }
@@ -649,7 +642,7 @@ pub struct PropertySchema {
 /// A `#[test]` below verifies this invariant.
 use PropertyFlags as F;
 
-use super::{ActorKindId as A, ShapeKind as S};
+use super::ShapeKind;
 
 macro_rules! schema {
     ($name:expr, $ty:expr, $flags:expr, $field:expr, $group:expr, $applicable:expr, $default:expr) => {
@@ -688,7 +681,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::ContainerLayout
         }),
-        Applicable::ActorKinds(&[A::Row, A::Col, A::Grid, A::Stack]),
+        Applicable::Actors(&["Row", "Col", "Grid", "Stack"]),
         |_| super::property_engine::PropertyValue::String("center".to_string())
     ),
     schema!(
@@ -740,7 +733,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
@@ -749,7 +742,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -770,7 +763,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::Tagged("filter_bounds"),
         None,
-        Applicable::ActorKinds(&[A::Filter]),
+        Applicable::Actors(&["Filter"]),
         |_| super::property_engine::PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0])
     ),
     schema!(
@@ -779,7 +772,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::CharProgress,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Code, A::Typst]),
+        Applicable::Actors(&["Text", "Code", "Typst"]),
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
     schema!(
@@ -788,7 +781,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::TextContent,
         None,
-        Applicable::ActorKinds(&[A::Code]),
+        Applicable::Actors(&["Code"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -808,7 +801,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::ContainerLayout
         }),
-        Applicable::ActorKinds(&[A::Grid]),
+        Applicable::Actors(&["Grid"]),
         |_| super::property_engine::PropertyValue::U32(2)
     ),
     schema!(
@@ -819,7 +812,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ShapeKinds(&[S::Path]),
+        Applicable::ShapeKinds(&[ShapeKind::Path]),
         |_| super::property_engine::PropertyValue::CommandList(String::new())
     ),
     schema!(
@@ -828,7 +821,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
@@ -839,7 +832,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::VectorField]),
+        Applicable::Actors(&["VectorField"]),
         |_| super::property_engine::PropertyValue::F32(16.0)
     ),
     schema!(
@@ -857,7 +850,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("vertical".to_string())
     ),
     schema!(
@@ -875,7 +868,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::FontFamily,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::String(
             crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
         )
@@ -886,11 +879,14 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::FontSize,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
-        |kind| match kind {
-            A::Text => super::property_engine::PropertyValue::F32(48.0),
-            A::Typst => super::property_engine::PropertyValue::F32(36.0),
-            A::Code => super::property_engine::PropertyValue::F32(24.0),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
+        |caps| match caps.text {
+            Some(crate::timeline::actor_caps::TextKind::Text) => {
+                super::property_engine::PropertyValue::F32(48.0)
+            },
+            Some(crate::timeline::actor_caps::TextKind::Typst) => {
+                super::property_engine::PropertyValue::F32(36.0)
+            },
             _ => super::property_engine::PropertyValue::F32(24.0),
         }
     ),
@@ -900,7 +896,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::FontStyle,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::String("normal".to_string())
     ),
     schema!(
@@ -909,7 +905,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::FontWeight,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(400.0)
     ),
     schema!(
@@ -920,7 +916,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ActorKinds(&[A::Shape(S::Line), A::Shape(S::Arrow), A::Callout]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
+            Applicable::Actors(&["Callout"])
+        ]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     ),
     schema!(
@@ -931,7 +930,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve, A::VectorField, A::Heatmap, A::ContourSet]),
+        Applicable::Actors(&["PlotCurve", "VectorField", "Heatmap", "ContourSet"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -942,7 +941,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::ContainerLayout
         }),
-        Applicable::ActorKinds(&[A::Row, A::Col, A::Grid]),
+        Applicable::Actors(&["Row", "Col", "Grid"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -953,7 +952,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::Graph]),
+        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
@@ -964,7 +963,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ActorKinds(&[A::Shape(S::Arrow), A::Callout]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Arrow]),
+            Applicable::Actors(&["Callout"])
+        ]),
         |_| super::property_engine::PropertyValue::F32(10.0)
     ),
     schema!(
@@ -987,7 +989,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::HighlightColor,
         None,
-        Applicable::ActorKinds(&[A::Equation, A::Fragment]),
+        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0])
     ),
     schema!(
@@ -996,7 +998,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::HighlightOpacity,
         None,
-        Applicable::ActorKinds(&[A::Equation, A::Fragment]),
+        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1005,7 +1007,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::HighlightPadding,
         None,
-        Applicable::ActorKinds(&[A::Equation, A::Fragment]),
+        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(4.0)
     ),
     schema!(
@@ -1014,7 +1016,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::HighlightRadius,
         None,
-        Applicable::ActorKinds(&[A::Equation, A::Fragment]),
+        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(3.0)
     ),
     schema!(
@@ -1025,7 +1027,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve]),
+        Applicable::Actors(&["PlotCurve"]),
         |_| super::property_engine::PropertyValue::String("cartesian".to_string())
     ),
     schema!(
@@ -1034,7 +1036,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::TextContent,
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1043,7 +1045,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::LabelAt,
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     ),
     schema!(
@@ -1052,7 +1054,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_label_color"),
         None,
-        Applicable::ActorKinds(&[A::Legend]),
+        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     ),
     schema!(
@@ -1079,7 +1081,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::LetterSpacing,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1090,7 +1092,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::ContourSet]),
+        Applicable::Actors(&["ContourSet"]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])
     ),
     schema!(
@@ -1108,7 +1110,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::LineHeight,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(1.2)
     ),
     schema!(
@@ -1126,7 +1128,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ANIMATED,
         ActorField::TextContent,
         None,
-        Applicable::ActorKinds(&[A::Typst]),
+        Applicable::Actors(&["Typst"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1137,7 +1139,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve, A::ContourSet]),
+        Applicable::Actors(&["PlotCurve", "ContourSet"]),
         |_| super::property_engine::PropertyValue::F32(12.0)
     ),
     schema!(
@@ -1155,7 +1157,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1164,7 +1166,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::TextMaxWidth,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1212,7 +1214,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::Overflow,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::String("visible".to_string())
     ),
     schema!(
@@ -1223,7 +1225,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::ContainerLayout
         }),
-        Applicable::ActorKinds(&[A::Graph, A::Row, A::Col, A::Grid, A::Stack]),
+        Applicable::Actors(&["Graph", "Row", "Col", "Grid", "Stack"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1232,7 +1234,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::Tagged("callout_place"),
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::Enum("right".to_string())
     ),
     schema!(
@@ -1243,7 +1245,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ShapeKinds(&[S::Polygon]),
+        Applicable::ShapeKinds(&[ShapeKind::Polygon]),
         |_| super::property_engine::PropertyValue::PointList(Vec::new())
     ),
     schema!(
@@ -1263,7 +1265,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ShapeKinds(&[S::Ellipse]),
+        Applicable::ShapeKinds(&[ShapeKind::Ellipse]),
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -1279,7 +1281,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ShapeKinds(&[S::Ellipse]),
+        Applicable::ShapeKinds(&[ShapeKind::Ellipse]),
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -1295,7 +1297,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve, A::Heatmap, A::ContourSet]),
+        Applicable::Actors(&["PlotCurve", "Heatmap", "ContourSet"]),
         |_| super::property_engine::PropertyValue::F32(48.0)
     ),
     schema!(
@@ -1331,7 +1333,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("true".to_string())
     ),
     schema!(
@@ -1340,7 +1342,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::BarChart]),
+        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("true".to_string())
     ),
     schema!(
@@ -1358,7 +1360,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::AudioSource,
         None,
-        Applicable::ActorKinds(&[A::Audio]),
+        Applicable::Actors(&["Audio"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1367,7 +1369,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::CalloutStandoff,
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::F32(40.0)
     ),
     schema!(
@@ -1403,7 +1405,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_swatch_size"),
         None,
-        Applicable::ActorKinds(&[A::Legend]),
+        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::F32(16.0)
     ),
     schema!(
@@ -1414,7 +1416,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve]),
+        Applicable::Actors(&["PlotCurve"]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])
     ),
     schema!(
@@ -1423,7 +1425,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::CalloutTarget,
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1432,7 +1434,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::TextContent,
         None,
-        Applicable::ActorKinds(&[A::Text]),
+        Applicable::Actors(&["Text"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1441,7 +1443,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::TextAlign,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::String("left".to_string())
     ),
     schema!(
@@ -1450,7 +1452,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_text_max_width"),
         None,
-        Applicable::ActorKinds(&[A::Legend]),
+        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::F32(240.0)
     ),
     schema!(
@@ -1461,7 +1463,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::Graph]),
+        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
@@ -1472,7 +1474,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::Graph]),
+        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
     schema!(
@@ -1481,7 +1483,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_title"),
         None,
-        Applicable::ActorKinds(&[A::Legend]),
+        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1492,7 +1494,10 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::VectorShapeState
         }),
-        Applicable::ActorKinds(&[A::Shape(S::Line), A::Shape(S::Arrow), A::Callout]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
+            Applicable::Actors(&["Callout"])
+        ]),
         |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])
     ),
     schema!(
@@ -1501,7 +1506,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::CalloutToOffset,
         None,
-        Applicable::ActorKinds(&[A::Callout]),
+        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     ),
     schema!(
@@ -1512,7 +1517,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::PlotCurve]),
+        Applicable::Actors(&["PlotCurve"]),
         |_| super::property_engine::PropertyValue::F32(2.0)
     ),
     schema!(
@@ -1530,7 +1535,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::ImageData,
         None,
-        Applicable::ActorKinds(&[A::Image, A::Svg]),
+        Applicable::Actors(&["Image", "Svg"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
     schema!(
@@ -1539,7 +1544,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::Row, A::Col]),
+        Applicable::Actors(&["Row", "Col"]),
         |_| super::property_engine::PropertyValue::String("center".to_string())
     ),
     schema!(
@@ -1548,7 +1553,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE_AI,
         ActorField::AudioVolume,
         None,
-        Applicable::ActorKinds(&[A::Audio]),
+        Applicable::Actors(&["Audio"]),
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
     schema!(
@@ -1571,7 +1576,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::ASSIGNABLE,
         ActorField::WordSpacing,
         None,
-        Applicable::ActorKinds(&[A::Text, A::Typst, A::Code]),
+        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     schema!(
@@ -1582,14 +1587,14 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[
-            A::Graph,
-            A::PlotCurve,
-            A::VectorField,
-            A::Heatmap,
-            A::ContourSet,
-            A::NumberPlane,
-            A::BarChart
+        Applicable::Actors(&[
+            "Graph",
+            "PlotCurve",
+            "VectorField",
+            "Heatmap",
+            "ContourSet",
+            "NumberPlane",
+            "BarChart"
         ]),
         |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
     ),
@@ -1601,7 +1606,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::NumberPlane]),
+        Applicable::Actors(&["NumberPlane"]),
         |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
     ),
     schema!(
@@ -1610,7 +1615,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::Graph]),
+        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("linear".to_string())
     ),
     schema!(
@@ -1621,14 +1626,14 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[
-            A::Graph,
-            A::PlotCurve,
-            A::VectorField,
-            A::Heatmap,
-            A::ContourSet,
-            A::NumberPlane,
-            A::BarChart
+        Applicable::Actors(&[
+            "Graph",
+            "PlotCurve",
+            "VectorField",
+            "Heatmap",
+            "ContourSet",
+            "NumberPlane",
+            "BarChart"
         ]),
         |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
     ),
@@ -1640,7 +1645,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Some(GroupMembership {
             group_id: GroupHandlerId::PlotDomain
         }),
-        Applicable::ActorKinds(&[A::NumberPlane]),
+        Applicable::Actors(&["NumberPlane"]),
         |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
     ),
     schema!(
@@ -1649,7 +1654,7 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         F::empty(),
         ActorField::NoStorage,
         None,
-        Applicable::ActorKinds(&[A::Graph]),
+        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("linear".to_string())
     ),
 ];
@@ -1801,13 +1806,13 @@ pub fn property_name(id: animatix_syntax::schema::PropertyId) -> Option<&'static
 // Per-actor-kind allowed property indices
 // ─────────────────────────────────────────────────────────────
 
-/// Convenience: build a sorted set of allowed property indices for an actor kind.
+/// Convenience: build a sorted set of allowed property indices for an actor.
 /// Returns indices into PROPERTY_REGISTRY.
-pub fn allowed_property_indices(kind: super::ActorKindId) -> Vec<usize> {
+pub fn allowed_property_indices(caps: &super::ActorCaps, actor_type: &str) -> Vec<usize> {
     PROPERTY_REGISTRY
         .iter()
         .enumerate()
-        .filter(|(_, schema)| schema.applicable.includes(kind))
+        .filter(|(_, schema)| schema.applicable.includes(caps, actor_type))
         .map(|(i, _)| i)
         .collect()
 }

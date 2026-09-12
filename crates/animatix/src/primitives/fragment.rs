@@ -10,8 +10,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::{
-    ActorCategory, ActorKindId, AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive,
-    RenderCommand,
+    ActorCategory, AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand,
 };
 use crate::timeline::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
@@ -34,11 +33,8 @@ impl Primitive for FragmentPrimitive {
     fn category(&self) -> ActorCategory {
         ActorCategory::Text
     }
-    fn icon_id(&self) -> &str {
+    fn icon_id(&self) -> &'static str {
         crate::icon_glyphs::HIGHLIGHTER
-    }
-    fn kind_id(&self) -> ActorKindId {
-        ActorKindId::Fragment
     }
 
     /// A Fragment is the one built-in equation fragment: it contributes its
