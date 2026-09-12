@@ -40,7 +40,9 @@ pub use extension_discovery::{
     ManifestIssue, ManifestSource, discover_manifest_paths, discover_manifest_sources,
     fingerprint_sources, load_manifest_source,
 };
-pub use extension_manifest::{ExtensionManifest, ManifestPrimitive, ManifestProperty};
+pub use extension_manifest::{
+    ExtensionManifest, ManifestEffect, ManifestEffectParam, ManifestPrimitive, ManifestProperty,
+};
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
 };

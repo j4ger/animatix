@@ -9,7 +9,21 @@ use std::path::{Path, PathBuf};
 
 use animatix::extension_context::ExtensionContext;
 use animatix::extension_plugin::{ExtensionPlugin, NativePlugin};
+use animatix::timeline::effects::{EffectParamKind, plugin_effects};
 use animatix_analyzer::ExtensionManifest;
+use animatix_analyzer::{ManifestEffect, ManifestEffectParam};
+
+/// Map a runtime effect parameter kind onto the manifest's type string
+/// (parsed back through `Type::parse`).
+fn manifest_type(kind: EffectParamKind) -> &'static str {
+    match kind {
+        EffectParamKind::F32 => "Num",
+        EffectParamKind::U32 => "U32",
+        EffectParamKind::Bool => "Bool",
+        EffectParamKind::Vec2 => "Vec2",
+        EffectParamKind::Vec4 => "Vec4",
+    }
+}
 
 /// Generate and validate a `.amx-plugin.toml` body from a native library.
 ///
@@ -42,6 +56,21 @@ pub fn generate_manifest_toml(library: &Path, output: Option<&Path>) -> Result<S
                     .into_owned()
             })
             .unwrap_or_else(|| library.to_string_lossy().into_owned());
+        let effects = plugin_effects()
+            .iter()
+            .map(|effect| ManifestEffect {
+                name: effect.type_name.to_string(),
+                display_name: Some(effect.display_name.to_string()),
+                params: effect
+                    .params
+                    .iter()
+                    .map(|param| ManifestEffectParam {
+                        name: param.name.to_string(),
+                        ty: manifest_type(param.kind).to_string(),
+                    })
+                    .collect(),
+            })
+            .collect::<Vec<_>>();
         let manifest = ExtensionManifest::from_runtime(
             Some(manifest_library),
             &primitives,
@@ -49,6 +78,7 @@ pub fn generate_manifest_toml(library: &Path, output: Option<&Path>) -> Result<S
             &ctx.action_signatures(),
             &ctx.function_descriptors(),
             &ctx.service_descriptors(),
+            &effects,
         );
         let toml = manifest.to_toml()?;
         let parsed = ExtensionManifest::from_toml(&toml).map_err(|err| err.to_string())?;

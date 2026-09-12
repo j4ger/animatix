@@ -431,6 +431,37 @@ pub fn unregister_extension_effect(type_name: &str) {
     }
 }
 
+/// Author-visible info for one registered plugin effect, for manifest
+/// generation and tooling.
+#[derive(Clone, Debug)]
+pub struct PluginEffectInfo {
+    /// Authored type name (`.amx`).
+    pub type_name: &'static str,
+    /// Human-readable label.
+    pub display_name: &'static str,
+    /// Declared parameters (names, kinds, identities).
+    pub params: &'static [EffectParamSpec],
+}
+
+/// All currently registered plugin effects, sorted by type name.
+pub fn plugin_effects() -> Vec<PluginEffectInfo> {
+    let Some(registry) = plugin_registry().lock().ok() else {
+        return Vec::new();
+    };
+    registry
+        .values()
+        .map(|effect| PluginEffectInfo {
+            type_name: effect.data.type_name,
+            display_name: if effect.data.display_name.is_empty() {
+                effect.data.type_name
+            } else {
+                effect.data.display_name
+            },
+            params: effect.data.params,
+        })
+        .collect()
+}
+
 fn plugin_effect_by_type(type_name: &str) -> Option<&'static dyn Effect> {
     let registry = plugin_registry().lock().ok()?;
     registry

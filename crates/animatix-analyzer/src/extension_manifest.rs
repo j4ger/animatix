@@ -355,10 +355,11 @@ impl ExtensionManifest {
         actions: &[ActionSignature],
         functions: &[FunctionDescriptor],
         services: &[ServiceDescriptor],
+        effects: &[ManifestEffect],
     ) -> Self {
         Self {
             library,
-            effects: Vec::new(),
+            effects: effects.to_vec(),
             primitives: primitives
                 .iter()
                 .map(|spec| {
@@ -951,6 +952,7 @@ type = "Enum(left, right, top)"
             &[action],
             &[function],
             &[service],
+            &[],
         );
         let toml = manifest.to_toml().expect("serialize manifest");
         assert!(toml.contains("icon_id = \"extension:pulse\""));

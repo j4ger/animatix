@@ -282,7 +282,7 @@ fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
 
 /// Type completions with documentation.
 fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<CompletionItem> {
-    let mut items = symbols
+    let items = symbols
         .types
         .iter()
         .map(|ty| {
@@ -312,17 +312,6 @@ fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<
         })
         .collect::<Vec<_>>();
 
-    for spec in animatix_syntax::schema::builtin_primitive_specs() {
-        if !symbols.types.contains(spec.type_name.as_str()) {
-            items.push(CompletionItem {
-                label: spec.type_name.to_string(),
-                kind: CompletionKind::Type,
-                detail: Some(spec.category.label().to_string()),
-                documentation: Some(spec.display_name.to_string()),
-                insert_text: None,
-            });
-        }
-    }
     items
 }
 

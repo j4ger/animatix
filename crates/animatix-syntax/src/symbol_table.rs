@@ -173,7 +173,7 @@ impl SymbolTable {
     /// Build a symbol table from parsed AST statements.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
         let mut table = Self {
-            types: crate::builtins::TYPES.iter().map(|s| s.to_string()).collect(),
+            types: crate::builtins::types().iter().cloned().collect(),
             keywords: crate::builtins::KEYWORDS.iter().map(|s| s.to_string()).collect(),
             actions: crate::builtins::ACTIONS.iter().map(|s| s.to_string()).collect(),
             properties: typing::known_properties().clone(),

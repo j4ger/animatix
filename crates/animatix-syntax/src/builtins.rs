@@ -32,49 +32,24 @@ pub const KEYWORDS: &[&str] = &[
 /// Reserved words that are lexed as keywords but rejected as identifiers.
 pub const RESERVED_KEYWORDS: &[&str] = &["loop", "yield", "stop", "pause", "resume"];
 
-/// Built-in actor/scene primitive type names.
-pub const TYPES: &[&str] = &[
-    // Shapes
-    "Rect",
-    "Ellipse",
-    "Line",
-    "Arrow",
-    "Polygon",
-    "Path",
-    // Text
-    "Text",
-    "Code",
-    "Math",
-    "Typst",
-    // Media
-    "Image",
-    "Svg",
-    "Audio",
-    // Plots
-    "Graph",
-    "PlotCurve",
-    "VectorField",
-    "Heatmap",
-    "ContourSet",
-    "NumberPlane",
-    "BarChart",
-    // Containers
-    "Row",
-    "Col",
-    "Grid",
-    "Stack",
-    "Group",
-    "Mask",
-    "Filter",
-    // Equation / Fragment
-    "Equation",
-    "Fragment",
-    // Annotations
-    "Callout",
-    "Legend",
-    // Built-in component (handled by the component system)
-    "Button",
-];
+/// Built-in actor/scene primitive type names, derived from the shared
+/// primitive spec table plus component-system types. Adding a primitive needs
+/// no edit here — its `builtin_primitive_specs()` row is the single source.
+pub fn types() -> &'static [String] {
+    use std::sync::OnceLock;
+    static TYPES: OnceLock<Vec<String>> = OnceLock::new();
+    TYPES.get_or_init(|| {
+        let mut names: Vec<String> = crate::schema::builtin_primitive_specs()
+            .iter()
+            .map(|spec| spec.type_name.clone())
+            .collect();
+        // Built-in component, handled by the component system rather than a
+        // primitive.
+        names.push("Button".to_string());
+        names.sort();
+        names
+    })
+}
 
 /// Built-in action verbs.
 pub const ACTIONS: &[&str] = &[
