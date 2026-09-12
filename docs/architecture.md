@@ -68,7 +68,8 @@ Timeline {
 
 Per-actor storage is organized into three tiers:
 
-- **Header**: `label`, `kind: ActorKindId`, `first_seen_ms`, `children`
+- **Header**: `label`, `actor_type` (the authored type name — the identity),
+  `caps: ActorCaps` (derived capability projection), `first_seen_ms`, `children`
 - **Geometry tier**: `position`, `motion_offset`, `size`, `layout_size`, `rotation`, `scale`, `transform`, `placement_mode`, `position_binding`
 - **Style tier**: `color`, `opacity`, `stroke_width`, `stroke_color`, `stroke_progress`, `fill_opacity`, `morph_options`
 - **Payload** (kind-specific): `Shape { shape_type, line_from, line_to, arc_angles, points, vector_paths }`, `Text { content, text_paths }`, `Image { image }`, `Svg { svg_paths }`, `Plot { vector_paths }`, or `Empty`
@@ -615,10 +616,38 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 
 ## 15. Primitive Architecture
 
-Adding a new built-in primitive requires these touch points (rendering is
-trait-dispatched; the remaining steps exist because `ActorKindId` variants and
-tooling tables are matched across the codebase and cannot be auto-generated
-from the `PRIMITIVES` array):
+### Identity and capabilities
+
+Actors and effects share one identity model:
+
+- **Identity is the authored type name** (`AnimationTrack::actor_type`,
+  `EffectId`). It is what `.amx` source writes, what the registry keys on, and
+  what persistence (`CarryBag`) stores — so a saved project keeps resolving to
+  the same primitive or plugin effect across runs. There are no identity
+  enums to extend when a new primitive or effect is added.
+- **The engine dispatches on `ActorCaps`**, a `Copy` capability projection
+  derived once at identity time from the primitive's trait methods
+  (`child_processing`, `shape_kind`, `text_kind`, `has_stroke_path`, the
+  `PrimitiveCapabilities` bits, `group_like`). Frame-time checks are field
+  reads (`caps.is_effect_scope()`, `caps.layout_container`, `caps.text`), and
+  extension primitives derive the same projection as built-ins.
+- **The capability vocabulary stays a small closed set**
+  (`ActorCategory`, `ChildProcessing`, `ShapeKind`, `TextKind`): it grows only
+  when the engine learns a new *behaviour*, which is when the compiler should
+  force every dispatch site to be revisited.
+- **Author-visible metadata has one contract table per feature kind** in
+  `animatix-syntax/src/schema.rs`: `builtin_primitive_specs()` for primitives,
+  `effect_specs()` for effects (parameters with name/kind/identity, display
+  name). The runtime derives its uniform layouts, display names, and the
+  type-name list (`builtins::types()`) from these tables; plugins provide the
+  same shape through their manifest (`[[effects]]`, primitives) or the FFI,
+  and `ExtensionManifest::from_runtime` bridges runtime registrations into
+  manifest form.
+
+### Adding a new built-in primitive
+
+Rendering is trait-dispatched; adding a primitive is one behaviour file, one
+registration line, and one contract row:
 
 ```rust
 // primitives/triangle.rs
@@ -629,6 +658,7 @@ impl Primitive for TrianglePrimitive {
     fn type_name(&self) -> &'static str { "Triangle" }
     fn category(&self) -> ActorCategory { ActorCategory::Shape }
     fn is_shape(&self) -> bool { true }
+    fn shape_kind(&self) -> Option<ShapeKind> { Some(ShapeKind::Rect) }
 
     fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property],
              modifiers: &[Modifier], children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
@@ -647,29 +677,28 @@ impl Primitive for TrianglePrimitive {
 ```
 
 Steps:
-1. Create `primitives/<name>.rs` implementing `Primitive`.
+1. Create `primitives/<name>.rs` implementing `Primitive` (override
+   `shape_kind()` / `text_kind()` for shape- or text-like primitives).
 2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add a variant to `ActorKindId` (and `ShapeKind` for shapes) in `timeline/actor_kind.rs`.
-4. Add an entry to `animatix-syntax::schema::builtin_primitive_specs()` and to
-   `animatix-syntax::builtins::TYPES` + `type_documentation`.
-5. If the primitive declares properties, add them to BOTH
-   `animatix-syntax::schema::raw_property_specs()` and the runtime
-   `timeline::property_registry::PROPERTY_REGISTRY` (pinned by a sync test).
-6. Document in `docs/primitives.md` / `docs/spec.md`; add render/hit-region
+3. Add the contract row to `animatix-syntax::schema::builtin_primitive_specs()`
+   (`builtins::types()` and the runtime metadata derive from it; non-default
+   capabilities go in `primitive_capabilities()`, special child processing in
+   `schema_child_processing()`).
+4. If the primitive declares properties, add them to BOTH
+   `animatix-syntax::schema::raw_property_specs()` (applicable actor type
+   names) and `timeline::property_registry::PROPERTY_REGISTRY` (storage
+   semantics + `Applicable` capability predicate; pinned by
+   `shared_schema_covers_every_runtime_property`).
+5. Document in `docs/primitives.md` / `docs/spec.md` (including the LLM
+   checklist name list and its mirror in `AGENTS.md`); add render/hit-region
    tests if the primitive draws.
 
-The metadata registry (`ActorKindMeta`) is auto-generated from `PRIMITIVES`,
-and `registry_specs_match_shared_schema_for_builtins` pins the runtime
-metadata to the schema table — so built-ins and tooling cannot silently drift,
-but the schema table itself remains hand-maintained.
-
-Registry, dispatch, icon mapping, and GUI defaults are auto-generated from `PRIMITIVES`.
-
-External primitives can avoid step 3 by registering through `PrimitiveRegistry`
-or `ExtensionContext`; the timeline records the source `actor_type` and resolves
-it back to the runtime primitive during scene evaluation. External properties
-can likewise be registered as `ExtensionPropertySpec` values and are stored in
-the actor's `PropertyPlan`/`DynTrack` slots.
+`registry_specs_match_shared_schema_for_builtins` pins the runtime metadata to
+the contract table, and `Registry`, icon mapping, and GUI defaults derive from
+`PRIMITIVES`. External primitives register through `PrimitiveRegistry` or
+`ExtensionContext` (their capabilities come from the registered primitive
+itself); external properties are stored in the actor's
+`PropertyPlan`/`DynTrack` slots.
 
 ### When to group primitives
 
@@ -678,7 +707,7 @@ Not every visual variation needs its own primitive. The rule of thumb:
 - **Same property schema + same rendering path + only internal sampling logic differs** → use a single primitive with a `kind` property.
 - **Different property schema or fundamentally different rendering** → separate primitive.
 
-**Example — plot curves:** The former `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` primitives all exposed `func`, `x_domain`, `y_domain`, `t_domain`, `tolerance`, `max_depth`, and `resolution`. They differed only in how the closure was sampled. These were merged into `PlotCurve` with a `kind` property. This keeps `ActorKindId` lean and avoids `PROPERTY_REGISTRY` bloat.
+**Example — plot curves:** The former `CartesianPlot`, `PolarPlot`, `ParametricPlot`, and `ImplicitPlot` primitives all exposed `func`, `x_domain`, `y_domain`, `t_domain`, `tolerance`, `max_depth`, and `resolution`. They differed only in how the closure was sampled. These were merged into `PlotCurve` with a `kind` property. This keeps the primitive catalog lean and avoids `PROPERTY_REGISTRY` bloat.
 
 **Counter-example — `VectorField`:** It exposes `func` that returns a 2-D vector, plus `density` / `grid_size`, and renders arrows rather than a single stroke path. It stays as a separate primitive.
 

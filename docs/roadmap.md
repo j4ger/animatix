@@ -504,6 +504,23 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
+- **Identity unification (2026-09-12).** Identity is the authored type name
+  everywhere: `EffectId` is the effect's name (persisted as a bare string, so
+  plugin effects no longer drift through host-assigned registry slots), and
+  `AnimationTrack.kind`/`ActorKindId` are replaced by `ActorCaps`, a `Copy`
+  capability projection derived at identity time from the primitive
+  (`child_processing`, `shape_kind`, `text_kind`, `has_stroke_path`,
+  `PrimitiveCapabilities` bits, `group_like`). The `Applicable` property
+  vocabulary became capability predicates, extensions now get the full
+  built-in treatment (text layout, property plans, effect scopes), the 31
+  `kind_id()` impls and the `TYPES` table are deleted (types derive from the
+  contract tables), and `ExtensionManifest::from_runtime` now bridges
+  plugin-registered effects into `[[effects]]` manifest metadata. Adding a
+  built-in effect = one behaviour file + one `EFFECTS` line + one
+  `effect_specs()` contract row; adding a built-in primitive = one behaviour
+  file + one `PRIMITIVES` line + one `builtin_primitive_specs()` row (+ its
+  property rows). Contract: `docs/effects.md`; identity model:
+  `docs/architecture.md` §15.
 - **Catalog declaration (2026-09-12).** Built-ins are unit structs implementing
   the `Effect` trait (schema, WGSL, `pack`, and `support` in one file each) in
   `timeline/effects/`, registered once in the `EFFECTS` array. Plugin effects
