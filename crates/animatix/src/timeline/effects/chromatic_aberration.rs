@@ -1,18 +1,11 @@
 //! `ChromaticAberration` — radial RGB channel separation through the linear
 //! sampler.
+//!
+//! Parameter names, kinds, and identity values live in the shared contract
+//! table (`animatix-syntax/src/schema.rs::effect_specs()`); this file holds
+//! only the shader and the runtime behaviour.
 
-use super::{
-    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
-};
-
-/// `ChromaticAberration` parameters.
-pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
-    name: "offset",
-    kind: EffectParamKind::F32,
-    identity: EffectParamValue::F32(0.0),
-    offset: 0,
-    size: 4,
-}];
+use super::{Effect, EffectParams, EffectPassSpec};
 
 const CHROMATIC_ABERRATION_WGSL: &str = r#"
 struct ChromaOffsetParams {
@@ -90,20 +83,8 @@ impl Effect for ChromaticAberration {
         "ChromaticAberration"
     }
 
-    fn display_name(&self) -> &'static str {
-        "Chromatic Aberration"
-    }
-
-    fn params(&self) -> &'static [EffectParamSpec] {
-        CHROMATIC_ABERRATION_PARAMS
-    }
-
     fn passes(&self) -> &'static [EffectPassSpec] {
         CHROMATIC_ABERRATION_PASSES
-    }
-
-    fn author_uniform_size(&self) -> u32 {
-        16
     }
 
     fn pack(&self, params: &EffectParams, out: &mut [u8]) {

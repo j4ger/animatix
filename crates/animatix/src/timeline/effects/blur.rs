@@ -1,17 +1,10 @@
 //! `Blur` — separable Gaussian blur (horizontal pass, then vertical).
+//!
+//! Parameter names, kinds, and identity values live in the shared contract
+//! table (`animatix-syntax/src/schema.rs::effect_specs()`); this file holds
+//! only the shader and the runtime behaviour.
 
-use super::{
-    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
-};
-
-/// `Blur` parameters.
-pub const BLUR_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
-    name: "radius",
-    kind: EffectParamKind::F32,
-    identity: EffectParamValue::F32(0.0),
-    offset: 0,
-    size: 4,
-}];
+use super::{Effect, EffectParams, EffectPassSpec};
 
 const BLUR_WGSL: &str = r#"
 struct BlurParams {
@@ -103,16 +96,8 @@ impl Effect for Blur {
         "Blur"
     }
 
-    fn params(&self) -> &'static [EffectParamSpec] {
-        BLUR_PARAMS
-    }
-
     fn passes(&self) -> &'static [EffectPassSpec] {
         BLUR_PASSES
-    }
-
-    fn author_uniform_size(&self) -> u32 {
-        16
     }
 
     fn pack(&self, params: &EffectParams, out: &mut [u8]) {

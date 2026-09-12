@@ -623,21 +623,8 @@ unsafe extern "C" fn native_register_effect(
             );
             return NATIVE_STATUS_TYPE_ERROR;
         }
-        let identity = match kind {
-            EffectParamKind::F32 => {
-                crate::timeline::effects::EffectParamValue::F32(raw.identity[0])
-            },
-            EffectParamKind::U32 => {
-                crate::timeline::effects::EffectParamValue::U32(raw.identity[0].max(0.0) as u32)
-            },
-            EffectParamKind::Bool => {
-                crate::timeline::effects::EffectParamValue::Bool(raw.identity[0] != 0.0)
-            },
-            EffectParamKind::Vec2 => {
-                crate::timeline::effects::EffectParamValue::Vec2([raw.identity[0], raw.identity[1]])
-            },
-            EffectParamKind::Vec4 => crate::timeline::effects::EffectParamValue::Vec4(raw.identity),
-        };
+        // Same `[x, y, z, w]` identity convention as the built-in contract table.
+        let identity = crate::timeline::effects::identity_for(kind, raw.identity);
         params.push(EffectParamSpec {
             name: Box::leak(name.clone().into_boxed_str()),
             kind,

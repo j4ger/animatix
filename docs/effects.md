@@ -34,13 +34,14 @@ Rules:
   keyframe timing, snapshot/collapse, and persistence (`CarryBag`) reuse the
   dynamic-track machinery. Effect parameters do **not** enter the primitive
   property registry (`PROPERTY_REGISTRY` / `ActorField` / `PropertyPlan`).
-- **Effect schema has one author-visible source per layer.** Built-ins implement
-  the `Effect` trait (`timeline/effects/`), which owns the WGSL, passes, uniform
-  layout, identity values, and spatial support; plugin effects implement the
-  same trait over FFI-declared data (`PluginEffectData`). The analyzer's
-  `animatix_syntax::schema::effect_specs()` mirrors the parameter names, kinds,
-  and display names. `effect_specs_match_runtime_descriptors` pins the two tables
-  together in both directions.
+- **Effect schema has one author-visible source per layer.**
+  `animatix_syntax::schema::effect_specs()` is the **contract**: it declares
+  every built-in effect's parameters (name, kind, identity) and display name.
+  The runtime derives the uniform layout from it (offsets follow the host rule:
+  scalars 4-byte aligned, vec2 at 8, vec4 at 16, sequential); the effect's own
+  file holds only the WGSL, `pack`, and `support`. Plugin effects implement the
+  same trait over FFI-declared data (`PluginEffectData`) and use the identical
+  identity convention (`[x, y, z, w]` interpreted per kind).
 - **Every effect has an implicit `enabled: Bool`** (default `true`, animatable).
   There is no generic `mix` in v1.
 
@@ -177,10 +178,11 @@ horizontal, 1 = vertical).
 - Types: `f32`, `u32`, `vec2`, `vec4`/colour, `bool` (marshalled as `u32`).
 - v1 forbids `vec3`, arrays, and nested structs — WGSL uniform alignment makes
   them a silent-misalignment hazard.
-- The uniform buffer is padded to a multiple of 16 bytes. Built-in effects may
-  supply a host-side packer (e.g. `ColorGrade` composes its five scalars into
-  four `vec4` rows); plugin effects use the generic layout declared in their
-  parameter schema.
+- The uniform buffer is padded to a multiple of 16 bytes. Built-in parameter
+  offsets/sizes derive from the contract table's kinds (§1); an effect whose
+  WGSL struct is hand-padded beyond its parameters overrides the derived size
+  (e.g. `ColorGrade` packs its five scalars into four `vec4` rows = 64 bytes).
+  Plugin effects use the generic layout declared in their parameter schema.
 
 ### 4.5 Dispatch
 
@@ -245,21 +247,20 @@ warning, exactly like built-ins.
 
 ## 8. Adding a built-in effect
 
-1. Create `crates/animatix/src/timeline/effects/<name>.rs` implementing the
-   `Effect` trait — parameter schema, WGSL passes, `pack`, and `support` in one
-   file.
-2. Add `&<name>::CONST` to the `EFFECTS` bootstrap array.
-3. Add an `EffectId` variant.
-4. Add the author-visible parameters to
+1. Add the contract row: parameters (name, kind, identity) and display name in
    `animatix-syntax/src/schema.rs::effect_specs()`.
-5. Document it here (the identity table in §2) and in `docs/spec.md`.
-6. If the effect reads a neighbourhood or displaces samples, calibrate
+2. Create `crates/animatix/src/timeline/effects/<name>.rs` implementing the
+   `Effect` trait — WGSL passes, `pack`, and `support`. Parameters, uniform
+   layout, and display name derive from the contract; do not redeclare them.
+3. Add `&<name>::CONST` to the `EFFECTS` bootstrap array — this is the
+   registration. There is no enum variant to add (`EffectId` is the authored
+   name).
+4. Document it here (the identity table in §2) and in `docs/spec.md`.
+5. If the effect reads a neighbourhood or displaces samples, calibrate
    `support` — the derived ROI pads by it, and an under-reported support clips
-   pixels silently.
-
-Steps 3-4 are hand-maintained (a persisted enum tag and a cross-crate schema
-table); everything else derives from the one file, mirroring how
-`primitives/mod.rs` documents adding a primitive.
+   pixels silently. If the WGSL uniform struct is hand-padded beyond the
+   parameters, override `author_uniform_size` with the struct's real size
+   (`ColorGrade` does this).
 
 ## 9. Editor support
 

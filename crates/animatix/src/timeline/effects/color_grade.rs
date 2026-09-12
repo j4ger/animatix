@@ -1,48 +1,11 @@
 //! `ColorGrade` — a 4×4 colour matrix composed on the host from
 //! brightness/contrast/saturate/hue-rotate/sepia.
+//!
+//! Parameter names, kinds, and identity values live in the shared contract
+//! table (`animatix-syntax/src/schema.rs::effect_specs()`); this file holds
+//! only the shader and the runtime behaviour.
 
-use super::{
-    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
-};
-
-/// `ColorGrade` parameters.
-pub const COLOR_GRADE_PARAMS: &[EffectParamSpec] = &[
-    EffectParamSpec {
-        name: "brightness",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 0,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "contrast",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 4,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "saturate",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 8,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "hue_rotate",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(0.0),
-        offset: 12,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "sepia",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(0.0),
-        offset: 16,
-        size: 4,
-    },
-];
+use super::{Effect, EffectParams, EffectPassSpec};
 
 const COLOR_GRADE_WGSL: &str = r#"
 struct ColorGradeParams {
@@ -108,18 +71,12 @@ impl Effect for ColorGrade {
         "ColorGrade"
     }
 
-    fn display_name(&self) -> &'static str {
-        "Color Grade"
-    }
-
-    fn params(&self) -> &'static [EffectParamSpec] {
-        COLOR_GRADE_PARAMS
-    }
-
     fn passes(&self) -> &'static [EffectPassSpec] {
         COLOR_GRADE_PASSES
     }
 
+    /// The WGSL uniform struct is the hand-padded 4×4 matrix (4 × `vec4`), not
+    /// the five packed scalars, so the derived size would under-allocate.
     fn author_uniform_size(&self) -> u32 {
         64
     }

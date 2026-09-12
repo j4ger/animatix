@@ -30,7 +30,7 @@ mod chromatic_aberration;
 mod color_grade;
 mod track;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, OnceLock};
 
 pub use blur::BLUR;
@@ -119,6 +119,103 @@ pub struct EffectParamSpec {
     pub size: u32,
 }
 
+// ── Author-visible contract (single source: the shared schema table) ───────
+
+/// The author-visible contract for a built-in effect, derived once from
+/// `animatix_syntax::schema::effect_specs()`. Parameter `offset`/`size` follow
+/// the host layout rule (scalars 4-byte aligned, vec2 at 8, vec4 at 16,
+/// sequential), so the generic packer can fill the uniform without a
+/// hand-written layout.
+struct EffectContract {
+    display_name: &'static str,
+    params: &'static [EffectParamSpec],
+}
+
+fn kind_from_shared(kind: animatix_syntax::schema::PropertyValueKind) -> Option<EffectParamKind> {
+    use animatix_syntax::schema::PropertyValueKind as S;
+    Some(match kind {
+        S::F32 => EffectParamKind::F32,
+        S::U32 => EffectParamKind::U32,
+        S::Bool => EffectParamKind::Bool,
+        S::Vec2 => EffectParamKind::Vec2,
+        S::Vec4 => EffectParamKind::Vec4,
+        other => {
+            tracing::warn!(
+                "effect contract parameter kind {other:?} is not marshalable; parameter skipped"
+            );
+            return None;
+        },
+    })
+}
+
+/// Identity value for a declared kind from its raw `[x, y, z, w]` form — the
+/// same convention as the plugin ABI's `NativeEffectParam::identity`.
+pub(crate) fn identity_for(kind: EffectParamKind, raw: [f32; 4]) -> EffectParamValue {
+    match kind {
+        EffectParamKind::F32 => EffectParamValue::F32(raw[0]),
+        EffectParamKind::U32 => EffectParamValue::U32(raw[0].max(0.0) as u32),
+        EffectParamKind::Bool => EffectParamValue::Bool(raw[0] != 0.0),
+        EffectParamKind::Vec2 => EffectParamValue::Vec2([raw[0], raw[1]]),
+        EffectParamKind::Vec4 => EffectParamValue::Vec4(raw),
+    }
+}
+
+/// Byte size and natural alignment of one marshalled parameter kind.
+fn kind_layout(kind: EffectParamKind) -> (u32, u32) {
+    match kind {
+        EffectParamKind::F32 | EffectParamKind::U32 | EffectParamKind::Bool => (4, 4),
+        EffectParamKind::Vec2 => (8, 8),
+        EffectParamKind::Vec4 => (16, 16),
+    }
+}
+
+/// Uniform buffer size covering every parameter, rounded up to 16 bytes.
+fn uniform_size_for(params: &[EffectParamSpec]) -> u32 {
+    params
+        .iter()
+        .map(|spec| spec.offset + spec.size)
+        .max()
+        .unwrap_or(0)
+        .next_multiple_of(16)
+        .max(16)
+}
+
+fn built_in_contracts() -> &'static HashMap<&'static str, EffectContract> {
+    static CONTRACTS: OnceLock<HashMap<&'static str, EffectContract>> = OnceLock::new();
+    CONTRACTS.get_or_init(|| {
+        animatix_syntax::schema::effect_specs()
+            .iter()
+            .filter_map(|spec| {
+                let mut offset = 0u32;
+                let params: Vec<EffectParamSpec> = spec
+                    .params
+                    .iter()
+                    .filter_map(|declared| {
+                        let kind = kind_from_shared(declared.kind)?;
+                        let (size, align) = kind_layout(kind);
+                        offset = offset.next_multiple_of(align);
+                        let laid_out = EffectParamSpec {
+                            name: declared.name,
+                            kind,
+                            identity: identity_for(kind, declared.identity),
+                            offset,
+                            size,
+                        };
+                        offset += size;
+                        Some(laid_out)
+                    })
+                    .collect();
+                let params: &'static [EffectParamSpec] = Box::leak(params.into_boxed_slice());
+                let contract = EffectContract {
+                    display_name: spec.display_name,
+                    params,
+                };
+                Some((spec.type_name, contract))
+            })
+            .collect()
+    })
+}
+
 /// Resolved parameters for one effect instance in a frame.
 #[derive(Clone, Debug, Default)]
 pub struct EffectParams {
@@ -161,19 +258,33 @@ pub trait Effect: Send + Sync {
     /// Authored type name (`.amx`) — the effect's identity.
     fn type_name(&self) -> &'static str;
 
-    /// Human-readable label for palettes and tooltips.
+    /// Human-readable label for palettes and tooltips, from the contract
+    /// table.
     fn display_name(&self) -> &'static str {
-        self.type_name()
+        built_in_contracts()
+            .get(self.type_name())
+            .map_or(self.type_name(), |contract| contract.display_name)
     }
 
-    /// Parameter schema, index-aligned with [`EffectParams::values`].
-    fn params(&self) -> &'static [EffectParamSpec];
+    /// Parameter schema, derived from the contract table
+    /// (`animatix_syntax::schema::effect_specs()`). Plugin effects override
+    /// this with their FFI-declared schema.
+    fn params(&self) -> &'static [EffectParamSpec] {
+        built_in_contracts()
+            .get(self.type_name())
+            .map_or(&[], |contract| contract.params)
+    }
 
     /// Ordered compute passes.
     fn passes(&self) -> &'static [EffectPassSpec];
 
-    /// Size in bytes of the author uniform buffer (multiple of 16).
-    fn author_uniform_size(&self) -> u32;
+    /// Size in bytes of the author uniform buffer, derived from the parameter
+    /// layout. An effect whose WGSL uniform struct is hand-padded beyond its
+    /// parameters (e.g. a colour matrix) overrides this with the struct's real
+    /// size.
+    fn author_uniform_size(&self) -> u32 {
+        uniform_size_for(self.params())
+    }
 
     /// Marshal parameters into `author_uniform_size` bytes.
     fn pack(&self, params: &EffectParams, out: &mut [u8]);
@@ -380,28 +491,16 @@ pub fn pack_generic(data: &PluginEffectData, params: &EffectParams, out: &mut [u
 mod tests {
     use super::*;
 
-    fn kind_matches(
-        runtime: EffectParamKind,
-        shared: animatix_syntax::schema::PropertyValueKind,
-    ) -> bool {
+    fn kind_is_marshalable(shared: animatix_syntax::schema::PropertyValueKind) -> bool {
         use animatix_syntax::schema::PropertyValueKind as S;
-        matches!(
-            (runtime, shared),
-            (EffectParamKind::F32, S::F32)
-                | (EffectParamKind::U32, S::U32)
-                | (EffectParamKind::Bool, S::Bool)
-                | (EffectParamKind::Vec2, S::Vec2)
-                | (EffectParamKind::Vec4, S::Vec4)
-        )
+        matches!(shared, S::F32 | S::U32 | S::Bool | S::Vec2 | S::Vec4)
     }
 
-    /// The runtime effect declarations and the analyzer's shared effect table
-    /// must agree exactly: same set, same display names, same parameter names
-    /// and kinds. Bidirectional (count + per-entry), so a built-in added to
-    /// only one side fails here — mirroring
-    /// `primitives::registry_specs_match_shared_schema_for_builtins`.
+    /// Every built-in effect must have a contract row in the shared schema
+    /// table — it is the single source of the effect's parameters, so a
+    /// declared effect without one silently loses its parameters.
     #[test]
-    fn effect_specs_match_runtime_descriptors() {
+    fn every_built_in_effect_has_a_contract_row() {
         let shared = animatix_syntax::schema::effect_specs();
         assert_eq!(
             EFFECTS.len(),
@@ -419,22 +518,44 @@ mod tests {
             );
             assert_eq!(
                 effect.params().len(),
-                spec.params.len(),
-                "parameter count mismatch for {}",
+                spec.params.iter().filter(|p| kind_is_marshalable(p.kind)).count(),
+                "{} derived parameter count mismatch",
                 effect.type_name()
             );
             for (runtime, declared) in effect.params().iter().zip(spec.params) {
                 assert_eq!(runtime.name, declared.name, "{} parameter order", effect.type_name());
                 assert!(
-                    kind_matches(runtime.kind, declared.kind),
-                    "{}.{} kind mismatch: {:?} vs {:?}",
+                    kind_is_marshalable(declared.kind),
+                    "{}.{} kind {:?} is not marshalable",
                     effect.type_name(),
-                    runtime.name,
-                    runtime.kind,
+                    declared.name,
                     declared.kind
                 );
             }
+            // The derived layout must fill a valid uniform buffer.
+            assert_eq!(effect.author_uniform_size() % 16, 0);
+            assert!(effect.author_uniform_size() >= 16);
         }
+    }
+
+    /// The derived uniform layout matches the host rule (scalars 4-byte
+    /// aligned, vec2 at 8, vec4 at 16, sequential), so packers can rely on the
+    /// declared offsets.
+    #[test]
+    fn derived_contract_layout_follows_host_rule() {
+        let blur = effect_for_type("Blur").expect("Blur");
+        let params = blur.params();
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].name, "radius");
+        assert_eq!(params[0].offset, 0);
+        assert_eq!(params[0].size, 4);
+        assert_eq!(params[0].identity, super::EffectParamValue::F32(0.0));
+        assert_eq!(blur.author_uniform_size(), 16);
+
+        let grade = effect_for_type("ColorGrade").expect("ColorGrade");
+        let offsets: Vec<u32> = grade.params().iter().map(|spec| spec.offset).collect();
+        assert_eq!(offsets, vec![0, 4, 8, 12, 16]);
+        assert_eq!(grade.params()[0].identity, super::EffectParamValue::F32(1.0));
     }
 
     #[test]

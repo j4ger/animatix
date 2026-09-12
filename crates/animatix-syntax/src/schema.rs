@@ -388,22 +388,27 @@ pub fn schema_child_processing(type_name: &str) -> ChildProcessingKind {
     }
 }
 
-/// One author-visible effect parameter: its name and value kind.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// One author-visible effect parameter: its name, value kind, and the identity
+/// (no-op) value.
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EffectParamSpecDef {
     /// Parameter name as authored.
     pub name: &'static str,
     /// Declared value kind.
     pub kind: PropertyValueKind,
+    /// Value at which this parameter contributes nothing, interpreted per
+    /// `kind` — the same convention as the plugin ABI's
+    /// `NativeEffectParam::identity` (`[x, y, z, w]`, unused lanes ignored).
+    pub identity: [f32; 4],
 }
 
 /// One author-visible effect kind recognized inside a `Filter` scope.
 ///
 /// Effects are not primitives and do not appear in
 /// [`builtin_primitive_specs`]; this table exists so the analyzer can validate
-/// and complete effect declarations and their parameters. The runtime effect
-/// descriptors must declare the same names and kinds (drift-tested in
-/// `animatix`).
+/// and complete effect declarations and their parameters. The contract is the
+/// single author-visible source for effect parameters; the runtime derives its
+/// uniform layout from it (drift-tested in `animatix`).
 #[derive(Clone, Copy, Debug)]
 pub struct EffectSpecDef {
     /// Authored type name (`Blur`).
@@ -425,6 +430,7 @@ pub fn effect_specs() -> &'static [EffectSpecDef] {
             params: &[EffectParamSpecDef {
                 name: "radius",
                 kind: PropertyValueKind::F32,
+                identity: [0.0; 4],
             }],
         },
         EffectSpecDef {
@@ -434,22 +440,27 @@ pub fn effect_specs() -> &'static [EffectSpecDef] {
                 EffectParamSpecDef {
                     name: "brightness",
                     kind: PropertyValueKind::F32,
+                    identity: [1.0, 0.0, 0.0, 0.0],
                 },
                 EffectParamSpecDef {
                     name: "contrast",
                     kind: PropertyValueKind::F32,
+                    identity: [1.0, 0.0, 0.0, 0.0],
                 },
                 EffectParamSpecDef {
                     name: "saturate",
                     kind: PropertyValueKind::F32,
+                    identity: [1.0, 0.0, 0.0, 0.0],
                 },
                 EffectParamSpecDef {
                     name: "hue_rotate",
                     kind: PropertyValueKind::F32,
+                    identity: [0.0; 4],
                 },
                 EffectParamSpecDef {
                     name: "sepia",
                     kind: PropertyValueKind::F32,
+                    identity: [0.0; 4],
                 },
             ],
         },
@@ -459,6 +470,7 @@ pub fn effect_specs() -> &'static [EffectSpecDef] {
             params: &[EffectParamSpecDef {
                 name: "offset",
                 kind: PropertyValueKind::F32,
+                identity: [0.0; 4],
             }],
         },
     ]
