@@ -106,7 +106,7 @@ fn test_keyframe_times_s_includes_effect_params() {
     let mut track = AnimationTrack::placeholder("test".to_string());
     let mut stage = crate::timeline::effects::EffectStage::new(
         "soft".to_string(),
-        crate::timeline::effects::EffectId::Blur,
+        crate::timeline::effects::EffectId::new("Blur"),
     );
     stage
         .param_track_mut("radius", crate::timeline::effects::EffectParamKind::F32)

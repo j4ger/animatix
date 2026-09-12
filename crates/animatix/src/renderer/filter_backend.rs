@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use crate::renderer::core::RendererCore;
 use crate::timeline::SceneDimensions;
 use crate::timeline::effects::{
-    Effect, EffectChain, EffectId, EffectRegion, FilterBackend, PendingComposite, effect,
+    Effect, EffectChain, EffectRegion, FilterBackend, PendingComposite, effect,
 };
 use crate::timeline::image::SceneImage;
 
@@ -74,8 +74,8 @@ pub struct GpuFilterBackend {
     // Shared effect binding layout (bindings 0-4) and pipeline layout.
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
-    /// Lazily built pipelines, keyed by effect identity.
-    pipelines: HashMap<EffectId, EffectPipeline>,
+    /// Lazily built pipelines, keyed by the effect's authored type name.
+    pipelines: HashMap<&'static str, EffectPipeline>,
     /// Linear clamp sampler (binding 4).
     sampler: wgpu::Sampler,
     /// Per-pass host context uniform (binding 3).
@@ -277,7 +277,7 @@ impl GpuFilterBackend {
 
     /// Build (once) the pipelines and uniform buffer for `effect`.
     fn ensure_effect_pipeline(&mut self, effect: &dyn Effect) {
-        if self.pipelines.contains_key(&effect.id()) {
+        if self.pipelines.contains_key(effect.type_name()) {
             return;
         }
         let mut passes = Vec::with_capacity(effect.passes().len());
@@ -303,7 +303,7 @@ impl GpuFilterBackend {
             mapped_at_creation: false,
         });
         self.pipelines.insert(
-            effect.id(),
+            effect.type_name(),
             EffectPipeline {
                 passes,
                 uniform_buffer,
@@ -461,12 +461,12 @@ impl GpuFilterBackend {
 
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
-            let Some(effect) = effect(instance.id) else {
+            let Some(effect) = effect(&instance.id) else {
                 tracing::warn!("chain effect has no registered descriptor; skipping");
                 continue;
             };
             self.ensure_effect_pipeline(effect);
-            let Some(pipeline) = self.pipelines.get(&effect.id()) else {
+            let Some(pipeline) = self.pipelines.get(effect.type_name()) else {
                 continue;
             };
 
@@ -691,12 +691,12 @@ impl FilterBackend for GpuFilterBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::effects::{EffectInstance, EffectParamValue, EffectParams};
+    use crate::timeline::effects::{EffectId, EffectInstance, EffectParamValue, EffectParams};
 
     fn blur_chain(radius: f32) -> EffectChain {
         EffectChain {
             instances: vec![EffectInstance {
-                id: EffectId::Blur,
+                id: EffectId::new("Blur"),
                 enabled: true,
                 params: EffectParams {
                     values: vec![EffectParamValue::F32(radius)],
@@ -715,7 +715,7 @@ mod tests {
     ) -> EffectChain {
         EffectChain {
             instances: vec![EffectInstance {
-                id: EffectId::ColorGrade,
+                id: EffectId::new("ColorGrade"),
                 enabled: true,
                 params: EffectParams {
                     values: vec![
@@ -734,7 +734,7 @@ mod tests {
     fn chromatic_aberration_chain(offset: f32) -> EffectChain {
         EffectChain {
             instances: vec![EffectInstance {
-                id: EffectId::ChromaticAberration,
+                id: EffectId::new("ChromaticAberration"),
                 enabled: true,
                 params: EffectParams {
                     values: vec![EffectParamValue::F32(offset)],

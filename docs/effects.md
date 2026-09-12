@@ -234,8 +234,8 @@ At registration the host:
   effect with `NATIVE_STATUS_TYPE_ERROR` on mismatch;
 - rejects name collisions with built-in effects or previously registered
   plugin effects (re-registering the same plugin name is idempotent);
-- assigns the effect a registry slot (`EffectId::Extension(slot)`), tracked for
-  install rollback;
+- registers the effect under its authored type name (`EffectId` is the name),
+  tracked for install rollback;
 - compiles the WGSL lazily at first render, where wgpu validation errors
   surface as runtime diagnostics and the stage is skipped.
 

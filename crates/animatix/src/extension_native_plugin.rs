@@ -194,8 +194,8 @@ struct NativeHost<'a> {
     primitives: Vec<String>,
     actions: Vec<String>,
     services: Vec<String>,
-    /// Registered effect slots as `(name, registry slot)`.
-    effects: Vec<(String, u32)>,
+    /// Registered effect names (the registry is keyed by authored type name).
+    effects: Vec<String>,
 }
 
 impl NativeHost<'_> {
@@ -216,8 +216,8 @@ impl NativeHost<'_> {
         for name in self.services.drain(..) {
             ctx.remove_service(&name);
         }
-        for (_, slot) in self.effects.drain(..) {
-            crate::timeline::effects::unregister_extension_effect(slot);
+        for name in self.effects.drain(..) {
+            crate::timeline::effects::unregister_extension_effect(&name);
         }
     }
 }
@@ -680,8 +680,6 @@ unsafe extern "C" fn native_register_effect(
     let type_name: &'static str = Box::leak(effect_name.clone().into_boxed_str());
     let display_name: &'static str = Box::leak(display_name.into_boxed_str());
     let data = PluginEffectData {
-        // `register_extension_effect` overwrites this with the assigned slot.
-        id: crate::timeline::effects::EffectId::Extension(0),
         type_name,
         display_name,
         params: Box::leak(params.into_boxed_slice()),
@@ -691,21 +689,16 @@ unsafe extern "C" fn native_register_effect(
     };
 
     match register_extension_effect(data) {
-        Some(slot) => {
+        Some(_) => {
             tracing::debug!(
                 effect = %effect_name,
                 display = %display_name,
-                slot,
                 "registered plugin effect"
             );
-            // Idempotent re-registration (plugin hot reload) reuses the slot;
+            // Idempotent re-registration (plugin hot reload) reuses the name;
             // track it once so rollback unregisters exactly once.
-            if !host
-                .effects
-                .iter()
-                .any(|(name, existing)| name == &effect_name && *existing == slot)
-            {
-                host.effects.push((effect_name, slot));
+            if !host.effects.iter().any(|name| name == &effect_name) {
+                host.effects.push(effect_name);
             }
             NATIVE_STATUS_OK
         },
@@ -4285,17 +4278,10 @@ mod tests {
             native_register_effect((&mut host as *mut NativeHost).cast::<c_void>(), descriptor)
         };
         assert_eq!(status, NATIVE_STATUS_OK);
-        assert_eq!(host.effects.len(), 1);
-        let (name, slot) = &host.effects[0];
-        assert_eq!(name, "MockGlow");
+        assert_eq!(host.effects, vec!["MockGlow".to_string()]);
 
         let registered = crate::timeline::effects::effect_for_type("MockGlow")
             .expect("plugin effect registered");
-        let id = match registered.id() {
-            crate::timeline::effects::EffectId::Extension(slot) => slot,
-            other => panic!("expected an extension effect id, got {other:?}"),
-        };
-        assert_eq!(id, *slot);
         assert_eq!(registered.type_name(), "MockGlow");
         assert_eq!(registered.display_name(), "Mock Glow");
         assert_eq!(registered.author_uniform_size(), 16);

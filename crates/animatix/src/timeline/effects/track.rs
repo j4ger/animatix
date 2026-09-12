@@ -119,7 +119,7 @@ impl EffectChainTrack {
     pub fn worst_case_support(&self) -> f32 {
         let mut total = 0.0f32;
         for stage in &self.stages {
-            let Some(effect) = effect(stage.kind) else {
+            let Some(effect) = effect(&stage.kind) else {
                 continue;
             };
             let mut times: Vec<u64> =
@@ -154,7 +154,7 @@ impl EffectChainTrack {
         let Some(stage) = self.stage_mut(stage_label) else {
             return false;
         };
-        let Some(effect) = effect(stage.kind) else {
+        let Some(effect) = effect(&stage.kind) else {
             tracing::warn!("effect stage '{stage_label}' has no registered descriptor");
             return false;
         };
@@ -188,7 +188,7 @@ impl EffectChainTrack {
                 _ => PropertyValue::Bool(true),
             });
         }
-        let effect = effect(stage.kind)?;
+        let effect = effect(&stage.kind)?;
         let spec = effect.params().iter().find(|spec| spec.name == param)?;
         Some(
             stage
@@ -203,7 +203,7 @@ impl EffectChainTrack {
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();
         for stage in &self.stages {
-            let Some(effect) = effect(stage.kind) else {
+            let Some(effect) = effect(&stage.kind) else {
                 tracing::warn!(
                     "effect stage '{}' has no registered descriptor; skipping",
                     stage.label
@@ -222,7 +222,7 @@ impl EffectChainTrack {
                 continue;
             }
             instances.push(EffectInstance {
-                id: stage.kind,
+                id: stage.kind.clone(),
                 enabled: true,
                 params,
             });
@@ -338,19 +338,19 @@ mod tests {
     fn build_chain_skips_identity_and_disabled_stages() {
         let mut track = EffectChainTrack::default();
 
-        let mut identity = EffectStage::new("identity".into(), EffectId::Blur);
+        let mut identity = EffectStage::new("identity".into(), EffectId::new("Blur"));
         identity
             .param_track_mut("radius", EffectParamKind::F32)
             .add_keyframe(0, PropertyValue::F32(0.0));
         track.stages.push(identity);
 
-        let mut active = EffectStage::new("active".into(), EffectId::Blur);
+        let mut active = EffectStage::new("active".into(), EffectId::new("Blur"));
         active
             .param_track_mut("radius", EffectParamKind::F32)
             .add_keyframe(0, PropertyValue::F32(8.0));
         track.stages.push(active);
 
-        let mut disabled = EffectStage::new("disabled".into(), EffectId::Blur);
+        let mut disabled = EffectStage::new("disabled".into(), EffectId::new("Blur"));
         disabled
             .param_track_mut("radius", EffectParamKind::F32)
             .add_keyframe(0, PropertyValue::F32(8.0));

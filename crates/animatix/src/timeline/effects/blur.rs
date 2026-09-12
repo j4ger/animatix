@@ -1,8 +1,7 @@
 //! `Blur` — separable Gaussian blur (horizontal pass, then vertical).
 
 use super::{
-    Effect, EffectId, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams,
-    EffectPassSpec,
+    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
 };
 
 /// `Blur` parameters.
@@ -100,10 +99,6 @@ pub struct Blur;
 pub const BLUR: Blur = Blur;
 
 impl Effect for Blur {
-    fn id(&self) -> EffectId {
-        EffectId::Blur
-    }
-
     fn type_name(&self) -> &'static str {
         "Blur"
     }

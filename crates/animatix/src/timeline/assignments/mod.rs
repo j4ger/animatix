@@ -184,7 +184,7 @@ impl Timeline {
                     .tracks
                     .get(&scope_label)
                     .and_then(|track| track.effects.stage(stage_label))
-                    .map(|stage| stage.kind);
+                    .map(|stage| stage.kind.clone());
                 if let Some(kind) = stage_kind {
                     write_effect_stage_param(
                         self,
@@ -214,7 +214,7 @@ impl Timeline {
                 .get(scope_label)
                 .filter(|track| track.kind == ActorKindId::Filter)
                 .and_then(|track| track.effects.stage(stage_label))
-                .map(|stage| stage.kind);
+                .map(|stage| stage.kind.clone());
             if let Some(kind) = stage_kind {
                 write_effect_stage_param(
                     self,
@@ -958,7 +958,7 @@ fn write_effect_stage_param(
     use crate::timeline::effects::{EffectParamKind, effect};
     use crate::timeline::property_engine::PropertyValue;
 
-    let Some(effect) = effect(kind) else {
+    let Some(effect) = effect(&kind) else {
         tracing::warn!("effect stage '{scope_label}.{stage_label}' has no registered descriptor");
         return;
     };

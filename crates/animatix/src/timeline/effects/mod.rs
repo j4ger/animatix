@@ -13,18 +13,16 @@
 //!
 //! ## Adding a new effect
 //!
-//! 1. Create `timeline/effects/<name>.rs` implementing [`Effect`] — parameter schema, WGSL passes,
-//!    `pack`, and `support` all live in that one file.
-//! 2. Add `&<name>::CONST` to the [`EFFECTS`] array below.
-//! 3. Add a variant to [`EffectId`].
-//! 4. Add the author-visible parameters to `animatix-syntax/src/schema.rs::effect_specs()`.
-//! 5. Document it (`docs/effects.md` identity table, `docs/spec.md` table).
+//! 1. Create `timeline/effects/<name>.rs` implementing [`Effect`] — WGSL passes, `pack`, and
+//!    `support` all live in that one file.
+//! 2. Add `&<name>::CONST` to the [`EFFECTS`] array below — this is the registration.
+//! 3. Add the author-visible parameters (name, kind, identity) to
+//!    `animatix-syntax/src/schema.rs::effect_specs()`.
+//! 4. Document it (`docs/effects.md` identity table, `docs/spec.md` table).
 //!
-//! Steps 3-4 are hand-maintained because the enum is a persisted pipeline-cache
-//! key and the analyzer's schema table lives in a crate the runtime cannot
-//! depend on — the same constraint `primitives/mod.rs` documents for
-//! `ActorKindId`. The `effect_specs_match_runtime_descriptors` test pins the two
-//! tables together in both directions.
+//! Identity is the authored type name ([`EffectId`]), so there is no enum variant to add; step 3
+//! is hand-maintained because the analyzer's contract table lives in a crate the runtime cannot
+//! depend on. The `effect_specs_match_runtime_descriptors` test pins the table in both directions.
 
 mod blur;
 mod chain;
@@ -33,15 +31,12 @@ mod color_grade;
 mod track;
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 pub use blur::BLUR;
 pub use chain::{EffectChain, EffectInstance, EffectRegion, FilterBackend, PendingComposite};
 pub use chromatic_aberration::CHROMATIC_ABERRATION;
 pub use color_grade::{COLOR_GRADE, compose_color_matrix};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 pub use track::{
     EffectChainTrack, EffectStage, effect_property_kind, identity_to_property, sample_params,
     value_to_property,
@@ -49,21 +44,31 @@ pub use track::{
 
 // ── Effect identity ─────────────────────────────────────────────────────────
 
-/// Stable identity of an effect, used as the pipeline-cache key and as the
-/// persisted `kind` of an [`EffectStage`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum EffectId {
-    /// Gaussian blur; two passes (horizontal, then vertical).
-    Blur,
-    /// Colour matrix built from brightness/contrast/saturate/hue/sepia.
-    ColorGrade,
-    /// Radial channel separation; single pass through the linear sampler.
-    ChromaticAberration,
-    /// A plugin-authored effect, identified by its registry slot. The slot is
-    /// assigned by [`register_extension_effect`] and stays valid for the
-    /// process lifetime (descriptors are leaked once, never freed).
-    Extension(u32),
+/// Stable identity of an effect: its **authored type name**. Used as the
+/// pipeline-cache key and persisted as the `kind` of an [`EffectStage`], so a
+/// saved project keeps pointing at the same effect across runs — including
+/// plugin effects, which have no host-assigned slot to drift.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(transparent)
+)]
+pub struct EffectId(
+    /// The authored type name (`Blur`, `ColorGrade`, a plugin effect's name).
+    pub Box<str>,
+);
+
+impl EffectId {
+    /// Identity for an authored type name.
+    pub fn new(name: impl Into<Box<str>>) -> Self {
+        Self(name.into())
+    }
+
+    /// The authored type name.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 // ── Parameter schema ────────────────────────────────────────────────────────
@@ -153,10 +158,7 @@ pub struct EffectPassSpec {
 /// sees `&dyn Effect`, so there is no per-effect dispatch table to keep in
 /// sync.
 pub trait Effect: Send + Sync {
-    /// Pipeline-cache identity and persisted stage kind.
-    fn id(&self) -> EffectId;
-
-    /// Authored type name (`.amx`).
+    /// Authored type name (`.amx`) — the effect's identity.
     fn type_name(&self) -> &'static str;
 
     /// Human-readable label for palettes and tooltips.
@@ -201,14 +203,10 @@ pub static EFFECTS: &[&dyn Effect] = &[
 
 /// Look up a built-in or plugin effect by identity.
 ///
-/// Returns `None` when an `Extension` slot is not (or no longer) registered —
-/// callers must skip the stage with a diagnostic instead of panicking.
-pub fn effect(id: EffectId) -> Option<&'static dyn Effect> {
-    EFFECTS
-        .iter()
-        .copied()
-        .find(|effect| effect.id() == id)
-        .or_else(|| plugin_effect(id))
+/// Returns `None` for a name that is not (or no longer) registered — callers
+/// must skip the stage with a diagnostic instead of panicking.
+pub fn effect(id: &EffectId) -> Option<&'static dyn Effect> {
+    effect_for_type(id.as_str())
 }
 
 /// Look up an effect by its authored type name: built-ins first, then
@@ -228,8 +226,6 @@ pub fn effect_for_type(type_name: &str) -> Option<&'static dyn Effect> {
 /// owns all textures and synchronisation.
 #[derive(Clone, Debug)]
 pub struct PluginEffectData {
-    /// Registry identity. Overwritten with the assigned slot on registration.
-    pub id: EffectId,
     /// Authored type name (`.amx`).
     pub type_name: &'static str,
     /// Human-readable label; falls back to `type_name` when empty.
@@ -251,10 +247,6 @@ struct PluginEffect {
 }
 
 impl Effect for PluginEffect {
-    fn id(&self) -> EffectId {
-        self.data.id
-    }
-
     fn type_name(&self) -> &'static str {
         self.data.type_name
     }
@@ -288,18 +280,18 @@ impl Effect for PluginEffect {
     }
 }
 
-fn plugin_registry() -> &'static Mutex<BTreeMap<u32, &'static PluginEffect>> {
-    static REGISTRY: OnceLock<Mutex<BTreeMap<u32, &'static PluginEffect>>> = OnceLock::new();
+fn plugin_registry() -> &'static Mutex<BTreeMap<Box<str>, &'static PluginEffect>> {
+    static REGISTRY: OnceLock<Mutex<BTreeMap<Box<str>, &'static PluginEffect>>> = OnceLock::new();
     REGISTRY.get_or_init(|| Mutex::new(BTreeMap::new()))
 }
 
-/// Register a plugin-authored effect and return its registry slot.
+/// Register a plugin-authored effect under its authored type name.
 ///
 /// The effect is leaked into `&'static` storage: registration happens once per
 /// plugin load and the allocation is bounded by the number of effects.
 /// Re-registering an existing type name is idempotent (it returns the existing
-/// slot); a name that collides with a built-in effect is rejected.
-pub fn register_extension_effect(mut data: PluginEffectData) -> Option<u32> {
+/// registration); a name that collides with a built-in effect is rejected.
+pub fn register_extension_effect(data: PluginEffectData) -> Option<&'static str> {
     if EFFECTS.iter().any(|effect| effect.type_name() == data.type_name) {
         tracing::warn!(
             effect = %data.type_name,
@@ -308,38 +300,24 @@ pub fn register_extension_effect(mut data: PluginEffectData) -> Option<u32> {
         return None;
     }
     let mut registry = plugin_registry().lock().ok()?;
-    if let Some((slot, _)) =
-        registry.iter().find(|(_, existing)| existing.data.type_name == data.type_name)
+    if let Some(existing) =
+        registry.values().find(|existing| existing.data.type_name == data.type_name)
     {
-        return Some(*slot);
+        return Some(existing.data.type_name);
     }
-    let slot = next_extension_effect_slot();
-    data.id = EffectId::Extension(slot);
     let leaked: &'static PluginEffect = Box::leak(Box::new(PluginEffect { data }));
-    registry.insert(slot, leaked);
-    Some(slot)
+    let name = leaked.data.type_name;
+    registry.insert(Box::from(name), leaked);
+    Some(name)
 }
 
 /// Remove a plugin effect registration (rollback of a partially failed plugin
-/// install). Stages already built against the slot will skip with a diagnostic
+/// install). Stages already built against the name will skip with a diagnostic
 /// until rebuilt.
-pub fn unregister_extension_effect(slot: u32) {
+pub fn unregister_extension_effect(type_name: &str) {
     if let Some(registry) = plugin_registry().lock().ok().as_mut() {
-        registry.remove(&slot);
+        registry.remove(type_name);
     }
-}
-
-fn next_extension_effect_slot() -> u32 {
-    static NEXT: AtomicU32 = AtomicU32::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
-}
-
-fn plugin_effect(id: EffectId) -> Option<&'static dyn Effect> {
-    let EffectId::Extension(slot) = id else {
-        return None;
-    };
-    let registry = plugin_registry().lock().ok()?;
-    registry.get(&slot).map(|effect| *effect as &'static dyn Effect)
 }
 
 fn plugin_effect_by_type(type_name: &str) -> Option<&'static dyn Effect> {
@@ -462,19 +440,33 @@ mod tests {
     #[test]
     fn every_effect_is_addressable_by_id_and_type() {
         for declared in EFFECTS {
+            let id = EffectId::new(declared.type_name());
             assert_eq!(
-                effect(declared.id()).map(Effect::type_name),
+                effect(&id).map(Effect::type_name),
                 Some(declared.type_name()),
                 "{} is not reachable by id",
                 declared.type_name()
             );
             assert_eq!(
-                effect_for_type(declared.type_name()).map(Effect::id),
-                Some(declared.id()),
+                effect_for_type(declared.type_name()).map(Effect::type_name),
+                Some(declared.type_name()),
                 "{} is not reachable by type name",
                 declared.type_name()
             );
         }
+    }
+
+    /// The persisted identity is the authored name, so a serialized stage kind
+    /// round-trips through serde as a bare string — including for plugin
+    /// effects, which have no host-assigned slot to drift between runs.
+    #[cfg(feature = "serde")]
+    #[test]
+    fn effect_id_serializes_as_the_authored_name() {
+        let id = EffectId::new("Blur");
+        let json = serde_json::to_string(&id).expect("serialize EffectId");
+        assert_eq!(json, "\"Blur\"");
+        let round: EffectId = serde_json::from_str(&json).expect("deserialize EffectId");
+        assert_eq!(round, id);
     }
 
     #[test]

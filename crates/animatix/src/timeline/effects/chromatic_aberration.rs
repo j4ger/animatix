@@ -2,8 +2,7 @@
 //! sampler.
 
 use super::{
-    Effect, EffectId, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams,
-    EffectPassSpec,
+    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
 };
 
 /// `ChromaticAberration` parameters.
@@ -87,10 +86,6 @@ pub struct ChromaticAberration;
 pub const CHROMATIC_ABERRATION: ChromaticAberration = ChromaticAberration;
 
 impl Effect for ChromaticAberration {
-    fn id(&self) -> EffectId {
-        EffectId::ChromaticAberration
-    }
-
     fn type_name(&self) -> &'static str {
         "ChromaticAberration"
     }

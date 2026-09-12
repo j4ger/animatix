@@ -79,7 +79,7 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.shape.head_size, "head_size");
     // Effect stages: one lane per declared parameter plus the implicit `enabled`.
     for stage in &track.effects.stages {
-        let Some(effect) = animatix::timeline::effects::effect(stage.kind) else {
+        let Some(effect) = animatix::timeline::effects::effect(&stage.kind) else {
             continue;
         };
         for spec in effect.params() {
@@ -176,7 +176,7 @@ pub(crate) fn collect_property_lanes(
 
     // Effect stage lanes exist whenever the scope declares the stage.
     for stage in &track.effects.stages {
-        let Some(effect) = animatix::timeline::effects::effect(stage.kind) else {
+        let Some(effect) = animatix::timeline::effects::effect(&stage.kind) else {
             continue;
         };
         for spec in effect.params() {

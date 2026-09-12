@@ -778,6 +778,9 @@ mod serde_impl {
                     fields.iter().map(|(k, v)| (k.clone(), ValueWire::from(v))).collect(),
                 ),
                 Value::NativeFn(_) => ValueWire::NativeFn, // stdlib; not captured
+                // Live references and user functions are not serializable;
+                // like `NativeFn` they round-trip as an unresolvable unit.
+                Value::PropRef { .. } | Value::UserFn { .. } => ValueWire::NativeFn,
                 Value::Closure(args, body, env) => {
                     ValueWire::Closure(args.clone(), body.clone(), env.clone())
                 },
@@ -797,7 +800,9 @@ mod serde_impl {
                 ValueWire::Vec4(v) => Value::Vec4(v),
                 ValueWire::Color(c) => Value::Color(c),
                 ValueWire::List(l) => {
-                    Value::List(l.into_iter().map(Value::try_from).collect::<Result<Vec<_>, _>>()?)
+                    let items: Vec<Value> =
+                        l.into_iter().map(Value::try_from).collect::<Result<_, _>>()?;
+                    Value::List(items.into())
                 },
                 ValueWire::Object(name, fields) => Value::Object(
                     name,

@@ -524,13 +524,15 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
   `NativePluginApi.register_effect(host, NativeEffectDescriptor)` — WGSL source
   + parameter schema (declared uniform offsets + identity values) + ordered
   passes + `support_px`. Registered descriptors live in a process-wide effect
-  registry (`EffectId::Extension(slot)`); the lowering path is identical to
-  built-ins, and uniform packing uses a generic layout packer. Registration
-  validates kinds/alignment/size and rejects name collisions; WGSL compiles
-  lazily at first render with errors surfaced as diagnostics. Rollback of a
-  failed install unregisters the plugin's effects. The demo plugin ships a
-  `Pixelate` effect. Extension manifests do not yet carry effect metadata, so
-  analyzer completion for plugin effect parameters is future work.
+  registry keyed by authored type name (`EffectId` is the name, persisted as
+  such, so saved projects keep pointing at the same plugin effect across
+  runs); the lowering path is identical to built-ins, and uniform packing uses
+  a generic layout packer. Registration validates kinds/alignment/size and
+  rejects name collisions; WGSL compiles lazily at first render with errors
+  surfaced as diagnostics. Rollback of a failed install unregisters the
+  plugin's effects. The demo plugin ships a `Pixelate` effect. Extension
+  manifests do not yet carry effect metadata, so analyzer completion for
+  plugin effect parameters is future work.
 
 **Remaining (optional optimizations only).**
 

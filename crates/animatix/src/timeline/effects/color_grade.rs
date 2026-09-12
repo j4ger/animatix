@@ -2,8 +2,7 @@
 //! brightness/contrast/saturate/hue-rotate/sepia.
 
 use super::{
-    Effect, EffectId, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams,
-    EffectPassSpec,
+    Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
 };
 
 /// `ColorGrade` parameters.
@@ -105,10 +104,6 @@ pub struct ColorGrade;
 pub const COLOR_GRADE: ColorGrade = ColorGrade;
 
 impl Effect for ColorGrade {
-    fn id(&self) -> EffectId {
-        EffectId::ColorGrade
-    }
-
     fn type_name(&self) -> &'static str {
         "ColorGrade"
     }

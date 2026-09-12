@@ -1411,7 +1411,7 @@ bg: Filter {
 
     let chain = scope.effects.build_chain(0);
     assert_eq!(chain.instances.len(), 1);
-    assert_eq!(chain.instances[0].id, crate::timeline::effects::EffectId::Blur);
+    assert_eq!(chain.instances[0].id.as_str(), "Blur");
     assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
 
     // Effects are not actors: no track is created for the stage label.
@@ -1514,13 +1514,13 @@ bg: Filter {
 }
 
 /// A plugin effect registered in the extension registry lowers like a
-/// built-in: `effect_for_type` finds it and the scope chain carries an
-/// `EffectId::Extension` stage.
+/// built-in: `effect_for_type` finds it and the scope chain carries a stage
+/// whose identity is the authored name.
 #[test]
 fn plugin_effect_lowers_into_scope_chain() {
     use crate::timeline::effects::{
-        EffectId, EffectParamKind, EffectParamSpec, EffectParamValue, EffectPassSpec,
-        PluginEffectData, register_extension_effect,
+        EffectParamKind, EffectParamSpec, EffectParamValue, EffectPassSpec, PluginEffectData,
+        register_extension_effect,
     };
 
     let params: &'static [EffectParamSpec] = Box::leak(
@@ -1541,8 +1541,7 @@ fn plugin_effect_lowers_into_scope_chain() {
         }]
         .into_boxed_slice(),
     );
-    let slot = register_extension_effect(PluginEffectData {
-        id: EffectId::Extension(0),
+    let registered = register_extension_effect(PluginEffectData {
         type_name: "MockPixelate",
         display_name: "Mock Pixelate",
         params,
@@ -1551,6 +1550,7 @@ fn plugin_effect_lowers_into_scope_chain() {
         support_px: 0.0,
     })
     .expect("plugin effect registers");
+    assert_eq!(registered, "MockPixelate");
 
     let timeline = build_timeline(
         r#"
@@ -1568,10 +1568,7 @@ bg: Filter {
 
     let chain = scope.effects.build_chain(0);
     assert_eq!(chain.instances.len(), 1);
-    match chain.instances[0].id {
-        EffectId::Extension(stage_slot) => assert_eq!(stage_slot, slot),
-        other => panic!("expected an extension effect id, got {other:?}"),
-    }
+    assert_eq!(chain.instances[0].id.as_str(), "MockPixelate");
     assert_eq!(chain.instances[0].params.f32_at(0), 8.0);
 }
 

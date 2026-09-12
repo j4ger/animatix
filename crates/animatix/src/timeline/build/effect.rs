@@ -61,7 +61,10 @@ impl Timeline {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let eval_env = self.build_eval_env(time_ms as u64);
 
-        let mut stage = EffectStage::new(label.to_string(), effect.id());
+        let mut stage = EffectStage::new(
+            label.to_string(),
+            crate::timeline::effects::EffectId::new(effect.type_name()),
+        );
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
 

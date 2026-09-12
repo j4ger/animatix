@@ -249,7 +249,7 @@ pub(crate) fn build_property_groups(
     // the property-edit handler routes the dotted form to the effect chain.
     let mut effect_props = Vec::new();
     for stage in &track.effects.stages {
-        let Some(effect) = animatix::timeline::effects::effect(stage.kind) else {
+        let Some(effect) = animatix::timeline::effects::effect(&stage.kind) else {
             continue;
         };
         for spec in effect.params() {
