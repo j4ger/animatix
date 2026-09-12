@@ -1411,7 +1411,7 @@ bg: Filter {
 
     let chain = scope.effects.build_chain(0);
     assert_eq!(chain.instances.len(), 1);
-    assert_eq!(chain.instances[0].id, crate::timeline::filter::EffectId::Blur);
+    assert_eq!(chain.instances[0].id, crate::timeline::effects::EffectId::Blur);
     assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
 
     // Effects are not actors: no track is created for the stage label.
@@ -1514,13 +1514,13 @@ bg: Filter {
 }
 
 /// A plugin effect registered in the extension registry lowers like a
-/// built-in: `descriptor_for_type` finds it and the scope chain carries an
+/// built-in: `effect_for_type` finds it and the scope chain carries an
 /// `EffectId::Extension` stage.
 #[test]
 fn plugin_effect_lowers_into_scope_chain() {
-    use crate::timeline::filter::{
-        EffectDescriptor, EffectId, EffectParamKind, EffectParamSpec, EffectParamValue,
-        EffectPassSpec, EffectSupport, pack_generic, register_extension_effect,
+    use crate::timeline::effects::{
+        EffectId, EffectParamKind, EffectParamSpec, EffectParamValue, EffectPassSpec,
+        PluginEffectData, register_extension_effect,
     };
 
     let params: &'static [EffectParamSpec] = Box::leak(
@@ -1541,14 +1541,14 @@ fn plugin_effect_lowers_into_scope_chain() {
         }]
         .into_boxed_slice(),
     );
-    let slot = register_extension_effect(EffectDescriptor {
+    let slot = register_extension_effect(PluginEffectData {
         id: EffectId::Extension(0),
         type_name: "MockPixelate",
+        display_name: "Mock Pixelate",
         params,
         passes,
         author_uniform_size: 16,
-        pack: pack_generic,
-        support: EffectSupport::Constant(0.0),
+        support_px: 0.0,
     })
     .expect("plugin effect registers");
 

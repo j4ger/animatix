@@ -330,7 +330,7 @@ impl Timeline {
         layout_positions: &crate::timeline::layout::LayoutPositions,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
@@ -383,7 +383,7 @@ impl Timeline {
         layout_positions: &crate::timeline::layout::LayoutPositions,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) -> (kurbo::Affine, f32) {
@@ -805,7 +805,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
@@ -870,7 +870,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
@@ -1057,7 +1057,7 @@ impl Timeline {
         track: &AnimationTrack,
         scene_dimensions: SceneDimensions,
         time_ms: u64,
-    ) -> Option<crate::timeline::filter::EffectRegion> {
+    ) -> Option<crate::timeline::effects::EffectRegion> {
         let value = crate::timeline::dispatch::read_property_value(
             track,
             crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
@@ -1101,7 +1101,7 @@ impl Timeline {
         rect: kurbo::Rect,
         support: f32,
         scene_dimensions: SceneDimensions,
-    ) -> Option<crate::timeline::filter::EffectRegion> {
+    ) -> Option<crate::timeline::effects::EffectRegion> {
         let x0 = (rect.x0 as f32 - support).max(0.0);
         let y0 = (rect.y0 as f32 - support).max(0.0);
         let x1 = (rect.x1 as f32 + support).min(scene_dimensions.width as f32);
@@ -1111,7 +1111,7 @@ impl Timeline {
         if width >= scene_dimensions.width && height >= scene_dimensions.height {
             return None;
         }
-        Some(crate::timeline::filter::EffectRegion {
+        Some(crate::timeline::effects::EffectRegion {
             origin: [x0, y0],
             size: SceneDimensions { width, height },
         })
@@ -1131,7 +1131,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
@@ -1243,7 +1243,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         hit_regions: &mut Vec<(String, kurbo::Rect)>,
         frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
         program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     ) {
@@ -1512,7 +1512,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> vello::Scene {
         if let Some(program) =
             self.restore_frame_cache(time_s, scene_dimensions, debug_options, filter_backend, false)
@@ -1529,7 +1529,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
     ) -> Option<crate::timeline::scene_program::SceneProgram> {
         if filter_backend.is_some() || debug_options != DebugRenderOptions::default() {
@@ -1619,7 +1619,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> crate::timeline::scene_program::SceneProgram {
         self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, true)
     }
@@ -1629,7 +1629,7 @@ impl Timeline {
         time_s: f64,
         scene_dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        filter_backend: &mut Option<&mut dyn crate::timeline::filter::FilterBackend>,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
     ) -> crate::timeline::scene_program::SceneProgram {
         if let Some(program) = self.restore_frame_cache(

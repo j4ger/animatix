@@ -1,7 +1,7 @@
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
-use crate::timeline::filter::FilterBackend;
+use crate::timeline::effects::FilterBackend;
 use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// A single frame rendered to CPU-accessible RGBA memory.
@@ -264,7 +264,7 @@ impl OffscreenRenderer {
             self.filter_backend_dimensions = Some(dimensions);
         }
         let filter_backend = self.filter_backend.as_mut().unwrap();
-        let mut fb: Option<&mut dyn crate::timeline::filter::FilterBackend> = Some(filter_backend);
+        let mut fb: Option<&mut dyn crate::timeline::effects::FilterBackend> = Some(filter_backend);
         let program = if collect_items {
             Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb))
         } else {

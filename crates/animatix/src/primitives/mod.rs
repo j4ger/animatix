@@ -653,7 +653,7 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// Output observable scene items, when item collection was requested.
     pub program_items: &'b mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     /// The active filter backend, when one is available.
-    pub filter_backend: &'b mut Option<&'c mut dyn crate::timeline::filter::FilterBackend>,
+    pub filter_backend: &'b mut Option<&'c mut dyn crate::timeline::effects::FilterBackend>,
 }
 
 impl RenderChildrenCtx<'_, '_, '_> {

@@ -2,7 +2,7 @@ use animatix::composition::Composition;
 use animatix::renderer::core::RendererCore;
 use animatix::renderer::filter_backend::GpuFilterBackend;
 use animatix::renderer::transition::TransitionCompositor;
-use animatix::timeline::filter::FilterBackend;
+use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use kurbo::Rect;
 
@@ -179,7 +179,7 @@ impl PreviewSurface {
                 Some(GpuFilterBackend::new(device.clone(), queue.clone(), self.dimensions)?);
             self.filter_backend_dimensions = Some(self.dimensions);
         }
-        let mut fb: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
+        let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
             self.filter_backend.as_mut().map(|b| b as _);
         let scene = timeline.evaluate_with_debug(time_s, self.dimensions, debug_options, &mut fb);
         self.hit_regions = timeline.hit_regions();
@@ -353,7 +353,7 @@ impl PreviewSurface {
                         self.filter_backend_dimensions = Some(self.dimensions);
                     }
                     let mut fb_from_opt: Option<
-                        &mut dyn animatix::timeline::filter::FilterBackend,
+                        &mut dyn animatix::timeline::effects::FilterBackend,
                     > = self.filter_backend_from.as_mut().map(|b| b as _);
                     let scene_a = from.timeline.evaluate_with_debug(
                         local_time_s,
@@ -384,7 +384,7 @@ impl PreviewSurface {
                         )?);
                         self.filter_backend_dimensions = Some(self.dimensions);
                     }
-                    let mut fb_to_opt: Option<&mut dyn animatix::timeline::filter::FilterBackend> =
+                    let mut fb_to_opt: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
                         self.filter_backend_to.as_mut().map(|b| b as _);
                     let scene_b = to.timeline.evaluate_with_debug(
                         to_local,

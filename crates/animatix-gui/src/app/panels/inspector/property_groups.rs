@@ -249,14 +249,14 @@ pub(crate) fn build_property_groups(
     // the property-edit handler routes the dotted form to the effect chain.
     let mut effect_props = Vec::new();
     for stage in &track.effects.stages {
-        let Some(desc) = animatix::timeline::filter::descriptor(stage.kind) else {
+        let Some(effect) = animatix::timeline::effects::effect(stage.kind) else {
             continue;
         };
-        for spec in desc.params {
+        for spec in effect.params() {
             let track_opt = stage.params.get(spec.name);
-            let value = track_opt
-                .and_then(|param| param.sample(time_ms))
-                .unwrap_or_else(|| animatix::timeline::effect::identity_to_property(spec.identity));
+            let value = track_opt.and_then(|param| param.sample(time_ms)).unwrap_or_else(|| {
+                animatix::timeline::effects::identity_to_property(spec.identity)
+            });
             effect_props.push(PropertyEntry {
                 name: format!("{}.{}", stage.label, spec.name),
                 kind: effect_value_to_kind(spec.kind, value),
@@ -290,10 +290,10 @@ pub(crate) fn build_property_groups(
 
 /// Map an effect parameter value to the inspector's editable kind.
 fn effect_value_to_kind(
-    kind: animatix::timeline::filter::EffectParamKind,
+    kind: animatix::timeline::effects::EffectParamKind,
     value: PropertyValue,
 ) -> PropertyKind {
-    use animatix::timeline::filter::EffectParamKind as K;
+    use animatix::timeline::effects::EffectParamKind as K;
     match kind {
         K::F32 => PropertyKind::Float(match value {
             PropertyValue::F32(v) => v,

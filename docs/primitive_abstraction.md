@@ -41,10 +41,10 @@ them without a concrete driver.
   `extern "C"` fn pointers, never trait objects, types with destructors, or GPU
   handles. Concretely:
   - **Offscreen GPU composite (`Filter`).** The strategy renders children into a
-    `vello::Scene`, then calls `dyn FilterBackend` (`timeline/filter.rs:22`)
+    `vello::Scene`, then calls `dyn FilterBackend` (`timeline/effects/chain.rs`)
     whose GPU methods take `&vello::Scene` and return either a `SceneImage`
     (`vello::peniko::ImageData`) or a `PendingComposite` holding a
-    `wgpu::Texture` / `TextureView` (`filter.rs:6`). Trait objects have no stable
+    `wgpu::Texture` / `TextureView`. Trait objects have no stable
     C vtable, and `vello`/`wgpu` ownership, threading, and version coupling
     cannot cross.
   - **Typst compilation (`Equation`).** `compile_typst_grouped_cached`
@@ -130,7 +130,8 @@ every new effect would have touched `FilterTracks`, the property table, and
 
 **Direction (implemented 2026-09-11): effects are a first-class chain owned by
 the scope.** A `Filter` lowers its effect children into its own
-`EffectChainTrack` at build time (`timeline/effect.rs`, `build/effect.rs`); the
+`EffectChainTrack` at build time (`timeline/effects/track.rs`,
+`build/effect.rs`); the
 stages are **not** primitives, actors, or scene nodes, and their parameters are
 `DynTrack`-backed rather than registry properties. This avoids both the
 `ActorField`/`PROPERTY_REGISTRY` entanglement and the discovery that

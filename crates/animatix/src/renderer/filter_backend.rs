@@ -17,9 +17,8 @@ use std::collections::HashMap;
 
 use crate::renderer::core::RendererCore;
 use crate::timeline::SceneDimensions;
-use crate::timeline::filter::{
-    EffectChain, EffectDescriptor, EffectId, EffectRegion, FilterBackend, PendingComposite,
-    descriptor,
+use crate::timeline::effects::{
+    Effect, EffectChain, EffectId, EffectRegion, FilterBackend, PendingComposite, effect,
 };
 use crate::timeline::image::SceneImage;
 
@@ -276,13 +275,13 @@ impl GpuFilterBackend {
         })
     }
 
-    /// Build (once) the pipelines and uniform buffer for `desc`.
-    fn ensure_effect_pipeline(&mut self, desc: &EffectDescriptor) {
-        if self.pipelines.contains_key(&desc.id) {
+    /// Build (once) the pipelines and uniform buffer for `effect`.
+    fn ensure_effect_pipeline(&mut self, effect: &dyn Effect) {
+        if self.pipelines.contains_key(&effect.id()) {
             return;
         }
-        let mut passes = Vec::with_capacity(desc.passes.len());
-        for pass in desc.passes {
+        let mut passes = Vec::with_capacity(effect.passes().len());
+        for pass in effect.passes() {
             let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some(pass.label),
                 source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(pass.wgsl)),
@@ -299,12 +298,12 @@ impl GpuFilterBackend {
         }
         let uniform_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Animatix Effect Uniforms"),
-            size: u64::from(desc.author_uniform_size.max(16)),
+            size: u64::from(effect.author_uniform_size().max(16)),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         self.pipelines.insert(
-            desc.id,
+            effect.id(),
             EffectPipeline {
                 passes,
                 uniform_buffer,
@@ -462,17 +461,17 @@ impl GpuFilterBackend {
 
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
-            let Some(effect) = descriptor(instance.id) else {
+            let Some(effect) = effect(instance.id) else {
                 tracing::warn!("chain effect has no registered descriptor; skipping");
                 continue;
             };
             self.ensure_effect_pipeline(effect);
-            let Some(pipeline) = self.pipelines.get(&effect.id) else {
+            let Some(pipeline) = self.pipelines.get(&effect.id()) else {
                 continue;
             };
 
-            let mut uniforms = vec![0u8; effect.author_uniform_size as usize];
-            (effect.pack)(effect, &instance.params, &mut uniforms);
+            let mut uniforms = vec![0u8; effect.author_uniform_size() as usize];
+            effect.pack(&instance.params, &mut uniforms);
             self.queue.write_buffer(&pipeline.uniform_buffer, 0, &uniforms);
 
             let pass_count = pipeline.passes.len() as u32;
@@ -692,7 +691,7 @@ impl FilterBackend for GpuFilterBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::filter::{EffectInstance, EffectParamValue, EffectParams};
+    use crate::timeline::effects::{EffectInstance, EffectParamValue, EffectParams};
 
     fn blur_chain(radius: f32) -> EffectChain {
         EffectChain {

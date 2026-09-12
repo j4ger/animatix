@@ -124,7 +124,7 @@ pub struct AnimationTrack {
     // ── Effects tier ──
     /// Effect chain for compositing scopes; empty for non-scope actors.
     #[cfg(feature = "render")]
-    pub effects: crate::timeline::effect::EffectChainTrack,
+    pub effects: crate::timeline::effects::EffectChainTrack,
 
     // ── Shape tier (sub-struct) ──
     /// Shape property tracks (shape_type, line_from, line_to, etc.).
@@ -256,7 +256,7 @@ impl AnimationTrack {
             style: StyleTracks::default(),
 
             #[cfg(feature = "render")]
-            effects: crate::timeline::effect::EffectChainTrack::default(),
+            effects: crate::timeline::effects::EffectChainTrack::default(),
 
             // Shape tier (sub-struct)
             shape: ShapeTracks::default(),

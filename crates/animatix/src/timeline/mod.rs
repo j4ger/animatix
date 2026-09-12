@@ -43,16 +43,14 @@ mod builtins;
 pub mod callout_geometry;
 pub mod colorscheme;
 mod declarations_text;
-/// Effect chain storage owned by a compositing scope.
+/// Built-in post-processing effects, chain storage, and the compositing
+/// backend boundary.
 #[cfg(feature = "render")]
-pub mod effect;
+pub mod effects;
 /// Evaluation environment for expressions.
 pub mod env;
 pub(crate) mod env_keys;
 pub mod eval_shared;
-/// Filter backend and CPU image processing.
-#[cfg(feature = "render")]
-pub mod filter;
 pub(crate) mod fn_eval;
 /// Image loading utilities.
 #[cfg(feature = "render")]

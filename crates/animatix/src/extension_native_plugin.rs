@@ -217,7 +217,7 @@ impl NativeHost<'_> {
             ctx.remove_service(&name);
         }
         for (_, slot) in self.effects.drain(..) {
-            crate::timeline::filter::unregister_extension_effect(slot);
+            crate::timeline::effects::unregister_extension_effect(slot);
         }
     }
 }
@@ -557,8 +557,8 @@ unsafe extern "C" fn native_register_effect(
     host: *mut c_void,
     descriptor: NativeEffectDescriptor,
 ) -> i32 {
-    use crate::timeline::filter::{
-        EffectDescriptor, EffectParamKind, EffectParamSpec, EffectPassSpec, EffectSupport,
+    use crate::timeline::effects::{
+        EffectParamKind, EffectParamSpec, EffectPassSpec, PluginEffectData,
         register_extension_effect,
     };
 
@@ -624,17 +624,19 @@ unsafe extern "C" fn native_register_effect(
             return NATIVE_STATUS_TYPE_ERROR;
         }
         let identity = match kind {
-            EffectParamKind::F32 => crate::timeline::filter::EffectParamValue::F32(raw.identity[0]),
+            EffectParamKind::F32 => {
+                crate::timeline::effects::EffectParamValue::F32(raw.identity[0])
+            },
             EffectParamKind::U32 => {
-                crate::timeline::filter::EffectParamValue::U32(raw.identity[0].max(0.0) as u32)
+                crate::timeline::effects::EffectParamValue::U32(raw.identity[0].max(0.0) as u32)
             },
             EffectParamKind::Bool => {
-                crate::timeline::filter::EffectParamValue::Bool(raw.identity[0] != 0.0)
+                crate::timeline::effects::EffectParamValue::Bool(raw.identity[0] != 0.0)
             },
             EffectParamKind::Vec2 => {
-                crate::timeline::filter::EffectParamValue::Vec2([raw.identity[0], raw.identity[1]])
+                crate::timeline::effects::EffectParamValue::Vec2([raw.identity[0], raw.identity[1]])
             },
-            EffectParamKind::Vec4 => crate::timeline::filter::EffectParamValue::Vec4(raw.identity),
+            EffectParamKind::Vec4 => crate::timeline::effects::EffectParamValue::Vec4(raw.identity),
         };
         params.push(EffectParamSpec {
             name: Box::leak(name.clone().into_boxed_str()),
@@ -676,18 +678,19 @@ unsafe extern "C" fn native_register_effect(
     }
 
     let type_name: &'static str = Box::leak(effect_name.clone().into_boxed_str());
-    let descriptor = EffectDescriptor {
+    let display_name: &'static str = Box::leak(display_name.into_boxed_str());
+    let data = PluginEffectData {
         // `register_extension_effect` overwrites this with the assigned slot.
-        id: crate::timeline::filter::EffectId::Extension(0),
+        id: crate::timeline::effects::EffectId::Extension(0),
         type_name,
+        display_name,
         params: Box::leak(params.into_boxed_slice()),
         passes: Box::leak(passes.into_boxed_slice()),
         author_uniform_size: uniform_size,
-        pack: crate::timeline::filter::pack_generic,
-        support: EffectSupport::Constant(descriptor.support_px),
+        support_px: descriptor.support_px,
     };
 
-    match register_extension_effect(descriptor) {
+    match register_extension_effect(data) {
         Some(slot) => {
             tracing::debug!(
                 effect = %effect_name,
@@ -4286,17 +4289,18 @@ mod tests {
         let (name, slot) = &host.effects[0];
         assert_eq!(name, "MockGlow");
 
-        let (id, registered) = crate::timeline::filter::descriptor_for_type("MockGlow")
+        let registered = crate::timeline::effects::effect_for_type("MockGlow")
             .expect("plugin effect registered");
-        let id = match id {
-            crate::timeline::filter::EffectId::Extension(slot) => slot,
+        let id = match registered.id() {
+            crate::timeline::effects::EffectId::Extension(slot) => slot,
             other => panic!("expected an extension effect id, got {other:?}"),
         };
         assert_eq!(id, *slot);
-        assert_eq!(registered.type_name, "MockGlow");
-        assert_eq!(registered.author_uniform_size, 16);
-        assert_eq!(registered.params.len(), 2);
-        assert_eq!(registered.passes.len(), 1);
+        assert_eq!(registered.type_name(), "MockGlow");
+        assert_eq!(registered.display_name(), "Mock Glow");
+        assert_eq!(registered.author_uniform_size(), 16);
+        assert_eq!(registered.params().len(), 2);
+        assert_eq!(registered.passes().len(), 1);
 
         // A misaligned parameter offset is rejected.
         let bad_params = [NativeEffectParam {

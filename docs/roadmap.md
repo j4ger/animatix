@@ -470,7 +470,7 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 **Shipped (2026-09-11).**
 
 - **Effects are a chain, not primitives.** `Filter` lowers its effect children
-  into the scope's `EffectChainTrack` at build time (`timeline/effect.rs`,
+  into the scope's `EffectChainTrack` at build time (`timeline/effects/track.rs`,
   `build/effect.rs`); effects create no scene node, layout entry, or hit region.
   Declaring an effect outside a `Filter` scope is a diagnostic.
 - **Authoring surface.** Labelled child declarations `soft: Blur, radius: 10`
@@ -504,6 +504,22 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
+- **Catalog declaration (2026-09-12).** Built-ins are unit structs implementing
+  the `Effect` trait (schema, WGSL, `pack`, and `support` in one file each) in
+  `timeline/effects/`, registered once in the `EFFECTS` array. Plugin effects
+  wrap FFI data (`PluginEffectData`) in the same trait, so the renderer sees only
+  `&dyn Effect`. This deleted `EffectDescriptor` as the built-in form, the
+  `EffectSupport` / `EffectPackFn` fn-pointer indirection, the three hand-written
+  lookup matches, and the per-effect `static` descriptors; adding a built-in now
+  touches one file, one array entry, one `EffectId` variant, and one
+  `effect_specs()` row. The drift test was upgraded to a bidirectional pin
+  (count + display name + parameter names/kinds), matching the primitive
+  registry's test.
+- **GUI insertion (2026-09-12).** The palette gains an "Effects" tab built from
+  `EFFECTS`; selecting an effect inserts `label: Blur` at the head of the
+  selected `Filter` scope's body (via `SourceEdit::InsertEffect`, placed after
+  existing effects and before content) with a scope-unique label. Inserting
+  without a `Filter` selected reports a status message instead.
 - **Plugin-authored effects (ABI snapshot 9).**
   `NativePluginApi.register_effect(host, NativeEffectDescriptor)` — WGSL source
   + parameter schema (declared uniform offsets + identity values) + ordered

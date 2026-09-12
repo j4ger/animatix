@@ -34,10 +34,13 @@ Rules:
   keyframe timing, snapshot/collapse, and persistence (`CarryBag`) reuse the
   dynamic-track machinery. Effect parameters do **not** enter the primitive
   property registry (`PROPERTY_REGISTRY` / `ActorField` / `PropertyPlan`).
-- **Effect schema has one author-visible source per layer.** The renderer owns
-  the `EffectDescriptor` (WGSL, passes, uniform layout, identity values); the
-  analyzer's `animatix_syntax::schema::effect_specs()` mirrors the parameter
-  names and kinds. A drift test pins them together.
+- **Effect schema has one author-visible source per layer.** Built-ins implement
+  the `Effect` trait (`timeline/effects/`), which owns the WGSL, passes, uniform
+  layout, identity values, and spatial support; plugin effects implement the
+  same trait over FFI-declared data (`PluginEffectData`). The analyzer's
+  `animatix_syntax::schema::effect_specs()` mirrors the parameter names, kinds,
+  and display names. `effect_specs_match_runtime_descriptors` pins the two tables
+  together in both directions.
 - **Every effect has an implicit `enabled: Bool`** (default `true`, animatable).
   There is no generic `mix` in v1.
 
@@ -78,10 +81,10 @@ Built-in examples:
 
 Every effect declares a **spatial support**: how far outside a pixel it reads,
 in scene pixels, as a function of its parameters (blur reads `radius` texels; a
-colour matrix reads nothing). The support functions live on the
-`EffectDescriptor`; the chain's `worst_case_support()` evaluates them over every
-parametric keyframe time and sums the per-stage maxima, so the result is
-constant per track (PF-7: no per-frame reallocation).
+colour matrix reads nothing). Support is the `Effect::support` method; the
+chain's `worst_case_support()` evaluates it over every parametric keyframe time
+and sums the per-stage maxima, so the result is constant per track (PF-7: no
+per-frame reallocation).
 
 **Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts effect
 processing to that region: the rendered sub-scene is cropped to
@@ -239,3 +242,32 @@ At registration the host:
 wgpu validates syntax but not termination: this is **trusted authoring**, not a
 sandbox. Effects are GPU-only — no backend means the stage is skipped with a
 warning, exactly like built-ins.
+
+## 8. Adding a built-in effect
+
+1. Create `crates/animatix/src/timeline/effects/<name>.rs` implementing the
+   `Effect` trait — parameter schema, WGSL passes, `pack`, and `support` in one
+   file.
+2. Add `&<name>::CONST` to the `EFFECTS` bootstrap array.
+3. Add an `EffectId` variant.
+4. Add the author-visible parameters to
+   `animatix-syntax/src/schema.rs::effect_specs()`.
+5. Document it here (the identity table in §2) and in `docs/spec.md`.
+6. If the effect reads a neighbourhood or displaces samples, calibrate
+   `support` — the derived ROI pads by it, and an under-reported support clips
+   pixels silently.
+
+Steps 3-4 are hand-maintained (a persisted enum tag and a cross-crate schema
+table); everything else derives from the one file, mirroring how
+`primitives/mod.rs` documents adding a primitive.
+
+## 9. Editor support
+
+The GUI insertion palette lists the built-in catalog (the "Effects" tab, built
+from `EFFECTS`) and inserts `label: Blur` at the head of a selected `Filter`
+scope's body, ahead of its content. A newly inserted stage sits at its identity
+values, so set or animate its parameters from the Inspector's "Effects" group;
+effect parameters also get timeline lanes (`stage.param`, `stage.enabled`). The
+analyzer validates effect parameter names and types in both declarations and
+`scope.stage.param` assignments.
+

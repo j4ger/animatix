@@ -1,19 +1,17 @@
-//! Effect chain storage owned by a compositing scope.
+//! Effect-chain storage owned by a compositing scope.
 //!
 //! Effects are not primitives or actors: a `Filter` scope lowers its effect
-//! children into an [`EffectChainTrack`] on its own [`AnimationTrack`]. The
-//! chain holds ordered [`EffectStage`]s whose parameters animate through
-//! [`DynTrack`], and is sampled into the renderer-facing
-//! [`EffectChain`](crate::timeline::filter::EffectChain) at frame time.
+//! children into an [`EffectChainTrack`] on its own `AnimationTrack`. The chain
+//! holds ordered [`EffectStage`]s whose parameters animate through [`DynTrack`],
+//! and is sampled into the renderer-facing [`EffectChain`] at frame time.
 
 use std::collections::BTreeMap;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::timeline::filter::{
-    EffectChain, EffectDescriptor, EffectId, EffectInstance, EffectParamKind, EffectParamValue,
-    EffectParams, descriptor,
+use super::{
+    EffectChain, EffectId, EffectInstance, EffectParamKind, EffectParamValue, EffectParams, effect,
 };
 use crate::timeline::plan::{DynTrack, PropertyKind};
 use crate::timeline::property_engine::PropertyValue;
@@ -121,7 +119,7 @@ impl EffectChainTrack {
     pub fn worst_case_support(&self) -> f32 {
         let mut total = 0.0f32;
         for stage in &self.stages {
-            let Some(desc) = descriptor(stage.kind) else {
+            let Some(effect) = effect(stage.kind) else {
                 continue;
             };
             let mut times: Vec<u64> =
@@ -131,8 +129,8 @@ impl EffectChainTrack {
             times.dedup();
             let mut stage_max = 0.0f32;
             for time in times {
-                let params = sample_params(desc, stage, time);
-                stage_max = stage_max.max(desc.support.value(&params));
+                let params = sample_params(effect, stage, time);
+                stage_max = stage_max.max(effect.support(&params));
             }
             total += stage_max;
         }
@@ -156,14 +154,14 @@ impl EffectChainTrack {
         let Some(stage) = self.stage_mut(stage_label) else {
             return false;
         };
-        let Some(desc) = descriptor(stage.kind) else {
+        let Some(effect) = effect(stage.kind) else {
             tracing::warn!("effect stage '{stage_label}' has no registered descriptor");
             return false;
         };
         let (track, default) = if param == "enabled" {
             (&mut stage.enabled, PropertyValue::Bool(true))
         } else {
-            let Some(spec) = desc.params.iter().find(|spec| spec.name == param) else {
+            let Some(spec) = effect.params().iter().find(|spec| spec.name == param) else {
                 return false;
             };
             let default = identity_to_property(spec.identity);
@@ -190,8 +188,8 @@ impl EffectChainTrack {
                 _ => PropertyValue::Bool(true),
             });
         }
-        let desc = descriptor(stage.kind)?;
-        let spec = desc.params.iter().find(|spec| spec.name == param)?;
+        let effect = effect(stage.kind)?;
+        let spec = effect.params().iter().find(|spec| spec.name == param)?;
         Some(
             stage
                 .params
@@ -205,7 +203,7 @@ impl EffectChainTrack {
     pub fn build_chain(&self, time_ms: u64) -> EffectChain {
         let mut instances = Vec::new();
         for stage in &self.stages {
-            let Some(desc) = descriptor(stage.kind) else {
+            let Some(effect) = effect(stage.kind) else {
                 tracing::warn!(
                     "effect stage '{}' has no registered descriptor; skipping",
                     stage.label
@@ -219,8 +217,8 @@ impl EffectChainTrack {
             if !enabled {
                 continue;
             }
-            let params = sample_params(desc, stage, time_ms);
-            if desc.is_identity(&params) {
+            let params = sample_params(effect, stage, time_ms);
+            if effect.is_identity(&params) {
                 continue;
             }
             instances.push(EffectInstance {
@@ -237,10 +235,14 @@ impl EffectChainTrack {
 }
 
 /// Sample every declared parameter, falling back to its identity value.
-pub fn sample_params(desc: &EffectDescriptor, stage: &EffectStage, time_ms: u64) -> EffectParams {
+pub fn sample_params(
+    effect: &dyn super::Effect,
+    stage: &EffectStage,
+    time_ms: u64,
+) -> EffectParams {
     EffectParams {
-        values: desc
-            .params
+        values: effect
+            .params()
             .iter()
             .map(|spec| {
                 stage
@@ -330,49 +332,6 @@ fn effect_param_value(value: PropertyValue, kind: EffectParamKind) -> Option<Eff
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn kind_matches(
-        runtime: EffectParamKind,
-        shared: animatix_syntax::schema::PropertyValueKind,
-    ) -> bool {
-        use animatix_syntax::schema::PropertyValueKind as S;
-        matches!(
-            (runtime, shared),
-            (EffectParamKind::F32, S::F32)
-                | (EffectParamKind::U32, S::U32)
-                | (EffectParamKind::Bool, S::Bool)
-                | (EffectParamKind::Vec2, S::Vec2)
-                | (EffectParamKind::Vec4, S::Vec4)
-        )
-    }
-
-    /// The runtime effect descriptors and the analyzer's shared effect table
-    /// must declare the same parameter names and kinds.
-    #[test]
-    fn effect_descriptors_match_shared_effect_specs() {
-        for id in crate::timeline::filter::BUILT_IN_EFFECTS {
-            let desc = descriptor(*id).expect("built-in effect descriptor");
-            let shared = animatix_syntax::schema::effect_spec(desc.type_name)
-                .unwrap_or_else(|| panic!("missing shared effect spec for {}", desc.type_name));
-            assert_eq!(
-                desc.params.len(),
-                shared.params.len(),
-                "parameter count mismatch for {}",
-                desc.type_name
-            );
-            for (runtime, declared) in desc.params.iter().zip(shared.params) {
-                assert_eq!(runtime.name, declared.name, "{} parameter order", desc.type_name);
-                assert!(
-                    kind_matches(runtime.kind, declared.kind),
-                    "{}.{} kind mismatch: {:?} vs {:?}",
-                    desc.type_name,
-                    runtime.name,
-                    runtime.kind,
-                    declared.kind
-                );
-            }
-        }
-    }
 
     /// Identity and disabled stages are dropped when sampling the chain.
     #[test]

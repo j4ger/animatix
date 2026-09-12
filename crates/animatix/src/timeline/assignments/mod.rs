@@ -944,7 +944,7 @@ fn write_effect_stage_param(
     timeline: &mut Timeline,
     scope_label: &str,
     stage_label: &str,
-    kind: crate::timeline::filter::EffectId,
+    kind: crate::timeline::effects::EffectId,
     property: &str,
     value: &super::Expr,
     eval_env: &Environment,
@@ -955,23 +955,23 @@ fn write_effect_stage_param(
     diagnostics: &mut Vec<Diagnostic>,
     subject: &str,
 ) {
-    use crate::timeline::filter::{EffectParamKind, descriptor};
+    use crate::timeline::effects::{EffectParamKind, effect};
     use crate::timeline::property_engine::PropertyValue;
 
-    let Some(desc) = descriptor(kind) else {
+    let Some(effect) = effect(kind) else {
         tracing::warn!("effect stage '{scope_label}.{stage_label}' has no registered descriptor");
         return;
     };
     let (is_enabled, param_kind, identity) = if property == "enabled" {
         (true, EffectParamKind::Bool, PropertyValue::Bool(true))
-    } else if let Some(spec) = desc.params.iter().find(|param| param.name == property) {
-        (false, spec.kind, crate::timeline::effect::identity_to_property(spec.identity))
+    } else if let Some(spec) = effect.params().iter().find(|param| param.name == property) {
+        (false, spec.kind, crate::timeline::effects::identity_to_property(spec.identity))
     } else {
         diagnostics.push(
             Diagnostic::warning(
                 DiagnosticCode::InvalidPropertyValue,
                 DiagnosticPhase::Build,
-                format!("Effect '{}' has no parameter '{}'", desc.type_name, property),
+                format!("Effect '{}' has no parameter '{}'", effect.type_name(), property),
             )
             .with_subject(subject),
         );
@@ -995,7 +995,7 @@ fn write_effect_stage_param(
             },
         }
     } else {
-        match crate::timeline::effect::value_to_property(param_kind, evaluated, subject) {
+        match crate::timeline::effects::value_to_property(param_kind, evaluated, subject) {
             Some(v) => v,
             None => return,
         }
