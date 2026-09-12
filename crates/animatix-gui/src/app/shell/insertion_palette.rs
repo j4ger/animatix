@@ -16,6 +16,7 @@ use crate::app::insertion::{InsertionContext, InsertionRequest};
 pub enum PaletteMode {
     Universal,
     Primitives,
+    Effects,
     Actions,
     Snippets,
     Components,
@@ -34,6 +35,10 @@ pub struct PaletteItem {
 #[derive(Debug, Clone)]
 pub enum ItemKind {
     Primitive {
+        type_name: String,
+    },
+    /// A post-processing effect stage for a `Filter` scope.
+    Effect {
         type_name: String,
     },
     Action {
@@ -112,6 +117,24 @@ impl InsertionPalette {
                 color: category_color(prim.category(), theme),
                 kind: ItemKind::Primitive {
                     type_name: prim.type_name().to_string(),
+                },
+            });
+        }
+
+        // Effects (post-processing stages owned by a Filter scope)
+        for effect in animatix::timeline::effects::EFFECTS {
+            let params: Vec<&str> = effect.params().iter().map(|spec| spec.name).collect();
+            self.items.push(PaletteItem {
+                label: effect.display_name().to_string(),
+                detail: if params.is_empty() {
+                    format!("Effect — {}", effect.type_name())
+                } else {
+                    format!("Effect — {} ({})", effect.type_name(), params.join(", "))
+                },
+                icon: egui_phosphor::regular::MAGIC_WAND.to_string(),
+                color: theme.palette.status.warning,
+                kind: ItemKind::Effect {
+                    type_name: effect.type_name().to_string(),
                 },
             });
         }
@@ -219,6 +242,7 @@ impl InsertionPalette {
             let matches_mode = match self.mode {
                 PaletteMode::Universal => true,
                 PaletteMode::Primitives => matches!(item.kind, ItemKind::Primitive { .. }),
+                PaletteMode::Effects => matches!(item.kind, ItemKind::Effect { .. }),
                 PaletteMode::Actions => matches!(item.kind, ItemKind::Action { .. }),
                 PaletteMode::Snippets => matches!(item.kind, ItemKind::Snippet { .. }),
                 PaletteMode::Components => matches!(item.kind, ItemKind::Component { .. }),
@@ -265,6 +289,24 @@ fn action_category_color(category: &str, theme: eparts::Theme) -> Color32 {
 }
 
 impl GuiShell {
+    /// The selected actor, when it is a `Filter` compositing scope — the only
+    /// container that can own effect stages.
+    fn selected_effect_scope(&self) -> Option<String> {
+        self.ui_store
+            .selection
+            .selected_actors
+            .iter()
+            .next()
+            .cloned()
+            .filter(|selected| {
+                self.document_store.source.document.active_timeline().is_some_and(|timeline| {
+                    timeline
+                        .get_track(selected)
+                        .is_some_and(|track| track.kind == animatix::timeline::ActorKindId::Filter)
+                })
+            })
+    }
+
     pub(crate) fn insertion_palette_ui(&mut self, ui: &mut egui::Ui) {
         let theme = eparts::theme(ui);
         let sp = crate::app::design_tokens::spatial::spatial(ui);
@@ -539,11 +581,19 @@ impl GuiShell {
         let modes = [
             PaletteMode::Universal,
             PaletteMode::Primitives,
+            PaletteMode::Effects,
             PaletteMode::Actions,
             PaletteMode::Snippets,
             PaletteMode::Components,
         ];
-        let labels = ["All", "Primitives", "Actions", "Snippets", "Components"];
+        let labels = [
+            "All",
+            "Primitives",
+            "Effects",
+            "Actions",
+            "Snippets",
+            "Components",
+        ];
         let mut selected =
             modes.iter().position(|&mode| mode == self.insertion_palette.mode).unwrap_or(0);
         TabBar::new("insertion_mode_tabs", &mut selected, &labels).show(&mut content);
@@ -694,6 +744,22 @@ impl GuiShell {
                 type_name,
                 suggested_label: None,
                 props: vec![],
+            },
+            ItemKind::Effect { type_name } => {
+                let Some(scope) = self.selected_effect_scope() else {
+                    self.preview_store.preview.status =
+                        "Select a Filter scope to add an effect".to_string();
+                    return;
+                };
+                let label = {
+                    let timeline = self.document_store.source.document.active_timeline();
+                    crate::app::utils::labels::unique_effect_label(timeline, &scope, &type_name)
+                };
+                InsertionRequest::Effect {
+                    type_name,
+                    scope,
+                    suggested_label: Some(label),
+                }
             },
             ItemKind::Action { verb } => InsertionRequest::Action {
                 verb,

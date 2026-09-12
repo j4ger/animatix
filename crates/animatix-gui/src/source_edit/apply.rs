@@ -122,6 +122,17 @@ pub enum SourceEdit {
         param: String,
         value: Expr,
     },
+    /// Insert an effect declaration at the head of a compositing scope's body.
+    ///
+    /// Effects are declared before content (`docs/effects.md` §1); the new
+    /// child is placed after any existing effect declarations and before the
+    /// first content child.
+    InsertEffect {
+        scope: String,
+        ty: String,
+        label: String,
+        props: Vec<Property>,
+    },
     /// Insert a parameter on an effect stage (`scope.stage.param`).
     InsertEffectParam {
         scope: String,
@@ -255,6 +266,12 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             param,
             value,
         } => super::actor_edits::insert_effect_param(stmts, &scope, &stage, &param, value),
+        SourceEdit::InsertEffect {
+            scope,
+            ty,
+            label,
+            props,
+        } => super::actor_edits::insert_effect(stmts, &scope, &ty, &label, props),
         SourceEdit::InsertKeyframe {
             scene,
             actor,

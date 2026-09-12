@@ -266,6 +266,62 @@ pub(super) fn insert_actor(
 }
 
 // ---------------------------------------------------------------------------
+// InsertEffect
+// ---------------------------------------------------------------------------
+
+/// Insert an effect declaration into a compositing scope's body.
+///
+/// Effects are declared before content (`docs/effects.md` §1), so the child is
+/// placed after any existing effect declarations and before the first content
+/// child. Effect-ness is decided by the shared schema table; a plugin effect
+/// already present in the scope is treated as content, which only affects the
+/// relative position of the new stage among effects, never its position
+/// relative to content.
+pub(super) fn insert_effect(
+    stmts: &mut [Stmt],
+    scope: &str,
+    ty: &str,
+    label: &str,
+    props: Vec<Property>,
+) -> Result<(), SourceEditError> {
+    let container_decl =
+        find_actor_decl_mut(stmts, scope).ok_or_else(|| SourceEditError::ContainerNotFound {
+            container: scope.to_string(),
+        })?;
+    let Stmt::ActorDecl { children, .. } = container_decl else {
+        return Err(SourceEditError::ContainerNotFound {
+            container: scope.to_string(),
+        });
+    };
+    let index = children
+        .iter()
+        .position(|item| !is_effect_child(item))
+        .unwrap_or(children.len());
+    children.insert(
+        index,
+        InlineItem::Labeled {
+            label: label.into(),
+            array_index: None,
+            ty: ty.into(),
+            props,
+            modifiers: vec![],
+            children: vec![],
+        },
+    );
+    Ok(())
+}
+
+/// `true` when an inline child declares a built-in effect.
+fn is_effect_child(item: &InlineItem) -> bool {
+    match item {
+        InlineItem::Labeled { ty, .. } | InlineItem::Anonymous { ty, .. } => {
+            animatix_syntax::schema::effect_spec(ty).is_some()
+        },
+        _ => false,
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ReorderContainerChildren
 // ---------------------------------------------------------------------------
 
@@ -1085,6 +1141,80 @@ btn: Rect, size: (100, 200)"#,
         } else {
             panic!("Expected ActorDecl for row1");
         }
+    }
+
+    #[test]
+    fn insert_effect_lands_before_content() {
+        let mut stmts = parse(
+            r#"bg: Filter {
+  img: Rect, size: (100, 100)
+}"#,
+        );
+        let edit = SourceEdit::InsertEffect {
+            scope: "bg".into(),
+            ty: "Blur".into(),
+            label: "soft1".into(),
+            props: vec![],
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        let container = find_actor_decl_mut(&mut stmts, "bg").expect("scope 'bg' should exist");
+        if let Stmt::ActorDecl { children, .. } = container {
+            assert_eq!(children.len(), 2);
+            match &children[0] {
+                InlineItem::Labeled { label, ty, .. } => {
+                    assert_eq!(label, "soft1");
+                    assert_eq!(ty, "Blur");
+                },
+                other => panic!("expected the effect first, got {other:?}"),
+            }
+            assert!(matches!(&children[1], InlineItem::Labeled { label, .. } if label == "img"));
+        } else {
+            panic!("Expected ActorDecl for bg");
+        }
+    }
+
+    #[test]
+    fn insert_effect_follows_existing_effects() {
+        let mut stmts = parse(
+            r#"bg: Filter {
+  soft: Blur, radius: 4
+  img: Rect, size: (100, 100)
+}"#,
+        );
+        let edit = SourceEdit::InsertEffect {
+            scope: "bg".into(),
+            ty: "ColorGrade".into(),
+            label: "warm".into(),
+            props: vec![],
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        let container = find_actor_decl_mut(&mut stmts, "bg").expect("scope 'bg' should exist");
+        if let Stmt::ActorDecl { children, .. } = container {
+            let labels: Vec<&str> = children
+                .iter()
+                .map(|child| match child {
+                    InlineItem::Labeled { label, .. } => label.as_str(),
+                    _ => "<anon>",
+                })
+                .collect();
+            assert_eq!(labels, vec!["soft", "warm", "img"]);
+        } else {
+            panic!("Expected ActorDecl for bg");
+        }
+    }
+
+    #[test]
+    fn insert_effect_reports_missing_scope() {
+        let mut stmts = parse(r#"btn: Rect, size: (10, 10)"#);
+        let edit = SourceEdit::InsertEffect {
+            scope: "nope".into(),
+            ty: "Blur".into(),
+            label: "soft1".into(),
+            props: vec![],
+        };
+        assert!(apply_edit(&mut stmts, edit).is_err());
     }
 
     #[test]

@@ -253,6 +253,17 @@ To add GUI creation support for a new primitive:
 2. Add the `SourceEdit::InsertActor` handling in `source_edit/actor_edits.rs` if new behavior is needed.
 3. Wire the palette entry in `app/shell/toolbar.rs`.
 
+### Effects
+
+Effects are not primitives, so they do not go through actor creation. The
+insertion palette's "Effects" tab is populated from the runtime `EFFECTS` array,
+and selecting one inserts `label: Type` at the head of the selected `Filter`
+scope's body (`SourceEdit::InsertEffect`, handled by
+`source_edit::actor_edits::insert_effect`). Adding a built-in effect therefore
+needs no GUI change — it appears in the palette and the Inspector's "Effects"
+group as soon as it is in `EFFECTS`. The end-to-end checklist is in
+`docs/effects.md` §8.
+
 ---
 
 ## Commit Messages

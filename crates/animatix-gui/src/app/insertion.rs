@@ -22,6 +22,14 @@ pub enum InsertionRequest {
         /// Property overrides (e.g. component parameter values).
         props: Vec<animatix_syntax::ast::Property>,
     },
+    /// Insert an effect declaration into a `Filter` compositing scope.
+    Effect {
+        type_name: String,
+        /// The `Filter` scope that owns the new stage.
+        scope: String,
+        /// If None, generate a unique label automatically.
+        suggested_label: Option<String>,
+    },
     /// Insert an action into the current keyframe.
     Action {
         verb: String,
@@ -123,6 +131,23 @@ impl InsertionRequest {
                     }),
                 }
             },
+            InsertionRequest::Effect {
+                type_name,
+                scope,
+                suggested_label,
+            } => {
+                // Effect labels are scoped to the owning `Filter`, so they are
+                // resolved against the scope's stages rather than the timeline.
+                let label = suggested_label.unwrap_or_else(|| {
+                    crate::app::utils::labels::unique_effect_label(None, &scope, &type_name)
+                });
+                Some(SourceEdit::InsertEffect {
+                    scope,
+                    ty: type_name,
+                    label,
+                    props: vec![],
+                })
+            },
             InsertionRequest::Action { verb, targets } => {
                 let targets = if targets.is_empty() {
                     ctx.selected_actors.iter().cloned().collect()
@@ -157,6 +182,61 @@ impl InsertionRequest {
                     }
                 })
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::{InsertionContext, InsertionRequest};
+    use crate::source_edit::SourceEdit;
+
+    fn context() -> InsertionContext {
+        InsertionContext {
+            current_time_s: 0.0,
+            selected_actors: HashSet::new(),
+            cursor_cell_time_s: None,
+            selected_container: None,
+        }
+    }
+
+    #[test]
+    fn effect_request_inserts_into_the_given_scope() {
+        let edit = InsertionRequest::Effect {
+            type_name: "Blur".into(),
+            scope: "bg".into(),
+            suggested_label: Some("soft1".into()),
+        }
+        .into_source_edit(&context());
+        match edit {
+            Some(SourceEdit::InsertEffect {
+                scope,
+                ty,
+                label,
+                props,
+            }) => {
+                assert_eq!(scope, "bg");
+                assert_eq!(ty, "Blur");
+                assert_eq!(label, "soft1");
+                assert!(props.is_empty());
+            },
+            other => panic!("expected InsertEffect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn effect_request_derives_a_label_when_unsuggested() {
+        let edit = InsertionRequest::Effect {
+            type_name: "ColorGrade".into(),
+            scope: "bg".into(),
+            suggested_label: None,
+        }
+        .into_source_edit(&context());
+        match edit {
+            Some(SourceEdit::InsertEffect { label, .. }) => assert_eq!(label, "colorgrade1"),
+            other => panic!("expected InsertEffect, got {other:?}"),
         }
     }
 }
