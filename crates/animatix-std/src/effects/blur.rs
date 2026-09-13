@@ -9,13 +9,13 @@ use animatix_core::effect::{
 };
 
 /// `Blur` parameters.
-pub const BLUR_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
-    name: "radius",
-    kind: EffectParamKind::F32,
-    identity: EffectParamValue::F32(0.0),
-    offset: 0,
-    size: 4,
-}];
+pub const BLUR_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
+    "radius",
+    EffectParamKind::F32,
+    EffectParamValue::F32(0.0),
+    0,
+    4,
+)];
 
 const BLUR_WGSL: &str = r#"
 struct BlurParams {
@@ -84,16 +84,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 "#;
 
 const BLUR_PASSES: &[EffectPassSpec] = &[
-    EffectPassSpec {
-        label: "blur-horizontal",
-        wgsl: BLUR_WGSL,
-        entry: "main",
-    },
-    EffectPassSpec {
-        label: "blur-vertical",
-        wgsl: BLUR_WGSL,
-        entry: "main",
-    },
+    EffectPassSpec::new("blur-horizontal", BLUR_WGSL, "main"),
+    EffectPassSpec::new("blur-vertical", BLUR_WGSL, "main"),
 ];
 
 /// The `Blur` effect.
@@ -103,15 +95,15 @@ pub struct Blur;
 pub const BLUR: Blur = Blur;
 
 impl Effect for Blur {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "Blur"
     }
 
-    fn params(&self) -> &'static [EffectParamSpec] {
+    fn params(&self) -> &[EffectParamSpec] {
         BLUR_PARAMS
     }
 
-    fn passes(&self) -> &'static [EffectPassSpec] {
+    fn passes(&self) -> &[EffectPassSpec] {
         BLUR_PASSES
     }
 

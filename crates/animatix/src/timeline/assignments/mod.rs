@@ -150,7 +150,6 @@ impl Timeline {
         //
         // Effects are not actors, so the target resolves as `[scope, stage]`
         // rather than to a track. Handle it before the generic target walk.
-        #[cfg(feature = "render")]
         if target.len() == 1 {
             // Bare stage form (`pix.size = 16`): the stage label must be
             // unique across all `Filter` scopes; otherwise it is ambiguous
@@ -204,7 +203,6 @@ impl Timeline {
                 }
             }
         }
-        #[cfg(feature = "render")]
         if target.len() == 2 {
             let scope_label = target[0].label_str();
             let stage_label = target[1].label_str();
@@ -935,7 +933,6 @@ pub(crate) fn recompile_text_at_assignment(
 ///
 /// Reports a diagnostic (never silently drops) when the property is not a
 /// declared parameter of the stage's effect.
-#[cfg(feature = "render")]
 #[allow(clippy::too_many_arguments)]
 fn write_effect_stage_param(
     timeline: &mut Timeline,

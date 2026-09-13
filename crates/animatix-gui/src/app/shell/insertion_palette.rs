@@ -123,7 +123,7 @@ impl InsertionPalette {
 
         // Effects (post-processing stages owned by a Filter scope)
         for effect in animatix::timeline::effects::EFFECTS {
-            let params: Vec<&str> = effect.params().iter().map(|spec| spec.name).collect();
+            let params: Vec<&str> = effect.params().iter().map(|spec| spec.name.as_ref()).collect();
             self.items.push(PaletteItem {
                 label: effect.display_name().to_string(),
                 detail: if params.is_empty() {

@@ -253,7 +253,7 @@ pub(crate) fn build_property_groups(
             continue;
         };
         for spec in effect.params() {
-            let track_opt = stage.params.get(spec.name);
+            let track_opt = stage.params.get(spec.name.as_ref());
             let value = track_opt.and_then(|param| param.sample(time_ms)).unwrap_or_else(|| {
                 animatix::timeline::effects::identity_to_property(spec.identity)
             });

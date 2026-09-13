@@ -27,12 +27,11 @@ impl Timeline {
                     ..
                 } => {
                     let id = format!("__anon_{}_{}", parent_label, index);
-                    #[cfg(feature = "render")]
                     if let Some(effect) = crate::timeline::effects::effect_for_type(ty) {
                         self.lower_effect_stage(
                             parent_label,
                             &id,
-                            effect,
+                            effect.as_effect(),
                             props,
                             modifiers,
                             time_ms,
@@ -62,12 +61,11 @@ impl Timeline {
                     children,
                     ..
                 } => {
-                    #[cfg(feature = "render")]
                     if let Some(effect) = crate::timeline::effects::effect_for_type(ty) {
                         self.lower_effect_stage(
                             parent_label,
                             label,
-                            effect,
+                            effect.as_effect(),
                             props,
                             modifiers,
                             time_ms,

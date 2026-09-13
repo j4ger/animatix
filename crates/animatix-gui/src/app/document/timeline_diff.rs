@@ -85,7 +85,7 @@ pub(crate) fn collect_per_property_keyframes(
         for spec in effect.params() {
             let times = stage
                 .params
-                .get(spec.name)
+                .get(spec.name.as_ref())
                 .map(|param| param.keyframe_times())
                 .unwrap_or_default();
             if !times.is_empty() {
@@ -182,7 +182,7 @@ pub(crate) fn collect_property_lanes(
         for spec in effect.params() {
             let times = stage
                 .params
-                .get(spec.name)
+                .get(spec.name.as_ref())
                 .map(|param| param.keyframe_times())
                 .unwrap_or_default();
             lanes.push((format!("{}.{}", stage.label, spec.name), times));

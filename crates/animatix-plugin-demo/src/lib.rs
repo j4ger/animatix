@@ -263,19 +263,17 @@ pub unsafe extern "C" fn animatix_plugin_install(
 
     // ── Plugin-authored post-processing effect ─────────────────────────────
     //
-    // The host keeps the descriptor for the process lifetime, so every string
-    // and the parameter/pass arrays are leaked on purpose — the allocation is
-    // bounded by the number of registered effects.
+    // The host copies every string and array out of the descriptor during the
+    // `register_effect` call, so these buffers only have to live until it
+    // returns — nothing is leaked on the plugin side either.
     let effect_params = [NativeEffectParam {
         name: c"size".as_ptr(),
         kind: NATIVE_EFFECT_PARAM_KIND_F32,
         offset: 0,
         identity: [0.0; 4],
     }];
-    let pixelate_wgsl: &'static std::ffi::CStr = Box::leak(Box::new(
-        std::ffi::CString::new(PIXELATE_WGSL).expect("WGSL source has no NUL bytes"),
-    ))
-    .as_c_str();
+    let pixelate_wgsl =
+        std::ffi::CString::new(PIXELATE_WGSL).expect("WGSL source has no NUL bytes");
     let effect_passes = [NativeEffectPass {
         wgsl: pixelate_wgsl.as_ptr(),
         entry: c"main".as_ptr(),

@@ -331,13 +331,8 @@ impl FontContext {
             style: fontdb_style,
             ..Default::default()
         })?;
-        let data = Self::face_data(&self.db, id)?;
-        // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
-        // This is acceptable because FontContext is typically kept alive for the entire
-        // application lifetime, and the leaked memory is bounded by the number of distinct
-        // font faces loaded.
-        let leaked: &'static [u8] = Box::leak(data.into_boxed_slice());
-        ttf_parser::Face::parse(leaked, 0).ok()
+        let data = leaked_face_data(self, id)?;
+        ttf_parser::Face::parse(data, 0).ok()
     }
 }
 
@@ -370,6 +365,26 @@ fn typst_font_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Font>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Font>>> =
         std::sync::OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
+}
+
+/// Process-wide cache: fontdb face id → `'static` view of the face bytes.
+///
+/// [`FontContext::load_face`] returns `Face<'static>` because its callers hold
+/// the face across frames; `ttf_parser` borrows the buffer, so that buffer has
+/// to live for the process. Memoizing the allocation per face id bounds it to
+/// one per distinct face instead of one per call. The Typst path does not use
+/// this at all — it shares `Arc<[u8]>` via [`cached_face_data`].
+fn leaked_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<&'static [u8]> {
+    static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, &'static [u8]>>> =
+        std::sync::OnceLock::new();
+    let mut cache = CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new())).lock().unwrap();
+    if let Some(data) = cache.get(&id) {
+        return Some(*data);
+    }
+    let data: &'static [u8] =
+        Box::leak(FontContext::face_data(&font_ctx.db, id)?.into_boxed_slice());
+    cache.insert(id, data);
+    Some(data)
 }
 
 /// Shared copy of a system face's bytes (loaded once per process).
@@ -1484,9 +1499,8 @@ pub fn compile_text_fast(
     let resolved_family = resolve_font_family(family, font_ctx);
     let face: ttf_parser::Face<'static> = 'font: {
         if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
-            // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
-            let leaked: &'static [u8] = Box::leak(bf.data.to_vec().into_boxed_slice());
-            if let Ok(face) = ttf_parser::Face::parse(leaked, 0) {
+            // Bundled data is `include_bytes!`, so it is already `'static`.
+            if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
                 break 'font face;
             }
         }
@@ -1619,9 +1633,8 @@ pub fn compile_text_fast_wrapped(
     // Try to load font data from bundled fonts first for consistency with Typst path.
     let face: ttf_parser::Face<'static> = 'font: {
         if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
-            // SAFETY: ttf_parser::Face borrows the data; we leak it so it lives for 'static.
-            let leaked: &'static [u8] = Box::leak(bf.data.to_vec().into_boxed_slice());
-            if let Ok(face) = ttf_parser::Face::parse(leaked, 0) {
+            // Bundled data is `include_bytes!`, so it is already `'static`.
+            if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
                 break 'font face;
             }
         }
@@ -2498,6 +2511,28 @@ mod tests {
         assert!(!is_latin_text("中文"));
         assert!(!is_latin_text("Привет"));
         assert!(!is_latin_text("مرحبا"));
+    }
+
+    /// `load_face` hands out `Face<'static>`, which requires a process-long
+    /// buffer; the buffer must be allocated once per face, not once per call.
+    #[test]
+    fn load_face_reuses_one_buffer_per_face() {
+        let font_ctx = test_font_ctx();
+        let id = font_ctx
+            .db
+            .query(&fontdb::Query {
+                families: &[fontdb::Family::Name("Open Sans")],
+                weight: fontdb::Weight(400),
+                style: fontdb::Style::Normal,
+                ..Default::default()
+            })
+            .expect("Open Sans is bundled");
+        let first = leaked_face_data(&font_ctx, id).expect("face data");
+        let second = leaked_face_data(&font_ctx, id).expect("face data");
+        assert!(
+            std::ptr::eq(first, second),
+            "load_face leaked a fresh buffer on the second call"
+        );
     }
 
     #[test]

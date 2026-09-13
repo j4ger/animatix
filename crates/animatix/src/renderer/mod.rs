@@ -13,5 +13,4 @@ pub mod error;
 /// Shared rendering types (paths and colors that cross the seam).
 pub mod types;
 
-#[cfg(feature = "text")]
 pub use animatix_text as text;

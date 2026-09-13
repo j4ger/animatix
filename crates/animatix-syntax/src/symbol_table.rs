@@ -194,7 +194,7 @@ impl SymbolTable {
             // `true`); seed it so `soft.enabled = true` validates.
             names.push("enabled".to_string());
             table.properties.insert(spec.type_name.to_string(), names.clone());
-            for param in spec.params {
+            for param in &spec.params {
                 if let Some(ty) = effect_param_type(param.kind) {
                     table
                         .property_types

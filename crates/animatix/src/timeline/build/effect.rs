@@ -21,7 +21,7 @@ impl Timeline {
         &mut self,
         parent_label: &str,
         label: &str,
-        effect: &'static dyn Effect,
+        effect: &dyn Effect,
         props: &[crate::ast::Property],
         modifiers: &[Modifier],
         time_ms: f64,
@@ -120,7 +120,7 @@ impl Timeline {
                 continue;
             };
 
-            let track = stage.param_track_mut(spec.name, spec.kind);
+            let track = stage.param_track_mut(spec.name.as_ref(), spec.kind);
             if duration_ms > 0.0 {
                 let start =
                     track.sample(t_start_ms).unwrap_or_else(|| identity_to_property(spec.identity));

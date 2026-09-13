@@ -593,8 +593,8 @@ impl Timeline {
         // (which may extend back into view) are correctly evaluated.
         if is_visible {
             // ── Phase 10b.3: Trait-dispatch scene evaluation ──
-            // The primitive's evaluate() is the only render path (the legacy
-            // manual `ActorKindId` match no longer exists). `Some(commands)`
+            // The primitive's evaluate() is the only render path (no per-type
+            // dispatch table). `Some(commands)`
             // draws the commands and records a hit region; `None` means
             // "no drawable content" — nothing is drawn and no hit region or
             // precise bounds are recorded for it.
@@ -1274,7 +1274,7 @@ impl Timeline {
                 continue;
             };
             // A fragment is any child whose primitive opts into
-            // `equation_fragment` — not a hard-coded `ActorKindId::Fragment`.
+            // `equation_fragment` — never a hard-coded type name.
             let Some(primitive) = self.track_primitive(child_track) else {
                 continue;
             };

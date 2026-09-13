@@ -108,10 +108,10 @@ pub(crate) fn library_drag_label_base(payload: &LibraryDragPayload) -> String {
 
 /// Returns the canonical default actor type: the first non-advanced Shape actor.
 pub(crate) fn default_actor_type() -> &'static str {
-    primitives::actor_kind_registry()
+    primitives::primitive_catalog()
         .iter()
         .find(|meta| meta.category == animatix::timeline::ActorCategory::Shape && !meta.advanced)
-        .map(|meta| meta.type_name)
+        .and_then(|meta| meta.static_type_name())
         .unwrap_or("Rect")
 }
 

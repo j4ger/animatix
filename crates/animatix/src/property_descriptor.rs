@@ -58,7 +58,7 @@ mod tests {
         let spec = PropertySpec {
             id: PropertyId(7),
             name: "size",
-            actor_types: &["Rect"],
+            actor_types: vec!["Rect"].into_boxed_slice(),
             ty: Type::Vec2,
             value_kind: PropertyValueKind::Vec2,
         };

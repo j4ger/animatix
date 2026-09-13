@@ -5,6 +5,14 @@
 //! implementations live in `animatix-std` (next to their WGSL); the engine
 //! consumes the trait through its render pipeline, and the parser crate
 //! derives the author-visible contract from the same catalog.
+//!
+//! Metadata strings are [`Cow<'static, str>`]: built-ins borrow string
+//! literals from their `static` declarations (zero allocation), while plugin
+//! effects own the strings they received over FFI. Nothing requires a
+//! `'static` *reference*, so registering a plugin effect allocates nothing
+//! permanently and unregistering frees it.
+
+use std::borrow::Cow;
 
 // ── Effect identity ─────────────────────────────────────────────────────────
 
@@ -69,10 +77,10 @@ pub enum EffectParamValue {
 
 /// Declares one author parameter: its type, the identity value that means "no
 /// contribution", and where it lands in the author uniform buffer.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct EffectParamSpec {
     /// Parameter name as authored in `.amx`.
-    pub name: &'static str,
+    pub name: Cow<'static, str>,
     /// Value type.
     pub kind: EffectParamKind,
     /// Value at which this parameter contributes nothing.
@@ -81,6 +89,26 @@ pub struct EffectParamSpec {
     pub offset: u32,
     /// Byte size in the author uniform buffer.
     pub size: u32,
+}
+
+impl EffectParamSpec {
+    /// Built-in declaration: the name is a string literal borrowed for
+    /// `'static`, so this is usable in a `static` parameter table.
+    pub const fn new(
+        name: &'static str,
+        kind: EffectParamKind,
+        identity: EffectParamValue,
+        offset: u32,
+        size: u32,
+    ) -> Self {
+        Self {
+            name: Cow::Borrowed(name),
+            kind,
+            identity,
+            offset,
+            size,
+        }
+    }
 }
 
 /// Resolved parameters for one effect instance in a frame.
@@ -102,14 +130,26 @@ impl EffectParams {
 }
 
 /// One compute pass of an effect: shader source plus entry point.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct EffectPassSpec {
     /// Human-readable label for the pipeline/pass.
-    pub label: &'static str,
+    pub label: Cow<'static, str>,
     /// WGSL source. May be shared between passes (blur uses one shader twice).
-    pub wgsl: &'static str,
+    pub wgsl: Cow<'static, str>,
     /// Entry point name.
-    pub entry: &'static str,
+    pub entry: Cow<'static, str>,
+}
+
+impl EffectPassSpec {
+    /// Built-in declaration: label, WGSL, and entry point borrow string
+    /// literals for `'static`, so this is usable in a `static` pass table.
+    pub const fn new(label: &'static str, wgsl: &'static str, entry: &'static str) -> Self {
+        Self {
+            label: Cow::Borrowed(label),
+            wgsl: Cow::Borrowed(wgsl),
+            entry: Cow::Borrowed(entry),
+        }
+    }
 }
 
 // ── Layout helpers ──────────────────────────────────────────────────────────
@@ -156,18 +196,18 @@ pub fn uniform_size_for(params: &[EffectParamSpec]) -> u32 {
 /// per-effect dispatch table to keep in sync.
 pub trait Effect: Send + Sync {
     /// Authored type name (`.amx`) — the effect's identity.
-    fn type_name(&self) -> &'static str;
+    fn type_name(&self) -> &str;
 
     /// Human-readable label for palettes and tooltips.
-    fn display_name(&self) -> &'static str {
+    fn display_name(&self) -> &str {
         self.type_name()
     }
 
     /// Parameter schema, index-aligned with [`EffectParams::values`].
-    fn params(&self) -> &'static [EffectParamSpec];
+    fn params(&self) -> &[EffectParamSpec];
 
     /// Ordered compute passes.
-    fn passes(&self) -> &'static [EffectPassSpec];
+    fn passes(&self) -> &[EffectPassSpec];
 
     /// Size in bytes of the author uniform buffer, derived from the parameter
     /// layout. An effect whose WGSL uniform struct is hand-padded beyond its

@@ -27,7 +27,7 @@ pub struct Row<'a> {
     pub is_selected: bool,
     pub secondary_selected: bool,
     pub confirmed: bool,
-    pub icon: Option<&'static str>,
+    pub icon: Option<&'a str>,
     pub label: &'a str,
     pub label_color: Option<Color32>,
     #[allow(clippy::type_complexity)]
@@ -103,7 +103,7 @@ impl<'a> Row<'a> {
         self
     }
 
-    pub fn icon(mut self, icon: Option<&'static str>) -> Self {
+    pub fn icon(mut self, icon: Option<&'a str>) -> Self {
         self.icon = icon;
         self
     }

@@ -15,7 +15,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-lsp`: LSP wrapper over analyzer.
 - `crates/eparts`: themed egui widget framework used by the GUI.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
-- `docs`: documentation. `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
+- `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
 
 ## Workflow
 
@@ -24,14 +24,15 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 3. **Before committing**: format first, then run these checks and ensure they pass:
    ```bash
    cargo fmt --all                # Format the workspace; commit any resulting changes
-   cargo check --workspace        # All crates compile
+   cargo check --workspace --all-targets   # All crates and targets compile
+   cargo clippy --workspace --all-targets -- -D warnings  # CI enforces this; run it here too
    cargo test -p animatix-syntax  # Parser tests pass
    cargo test -p animatix --lib -- --test-threads=1   # Core library tests pass (serial avoids WGPU teardown SIGSEGV)
    cargo test --no-fail-fast -- --test-threads=1      # All tests across workspace
    ```
    Do not commit with build errors or test failures.
 
-   > **Why `--workspace`?** Ensures all crates (including GUI, analyzer, LSP) compile. Prevents silent drift between core and tooling crates.
+   > **Why `--workspace --all-targets`?** Ensures all crates (including GUI, analyzer, LSP) and all targets compile. Prevents silent drift between core and tooling crates. **Why clippy here?** `cargo check` does not surface lint-level problems, and the CI `clippy` job fails the build on warnings — running it locally keeps that job green instead of discovering lints after the push.
 4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items).
 5. Ask on unclear design choices and call out design flaws you notice.
 6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). `cog` is provided by the flake dev shell (cocogitto), so **run the commit while inside `nix develop`**; outside the shell it's not on `PATH`. Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is genuinely unavailable/blocked, and mention it.
@@ -39,7 +40,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Common Pitfalls
 
-- **GUI drift**: The GUI crate is excluded from `cargo check` (no `-p` flag), so errors can accumulate silently. Always run `cargo check --workspace` before committing to catch GUI, analyzer, and LSP compilation issues.
+- **GUI/tooling drift**: `cargo check -p animatix` does not compile the GUI, analyzer, or LSP. Use `cargo check --workspace --all-targets` before committing so their errors cannot accumulate silently.
 - **Single tokenizer**: Syntax tokens are defined once in `crates/animatix-syntax/src/token.rs`. The parser consumes that token stream, the analyzer and LSP use it for positions, and the GUI uses it for syntax highlighting. Do not add a second lexer or grammar.
 - **Evaluation paths**: Build-time expressions use the AST tree-walker (`evaluate_expr`); frame-time modifier code and plot closures are lowered to IR and interpreted by the single IR executor (`execute_modifier_ir` / `evaluate_compiled_expr`). Leaf operators and builtins are shared through `eval_shared`, so new operators/builtins are added there to keep both paths in sync. When adding a new expression *semantic* (not just a builtin), follow the touch-point checklist in `docs/contributing.md` ("Adding a New Expression Semantic to the IR") — there are 8 implementation sites and two of them are compiler-invisible.
 - **`cog` is inside the dev shell**: `nix develop` provides `cog` (cocogitto). If `cog` isn't found, you're outside the shell — re-enter `nix develop` before committing. Do not preemptively fall back to `git commit -m`; use it only when cog is genuinely blocked (e.g., the linked-worktree `.git` quirk for cross-worktree commits).
@@ -76,9 +77,12 @@ To build the engine without video:
 cargo build -p animatix
 ```
 
-Bare `cargo check -p animatix --no-default-features` is intentionally not a
-supported target. The supported no-video feature combination is
-`--no-default-features --features render,text,svg` (used by CI).
+Rendering, text, and SVG are **not** feature-gated: the engine's build/evaluate
+paths and the `FilterBackend` seam need `vello`/`wgpu`/`typst`/`usvg`
+unconditionally, so those three features were removed rather than left as
+switches no supported build could turn off. The real feature switches are
+`perf-tracing` (default-on), `serde`, `plugin-loading`, and `video` on the
+CLI/GUI (which forwards to `animatix-render/video`).
 
 Without FFmpeg, the default build includes rendering, text, SVG support, and single-frame raster export (PNG/WebP), but not video/GIF export. Only the FFmpeg-dependent formats (MP4/WebM/MOV/GIF) require the `video` feature.
 

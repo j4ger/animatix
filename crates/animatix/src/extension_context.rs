@@ -703,10 +703,10 @@ mod tests {
         ctx.register_primitive(
             Arc::new(Marker),
             animatix_std::PrimitiveInfo {
-                type_name: "Marker",
-                display_name: "Marker",
+                type_name: "Marker".into(),
+                display_name: "Marker".into(),
                 category: ActorCategory::Annotation,
-                icon_id: "marker",
+                icon_id: "marker".into(),
                 advanced: false,
                 capabilities: Default::default(),
                 child_processing: Default::default(),
@@ -835,10 +835,10 @@ mod tests {
         ctx.register_primitive(
             Arc::new(Marker),
             animatix_std::PrimitiveInfo {
-                type_name: "Marker",
-                display_name: "Marker",
+                type_name: "Marker".into(),
+                display_name: "Marker".into(),
                 category: ActorCategory::Annotation,
-                icon_id: "marker",
+                icon_id: "marker".into(),
                 advanced: false,
                 capabilities: Default::default(),
                 child_processing: Default::default(),
@@ -1012,10 +1012,10 @@ mod tests {
         ctx.register_primitive(
             Arc::new(Gauge),
             animatix_std::PrimitiveInfo {
-                type_name: "Gauge",
-                display_name: "Gauge",
+                type_name: "Gauge".into(),
+                display_name: "Gauge".into(),
                 category: ActorCategory::Plot,
-                icon_id: "gauge",
+                icon_id: "gauge".into(),
                 advanced: false,
                 capabilities: Default::default(),
                 child_processing: Default::default(),
@@ -1104,10 +1104,10 @@ mod tests {
         ctx.register_primitive(
             Arc::new(Gauge),
             animatix_std::PrimitiveInfo {
-                type_name: "Gauge",
-                display_name: "Gauge",
+                type_name: "Gauge".into(),
+                display_name: "Gauge".into(),
                 category: ActorCategory::Plot,
-                icon_id: "gauge",
+                icon_id: "gauge".into(),
                 advanced: false,
                 capabilities: Default::default(),
                 child_processing: Default::default(),

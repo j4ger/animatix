@@ -426,7 +426,7 @@ unsafe extern "C" fn native_register_primitive(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let name = adapter.type_name.to_string();
-    let info = adapter.info;
+    let info = adapter.info.clone();
     if host.ctx.register_primitive(std::sync::Arc::new(adapter), info).is_err() {
         return NATIVE_STATUS_TYPE_ERROR;
     }
@@ -551,7 +551,6 @@ unsafe extern "C" fn native_provide_service(host: *mut c_void, service: NativeSe
 /// §5/§7): wgpu validates syntax but not termination, so this is
 /// trusted-authoring, and effects are GPU-only (no backend means
 /// "skip + warn" with a diagnostic, like built-ins).
-#[cfg(feature = "render")]
 unsafe extern "C" fn native_register_effect(
     host: *mut c_void,
     descriptor: NativeEffectDescriptor,
@@ -625,7 +624,7 @@ unsafe extern "C" fn native_register_effect(
         // Same `[x, y, z, w]` identity convention as the built-in contract table.
         let identity = crate::timeline::effects::identity_for(kind, raw.identity);
         params.push(EffectParamSpec {
-            name: Box::leak(name.clone().into_boxed_str()),
+            name: name.into(),
             kind,
             identity,
             offset: raw.offset,
@@ -655,21 +654,18 @@ unsafe extern "C" fn native_register_effect(
             return NATIVE_STATUS_TYPE_ERROR;
         };
         let entry = unsafe { read_c_string(raw.entry) }.unwrap_or_else(|| "main".to_string());
-        let label: &'static str = Box::leak(format!("{effect_name}.pass{index}").into_boxed_str());
         passes.push(EffectPassSpec {
-            label,
-            wgsl: Box::leak(wgsl.into_boxed_str()),
-            entry: Box::leak(entry.into_boxed_str()),
+            label: format!("{effect_name}.pass{index}").into(),
+            wgsl: wgsl.into(),
+            entry: entry.into(),
         });
     }
 
-    let type_name: &'static str = Box::leak(effect_name.clone().into_boxed_str());
-    let display_name: &'static str = Box::leak(display_name.into_boxed_str());
     let data = PluginEffectData {
-        type_name,
-        display_name,
-        params: Box::leak(params.into_boxed_slice()),
-        passes: Box::leak(passes.into_boxed_slice()),
+        type_name: effect_name.clone().into(),
+        display_name: display_name.clone().into(),
+        params,
+        passes,
         author_uniform_size: uniform_size,
         support_px: descriptor.support_px,
     };
@@ -690,15 +686,6 @@ unsafe extern "C" fn native_register_effect(
         },
         None => NATIVE_STATUS_TYPE_ERROR,
     }
-}
-
-/// No-render builds have no effect backend; plugin effects are unavailable.
-#[cfg(not(feature = "render"))]
-unsafe extern "C" fn native_register_effect(
-    _host: *mut c_void,
-    _descriptor: NativeEffectDescriptor,
-) -> i32 {
-    NATIVE_STATUS_TYPE_ERROR
 }
 
 /// Host-side adapter that turns a native primitive descriptor into a runtime
@@ -732,20 +719,10 @@ impl NativePrimitiveAdapter {
         service_values: HashMap<String, usize>,
     ) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
-        // Leaked like `icon_id`: the info card and adapter share the &'static str.
-        let display_name: &'static str = Box::leak(
-            unsafe { read_c_string(primitive.display_name) }
-                .unwrap_or_else(|| type_name.clone())
-                .into_boxed_str(),
-        );
-        // Leaked: `Primitive::icon_id` returns `&'static str` (the GUI row
-        // builder stores `Option<&'static str>`), and registration happens
-        // once per plugin load.
-        let icon_id: &'static str = Box::leak(
-            unsafe { read_c_string(primitive.icon_id) }
-                .unwrap_or_else(|| "extension".to_string())
-                .into_boxed_str(),
-        );
+        let display_name =
+            unsafe { read_c_string(primitive.display_name) }.unwrap_or_else(|| type_name.clone());
+        let icon_id =
+            unsafe { read_c_string(primitive.icon_id) }.unwrap_or_else(|| "extension".to_string());
         let category = native_primitive_category(primitive.category)?;
         let declared_properties = if primitive.properties.is_null() || primitive.property_len == 0 {
             Vec::new()
@@ -758,10 +735,10 @@ impl NativePrimitiveAdapter {
             native_child_processing(primitive.child_processing).unwrap_or_default();
         let capabilities = native_capabilities(primitive.capabilities);
         let info = animatix_std::PrimitiveInfo {
-            type_name: Box::leak(type_name.clone().into_boxed_str()),
-            display_name,
+            type_name: type_name.clone().into(),
+            display_name: display_name.into(),
             category,
-            icon_id,
+            icon_id: icon_id.into(),
             advanced: primitive.advanced,
             capabilities,
             child_processing,
@@ -3643,7 +3620,7 @@ mod tests {
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
         let adapter_info = animatix_std::PrimitiveInfo::extension(
-            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.type_name.clone(),
             adapter.info.category,
         );
         ctx.register_primitive(Arc::new(adapter), adapter_info)
@@ -4044,7 +4021,7 @@ mod tests {
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
         let adapter_info = animatix_std::PrimitiveInfo::extension(
-            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.type_name.clone(),
             adapter.info.category,
         );
         ctx.register_primitive(Arc::new(adapter), adapter_info)
@@ -4116,7 +4093,7 @@ mod tests {
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
         let adapter_info = animatix_std::PrimitiveInfo::extension(
-            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.type_name.clone(),
             adapter.info.category,
         );
         ctx.register_primitive(Arc::new(adapter), adapter_info)
@@ -4208,7 +4185,6 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "render")]
     #[test]
     fn native_register_effect_registers_and_rejects_bad_layout() {
         use animatix_plugin_api::{

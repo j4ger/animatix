@@ -12,7 +12,6 @@
 //! driver (probe 009), and a submit boundary is a portable synchronisation
 //! point.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 
 use crate::core::RendererCore;
@@ -75,7 +74,10 @@ pub struct GpuFilterBackend {
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
     /// Lazily built pipelines, keyed by the effect's authored type name.
-    pipelines: HashMap<&'static str, EffectPipeline>,
+    ///
+    /// The key is owned because plugin effect names come from the registry, not
+    /// from string literals.
+    pipelines: HashMap<Box<str>, EffectPipeline>,
     /// Linear clamp sampler (binding 4).
     sampler: wgpu::Sampler,
     /// Per-pass host context uniform (binding 3).
@@ -283,14 +285,14 @@ impl GpuFilterBackend {
         let mut passes = Vec::with_capacity(effect.passes().len());
         for pass in effect.passes() {
             let module = self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some(pass.label),
-                source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(pass.wgsl)),
+                label: Some(pass.label.as_ref()),
+                source: wgpu::ShaderSource::Wgsl(pass.wgsl.clone()),
             });
             let pipeline = self.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some(pass.label),
+                label: Some(pass.label.as_ref()),
                 layout: Some(&self.pipeline_layout),
                 module: &module,
-                entry_point: Some(pass.entry),
+                entry_point: Some(pass.entry.as_ref()),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 cache: None,
             });
@@ -303,7 +305,7 @@ impl GpuFilterBackend {
             mapped_at_creation: false,
         });
         self.pipelines.insert(
-            effect.type_name(),
+            effect.type_name().into(),
             EffectPipeline {
                 passes,
                 uniform_buffer,
@@ -465,7 +467,7 @@ impl GpuFilterBackend {
                 tracing::warn!("chain effect has no registered descriptor; skipping");
                 continue;
             };
-            self.ensure_effect_pipeline(effect);
+            self.ensure_effect_pipeline(effect.as_effect());
             let Some(pipeline) = self.pipelines.get(effect.type_name()) else {
                 continue;
             };

@@ -124,7 +124,6 @@ pub struct AnimationTrack {
 
     // ── Effects tier ──
     /// Effect chain for compositing scopes; empty for non-scope actors.
-    #[cfg(feature = "render")]
     pub effects: crate::timeline::effects::EffectChainTrack,
 
     // ── Shape tier (sub-struct) ──
@@ -141,7 +140,6 @@ pub struct AnimationTrack {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub svg_paths_track: Option<PropertyTrack<Option<Vec<crate::timeline::VelloPath>>>>,
     /// Raster image data.
-    #[cfg(feature = "render")]
     #[cfg_attr(feature = "serde", serde(skip))]
     pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
 
@@ -255,7 +253,6 @@ impl AnimationTrack {
             // Style tier (sub-struct)
             style: StyleTracks::default(),
 
-            #[cfg(feature = "render")]
             effects: crate::timeline::effects::EffectChainTrack::default(),
 
             // Shape tier (sub-struct)
@@ -265,7 +262,6 @@ impl AnimationTrack {
             text: TextTracks::default(),
             svg_paths: Vec::new(),
             svg_paths_track: None,
-            #[cfg(feature = "render")]
             image: None,
 
             // Procedural plot
@@ -554,7 +550,6 @@ impl AnimationTrack {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
         }
         // Effect chain parameters.
-        #[cfg(feature = "render")]
         if let Some(t) = self.effects.max_keyframe_time() {
             max = Some(max.map_or(t, |m| m.max(t)));
         }
@@ -575,16 +570,7 @@ impl AnimationTrack {
             || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || self.property_plan.has_any_keyframes()
             || !self.func_transitions.is_empty()
-            || {
-                #[cfg(feature = "render")]
-                {
-                    self.effects.has_any_keyframes()
-                }
-                #[cfg(not(feature = "render"))]
-                {
-                    false
-                }
-            }
+            || self.effects.has_any_keyframes()
     }
 }
 
@@ -627,7 +613,6 @@ pub enum TrackFieldRef<'a> {
     /// Text paths property track.
     TextPaths(&'a Option<PropertyTrack<Vec<TextPath>>>),
     /// Raster image data track (cfg-gated on "render").
-    #[cfg(feature = "render")]
     Image(&'a Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
     /// Position binding property track.
     PositionBinding(&'a Option<PropertyTrack<PositionBinding>>),
@@ -666,7 +651,6 @@ pub enum TrackFieldMut<'a> {
     /// Text paths property track.
     TextPaths(&'a mut Option<PropertyTrack<Vec<TextPath>>>),
     /// Raster image data track (cfg-gated on "render").
-    #[cfg(feature = "render")]
     Image(&'a mut Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>),
     /// Position binding property track.
     PositionBinding(&'a mut Option<PropertyTrack<PositionBinding>>),
@@ -715,7 +699,6 @@ impl<'a> TrackFieldRef<'a> {
             },
             Self::VectorPaths(_) | Self::TextPaths(_) | Self::PositionBinding(_) => None,
             Self::Tagged(_, opt) => opt.as_ref().map(|pt| pt.evaluate(time_ms)),
-            #[cfg(feature = "render")]
             Self::Image(_) => None,
         }
     }
@@ -755,7 +738,6 @@ impl<'a> TrackFieldRef<'a> {
             Self::TextPaths(opt) => {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
             },
-            #[cfg(feature = "render")]
             Self::Image(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::PositionBinding(opt) => {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
@@ -783,7 +765,6 @@ impl<'a> TrackFieldRef<'a> {
             Self::MorphOptions(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::VectorPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::TextPaths(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
-            #[cfg(feature = "render")]
             Self::Image(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PositionBinding(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::Tagged(_, opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -835,7 +816,6 @@ impl<'a> TrackFieldRef<'a> {
             Self::TextPaths(opt) => {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
-            #[cfg(feature = "render")]
             Self::Image(opt) => {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
@@ -893,7 +873,6 @@ impl<'a> TrackFieldRef<'a> {
             Self::TextPaths(opt) => {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
-            #[cfg(feature = "render")]
             Self::Image(opt) => {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
@@ -965,10 +944,7 @@ impl AnimationTrack {
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
-            #[cfg(feature = "render")]
             ImageData => TrackFieldRef::Image(&self.image),
-            #[cfg(not(feature = "render"))]
-            ImageData => return None,
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             ActorField::Tagged(name) => {
                 return self
@@ -1045,10 +1021,7 @@ impl AnimationTrack {
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
-            #[cfg(feature = "render")]
             ImageData => TrackFieldMut::Image(&mut self.image),
-            #[cfg(not(feature = "render"))]
-            ImageData => return None,
             PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
             _ => return None,
         })
@@ -1105,7 +1078,6 @@ impl AnimationTrack {
             TrackFieldRef::TextPaths(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
-            #[cfg(feature = "render")]
             TrackFieldRef::Image(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },

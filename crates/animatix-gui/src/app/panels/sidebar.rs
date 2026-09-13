@@ -908,8 +908,16 @@ fn render_actor_tree(
 
     let is_visible = track.visible;
 
-    let (icon, display_label, label_color) = if is_anonymous {
-        (Some(egui_phosphor::regular::GHOST), "anon", Some(t.palette.text.muted))
+    let (icon, display_label, label_color): (
+        Option<std::borrow::Cow<'static, str>>,
+        &str,
+        Option<egui::Color32>,
+    ) = if is_anonymous {
+        (
+            Some(std::borrow::Cow::Borrowed(egui_phosphor::regular::GHOST)),
+            "anon",
+            Some(t.palette.text.muted),
+        )
     } else {
         let icon = Some(crate::app::icons::actor_icon_for_track(track, timeline));
         (icon, label, None)
@@ -945,7 +953,7 @@ fn render_actor_tree(
     let response = row::Row::new(display_label)
         .indent(depth as f32 * sp.base.component.icon_slot_width)
         .selected(is_selected)
-        .icon(icon)
+        .icon(icon.as_deref())
         .label_color(label_color.unwrap_or(if is_visible {
             t.palette.text.secondary
         } else {

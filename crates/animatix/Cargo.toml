@@ -5,16 +5,13 @@ edition = "2024"
 rust-version = "1.85"
 
 [features]
-# `--no-default-features` is intentionally not a supported animatix target.
-# The core runtime assumes render/text/svg; CI builds and tests with
-# `--no-default-features --features render,text,svg` to verify that combination.
-default = ["render", "text", "svg", "perf-tracing"]
-# The engine keeps Vello/wgpu for the `FilterBackend` seam types
-# (`wgpu::Texture`, `vello::Scene`) and `image` for asset decoding; the GPU
-# presentation stack itself lives in `animatix-render`.
-render = ["dep:wgpu", "dep:vello", "dep:image"]
-text = ["dep:typst", "dep:animatix-text"]
-svg = ["dep:usvg", "dep:roxmltree"]
+# Rendering, text, and SVG are part of the engine, not options: the build and
+# evaluate paths construct `vello::Scene`s, compile text, and parse SVG
+# unconditionally, and the `FilterBackend` seam is typed in `wgpu`/`vello`
+# (the GPU *presentation* stack lives in `animatix-render`). Modelling them as
+# features produced `#[cfg(not(feature = ...))]` branches that no supported
+# build could ever compile, so they were removed.
+default = ["perf-tracing"]
 # Shared stage tracing (`crate::perf`, PF-8). Default-on so benches and the GUI
 # HUD measure the same stages; compile out with --no-default-features to
 # eliminate the (already tiny) hot-path cost.
@@ -24,21 +21,21 @@ plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 
 [dependencies]
 animatix-core = { path = "../animatix-core" }
-animatix-text = { path = "../animatix-text", optional = true }
+animatix-text = { path = "../animatix-text" }
 animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
 libloading = { version = "0.8", optional = true }
 serde = { workspace = true, optional = true }
 fastrand = "2.4"
-image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
+image = { workspace = true, features = ["png", "gif", "jpeg", "webp"] }
 kurbo = { workspace = true }
-roxmltree = { version = "0.20.0", optional = true }
+roxmltree = { version = "0.20.0" }
 
-typst = { version = "0.15.1", optional = true }
-usvg = { version = "0.47.0", optional = true }
-vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
-wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }
+typst = { version = "0.15.1" }
+usvg = { version = "0.47.0" }
+vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"] }
+wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

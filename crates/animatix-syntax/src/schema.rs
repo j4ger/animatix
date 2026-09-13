@@ -49,7 +49,10 @@ pub struct PropertySpec {
     /// Canonical property name.
     pub name: &'static str,
     /// Actor source type names this property applies to.
-    pub actor_types: &'static [&'static str],
+    ///
+    /// Boxed rather than `&'static [&'static str]`: the `OnceLock` cache owns
+    /// the table, so materializing it allocates but never leaks.
+    pub actor_types: Box<[&'static str]>,
     /// Inferred/declared property type.
     pub ty: Type,
     /// Finite value kind used by dynamic property tracks.
@@ -260,10 +263,10 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
 }
 
 /// One author-visible effect parameter: its name and value kind.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EffectParamSpecDef {
     /// Parameter name as authored.
-    pub name: &'static str,
+    pub name: Box<str>,
     /// Declared value kind.
     pub kind: PropertyValueKind,
 }
@@ -276,7 +279,7 @@ pub struct EffectParamSpecDef {
 /// **derived** from the built-in catalog in `animatix-std` — the effect
 /// implementations are the single source; this crate only re-shapes them for
 /// tooling.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct EffectSpecDef {
     /// Authored type name (`Blur`).
     pub type_name: &'static str,
@@ -285,30 +288,31 @@ pub struct EffectSpecDef {
     /// Declared marshalable parameters. Every effect also implicitly accepts
     /// `enabled: Bool` (default `true`); it is not listed here because it is
     /// not part of the shader's uniform layout.
-    pub params: &'static [EffectParamSpecDef],
+    pub params: Vec<EffectParamSpecDef>,
 }
 
 /// Built-in effect kinds, derived from the `animatix-std` catalog.
+///
+/// Only built-ins are described here, so the type/display names stay
+/// `&'static str` (the `EFFECTS` array is a `static`). The per-parameter rows
+/// are owned because they are derived rather than literal.
 pub fn effect_specs() -> &'static [EffectSpecDef] {
     use std::sync::OnceLock;
     static SPECS: OnceLock<Vec<EffectSpecDef>> = OnceLock::new();
     SPECS.get_or_init(|| {
         animatix_std::EFFECTS
             .iter()
-            .map(|effect| {
-                let params: Vec<EffectParamSpecDef> = effect
+            .map(|effect| EffectSpecDef {
+                type_name: effect.type_name(),
+                display_name: effect.display_name(),
+                params: effect
                     .params()
                     .iter()
                     .map(|spec| EffectParamSpecDef {
-                        name: spec.name,
+                        name: spec.name.as_ref().into(),
                         kind: shared_kind(spec.kind),
                     })
-                    .collect();
-                EffectSpecDef {
-                    type_name: effect.type_name(),
-                    display_name: effect.display_name(),
-                    params: Box::leak(params.into_boxed_slice()),
-                }
+                    .collect(),
             })
             .collect()
     })
@@ -343,7 +347,9 @@ pub fn property_specs() -> Vec<PropertySpec> {
             let catalog: Vec<(&'static str, animatix_core::caps::ActorCaps)> =
                 animatix_std::CATALOG
                     .iter()
-                    .map(|info| (info.type_name, animatix_std::caps_from_info(info)))
+                    .filter_map(|info| {
+                        Some((info.static_type_name()?, animatix_std::caps_from_info(info)))
+                    })
                     .collect();
             raw_property_specs()
                 .into_iter()
@@ -357,7 +363,7 @@ pub fn property_specs() -> Vec<PropertySpec> {
                     PropertySpec {
                         id: PropertyId(index as u32),
                         name,
-                        actor_types: Box::leak(types.into_boxed_slice()),
+                        actor_types: types.into_boxed_slice(),
                         ty,
                         value_kind,
                     }

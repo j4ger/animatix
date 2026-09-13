@@ -215,10 +215,10 @@ mod tests {
 
     fn gauge_info() -> animatix_std::PrimitiveInfo {
         animatix_std::PrimitiveInfo {
-            type_name: "Gauge",
-            display_name: "Gauge",
+            type_name: "Gauge".into(),
+            display_name: "Gauge".into(),
             category: crate::timeline::ActorCategory::Plot,
-            icon_id: "gauge",
+            icon_id: "gauge".into(),
             advanced: false,
             capabilities: Default::default(),
             child_processing: Default::default(),
@@ -262,8 +262,10 @@ mod tests {
     #[test]
     fn registry_names_match_std_catalog() {
         let registry = PrimitiveRegistry::new();
-        let catalog_names: Vec<&str> =
-            animatix_std::CATALOG.iter().map(|info| info.type_name).collect();
+        let catalog_names: Vec<&str> = animatix_std::CATALOG
+            .iter()
+            .filter_map(|info| info.static_type_name())
+            .collect();
         let registry_names: Vec<&str> =
             registry.iter().map(|primitive| primitive.type_name()).collect();
         assert_eq!(registry_names, catalog_names, "registry and catalog drifted");
@@ -287,10 +289,10 @@ mod tests {
             .register(
                 Arc::new(Gauge),
                 animatix_std::PrimitiveInfo {
-                    type_name: "Gauge",
-                    display_name: "Gauge",
+                    type_name: "Gauge".into(),
+                    display_name: "Gauge".into(),
                     category: crate::timeline::ActorCategory::Plot,
-                    icon_id: "gauge",
+                    icon_id: "gauge".into(),
                     advanced: false,
                     capabilities: Default::default(),
                     child_processing: Default::default(),

@@ -9,21 +9,27 @@
 //! file in the engine plus one row here plus one `PRIMITIVES` registration
 //! line — no parallel declarations anywhere else.
 
+use std::borrow::Cow;
+
 use animatix_core::caps::{
     ActorCaps, ActorCategory, ChildProcessingKind, PrimitiveCapabilities, ShapeKind, TextKind,
 };
 
 /// The engine-visible identity card of one built-in primitive.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+///
+/// Built-ins borrow string literals (`Cow::Borrowed`, no allocation); an
+/// extension primitive owns the names it received over FFI (`Cow::Owned`), so
+/// registering one allocates nothing permanently.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrimitiveInfo {
     /// Authored type name (`.amx`) — the registry key.
-    pub type_name: &'static str,
+    pub type_name: Cow<'static, str>,
     /// Human-readable label for UI palettes and tooltips.
-    pub display_name: &'static str,
+    pub display_name: Cow<'static, str>,
     /// UI category.
     pub category: ActorCategory,
     /// Opaque icon identifier (a [`crate::icon_glyphs`] constant).
-    pub icon_id: &'static str,
+    pub icon_id: Cow<'static, str>,
     /// Whether shown in an "advanced" submenu instead of top-level.
     pub advanced: bool,
     /// Engine capabilities.
@@ -81,10 +87,10 @@ const NO_CAPS: PrimitiveCapabilities =
 pub static CATALOG: &[PrimitiveInfo] = &[
     // Shapes
     PrimitiveInfo {
-        type_name: "Rect",
-        display_name: "Rectangle",
+        type_name: Cow::Borrowed("Rect"),
+        display_name: Cow::Borrowed("Rectangle"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::SQUARE,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::SQUARE),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -93,10 +99,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "Ellipse",
-        display_name: "Ellipse",
+        type_name: Cow::Borrowed("Ellipse"),
+        display_name: Cow::Borrowed("Ellipse"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::CIRCLE_NOTCH,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CIRCLE_NOTCH),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -105,10 +111,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "Line",
-        display_name: "Line",
+        type_name: Cow::Borrowed("Line"),
+        display_name: Cow::Borrowed("Line"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::MINUS,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::MINUS),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -117,10 +123,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "Arrow",
-        display_name: "Arrow",
+        type_name: Cow::Borrowed("Arrow"),
+        display_name: Cow::Borrowed("Arrow"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::ARROW_RIGHT,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::ARROW_RIGHT),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -129,10 +135,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "Polygon",
-        display_name: "Polygon",
+        type_name: Cow::Borrowed("Polygon"),
+        display_name: Cow::Borrowed("Polygon"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::POLYGON,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::POLYGON),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -141,10 +147,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "Path",
-        display_name: "Path",
+        type_name: Cow::Borrowed("Path"),
+        display_name: Cow::Borrowed("Path"),
         category: ActorCategory::Shape,
-        icon_id: animatix_core::icon_glyphs::PEN,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::PEN),
         advanced: false,
         capabilities: SHAPE_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -154,10 +160,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Text
     PrimitiveInfo {
-        type_name: "Text",
-        display_name: "Text",
+        type_name: Cow::Borrowed("Text"),
+        display_name: Cow::Borrowed("Text"),
         category: ActorCategory::Text,
-        icon_id: animatix_core::icon_glyphs::TEXT_T,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::TEXT_T),
         advanced: false,
         capabilities: TEXT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -166,10 +172,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Code",
-        display_name: "Code",
+        type_name: Cow::Borrowed("Code"),
+        display_name: Cow::Borrowed("Code"),
         category: ActorCategory::Text,
-        icon_id: animatix_core::icon_glyphs::CODE,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CODE),
         advanced: true,
         capabilities: TEXT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -178,10 +184,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Math",
-        display_name: "Math",
+        type_name: Cow::Borrowed("Math"),
+        display_name: Cow::Borrowed("Math"),
         category: ActorCategory::Text,
-        icon_id: animatix_core::icon_glyphs::FUNCTION,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::FUNCTION),
         advanced: true,
         capabilities: TEXT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -190,10 +196,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Typst",
-        display_name: "Typst",
+        type_name: Cow::Borrowed("Typst"),
+        display_name: Cow::Borrowed("Typst"),
         category: ActorCategory::Text,
-        icon_id: animatix_core::icon_glyphs::ARTICLE,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::ARTICLE),
         advanced: true,
         capabilities: TEXT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -203,10 +209,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Media
     PrimitiveInfo {
-        type_name: "Image",
-        display_name: "Image",
+        type_name: Cow::Borrowed("Image"),
+        display_name: Cow::Borrowed("Image"),
         category: ActorCategory::Media,
-        icon_id: animatix_core::icon_glyphs::IMAGE,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::IMAGE),
         advanced: false,
         capabilities: caps(false, false, true, false, false, false, false, false, false, false),
         child_processing: ChildProcessingKind::Generic,
@@ -215,10 +221,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Svg",
-        display_name: "SVG",
+        type_name: Cow::Borrowed("Svg"),
+        display_name: Cow::Borrowed("SVG"),
         category: ActorCategory::Media,
-        icon_id: animatix_core::icon_glyphs::VECTOR_THREE,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::VECTOR_THREE),
         advanced: true,
         capabilities: caps(false, true, false, false, true, true, false, false, false, false),
         child_processing: ChildProcessingKind::Generic,
@@ -227,10 +233,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Audio",
-        display_name: "Audio",
+        type_name: Cow::Borrowed("Audio"),
+        display_name: Cow::Borrowed("Audio"),
         category: ActorCategory::Media,
-        icon_id: animatix_core::icon_glyphs::SPEAKER_HIGH,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::SPEAKER_HIGH),
         advanced: true,
         capabilities: NO_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -240,10 +246,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Plots
     PrimitiveInfo {
-        type_name: "Graph",
-        display_name: "Graph",
+        type_name: Cow::Borrowed("Graph"),
+        display_name: Cow::Borrowed("Graph"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::CHART_BAR,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CHART_BAR),
         advanced: false,
         capabilities: caps(false, true, false, false, true, true, true, true, false, false),
         child_processing: ChildProcessingKind::Generic,
@@ -252,10 +258,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "PlotCurve",
-        display_name: "Plot Curve",
+        type_name: Cow::Borrowed("PlotCurve"),
+        display_name: Cow::Borrowed("Plot Curve"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::CHART_LINE_UP,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CHART_LINE_UP),
         advanced: true,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -264,10 +270,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: true,
     },
     PrimitiveInfo {
-        type_name: "VectorField",
-        display_name: "Vector Field",
+        type_name: Cow::Borrowed("VectorField"),
+        display_name: Cow::Borrowed("Vector Field"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::ARROWS_OUT_CARDINAL,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::ARROWS_OUT_CARDINAL),
         advanced: true,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -276,10 +282,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Heatmap",
-        display_name: "Heatmap",
+        type_name: Cow::Borrowed("Heatmap"),
+        display_name: Cow::Borrowed("Heatmap"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::GRADIENT,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::GRADIENT),
         advanced: true,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -288,10 +294,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "ContourSet",
-        display_name: "Contour Set",
+        type_name: Cow::Borrowed("ContourSet"),
+        display_name: Cow::Borrowed("Contour Set"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::CHART_DONUT,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CHART_DONUT),
         advanced: true,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -300,10 +306,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "NumberPlane",
-        display_name: "Number Plane",
+        type_name: Cow::Borrowed("NumberPlane"),
+        display_name: Cow::Borrowed("Number Plane"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::SQUARES_FOUR,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::SQUARES_FOUR),
         advanced: false,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -312,10 +318,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "BarChart",
-        display_name: "Bar Chart",
+        type_name: Cow::Borrowed("BarChart"),
+        display_name: Cow::Borrowed("Bar Chart"),
         category: ActorCategory::Plot,
-        icon_id: animatix_core::icon_glyphs::CHART_BAR,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CHART_BAR),
         advanced: false,
         capabilities: PLOT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -325,10 +331,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Containers
     PrimitiveInfo {
-        type_name: "Row",
-        display_name: "Row",
+        type_name: Cow::Borrowed("Row"),
+        display_name: Cow::Borrowed("Row"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::ROWS,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::ROWS),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -337,10 +343,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Col",
-        display_name: "Column",
+        type_name: Cow::Borrowed("Col"),
+        display_name: Cow::Borrowed("Column"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::COLUMNS,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::COLUMNS),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -349,10 +355,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Grid",
-        display_name: "Grid",
+        type_name: Cow::Borrowed("Grid"),
+        display_name: Cow::Borrowed("Grid"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::SQUARES_FOUR,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::SQUARES_FOUR),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -361,10 +367,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Stack",
-        display_name: "Stack",
+        type_name: Cow::Borrowed("Stack"),
+        display_name: Cow::Borrowed("Stack"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::STACK,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::STACK),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -373,10 +379,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Group",
-        display_name: "Group",
+        type_name: Cow::Borrowed("Group"),
+        display_name: Cow::Borrowed("Group"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::FOLDER,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::FOLDER),
         advanced: false,
         capabilities: GROUP_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -385,10 +391,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Mask",
-        display_name: "Mask",
+        type_name: Cow::Borrowed("Mask"),
+        display_name: Cow::Borrowed("Mask"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::MASK_HAPPY,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::MASK_HAPPY),
         advanced: true,
         capabilities: GROUP_CAPS,
         child_processing: ChildProcessingKind::Mask,
@@ -397,10 +403,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Filter",
-        display_name: "Filter",
+        type_name: Cow::Borrowed("Filter"),
+        display_name: Cow::Borrowed("Filter"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::FILTERS,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::FILTERS),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Filter,
@@ -409,10 +415,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Equation",
-        display_name: "Equation",
+        type_name: Cow::Borrowed("Equation"),
+        display_name: Cow::Borrowed("Equation"),
         category: ActorCategory::Container,
-        icon_id: animatix_core::icon_glyphs::SIGMA,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::SIGMA),
         advanced: false,
         capabilities: CONTAINER_CAPS,
         child_processing: ChildProcessingKind::Equation,
@@ -422,10 +428,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Equation fragment sub-item
     PrimitiveInfo {
-        type_name: "Fragment",
-        display_name: "Fragment",
+        type_name: Cow::Borrowed("Fragment"),
+        display_name: Cow::Borrowed("Fragment"),
         category: ActorCategory::Text,
-        icon_id: animatix_core::icon_glyphs::HIGHLIGHTER,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::HIGHLIGHTER),
         advanced: false,
         capabilities: TEXT_CAPS,
         child_processing: ChildProcessingKind::Generic,
@@ -435,10 +441,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
     },
     // Annotations
     PrimitiveInfo {
-        type_name: "Callout",
-        display_name: "Callout",
+        type_name: Cow::Borrowed("Callout"),
+        display_name: Cow::Borrowed("Callout"),
         category: ActorCategory::Annotation,
-        icon_id: animatix_core::icon_glyphs::TEXT_T,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::TEXT_T),
         advanced: false,
         capabilities: caps(false, true, false, false, false, false, false, false, false, false),
         child_processing: ChildProcessingKind::Generic,
@@ -447,10 +453,10 @@ pub static CATALOG: &[PrimitiveInfo] = &[
         stroke_path: false,
     },
     PrimitiveInfo {
-        type_name: "Legend",
-        display_name: "Legend",
+        type_name: Cow::Borrowed("Legend"),
+        display_name: Cow::Borrowed("Legend"),
         category: ActorCategory::Annotation,
-        icon_id: animatix_core::icon_glyphs::CHART_LINE_UP,
+        icon_id: Cow::Borrowed(animatix_core::icon_glyphs::CHART_LINE_UP),
         advanced: false,
         capabilities: caps(false, true, false, false, false, false, false, false, false, false),
         child_processing: ChildProcessingKind::Generic,
@@ -465,12 +471,13 @@ impl PrimitiveInfo {
     /// processing, no capabilities, display name = type name. Callers mutate
     /// the fields for text-like/shape-like/layout extensions — the same data
     /// the native ABI descriptor carries.
-    pub fn extension(type_name: &'static str, category: ActorCategory) -> Self {
+    pub fn extension(type_name: impl Into<Cow<'static, str>>, category: ActorCategory) -> Self {
+        let type_name = type_name.into();
         Self {
-            type_name,
+            type_name: type_name.clone(),
             display_name: type_name,
             category,
-            icon_id: "extension",
+            icon_id: Cow::Borrowed("extension"),
             advanced: false,
             capabilities: PrimitiveCapabilities::default(),
             child_processing: ChildProcessingKind::Generic,
@@ -481,9 +488,33 @@ impl PrimitiveInfo {
     }
 }
 
+impl PrimitiveInfo {
+    /// The authored type name as a `'static` string.
+    ///
+    /// Always `Some` for catalog rows (their names are string literals) and
+    /// `None` for extension rows, whose names are heap-allocated. Callers that
+    /// need a `'static` table (the parser's contract tables) use this to skip
+    /// extension rows explicitly instead of leaking.
+    pub fn static_type_name(&self) -> Option<&'static str> {
+        match &self.type_name {
+            Cow::Borrowed(name) => Some(name),
+            Cow::Owned(_) => None,
+        }
+    }
+
+    /// The icon glyph as a `'static` string, for built-in rows only (see
+    /// [`Self::static_type_name`]).
+    pub fn static_icon_id(&self) -> Option<&'static str> {
+        match &self.icon_id {
+            Cow::Borrowed(icon) => Some(icon),
+            Cow::Owned(_) => None,
+        }
+    }
+}
+
 /// Look up a catalog row by authored type name.
 pub fn catalog_lookup(name: &str) -> Option<&'static PrimitiveInfo> {
-    CATALOG.iter().find(|info| info.type_name == name)
+    CATALOG.iter().find(|info| info.type_name.as_ref() == name)
 }
 
 /// Derive the engine's capability projection from a catalog row.

@@ -5,6 +5,8 @@ use animatix::extension_plugin::{NativePlugin, PluginDisposer, PluginLoader};
 use animatix::timeline::{DebugRenderOptions, SceneDimensions};
 use animatix::verify::{self, Box2, FrameView};
 use animatix_analyzer::ExtensionManifest;
+// Export entry points (image/video/GIF) live in the render crate.
+use animatix_render::encode as export;
 use animatix_syntax::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticPhase, format_diagnostic, format_diagnostic_with_source,
 };
@@ -130,16 +132,16 @@ enum Commands {
 
         /// Maximum render threads (auto or a number)
         #[arg(short = 'j', long, default_value = "auto")]
-        threads: animatix_render::encode::MaxRenderThreads,
+        threads: export::MaxRenderThreads,
 
         /// Video codec: auto, libx264, h264_nvenc, h264_vaapi, vp9
         #[arg(long, default_value = "auto")]
-        codec: animatix_render::encode::VideoCodec,
+        codec: export::VideoCodec,
 
         /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower,
         /// veryslow
         #[arg(long, default_value = "medium")]
-        preset: animatix_render::encode::H264Preset,
+        preset: export::H264Preset,
 
         /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps/codec/preset.
         #[arg(long)]
@@ -182,7 +184,7 @@ enum Commands {
 
         /// Maximum render threads (auto or a number)
         #[arg(short = 'j', long, default_value = "auto")]
-        threads: animatix_render::encode::MaxRenderThreads,
+        threads: export::MaxRenderThreads,
 
         /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps.
         #[arg(long)]
@@ -941,8 +943,7 @@ fn main() {
             info!("Rendering Animatix GIF: {}", input.display());
             let (mut width, mut height, mut fps) = (width, height, fps);
             if let Some(name) = export_preset.as_deref() {
-                let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
-                else {
+                let Some(preset_values) = export::ExportPreset::by_name(name) else {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
@@ -961,8 +962,7 @@ fn main() {
                         .and_then(|scene| scene.timeline.export_preset()),
                 };
                 if let Some(name) = configured {
-                    let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
-                    else {
+                    let Some(preset_values) = export::ExportPreset::by_name(name) else {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
@@ -985,44 +985,40 @@ fn main() {
                 output_file.display()
             );
             let result = match &target {
-                BuildTarget::MultiScene(comp) => {
-                    animatix_render::encode::render_gif_composition_with_settings(
-                        comp,
-                        width,
-                        height,
-                        fps,
-                        effective_duration,
-                        &output_file,
-                        DebugRenderOptions {
-                            compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                            ..Default::default()
-                        },
-                        animatix_render::encode::ExportSettings {
-                            max_render_threads: threads,
-                            ..Default::default()
-                        },
-                    )
-                },
-                BuildTarget::SingleScene(timeline) => {
-                    animatix_render::encode::render_gif_timeline_with_settings(
-                        timeline.clone(),
-                        width,
-                        height,
-                        fps,
-                        effective_duration,
-                        &output_file,
-                        DebugRenderOptions {
-                            compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                            ..Default::default()
-                        },
-                        animatix_render::encode::ExportSettings {
-                            max_render_threads: threads,
-                            ..Default::default()
-                        },
-                    )
-                },
+                BuildTarget::MultiScene(comp) => export::render_gif_composition_with_settings(
+                    comp,
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
+                    export::ExportSettings {
+                        max_render_threads: threads,
+                        ..Default::default()
+                    },
+                ),
+                BuildTarget::SingleScene(timeline) => export::render_gif_timeline_with_settings(
+                    timeline.clone(),
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
+                    export::ExportSettings {
+                        max_render_threads: threads,
+                        ..Default::default()
+                    },
+                ),
             };
             if let Err(e) = result {
                 error!("Error: {e}");
@@ -1049,8 +1045,7 @@ fn main() {
             let (mut width, mut height, mut fps, mut codec, mut preset) =
                 (width, height, fps, codec, preset);
             if let Some(name) = export_preset.as_deref() {
-                let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
-                else {
+                let Some(preset_values) = export::ExportPreset::by_name(name) else {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
@@ -1071,8 +1066,7 @@ fn main() {
                         .and_then(|scene| scene.timeline.export_preset()),
                 };
                 if let Some(name) = configured {
-                    let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
-                    else {
+                    let Some(preset_values) = export::ExportPreset::by_name(name) else {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
@@ -1097,46 +1091,42 @@ fn main() {
                 output_file.display()
             );
             let result = match &target {
-                BuildTarget::MultiScene(comp) => {
-                    animatix_render::encode::render_video_composition_with_settings(
-                        comp,
-                        width,
-                        height,
-                        fps,
-                        effective_duration,
-                        &output_file,
-                        DebugRenderOptions {
-                            compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                            ..Default::default()
-                        },
-                        animatix_render::encode::ExportSettings {
-                            max_render_threads: threads,
-                            video_codec: codec,
-                            h264_preset: preset,
-                        },
-                    )
-                },
-                BuildTarget::SingleScene(timeline) => {
-                    animatix_render::encode::render_video_timeline_with_settings(
-                        timeline.clone(),
-                        width,
-                        height,
-                        fps,
-                        effective_duration,
-                        &output_file,
-                        DebugRenderOptions {
-                            compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                            ..Default::default()
-                        },
-                        animatix_render::encode::ExportSettings {
-                            max_render_threads: threads,
-                            video_codec: codec,
-                            h264_preset: preset,
-                        },
-                    )
-                },
+                BuildTarget::MultiScene(comp) => export::render_video_composition_with_settings(
+                    comp,
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
+                    export::ExportSettings {
+                        max_render_threads: threads,
+                        video_codec: codec,
+                        h264_preset: preset,
+                    },
+                ),
+                BuildTarget::SingleScene(timeline) => export::render_video_timeline_with_settings(
+                    timeline.clone(),
+                    width,
+                    height,
+                    fps,
+                    effective_duration,
+                    &output_file,
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
+                    export::ExportSettings {
+                        max_render_threads: threads,
+                        video_codec: codec,
+                        h264_preset: preset,
+                    },
+                ),
             };
             if let Err(e) = result {
                 error!("Error: {e}");
@@ -1257,27 +1247,21 @@ fn main() {
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
             info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
             let result = match &target {
-                BuildTarget::MultiScene(comp) => animatix_render::encode::render_image_composition(
-                    comp,
+                BuildTarget::MultiScene(comp) => {
+                    export::render_image_composition(comp, width, height, time, &output_file)
+                },
+                BuildTarget::SingleScene(timeline) => export::render_image_timeline_with_debug(
+                    timeline.clone(),
                     width,
                     height,
                     time,
                     &output_file,
+                    DebugRenderOptions {
+                        compute_hit_regions: false,
+                        draw_bounds: debug_bounds,
+                        ..Default::default()
+                    },
                 ),
-                BuildTarget::SingleScene(timeline) => {
-                    animatix_render::encode::render_image_timeline_with_debug(
-                        timeline.clone(),
-                        width,
-                        height,
-                        time,
-                        &output_file,
-                        DebugRenderOptions {
-                            compute_hit_regions: false,
-                            draw_bounds: debug_bounds,
-                            ..Default::default()
-                        },
-                    )
-                },
             };
             if let Err(e) = result {
                 error!("Error: {e}");

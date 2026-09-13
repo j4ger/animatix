@@ -129,7 +129,7 @@ impl EffectChainTrack {
             times.dedup();
             let mut stage_max = 0.0f32;
             for time in times {
-                let params = sample_params(effect, stage, time);
+                let params = sample_params(effect.as_effect(), stage, time);
                 stage_max = stage_max.max(effect.support(&params));
             }
             total += stage_max;
@@ -165,7 +165,7 @@ impl EffectChainTrack {
                 return false;
             };
             let default = identity_to_property(spec.identity);
-            (stage.param_track_mut(spec.name, spec.kind), default)
+            (stage.param_track_mut(spec.name.as_ref(), spec.kind), default)
         };
         if t_start_ms != t_end_ms {
             let start = track.sample(t_start_ms).unwrap_or(default.clone());
@@ -217,7 +217,7 @@ impl EffectChainTrack {
             if !enabled {
                 continue;
             }
-            let params = sample_params(effect, stage, time_ms);
+            let params = sample_params(effect.as_effect(), stage, time_ms);
             if effect.is_identity(&params) {
                 continue;
             }
@@ -247,7 +247,7 @@ pub fn sample_params(
             .map(|spec| {
                 stage
                     .params
-                    .get(spec.name)
+                    .get(spec.name.as_ref())
                     .and_then(|track| track.sample(time_ms))
                     .and_then(|value| effect_param_value(value, spec.kind))
                     .unwrap_or(spec.identity)

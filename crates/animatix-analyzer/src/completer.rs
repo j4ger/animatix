@@ -369,7 +369,7 @@ fn property_completions(
             return items;
         }
         if let Some(effect) = animatix_syntax::schema::effect_spec(ty) {
-            for param in effect.params {
+            for param in &effect.params {
                 items.push(CompletionItem {
                     label: param.name.to_string(),
                     kind: CompletionKind::Property,

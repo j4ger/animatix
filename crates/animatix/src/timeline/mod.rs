@@ -35,7 +35,6 @@
 pub mod actions;
 pub mod actor_caps;
 /// Asset loading and caching.
-#[cfg(feature = "render")]
 pub mod assets;
 mod assignments;
 mod build;
@@ -45,7 +44,6 @@ pub mod colorscheme;
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
 /// backend boundary.
-#[cfg(feature = "render")]
 pub mod effects;
 /// Evaluation environment for expressions.
 pub mod env;
@@ -53,11 +51,9 @@ pub(crate) mod env_keys;
 pub mod eval_shared;
 pub(crate) mod fn_eval;
 /// Image loading utilities.
-#[cfg(feature = "render")]
 pub mod image;
 pub mod kurbo_shapes;
 pub(crate) mod layout;
-#[cfg(feature = "render")]
 mod media;
 /// Modifier statement execution (IR interpreter).
 pub mod modifier_exec;
@@ -99,9 +95,7 @@ mod index;
 pub mod legend;
 pub(crate) mod lookup;
 mod primitive;
-#[cfg(feature = "render")]
 mod scene_eval;
-#[cfg(feature = "render")]
 pub mod scene_program;
 mod sequence;
 pub use legend::{LegendMode, LegendTracks};
@@ -109,9 +103,7 @@ pub use legend::{LegendMode, LegendTracks};
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.
-#[cfg(feature = "svg")]
 pub mod svg;
-#[cfg(feature = "svg")]
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
@@ -131,7 +123,6 @@ pub(crate) use assignments::recompile_text_at_assignment;
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{CapturedEnv, Environment, EvalError, Value};
-#[cfg(feature = "render")]
 pub use image::load_image;
 pub use index::TimelineIndex;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
@@ -163,9 +154,7 @@ pub use shapes::{
     default_stroke_width, extract_shape_state_values, finalize_vector_shape_state,
     parse_path_commands_expr, shape_type_for_actor, vector_shape_uses_custom_path,
 };
-#[cfg(feature = "svg")]
 pub use svg::parse_svg;
-#[cfg(feature = "svg")]
 pub use svg_import::{SvgImportError, import_svg};
 pub(crate) use timing::{
     ModifierHost, ParsedTimingModifiers, config_string_value, parse_duration_literal,
@@ -219,7 +208,8 @@ impl BuildQuality {
         }
     }
 }
-pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind, actor_kind_meta_by_name};
+pub use crate::primitives::primitive_info_by_name;
+pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
     ActionCategory, ActionEvent, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, PlacementMode,
     PositionBinding, ResizeMode, SceneAnchor,
@@ -247,7 +237,6 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
     }
 
     // Effect chain parameters live outside the property registry.
-    #[cfg(feature = "render")]
     for t in track.effects.keyframe_times() {
         times.insert(t);
     }

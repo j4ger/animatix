@@ -281,7 +281,6 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    #[cfg(feature = "render")]
     if track.image.as_ref().and_then(|t| t.last_value()).is_some() {
         push_unsupported_action_target_diagnostic(
             verb,

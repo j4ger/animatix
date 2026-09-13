@@ -10,41 +10,11 @@ use animatix_core::effect::{
 
 /// `ColorGrade` parameters.
 pub const COLOR_GRADE_PARAMS: &[EffectParamSpec] = &[
-    EffectParamSpec {
-        name: "brightness",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 0,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "contrast",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 4,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "saturate",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(1.0),
-        offset: 8,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "hue_rotate",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(0.0),
-        offset: 12,
-        size: 4,
-    },
-    EffectParamSpec {
-        name: "sepia",
-        kind: EffectParamKind::F32,
-        identity: EffectParamValue::F32(0.0),
-        offset: 16,
-        size: 4,
-    },
+    EffectParamSpec::new("brightness", EffectParamKind::F32, EffectParamValue::F32(1.0), 0, 4),
+    EffectParamSpec::new("contrast", EffectParamKind::F32, EffectParamValue::F32(1.0), 4, 4),
+    EffectParamSpec::new("saturate", EffectParamKind::F32, EffectParamValue::F32(1.0), 8, 4),
+    EffectParamSpec::new("hue_rotate", EffectParamKind::F32, EffectParamValue::F32(0.0), 12, 4),
+    EffectParamSpec::new("sepia", EffectParamKind::F32, EffectParamValue::F32(0.0), 16, 4),
 ];
 
 const COLOR_GRADE_WGSL: &str = r#"
@@ -94,11 +64,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 "#;
 
-const COLOR_GRADE_PASSES: &[EffectPassSpec] = &[EffectPassSpec {
-    label: "color-grade",
-    wgsl: COLOR_GRADE_WGSL,
-    entry: "main",
-}];
+const COLOR_GRADE_PASSES: &[EffectPassSpec] =
+    &[EffectPassSpec::new("color-grade", COLOR_GRADE_WGSL, "main")];
 
 /// The `ColorGrade` effect.
 pub struct ColorGrade;
@@ -107,7 +74,7 @@ pub struct ColorGrade;
 pub const COLOR_GRADE: ColorGrade = ColorGrade;
 
 impl Effect for ColorGrade {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "ColorGrade"
     }
 
@@ -115,11 +82,11 @@ impl Effect for ColorGrade {
         "Color Grade"
     }
 
-    fn params(&self) -> &'static [EffectParamSpec] {
+    fn params(&self) -> &[EffectParamSpec] {
         COLOR_GRADE_PARAMS
     }
 
-    fn passes(&self) -> &'static [EffectPassSpec] {
+    fn passes(&self) -> &[EffectPassSpec] {
         COLOR_GRADE_PASSES
     }
 

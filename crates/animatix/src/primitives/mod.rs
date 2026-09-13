@@ -7,37 +7,32 @@
 //! ## Architecture
 //!
 //! ```text
-//! PRIMITIVES array (bootstrap)
+//! PRIMITIVES array (bootstrap, behaviour)
 //!        │
 //!        ├──► PrimitiveRegistry (single storage for built-ins + extensions)
-//!        ├──► ActorKindMeta registry (auto-generated via OnceLock)
 //!        ├──► find_primitive() — compatibility lookup for static built-ins
-//!        └──► ActorKind dispatch (via PrimitiveActorKind wrapper)
+//!        └──► PrimitiveInfo cards (animatix_std::CATALOG, the metadata source)
 //! ```
+//!
+//! Identity is the authored type name (`AnimationTrack::actor_type`); the
+//! engine dispatches on `ActorCaps`, a `Copy` projection derived from the
+//! catalog row. There is no actor-kind enum to extend.
 //!
 //! ## Adding a new primitive
 //!
-//! 1. Create `primitives/<name>.rs` implementing `Primitive`
-//! 2. Add `&<name>::CONST` to the `PRIMITIVES` array below
-//! 3. Add a variant to `ActorKindId` in `timeline/actor_kind.rs`
-//!    (and to `ShapeKind` there too if it's a shape)
-//! 4. Register tooling metadata: `animatix-syntax/src/schema.rs`
-//!    `builtin_primitive_specs()` entry (type/display/icon/category/advanced)
-//!    and `animatix-syntax/src/builtins.rs::TYPES` + `type_documentation`
-//! 5. If the primitive has properties, add them to BOTH
-//!    `animatix-syntax/src/schema.rs::raw_property_specs()` (actor types +
-//!    type) and `timeline/property_registry.rs::PROPERTY_REGISTRY` (storage
-//!    semantics); the `property_registry_stays_in_sync_with_shared_schema`
-//!    test pins the two tables together
-//! 6. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region
-//!    coverage if it draws
-//!
-//! Steps 3-4 are required because enums and tooling tables are used in match
-//! arms across the codebase and cannot be auto-generated from a static array.
-//! The metadata registry (`ActorKindMeta`) IS auto-generated from
-//! `PRIMITIVES`, and `registry_specs_match_shared_schema_for_builtins` pins
-//! the runtime metadata to the schema table, so you never touch the registry
-//! manually — but the schema table itself is still hand-maintained.
+//! 1. Add the identity card: a `PrimitiveInfo` row in
+//!    `animatix-std/src/catalog.rs::CATALOG` (type/display/icon/category/
+//!    advanced/capabilities/child processing). Tooling, the parser's contract
+//!    tables, and the inspector palette all derive from it.
+//! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only —
+//!    no metadata methods).
+//! 3. Add `&<name>::CONST` to the `PRIMITIVES` array below.
+//! 4. If the primitive has properties, add rows to
+//!    `animatix-syntax/src/schema.rs::raw_property_specs()` (one applicability
+//!    predicate + type); `property_specs()` materializes the per-type lists
+//!    over the catalog.
+//! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region
+//!    coverage if it draws.
 //!
 //! ## Current primitives
 //!
@@ -497,13 +492,9 @@ mod code;
 pub use code::CODE;
 mod math;
 pub use math::MATH;
-#[cfg(feature = "render")]
 mod image;
-#[cfg(feature = "render")]
 pub use image::IMAGE;
-#[cfg(feature = "svg")]
 mod svg;
-#[cfg(feature = "svg")]
 pub use svg::SVG;
 mod bar_chart;
 pub use bar_chart::BAR_CHART;
@@ -759,7 +750,6 @@ pub enum RenderCommand {
         paths: std::sync::Arc<[TextPath]>,
     },
     /// Draw an image.
-    #[cfg(feature = "render")]
     Image {
         /// The image data.
         image: crate::timeline::image::SceneImage,
@@ -973,7 +963,7 @@ pub use animatix_syntax::schema::ChildProcessingKind as ChildProcessing;
 /// Returned by [`Primitive::equation_fragment`]; the Equation container collects
 /// every child whose primitive returns `Some`, in source order, and joins them
 /// into one compiled document. Making this a trait query (rather than a match on
-/// `ActorKindId::Fragment`) lets any primitive — including an extension — be an
+/// the actor's type name) lets any primitive — including an extension — be an
 /// equation fragment.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EquationFragment {
@@ -1205,8 +1195,8 @@ pub trait Primitive: Send + Sync {
 
     /// Evaluate this primitive at frame time and return render commands.
     ///
-    /// This is the only scene-evaluation render path — the legacy manual
-    /// `ActorKindId` match in `scene_eval.rs` no longer exists. Every drawable
+    /// This is the only scene-evaluation render path — there is no per-type
+    /// dispatch table in `scene_eval.rs`. Every drawable
     /// primitive implements this method (`Ok(None)` is the default for
     /// non-visual primitives).
     ///
@@ -1250,7 +1240,6 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     &TYPST,
     // Media
     &IMAGE,
-    #[cfg(feature = "svg")]
     &SVG,
     &AUDIO,
     // Plots
@@ -1277,21 +1266,20 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
     &LEGEND,
 ];
 
-// ── Auto-generated registry ─────────────────────────────────────────────
+// ── Built-in metadata ───────────────────────────────────────────────────
 
-/// Metadata for one built-in primitive: the `animatix-std` catalog row.
-pub use animatix_std::PrimitiveInfo as ActorKindMeta;
+pub use animatix_std::PrimitiveInfo;
 
-/// Get the built-in metadata registry (the `animatix-std` catalog).
-pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
+/// The built-in primitive catalog (the `animatix-std` identity cards).
+pub fn primitive_catalog() -> &'static [PrimitiveInfo] {
     animatix_std::CATALOG
 }
 
 use std::sync::OnceLock;
 
-/// Look up built-in metadata by the actor's type name.
-pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
-    actor_kind_registry().iter().find(|m| m.type_name == name)
+/// Look up built-in metadata by the actor's authored type name.
+pub fn primitive_info_by_name(name: &str) -> Option<&'static PrimitiveInfo> {
+    primitive_catalog().iter().find(|m| m.type_name == name)
 }
 
 /// Expose built-in primitive metadata through the shared schema model.
@@ -1418,7 +1406,7 @@ mod tests {
     fn registry_matches_primitives() {
         // The catalog (metadata) and the PRIMITIVES array (behaviour) must
         // stay in lockstep — one row per registered behaviour.
-        let registry = actor_kind_registry();
+        let registry = primitive_catalog();
         assert_eq!(registry.len(), PRIMITIVES.len());
         for (meta, prim) in registry.iter().zip(PRIMITIVES.iter()) {
             assert_eq!(meta.type_name, prim.type_name());

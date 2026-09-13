@@ -9,13 +9,13 @@ use animatix_core::effect::{
 };
 
 /// `ChromaticAberration` parameters.
-pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec {
-    name: "offset",
-    kind: EffectParamKind::F32,
-    identity: EffectParamValue::F32(0.0),
-    offset: 0,
-    size: 4,
-}];
+pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
+    "offset",
+    EffectParamKind::F32,
+    EffectParamValue::F32(0.0),
+    0,
+    4,
+)];
 
 const CHROMATIC_ABERRATION_WGSL: &str = r#"
 struct ChromaOffsetParams {
@@ -76,11 +76,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 "#;
 
-const CHROMATIC_ABERRATION_PASSES: &[EffectPassSpec] = &[EffectPassSpec {
-    label: "chromatic-aberration",
-    wgsl: CHROMATIC_ABERRATION_WGSL,
-    entry: "main",
-}];
+const CHROMATIC_ABERRATION_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new(
+    "chromatic-aberration",
+    CHROMATIC_ABERRATION_WGSL,
+    "main",
+)];
 
 /// The `ChromaticAberration` effect.
 pub struct ChromaticAberration;
@@ -89,7 +89,7 @@ pub struct ChromaticAberration;
 pub const CHROMATIC_ABERRATION: ChromaticAberration = ChromaticAberration;
 
 impl Effect for ChromaticAberration {
-    fn type_name(&self) -> &'static str {
+    fn type_name(&self) -> &str {
         "ChromaticAberration"
     }
 
@@ -97,11 +97,11 @@ impl Effect for ChromaticAberration {
         "Chromatic Aberration"
     }
 
-    fn params(&self) -> &'static [EffectParamSpec] {
+    fn params(&self) -> &[EffectParamSpec] {
         CHROMATIC_ABERRATION_PARAMS
     }
 
-    fn passes(&self) -> &'static [EffectPassSpec] {
+    fn passes(&self) -> &[EffectPassSpec] {
         CHROMATIC_ABERRATION_PASSES
     }
 

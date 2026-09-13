@@ -359,9 +359,9 @@ fn check_stmt(
                     }
                 }
             } else if let Some(param) = if target.len() >= 2 {
-                crate::schema::effect_specs()
-                    .iter()
-                    .find_map(|spec| spec.params.iter().find(|param| param.name == property))
+                crate::schema::effect_specs().iter().find_map(|spec| {
+                    spec.params.iter().find(|param| param.name.as_ref() == property)
+                })
             } else {
                 None
             } {

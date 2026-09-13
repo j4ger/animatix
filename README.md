@@ -39,10 +39,10 @@ cargo run --bin animatix-gui -- examples/gallery/brand_reel/main.amx
 
 Nix users: `nix develop` sets up all dependencies.
 
-Feature targets: the default build includes `render`, `text`, and `svg`.
-Bare `cargo check -p animatix --no-default-features` is intentionally not
-supported; CI validates the supported combination with
-`--no-default-features --features render,text,svg`.
+Feature targets: rendering, text, and SVG are part of the engine, not optional
+features. The remaining switches are `perf-tracing` (default-on), `serde`,
+`plugin-loading`, and — on the CLI/GUI — `video`, which pulls in FFmpeg through
+`animatix-render`. `cargo build -p animatix-cli` therefore never needs FFmpeg.
 
 ## What's Shipped
 

@@ -1519,34 +1519,28 @@ fn plugin_effect_lowers_into_scope_chain() {
         register_extension_effect,
     };
 
-    let params: &'static [EffectParamSpec] = Box::leak(
-        vec![EffectParamSpec {
-            name: "size",
-            kind: EffectParamKind::F32,
-            identity: EffectParamValue::F32(0.0),
-            offset: 0,
-            size: 4,
-        }]
-        .into_boxed_slice(),
-    );
-    let passes: &'static [EffectPassSpec] = Box::leak(
-        vec![EffectPassSpec {
-            label: "mock-pixelate",
-            wgsl: "@compute fn main() {}",
-            entry: "main",
-        }]
-        .into_boxed_slice(),
-    );
+    let params = vec![EffectParamSpec::new(
+        "size",
+        EffectParamKind::F32,
+        EffectParamValue::F32(0.0),
+        0,
+        4,
+    )];
+    let passes = vec![EffectPassSpec::new(
+        "mock-pixelate",
+        "@compute fn main() {}",
+        "main",
+    )];
     let registered = register_extension_effect(PluginEffectData {
-        type_name: "MockPixelate",
-        display_name: "Mock Pixelate",
+        type_name: "MockPixelate".into(),
+        display_name: "Mock Pixelate".into(),
         params,
         passes,
         author_uniform_size: 16,
         support_px: 0.0,
     })
     .expect("plugin effect registers");
-    assert_eq!(registered, "MockPixelate");
+    assert_eq!(&*registered, "MockPixelate");
 
     let timeline = build_timeline(
         r#"

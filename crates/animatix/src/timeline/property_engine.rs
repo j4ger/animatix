@@ -510,7 +510,6 @@ pub(crate) fn write_property_field(
             | TrackFieldMut::TextPaths(_)
             | TrackFieldMut::PositionBinding(_) => {},
             // Image — generated/cached at build time, no keyframing.
-            #[cfg(feature = "render")]
             TrackFieldMut::Image(_) => {},
         }
     }

@@ -325,7 +325,6 @@ impl Interpolate for PositionBinding {
     }
 }
 
-#[cfg(feature = "render")]
 impl Interpolate for Option<crate::timeline::image::SceneImage> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if t < 0.5 { self.clone() } else { other.clone() }
@@ -560,23 +559,24 @@ pub struct GeometryTracks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::actor_caps::{ShapeKind, actor_kind_registry};
+    use crate::primitives::primitive_catalog;
+    use crate::timeline::actor_caps::ShapeKind;
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::TrackAccessor;
 
     /// Every built-in primitive must appear in the metadata registry and
     /// derive a complete capability projection.
     #[test]
-    fn actor_kind_registry_is_complete() {
+    fn primitive_catalog_is_complete() {
         use crate::primitives::find_primitive;
 
-        for meta in actor_kind_registry() {
+        for meta in primitive_catalog() {
             assert!(
-                find_primitive(meta.type_name).is_some(),
+                find_primitive(meta.type_name.as_ref()).is_some(),
                 "registry metadata for {:?} has no primitive",
                 meta.type_name
             );
-            let caps = animatix_std::caps_for_type(meta.type_name)
+            let caps = animatix_std::caps_for_type(meta.type_name.as_ref())
                 .unwrap_or_else(|| panic!("caps missing for {:?}", meta.type_name));
             let _ = caps; // derivation must not panic; contents are per-primitive
         }
@@ -606,10 +606,10 @@ mod tests {
     /// primitive, and the name must survive unchanged.
     #[test]
     fn track_identity_derives_caps_from_registry() {
-        for meta in actor_kind_registry().iter() {
-            let track = super::AnimationTrack::new("t".to_string(), meta.type_name);
-            assert_eq!(track.actor_type, meta.type_name);
-            if let Some(expected) = animatix_std::caps_for_type(meta.type_name) {
+        for meta in primitive_catalog().iter() {
+            let track = super::AnimationTrack::new("t".to_string(), meta.type_name.clone());
+            assert_eq!(track.actor_type, meta.type_name.as_ref());
+            if let Some(expected) = animatix_std::caps_for_type(meta.type_name.as_ref()) {
                 assert_eq!(track.caps, expected, "caps drifted for {}", meta.type_name);
             }
         }

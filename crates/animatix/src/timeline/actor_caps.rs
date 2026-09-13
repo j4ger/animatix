@@ -95,15 +95,3 @@ impl ActorKind for PrimitiveActorKind {
         }
     }
 }
-
-pub use crate::primitives::ActorKindMeta;
-
-/// Global registry of all supported actor kinds.
-pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
-    crate::primitives::actor_kind_registry()
-}
-
-/// Lookup metadata by the actor's type name (e.g. `"rect"`, `"text"`).
-pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
-    crate::primitives::actor_kind_meta_by_name(name)
-}
