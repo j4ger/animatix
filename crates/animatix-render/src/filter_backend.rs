@@ -462,30 +462,6 @@ impl GpuFilterBackend {
             .map_err(|e| e.to_string())?;
 
         self.dump_stage("render_view", &self.render_texture, dimensions);
-        if std::env::var_os("ANIMATIX_PROBE").is_some() {
-            let img = self.readback_to_scene_image_at(
-                &self.render_texture,
-                wgpu::Origin3d::ZERO,
-                dimensions,
-            )?;
-            let data = img.data.data.data();
-            let n = data.len() / 4;
-            let step = (n / 500).max(1);
-            let bright = (0..n).step_by(step).filter(|&i| data[i * 4] > 60).count();
-            eprintln!("[probe] render_view bright={bright}/{}", n / step);
-        }
-        {
-            let img = self.readback_to_scene_image_at(
-                &self.render_texture,
-                wgpu::Origin3d::ZERO,
-                dimensions,
-            )?;
-            let data = img.data.data.data();
-            let n = data.len() / 4;
-            let step = (n / 500).max(1);
-            let bright = (0..n).step_by(step).filter(|&i| data[i * 4] > 60).count();
-            eprintln!("[stages] render_view bright={bright}/{}", n / step);
-        }
 
         if chain.is_empty() {
             self.last_filtered_source = FilteredSource::Render;

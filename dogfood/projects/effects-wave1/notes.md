@@ -63,25 +63,19 @@ reel). Render-verified at t = 0.3, 1.6, 3.5, 5.0, 8.5.
 - `Levels` `in_black: 0.06 + gamma: 0.85` is a convincing day→night shift
   combined with `Vignette` amount 0.55 → 0.8.
 
-## Open: video export drops the full-canvas backdrop scope
+## Resolved: video export dropped the full-canvas backdrop scope
 
-`animatix image` renders every beat of this project correctly, but `animatix
-video` loses the whole backdrop scope (checker + grain + vignette + levels) in
-**all** frames, while the card scope's MotionBlur composite renders fine.
-Repro: `animatix video dogfood/projects/effects-wave1/entry.amx --fps 30 -o
-out.mp4` (needs the `video` feature). Probe evidence: the backdrop's filter
-readback returns an all-transparent texture on most frames while the card's
-region readback has content. Single-GPU-scope scenes export fine, so the
-trigger is ≥2 GPU filter scopes per frame in the pipelined export path.
-Tracked in `roadmap.md` (Known Issues).
+Root cause was **not** in this codebase: vello upstream #1558 ("Keep image
+atlas residency across renders", between revs `d8686d52` and `17166312`) made
+any image-bearing vello render produce nothing whenever a non-image render ran
+between two image renders. The earlier worker-thread correlation was a red
+herring — the "main-thread frame looked correct" observation was really a
+single-render process, which the atlas had not yet poisoned. Reproduced
+minimally at the vello level (`crates/animatix-render/tests/vello_img_probe.rs`):
+`img → rect → img` loses the final image on both GPU and CPU backends.
 
-**Narrowed further (probe instrumentation):** rendering the SAME timeline with
-`render_timeline` on the thread that calls `render_video_async` (before the
-worker threads spawn) produces the fully-correct frame — bright checker, grain,
-vignette, card, texts. The frames produced inside `render_frames_streaming`'s
-worker threads lose the backdrop scope. So the render *code path* is correct
-and the loss correlates with (a) worker-thread submission of the filter-scope
-GPU ops, or (b) multiple GPU scopes alternating on the shared filter-backend
-textures across frames. Needs a GPU capture (renderdoc) to pin the exact
-barrier; next debugging step is a minimal two-scope repro
-(`backdrop filter + one small moving filter`) with per-scope texture dumps.
+The workspace pins vello to `d8686d52` (the last pre-residency rev) until
+upstream lands a fix, guarded by the regression test
+`two_filter_scopes_keep_backdrop_visible_across_repeated_renders`. With the
+pin, `animatix video dogfood/projects/effects-wave1/entry.amx` keeps the
+checker backdrop visible on every frame (verified frame-by-frame at fps 5).

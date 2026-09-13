@@ -19,5 +19,9 @@ pollster = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
-vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"] }
+# Pinned pre-#1558 (atlas residency): that change makes image draws vanish
+# when a non-image vello render runs between two image renders — fatal for
+# our multi-scope filter pipeline (see tests/vello_img_probe.rs). Revisit on
+# an upstream fix.
+vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }

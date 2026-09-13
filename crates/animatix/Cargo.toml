@@ -34,7 +34,11 @@ roxmltree = { version = "0.20.0" }
 
 typst = { version = "0.15.1" }
 usvg = { version = "0.47.0" }
-vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"] }
+# Pinned pre-#1558 (atlas residency): that change makes image draws vanish
+# when a non-image vello render runs between two image renders — fatal for
+# our multi-scope filter pipeline (see tests/vello_img_probe.rs). Revisit on
+# an upstream fix.
+vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }
 thiserror = { workspace = true }

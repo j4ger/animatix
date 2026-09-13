@@ -71,14 +71,6 @@ Remaining:
 | Export/settings polish | Detailed error text, codec/quality controls, restore-defaults | Not started |
 | main rebase | `main` moved to `9cbb2dfa` (`actor_type` is now `String`); rebase + adapt before merging | Not started |
 
----
-
-## Known Issues
-
-| Issue | Evidence | Next Step |
-|---|---|---|
-| Video export drops a full-canvas `Filter` scope when a later scope takes the zero-readback path | `dogfood/projects/effects-wave1` exported with `animatix video`: the backdrop (Vignette+Grain+Levels over the full canvas) is missing from every frame while `animatix image` renders it correctly. The filter readback returns an all-transparent texture for that scope on most frames (`ANIMATIX_DUMP_FILTERED` probe), flaking per frame. Single-GPU-scope scenes (`bd3`-style) export correctly. | Reproduced minimally as "≥2 GPU filter scopes in one frame → the first scope's readback comes back empty". Needs a GPU capture (renderdoc) of the pipelined export to find the missing barrier between the sub-scene vello render, the seed copy, and the readback. PNG/GIF exports are unaffected. |
-
 ## Planned Effects
 
 Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped

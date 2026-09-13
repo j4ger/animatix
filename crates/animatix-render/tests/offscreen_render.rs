@@ -114,83 +114,67 @@ fn pipelined_frames_match_blocking_path() {
     }
 }
 
-/// Bisect: which element of the reel makes repeated renders lose the backdrop?
+/// Regression guard for the video backdrop loss (see `docs/roadmap.md`
+/// history): vello's image-atlas residency change (upstream #1558, between
+/// revs d8686d52 and 17166312) made any image-bearing vello render draw
+/// nothing when a non-image render ran between two image renders. With two
+/// GPU filter scopes — an image backdrop and a rect chip — every frame after
+/// an invisible (opacity-0) first frame lost the backdrop. The workspace pins
+/// vello to `d8686d52` (pre-residency) until upstream regains a fix; this
+/// test fails if the pin is moved forward without that fix.
+///
+/// Five repeated renders must all keep the checker visible (bright samples
+/// stay above 500; the failure mode sampled 160 — the red plate alone).
 #[test]
-fn reel_bisect_repeated_renders() {
+fn two_filter_scopes_keep_backdrop_visible_across_repeated_renders() {
     let Some(mut renderer) = new_renderer() else {
         return;
     };
     let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/assets/checker.png");
-    let cases_raw: &[(&str, &str)] = &[
-        (
-            "full",
-            r#"config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+    let source = format!(
+        r#"config {{ resolution: (1280, 720) }}
 
-backdrop: Filter, anchor: scene.center {
-  film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
-  noise: Grain, amount: 0.12, monochrome: true
-  panel: Image, url: "{asset}", size: (1280, 720), anchor: scene.center
-}
-
-card_reel: Filter, anchor: scene.center, offset: (-150, 0) {
-  swipe: MotionBlur, length: 10, angle: 0
-  plate: Rect, size: (420, 260), color: (0.08, 0.09, 0.12, 0.92)
-}
-
-#0s
-fade-in backdrop [200ms]
-fade-in card_reel [200ms]
-"#,
-        ),
-        (
-            "backdrop+image only",
-            r#"config { colorscheme: "editorial-dark", resolution: (1280, 720) }
-
-backdrop: Filter, anchor: scene.center {
+backdrop: Filter, anchor: scene.center {{
   film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
   panel: Image, url: "{asset}", size: (1280, 720), anchor: scene.center
-}
+}}
+
+chip: Filter, anchor: scene.center, offset: (200, 0) {{
+  swipe: Vignette, amount: 0.1, radius: 0.9, softness: 0.1
+  plate: Rect, size: (150, 44), color: (1, 0.2, 0.2, 1)
+}}
 
 #0s
-fade-in backdrop [200ms]
-"#,
-        ),
-    ];
-    let cases: Vec<(String, String)> = cases_raw
-        .iter()
-        .map(|(name, source)| ((*name).to_string(), source.replace("{asset}", &asset)))
-        .collect();
-    for (name, source) in &cases {
-        let source = source.replace("{asset}", &asset);
-        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
-        assert!(errors.is_empty(), "{name}: {errors:?}");
-        let report = animatix::timeline::Timeline::build_with_diagnostics(
-            &ast.expect("AST"),
-            &std::collections::HashMap::new(),
+fade-in backdrop [300ms]
+fade-in chip [300ms]
+"#
+    );
+    let (ast, errors) = animatix_syntax::parser::parse_source(&source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = animatix::timeline::Timeline::build_with_diagnostics(
+        &ast.expect("AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    let timeline = report.output;
+    let dims = animatix::timeline::SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+
+    // The t=0 frame renders both scopes fully transparent (fade-in hasn't
+    // started) — exactly the history that used to poison the image atlas.
+    let first = renderer.render_timeline(&timeline, 0.0, dims).expect("render t=0");
+    let bright = first.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
+    assert_eq!(bright, 0, "fade-in must leave the first frame empty");
+
+    for i in 0..5 {
+        let frame = renderer.render_timeline(&timeline, 1.0, dims).expect("render");
+        let bright = frame.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
+        assert!(
+            bright > 500,
+            "iteration {i}: checker backdrop lost (bright={bright}; the pre-fix \
+             failure mode sampled only the red plate at 160)"
         );
-        for d in &report.diagnostics {
-            eprintln!("[bisect] diagnostic: {} ({:?})", d.message, d.code);
-        }
-        eprintln!("[bisect] asset exists: {}", std::path::Path::new(&asset).exists());
-        let timeline = report.output;
-        let dims = animatix::timeline::SceneDimensions {
-            width: 1280,
-            height: 720,
-        };
-        for i in 0..4 {
-            let frame = renderer.render_timeline(&timeline, 1.0, dims).expect("render");
-            let bright = frame.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
-            eprintln!("[bisect] {name} iter {i}: bright={bright}");
-            {
-                image::save_buffer(
-                    &format!("/tmp/bisect2_{}_iter{i}.png", name.replace(' ', "_")),
-                    &frame.rgba,
-                    frame.width,
-                    frame.height,
-                    image::ColorType::Rgba8,
-                )
-                .ok();
-            }
-        }
     }
 }

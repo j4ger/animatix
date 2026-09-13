@@ -1847,6 +1847,11 @@ impl Timeline {
                     );
                 }
             } else {
+                // A filter scope may only take the zero-readback pending path
+                // when nothing renders after it (`can_post_composite_filter`);
+                // otherwise its post-render blit would cover later siblings.
+                // Mid-scene filters fall back to the inline readback path.
+                let allow_pending = self.can_post_composite_filter(root);
                 self.evaluate_node(
                     root,
                     time_ms,
@@ -1860,7 +1865,7 @@ impl Timeline {
                     &mut hit_regions,
                     frame_env.as_ref(),
                     filter_backend,
-                    true,
+                    allow_pending,
                     &mut program_items,
                 );
             }

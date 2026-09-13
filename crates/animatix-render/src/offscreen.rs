@@ -626,10 +626,9 @@ impl OffscreenRenderer {
         &mut self,
         dimensions: SceneDimensions,
     ) -> Result<RenderedFrame, String> {
-        // Known-issue diagnostics (`docs/roadmap.md`, video backdrop loss):
-        // report how much of the composed output is opaque when
-        // `ANIMATIX_DUMP_STAGES` is set, so a regressed composite is visible
-        // in the test log without re-running under a GPU capture.
+        // Composite diagnostics: report how much of the composed output is
+        // opaque when `ANIMATIX_DUMP_STAGES` is set, so a regressed composite
+        // is visible in the log without re-running under a GPU capture.
         if std::env::var_os("ANIMATIX_DUMP_STAGES").is_some() {
             if let Some(output_texture) = self.output_texture.as_ref() {
                 if let Some(fb) = self.filter_backend.as_mut() {
