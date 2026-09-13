@@ -666,12 +666,10 @@ pub(crate) fn select_video_encoder(
             Ok((codec, true))
         },
         VideoCodec::Auto => {
-            for (name, is_hw) in [("h264_nvenc", true), ("h264_vaapi", true)] {
-                if let Some(codec) = AVCodec::find_encoder_by_name(&CString::new(name)?) {
-                    info!("Auto-selected hardware encoder: {name}");
-                    return Ok((codec, is_hw));
-                }
-            }
+            // Deliberately software-first: hardware encoders may be *registered*
+            // by the FFmpeg build yet fail to initialize at open time (nvenc
+            // without a CUDA driver), and find_encoder cannot detect that. An
+            // explicit `--codec h264_nvenc`/`h264_vaapi` opts into hardware.
             let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?)
                 .ok_or_else(|| ExportError::VideoEncode("Failed to find libx264 encoder".into()))?;
             info!("Auto-selected software encoder: libx264");

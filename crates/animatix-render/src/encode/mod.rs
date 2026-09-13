@@ -252,7 +252,10 @@ impl std::str::FromStr for MaxRenderThreads {
 /// Video encoder selection for MP4/WebM exports.
 #[derive(Debug, Clone, Copy)]
 pub enum VideoCodec {
-    /// Auto-detect: try hardware encoders first, fall back to libx264.
+    /// Software H.264 (`libx264`) — the portable default. `find_encoder` only
+    /// proves a hardware encoder *exists* in the FFmpeg build, not that it can
+    /// initialize (h264_nvenc registers fine and then fails on machines without
+    /// CUDA), so "auto" means the encoder that always works.
     Auto,
     /// Software H.264 encoder (libx264).
     Libx264,

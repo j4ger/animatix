@@ -104,13 +104,16 @@ chain's `worst_case_support()` evaluates it over every parametric keyframe time
 and sums the per-stage maxima, so the result is constant per track (PF-7: no
 per-frame reallocation).
 
-**Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts effect
-processing to that region: the rendered sub-scene is cropped to
-`bounds ∪ worst-case support` (clamped to the scene), the chain dispatches at
-the region size, and the result is composited back at the region origin —
-through the readback path (drawn at the origin) or the zero-readback path
-(a viewport-scoped blit). Textures stay at full scene capacity; only the seed
-copy, dispatch, and readback shrink. Without `bounds`, the whole scene is
+**Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts the
+effect *harvest* to that region: the result is read back (or viewport-blitted)
+from `bounds ∪ worst-case support` (clamped to the scene) and composited back
+at the region origin. The chain itself always dispatches over the **full
+canvas**: the compute shaders address `src` with normalized UVs, so a
+region-cropped seed made every sample outside the crop read stale texels from
+the previous scope's render (found by the effects-wave1 dogfood: a moving
+`MotionBlur` card dragged opaque garbage with it). Region-scoped *dispatch*
+returns only with an origin-aware `EffectContext` (an ABI bump — see
+"Planned Effects" in `roadmap.md`). Without `bounds`, the whole scene is
 processed exactly as before.
 
 **Derived ROI (implemented).** When no `bounds:` is authored, the region is
@@ -132,7 +135,7 @@ Two constraints:
 - **Allocation stability.** An animating support would resize the target every
   frame. The region uses the *worst-case* support over the effect track's
   parameter range, and the GPU textures stay at full scene capacity (only the
-  seed copy, dispatch, and readback shrink), preserving the PF-7/PF-9 budget.
+  readback and composite shrink), preserving the PF-7/PF-9 budget.
 - **Composite ordering.** A rect-scoped composite is applied after the full
   scene render, so it overwrites anything drawn later inside its rect. The
   zero-readback path therefore keeps the existing `can_post_composite_filter`

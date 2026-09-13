@@ -766,11 +766,10 @@ scope is a build diagnostic. Nested `Filter` scopes are allowed; each level adds
 one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
 
 **Region of interest.** An optional `bounds: (x, y, w, h)` (scene pixels)
-restricts effect processing to that region — the seed image is cropped, the
-chain dispatches at the region size, and the result is composited back at the
-region origin. The region is automatically expanded by the chain's worst-case
-effect support (e.g. the blur radius) so padding never clips. Without `bounds`,
-the whole scene is processed.
+restricts effect harvesting to that region — the filtered result is read back
+only inside `bounds` expanded by the chain's worst-case effect support (e.g.
+the blur radius), so padding never clips, and composited back at the region
+origin. Without `bounds`, the whole scene is processed.
 
 ### Audio
 

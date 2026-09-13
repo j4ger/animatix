@@ -62,3 +62,15 @@ reel). Render-verified at t = 0.3, 1.6, 3.5, 5.0, 8.5.
   the same values read identically at 720p and 1080p.
 - `Levels` `in_black: 0.06 + gamma: 0.85` is a convincing day→night shift
   combined with `Vignette` amount 0.55 → 0.8.
+
+## Open: video export drops the full-canvas backdrop scope
+
+`animatix image` renders every beat of this project correctly, but `animatix
+video` loses the whole backdrop scope (checker + grain + vignette + levels) in
+**all** frames, while the card scope's MotionBlur composite renders fine.
+Repro: `animatix video dogfood/projects/effects-wave1/entry.amx --fps 30 -o
+out.mp4` (needs the `video` feature). Probe evidence: the backdrop's filter
+readback returns an all-transparent texture on most frames while the card's
+region readback has content. Single-GPU-scope scenes export fine, so the
+trigger is ≥2 GPU filter scopes per frame in the pipelined export path.
+Tracked in `roadmap.md` (Known Issues).
