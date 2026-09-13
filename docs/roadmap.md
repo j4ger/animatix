@@ -135,7 +135,7 @@ visual evidence):
   previously loaded only one regular face, so emphasis fell back to regular).
 - **Default font made full-featured (2026-08-28)**: the single-weight mock
   "Open Sans" was replaced with four real static faces (Regular/Bold/Italic/
-  BoldItalic, Apache-2.0) vendored under `crates/animatix/assets/fonts/` with
+  BoldItalic, Apache-2.0) vendored under `crates/animatix-text/assets/fonts/` with
   SHA-256 provenance and `scripts/refresh-fonts.sh` integrity checks.
   `DEFAULT_FONT_FAMILY` stays "Open Sans", so bold/italic/font_weight now work
   with the default family (no `font_family` needed). Static faces are used

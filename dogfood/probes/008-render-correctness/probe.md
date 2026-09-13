@@ -65,7 +65,7 @@ Each demo is revealed with `#0s ... fade-in` and reviewed at `t=1.0`.
 ### Resolved (2026-08-28)
 - Default bundled "Open Sans" was a single-weight mock (no emphasis). **Replaced
   with four real static Open Sans faces** (Regular/Bold/Italic/BoldItalic,
-  Apache-2.0, vendored in `crates/animatix/assets/fonts/` with SHA-256 provenance
+  Apache-2.0, vendored in `crates/animatix-text/assets/fonts/` with SHA-256 provenance
   + `scripts/refresh-fonts.sh` integrity check). `DEFAULT_FONT_FAMILY` stays
   "Open Sans"; bold/italic/font_weight now work with the default family
   (pixel-verified: bold ink 0.385 vs regular 0.332; regression test

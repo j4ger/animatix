@@ -3,11 +3,11 @@
 # Fails loudly if any vendored font drifts from the recorded hash, so accidental
 # edits / partial re-vendors are caught. Re-vendoring on purpose = replace the
 # files from a trusted source, update the hashes in this script AND in
-# crates/animatix/assets/fonts/README.md, then re-run this script.
+# crates/animatix-text/assets/fonts/README.md, then re-run this script.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FONTS_DIR="$SCRIPT_DIR/../crates/animatix/assets/fonts"
+FONTS_DIR="$SCRIPT_DIR/../crates/animatix-text/assets/fonts"
 
 # file → expected sha256 (keep in sync with assets/fonts/README.md)
 declare -A EXPECTED=(
