@@ -987,8 +987,12 @@ impl Timeline {
             },
         };
 
-        // Try zero-readback path when this filter is safely the last rendering element
-        if allow_pending_composites && self.can_post_composite_filter(node_label) {
+        // Always take the zero-readback path when a backend exists: the
+        // pending composites are blitted after the main scene render in
+        // declaration order, and the CPU readback path is the one that loses
+        // full-canvas scopes in exported video (see docs/roadmap.md Known
+        // Issues).
+        if allow_pending_composites {
             if let Some(backend) = filter_backend.as_mut() {
                 match backend.render_scene_to_pending_composite(
                     &sub_scene,

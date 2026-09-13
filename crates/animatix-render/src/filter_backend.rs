@@ -106,6 +106,41 @@ enum FilteredSource {
 }
 
 impl GpuFilterBackend {
+    /// TEMPORARY stage dump for debugging the multi-scope video loss.
+    fn dump_stage(&self, label: &str, texture: &wgpu::Texture, dims: SceneDimensions) {
+        if std::env::var_os("ANIMATIX_DUMP_STAGES").is_none() {
+            return;
+        }
+        let img = self
+            .readback_to_scene_image_at(texture, wgpu::Origin3d::ZERO, dims)
+            .expect("stage dump readback");
+        let data = img.data.data.data();
+        let n = data.len() / 4;
+        let step = (n / 300).max(1);
+        let (mut opaque, mut sum_r, mut sum_g, mut sum_b) = (0u32, 0u64, 0u64, 0u64);
+        for i in (0..n).step_by(step) {
+            let (r, g, b, a) = (
+                data[i * 4] as u32,
+                data[i * 4 + 1] as u32,
+                data[i * 4 + 2] as u32,
+                data[i * 4 + 3] as u32,
+            );
+            if a > 100 {
+                opaque += 1;
+                sum_r += r as u64;
+                sum_g += g as u64;
+                sum_b += b as u64;
+            }
+        }
+        let total = (n as u32).div_ceil(step as u32);
+        eprintln!(
+            "[stages] {label}: opaque={opaque}/{total} avg_rgb=({},{},{})",
+            if opaque > 0 { sum_r / opaque as u64 } else { 0 },
+            if opaque > 0 { sum_g / opaque as u64 } else { 0 },
+            if opaque > 0 { sum_b / opaque as u64 } else { 0 },
+        );
+    }
+
     /// Create a new backend from a cloned device/queue pair.
     ///
     /// # Errors
@@ -420,6 +455,32 @@ impl GpuFilterBackend {
             )
             .map_err(|e| e.to_string())?;
 
+        self.dump_stage("render_view", &self.render_texture, dimensions);
+        if std::env::var_os("ANIMATIX_PROBE").is_some() {
+            let img = self.readback_to_scene_image_at(
+                &self.render_texture,
+                wgpu::Origin3d::ZERO,
+                dimensions,
+            )?;
+            let data = img.data.data.data();
+            let n = data.len() / 4;
+            let step = (n / 500).max(1);
+            let bright = (0..n).step_by(step).filter(|&i| data[i * 4] > 60).count();
+            eprintln!("[probe] render_view bright={bright}/{}", n / step);
+        }
+        {
+            let img = self.readback_to_scene_image_at(
+                &self.render_texture,
+                wgpu::Origin3d::ZERO,
+                dimensions,
+            )?;
+            let data = img.data.data.data();
+            let n = data.len() / 4;
+            let step = (n / 500).max(1);
+            let bright = (0..n).step_by(step).filter(|&i| data[i * 4] > 60).count();
+            eprintln!("[stages] render_view bright={bright}/{}", n / step);
+        }
+
         if chain.is_empty() {
             self.last_filtered_source = FilteredSource::Render;
             return Ok(&self.render_view);
@@ -457,6 +518,7 @@ impl GpuFilterBackend {
             },
         );
         self.queue.submit(std::iter::once(encoder.finish()));
+        self.dump_stage("tex_a_seed", &self.tex_a, dimensions);
 
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
@@ -501,12 +563,30 @@ impl GpuFilterBackend {
             }
         }
 
+        if let Some(src) = match current {
+            FilteredSource::TexA => Some(&self.tex_a),
+            FilteredSource::TexB => Some(&self.tex_b),
+            FilteredSource::Render => None,
+        } {
+            self.dump_stage("tex_b_fx", src, dimensions);
+        }
         self.last_filtered_source = current;
         Ok(match current {
             FilteredSource::TexA => &self.tex_a_view,
             FilteredSource::TexB => &self.tex_b_view,
             FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
         })
+    }
+
+    /// Debug instrumentation: read a texture region back as a [`SceneImage`].
+    pub fn debug_readback_texture(
+        &self,
+        texture: &wgpu::Texture,
+        origin: wgpu::Origin3d,
+        dims: SceneDimensions,
+    ) -> SceneImage {
+        self.readback_to_scene_image_at(texture, origin, dims)
+            .expect("debug texture readback")
     }
 
     /// Read a texture back into a [`SceneImage`].

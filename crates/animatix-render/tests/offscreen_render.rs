@@ -113,3 +113,84 @@ fn pipelined_frames_match_blocking_path() {
         assert_eq!(frame.rgba.as_ref(), reference.rgba.as_ref(), "frame {name} diverged");
     }
 }
+
+/// Bisect: which element of the reel makes repeated renders lose the backdrop?
+#[test]
+fn reel_bisect_repeated_renders() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/assets/checker.png");
+    let cases_raw: &[(&str, &str)] = &[
+        (
+            "full",
+            r#"config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+backdrop: Filter, anchor: scene.center {
+  film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
+  noise: Grain, amount: 0.12, monochrome: true
+  panel: Image, url: "{asset}", size: (1280, 720), anchor: scene.center
+}
+
+card_reel: Filter, anchor: scene.center, offset: (-150, 0) {
+  swipe: MotionBlur, length: 10, angle: 0
+  plate: Rect, size: (420, 260), color: (0.08, 0.09, 0.12, 0.92)
+}
+
+#0s
+fade-in backdrop [200ms]
+fade-in card_reel [200ms]
+"#,
+        ),
+        (
+            "backdrop+image only",
+            r#"config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+backdrop: Filter, anchor: scene.center {
+  film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
+  panel: Image, url: "{asset}", size: (1280, 720), anchor: scene.center
+}
+
+#0s
+fade-in backdrop [200ms]
+"#,
+        ),
+    ];
+    let cases: Vec<(String, String)> = cases_raw
+        .iter()
+        .map(|(name, source)| ((*name).to_string(), source.replace("{asset}", &asset)))
+        .collect();
+    for (name, source) in &cases {
+        let source = source.replace("{asset}", &asset);
+        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(errors.is_empty(), "{name}: {errors:?}");
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
+            &ast.expect("AST"),
+            &std::collections::HashMap::new(),
+        );
+        for d in &report.diagnostics {
+            eprintln!("[bisect] diagnostic: {} ({:?})", d.message, d.code);
+        }
+        eprintln!("[bisect] asset exists: {}", std::path::Path::new(&asset).exists());
+        let timeline = report.output;
+        let dims = animatix::timeline::SceneDimensions {
+            width: 1280,
+            height: 720,
+        };
+        for i in 0..4 {
+            let frame = renderer.render_timeline(&timeline, 1.0, dims).expect("render");
+            let bright = frame.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
+            eprintln!("[bisect] {name} iter {i}: bright={bright}");
+            {
+                image::save_buffer(
+                    &format!("/tmp/bisect2_{}_iter{i}.png", name.replace(' ', "_")),
+                    &frame.rgba,
+                    frame.width,
+                    frame.height,
+                    image::ColorType::Rgba8,
+                )
+                .ok();
+            }
+        }
+    }
+}

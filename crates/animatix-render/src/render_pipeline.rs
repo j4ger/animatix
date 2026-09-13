@@ -69,13 +69,30 @@ where
         total_frames, num_chunks, chunk_size
     );
 
-    // Create one renderer per chunk on the main thread.
-    // Concurrent wgpu adapter enumeration from multiple threads can be flaky
-    // on some drivers, so we stagger creation here.
-    let mut renderers = Vec::with_capacity(num_chunks);
-    for _ in 0..num_chunks {
-        renderers.push(OffscreenRenderer::new().map_err(ExportError::RendererCreation)?);
+    // EXPERIMENT: render everything inline on the calling thread.
+    {
+        let mut renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
+        for frame in 0..total_frames {
+            let time = frame as f64 / fps as f64;
+            let rendered = renderer
+                .render_timeline(timeline, time, SceneDimensions { width, height })
+                .map_err(|e| ExportError::FrameRender {
+                    frame: frame as usize,
+                    message: e,
+                })?;
+            {
+                let data = rendered.rgba.clone();
+                let n = data.len() / 4;
+                let step = (n / 2000).max(1);
+                let bright = (0..n).step_by(step).filter(|&i| data[i * 4] > 60).count();
+                eprintln!("[inline] frame {frame}: bright={bright}/{}", n / step);
+            }
+            process_frame(frame as usize, rendered)?;
+        }
+        return Ok(());
     }
+    #[allow(unreachable_code)]
+    let renderers: Vec<()> = (0..num_chunks).map(|_| ()).collect();
 
     // Bounded channels limit memory to a few frames per chunk.
     const CHANNEL_CAPACITY: usize = 2;
@@ -88,9 +105,10 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (renderer, sender)) in
+    for (chunk_idx, (renderer_unit, sender)) in
         renderers.into_iter().zip(senders.into_iter()).enumerate()
     {
+        let renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let timeline = timeline.clone();
@@ -119,6 +137,11 @@ where
                 let rendered = renderer
                     .wait_frame(pending.take().expect("pending consumed exactly once"))
                     .map_err(|e| ExportError::FrameRender { frame, message: e })?;
+                if std::env::var_os("ANIMATIX_DUMP_FRAMES").is_some() {
+                    let data = rendered.rgba.clone();
+                    let bright = data.chunks_exact(4).step_by(37).filter(|px| px[0] > 60).count();
+                    eprintln!("[frames] {frame} bright={bright}");
+                }
                 sender.send(rendered).map_err(|_| ExportError::ThreadPanicked)?;
                 pending = Some(next);
             }
@@ -221,9 +244,10 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (renderer, sender)) in
+    for (chunk_idx, (renderer_unit, sender)) in
         renderers.into_iter().zip(senders.into_iter()).enumerate()
     {
+        let renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let composition = composition.clone();
