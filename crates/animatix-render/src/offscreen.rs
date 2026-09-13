@@ -216,7 +216,8 @@ impl OffscreenRenderer {
     }
 
     /// Render a frame and return both its pixels and the observable
-    /// [`SceneProgram`] (per-actor `precise_bounds`, items, diagnostics) from
+    /// `animatix::timeline::SceneProgram` (per-actor `precise_bounds`, items,
+/// diagnostics) from
     /// the *same* evaluation.
     ///
     /// This is the content-level verification entry point (see

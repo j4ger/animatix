@@ -704,7 +704,7 @@ impl TypstWorld {
     }
 
     /// Create a new Typst world with additional font families plus
-    /// pre-collected glyph-fallback fonts (see [`collect_fallback_fonts`]).
+    /// pre-collected glyph-fallback fonts (see `collect_fallback_fonts`).
     pub fn with_fonts_and_fallback(
         source: Source,
         fonts: &[&str],

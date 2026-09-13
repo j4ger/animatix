@@ -488,7 +488,7 @@ impl Environment {
     /// Insert or overwrite a variable in the override layer.
     ///
     /// PF-6: on a pooled environment (see
-    /// [`Timeline::build_frame_env_internal`]) the key already exists, so
+    /// `Timeline::build_frame_env_internal`) the key already exists, so
     /// `get_mut`-first overwrites the stored value in place — no key copy at
     /// all. The `insert` path only fires for keys the pool has not seen.
     pub fn set(&mut self, name: &str, value: Value) {

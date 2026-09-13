@@ -6,21 +6,21 @@
 //! §3.5 (design) and §7 (cost-of-instrumentation constraints).
 //!
 //! Semantics:
-//! - [`ScopedStage::new`] pushes `(name, Instant)` onto a thread-local stack;
+//! - `ScopedStage::new` pushes `(name, Instant)` onto a thread-local stack;
 //!   the [`Drop`] impl pops it and accumulates the elapsed nanoseconds into a
 //!   thread-local ledger keyed by stage name (nested instances of the same
 //!   stage sum into one entry).
-//! - [`take_measurements`] drains the ledger. Callers (GUI HUD frame tick,
+//! - `take_measurements` drains the ledger. Callers (GUI HUD frame tick,
 //!   tests, future perf sinks) own the drained values.
 //! - The hot path pays only a thread-local push/pop plus a bounded linear scan
-//!   over at most [`MAX_LEDGER_ENTRIES`] entries — no allocation on push, pop,
+//!   over at most `MAX_LEDGER_ENTRIES` entries — no allocation on push, pop,
 //!   or drop. The ledger is only allowed to grow to its fixed cap; stage kinds
 //!   beyond the cap are intentionally dropped (bounded memory by design; the
-//!   canonical set in [`stage`] is well under the cap).
+//!   canonical set in `stage` is well under the cap).
 //!
 //! Compile-time gating: the `perf-tracing` feature (default-on) provides the
-//! real implementation. Without it, [`ScopedStage`] is a zero-sized no-op and
-//! [`take_measurements`] returns an empty vec, so call sites stay identical
+//! real implementation. Without it, `ScopedStage` is a zero-sized no-op and
+//! `take_measurements` returns an empty vec, so call sites stay identical
 //! across both configurations (this is what the CI
 //! `--no-default-features --features render,text,svg` build compiles).
 
@@ -29,7 +29,7 @@
 #[cfg(not(feature = "perf-tracing"))]
 use std::time::Duration;
 
-/// Maximum nested [`ScopedStage`] depth tracked per thread. Pushes beyond this
+/// Maximum nested `ScopedStage` depth tracked per thread. Pushes beyond this
 /// depth are not tracked (the tracer never panics or grows unboundedly).
 pub const MAX_STACK_DEPTH: usize = 64;
 

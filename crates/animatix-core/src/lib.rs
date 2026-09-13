@@ -1,7 +1,7 @@
 //! Language vocabulary and effect contract types shared by every layer.
 //!
 //! This crate is the bottom of the dependency graph: the built-in catalog
-//! ([`animatix-std`]), the parser front-end (`animatix-syntax`), and the
+//! (`animatix-std`), the parser front-end (`animatix-syntax`), and the
 //! engine (`animatix`) all depend on it, so it must stay free of engine,
 //! renderer, and parser dependencies. Admission rule: something goes here
 //! when `animatix-std` needs it, or when it is part of the effect definition

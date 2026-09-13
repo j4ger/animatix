@@ -28,7 +28,7 @@ pub struct PrimitiveInfo {
     pub display_name: Cow<'static, str>,
     /// UI category.
     pub category: ActorCategory,
-    /// Opaque icon identifier (a [`crate::icon_glyphs`] constant).
+    /// Opaque icon identifier (an [`animatix_core::icon_glyphs`] constant).
     pub icon_id: Cow<'static, str>,
     /// Whether shown in an "advanced" submenu instead of top-level.
     pub advanced: bool,
