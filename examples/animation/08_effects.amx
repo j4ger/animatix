@@ -12,16 +12,26 @@ bg_mark: Svg, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor
 bg: Filter, anchor: scene.center {
   bg_soft: Blur, radius: 0
   bg_grade: ColorGrade, brightness: 0.6
+  bg_vignette: Vignette, amount: 0, radius: 0.5, softness: 0.75
+  bg_grain: Grain, amount: 0, monochrome: true
+  bg_levels: Levels, gamma: 1
   grid: Image, url: "examples/assets/checker.png", size: (500, 500), anchor: scene.center
 }
 
 // Foreground card on top of blurred background (wrapped in Filter for sepia effect)
 fg_filter: Filter, anchor: scene.center {
   fg_sepia: ColorGrade, sepia: 0
+  fg_focus: Sharpen, amount: 0, radius: 2
   fg: Stack, anchor: scene.center {
     card: Rect, size: (280, 220), color: (0.1, 0.1, 0.12, 0.85), anchor: scene.center
     label: Text, text: "Filter FX", font_size: 36, color: text.primary, anchor: scene.center
   }
+}
+
+// A chip that slides in with motion blur, then settles.
+chip: Filter, anchor: scene.center, offset: (-420, 120) {
+  chip_blur: MotionBlur, length: 0, angle: 0
+  chip_plate: Rect, size: (150, 44), color: accent.danger
 }
 
 target: Rect, size: (60, 60), color: accent.danger, anchor: scene.center, offset: (0, 100)
@@ -57,6 +67,32 @@ shake target [500ms, intensity: 2]
 
 #10.5s
 bounce target [400ms, intensity: 2.5]
+
+#2.5s
+bg.bg_vignette.amount = 0.5 [1.2s, ease: ease-out]
+bg.bg_grain.amount = 0.22 [1.2s, ease: ease-out]
+
+#3.9s
+fade-in chip [300ms]
+
+#4.0s
+chip.chip_blur.length = 24 [0.4s, ease: ease-in]
+chip.offset = (0, 120) [0.8s, ease: ease-out]
+
+#4.6s
+chip.chip_blur.length = 0 [0.5s, ease: ease-out]
+
+#6.5s
+fg_filter.fg_focus.amount = 2.2 [0.9s, ease: ease-in-out]
+
+#7.6s
+fg_filter.fg_focus.amount = 0 [0.8s, ease: ease-in]
+
+#9.0s
+// Night dip: lift the black point and pull the midtones down.
+bg.bg_levels.in_black = 0.05 [1.2s, ease: ease-in-out]
+bg.bg_levels.gamma = 0.85 [1.2s, ease: ease-in-out]
+bg.bg_grain.amount = 0.3 [1.2s]
 
 #0.5s
 fade-in title [600ms, ease: ease-out]

@@ -1,0 +1,62 @@
+// Night Reel — keynote intro reel dogfooding the wave-1 effects:
+// Vignette + Grain on the backdrop, MotionBlur on the card fly-in,
+// Sharpen focus-pull on the headline, Levels day→night grade on the outro.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+backdrop: Filter, anchor: scene.center {
+  film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
+  noise: Grain, amount: 0.0, monochrome: true
+  grade: Levels, in_black: 0.0, gamma: 1.0
+  panel: Image, url: "examples/assets/checker.png", size: (1280, 720), anchor: scene.center
+}
+
+// Children without `anchor: scene.*` ride the scope's placement; a scene
+// anchor on a child would pin it to the scene and escape the scope offset.
+card_reel: Filter, anchor: scene.center, offset: (-900, 0) {
+  swipe: MotionBlur, length: 0, angle: 0
+  plate: Rect, size: (420, 260), color: (0.08, 0.09, 0.12, 0.92)
+  label: Text, at: (0, -28), text: "Night Reel", font_size: 44, color: text.primary
+  sub: Text, at: (0, 38), text: "product keynote · 2026", font_size: 20, color: text.secondary
+}
+
+headline: Filter, anchor: scene.center, offset: (0, 210) {
+  focus: Sharpen, amount: 0, radius: 2
+  line: Text, text: "made with animatix", font_size: 26, color: text.secondary
+}
+
+#0s
+fade-in backdrop [600ms]
+backdrop.noise.amount = 0.35 [1.2s, ease: ease-out]
+
+#0.8s
+fade-in card_reel [300ms]
+
+#0.9s
+fade-in headline [400ms]
+
+#1.0s
+card_reel.offset = (0, 0) [1.4s, ease: ease-out]
+backdrop.film.amount = 0.55
+card_reel.swipe.length = 26 [0.9s, ease: ease-in]
+
+#2.0s
+card_reel.swipe.length = 0 [0.6s, ease: ease-out]
+
+#3.0s
+backdrop.noise.amount = 0.12 [1s, ease: ease-out]
+
+#4.0s
+headline.focus.amount = 2.5 [1.2s, ease: ease-in-out]
+
+#5.4s
+headline.focus.amount = 0 [1s, ease: ease-in]
+
+#6.5s
+// Day → night: lift the black point slightly and pull midtones down.
+backdrop.grade.in_black = 0.06 [1.5s, ease: ease-in-out]
+backdrop.grade.gamma = 0.85 [1.5s, ease: ease-in-out]
+backdrop.noise.amount = 0.28 [1.5s]
+
+#9.0s
+backdrop.film.amount = 0.8 [1s, ease: ease-in]
