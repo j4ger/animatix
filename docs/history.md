@@ -732,3 +732,31 @@ superseded by later implementation.
 | **Speaker-notes metadata** | No presentation/export consumer yet; add `notes` when a concrete user story exists. |
 | **AI review evaluator/loop** | Full design is in `docs/ai_agent_animation_quality.md`; implementation is a new review crate/rule engine/agent loop, not a single backlog task. |
 | **Per-actor exit before scene transition** | Animate individual actors out before `play SceneName [fade, ...]`. Workaround: `fade-out` actions timed at scene end. Transition blending is already uniform. Unchanged. |
+
+---
+
+## Built-in effects, wave 1 (2026-09-13)
+
+`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, and `Levels` shipped, one file
+each in `animatix-std/src/effects/` plus one `EFFECTS` entry — the
+catalog-as-single-source promise held: no parser contract row, no enum variant,
+no dispatch arm, and the GUI palette picked them up from `EFFECTS` untouched.
+
+- `Sharpen` — unsharp mask (box kernel, `amount`, `radius` px); `support` =
+  radius, so the derived ROI pads correctly.
+- `Vignette` — aspect-corrected edge falloff (`amount`, `radius`, `softness`,
+  `color` as `Vec4`, the first built-in vec4 parameter exercising the 16-byte
+  alignment gap in the packing rule).
+- `MotionBlur` — directional smear (`length` px, `angle` degrees) sampled
+  through the linear sampler; alpha keeps its maximum so smears never erode
+  silhouettes.
+- `Grain` — PCG-hash noise keyed on `(pixel, seed, frame)`; the frame index
+  derives from the context's `time_ms`, so it animates without authoring.
+- `Levels` — in-black/in-white/gamma/out-black/out-white per channel.
+
+Each effect has a content-level GPU test in `animatix-render`
+(`vignette_darkens_corners_not_center`, `levels_black_point_maps_below_floor_to_black`,
+`sharpen_overshoots_at_hard_edges`, `grain_perturbs_flat_field_deterministically`,
+`motion_blur_smears_horizontally`), and the std packing test was generalised to
+allow alignment gaps (Vignette's vec4 exposed that the old sequential-offset
+model contradicted the documented host rule).

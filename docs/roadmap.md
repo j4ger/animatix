@@ -75,19 +75,19 @@ Remaining:
 
 ## Planned Effects
 
-The effect catalog makes each new effect a one-file plus one-line addition in
-`animatix-std` (see `docs/effects.md` §8). This batch covers
-focus/finish/speed/texture/grading with single-pass GPU work and clean identity
-semantics:
+Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
+2026-09-13 — see `docs/history.md` ("Built-in effects, wave 1"). Remaining
+follow-ups, cheapest first:
 
-| Effect | Parameters | Why |
-|---|---|---|
-| `Sharpen` | amount, radius | Counteracts softness in scaled/exported text and plots |
-| `Vignette` | amount, radius, softness, color | Zero-neighborhood, near-free |
-| `MotionBlur` | length, angle | First animation-native effect; exercises the linear sampler |
-| `Grain` | amount, seed, monochrome | `time_ms` animates it for free |
-| `Levels` | in_black/in_white/gamma/out_black/out_white | Black/white point + gamma; the grading complement to `ColorGrade` |
+| Effect | Notes |
+|---|---|
+| `Duotone` | Two-colour map on luma; zero-neighborhood, single pass |
+| `DropShadow` (hard) | Callout/panel elevation; needs a second pass over alpha only |
+| `Edge` | Sobel magnitude; zero extra inputs, useful for sketch styles |
+| `Posterize` | Level quantisation; trivial single pass |
+| `LensDistortion` | Barrel/pincushion UV warp through the linear sampler |
 
-Follow-ups: `Duotone`, hard-edged `DropShadow` (callout/panel elevation),
+`Bloom` / soft `DropShadow` / a generic chain `Mix` wait on the
+second-input-texture ABI bump (`docs/effects.md` §4.1).
 `Edge`, `Posterize`, `LensDistortion`. `Bloom` / soft `DropShadow` / a generic
 chain `Mix` wait on the second-input-texture ABI bump (`docs/effects.md` §4.1).

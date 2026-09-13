@@ -1031,4 +1031,256 @@ mod tests {
             );
         }
     }
+
+    /// One-stage chain for any built-in effect, addressed by its authored name.
+    fn effect_chain(name: &str, values: Vec<EffectParamValue>) -> EffectChain {
+        EffectChain {
+            instances: vec![EffectInstance {
+                id: EffectId::new(name),
+                enabled: true,
+                params: EffectParams { values },
+            }],
+            time_ms: 0.0,
+        }
+    }
+
+    fn filled_scene(color: vello::peniko::Color, rect: kurbo::Rect) -> vello::Scene {
+        let mut scene = vello::Scene::new();
+        let path = kurbo::Shape::to_path(&rect, 1e-3);
+        scene.fill(vello::peniko::Fill::NonZero, kurbo::Affine::IDENTITY, color, None, &path);
+        scene
+    }
+
+    /// Vignette must darken the corner while leaving the center untouched.
+    #[test]
+    fn vignette_darkens_corners_not_center() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let scene =
+            filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 64.0, 64.0));
+        let chain = effect_chain(
+            "Vignette",
+            vec![
+                EffectParamValue::F32(1.0),  // amount
+                EffectParamValue::F32(0.15), // radius (start close to center)
+                EffectParamValue::F32(0.9),  // softness
+                EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]),
+            ],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("vignette path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+
+        let center = raw[(32 * w + 32) * 4];
+        let corner = raw[(2 * w + 2) * 4];
+        assert!(center > 240, "center must keep its luminance, got {center}");
+        assert!(corner < 120, "corner must fall into the vignette color, got {corner}");
+    }
+
+    /// Levels: lifting the black point above the input gray must floor it to
+    /// the (raised) black output — the classic contrast-crush check.
+    #[test]
+    fn levels_black_point_maps_below_floor_to_black() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 32,
+            height: 32,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        // 25% gray fills the canvas.
+        let scene = filled_scene(
+            vello::peniko::Color::from_rgba8(64, 64, 64, 255),
+            kurbo::Rect::new(0.0, 0.0, 32.0, 32.0),
+        );
+        let chain = effect_chain(
+            "Levels",
+            vec![
+                EffectParamValue::F32(0.3), // in_black above the input gray
+                EffectParamValue::F32(1.0), // in_white
+                EffectParamValue::F32(1.0), // gamma
+                EffectParamValue::F32(0.0), // out_black
+                EffectParamValue::F32(1.0), // out_white
+            ],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("levels path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+        let r = raw[(16 * w + 16) * 4];
+        assert!(r < 20, "0.25 gray under in_black=0.3 must crush to black, got {r}");
+
+        // gamma = 2 brightens mid-gray: 0.5^(1/2) ≈ 0.707.
+        let chain = effect_chain(
+            "Levels",
+            vec![
+                EffectParamValue::F32(0.0),
+                EffectParamValue::F32(1.0),
+                EffectParamValue::F32(2.0),
+                EffectParamValue::F32(0.0),
+                EffectParamValue::F32(1.0),
+            ],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(
+                &filled_scene(
+                    vello::peniko::Color::from_rgba8(128, 128, 128, 255),
+                    kurbo::Rect::new(0.0, 0.0, 32.0, 32.0),
+                ),
+                dims,
+                None,
+                &chain,
+            )
+            .expect("levels gamma path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+        let r = raw[(16 * w + 16) * 4];
+        assert!(
+            (150..=210).contains(&r),
+            "gamma 2 on 0.5 gray must land near 0.707·255 ≈ 180, got {r}"
+        );
+    }
+
+    /// Sharpen: along a gray→black edge, the gray side must overshoot its
+    /// interior value (the high-frequency residual is added back).
+    #[test]
+    fn sharpen_overshoots_at_hard_edges() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        // Left half 50% gray, right half black: one hard vertical edge at x=32.
+        let mut scene = vello::Scene::new();
+        use kurbo::Shape;
+        scene.fill(
+            vello::peniko::Fill::NonZero,
+            kurbo::Affine::IDENTITY,
+            vello::peniko::Color::from_rgba8(128, 128, 128, 255),
+            None,
+            &kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3),
+        );
+        let chain =
+            effect_chain("Sharpen", vec![EffectParamValue::F32(2.0), EffectParamValue::F32(2.0)]);
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("sharpen path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+        let interior = raw[(32 * w + 8) * 4];
+        let edge = raw[(32 * w + 30) * 4];
+        assert_eq!(interior, 128, "interior gray must survive sharpening");
+        assert!(
+            edge > interior + 30,
+            "gray side of the edge must overshoot the interior gray, got edge={edge} interior={interior}"
+        );
+    }
+
+    /// Grain must actually perturb a flat field, and be deterministic for a
+    /// given (params, time) pair (§6 determinism contract).
+    #[test]
+    fn grain_perturbs_flat_field_deterministically() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let make_backend = || {
+            GpuFilterBackend::new(device.clone(), queue.clone(), dims)
+                .expect("GpuFilterBackend should initialise")
+        };
+
+        let scene = filled_scene(
+            vello::peniko::Color::from_rgba8(128, 128, 128, 255),
+            kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+        );
+        let params = vec![
+            EffectParamValue::F32(0.6), // amount
+            EffectParamValue::F32(0.0), // seed
+            EffectParamValue::Bool(true),
+        ];
+
+        let image = make_backend()
+            .render_scene_to_image_gpu_filtered(
+                &scene,
+                dims,
+                None,
+                &effect_chain("Grain", params.clone()),
+            )
+            .expect("grain path should succeed");
+        let raw = image.data.data.data();
+        let touched = raw.chunks_exact(4).filter(|px| px[0] != 128).count();
+        assert!(
+            touched > 64,
+            "grain should perturb most pixels of a flat field, only {touched} changed"
+        );
+
+        let image_again = make_backend()
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &effect_chain("Grain", params))
+            .expect("second grain render should succeed");
+        assert_eq!(raw, image_again.data.data.data(), "grain must be deterministic");
+    }
+
+    /// MotionBlur with angle 0 must smear horizontally: intermediate alpha
+    /// appears up to `length` pixels right of the shape's edge.
+    #[test]
+    fn motion_blur_smears_horizontally() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        // Opaque white rect over the left third.
+        let scene =
+            filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 21.0, 64.0));
+        let chain = effect_chain(
+            "MotionBlur",
+            vec![EffectParamValue::F32(12.0), EffectParamValue::F32(0.0)],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("motion-blur path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+        let y = 32usize;
+        let mut smeared = false;
+        for x in 22..33usize {
+            let a = raw[(y * w + x) * 4 + 3];
+            if a > 20 && a < 235 {
+                smeared = true;
+                break;
+            }
+        }
+        assert!(smeared, "motion blur must smear the trailing edge to intermediate alpha");
+
+        // Far outside the smear extent the frame must stay empty.
+        let a = raw[(y * w + 45) * 4 + 3];
+        assert!(a < 20, "smear must not reach beyond length pixels, got a={a}");
+    }
 }

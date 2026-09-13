@@ -78,6 +78,22 @@ Built-in examples:
 | `ColorGrade` | `hue_rotate` | `0` |
 | `ColorGrade` | `sepia` | `0` |
 | `ChromaticAberration` | `offset` | `0` |
+| `Sharpen` | `amount` | `0` |
+| `Sharpen` | `radius` | `0` |
+| `Vignette` | `amount` | `0` |
+| `Vignette` | `radius` | `0.9` |
+| `Vignette` | `softness` | `0.6` |
+| `Vignette` | `color` | `(0, 0, 0, 1)` |
+| `MotionBlur` | `length` | `0` |
+| `MotionBlur` | `angle` | `0` |
+| `Grain` | `amount` | `0` |
+| `Grain` | `seed` | `0` |
+| `Grain` | `monochrome` | `false` |
+| `Levels` | `in_black` | `0` |
+| `Levels` | `in_white` | `1` |
+| `Levels` | `gamma` | `1` |
+| `Levels` | `out_black` | `0` |
+| `Levels` | `out_white` | `1` |
 
 ## 3. Spatial support and ROI
 

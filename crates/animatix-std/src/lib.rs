@@ -25,7 +25,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use animatix_core::effect::{Effect, EffectParamSpec, EffectParams, EffectPassSpec};
 
 pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
-pub use effects::{BLUR, CHROMATIC_ABERRATION, COLOR_GRADE};
+pub use effects::{
+    BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, GRAIN, LEVELS, MOTION_BLUR, SHARPEN, VIGNETTE,
+};
 
 // ── Built-in catalog ────────────────────────────────────────────────────────
 
@@ -34,6 +36,11 @@ pub static EFFECTS: &[&dyn Effect] = &[
     &effects::BLUR,
     &effects::COLOR_GRADE,
     &effects::CHROMATIC_ABERRATION,
+    &effects::SHARPEN,
+    &effects::VIGNETTE,
+    &effects::MOTION_BLUR,
+    &effects::GRAIN,
+    &effects::LEVELS,
 ];
 
 // ── Dispatch ────────────────────────────────────────────────────────────────
@@ -274,18 +281,20 @@ mod tests {
     use super::*;
     use animatix_core::effect::{EffectParamKind, EffectParamValue, uniform_size_for};
 
-    /// Declared parameters follow the host layout rule (scalars 4-byte
-    /// aligned, vec2 at 8, vec4 at 16, sequential), so packers can rely on
-    /// the offsets and the derived uniform size fills a valid buffer.
+    /// Declared parameters follow the host layout rule (each offset aligned to
+    /// its kind: scalars 4, vec2 8, vec4 16; sequential with alignment gaps),
+    /// so packers can rely on the offsets and the derived uniform size fills a
+    /// valid buffer.
     #[test]
     fn declared_param_layout_follows_host_rule() {
         for effect in EFFECTS {
             let mut offset = 0u32;
             for spec in effect.params() {
                 let (size, align) = animatix_core::effect::kind_layout(spec.kind);
+                offset = offset.next_multiple_of(align);
                 assert_eq!(spec.offset, offset, "{}.{} offset", effect.type_name(), spec.name);
                 assert_eq!(spec.size, size, "{}.{} size", effect.type_name(), spec.name);
-                offset = (offset + size).next_multiple_of(align);
+                offset += size;
             }
             assert_eq!(effect.author_uniform_size() % 16, 0);
             // The uniform buffer must cover every declared parameter; effects

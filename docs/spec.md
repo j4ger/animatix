@@ -554,7 +554,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
 | `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
 | `Image` / `Svg` | `url` |
-| `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`) whose parameters animate as `scope.stage.param` |
+| `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
@@ -754,6 +754,11 @@ nothing (the pass and the offscreen round-trip are skipped).
 | `Blur` | `radius` (default 0) | Gaussian blur radius in px; two passes (H then V) |
 | `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
 | `ChromaticAberration` | `offset` (default 0) | Radial RGB channel separation in px; single pass through the linear sampler |
+| `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` texels |
+| `Vignette` | `amount` (0), `radius` (0.9), `softness` (0.6), `color` (black) | Darkens toward the edges; `radius`/`softness` are fractions of the half minimum dimension (start / spread) |
+| `MotionBlur` | `length` (0, px), `angle` (0, degrees) | Directional smear sampled through the linear sampler; 0° = right, counter-clockwise |
+| `Grain` | `amount` (0), `seed` (0), `monochrome` (false) | Film-grain noise driven by the timeline clock, so it animates without a keyframe |
+| `Levels` | `in_black` (0), `in_white` (1), `gamma` (1), `out_black` (0), `out_white` (1) | Black/white point remap + gamma per channel; the grading complement to `ColorGrade` |
 
 Chain order is declaration order; the chain is fixed at build time (effects
 cannot appear or disappear over time). An effect declared outside a `Filter`
