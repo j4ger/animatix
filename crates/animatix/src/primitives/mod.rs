@@ -884,7 +884,7 @@ impl RenderCommand {
                     * image_display_transform(*natural_size, image.natural_size, *offset);
                 let brush = vello::peniko::ImageBrush::new(image.data.clone())
                     .with_extend(vello::peniko::Extend::Pad)
-                    .with_quality(vello::peniko::ImageQuality::Low)
+                    .with_quality(vello::peniko::ImageQuality::Medium)
                     .with_alpha(opacity);
                 scene.draw_image(&brush, image_transform);
             },
