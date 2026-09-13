@@ -175,3 +175,75 @@ impl ActorCaps {
         self.is_container && self.child_processing == ChildProcessingKind::Generic
     }
 }
+
+/// Declares which actors a property applies to.
+///
+/// One predicate per property, evaluated against [`ActorCaps`]. Capability
+/// -shaped variants read the projection fields; [`Applicable::Actors`] matches
+/// authored type names for genuinely name-specific properties (`code` only on
+/// `Code`, `density` only on `VectorField`).
+#[derive(Clone, Copy, Debug)]
+pub enum Applicable {
+    /// Applies to every actor kind including Group.
+    Everything,
+    /// Applies to all actor kinds except Group (style / size properties).
+    EveryActorExceptGroup,
+    /// Applies to all shape kinds.
+    AllShapes,
+    /// All actors with stroke-based path rendering (shapes + `PlotCurve`).
+    AllStrokePaths,
+    /// Applies to all shapes except Line (fill-related properties).
+    AllShapesExceptLine,
+    /// Applies to shapes and text-like actors with fillable/colorable content.
+    AllDrawables,
+    /// Applies to shapes, image, plots, layout containers, and effect scopes
+    /// (actors with meaningful bounds).
+    SizedActors,
+    /// Applies to specific shape kinds.
+    ShapeKinds(&'static [ShapeKind]),
+    /// Applies to the listed authored actor type names.
+    Actors(&'static [&'static str]),
+    /// Applies to text-engine actors (Text, Code, Typst, Math).
+    TextLike,
+    /// Applies to every actor except text-engine actors.
+    ExceptTextLike,
+    /// Applies to actors hosting time-varying plot geometry.
+    PlotGeometry,
+    /// Applies when any child applicability matches.
+    Any(&'static [Applicable]),
+    /// Never shown in the inspector (build-time only, aliases, compounds).
+    Never,
+}
+
+impl Applicable {
+    /// Returns `true` if this applicability includes the given actor.
+    pub fn includes(self, caps: &ActorCaps, actor_type: &str) -> bool {
+        match self {
+            Applicable::Everything => true,
+            Applicable::EveryActorExceptGroup => !caps.group_like,
+            Applicable::AllShapes => caps.shape.is_some(),
+            Applicable::AllStrokePaths => caps.stroke_path,
+            Applicable::AllShapesExceptLine => caps.shape.is_some_and(|sk| sk != ShapeKind::Line),
+            Applicable::AllDrawables => {
+                caps.is_shape || caps.text.is_some() || actor_type == "BarChart"
+            },
+            Applicable::SizedActors => {
+                caps.is_shape
+                    || caps.image_payload
+                    || caps.plot_geometry
+                    || (caps.layout_container
+                        && caps.child_processing == ChildProcessingKind::Generic)
+                    || caps.is_effect_scope()
+            },
+            Applicable::ShapeKinds(kinds) => caps.shape.is_some_and(|sk| kinds.contains(&sk)),
+            Applicable::Actors(actors) => actors.contains(&actor_type),
+            Applicable::TextLike => caps.text.is_some(),
+            Applicable::ExceptTextLike => caps.text.is_none(),
+            Applicable::PlotGeometry => caps.plot_geometry,
+            Applicable::Any(children) => {
+                children.iter().any(|child| child.includes(caps, actor_type))
+            },
+            Applicable::Never => false,
+        }
+    }
+}

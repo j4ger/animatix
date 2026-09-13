@@ -732,10 +732,13 @@ Steps:
 3. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`. A
    test pins the behaviour registry names to the catalog.
 4. If the primitive declares properties, add them to BOTH
-   `animatix-syntax::schema::raw_property_specs()` (applicable actor type
-   names) and `timeline::property_registry::PROPERTY_REGISTRY` (storage
-   semantics + `Applicable` capability predicate; pinned by
-   `shared_schema_covers_every_runtime_property`).
+   `animatix-syntax::schema::raw_property_specs()` (a capability predicate —
+   new actor types matching the predicate pick the property up automatically;
+   name-specific properties use `Applicable::Actors`) and
+   `timeline::property_registry::PROPERTY_REGISTRY` (storage semantics; the
+   same `Applicable` vocabulary; pinned by
+   `shared_schema_covers_every_runtime_property`). Adding a capability-shaped
+   property therefore needs no per-primitive list edits at all.
 5. Document in `docs/primitives.md` / `docs/spec.md` (including the LLM
    checklist name list and its mirror in `AGENTS.md`); add render/hit-region
    tests if the primitive draws.

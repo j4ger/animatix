@@ -532,72 +532,10 @@ pub struct GroupMembership {
 
 /// Declares which actors a property applies to.
 ///
-/// This eliminates the need for a separate `allowed_property_indices` match
-/// block. When adding a new property, you specify its applicability right
-/// here in the registry entry; the inspector and keyframe table use
-/// `schema.applicable.includes(caps, actor_type)` to decide whether to show
-/// the property. Capability-shaped variants read the derived `ActorCaps`, so
-/// adding a primitive never requires touching these lists.
-#[derive(Clone, Copy, Debug)]
-pub enum Applicable {
-    /// Applies to every actor kind including Group.
-    Everything,
-    /// Applies to all actor kinds except Group (style / size properties).
-    EveryActorExceptGroup,
-    /// Applies to all shape kinds.
-    AllShapes,
-    /// All actors with stroke-based path rendering (shapes + `PlotCurve`).
-    AllStrokePaths,
-    /// Applies to all shapes except Line (fill-related properties).
-    AllShapesExceptLine,
-    /// Applies to shapes and text-like actors with fillable/colorable content.
-    AllDrawables,
-    /// Applies to shapes, image, plots, and layout containers (actors with
-    /// meaningful bounds).
-    SizedActors,
-    /// Applies to specific shape kinds.
-    ShapeKinds(&'static [ShapeKind]),
-    /// Applies to the listed authored actor type names — for genuinely
-    /// name-specific properties (e.g. `code` only on `Code`).
-    Actors(&'static [&'static str]),
-    /// Applies when any child applicability matches.
-    Any(&'static [Applicable]),
-    /// Never shown in the inspector (build-time only, aliases, compounds).
-    Never,
-}
-
-impl Applicable {
-    /// Returns `true` if this applicability includes the given actor.
-    ///
-    /// Capability-shaped variants read the actor's [`ActorCaps`]; the
-    /// `Actors` variant matches the authored type name for genuinely
-    /// name-specific properties (e.g. `code` only on `Code`).
-    pub fn includes(self, caps: &super::ActorCaps, actor_type: &str) -> bool {
-        match self {
-            Applicable::Everything => true,
-            Applicable::EveryActorExceptGroup => !caps.group_like,
-            Applicable::AllShapes => caps.shape.is_some(),
-            Applicable::AllStrokePaths => caps.stroke_path,
-            Applicable::AllShapesExceptLine => caps.shape.is_some_and(|sk| sk != ShapeKind::Line),
-            Applicable::AllDrawables => {
-                caps.is_shape || caps.text.is_some() || actor_type == "BarChart"
-            },
-            Applicable::SizedActors => {
-                caps.is_shape
-                    || caps.image_payload
-                    || caps.plot_geometry
-                    || caps.layout_container
-                    || caps.is_effect_scope()
-            },
-            Applicable::ShapeKinds(kinds) => caps.shape.is_some_and(|sk| kinds.contains(&sk)),
-            Applicable::Actors(actors) => actors.contains(&actor_type),
-            Applicable::Any(children) => {
-                children.iter().any(|child| child.includes(caps, actor_type))
-            },
-            Applicable::Never => false,
-        }
-    }
-}
+/// The predicate vocabulary lives in `animatix-core::caps::Applicable`;
+/// re-exported here because the runtime registry, plan builder, and inspector
+/// address it through this module.
+pub use animatix_core::caps::Applicable;
 
 /// The complete description of one property in the system.
 ///
