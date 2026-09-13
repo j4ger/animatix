@@ -1,3 +1,4 @@
+use super::lookup::parse_numeric_vec2_with_lookup_diagnostic;
 use super::{
     AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
     ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
@@ -377,6 +378,69 @@ impl Timeline {
                 .position
                 .ensure(default_pos)
                 .add_keyframe(t_end_ms, target_pos, easing);
+            return;
+        }
+
+        // Offset — rewrites the offset component of the *current* position
+        // binding, keeping the anchor or percentage base it hangs off. An
+        // offset only exists relative to an anchor/percent base, so on an
+        // absolute or container-default binding it is ignored with the same
+        // `IgnoredOffset` warning the declaration path uses.
+        if property == "offset" {
+            let Some(new_offset) = parse_numeric_vec2_with_lookup_diagnostic(
+                value,
+                &eval_env,
+                diagnostics,
+                &assignment_subject,
+            ) else {
+                return;
+            };
+            let default_binding = PositionBinding::Absolute;
+            let current = track.geometry.position_binding.get(t_start_ms, default_binding);
+            let rebased = match current {
+                PositionBinding::SceneAnchor { anchor, .. } => PositionBinding::SceneAnchor {
+                    anchor,
+                    offset: new_offset,
+                },
+                PositionBinding::ScenePercent { x, y, .. } => PositionBinding::ScenePercent {
+                    x,
+                    y,
+                    offset: new_offset,
+                },
+                PositionBinding::Absolute
+                | PositionBinding::ContainerDefault { .. }
+                | PositionBinding::ContainerPercent { .. } => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::IgnoredOffset,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "`offset` has no effect on '{assignment_subject}' without `at`/`anchor`; the value is ignored.",
+                            ),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                },
+            };
+            preserve_discrete_position_state_before(track, t_start_ms);
+            mark_track_manual_position(track, t_start_ms);
+            if duration_ms > 0.0 {
+                let start_binding =
+                    track.geometry.position_binding.get(t_start_ms, default_binding);
+                track.geometry.position_binding.ensure(default_binding).add_keyframe(
+                    t_start_ms,
+                    start_binding,
+                    Easing::Linear,
+                );
+                track
+                    .geometry
+                    .position_binding
+                    .ensure(default_binding)
+                    .add_keyframe(t_end_ms, rebased, easing);
+            } else {
+                set_track_position_binding(track, t_start_ms, rebased);
+            }
             return;
         }
 

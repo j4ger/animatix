@@ -87,6 +87,9 @@ pub struct GpuFilterBackend {
     /// Effect-space dimensions of the most recent run (region size when a
     /// region of interest was used, otherwise the full scene).
     last_effect_dims: SceneDimensions,
+    /// The region the caller will harvest (full canvas when `None`); the chain
+    /// always runs over the full canvas, this only scopes the readback/copy.
+    last_region: Option<EffectRegion>,
     /// Pending zero-readback filter textures to be composited after scene render.
     pending_composites: Vec<PendingComposite>,
 }
@@ -273,6 +276,7 @@ impl GpuFilterBackend {
             context_buffer,
             last_filtered_source: FilteredSource::Render,
             last_effect_dims: dimensions,
+            last_region: None,
             pending_composites: Vec::new(),
         })
     }
@@ -387,10 +391,16 @@ impl GpuFilterBackend {
     ///
     /// Returns the [`wgpu::TextureView`] holding the final image (the render
     /// texture when the chain is empty). `self.last_filtered_source` records
-    /// which texture it is so callers can read it back or copy it. When
-    /// `region` is `Some`, the seed copy crops that sub-rect and the chain
-    /// dispatches at the region size; the textures themselves stay at the full
-    /// scene capacity, so varying regions never reallocate (PF-7).
+    /// which texture it is so callers can read it back or copy it, and
+    /// `self.last_effect_dims` the extent the chain covered.
+    ///
+    /// `region` scopes only the *harvest*: the chain itself always dispatches
+    /// over the full canvas. Cropping the seed to the region and dispatching
+    /// at the region size made the compute shaders sample the full-canvas
+    /// ping-pong textures with region-normalized UVs, reading stale pixels
+    /// from outside the crop (found by the effects-wave1 dogfood: a moving
+    /// `MotionBlur` card dragged opaque backdrop garbage with it). Revisit the
+    /// region dispatch only together with an origin-aware `EffectContext`.
     fn render_and_filter_scene_to_view(
         &mut self,
         scene: &vello::Scene,
@@ -415,22 +425,13 @@ impl GpuFilterBackend {
             return Ok(&self.render_view);
         }
 
-        // Region of interest: crop the seed copy to `region` and run the chain
-        // at the region size. `EffectContext.tex_size` tells the shaders to
-        // write only that sub-rect of the (full-size) storage views.
-        let (seed_origin, effect_dims) = match region {
-            Some(region) => (
-                region.origin,
-                SceneDimensions {
-                    width: region.size.width,
-                    height: region.size.height,
-                },
-            ),
-            None => ([0.0, 0.0], dimensions),
-        };
-        let width = effect_dims.width.max(1);
-        let height = effect_dims.height.max(1);
-        self.last_effect_dims = effect_dims;
+        // The chain always dispatches over the full canvas: the shaders address
+        // `src` with region-independent normalized UVs, so a cropped seed would
+        // read stale texels outside the crop.
+        let width = dimensions.width.max(1);
+        let height = dimensions.height.max(1);
+        self.last_effect_dims = dimensions;
+        self.last_region = region;
 
         // Copy the render texture into ping-pong A as the starting point.
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -440,11 +441,7 @@ impl GpuFilterBackend {
             wgpu::TexelCopyTextureInfo {
                 texture: &self.render_texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d {
-                    x: seed_origin[0].max(0.0) as u32,
-                    y: seed_origin[1].max(0.0) as u32,
-                    z: 0,
-                },
+                origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
@@ -513,9 +510,10 @@ impl GpuFilterBackend {
     }
 
     /// Read a texture back into a [`SceneImage`].
-    fn readback_to_scene_image(
+    fn readback_to_scene_image_at(
         &self,
         texture: &wgpu::Texture,
+        origin: wgpu::Origin3d,
         dimensions: SceneDimensions,
     ) -> Result<SceneImage, String> {
         let output_buffer = &self.output_buffer;
@@ -528,7 +526,7 @@ impl GpuFilterBackend {
             wgpu::TexelCopyTextureInfo {
                 texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
+                origin,
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyBufferInfo {
@@ -596,6 +594,7 @@ impl GpuFilterBackend {
         dimensions: SceneDimensions,
         alpha: f32,
         origin: [f32; 2],
+        source_origin: wgpu::Origin3d,
     ) -> Result<PendingComposite, String> {
         let source = match self.last_filtered_source {
             FilteredSource::Render => &self.render_texture,
@@ -626,7 +625,7 @@ impl GpuFilterBackend {
             wgpu::TexelCopyTextureInfo {
                 texture: source,
                 mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
+                origin: source_origin,
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
@@ -667,7 +666,18 @@ impl FilterBackend for GpuFilterBackend {
             FilteredSource::TexA => &self.tex_a,
             FilteredSource::TexB => &self.tex_b,
         };
-        self.readback_to_scene_image(texture, self.last_effect_dims)
+        let (origin, dims) = match self.last_region {
+            Some(region) => (
+                wgpu::Origin3d {
+                    x: region.origin[0].max(0.0) as u32,
+                    y: region.origin[1].max(0.0) as u32,
+                    z: 0,
+                },
+                region.size,
+            ),
+            None => (wgpu::Origin3d::ZERO, self.last_effect_dims),
+        };
+        self.readback_to_scene_image_at(texture, origin, dims)
     }
 
     fn render_scene_to_pending_composite(
@@ -680,7 +690,18 @@ impl FilterBackend for GpuFilterBackend {
     ) -> Result<(), String> {
         let origin = region.map_or([0.0, 0.0], |region| region.origin);
         self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
-        let composite = self.copy_last_filtered_to_pending(self.last_effect_dims, alpha, origin)?;
+        let harvest = self.last_region.map_or(self.last_effect_dims, |region| region.size);
+        let harvest_origin = self.last_region.map_or([0.0, 0.0], |region| region.origin);
+        let composite = self.copy_last_filtered_to_pending(
+            harvest,
+            alpha,
+            origin,
+            wgpu::Origin3d {
+                x: harvest_origin[0].max(0.0) as u32,
+                y: harvest_origin[1].max(0.0) as u32,
+                z: 0,
+            },
+        )?;
         self.pending_composites.push(composite);
         Ok(())
     }

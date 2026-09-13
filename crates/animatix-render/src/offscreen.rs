@@ -1420,4 +1420,87 @@ g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100)
             assert!(second.is_ok(), "second render should also succeed");
         }
     }
+
+    /// Regression (effects-wave1 dogfood): a scope whose chain runs under a
+    /// *derived* region used to composite stale ping-pong texels from the
+    /// previous scope into the frame (an opaque garbage rectangle around the
+    /// moving content, found with a `MotionBlur` card flying over a backdrop).
+    /// The backdrop must survive intact inside another scope's region.
+    #[test]
+    fn region_composite_does_not_leak_stale_pixels() {
+        let mut renderer = match OffscreenRenderer::new() {
+            Ok(r) => r,
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
+        };
+
+        let source = r#"
+config { resolution: (640, 360) }
+
+sheet: Rect, size: (640, 360), color: (1, 1, 1, 1), anchor: scene.center
+
+card: Filter, anchor: scene.center, offset: (-150, 0) {
+  swipe: MotionBlur, length: 20, angle: 0
+  plate: Rect, size: (140, 90), color: (1, 0.2, 0.2, 1)
+}
+
+#0s
+fade-in sheet [100ms]
+fade-in card [100ms]
+
+#0.5s
+card.offset = (0, 0) [1s, ease: linear]
+card.swipe.length = 20 [0.5s, ease: linear]
+"#;
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+        let ast = ast.expect("AST");
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+
+        // Mid-flight: the card centre is at (245, 180) (offset halfway from
+        // -150 to 0) and its derived region spans (155, 115)-(335, 245).
+        let frame = renderer
+            .render_timeline(
+                &report.output,
+                1.0,
+                animatix::timeline::SceneDimensions {
+                    width: 640,
+                    height: 360,
+                },
+            )
+            .expect("render");
+
+        let px = |x: usize, y: usize| -> [u8; 4] {
+            let base = (y * frame.width as usize + x) * 4;
+            [
+                frame.rgba[base],
+                frame.rgba[base + 1],
+                frame.rgba[base + 2],
+                frame.rgba[base + 3],
+            ]
+        };
+
+        // Inside the card's region but outside the card and its smear: the
+        // white backdrop must survive the region composite untouched. The
+        // leak pasted opaque garbage here.
+        let backdrop_inside_region = px(165, 125);
+        assert!(
+            backdrop_inside_region[0] > 200,
+            "backdrop inside another scope's region must not be overwritten: {backdrop_inside_region:?}"
+        );
+
+        // The card plate itself stays red at its mid-flight position.
+        let plate = px(245, 180);
+        assert!(
+            plate[0] > 200 && plate[1] < 120,
+            "moving plate must render red at its mid-flight position: {plate:?}"
+        );
+    }
 }

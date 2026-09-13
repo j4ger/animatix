@@ -111,10 +111,14 @@ impl Primitive for ImagePrimitive {
                 }
             }
             let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];
+            // Actor local space is centered on the position (every geometry
+            // track stores half-sizes), so shift the box back by half its
+            // display size to keep `at`/`anchor` meaning "the image is here",
+            // not "the image's top-left is here".
             Ok(Some(vec![RenderCommand::Image {
                 image,
                 natural_size,
-                offset: [0.0, 0.0],
+                offset: [(-half_size[0]) as f64, (-half_size[1]) as f64],
             }]))
         } else {
             Ok(None)

@@ -941,9 +941,16 @@ impl RenderCommand {
             },
             RenderCommand::Image { .. } => {
                 if let Some([half_w, half_h]) = display_size {
+                    // Centered on the local origin, matching the box the
+                    // command actually draws.
                     bounds = union(
                         bounds,
-                        kurbo::Rect::new(0.0, 0.0, (half_w * 2.0) as f64, (half_h * 2.0) as f64),
+                        kurbo::Rect::new(
+                            (-half_w) as f64,
+                            (-half_h) as f64,
+                            half_w as f64,
+                            half_h as f64,
+                        ),
                     );
                 }
             },

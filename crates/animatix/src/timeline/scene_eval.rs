@@ -41,9 +41,17 @@ fn node_local_bounds(
     }
 
     if let Some([half_width, half_height]) = image_half_size {
+        // The image command centers its box on the local origin (see
+        // `ImagePrimitive::evaluate`), so the bounds are the centered box,
+        // not a box from the origin.
         bounds = union_rect(
             bounds,
-            kurbo::Rect::new(0.0, 0.0, (half_width * 2.0) as f64, (half_height * 2.0) as f64),
+            kurbo::Rect::new(
+                (-half_width) as f64,
+                (-half_height) as f64,
+                half_width as f64,
+                half_height as f64,
+            ),
         );
     }
 
@@ -968,7 +976,6 @@ impl Timeline {
                 let mut content: Option<kurbo::Rect> = None;
                 for child in &track.children {
                     self.subtree_bounds_union(child, &mut content);
-                    eprintln!("[roi-dbg] after child {child}: out={content:?}");
                 }
                 content.and_then(|rect| {
                     Self::region_from_rect(
