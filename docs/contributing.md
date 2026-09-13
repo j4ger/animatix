@@ -30,8 +30,8 @@ cargo run --bin animatix -- render examples/gallery/fft_explain.amx --loop
 cargo run --bin animatix -- image examples/gallery/fft_explain.amx --time 1.5 --output frame.png
 
 # Video/GIF export (requires the `video` feature, see AGENTS.md)
-cargo run --features animatix/video --bin animatix -- video examples/gallery/fft_explain.amx --fps 30 --duration 5 --output demo.mp4
-cargo run --features animatix/video --bin animatix -- gif examples/gallery/fft_explain.amx --fps 15 --duration 5 --output out.gif
+cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx --fps 30 --duration 5 --output demo.mp4
+cargo run -p animatix-cli --features video -- gif examples/gallery/fft_explain.amx --fps 15 --duration 5 --output out.gif
 
 # GUI
 cargo run --bin animatix-gui -- examples/gallery/fft_explain.amx
@@ -54,7 +54,7 @@ For runtime/layout/rendering changes:
 cargo run -- image path/to/scene.amx --time 0.0 --output /tmp/frame0.png
 cargo run -- image path/to/scene.amx --time 1.5 --output /tmp/frame1.png
 # Video export requires the `video` feature (see AGENTS.md)
-cargo run --features animatix/video -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
+cargo run -p animatix-cli --features video -- video path/to/scene.amx --output /tmp/check.mp4 --fps 30
 cargo test
 ```
 
@@ -64,8 +64,12 @@ cargo test
 
 ```
 crates/
+├── animatix-core/         # Shared vocabulary (capability enums, effect contract, icons, RenderError)
+├── animatix-std/          # Built-in catalog (effect definitions, primitive identity cards)
 ├── animatix-syntax/       # Syntax layer (parser, AST, module system, typing)
-├── animatix/              # Runtime engine (timeline, renderer, primitives)
+├── animatix-text/         # Typst/fontdb text compilation service
+├── animatix/              # Runtime engine (timeline, build/evaluate, primitives)
+├── animatix-render/       # GPU presentation (Vello/wgpu, filters, encoders)
 ├── animatix-analyzer/     # Shared language intelligence
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
@@ -74,13 +78,13 @@ crates/
 
 ### Source Areas Worth Knowing
 
-- `crates/animatix/src/main.rs` — CLI entrypoint
+- `crates/animatix-cli/src/main.rs` — CLI entrypoint
 - `crates/animatix-syntax/src/parser/` — Chumsky parser (split into submodules)
 - `crates/animatix-syntax/src/ast.rs` — AST types
 - `crates/animatix-syntax/src/typing.rs` — shared `Type`/`TypeEnv` inference
 - `crates/animatix-syntax/src/walk.rs` — shared AST traversal primitives
 - `crates/animatix/src/timeline/` — keyframed runtime, actions, morphing, plotting
-- `crates/animatix/src/renderer/` — Vello/WGPU rendering backend
+- `crates/animatix-render/src/` — Vello/WGPU rendering backend (renderer core, filter backend, encoders)
 - `crates/animatix/src/primitives/` — actor primitive system
 - `crates/animatix-gui/src/app/mod.rs` — GUI shell state and event loop
 - `crates/animatix-gui/src/app/panels/` — UI panels (inspector, timeline, sidebar, preview, editor)

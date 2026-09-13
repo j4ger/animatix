@@ -540,17 +540,37 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
   near-universal rows (at/anchor/opacity/position/rotation/scale/shift/
   transform/legend) had silently excluded `Math`, and the Phase-3
   `SizedActors` conversion had silently included `Equation` (both restored to
-  their pre-refactor intent). Phase D (renderer split) is **closed as
-  infeasible as scoped**: the engine's build/evaluate paths construct
-  `renderer::text::FontContext` directly (120+ `crate::renderer::*` references
-  across 50 engine files), and the engine's own effect seam uses
-  `wgpu::Texture`/`vello::Scene` — so a separate renderer crate would violate
-  Cargo's no-cyclic-dependency rule. Unblocking it requires two redesigns, not
-  moves: (1) inverting the text compiler into an injected host service so
-  build/evaluate stop calling it directly, and (2) relocating the effect
-  compositing seam (`FilterBackend` + `PendingComposite` + vello scene
-  production) out of the engine. Revisit only if compile-isolation of the GPU
-  stack becomes a concrete need.
+  their pre-refactor intent). Phase D (renderer split) landed 2026-09-13 as
+  `animatix-text` + `animatix-render` (below).
+
+- **Renderer split, Phase D (2026-09-13).** An earlier feasibility pass called
+  this infeasible as scoped; that verdict was wrong because it conflated three
+  very different things under "renderer": the frame vocabulary
+  (`renderer/error.rs`, `renderer/types.rs`, `renderer/text.rs`), the build/
+  evaluate paths that *use* compiled text, and the GPU stack. Re-research
+  showed the GPU code only touches the engine's public API, and the text
+  compiler's only crate-internal dependency was `RenderError` — so two moves
+  break the cycle:
+  1. `animatix-text` — the typst/fontdb compiler (+ its bundled fonts), now
+     depending on `animatix-core` for `RenderError` and nothing else in the
+     workspace. The engine's `text` feature enables it, and
+     `animatix::renderer::text` is a re-export, so build/evaluate call sites are
+     unchanged.
+  2. `animatix-render` — renderer core, `GpuFilterBackend`, fullscreen blit,
+     offscreen frames, transitions, encode/video, and the `video` feature
+     (FFmpeg). It depends on the engine, never the reverse; the engine's
+     `FilterBackend` trait and `PendingComposite` are the seam, and the moved
+     code uses only public engine API. `animatix::renderer` keeps the frame
+     vocabulary (`error`, `types`, `text`).
+  GUI and CLI gained a direct `animatix-render` dependency and their `video`
+  feature now forwards to `animatix-render/video` (the engine has no `video`
+  feature). The engine's own `animatix-render` edge is a dev-dependency for the
+  export-path examples — note that render-crate types must not appear in engine
+  unit tests, because Cargo then builds the engine twice and the types stop
+  unifying; the offscreen end-to-end tests therefore live in
+  `crates/animatix-render/tests/`, and the white-box readback test stays inside
+  the render crate. Three orphaned effect files left behind by the Phase A
+  move were deleted.
 
 - **Identity unification (2026-09-12).** Identity is the authored type name
   everywhere: `EffectId` is the effect's name (persisted as a bare string, so

@@ -17,27 +17,42 @@ The workspace is layered so that each dependency edge encodes a guarantee:
 
 ```
 animatix-core    language vocabulary + contract types (capability enums,
-                 Effect trait, icons) — no heavy dependencies
+                 Effect trait, icons, RenderError) — no heavy dependencies
    ↑            ↑
 animatix-std    animatix-syntax (→ core + std)
 (built-ins)          ↑
    ↑         animatix-analyzer ──> animatix-lsp
-animatix (engine)
+animatix (engine) ←── animatix-text (typst compiler, `text` feature)
    ↑
-GUI / CLI
+animatix-render (GPU presentation — one-way, engine never sees it)
+   ↑                ↑
+GUI / CLI     engine examples (dev-dependency only)
 ```
 
 - `animatix-core` — capability vocabulary, the effect trait, identity types,
-  icon glyphs. Admission rule: `animatix-std` needs it, or it is part of the
-  effect definition surface.
+  icon glyphs, and `RenderError`. Admission rule: `animatix-std` needs it, or
+  it is part of the effect definition surface.
 - `animatix-std` — the built-in catalog: effect definitions (parameters, WGSL,
   pack, support) and primitive identity cards. The single author-visible
   source for built-in metadata.
 - `animatix-syntax` — the language front-end: tokenizer, parser, AST, module
   system, source write-back, symbol table, semantic diagnostics, and the
   property/type layer. Its contract tables derive from `animatix-std`.
+- `animatix-text` — the typst/fontdb text compilation service behind the
+  engine's `text` feature. It depends on `animatix-core` for `RenderError` and
+  nothing else in the workspace.
 - `animatix` — the engine: timeline, build, evaluation, layout, persistence,
-  the plugin host, primitive behaviour, and (behind features) the renderer.
+  the plugin host, and primitive behaviour. Its `renderer` module holds only
+  frame vocabulary (`error`, `types`, `text`). It still depends on
+  Vello/wgpu — the `FilterBackend` seam is typed in `wgpu::Texture` /
+  `vello::Scene` — but contains no GPU implementation.
+- `animatix-render` — the GPU presentation layer: Vello/wgpu renderer core,
+  the `GpuFilterBackend` that implements the engine's `FilterBackend` trait,
+  offscreen frames, transition compositing, and the export encoders (including
+  FFmpeg video behind the `video` feature). The dependency is **one-way** —
+  the engine only defines the `FilterBackend` seam; it never names this crate
+  in `src/` (the `animatix-render` edge in the engine's manifest is a
+  dev-dependency for the export-path examples).
 - The analyzer and LSP depend only on core/std/syntax, never on the engine —
   which is why author-visible metadata lives below the engine, not in it.
 
@@ -262,20 +277,21 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 | File | Role |
 |------|------|
 | `primitives/filter.rs` | `FilterPrimitive` — the container that owns a chain |
-| `timeline/effects/mod.rs` | `Effect` trait, `EFFECTS` array, `EffectId`, parameter schema, dispatch (`effect` / `effect_for_type`), plugin registry |
-| `timeline/effects/blur.rs` | `Blur` — separable Gaussian, two passes |
-| `timeline/effects/color_grade.rs` | `ColorGrade` — 4×4 colour matrix composed on the host |
-| `timeline/effects/chromatic_aberration.rs` | `ChromaticAberration` — sub-pixel channel split via the linear sampler |
+| `animatix-core/src/effect.rs` | `Effect` trait, `EffectId`, parameter schema types, `identity_for` / `kind_layout` / `uniform_size_for` |
+| `animatix-std/src/effects/mod.rs` | `EFFECTS` array, dispatch (`effect` / `effect_for_type`), `pack_generic`, plugin registry |
+| `animatix-std/src/effects/blur.rs` | `Blur` — separable Gaussian, two passes |
+| `animatix-std/src/effects/color_grade.rs` | `ColorGrade` — 4×4 colour matrix composed on the host |
+| `animatix-std/src/effects/chromatic_aberration.rs` | `ChromaticAberration` — sub-pixel channel split via the linear sampler |
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
-| `renderer/filter_backend.rs` | `GpuFilterBackend` — GPU render, N-pass dispatch, readback / zero-readback composite |
+| `animatix-render/src/filter_backend.rs` | `GpuFilterBackend` — GPU render, N-pass dispatch, readback / zero-readback composite |
 | `timeline/scene_eval.rs` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
-Adding a built-in effect is one new file plus one `EFFECTS` entry, an `EffectId`
-variant, and an `effect_specs()` row (the analyzer's table lives in a crate the
-runtime cannot depend on). There is no per-effect dispatch table to keep in
-sync, and no core match arm to touch.
+Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
+is the authored type name (`EffectId` is a name newtype), and the parser's
+`effect_specs()` derives from `EFFECTS`, so there is no separate contract table,
+no enum variant, and no dispatch match arm to keep in sync.
 
 #### Pipeline
 
@@ -864,15 +880,19 @@ crates/
 │       ├── walk.rs        # Shared AST traversal primitives
 │       └── module/        # Module system (discovery, expand, rewrite)
 │
-├── animatix/              # Runtime engine — timeline, renderer, primitives
+├── animatix-core/         # Shared vocabulary: capabilities, effect contract, icons, RenderError
+├── animatix-std/          # Built-in catalog: effect definitions, primitive identity cards
+├── animatix-text/         # Typst/fontdb text compilation service
+├── animatix/              # Runtime engine — timeline, build/evaluate, primitives
 │   └── src/
 │       ├── lib.rs         # Re-exports syntax modules
 │       ├── composition/   # Multi-scene composition engine (mod, build, time, tests)
 │       ├── timeline/      # Timeline compilation, actions, morphing, plotting
-│       ├── renderer/      # Vello/WGPU rendering pipeline
+│       ├── renderer/      # Frame vocabulary only (error, types, text re-export)
 │       ├── primitives/    # Actor primitive system
 │       └── ir.rs          # Re-export: timeline modifier runtime IR
 │
+├── animatix-render/       # GPU presentation — Vello/WGPU core, filters, encoders
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
@@ -906,7 +926,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### Modules That Stay in `animatix`
 
-`timeline/`, `composition`, `renderer/`, `primitives/`, `ir` (re-export)
+`timeline/`, `composition`, `primitives/`, `ir` (re-export), and `renderer/` as frame vocabulary only (`error`, `types`, `text` re-export). The GPU pipeline lives in `animatix-render` (see §0).
 
 ### Dependency Changes
 

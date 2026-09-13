@@ -542,5 +542,5 @@ See also:
 - `dogfood/README.md`
 - `dogfood/runs/README.md`
 - `crates/animatix-gui/src/app/review/mod.rs`
-- `crates/animatix/src/renderer/offscreen.rs`
+- `crates/animatix-render/src/offscreen.rs`
 - `crates/animatix/src/timeline/scene_eval.rs`

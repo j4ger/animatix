@@ -48,7 +48,7 @@ them without a concrete driver.
     C vtable, and `vello`/`wgpu` ownership, threading, and version coupling
     cannot cross.
   - **Typst compilation (`Equation`).** `compile_typst_grouped_cached`
-    (`renderer/text.rs:2260`) takes a `&FontContext` and returns an
+    (`crates/animatix-text/src/lib.rs`) takes a `&FontContext` and returns an
     `Arc<CachedGroupedText>` from a process-wide memo — all Rust types, and the
     Typst engine has no C surface.
   - **Sub-scene readback.** The only image the ABI ingests is

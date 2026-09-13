@@ -248,16 +248,16 @@ warning, exactly like built-ins.
 
 ## 8. Adding a built-in effect
 
-1. Add the contract row: parameters (name, kind, identity) and display name in
-   `animatix-syntax/src/schema.rs::effect_specs()`.
-2. Create `crates/animatix/src/timeline/effects/<name>.rs` implementing the
-   `Effect` trait — WGSL passes, `pack`, and `support`. Parameters, uniform
-   layout, and display name derive from the contract; do not redeclare them.
-3. Add `&<name>::CONST` to the `EFFECTS` bootstrap array — this is the
-   registration. There is no enum variant to add (`EffectId` is the authored
-   name).
-4. Document it here (the identity table in §2) and in `docs/spec.md`.
-5. If the effect reads a neighbourhood or displaces samples, calibrate
+1. Create `crates/animatix-std/src/effects/<name>.rs` implementing the `Effect`
+   trait — parameters (name, kind, identity), WGSL passes, `pack`, and
+   `support`. This file is the single declaration of the contract.
+2. Add the module and its `pub static <NAME>` to
+   `crates/animatix-std/src/effects/mod.rs`, then reference it from the
+   `EFFECTS` bootstrap array — that is the registration. There is no enum
+   variant to add (`EffectId` is the authored name), and no separate contract
+   row: the parser crate derives `effect_specs()` from `EFFECTS`.
+3. Document it here (the identity table in §2) and in `docs/spec.md`.
+4. If the effect reads a neighbourhood or displaces samples, calibrate
    `support` — the derived ROI pads by it, and an under-reported support clips
    pixels silently. If the WGSL uniform struct is hand-padded beyond the
    parameters, override `author_uniform_size` with the struct's real size
