@@ -11,6 +11,38 @@ Animatix is a layout-first animation system with four core components:
 
 ---
 
+## 0. Crate Layering
+
+The workspace is layered so that each dependency edge encodes a guarantee:
+
+```
+animatix-core    language vocabulary + contract types (capability enums,
+                 Effect trait, icons) — no heavy dependencies
+   ↑            ↑
+animatix-std    animatix-syntax (→ core + std)
+(built-ins)          ↑
+   ↑         animatix-analyzer ──> animatix-lsp
+animatix (engine)
+   ↑
+GUI / CLI
+```
+
+- `animatix-core` — capability vocabulary, the effect trait, identity types,
+  icon glyphs. Admission rule: `animatix-std` needs it, or it is part of the
+  effect definition surface.
+- `animatix-std` — the built-in catalog: effect definitions (parameters, WGSL,
+  pack, support) and primitive identity cards. The single author-visible
+  source for built-in metadata.
+- `animatix-syntax` — the language front-end: tokenizer, parser, AST, module
+  system, source write-back, symbol table, semantic diagnostics, and the
+  property/type layer. Its contract tables derive from `animatix-std`.
+- `animatix` — the engine: timeline, build, evaluation, layout, persistence,
+  the plugin host, primitive behaviour, and (behind features) the renderer.
+- The analyzer and LSP depend only on core/std/syntax, never on the engine —
+  which is why author-visible metadata lives below the engine, not in it.
+
+---
+
 ## 1. File Processing Pipeline
 
 ### Source ↔ AST
@@ -626,39 +658,52 @@ Actors and effects share one identity model:
   the same primitive or plugin effect across runs. There are no identity
   enums to extend when a new primitive or effect is added.
 - **The engine dispatches on `ActorCaps`**, a `Copy` capability projection
-  derived once at identity time from the primitive's trait methods
-  (`child_processing`, `shape_kind`, `text_kind`, `has_stroke_path`, the
-  `PrimitiveCapabilities` bits, `group_like`). Frame-time checks are field
-  reads (`caps.is_effect_scope()`, `caps.layout_container`, `caps.text`), and
-  extension primitives derive the same projection as built-ins.
+  derived once at identity time from the primitive's identity card
+  (`category`, `child_processing`, `shape`, `text`, the `PrimitiveCapabilities`
+  bits, `group_like`). Frame-time checks are field reads
+  (`caps.is_effect_scope()`, `caps.layout_container`, `caps.text`), and
+  extension primitives derive the same projection from their registration
+  info as built-ins do from the catalog.
 - **The capability vocabulary stays a small closed set**
   (`ActorCategory`, `ChildProcessing`, `ShapeKind`, `TextKind`): it grows only
   when the engine learns a new *behaviour*, which is when the compiler should
   force every dispatch site to be revisited.
-- **Author-visible metadata has one contract table per feature kind** in
-  `animatix-syntax/src/schema.rs`: `builtin_primitive_specs()` for primitives,
-  `effect_specs()` for effects (parameters with name/kind/identity, display
-  name). The runtime derives its uniform layouts, display names, and the
-  type-name list (`builtins::types()`) from these tables; plugins provide the
-  same shape through their manifest (`[[effects]]`, primitives) or the FFI,
-  and `ExtensionManifest::from_runtime` bridges runtime registrations into
+- **Author-visible metadata has one single-source crate**: `animatix-std`
+  holds the built-in catalog (`CATALOG` identity cards for primitives, full
+  effect definitions with parameters and WGSL). The runtime links it for
+  behaviour; the parser crate derives its contract tables —
+  `builtin_primitive_specs()` and `effect_specs()` — from it, and
+  `builtins::types()` derives from those. Plugins provide the same shapes
+  through their manifest (`[[effects]]`, primitives) or the FFI, and
+  `ExtensionManifest::from_runtime` bridges runtime registrations into
   manifest form.
 
 ### Adding a new built-in primitive
 
-Rendering is trait-dispatched; adding a primitive is one behaviour file, one
-registration line, and one contract row:
+Rendering is trait-dispatched; adding a primitive is one identity card, one
+behaviour file, and one registration line — no parallel metadata anywhere:
 
 ```rust
-// primitives/triangle.rs
+// animatix-std/src/catalog.rs — the identity card (single metadata source)
+PrimitiveInfo {
+    type_name: "Triangle",
+    display_name: "Triangle",
+    category: ActorCategory::Shape,
+    icon_id: crate::icon_glyphs::TRIANGLE,
+    advanced: false,
+    capabilities: SHAPE_CAPS,
+    child_processing: ChildProcessingKind::Generic,
+    shape: Some(ShapeKind::Rect),
+    text: None,
+    stroke_path: true,
+},
+
+// animatix/src/primitives/triangle.rs — the behaviour (engine side)
 pub struct TrianglePrimitive;
 pub const TRIANGLE: TrianglePrimitive = TrianglePrimitive;
 
 impl Primitive for TrianglePrimitive {
     fn type_name(&self) -> &'static str { "Triangle" }
-    fn category(&self) -> ActorCategory { ActorCategory::Shape }
-    fn is_shape(&self) -> bool { true }
-    fn shape_kind(&self) -> Option<ShapeKind> { Some(ShapeKind::Rect) }
 
     fn build(&self, ctx: &mut BuildCtx, label: &str, props: &[Property],
              modifiers: &[Modifier], children: &[InlineItem]) -> Result<(), Vec<Diagnostic>> {
@@ -677,13 +722,15 @@ impl Primitive for TrianglePrimitive {
 ```
 
 Steps:
-1. Create `primitives/<name>.rs` implementing `Primitive` (override
-   `shape_kind()` / `text_kind()` for shape- or text-like primitives).
-2. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`.
-3. Add the contract row to `animatix-syntax::schema::builtin_primitive_specs()`
-   (`builtins::types()` and the runtime metadata derive from it; non-default
-   capabilities go in `primitive_capabilities()`, special child processing in
-   `schema_child_processing()`).
+1. Add the identity card: a `PrimitiveInfo` row in `animatix-std`'s `CATALOG`
+   (display name, category, icon, capabilities, child processing, shape/text
+   projection). This is the single metadata source — the runtime, the parser
+   crate's `builtin_primitive_specs()`, and `builtins::types()` all derive
+   from it.
+2. Create `animatix/src/primitives/<name>.rs` implementing the behaviour
+   methods of `Primitive` (`build`/`evaluate`/`render`/`default_props`).
+3. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`. A
+   test pins the behaviour registry names to the catalog.
 4. If the primitive declares properties, add them to BOTH
    `animatix-syntax::schema::raw_property_specs()` (applicable actor type
    names) and `timeline::property_registry::PROPERTY_REGISTRY` (storage
@@ -693,12 +740,12 @@ Steps:
    checklist name list and its mirror in `AGENTS.md`); add render/hit-region
    tests if the primitive draws.
 
-`registry_specs_match_shared_schema_for_builtins` pins the runtime metadata to
-the contract table, and `Registry`, icon mapping, and GUI defaults derive from
-`PRIMITIVES`. External primitives register through `PrimitiveRegistry` or
-`ExtensionContext` (their capabilities come from the registered primitive
-itself); external properties are stored in the actor's
-`PropertyPlan`/`DynTrack` slots.
+The metadata registry is the `animatix-std` catalog itself (the former
+`ActorKindMeta` was replaced by `PrimitiveInfo`), and the engine behaviour
+registry is pinned to it by name. External primitives register through
+`PrimitiveRegistry` or `ExtensionContext` with their own `PrimitiveInfo` card
+(the same data shape the native ABI descriptor carries); external properties
+are stored in the actor's `PropertyPlan`/`DynTrack` slots.
 
 ### When to group primitives
 

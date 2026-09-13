@@ -4,8 +4,10 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, shared type system.
-- `crates/animatix`: runtime engine, timeline, renderer, primitives, composition.
+- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, icon glyphs); zero engine/parser deps.
+- `crates/animatix-std`: built-in catalog — effect definitions (WGSL/pack/support) and primitive identity cards; the single source for built-in metadata.
+- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; derives its contract tables from `animatix-std`.
+- `crates/animatix`: runtime engine, timeline, renderer, primitive behaviour, composition.
 - `crates/animatix-gui`: eframe/egui IDE, preview, inspector, `SourceEdit`.
 - `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
 - `crates/animatix-lsp`: LSP wrapper over analyzer.

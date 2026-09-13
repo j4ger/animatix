@@ -504,6 +504,21 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
+- **Crate layering (2026-09-13).** The workspace gained `animatix-core`
+  (capability vocabulary, effect trait, icon glyphs — zero heavy deps) and
+  `animatix-std` (the built-in catalog: full effect definitions and primitive
+  identity cards). The dependency order guarantees the layering: the analyzer
+  and LSP can see every built-in without linking the engine, because author
+  -visible metadata now lives *below* the engine, not beside it. Adding a
+  built-in effect = one file + one `EFFECTS` line in `animatix-std` (the
+  parser crate derives its contract from the catalog); adding a built-in
+  primitive = one catalog row (std) + one behaviour file + one `PRIMITIVES`
+  line (engine), with the engine's metadata trait methods (display name,
+  category, icon, capabilities, child processing across 30 files) deleted and
+  `ExtensionContext::register_primitive` taking a `PrimitiveInfo` card.
+  Phase C (property-applicability predicates) and Phase D (renderer split +
+  facade) remain future work.
+
 - **Identity unification (2026-09-12).** Identity is the authored type name
   everywhere: `EffectId` is the effect's name (persisted as a bare string, so
   plugin effects no longer drift through host-assigned registry slots), and

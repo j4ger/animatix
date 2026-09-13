@@ -34,14 +34,15 @@ Rules:
   keyframe timing, snapshot/collapse, and persistence (`CarryBag`) reuse the
   dynamic-track machinery. Effect parameters do **not** enter the primitive
   property registry (`PROPERTY_REGISTRY` / `ActorField` / `PropertyPlan`).
-- **Effect schema has one author-visible source per layer.**
-  `animatix_syntax::schema::effect_specs()` is the **contract**: it declares
-  every built-in effect's parameters (name, kind, identity) and display name.
-  The runtime derives the uniform layout from it (offsets follow the host rule:
-  scalars 4-byte aligned, vec2 at 8, vec4 at 16, sequential); the effect's own
-  file holds only the WGSL, `pack`, and `support`. Plugin effects implement the
-  same trait over FFI-declared data (`PluginEffectData`) and use the identical
-  identity convention (`[x, y, z, w]` interpreted per kind).
+- **Effect schema has one author-visible source, period.** The effect's own
+  file in `animatix-std` declares everything: parameters (name, kind,
+  identity), display name, WGSL passes, `pack`, and `support`. Uniform offsets
+  follow the host rule (scalars 4-byte aligned, vec2 at 8, vec4 at 16,
+  sequential). The parser crate derives its contract table
+  (`effect_specs()`) from the same catalog, so nothing is declared twice.
+  Plugin effects implement the same trait over FFI-declared data
+  (`PluginEffectData`) and use the identical identity convention
+  (`[x, y, z, w]` interpreted per kind).
 - **Every effect has an implicit `enabled: Bool`** (default `true`, animatable).
   There is no generic `mix` in v1.
 
