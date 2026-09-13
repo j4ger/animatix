@@ -74,3 +74,14 @@ readback returns an all-transparent texture on most frames while the card's
 region readback has content. Single-GPU-scope scenes export fine, so the
 trigger is ≥2 GPU filter scopes per frame in the pipelined export path.
 Tracked in `roadmap.md` (Known Issues).
+
+**Narrowed further (probe instrumentation):** rendering the SAME timeline with
+`render_timeline` on the thread that calls `render_video_async` (before the
+worker threads spawn) produces the fully-correct frame — bright checker, grain,
+vignette, card, texts. The frames produced inside `render_frames_streaming`'s
+worker threads lose the backdrop scope. So the render *code path* is correct
+and the loss correlates with (a) worker-thread submission of the filter-scope
+GPU ops, or (b) multiple GPU scopes alternating on the shared filter-backend
+textures across frames. Needs a GPU capture (renderdoc) to pin the exact
+barrier; next debugging step is a minimal two-scope repro
+(`backdrop filter + one small moving filter`) with per-scope texture dumps.
