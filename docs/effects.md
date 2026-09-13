@@ -1,7 +1,7 @@
 # Post-Processing Effects Contract
 
 > Status: **design contract** for the effect abstraction. Runtime evolution
-> status lives in `roadmap.md` under "Post-Processing Effect Abstraction";
+> status lives in `docs/history.md` under "Post-Processing Effect Abstraction";
 > rationale in `primitive_abstraction.md` §6. This document is the normative
 > contract that host effects and plugin-authored effects must both satisfy.
 

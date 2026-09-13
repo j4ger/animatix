@@ -874,7 +874,7 @@ always {
 
 **Actor property lookups:** Any actor label and property is accessible: `ball.position`, `title.color`, etc.
 
-> **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See the Icebox notes on interactive step control and eval-path unification in `docs/roadmap.md`.
+> **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See the Icebox notes on interactive step control and eval-path unification in `docs/history.md`.
 
 ### Property References & State Queries
 

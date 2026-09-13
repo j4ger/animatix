@@ -204,9 +204,9 @@ Acceptance:
 ## Execution Log
 
 - Plan created.
-- Phase 0: match inventory script added.
-- Phase 0: match inventory report generated at
-  `docs/extension_abstraction_inventory.md`.
+- Phase 0: match inventory script added (`scripts/extension-match-inventory.sh`,
+  since removed along with its report once the refactor completed and the
+  counts went stale).
 - Phase 0: benchmark baseline captured with existing benches:
   - `property_track_evaluate`: ~894 ps
   - `interpolate_f32`: ~586 ps

@@ -6,8 +6,7 @@ concrete gaps that remain before a "fully ideal" abstraction — plus a
 recommended order if those gaps are ever pursued.
 
 It is a status/design note, not a work ticket. The deferred items are also
-recorded in `roadmap.md` ("Primitive abstraction — deferred decisions"); open
-work stays in `roadmap.md`.
+recorded in `roadmap.md`; completed work moved to `docs/history.md`.
 
 ## 1. The model today
 
@@ -137,7 +136,7 @@ stages are **not** primitives, actors, or scene nodes, and their parameters are
 `ActorField`/`PROPERTY_REGISTRY` entanglement and the discovery that
 extension-registered parameters never apply on the primary build paths (those
 run with `extensions: None`). Background and remaining work: `docs/effects.md`
-(contract) and `docs/roadmap.md` ("Post-Processing Effect Abstraction").
+(contract) and `docs/history.md` ("Post-Processing Effect Abstraction").
 
 **Authoring surface (shipped, not backward compatible).** The flat
 `Filter, blur: …, brightness: …` properties are removed. Effects are declared as
@@ -222,7 +221,7 @@ diff/panel/inspector, tests) — **not** the "73" raw grep count, which also
 matches iterator `.filter(|…|)` calls. Moving effects to a primitive category
 retires that surface rather than porting it.
 
-Stages live in `roadmap.md` under "Post-Processing Effect Abstraction".
+Stages live in `docs/history.md` under "Post-Processing Effect Abstraction".
 
 ## 7. Guardrails to preserve
 
