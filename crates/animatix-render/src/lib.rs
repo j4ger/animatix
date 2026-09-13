@@ -15,6 +15,7 @@ pub mod fullscreen_blit;
 pub mod offscreen;
 #[cfg(feature = "video")]
 pub mod render_pipeline;
+pub mod testing;
 pub mod transition;
 #[cfg(feature = "video")]
 pub mod video;

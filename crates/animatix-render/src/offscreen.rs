@@ -751,11 +751,19 @@ r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
     fn readback_reuse_is_pixel_identical_to_fresh_renderer() {
         let mut reused = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
         let mut fresh = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return,
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
         let timeline = solid_rect_timeline();
         let dims = SceneDimensions {
@@ -789,7 +797,11 @@ r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
     fn held_frame_forces_fresh_allocation_not_shared_mutation() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return,
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
         let timeline = solid_rect_timeline();
         let dims = SceneDimensions {
@@ -815,11 +827,19 @@ r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
     fn pipelined_frames_match_blocking_path() {
         let mut pipelined = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return,
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
         let mut blocking = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return,
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
         let timeline = solid_rect_timeline();
         let dims = SceneDimensions {
@@ -868,7 +888,11 @@ mod tests {
     fn offscreen_renderer_with_zero_dimensions_fails_gracefully() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let timeline = Timeline::new();
@@ -893,7 +917,11 @@ mod tests {
     fn derived_effect_region_preserves_content() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let source = r#"
@@ -960,7 +988,11 @@ fx: Filter {
     fn authored_effect_bounds_region_renders_at_origin() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let source = r#"
@@ -1022,7 +1054,11 @@ fx: Filter, bounds: (100, 60, 200, 180) {
     fn mask_clips_children_at_mask_position() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         // The oversized red child must show through the Mask's clip rect and
@@ -1089,7 +1125,11 @@ m: Mask, size: (200, 150), at: (300, 150) {
     fn mask_clip_shape_ellipse_defines_clip_region() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let source = r#"
@@ -1146,7 +1186,11 @@ fade-in m [1ms]
     fn mask_clip_shape_polygon_defines_clip_region() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let source = r#"
@@ -1277,7 +1321,11 @@ fade-in m [1ms]
     fn hosted_bar_chart_paints_bars_across_the_full_graph_axis() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         // Regression: hosted plots used to occupy only the central half of the
@@ -1350,7 +1398,11 @@ g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100)
     fn offscreen_renderer_ensure_targets_is_idempotent() {
         let mut renderer = match OffscreenRenderer::new() {
             Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
+            Err(_) => {
+                crate::testing::skip_if_no_gpu();
+
+                return;
+            },
         };
 
         let dimensions = SceneDimensions {

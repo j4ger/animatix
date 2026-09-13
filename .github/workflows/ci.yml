@@ -10,6 +10,10 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      # Render tests need an adapter; without this they would silently skip and
+      # report green while exercising no pixels (see `animatix_render::testing`).
+      ANIMATIX_REQUIRE_GPU: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -17,26 +21,44 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config
+          sudo apt-get install -y libffmpeg-dev pkg-config mesa-vulkan-drivers
       - name: Run tests
         # Serialize GPU-backed core tests; headless Vello/WGPU teardown can SIGSEGV
         # when renderer tests run concurrently on the same adapter.
         run: cargo test --workspace -- --test-threads=1
 
+  render-smoke:
+    name: Render Smoke
+    runs-on: ubuntu-latest
+    env:
+      ANIMATIX_REQUIRE_GPU: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install system dependencies
+        # mesa provides the lavapipe software Vulkan driver, so this job really
+        # rasterizes all 42 examples instead of skipping.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libffmpeg-dev pkg-config mesa-vulkan-drivers
+      - name: Render every example (non-blank frame gate)
+        run: bash scripts/render_smoke.sh
+
   no-video:
-    name: Build without video feature
+    name: Build without FFmpeg
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # Intentionally no FFmpeg system deps — verifies video is truly opt-in.
-      # Bare `--no-default-features` is not a supported animatix target; this is
-      # the minimal supported no-video feature combination.
-      - name: Build animatix crate without video
-        run: cargo build -p animatix --no-default-features --features render,text,svg
-      - name: Test animatix crate without video
-        run: cargo test -p animatix --lib --no-default-features --features render,text,svg -- --test-threads=1
+      # Intentionally no FFmpeg system deps: the `video` feature must stay truly
+      # opt-in, which is verified by building the user-facing binaries that
+      # gate on it without enabling it.
+      - name: Build CLI and GUI without video
+        run: cargo build -p animatix-cli -p animatix-gui
+      - name: Test the engine with no optional features
+        run: cargo test -p animatix --lib --no-default-features -- --test-threads=1
 
   clippy:
     name: Clippy

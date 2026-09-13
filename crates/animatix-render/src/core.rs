@@ -175,7 +175,11 @@ mod tests {
         if let Some((device, queue)) = maybe_device {
             let mut core = match RendererCore::new(&device, &queue) {
                 Ok(c) => c,
-                Err(_) => return, // Skip if renderer init fails
+                Err(_) => {
+                    crate::testing::skip_if_no_gpu();
+
+                    return;
+                },
             };
 
             // Create a small texture to render into

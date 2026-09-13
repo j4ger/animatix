@@ -23,8 +23,16 @@ r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
     report.output
 }
 
+/// `None` means "no GPU here, skip" — unless `ANIMATIX_REQUIRE_GPU` is set,
+/// in which case the helper panics (see `animatix_render::testing`).
 fn new_renderer() -> Option<OffscreenRenderer> {
-    OffscreenRenderer::new().ok()
+    match OffscreenRenderer::new() {
+        Ok(renderer) => Some(renderer),
+        Err(_) => {
+            animatix_render::testing::skip_if_no_gpu();
+            None
+        },
+    }
 }
 
 #[test]
