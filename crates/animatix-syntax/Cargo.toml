@@ -8,6 +8,8 @@ rust-version = "1.85"
 serde = ["dep:serde"]
 
 [dependencies]
+animatix-core = { path = "../animatix-core" }
+animatix-std = { path = "../animatix-std" }
 chumsky = "0.12.0"
 tracing = { workspace = true }
 serde = { workspace = true, optional = true }

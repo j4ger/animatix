@@ -16,7 +16,7 @@ pub mod formatter;
 /// Shared token-role classification for GUI and LSP highlighting.
 pub mod highlight;
 /// Icon glyph constants for UI primitives.
-pub mod icon_glyphs;
+pub use animatix_core::icon_glyphs;
 pub mod module;
 pub mod occurrence;
 pub mod parser;

@@ -184,43 +184,16 @@ impl PrimitiveCategory {
 }
 
 /// Engine capabilities that determine which subsystems consume a primitive.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct PrimitiveCapabilities {
-    /// Emits text glyph paths.
-    pub text_paths: bool,
-    /// Emits vector paths.
-    pub vector_paths: bool,
-    /// Carries raster image payload.
-    pub image_payload: bool,
-    /// Participates in layout containers.
-    pub layout_container: bool,
-    /// Supports path morphing.
-    pub morphable_paths: bool,
-    /// Supports vector reveal actions.
-    pub vector_reveal_target: bool,
-    /// Emits plot geometry.
-    pub plot_geometry: bool,
-    /// Hosts plot-curve children in a math coordinate system.
-    pub plot_host: bool,
-    /// Is a container primitive.
-    pub is_container: bool,
-    /// Is a vector shape.
-    pub is_shape: bool,
-}
+///
+/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
+/// shared schema, manifests, and tooling address it through this crate.
+pub use animatix_core::caps::PrimitiveCapabilities;
 
 /// Child-rendering strategy selected by a primitive.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub enum ChildProcessingKind {
-    /// Render children through the normal scene graph recursion.
-    #[default]
-    Generic,
-    /// Render children through the offscreen filter pipeline.
-    Filter,
-    /// Render children inside a clip mask.
-    Mask,
-    /// Render children as one aggregated equation document.
-    Equation,
-}
+///
+/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
+/// shared schema, manifests, and tooling address it through this crate.
+pub use animatix_core::caps::ChildProcessingKind;
 
 /// Metadata for a primitive in the shared schema.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -388,27 +361,23 @@ pub fn schema_child_processing(type_name: &str) -> ChildProcessingKind {
     }
 }
 
-/// One author-visible effect parameter: its name, value kind, and the identity
-/// (no-op) value.
+/// One author-visible effect parameter: its name and value kind.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EffectParamSpecDef {
     /// Parameter name as authored.
     pub name: &'static str,
     /// Declared value kind.
     pub kind: PropertyValueKind,
-    /// Value at which this parameter contributes nothing, interpreted per
-    /// `kind` — the same convention as the plugin ABI's
-    /// `NativeEffectParam::identity` (`[x, y, z, w]`, unused lanes ignored).
-    pub identity: [f32; 4],
 }
 
 /// One author-visible effect kind recognized inside a `Filter` scope.
 ///
 /// Effects are not primitives and do not appear in
 /// [`builtin_primitive_specs`]; this table exists so the analyzer can validate
-/// and complete effect declarations and their parameters. The contract is the
-/// single author-visible source for effect parameters; the runtime derives its
-/// uniform layout from it (drift-tested in `animatix`).
+/// and complete effect declarations and their parameters. The data is
+/// **derived** from the built-in catalog in `animatix-std` — the effect
+/// implementations are the single source; this crate only re-shapes them for
+/// tooling.
 #[derive(Clone, Copy, Debug)]
 pub struct EffectSpecDef {
     /// Authored type name (`Blur`).
@@ -421,59 +390,42 @@ pub struct EffectSpecDef {
     pub params: &'static [EffectParamSpecDef],
 }
 
-/// Built-in effect kinds.
+/// Built-in effect kinds, derived from the `animatix-std` catalog.
 pub fn effect_specs() -> &'static [EffectSpecDef] {
-    &[
-        EffectSpecDef {
-            type_name: "Blur",
-            display_name: "Blur",
-            params: &[EffectParamSpecDef {
-                name: "radius",
-                kind: PropertyValueKind::F32,
-                identity: [0.0; 4],
-            }],
-        },
-        EffectSpecDef {
-            type_name: "ColorGrade",
-            display_name: "Color Grade",
-            params: &[
-                EffectParamSpecDef {
-                    name: "brightness",
-                    kind: PropertyValueKind::F32,
-                    identity: [1.0, 0.0, 0.0, 0.0],
-                },
-                EffectParamSpecDef {
-                    name: "contrast",
-                    kind: PropertyValueKind::F32,
-                    identity: [1.0, 0.0, 0.0, 0.0],
-                },
-                EffectParamSpecDef {
-                    name: "saturate",
-                    kind: PropertyValueKind::F32,
-                    identity: [1.0, 0.0, 0.0, 0.0],
-                },
-                EffectParamSpecDef {
-                    name: "hue_rotate",
-                    kind: PropertyValueKind::F32,
-                    identity: [0.0; 4],
-                },
-                EffectParamSpecDef {
-                    name: "sepia",
-                    kind: PropertyValueKind::F32,
-                    identity: [0.0; 4],
-                },
-            ],
-        },
-        EffectSpecDef {
-            type_name: "ChromaticAberration",
-            display_name: "Chromatic Aberration",
-            params: &[EffectParamSpecDef {
-                name: "offset",
-                kind: PropertyValueKind::F32,
-                identity: [0.0; 4],
-            }],
-        },
-    ]
+    use std::sync::OnceLock;
+    static SPECS: OnceLock<Vec<EffectSpecDef>> = OnceLock::new();
+    SPECS.get_or_init(|| {
+        animatix_std::EFFECTS
+            .iter()
+            .map(|effect| {
+                let params: Vec<EffectParamSpecDef> = effect
+                    .params()
+                    .iter()
+                    .map(|spec| EffectParamSpecDef {
+                        name: spec.name,
+                        kind: shared_kind(spec.kind),
+                    })
+                    .collect();
+                EffectSpecDef {
+                    type_name: effect.type_name(),
+                    display_name: effect.display_name(),
+                    params: Box::leak(params.into_boxed_slice()),
+                }
+            })
+            .collect()
+    })
+}
+
+/// Map the core effect parameter kind onto the shared property value kind.
+fn shared_kind(kind: animatix_core::effect::EffectParamKind) -> PropertyValueKind {
+    use animatix_core::effect::EffectParamKind as K;
+    match kind {
+        K::F32 => PropertyValueKind::F32,
+        K::U32 => PropertyValueKind::U32,
+        K::Bool => PropertyValueKind::Bool,
+        K::Vec2 => PropertyValueKind::Vec2,
+        K::Vec4 => PropertyValueKind::Vec4,
+    }
 }
 
 /// Look up an effect spec by authored type name.

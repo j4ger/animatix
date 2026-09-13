@@ -4,10 +4,13 @@
 //! [`ActorCaps`] is the matchable projection the engine dispatches on,
 //! derived once at identity time from the primitive, so frame-time checks are
 //! `Copy` field reads and adding a primitive never requires extending an
-//! enum. Capability *vocabulary* (`ActorCategory`, `ShapeKind`,
-//! `ChildProcessing`) stays a small closed set: it only grows when the engine
-//! learns a new behaviour, which is exactly when the compiler should force
-//! every dispatch site to be revisited.
+//! enum. The capability *vocabulary* ([`ActorCategory`], [`ShapeKind`],
+//! [`TextKind`], `ChildProcessing`) lives in `animatix-core::caps` and stays
+//! a small closed set: it only grows when the engine learns a new behaviour,
+//! which is exactly when the compiler should force every dispatch site to be
+//! revisited.
+
+pub use animatix_core::caps::{ActorCategory, ShapeKind, TextKind};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -92,75 +95,6 @@ impl ActorCaps {
     pub fn is_effect_scope(&self) -> bool {
         self.child_processing == ChildProcessing::Filter
     }
-}
-
-/// The text engine backing a text-like actor.
-///
-/// Mirrors `renderer::text::TextKind` (which is `text`-feature-gated) so
-/// capabilities stay available in render-independent builds; conversion to the
-/// renderer kind happens at the text compile sites.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TextKind {
-    /// Plain styled text.
-    Text,
-    /// Typst markup.
-    Typst,
-    /// Typst math (`Math` primitive).
-    Math,
-    /// Code block.
-    Code,
-}
-
-// ── Capability vocabulary ───────────────────────────────────────────────────
-
-/// High-level category for grouping actors in UI palettes and docs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum ActorCategory {
-    /// Geometric shapes (rect, ellipse, etc.).
-    Shape,
-    /// Text and typographic actors.
-    Text,
-    /// Image, SVG, and audio actors.
-    Media,
-    /// Plot and graph actors.
-    Plot,
-    /// Layout containers (row, column, grid, etc.).
-    Container,
-    /// Annotations and callouts.
-    Annotation,
-}
-
-impl ActorCategory {
-    /// Human-readable label for this category.
-    pub const fn label(&self) -> &'static str {
-        match self {
-            Self::Shape => "Shapes",
-            Self::Text => "Text",
-            Self::Media => "Media",
-            Self::Plot => "Plots",
-            Self::Container => "Containers",
-            Self::Annotation => "Annotations",
-        }
-    }
-}
-
-/// Specific shape geometry variant.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ShapeKind {
-    /// Axis-aligned rectangle.
-    Rect,
-    /// Ellipse (or circle).
-    Ellipse,
-    /// Straight line segment.
-    Line,
-    /// Closed polygon.
-    Polygon,
-    /// Arbitrary Bézier path.
-    Path,
-    /// Arrow with a dedicated arrowhead.
-    Arrow,
 }
 
 impl From<ShapeType> for ShapeKind {

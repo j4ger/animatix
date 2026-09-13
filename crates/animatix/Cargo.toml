@@ -17,10 +17,12 @@ svg = ["dep:usvg", "dep:roxmltree"]
 # HUD measure the same stages; compile out with --no-default-features to
 # eliminate the (already tiny) hot-path cost.
 perf-tracing = []
-serde = ["dep:serde", "animatix-syntax/serde"]
+serde = ["dep:serde", "animatix-syntax/serde", "animatix-core/serde"]
 plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 
 [dependencies]
+animatix-core = { path = "../animatix-core" }
+animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
 bytemuck = { version = "1.25.0", features = ["derive"], optional = true }

@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/animatix",
+    "crates/animatix-core",
+    "crates/animatix-std",
     "crates/animatix-analyzer",
     "crates/animatix-cli",
     "crates/animatix-gui",

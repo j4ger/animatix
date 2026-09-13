@@ -123,7 +123,9 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "animatix"
 version = "0.1.0"
 dependencies = [
+ "animatix-core",
  "animatix-plugin-api",
+ "animatix-std",
  "animatix-syntax",
  "bytemuck",
  "chumsky",
@@ -173,6 +175,13 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "walkdir",
+]
+
+[[package]]
+name = "animatix-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -242,9 +251,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "animatix-std"
+version = "0.1.0"
+dependencies = [
+ "animatix-core",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "animatix-syntax"
 version = "0.1.0"
 dependencies = [
+ "animatix-core",
+ "animatix-std",
  "chumsky",
  "serde",
  "tracing",

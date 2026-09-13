@@ -1,0 +1,13 @@
+[package]
+name = "animatix-std"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+animatix-core = { path = "../animatix-core" }
+tracing = { workspace = true }
+
+[dev-dependencies]
+animatix-core = { path = "../animatix-core", features = ["serde"] }
+serde_json = "1"

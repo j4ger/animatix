@@ -4,7 +4,7 @@
 //! (rather than via `egui_phosphor`) so the core crate does not depend on egui.
 //!
 //! If you add a new primitive with a new icon, add the glyph here and update
-//! the primitive's `icon_id()` implementation.
+//! the primitive's catalog row in `animatix-std`.
 
 /// Phosphor icon glyph for a square.
 pub const SQUARE: &str = "\u{E45E}";
