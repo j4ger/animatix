@@ -7,10 +7,10 @@ use std::sync::atomic::{AtomicBool, AtomicU32};
 
 use tracing::info;
 
-use crate::composition::Composition;
-use crate::renderer::encode::ExportError;
-use crate::renderer::offscreen::OffscreenRenderer;
-use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use crate::encode::ExportError;
+use crate::offscreen::OffscreenRenderer;
+use animatix::composition::Composition;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline image
@@ -18,7 +18,7 @@ use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// Render AST statements to a single PNG image at the given time.
 pub fn render_image(
-    ast: &[crate::ast::Stmt],
+    ast: &[animatix::ast::Stmt],
     width: u32,
     height: u32,
     time: f32,

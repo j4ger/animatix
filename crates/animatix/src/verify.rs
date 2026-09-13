@@ -156,7 +156,7 @@ impl Box2 {
 ///
 /// Reads [`SceneProgram::precise_bounds`], which is only populated on the
 /// observable evaluation path — use
-/// [`OffscreenRenderer::render_timeline_observable`](crate::renderer::offscreen::OffscreenRenderer::render_timeline_observable)
+/// `animatix_render::offscreen::OffscreenRenderer::render_timeline_observable`
 /// so the bounds and the pixels come from the same evaluation.
 pub fn bounds_map(program: &SceneProgram) -> HashMap<String, Box2> {
     program

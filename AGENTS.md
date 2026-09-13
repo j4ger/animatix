@@ -4,10 +4,12 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, icon glyphs); zero engine/parser deps.
+- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, icon glyphs, `RenderError`); zero engine/parser deps.
 - `crates/animatix-std`: built-in catalog — effect definitions (WGSL/pack/support) and primitive identity cards; the single source for built-in metadata.
 - `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; derives its contract tables from `animatix-std`.
-- `crates/animatix`: runtime engine, timeline, renderer, primitive behaviour, composition.
+- `crates/animatix-text`: the typst/fontdb text compiler behind the engine's `text` feature.
+- `crates/animatix`: runtime engine — timeline, build/evaluate, primitive behaviour, composition, and the frame vocabulary the renderer consumes.
+- `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu renderer core, filter backend, offscreen frames, transitions, and export encoders. One-way: it uses only the engine's public API.
 - `crates/animatix-gui`: eframe/egui IDE, preview, inspector, `SourceEdit`.
 - `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
 - `crates/animatix-lsp`: LSP wrapper over analyzer.
@@ -41,6 +43,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - **Single tokenizer**: Syntax tokens are defined once in `crates/animatix-syntax/src/token.rs`. The parser consumes that token stream, the analyzer and LSP use it for positions, and the GUI uses it for syntax highlighting. Do not add a second lexer or grammar.
 - **Evaluation paths**: Build-time expressions use the AST tree-walker (`evaluate_expr`); frame-time modifier code and plot closures are lowered to IR and interpreted by the single IR executor (`execute_modifier_ir` / `evaluate_compiled_expr`). Leaf operators and builtins are shared through `eval_shared`, so new operators/builtins are added there to keep both paths in sync. When adding a new expression *semantic* (not just a builtin), follow the touch-point checklist in `docs/contributing.md` ("Adding a New Expression Semantic to the IR") — there are 8 implementation sites and two of them are compiler-invisible.
 - **`cog` is inside the dev shell**: `nix develop` provides `cog` (cocogitto). If `cog` isn't found, you're outside the shell — re-enter `nix develop` before committing. Do not preemptively fall back to `git commit -m`; use it only when cog is genuinely blocked (e.g., the linked-worktree `.git` quirk for cross-worktree commits).
+- **Layering is one-way**: `animatix-render` depends on `animatix`, never the reverse. The seam is the `FilterBackend` trait in `animatix::timeline`; the engine's renderer module holds only frame vocabulary (`error`, `types`, `text`). The engine's `animatix-render` dependency is a **dev-dependency for the export-path examples** — do not use `animatix-render` types inside engine unit tests, because Cargo then builds `animatix` twice (test-mode and normal) and the types stop unifying.
 
 ## Optional Features
 
@@ -59,13 +62,16 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 To enable video export, enter the dev shell first, then build with the `video` feature:
 ```bash
 nix develop                          # provides FFmpeg + pkg-config + bindgenHook
-cargo build --features animatix/video
+cargo build -p animatix-cli --features video
+cargo build -p animatix-gui --features video
 ```
 
-(Non-Nix users: install FFmpeg system libraries + `pkg-config`, then
-`cargo build --features animatix/video`.)
+The FFmpeg code lives in `animatix-render`, so both `video` features forward to
+`animatix-render/video`; the engine itself has no `video` feature.
+(Non-Nix users: install FFmpeg system libraries + `pkg-config`, then build the
+same two targets with `--features video`.)
 
-To build just the crate without video:
+To build the engine without video:
 ```bash
 cargo build -p animatix
 ```
@@ -113,6 +119,6 @@ Without the `video` feature, PNG and WebP export work normally. The export dialo
 
 ## Code Style
 
-- Runtime paths return `Result`; `RenderError` lives in `renderer/error.rs`.
+- Runtime paths return `Result`; `RenderError` lives in `animatix-core` and is re-exported as `animatix::renderer::error`.
 - Test code may use `.unwrap()` / `.expect()`.
 - Use `tracing` (`info!`, `debug!`, `warn!`, `error!`), not `println!`.

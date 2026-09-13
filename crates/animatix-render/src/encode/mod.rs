@@ -375,7 +375,7 @@ impl std::str::FromStr for H264Preset {
 /// Creates a temporary file and renames it on success.
 pub fn mux_audio_segments(
     video_path: &std::path::Path,
-    segments: &[crate::timeline::AudioSegment],
+    segments: &[animatix::timeline::AudioSegment],
     output_path: &std::path::Path,
 ) -> Result<(), ExportError> {
     if segments.is_empty() {

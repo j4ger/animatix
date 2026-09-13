@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use tracing::info;
 
-use crate::composition::Composition;
-use crate::renderer::encode::ExportError;
-use crate::renderer::offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
-use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use crate::encode::ExportError;
+use crate::offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
+use animatix::composition::Composition;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// Fill an `AVFrame` with a borrowed RGBA buffer.
 ///

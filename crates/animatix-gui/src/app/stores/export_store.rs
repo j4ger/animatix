@@ -11,7 +11,10 @@ pub struct ExportStore {
     pub export_state: ExportDialogState,
     pub export_status: ExportStatus,
     pub export_thread: Option<
-        std::thread::JoinHandle<(Result<(), animatix::renderer::ExportError>, std::path::PathBuf)>,
+        std::thread::JoinHandle<(
+            Result<(), animatix_render::encode::ExportError>,
+            std::path::PathBuf,
+        )>,
     >,
     pub export_progress: Arc<AtomicU32>,
     pub export_cancelled: Arc<AtomicBool>,
@@ -41,7 +44,7 @@ impl ExportStore {
                     Ok((Ok(()), path)) => {
                         self.export_status = ExportStatus::Complete { path };
                     },
-                    Ok((Err(animatix::renderer::ExportError::Cancelled), _)) => {
+                    Ok((Err(animatix_render::encode::ExportError::Cancelled), _)) => {
                         self.export_status = ExportStatus::Idle;
                     },
                     Ok((Err(e), _)) => {

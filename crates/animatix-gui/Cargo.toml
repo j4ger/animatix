@@ -9,13 +9,14 @@ default-run = "animatix-gui"
 default = ["plugin-loading"]
 # Enables the bounded widget-screenshot binary. Never enable in shipped binaries.
 dev-screenshots = ["dep:image"]
-video = ["animatix/video"]
+video = ["animatix-render/video"]
 plugin-loading = ["animatix/plugin-loading"]
 # Enables eparts JSON theme loading, registries, and live directory watching.
 theme-json = ["eparts/theme-json"]
 
 [dependencies]
 animatix = { path = "../animatix" }
+animatix-render = { path = "../animatix-render" }
 animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-plugin-tooling = { path = "../animatix-plugin-tooling" }
 animatix-syntax = { path = "../animatix-syntax" }

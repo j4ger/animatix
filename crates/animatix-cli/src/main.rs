@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
 use animatix::extension_plugin::{NativePlugin, PluginDisposer, PluginLoader};
-use animatix::renderer;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions};
 use animatix::verify::{self, Box2, FrameView};
 use animatix_analyzer::ExtensionManifest;
@@ -131,16 +130,16 @@ enum Commands {
 
         /// Maximum render threads (auto or a number)
         #[arg(short = 'j', long, default_value = "auto")]
-        threads: renderer::MaxRenderThreads,
+        threads: animatix_render::encode::MaxRenderThreads,
 
         /// Video codec: auto, libx264, h264_nvenc, h264_vaapi, vp9
         #[arg(long, default_value = "auto")]
-        codec: renderer::VideoCodec,
+        codec: animatix_render::encode::VideoCodec,
 
         /// libx264 preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower,
         /// veryslow
         #[arg(long, default_value = "medium")]
-        preset: renderer::H264Preset,
+        preset: animatix_render::encode::H264Preset,
 
         /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps/codec/preset.
         #[arg(long)]
@@ -183,7 +182,7 @@ enum Commands {
 
         /// Maximum render threads (auto or a number)
         #[arg(short = 'j', long, default_value = "auto")]
-        threads: renderer::MaxRenderThreads,
+        threads: animatix_render::encode::MaxRenderThreads,
 
         /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps.
         #[arg(long)]
@@ -444,8 +443,8 @@ fn default_output_file(ext: &str) -> PathBuf {
 
 /// Render a single frame at time=0 to catch renderer bugs early.
 fn run_render_smoke(target: &BuildTarget) -> Result<(), String> {
-    use animatix::renderer::offscreen::OffscreenRenderer;
     use animatix::timeline::{DebugRenderOptions, SceneDimensions};
+    use animatix_render::offscreen::OffscreenRenderer;
 
     let mut renderer = OffscreenRenderer::new().map_err(|e| e.to_string())?;
     let dims = SceneDimensions {
@@ -660,7 +659,7 @@ fn parse_verify_checks(path: &Path) -> Result<Vec<VerifyCheck>, String> {
 /// A rendered verification frame: pixels plus the per-actor bounds from the
 /// same evaluation.
 struct VerifyFrame {
-    frame: animatix::renderer::offscreen::RenderedFrame,
+    frame: animatix_render::offscreen::RenderedFrame,
     bounds: std::collections::HashMap<String, Box2>,
 }
 
@@ -671,7 +670,7 @@ fn verify_time_key(time_s: f64) -> u64 {
 /// Render one frame at global `time_s`, resolving the active scene (and any
 /// transition blend) for multi-scene files.
 fn render_verify_frame(
-    renderer: &mut animatix::renderer::offscreen::OffscreenRenderer,
+    renderer: &mut animatix_render::offscreen::OffscreenRenderer,
     target: &BuildTarget,
     dimensions: SceneDimensions,
     time_s: f64,
@@ -767,7 +766,7 @@ struct VerifyOutcome {
 /// Render every time a check needs (once) and evaluate all checks against the
 /// cached frames.
 fn run_verify_checks(
-    renderer: &mut animatix::renderer::offscreen::OffscreenRenderer,
+    renderer: &mut animatix_render::offscreen::OffscreenRenderer,
     target: &BuildTarget,
     checks: &[VerifyCheck],
     dimensions: SceneDimensions,
@@ -942,7 +941,8 @@ fn main() {
             info!("Rendering Animatix GIF: {}", input.display());
             let (mut width, mut height, mut fps) = (width, height, fps);
             if let Some(name) = export_preset.as_deref() {
-                let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
+                else {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
@@ -961,7 +961,8 @@ fn main() {
                         .and_then(|scene| scene.timeline.export_preset()),
                 };
                 if let Some(name) = configured {
-                    let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                    let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
+                    else {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
@@ -984,40 +985,44 @@ fn main() {
                 output_file.display()
             );
             let result = match &target {
-                BuildTarget::MultiScene(comp) => renderer::render_gif_composition_with_settings(
-                    comp,
-                    width,
-                    height,
-                    fps,
-                    effective_duration,
-                    &output_file,
-                    DebugRenderOptions {
-                        compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                        ..Default::default()
-                    },
-                    renderer::ExportSettings {
-                        max_render_threads: threads,
-                        ..Default::default()
-                    },
-                ),
-                BuildTarget::SingleScene(timeline) => renderer::render_gif_timeline_with_settings(
-                    timeline.clone(),
-                    width,
-                    height,
-                    fps,
-                    effective_duration,
-                    &output_file,
-                    DebugRenderOptions {
-                        compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                        ..Default::default()
-                    },
-                    renderer::ExportSettings {
-                        max_render_threads: threads,
-                        ..Default::default()
-                    },
-                ),
+                BuildTarget::MultiScene(comp) => {
+                    animatix_render::encode::render_gif_composition_with_settings(
+                        comp,
+                        width,
+                        height,
+                        fps,
+                        effective_duration,
+                        &output_file,
+                        DebugRenderOptions {
+                            compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                            ..Default::default()
+                        },
+                        animatix_render::encode::ExportSettings {
+                            max_render_threads: threads,
+                            ..Default::default()
+                        },
+                    )
+                },
+                BuildTarget::SingleScene(timeline) => {
+                    animatix_render::encode::render_gif_timeline_with_settings(
+                        timeline.clone(),
+                        width,
+                        height,
+                        fps,
+                        effective_duration,
+                        &output_file,
+                        DebugRenderOptions {
+                            compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                            ..Default::default()
+                        },
+                        animatix_render::encode::ExportSettings {
+                            max_render_threads: threads,
+                            ..Default::default()
+                        },
+                    )
+                },
             };
             if let Err(e) = result {
                 error!("Error: {e}");
@@ -1044,7 +1049,8 @@ fn main() {
             let (mut width, mut height, mut fps, mut codec, mut preset) =
                 (width, height, fps, codec, preset);
             if let Some(name) = export_preset.as_deref() {
-                let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
+                else {
                     error!("Unknown export preset '{name}'");
                     std::process::exit(2);
                 };
@@ -1065,7 +1071,8 @@ fn main() {
                         .and_then(|scene| scene.timeline.export_preset()),
                 };
                 if let Some(name) = configured {
-                    let Some(preset_values) = renderer::ExportPreset::by_name(name) else {
+                    let Some(preset_values) = animatix_render::encode::ExportPreset::by_name(name)
+                    else {
                         error!("Unknown export preset '{name}' from config");
                         std::process::exit(2);
                     };
@@ -1090,26 +1097,28 @@ fn main() {
                 output_file.display()
             );
             let result = match &target {
-                BuildTarget::MultiScene(comp) => renderer::render_video_composition_with_settings(
-                    comp,
-                    width,
-                    height,
-                    fps,
-                    effective_duration,
-                    &output_file,
-                    DebugRenderOptions {
-                        compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                        ..Default::default()
-                    },
-                    renderer::ExportSettings {
-                        max_render_threads: threads,
-                        video_codec: codec,
-                        h264_preset: preset,
-                    },
-                ),
+                BuildTarget::MultiScene(comp) => {
+                    animatix_render::encode::render_video_composition_with_settings(
+                        comp,
+                        width,
+                        height,
+                        fps,
+                        effective_duration,
+                        &output_file,
+                        DebugRenderOptions {
+                            compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                            ..Default::default()
+                        },
+                        animatix_render::encode::ExportSettings {
+                            max_render_threads: threads,
+                            video_codec: codec,
+                            h264_preset: preset,
+                        },
+                    )
+                },
                 BuildTarget::SingleScene(timeline) => {
-                    renderer::render_video_timeline_with_settings(
+                    animatix_render::encode::render_video_timeline_with_settings(
                         timeline.clone(),
                         width,
                         height,
@@ -1121,7 +1130,7 @@ fn main() {
                             draw_bounds: debug_bounds,
                             ..Default::default()
                         },
-                        renderer::ExportSettings {
+                        animatix_render::encode::ExportSettings {
                             max_render_threads: threads,
                             video_codec: codec,
                             h264_preset: preset,
@@ -1248,21 +1257,27 @@ fn main() {
                 output.unwrap_or_else(|| PathBuf::from(format!("animatix_{}s.png", time)));
             info!("Output image: {}x{} at {}s -> {}", width, height, time, output_file.display());
             let result = match &target {
-                BuildTarget::MultiScene(comp) => {
-                    renderer::render_image_composition(comp, width, height, time, &output_file)
-                },
-                BuildTarget::SingleScene(timeline) => renderer::render_image_timeline_with_debug(
-                    timeline.clone(),
+                BuildTarget::MultiScene(comp) => animatix_render::encode::render_image_composition(
+                    comp,
                     width,
                     height,
                     time,
                     &output_file,
-                    DebugRenderOptions {
-                        compute_hit_regions: false,
-                        draw_bounds: debug_bounds,
-                        ..Default::default()
-                    },
                 ),
+                BuildTarget::SingleScene(timeline) => {
+                    animatix_render::encode::render_image_timeline_with_debug(
+                        timeline.clone(),
+                        width,
+                        height,
+                        time,
+                        &output_file,
+                        DebugRenderOptions {
+                            compute_hit_regions: false,
+                            draw_bounds: debug_bounds,
+                            ..Default::default()
+                        },
+                    )
+                },
             };
             if let Err(e) = result {
                 error!("Error: {e}");
@@ -1443,7 +1458,7 @@ fn main() {
                 width: width.or(configured.map(|(w, _)| w)).unwrap_or(1280),
                 height: height.or(configured.map(|(_, h)| h)).unwrap_or(720),
             };
-            let mut renderer = match animatix::renderer::offscreen::OffscreenRenderer::new() {
+            let mut renderer = match animatix_render::offscreen::OffscreenRenderer::new() {
                 Ok(renderer) => renderer,
                 Err(e) => {
                     error!("Failed to create offscreen renderer: {e}");

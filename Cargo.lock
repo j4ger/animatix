@@ -125,10 +125,10 @@ version = "0.1.0"
 dependencies = [
  "animatix-core",
  "animatix-plugin-api",
+ "animatix-render",
  "animatix-std",
  "animatix-syntax",
  "animatix-text",
- "bytemuck",
  "chumsky",
  "criterion",
  "dhat",
@@ -136,9 +136,7 @@ dependencies = [
  "image",
  "kurbo",
  "libloading",
- "pollster",
  "roxmltree 0.20.0",
- "rsmpeg",
  "serde",
  "serde_json",
  "taffy",
@@ -167,6 +165,7 @@ dependencies = [
  "animatix",
  "animatix-analyzer",
  "animatix-plugin-tooling",
+ "animatix-render",
  "animatix-syntax",
  "clap",
  "serde_json",
@@ -190,6 +189,7 @@ dependencies = [
  "animatix",
  "animatix-analyzer",
  "animatix-plugin-tooling",
+ "animatix-render",
  "animatix-syntax",
  "chumsky",
  "crossbeam-channel",
@@ -247,6 +247,24 @@ version = "0.1.0"
 dependencies = [
  "animatix",
  "animatix-analyzer",
+]
+
+[[package]]
+name = "animatix-render"
+version = "0.1.0"
+dependencies = [
+ "animatix",
+ "animatix-core",
+ "animatix-syntax",
+ "bytemuck",
+ "image",
+ "kurbo",
+ "pollster",
+ "rsmpeg",
+ "thiserror 2.0.18",
+ "tracing",
+ "vello",
+ "wgpu",
 ]
 
 [[package]]

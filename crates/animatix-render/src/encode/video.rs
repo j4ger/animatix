@@ -16,13 +16,13 @@ use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use tracing::info;
 
-use crate::ast::Stmt;
-use crate::composition::Composition;
-use crate::renderer::encode::{ExportError, ExportSettings, VideoCodec, mux_audio_segments};
-use crate::renderer::render_pipeline::{
+use crate::encode::{ExportError, ExportSettings, VideoCodec, mux_audio_segments};
+use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
-use crate::timeline::{AudioSegment, DebugRenderOptions, Timeline};
+use animatix::ast::Stmt;
+use animatix::composition::Composition;
+use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline video
@@ -397,7 +397,7 @@ pub(super) async fn render_video_async(
     )?;
 
     finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
-    mux_audio_if_present(&timeline.audio_segments, output_file)?;
+    mux_audio_if_present(timeline.audio_segments(), output_file)?;
 
     info!("Render complete!");
     Ok(())
@@ -575,7 +575,7 @@ pub(super) async fn render_video_composition_async(
         .iter()
         .flat_map(|(name, s)| {
             let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
-            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments.clone();
+            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments().to_vec();
             for seg in &mut segments {
                 seg.start_time_s += start_offset;
             }
@@ -601,7 +601,7 @@ pub(crate) fn adaptive_thread_count(
     is_hw_encoder: bool,
     settings: &ExportSettings,
 ) -> usize {
-    use crate::renderer::encode::MaxRenderThreads;
+    use crate::encode::MaxRenderThreads;
     match settings.max_render_threads {
         MaxRenderThreads::Fixed(n) => n.max(1),
         MaxRenderThreads::Auto => {
@@ -644,7 +644,7 @@ pub(crate) fn adaptive_thread_count(
 pub(crate) fn select_video_encoder(
     settings: &ExportSettings,
 ) -> Result<(rsmpeg::avcodec::AVCodecRef<'static>, bool), ExportError> {
-    use crate::renderer::encode::VideoCodec;
+    use crate::encode::VideoCodec;
     match settings.video_codec {
         VideoCodec::Libx264 => {
             let codec = AVCodec::find_encoder_by_name(&CString::new("libx264")?)

@@ -225,10 +225,10 @@ impl TransitionCompositor {
         _height: u32,
         progress: f32,
         transition_id: &str,
-        easing: crate::easing::Easing,
+        easing: animatix::easing::Easing,
     ) -> Result<(), String> {
         // Apply easing to progress
-        let eased_progress = crate::easing::apply_easing(progress, easing);
+        let eased_progress = animatix::easing::apply_easing(progress, easing);
         // Update uniform buffer
         let uniforms = TransitionUniforms::new(eased_progress, transition_id);
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));

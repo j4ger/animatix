@@ -42,9 +42,9 @@ pub(crate) struct ExportDialogState {
     /// Export scope: ActiveScene or WholeComposition.
     pub(crate) export_scope: ExportScope,
     /// Video encoder selection, shared with CLI export presets.
-    pub(crate) video_codec: animatix::renderer::VideoCodec,
+    pub(crate) video_codec: animatix_render::encode::VideoCodec,
     /// libx264 speed preset, shared with CLI export presets.
-    pub(crate) h264_preset: animatix::renderer::H264Preset,
+    pub(crate) h264_preset: animatix_render::encode::H264Preset,
 }
 
 impl Default for ExportDialogState {
@@ -60,8 +60,8 @@ impl Default for ExportDialogState {
             hold_s: 1.0,
             output_path: String::new(),
             export_scope: ExportScope::ActiveScene,
-            video_codec: animatix::renderer::VideoCodec::Auto,
-            h264_preset: animatix::renderer::H264Preset::Medium,
+            video_codec: animatix_render::encode::VideoCodec::Auto,
+            h264_preset: animatix_render::encode::H264Preset::Medium,
         }
     }
 }
@@ -481,7 +481,7 @@ impl GuiShell {
 
             // ── Shared export presets ──
             Self::settings_row(ui, "Presets", |ui| {
-                for preset in animatix::renderer::ExportPreset::ALL {
+                for preset in animatix_render::encode::ExportPreset::ALL {
                     let resp = ui.add(
                         egui::Button::new(
                             RichText::new(preset.name)
@@ -946,21 +946,21 @@ impl GuiShell {
         let handle = std::thread::spawn(move || {
             let progress_ref = Some(progress.as_ref());
             let cancel_ref = Some(cancel.as_ref());
-            let result: Result<(), animatix::renderer::ExportError> = match state.format {
+            let result: Result<(), animatix_render::encode::ExportError> = match state.format {
                 ExportFormat::Image | ExportFormat::WebP => {
                     // Ungated image path — no FFmpeg needed.
                     if has_composition {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Composition(
                                 comp,
-                            ) => animatix::renderer::render_image_composition(
+                            ) => animatix_render::encode::render_image_composition(
                                 comp,
                                 state.width,
                                 state.height,
                                 state.time_s,
                                 &output_path,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a composition target",
                                 state.format
                             ))),
@@ -971,7 +971,7 @@ impl GuiShell {
                                 tl,
                             ) => {
                                 let timeline = tl.as_ref().clone();
-                                animatix::renderer::render_image_timeline_with_progress(
+                                animatix_render::encode::render_image_timeline_with_progress(
                                     timeline,
                                     state.width,
                                     state.height,
@@ -982,7 +982,7 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a timeline target",
                                 state.format
                             ))),
@@ -1001,7 +1001,7 @@ impl GuiShell {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Composition(
                                 comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
+                            ) => animatix_render::encode::render_video_composition_with_progress(
                                 comp,
                                 state.width,
                                 state.height,
@@ -1009,7 +1009,7 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings {
+                                animatix_render::encode::ExportSettings {
                                     video_codec: state.video_codec,
                                     h264_preset: state.h264_preset,
                                     ..Default::default()
@@ -1017,7 +1017,7 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a composition target",
                                 state.format
                             ))),
@@ -1028,7 +1028,7 @@ impl GuiShell {
                                 tl,
                             ) => {
                                 let timeline = tl.as_ref().clone();
-                                animatix::renderer::render_video_timeline_with_progress(
+                                animatix_render::encode::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
                                     state.height,
@@ -1036,7 +1036,7 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings {
+                                    animatix_render::encode::ExportSettings {
                                         video_codec: state.video_codec,
                                         h264_preset: state.h264_preset,
                                         ..Default::default()
@@ -1045,7 +1045,7 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a timeline target",
                                 state.format
                             ))),
@@ -1064,7 +1064,7 @@ impl GuiShell {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Composition(
                                 comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
+                            ) => animatix_render::encode::render_video_composition_with_progress(
                                 comp,
                                 state.width,
                                 state.height,
@@ -1072,14 +1072,14 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings {
-                                    video_codec: animatix::renderer::VideoCodec::Vp9,
+                                animatix_render::encode::ExportSettings {
+                                    video_codec: animatix_render::encode::VideoCodec::Vp9,
                                     ..Default::default()
                                 },
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a composition target",
                                 state.format
                             ))),
@@ -1090,7 +1090,7 @@ impl GuiShell {
                                 tl,
                             ) => {
                                 let timeline = tl.as_ref().clone();
-                                animatix::renderer::render_video_timeline_with_progress(
+                                animatix_render::encode::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
                                     state.height,
@@ -1098,15 +1098,15 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings {
-                                        video_codec: animatix::renderer::VideoCodec::Vp9,
+                                    animatix_render::encode::ExportSettings {
+                                        video_codec: animatix_render::encode::VideoCodec::Vp9,
                                         ..Default::default()
                                     },
                                     progress_ref,
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a timeline target",
                                 state.format
                             ))),
@@ -1125,7 +1125,7 @@ impl GuiShell {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Composition(
                                 comp,
-                            ) => animatix::renderer::render_video_composition_with_progress(
+                            ) => animatix_render::encode::render_video_composition_with_progress(
                                 comp,
                                 state.width,
                                 state.height,
@@ -1133,7 +1133,7 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings {
+                                animatix_render::encode::ExportSettings {
                                     video_codec: state.video_codec,
                                     h264_preset: state.h264_preset,
                                     ..Default::default()
@@ -1141,7 +1141,7 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a composition target",
                                 state.format
                             ))),
@@ -1152,7 +1152,7 @@ impl GuiShell {
                                 tl,
                             ) => {
                                 let timeline = tl.as_ref().clone();
-                                animatix::renderer::render_video_timeline_with_progress(
+                                animatix_render::encode::render_video_timeline_with_progress(
                                     timeline,
                                     state.width,
                                     state.height,
@@ -1160,7 +1160,7 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings {
+                                    animatix_render::encode::ExportSettings {
                                         video_codec: state.video_codec,
                                         h264_preset: state.h264_preset,
                                         ..Default::default()
@@ -1169,7 +1169,7 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a timeline target",
                                 state.format
                             ))),
@@ -1188,7 +1188,7 @@ impl GuiShell {
                         match &cloned_target {
                             crate::app::document::export_target::ExportTargetOwned::Composition(
                                 comp,
-                            ) => animatix::renderer::render_gif_composition_with_progress(
+                            ) => animatix_render::encode::render_gif_composition_with_progress(
                                 comp,
                                 state.width,
                                 state.height,
@@ -1196,7 +1196,7 @@ impl GuiShell {
                                 duration,
                                 &output_path,
                                 debug,
-                                animatix::renderer::ExportSettings {
+                                animatix_render::encode::ExportSettings {
                                     video_codec: state.video_codec,
                                     h264_preset: state.h264_preset,
                                     ..Default::default()
@@ -1204,7 +1204,7 @@ impl GuiShell {
                                 progress_ref,
                                 cancel_ref,
                             ),
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a composition target",
                                 state.format
                             ))),
@@ -1215,7 +1215,7 @@ impl GuiShell {
                                 tl,
                             ) => {
                                 let timeline = tl.as_ref().clone();
-                                animatix::renderer::render_gif_timeline_with_progress(
+                                animatix_render::encode::render_gif_timeline_with_progress(
                                     timeline,
                                     state.width,
                                     state.height,
@@ -1223,7 +1223,7 @@ impl GuiShell {
                                     duration,
                                     &output_path,
                                     debug,
-                                    animatix::renderer::ExportSettings {
+                                    animatix_render::encode::ExportSettings {
                                         video_codec: state.video_codec,
                                         h264_preset: state.h264_preset,
                                         ..Default::default()
@@ -1232,7 +1232,7 @@ impl GuiShell {
                                     cancel_ref,
                                 )
                             },
-                            _ => Err(animatix::renderer::ExportError::Internal(format!(
+                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
                                 "export worker: format {:?} expected a timeline target",
                                 state.format
                             ))),
@@ -1244,7 +1244,7 @@ impl GuiShell {
                 ExportFormat::Video
                 | ExportFormat::WebM
                 | ExportFormat::Mov
-                | ExportFormat::Gif => Err(animatix::renderer::ExportError::Internal(
+                | ExportFormat::Gif => Err(animatix_render::encode::ExportError::Internal(
                     "This format requires the 'video' feature (FFmpeg)".into(),
                 )),
             };

@@ -2,6 +2,7 @@
 members = [
     "crates/animatix",
     "crates/animatix-core",
+    "crates/animatix-render",
     "crates/animatix-std",
     "crates/animatix-analyzer",
     "crates/animatix-cli",
@@ -29,6 +30,8 @@ egui_code_editor = { version = "0.2", features = ["editor", "egui"] }
 wgpu            = { version = "29.0.0", default-features = false }
 
 # Shared runtime/serialization deps used by multiple workspace crates
+bytemuck        = "1.25.0"
+pollster        = "0.4.0"
 image           = { version = "0.25.10", default-features = false }
 kurbo           = "0.13.0"
 serde           = { version = "1", features = ["derive"] }

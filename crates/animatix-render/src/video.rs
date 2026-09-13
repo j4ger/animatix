@@ -1,11 +1,12 @@
-//! Re-export module — delegates to sub-modules for backward compatibility.
+//! Video/GIF export facade — re-exports the encoders under one path.
 //!
-//! All public items are now defined in:
+//! All public items are defined in:
 //! - [`super::encode`] — `ExportError`, `ExportSettings`, `MaxRenderThreads`, `VideoCodec`,
 //!   `H264Preset`, and format-specific encoding functions
 //! - [`super::render_pipeline`] — streaming frame rendering helpers
 //!
-//! Callers using `animatix::renderer::video::*` continue to work unchanged.
+//! The module exists only when the `video` feature is on, because
+//! `render_pipeline` (and the FFmpeg encoders it drives) are feature-gated.
 
 pub use super::encode::{
     ExportError, ExportSettings, H264Preset, MaxRenderThreads, VideoCodec, mux_audio_segments,

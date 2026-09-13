@@ -1,0 +1,23 @@
+[package]
+name = "animatix-render"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[features]
+default = []
+video = ["dep:rsmpeg"]
+
+[dependencies]
+animatix = { path = "../animatix" }
+animatix-core = { path = "../animatix-core" }
+animatix-syntax = { path = "../animatix-syntax" }
+kurbo = { workspace = true }
+bytemuck = { workspace = true }
+image = { workspace = true, features = ["png", "gif", "jpeg", "webp"] }
+pollster = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
+vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"] }
+rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }

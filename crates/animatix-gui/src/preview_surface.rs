@@ -1,9 +1,9 @@
 use animatix::composition::Composition;
-use animatix::renderer::core::RendererCore;
-use animatix::renderer::filter_backend::GpuFilterBackend;
-use animatix::renderer::transition::TransitionCompositor;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use animatix_render::core::RendererCore;
+use animatix_render::filter_backend::GpuFilterBackend;
+use animatix_render::transition::TransitionCompositor;
 use kurbo::Rect;
 
 pub struct PreviewSurface {

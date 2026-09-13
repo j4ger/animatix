@@ -27,11 +27,11 @@ cargo run --bin animatix -- render examples/basics/00_hello.amx
 cargo run --bin animatix -- image examples/data/07_plots.amx -o frame.png
 
 # Video/GIF/WebM export (requires the `video` feature, see AGENTS.md)
-cargo run --features animatix/video --bin animatix -- video examples/gallery/fft_explain.amx -o showcase.mp4 --fps 30
-cargo run --features animatix/video --bin animatix -- gif examples/gallery/brand_reel/main.amx -o reel.gif --fps 15
+cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx -o showcase.mp4 --fps 30
+cargo run -p animatix-cli --features video -- gif examples/gallery/brand_reel/main.amx -o reel.gif --fps 15
 
 # Named export presets are shared by CLI and GUI and can be set in config:
-cargo run --features animatix/video --bin animatix -- video examples/gallery/fft_explain.amx --export-preset 1080p30 -o showcase.mp4
+cargo run -p animatix-cli --features video -- video examples/gallery/fft_explain.amx --export-preset 1080p30 -o showcase.mp4
 
 # GUI
 cargo run --bin animatix-gui -- examples/gallery/brand_reel/main.amx

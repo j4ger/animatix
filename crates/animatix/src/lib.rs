@@ -3,7 +3,8 @@
 //! Core animation engine: timeline, renderer, and evaluation.
 
 // Re-export syntax modules internally so animatix code can use `crate::ast` etc.
-pub(crate) use animatix_syntax::{ast, diagnostics, easing, module};
+pub use animatix_syntax::{ast, easing};
+pub(crate) use animatix_syntax::{diagnostics, module};
 
 // Runtime modules (stay in animatix)
 pub mod composition;

@@ -1,8 +1,8 @@
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
-use crate::timeline::effects::FilterBackend;
-use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+use animatix::timeline::effects::FilterBackend;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// A single frame rendered to CPU-accessible RGBA memory.
 ///
@@ -183,7 +183,7 @@ impl OffscreenRenderer {
         to_time: f64,
         progress: f32,
         transition_id: String,
-        easing: crate::easing::Easing,
+        easing: animatix::easing::Easing,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<PendingFrame, String> {
@@ -220,7 +220,7 @@ impl OffscreenRenderer {
     /// the *same* evaluation.
     ///
     /// This is the content-level verification entry point (see
-    /// [`crate::verify`]): the pixels answer "did it actually draw?", the
+    /// [`animatix::verify`]): the pixels answer "did it actually draw?", the
     /// bounds answer "where should it have drawn?". Calling the scene-only
     /// path plus a separate `evaluate_program_*` call would evaluate twice and
     /// could disagree; this keeps them consistent.
@@ -230,7 +230,7 @@ impl OffscreenRenderer {
         time_s: f64,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-    ) -> Result<(RenderedFrame, crate::timeline::scene_program::SceneProgram), String> {
+    ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
         let program = self
             .render_to_output_texture_inner(timeline, time_s, dimensions, debug_options, true)?
             .expect("collect_items=true always returns a program");
@@ -249,7 +249,7 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
         collect_items: bool,
-    ) -> Result<Option<crate::timeline::scene_program::SceneProgram>, String> {
+    ) -> Result<Option<animatix::timeline::scene_program::SceneProgram>, String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -264,7 +264,8 @@ impl OffscreenRenderer {
             self.filter_backend_dimensions = Some(dimensions);
         }
         let filter_backend = self.filter_backend.as_mut().unwrap();
-        let mut fb: Option<&mut dyn crate::timeline::effects::FilterBackend> = Some(filter_backend);
+        let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
+            Some(filter_backend);
         let program = if collect_items {
             Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb))
         } else {
@@ -397,7 +398,7 @@ impl OffscreenRenderer {
         to_time: f64,
         progress: f32,
         transition_id: String,
-        easing: crate::easing::Easing,
+        easing: animatix::easing::Easing,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
@@ -427,7 +428,7 @@ impl OffscreenRenderer {
         to_time: f64,
         progress: f32,
         transition_id: String,
-        easing: crate::easing::Easing,
+        easing: animatix::easing::Easing,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
@@ -721,30 +722,23 @@ impl OffscreenRenderer {
 #[cfg(test)]
 mod readback_reuse_tests {
     use super::*;
-    use crate::timeline::AnimationTrack;
 
+    /// Fixture built through the source pipeline so these tests exercise only
+    /// public engine API (the render crate has no access to engine internals).
     fn solid_rect_timeline() -> Timeline {
-        let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::placeholder("r".to_string());
-        track.first_seen_ms = 0;
-        track.shape.shape_type = Some({
-            let mut t = crate::timeline::PropertyTrack::new(crate::timeline::ShapeType::Rect);
-            t.add_keyframe(0, crate::timeline::ShapeType::Rect, crate::easing::Easing::Linear);
-            t
-        });
-        track.geometry.size = Some({
-            let mut t = crate::timeline::PropertyTrack::new([100.0, 100.0]);
-            t.add_keyframe(0, [100.0, 100.0], crate::easing::Easing::Linear);
-            t
-        });
-        track.style.color = Some({
-            let mut t = crate::timeline::PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
-            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::easing::Easing::Linear);
-            t
-        });
-        timeline.tracks_mut().insert("r".to_string(), track);
-        timeline.root_nodes.push("r".to_string());
-        timeline
+        let source = r#"
+#0s
+r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
+"#;
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("AST");
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        report.output
     }
 
     /// PF-6 round 9: the readback buffer is parked and reused. The second
@@ -857,8 +851,6 @@ mod readback_reuse_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::easing::Easing;
-    use crate::timeline::{AnimationTrack, PropertyTrack};
 
     #[test]
     fn offscreen_renderer_can_be_initialized() {
@@ -916,7 +908,7 @@ fx: Filter {
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -926,7 +918,7 @@ fx: Filter {
             .render_timeline(
                 &timeline,
                 0.0,
-                crate::timeline::SceneDimensions {
+                animatix::timeline::SceneDimensions {
                     width: 400,
                     height: 300,
                 },
@@ -983,7 +975,7 @@ fx: Filter, bounds: (100, 60, 200, 180) {
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -993,7 +985,7 @@ fx: Filter, bounds: (100, 60, 200, 180) {
             .render_timeline(
                 &timeline,
                 0.0,
-                crate::timeline::SceneDimensions {
+                animatix::timeline::SceneDimensions {
                     width: 400,
                     height: 300,
                 },
@@ -1048,7 +1040,7 @@ m: Mask, size: (200, 150), at: (300, 150) {
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1114,7 +1106,7 @@ fade-in m [1ms]
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1171,7 +1163,7 @@ fade-in m [1ms]
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1220,7 +1212,7 @@ fade-in m [1ms]
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1260,7 +1252,7 @@ fade-in m [1ms]
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1307,7 +1299,7 @@ g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100)
         let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
         assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
         let ast = ast.expect("AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
+        let report = animatix::timeline::Timeline::build_with_diagnostics(
             &ast,
             &std::collections::HashMap::new(),
         );
@@ -1352,38 +1344,6 @@ g: Graph, size: (600, 300), at: (400, 200), x_domain: (0, 4), y_domain: (0, 100)
             min_x < 280 && max_x > 520,
             "bars should span the full axis (left third to right third), got min_x={min_x} max_x={max_x}"
         );
-    }
-
-    #[test]
-    fn offscreen_renderer_render_timeline_produces_frame() {
-        let mut renderer = match OffscreenRenderer::new() {
-            Ok(r) => r,
-            Err(_) => return, // Skip if no GPU
-        };
-
-        // Create a minimal timeline
-        let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.first_seen_ms = 0;
-        track.style.color = Some({
-            let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
-            t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
-            t
-        });
-        timeline.tracks.insert("test".to_string(), track);
-        timeline.root_nodes.push("test".to_string());
-
-        let dimensions = SceneDimensions {
-            width: 100,
-            height: 100,
-        };
-        let frame = renderer.render_timeline(&timeline, 0.0, dimensions);
-
-        assert!(frame.is_ok(), "render should produce a frame: {:?}", frame.err());
-        let frame = frame.expect("frame should be Ok after is_ok check");
-        assert_eq!(frame.width, 100);
-        assert_eq!(frame.height, 100);
-        assert_eq!(frame.rgba.len(), 100 * 100 * 4, "RGBA data should have correct size");
     }
 
     #[test]

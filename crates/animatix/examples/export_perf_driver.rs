@@ -20,8 +20,8 @@
 
 use animatix::composition::BuildTarget;
 use animatix::perf;
-use animatix::renderer::{OffscreenRenderer, PendingFrame};
 use animatix::timeline::{SceneDimensions, Timeline};
+use animatix_render::offscreen::{OffscreenRenderer, PendingFrame};
 use animatix_syntax::module::ModuleGraph;
 
 fn main() {

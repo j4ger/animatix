@@ -1,10 +1,10 @@
 //! GPU effect backend for preview and export renderers.
 //!
-//! Both [`crate::renderer::offscreen::OffscreenRenderer`] and the GUI's
+//! Both [`crate::offscreen::OffscreenRenderer`] and the GUI's
 //! `PreviewSurface` need identical offscreen → effect → composite behaviour for
-//! [`Filter`](crate::timeline::ActorKindId::Filter) scopes. This module provides
-//! a single [`GpuFilterBackend`] that runs an [`EffectChain`] as an ordered list
-//! of compute passes over host-owned ping-pong textures.
+//! `Filter` scopes. This module provides a single [`GpuFilterBackend`] that runs
+//! an [`EffectChain`] as an ordered list of compute passes over host-owned
+//! ping-pong textures.
 //!
 //! The pass/uniform contract lives in `docs/effects.md`. Each pass is submitted
 //! in its own encoder: back-to-back compute passes sharing ping-pong textures in
@@ -15,12 +15,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 
-use crate::renderer::core::RendererCore;
-use crate::timeline::SceneDimensions;
-use crate::timeline::effects::{
+use crate::core::RendererCore;
+use animatix::timeline::SceneDimensions;
+use animatix::timeline::effects::{
     Effect, EffectChain, EffectRegion, FilterBackend, PendingComposite, effect,
 };
-use crate::timeline::image::SceneImage;
+use animatix::timeline::image::SceneImage;
 
 // ── Uniform structs ─────────────────────────────────────────────────────────
 
@@ -691,7 +691,7 @@ impl FilterBackend for GpuFilterBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timeline::effects::{EffectId, EffectInstance, EffectParamValue, EffectParams};
+    use animatix::timeline::effects::{EffectId, EffectInstance, EffectParamValue, EffectParams};
 
     fn blur_chain(radius: f32) -> EffectChain {
         EffectChain {

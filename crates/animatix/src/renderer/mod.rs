@@ -1,53 +1,17 @@
-//! Rendering pipeline: offscreen frames, windowed preview, transitions, and exports.
+//! Frame-evaluation rendering vocabulary.
+//!
+//! This module holds the *engine-owned* half of rendering: the error type
+//! every primitive's `evaluate` returns, and the path/color value types that
+//! appear in render commands. The GPU presentation stack (renderer core,
+//! filter backend implementation, offscreen driver, blit, transition,
+//! encoders) lives in the separate `animatix-render` crate — the engine never
+//! references it, because the `FilterBackend` trait in `animatix::timeline`
+//! is the seam.
 
 /// Error types for rendering operations.
 pub mod error;
-/// GPU-based compositor for scene transition effects.
-pub mod transition;
-/// Shared rendering types.
+/// Shared rendering types (paths and colors that cross the seam).
 pub mod types;
 
-#[cfg(feature = "render")]
-/// Core Vello renderer wrapper.
-pub mod core;
-#[cfg(feature = "render")]
-/// Video encoding helpers.
-pub mod encode;
-#[cfg(feature = "render")]
-/// Shared GPU filter backend for preview and export.
-pub mod filter_backend;
-#[cfg(feature = "render")]
-/// Fullscreen texture blit for zero-readback compositing.
-pub mod fullscreen_blit;
-#[cfg(feature = "render")]
-/// Offscreen renderer for CPU-readable frame output.
-pub mod offscreen;
-#[cfg(feature = "video")]
-/// High-level render pipeline orchestration.
-pub mod render_pipeline;
 #[cfg(feature = "text")]
-/// Text and math compilation (the `animatix-text` crate, re-exported).
 pub use animatix_text as text;
-#[cfg(feature = "video")]
-/// Video/GIF export rendering.
-pub mod video;
-
-#[cfg(feature = "render")]
-pub use encode::{
-    ExportError, ExportPreset, ExportSettings, H264Preset, MaxRenderThreads, VideoCodec,
-    render_image, render_image_composition, render_image_timeline,
-    render_image_timeline_with_debug, render_image_timeline_with_progress,
-};
-#[cfg(feature = "video")]
-pub use encode::{
-    render_gif_composition, render_gif_composition_with_progress,
-    render_gif_composition_with_settings, render_gif_timeline, render_gif_timeline_with_debug,
-    render_gif_timeline_with_progress, render_gif_timeline_with_settings, render_video,
-    render_video_composition, render_video_composition_with_progress,
-    render_video_composition_with_settings, render_video_timeline,
-    render_video_timeline_with_debug, render_video_timeline_with_progress,
-    render_video_timeline_with_settings,
-};
-#[cfg(feature = "render")]
-pub use offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
-pub use transition::TransitionCompositor;

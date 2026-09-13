@@ -9,8 +9,10 @@ rust-version = "1.85"
 # The core runtime assumes render/text/svg; CI builds and tests with
 # `--no-default-features --features render,text,svg` to verify that combination.
 default = ["render", "text", "svg", "perf-tracing"]
-render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
-video = ["render", "dep:rsmpeg"]
+# The engine keeps Vello/wgpu for the `FilterBackend` seam types
+# (`wgpu::Texture`, `vello::Scene`) and `image` for asset decoding; the GPU
+# presentation stack itself lives in `animatix-render`.
+render = ["dep:wgpu", "dep:vello", "dep:image"]
 text = ["dep:typst", "dep:animatix-text"]
 svg = ["dep:usvg", "dep:roxmltree"]
 # Shared stage tracing (`crate::perf`, PF-8). Default-on so benches and the GUI
@@ -26,15 +28,13 @@ animatix-text = { path = "../animatix-text", optional = true }
 animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
-bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
 libloading = { version = "0.8", optional = true }
 serde = { workspace = true, optional = true }
 fastrand = "2.4"
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 kurbo = { workspace = true }
-pollster = { version = "0.4.0", optional = true }
 roxmltree = { version = "0.20.0", optional = true }
-rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
+
 typst = { version = "0.15.1", optional = true }
 usvg = { version = "0.47.0", optional = true }
 vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
@@ -44,6 +44,11 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+# The export-path drivers (`examples/export_*.rs`) drive the GPU stack, which
+# lives in `animatix-render`. Dev-dependency cycles are allowed by Cargo and
+# only the example/bench targets use this edge, so engine unit tests never mix
+# the two builds of `animatix`.
+animatix-render = { path = "../animatix-render" }
 chumsky = "0.12.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 dhat = "0.3"

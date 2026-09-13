@@ -25,8 +25,8 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use animatix::composition::BuildTarget;
-use animatix::renderer::OffscreenRenderer;
 use animatix::timeline::{SceneDimensions, Timeline};
+use animatix_render::offscreen::OffscreenRenderer;
 use animatix_syntax::module::ModuleGraph;
 
 fn main() {

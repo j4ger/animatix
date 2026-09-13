@@ -1,8 +1,8 @@
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
-use super::error::RenderError;
 use super::fullscreen_blit::FullscreenBlitPipeline;
+use animatix_core::error::RenderError;
 
 /// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
 pub struct RendererCore {
@@ -103,7 +103,7 @@ impl RendererCore {
         scene: &Scene,
         base_color: Color,
     ) -> Result<(), RenderError> {
-        let _stage = crate::perf::ScopedStage::new(crate::perf::stage::RASTERIZE);
+        let _stage = animatix::perf::ScopedStage::new(animatix::perf::stage::RASTERIZE);
         let render_params = RenderParams {
             base_color,
             width,
