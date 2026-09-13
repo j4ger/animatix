@@ -11,7 +11,7 @@ rust-version = "1.85"
 default = ["render", "text", "svg", "perf-tracing"]
 render = ["dep:wgpu", "dep:vello", "dep:bytemuck", "dep:pollster", "dep:image"]
 video = ["render", "dep:rsmpeg"]
-text = ["dep:typst", "dep:typst-layout", "dep:fontdb", "dep:ttf-parser"]
+text = ["dep:typst", "dep:animatix-text"]
 svg = ["dep:usvg", "dep:roxmltree"]
 # Shared stage tracing (`crate::perf`, PF-8). Default-on so benches and the GUI
 # HUD measure the same stages; compile out with --no-default-features to
@@ -22,6 +22,7 @@ plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 
 [dependencies]
 animatix-core = { path = "../animatix-core" }
+animatix-text = { path = "../animatix-text", optional = true }
 animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
@@ -29,15 +30,12 @@ bytemuck = { version = "1.25.0", features = ["derive"], optional = true }
 libloading = { version = "0.8", optional = true }
 serde = { workspace = true, optional = true }
 fastrand = "2.4"
-fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"], optional = true }
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 kurbo = { workspace = true }
 pollster = { version = "0.4.0", optional = true }
 roxmltree = { version = "0.20.0", optional = true }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
-ttf-parser = { version = "0.25.1", optional = true }
 typst = { version = "0.15.1", optional = true }
-typst-layout = { version = "0.15.1", optional = true }
 usvg = { version = "0.47.0", optional = true }
 vello = { git = "https://github.com/linebender/vello", rev = "17166312", default-features = false, features = ["wgpu"], optional = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"], optional = true }

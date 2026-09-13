@@ -1,0 +1,14 @@
+[package]
+name = "animatix-text"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+animatix-core = { path = "../animatix-core" }
+fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
+kurbo = { workspace = true }
+ttf-parser = "0.25.1"
+typst = "0.15.1"
+tracing = { workspace = true }
+typst-layout = "0.15.1"

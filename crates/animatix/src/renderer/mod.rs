@@ -26,8 +26,8 @@ pub mod offscreen;
 /// High-level render pipeline orchestration.
 pub mod render_pipeline;
 #[cfg(feature = "text")]
-/// Text rendering support.
-pub mod text;
+/// Text and math compilation (the `animatix-text` crate, re-exported).
+pub use animatix_text as text;
 #[cfg(feature = "video")]
 /// Video/GIF export rendering.
 pub mod video;

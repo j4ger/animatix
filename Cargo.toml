@@ -11,6 +11,7 @@ members = [
     "crates/animatix-plugin-demo",
     "crates/animatix-plugin-tooling",
     "crates/animatix-syntax",
+    "crates/animatix-text",
     "crates/eparts"
 ]
 resolver = "2"

@@ -1,9 +1,27 @@
+//! Text and math compilation: the typst/font stack as a pure service.
+//!
+//! Inputs are plain data (content strings, font settings, a font database);
+//! outputs are glyph paths and metrics. No engine types, no scene graph, no
+//! GPU — the engine calls this during build (text measurement feeds layout)
+//! and frame evaluation (glyph runs), and the render layer only ever sees the
+//! produced paths.
+
 use kurbo::{Affine, BezPath, Point, Shape};
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use super::error::RenderError;
-pub use super::types::TextPath;
+use animatix_core::error::RenderError;
+
+/// A glyph path extracted from text, with color and opacity.
+#[derive(Debug, Clone)]
+pub struct TextPath {
+    /// The glyph path.
+    pub path: BezPath,
+    /// The fill color of the glyph.
+    pub color: typst::visualize::Paint,
+    /// The opacity of the glyph (0.0–1.0).
+    pub opacity: f32,
+}
 
 // ─────────────────────────────────────────────────────────────
 // Text metrics for the plain-text fast path
@@ -493,23 +511,23 @@ static BUNDLED_FONTS: &[BundledFont] = &[
     // and font_weight work out of the box for the default family.
     BundledFont {
         family: "Open Sans",
-        data: include_bytes!("../../assets/fonts/OpenSans-Regular.ttf"),
+        data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
     },
     BundledFont {
         family: "Open Sans",
-        data: include_bytes!("../../assets/fonts/OpenSans-Bold.ttf"),
+        data: include_bytes!("../assets/fonts/OpenSans-Bold.ttf"),
     },
     BundledFont {
         family: "Open Sans",
-        data: include_bytes!("../../assets/fonts/OpenSans-Italic.ttf"),
+        data: include_bytes!("../assets/fonts/OpenSans-Italic.ttf"),
     },
     BundledFont {
         family: "Open Sans",
-        data: include_bytes!("../../assets/fonts/OpenSans-BoldItalic.ttf"),
+        data: include_bytes!("../assets/fonts/OpenSans-BoldItalic.ttf"),
     },
     BundledFont {
         family: "Fira Math",
-        data: include_bytes!("../../assets/fonts/FiraMath-Regular.otf"),
+        data: include_bytes!("../assets/fonts/FiraMath-Regular.otf"),
     },
 ];
 

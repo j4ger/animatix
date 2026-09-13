@@ -127,12 +127,12 @@ dependencies = [
  "animatix-plugin-api",
  "animatix-std",
  "animatix-syntax",
+ "animatix-text",
  "bytemuck",
  "chumsky",
  "criterion",
  "dhat",
  "fastrand",
- "fontdb",
  "image",
  "kurbo",
  "libloading",
@@ -144,9 +144,7 @@ dependencies = [
  "taffy",
  "thiserror 2.0.18",
  "tracing",
- "ttf-parser",
  "typst",
- "typst-layout",
  "usvg",
  "vello",
  "wgpu",
@@ -182,6 +180,7 @@ name = "animatix-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -268,6 +267,19 @@ dependencies = [
  "chumsky",
  "serde",
  "tracing",
+]
+
+[[package]]
+name = "animatix-text"
+version = "0.1.0"
+dependencies = [
+ "animatix-core",
+ "fontdb",
+ "kurbo",
+ "tracing",
+ "ttf-parser",
+ "typst",
+ "typst-layout",
 ]
 
 [[package]]
