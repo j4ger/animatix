@@ -5,11 +5,6 @@
 //! contains no runtime logic so `animatix-analyzer` and LSP can consume it
 //! without depending on Vello/WGPU.
 
-use crate::icon_glyphs::{
-    ARROW_RIGHT, ARROWS_OUT_CARDINAL, ARTICLE, CHART_BAR, CHART_DONUT, CHART_LINE_UP, CIRCLE_NOTCH,
-    CODE, COLUMNS, FILTERS, FOLDER, FUNCTION, GRADIENT, HIGHLIGHTER, IMAGE, MASK_HAPPY, MINUS, PEN,
-    POLYGON, ROWS, SIGMA, SPEAKER_HIGH, SQUARE, SQUARES_FOUR, STACK, TEXT_T, VECTOR_THREE,
-};
 use crate::typing::{Type, transform_type};
 
 #[cfg(feature = "serde")]
@@ -236,129 +231,30 @@ pub struct PrimitiveDescriptor {
 }
 
 /// Built-in primitive metadata shared by runtime, GUI, and LSP tooling.
+///
+/// Derived from the `animatix-std` catalog — the built-in implementations are
+/// the single source; this crate only re-shapes them for tooling.
 pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
-    let entries: &[(&'static str, &'static str, &'static str, PrimitiveCategory, bool)] = &[
-        ("Rect", "Rectangle", SQUARE, PrimitiveCategory::Shape, false),
-        ("Ellipse", "Ellipse", CIRCLE_NOTCH, PrimitiveCategory::Shape, false),
-        ("Line", "Line", MINUS, PrimitiveCategory::Shape, false),
-        ("Arrow", "Arrow", ARROW_RIGHT, PrimitiveCategory::Shape, false),
-        ("Polygon", "Polygon", POLYGON, PrimitiveCategory::Shape, false),
-        ("Path", "Path", PEN, PrimitiveCategory::Shape, false),
-        ("Text", "Text", TEXT_T, PrimitiveCategory::Text, false),
-        ("Code", "Code", CODE, PrimitiveCategory::Text, true),
-        ("Math", "Math", FUNCTION, PrimitiveCategory::Text, true),
-        ("Typst", "Typst", ARTICLE, PrimitiveCategory::Text, true),
-        ("Image", "Image", IMAGE, PrimitiveCategory::Media, false),
-        ("Svg", "SVG", VECTOR_THREE, PrimitiveCategory::Media, true),
-        ("Audio", "Audio", SPEAKER_HIGH, PrimitiveCategory::Media, true),
-        ("Graph", "Graph", CHART_BAR, PrimitiveCategory::Plot, false),
-        ("PlotCurve", "Plot Curve", CHART_LINE_UP, PrimitiveCategory::Plot, true),
-        (
-            "VectorField",
-            "Vector Field",
-            ARROWS_OUT_CARDINAL,
-            PrimitiveCategory::Plot,
-            true,
-        ),
-        ("Heatmap", "Heatmap", GRADIENT, PrimitiveCategory::Plot, true),
-        ("ContourSet", "Contour Set", CHART_DONUT, PrimitiveCategory::Plot, true),
-        ("NumberPlane", "Number Plane", SQUARES_FOUR, PrimitiveCategory::Plot, false),
-        ("BarChart", "Bar Chart", CHART_BAR, PrimitiveCategory::Plot, false),
-        ("Row", "Row", ROWS, PrimitiveCategory::Container, false),
-        ("Col", "Column", COLUMNS, PrimitiveCategory::Container, false),
-        ("Grid", "Grid", SQUARES_FOUR, PrimitiveCategory::Container, false),
-        ("Stack", "Stack", STACK, PrimitiveCategory::Container, false),
-        ("Group", "Group", FOLDER, PrimitiveCategory::Container, false),
-        ("Mask", "Mask", MASK_HAPPY, PrimitiveCategory::Container, true),
-        ("Filter", "Filter", FILTERS, PrimitiveCategory::Container, false),
-        ("Equation", "Equation", SIGMA, PrimitiveCategory::Container, false),
-        ("Fragment", "Fragment", HIGHLIGHTER, PrimitiveCategory::Text, false),
-        ("Callout", "Callout", TEXT_T, PrimitiveCategory::Annotation, false),
-        ("Legend", "Legend", CHART_LINE_UP, PrimitiveCategory::Annotation, false),
-    ];
-    entries
+    use animatix_core::caps::ActorCategory;
+    animatix_std::CATALOG
         .iter()
-        .map(|(type_name, display_name, icon_id, category, advanced)| PrimitiveSpec {
-            type_name: (*type_name).to_string(),
-            display_name: (*display_name).to_string(),
-            category: *category,
-            icon_id: (*icon_id).to_string(),
-            advanced: *advanced,
-            capabilities: primitive_capabilities(type_name, *category),
-            child_processing: schema_child_processing(type_name),
+        .map(|info| PrimitiveSpec {
+            type_name: info.type_name.to_string(),
+            display_name: info.display_name.to_string(),
+            category: match info.category {
+                ActorCategory::Shape => PrimitiveCategory::Shape,
+                ActorCategory::Text => PrimitiveCategory::Text,
+                ActorCategory::Media => PrimitiveCategory::Media,
+                ActorCategory::Plot => PrimitiveCategory::Plot,
+                ActorCategory::Container => PrimitiveCategory::Container,
+                ActorCategory::Annotation => PrimitiveCategory::Annotation,
+            },
+            icon_id: info.icon_id.to_string(),
+            advanced: info.advanced,
+            capabilities: info.capabilities,
+            child_processing: info.child_processing,
         })
         .collect()
-}
-
-/// Canonical built-in capability defaults for a primitive.
-///
-/// Runtime `Primitive` implementations use this same function instead of
-/// maintaining a second category/type-name table.
-pub fn primitive_capabilities(
-    type_name: &str,
-    category: PrimitiveCategory,
-) -> PrimitiveCapabilities {
-    match category {
-        PrimitiveCategory::Shape => PrimitiveCapabilities {
-            vector_paths: true,
-            morphable_paths: true,
-            vector_reveal_target: true,
-            is_shape: true,
-            ..PrimitiveCapabilities::default()
-        },
-        PrimitiveCategory::Text => PrimitiveCapabilities {
-            text_paths: true,
-            morphable_paths: true,
-            vector_reveal_target: true,
-            ..PrimitiveCapabilities::default()
-        },
-        PrimitiveCategory::Media => match type_name {
-            "Svg" => PrimitiveCapabilities {
-                vector_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
-                ..PrimitiveCapabilities::default()
-            },
-            "Image" => PrimitiveCapabilities {
-                image_payload: true,
-                ..PrimitiveCapabilities::default()
-            },
-            _ => PrimitiveCapabilities::default(),
-        },
-        PrimitiveCategory::Plot => PrimitiveCapabilities {
-            vector_paths: true,
-            morphable_paths: true,
-            vector_reveal_target: true,
-            plot_geometry: true,
-            plot_host: type_name == "Graph",
-            ..PrimitiveCapabilities::default()
-        },
-        PrimitiveCategory::Container => match type_name {
-            "Group" | "Mask" => PrimitiveCapabilities {
-                is_container: true,
-                ..PrimitiveCapabilities::default()
-            },
-            _ => PrimitiveCapabilities {
-                layout_container: true,
-                is_container: true,
-                ..PrimitiveCapabilities::default()
-            },
-        },
-        PrimitiveCategory::Annotation => PrimitiveCapabilities {
-            vector_paths: true,
-            ..PrimitiveCapabilities::default()
-        },
-    }
-}
-
-/// Child-processing strategy for a built-in primitive name.
-pub fn schema_child_processing(type_name: &str) -> ChildProcessingKind {
-    match type_name {
-        "Filter" => ChildProcessingKind::Filter,
-        "Mask" => ChildProcessingKind::Mask,
-        "Equation" => ChildProcessingKind::Equation,
-        _ => ChildProcessingKind::Generic,
-    }
 }
 
 /// One author-visible effect parameter: its name and value kind.
@@ -1374,7 +1270,7 @@ fn raw_property_specs() -> Vec<(&'static str, &'static [&'static str], Type, Pro
 mod tests {
     use super::{
         ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
-        builtin_primitive_specs, common_property_names, property_specs, schema_child_processing,
+        builtin_primitive_specs, common_property_names, property_specs,
     };
     use crate::typing::Type;
 
@@ -1502,9 +1398,16 @@ mod tests {
 
     #[test]
     fn child_processing_kind_matches_special_containers() {
-        assert_eq!(schema_child_processing("Filter"), ChildProcessingKind::Filter);
-        assert_eq!(schema_child_processing("Mask"), ChildProcessingKind::Mask);
-        assert_eq!(schema_child_processing("Equation"), ChildProcessingKind::Equation);
-        assert_eq!(schema_child_processing("Rect"), ChildProcessingKind::Generic);
+        // Derived from the animatix-std catalog.
+        let child_processing_of = |name: &str| {
+            builtin_primitive_specs()
+                .iter()
+                .find(|spec| spec.type_name == name)
+                .map(|spec| spec.child_processing)
+        };
+        assert_eq!(child_processing_of("Filter"), Some(ChildProcessingKind::Filter));
+        assert_eq!(child_processing_of("Mask"), Some(ChildProcessingKind::Mask));
+        assert_eq!(child_processing_of("Equation"), Some(ChildProcessingKind::Equation));
+        assert_eq!(child_processing_of("Rect"), Some(ChildProcessingKind::Generic));
     }
 }

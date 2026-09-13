@@ -957,7 +957,7 @@ fn test_callout_place_default_is_right() {
 fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Rect".to_string();
-    track.caps = crate::timeline::ActorCaps::of_type("Rect").unwrap();
+    track.caps = animatix_std::caps_for_type("Rect").unwrap();
     track.first_seen_ms = 0;
     track.geometry.position = Some({
         let mut t = PropertyTrack::new(pos);
@@ -977,7 +977,7 @@ fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
     use crate::timeline::animation_track::CalloutPlace;
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Callout".to_string();
-    track.caps = crate::timeline::ActorCaps::of_type("Callout").unwrap();
+    track.caps = animatix_std::caps_for_type("Callout").unwrap();
     track.first_seen_ms = 0;
     track.geometry.callout_target = Some({
         let mut t = PropertyTrack::new(target.to_string());

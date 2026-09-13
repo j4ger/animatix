@@ -3,7 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::primitives::{ActorCategory, AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{
@@ -20,16 +20,6 @@ impl Primitive for ImagePrimitive {
     fn type_name(&self) -> &str {
         "Image"
     }
-    fn display_name(&self) -> &str {
-        "Image"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Media
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::IMAGE
-    }
-
     fn build(
         &self,
         ctx: &mut BuildCtx,

@@ -603,8 +603,8 @@ impl Timeline {
     ) -> Option<ProcessedPlotActor> {
         let primitive = self
             .primitive_registry
-            .find(ty)
-            .map(PrimitiveFamilyDescriptor::from_primitive)
+            .info_of(ty)
+            .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
         if !primitive.is_graph_host() && !primitive.is_plot() {
             return None;

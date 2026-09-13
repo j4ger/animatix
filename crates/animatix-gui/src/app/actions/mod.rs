@@ -977,9 +977,9 @@ pub(crate) fn track_is_nestable_container(
 ) -> bool {
     timeline
         .primitive_registry_snapshot()
-        .find(&track.actor_type)
-        .map(|primitive| primitive.is_nestable_container())
-        .unwrap_or(false)
+        .info_of(&track.actor_type)
+        .map(animatix::timeline::caps_from_info)
+        .is_some_and(|caps| caps.is_nestable_container())
 }
 
 /// Whether `track` is a plain structural group (the ungroup action target).
@@ -989,7 +989,7 @@ pub(crate) fn track_is_group_like(
 ) -> bool {
     timeline
         .primitive_registry_snapshot()
-        .find(&track.actor_type)
-        .map(|primitive| primitive.is_group_like())
-        .unwrap_or(false)
+        .info_of(&track.actor_type)
+        .map(animatix::timeline::caps_from_info)
+        .is_some_and(|caps| caps.group_like)
 }

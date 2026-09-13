@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
 
@@ -15,26 +15,6 @@ pub const RECT: RectPrimitive = RectPrimitive;
 impl Primitive for RectPrimitive {
     fn type_name(&self) -> &str {
         "Rect"
-    }
-
-    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
-        Some(crate::timeline::ShapeKind::Rect)
-    }
-
-    fn display_name(&self) -> &str {
-        "Rectangle"
-    }
-
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Shape
-    }
-
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::SQUARE
-    }
-
-    fn is_shape(&self) -> bool {
-        true
     }
 
     fn build(

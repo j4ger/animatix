@@ -223,9 +223,10 @@ impl ResolvedColorscheme {
     pub fn default_color_for_primitive(
         &self,
         primitive: &dyn crate::primitives::Primitive,
+        caps: &crate::timeline::ActorCaps,
         property: &str,
     ) -> Option<[f32; 4]> {
-        let key = primitive.default_color_key(property)?;
+        let key = primitive.default_color_key(property, caps)?;
         self.color(key)
     }
 }

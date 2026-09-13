@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive};
+use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{SceneDimensions, Value};
 
@@ -16,19 +16,6 @@ impl Primitive for RowPrimitive {
     fn type_name(&self) -> &str {
         "Row"
     }
-    fn display_name(&self) -> &str {
-        "Row"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Container
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::ROWS
-    }
-    fn is_container(&self) -> bool {
-        true
-    }
-
     fn build(
         &self,
         _ctx: &mut BuildCtx,

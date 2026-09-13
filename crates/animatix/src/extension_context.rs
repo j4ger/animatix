@@ -312,12 +312,18 @@ impl ExtensionRegistry {
         }
     }
 
-    /// Register an extension primitive.
+    /// Register an extension primitive with its identity card.
+    ///
+    /// The engine trait is behaviour-only, so extensions supply their
+    /// author-visible metadata (display name, category, icon, capabilities,
+    /// child processing) as data at registration time — the same shape the
+    /// native ABI already uses.
     pub fn register_primitive(
         &mut self,
         primitive: Arc<dyn Primitive>,
+        info: animatix_std::PrimitiveInfo,
     ) -> Result<(), PrimitiveRegistrationError> {
-        Arc::make_mut(&mut self.primitives).register(primitive)
+        Arc::make_mut(&mut self.primitives).register(primitive, info)
     }
 
     /// Return the primitive registry snapshot for this context.
@@ -597,22 +603,6 @@ mod tests {
             "Marker"
         }
 
-        fn display_name(&self) -> &str {
-            "Marker"
-        }
-
-        fn category(&self) -> ActorCategory {
-            ActorCategory::Annotation
-        }
-
-        fn icon_id(&self) -> &'static str {
-            "marker"
-        }
-
-        fn text_kind(&self) -> Option<TextKind> {
-            Some(TextKind::Text)
-        }
-
         fn build(
             &self,
             _ctx: &mut BuildCtx,
@@ -632,22 +622,6 @@ mod tests {
             "Gauge"
         }
 
-        fn display_name(&self) -> &str {
-            "Gauge"
-        }
-
-        fn category(&self) -> ActorCategory {
-            ActorCategory::Plot
-        }
-
-        fn icon_id(&self) -> &'static str {
-            "gauge"
-        }
-
-        fn text_kind(&self) -> Option<TextKind> {
-            Some(TextKind::Text)
-        }
-
         fn build(
             &self,
             ctx: &mut BuildCtx,
@@ -663,7 +637,7 @@ mod tests {
             // The fixture historically claimed the `Text` kind so its plan
             // carries text slots; derive Text's caps while keeping the
             // extension's own actor type.
-            track.caps = crate::timeline::ActorCaps::of_type("Text").unwrap_or_default();
+            track.caps = animatix_std::caps_for_type("Text").unwrap_or_default();
             track.rebuild_property_plan();
             Ok(())
         }
@@ -726,7 +700,22 @@ mod tests {
     #[test]
     fn context_registers_capabilities() {
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(Marker)).expect("register primitive");
+        ctx.register_primitive(
+            Arc::new(Marker),
+            animatix_std::PrimitiveInfo {
+                type_name: "Marker",
+                display_name: "Marker",
+                category: ActorCategory::Annotation,
+                icon_id: "marker",
+                advanced: false,
+                capabilities: Default::default(),
+                child_processing: Default::default(),
+                shape: None,
+                text: Some(TextKind::Text),
+                stroke_path: false,
+            },
+        )
+        .expect("register primitive");
         ctx.register_action(Box::new(MarkAction)).expect("register action");
         ctx.register_function("double", |args, _env| {
             let Some(Value::Num(n)) = args.first() else {
@@ -843,7 +832,22 @@ mod tests {
     #[test]
     fn context_can_dispose_registered_capabilities() {
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(Marker)).expect("register primitive");
+        ctx.register_primitive(
+            Arc::new(Marker),
+            animatix_std::PrimitiveInfo {
+                type_name: "Marker",
+                display_name: "Marker",
+                category: ActorCategory::Annotation,
+                icon_id: "marker",
+                advanced: false,
+                capabilities: Default::default(),
+                child_processing: Default::default(),
+                shape: None,
+                text: Some(TextKind::Text),
+                stroke_path: false,
+            },
+        )
+        .expect("register primitive");
         ctx.register_action(Box::new(MarkAction)).expect("register action");
         ctx.register_function("double", |args, _env| {
             let Some(Value::Num(n)) = args.first() else {
@@ -1005,7 +1009,22 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(Gauge)).expect("register Gauge");
+        ctx.register_primitive(
+            Arc::new(Gauge),
+            animatix_std::PrimitiveInfo {
+                type_name: "Gauge",
+                display_name: "Gauge",
+                category: ActorCategory::Plot,
+                icon_id: "gauge",
+                advanced: false,
+                capabilities: Default::default(),
+                child_processing: Default::default(),
+                shape: None,
+                text: Some(TextKind::Text),
+                stroke_path: false,
+            },
+        )
+        .expect("register Gauge");
         ctx.register_property("Gauge", "level", PropertyValueKind::F32, true)
             .expect("register level");
 
@@ -1082,7 +1101,22 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(Gauge)).expect("register Gauge");
+        ctx.register_primitive(
+            Arc::new(Gauge),
+            animatix_std::PrimitiveInfo {
+                type_name: "Gauge",
+                display_name: "Gauge",
+                category: ActorCategory::Plot,
+                icon_id: "gauge",
+                advanced: false,
+                capabilities: Default::default(),
+                child_processing: Default::default(),
+                shape: None,
+                text: Some(TextKind::Text),
+                stroke_path: false,
+            },
+        )
+        .expect("register Gauge");
         ctx.register_property("Gauge", "level", PropertyValueKind::F32, true)
             .expect("register level");
 

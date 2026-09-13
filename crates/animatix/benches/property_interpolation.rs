@@ -1,6 +1,4 @@
-use animatix::timeline::{
-    ActorCaps, Interpolate, PropertyPlan, PropertyTrack, PropertyValue, property_id,
-};
+use animatix::timeline::{Interpolate, PropertyPlan, PropertyTrack, PropertyValue, property_id};
 use animatix_syntax::easing::Easing;
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -30,8 +28,10 @@ fn bench_property_interpolation(c: &mut Criterion) {
         })
     });
 
-    let mut plan =
-        PropertyPlan::for_actor(&ActorCaps::of_type("Rect").expect("Rect is a built-in"), "Rect");
+    let mut plan = PropertyPlan::for_actor(
+        &animatix_std::caps_for_type("Rect").expect("Rect is a built-in"),
+        "Rect",
+    );
     let position = property_id("position").expect("position is registered");
     if let Some(slot) = plan.get_mut(position) {
         slot.track.add_keyframe(0, PropertyValue::Vec2([0.0, 0.0]));

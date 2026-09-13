@@ -3,7 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::primitives::{ActorCategory, AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::svg::measure_svg_paths;
@@ -22,19 +22,6 @@ impl Primitive for SvgPrimitive {
     fn type_name(&self) -> &str {
         "Svg"
     }
-    fn display_name(&self) -> &str {
-        "SVG"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Media
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::VECTOR_THREE
-    }
-    fn is_advanced(&self) -> bool {
-        true
-    }
-
     fn build(
         &self,
         ctx: &mut BuildCtx,

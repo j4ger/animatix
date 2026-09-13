@@ -86,9 +86,11 @@ pub enum TextKind {
 }
 
 /// High-level category for grouping actors in UI palettes and docs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ActorCategory {
     /// Geometric shapes (rect, ellipse, etc.).
+    #[default]
     Shape,
     /// Text and typographic actors.
     Text,
@@ -113,5 +115,63 @@ impl ActorCategory {
             Self::Container => "Containers",
             Self::Annotation => "Annotations",
         }
+    }
+}
+
+/// What the engine needs to know about an actor's kind.
+///
+/// Derived once at identity time (from a catalog row for built-ins, from the
+/// registration info for extensions), so frame-time checks are `Copy` field
+/// reads and adding a primitive never requires extending an enum.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ActorCaps {
+    /// UI category (Shapes, Text, Media, Plots, Containers, Annotations).
+    pub category: ActorCategory,
+    /// How children of this actor are processed
+    /// (generic / mask / filter / equation).
+    pub child_processing: ChildProcessingKind,
+    /// The concrete shape geometry, for the six shape primitives.
+    pub shape: Option<ShapeKind>,
+    /// The text engine backing this actor, for text-like primitives.
+    pub text: Option<TextKind>,
+    /// Renders as a vector shape.
+    pub is_shape: bool,
+    /// Renders as a stroke-based path (shapes and `PlotCurve`).
+    pub stroke_path: bool,
+    /// Produces text paths (text, code, typst, math).
+    pub text_paths: bool,
+    /// Produces morphable vector paths.
+    pub vector_paths: bool,
+    /// Carries a raster image payload (`Image`).
+    pub image_payload: bool,
+    /// Participates in parent layout as a row/column/grid/stack.
+    pub layout_container: bool,
+    /// Is a container of children.
+    pub is_container: bool,
+    /// Hosts time-varying plot geometry.
+    pub plot_geometry: bool,
+    /// Is the `Graph` coordinate host.
+    pub plot_host: bool,
+    /// Can be a morph target between vector paths.
+    pub morphable_paths: bool,
+    /// Can be revealed by tracing vector paths.
+    pub vector_reveal_target: bool,
+    /// Is a plain structural group (no layout semantics).
+    pub group_like: bool,
+}
+
+impl ActorCaps {
+    /// `true` when this actor renders its children to an offscreen texture and
+    /// applies an effect chain (a `Filter` compositing scope).
+    pub fn is_effect_scope(&self) -> bool {
+        self.child_processing == ChildProcessingKind::Filter
+    }
+
+    /// `true` when the GUI should offer to nest new actors inside this
+    /// container: it is a container AND children render through the generic
+    /// scene-graph recursion (not Mask/Filter/Equation aggregation).
+    pub fn is_nestable_container(&self) -> bool {
+        self.is_container && self.child_processing == ChildProcessingKind::Generic
     }
 }

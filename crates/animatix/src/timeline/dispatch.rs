@@ -230,7 +230,7 @@ impl AnimationTrack {
     /// was built without a type name.
     pub fn new(label: String, actor_type: impl Into<String>) -> Self {
         let actor_type = actor_type.into();
-        let caps = ActorCaps::of_type(&actor_type).unwrap_or_default();
+        let caps = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
         Self {
             // Identity
             label: label.clone(),
@@ -314,15 +314,15 @@ impl AnimationTrack {
     /// until its build path refines them.
     pub(crate) fn set_identity(&mut self, actor_type: &str) {
         self.actor_type = actor_type.to_string();
-        self.caps = ActorCaps::of_type(actor_type).unwrap_or_default();
+        self.caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
     }
 
-    /// Refine this track's capabilities from the registered primitive.
+    /// Refine this track's capabilities from a registration info card.
     ///
     /// Extension builds call this after `set_identity`: an unregistered type
-    /// name has no built-in caps, but the registry primitive knows its own.
-    pub(crate) fn set_caps_from(&mut self, primitive: &dyn crate::primitives::Primitive) {
-        self.caps = ActorCaps::of(primitive);
+    /// name has no built-in caps, but the registration info knows its own.
+    pub(crate) fn set_caps(&mut self, caps: ActorCaps) {
+        self.caps = caps;
     }
 
     /// Rebuild the property plan from the current actor identity.

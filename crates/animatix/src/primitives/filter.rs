@@ -5,7 +5,7 @@
 
 use crate::ast::{InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, ChildProcessing, Primitive};
+use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The `Filter` primitive.
@@ -18,22 +18,6 @@ impl Primitive for FilterPrimitive {
     fn type_name(&self) -> &str {
         "Filter"
     }
-    fn display_name(&self) -> &str {
-        "Filter"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Container
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::FILTERS
-    }
-    fn is_container(&self) -> bool {
-        true
-    }
-    fn child_processing(&self) -> ChildProcessing {
-        ChildProcessing::Filter
-    }
-
     fn render_children(
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,

@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::shapes::parse_path_commands_expr;
 use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
 
@@ -15,22 +15,6 @@ pub const PATH: PathPrimitive = PathPrimitive;
 impl Primitive for PathPrimitive {
     fn type_name(&self) -> &str {
         "Path"
-    }
-
-    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
-        Some(crate::timeline::ShapeKind::Path)
-    }
-    fn display_name(&self) -> &str {
-        "Path"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Shape
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::PEN
-    }
-    fn is_shape(&self) -> bool {
-        true
     }
 
     fn build(

@@ -2,9 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{
-    ActorCategory, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
-};
+use crate::primitives::{BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::SceneDimensions;
 
@@ -17,22 +15,6 @@ pub const BAR_CHART: BarChartPrimitive = BarChartPrimitive;
 impl Primitive for BarChartPrimitive {
     fn type_name(&self) -> &str {
         "BarChart"
-    }
-
-    fn display_name(&self) -> &str {
-        "Bar Chart"
-    }
-
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::CHART_BAR
-    }
-
-    fn is_shape(&self) -> bool {
-        false
     }
 
     fn build(

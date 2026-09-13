@@ -412,8 +412,10 @@ impl Timeline {
         // `func` is a build-time-only AST node, not a registry property.
         // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
         // FuncTransition that blends function outputs at frame time.
-        let is_plot_actor = primitive
-            .is_some_and(|primitive| primitive.capabilities().plot_geometry)
+        let is_plot_actor = self
+            .primitive_registry
+            .info_of(track.actor_type.as_str())
+            .is_some_and(|info| info.capabilities.plot_geometry)
             || matches!(
                 track.actor_type.as_str(),
                 "VectorField" | "Heatmap" | "ContourSet" | "PlotCurve"

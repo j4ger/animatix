@@ -1,5 +1,5 @@
-use crate::primitives::{ChildProcessing, Primitive};
-use crate::timeline::ActorCategory;
+use crate::primitives::ChildProcessing;
+use animatix_core::caps::ActorCategory;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveFamily {
@@ -42,8 +42,8 @@ impl PrimitiveFamilyDescriptor {
     ///
     /// This deliberately takes `&dyn Primitive` instead of looking up a static
     /// built-in so extension primitives participate in the same classification.
-    pub fn from_primitive(primitive: &dyn Primitive) -> Self {
-        let caps = primitive.capabilities();
+    pub fn from_info(info: &animatix_std::PrimitiveInfo) -> Self {
+        let caps = info.capabilities;
         let family = if caps.text_paths {
             PrimitiveFamily::TextLike
         } else if caps.plot_geometry {
@@ -57,7 +57,7 @@ impl PrimitiveFamilyDescriptor {
         } else if caps.is_container {
             PrimitiveFamily::Group
         } else {
-            match primitive.category() {
+            match info.category {
                 ActorCategory::Shape => PrimitiveFamily::VectorShape,
                 ActorCategory::Text => PrimitiveFamily::TextLike,
                 ActorCategory::Media => PrimitiveFamily::Media,
@@ -89,7 +89,7 @@ impl PrimitiveFamilyDescriptor {
         Self {
             family,
             capabilities,
-            child_processing: primitive.child_processing(),
+            child_processing: info.child_processing,
         }
     }
 
@@ -121,12 +121,12 @@ impl PrimitiveFamilyDescriptor {
 #[cfg(test)]
 mod tests {
     use super::{PrimitiveFamily, PrimitiveFamilyDescriptor};
-    use crate::primitives::find_primitive;
+    use animatix_std::catalog_lookup;
 
     #[test]
     fn classifies_text_like_primitives() {
-        let primitive = find_primitive("Text").expect("Text built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Text").expect("Text built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert_eq!(descriptor.family, PrimitiveFamily::TextLike);
         assert!(descriptor.capabilities.text_paths);
         assert!(descriptor.capabilities.morphable_paths);
@@ -134,16 +134,16 @@ mod tests {
 
     #[test]
     fn classifies_plot_primitives() {
-        let primitive = find_primitive("PlotCurve").expect("PlotCurve built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert_eq!(descriptor.family, PrimitiveFamily::Plot);
         assert!(descriptor.capabilities.plot_geometry);
     }
 
     #[test]
     fn classifies_layout_containers() {
-        let primitive = find_primitive("Row").expect("Row built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Row").expect("Row built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert_eq!(descriptor.family, PrimitiveFamily::Container);
         assert!(descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
@@ -151,31 +151,31 @@ mod tests {
 
     #[test]
     fn classifies_structural_groups_as_recursive_containers() {
-        let primitive = find_primitive("Group").expect("Group built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Group").expect("Group built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(!descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
     }
 
     #[test]
     fn equation_containers_are_not_recursive_action_targets() {
-        let primitive = find_primitive("Equation").expect("Equation built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Equation").expect("Equation built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(!descriptor.is_recursive_container());
     }
 
     #[test]
     fn classifies_graph_as_plot_host() {
-        let primitive = find_primitive("Graph").expect("Graph built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Graph").expect("Graph built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(descriptor.is_graph_host());
         assert!(!descriptor.is_plot_curve());
     }
 
     #[test]
     fn treats_circle_as_vector_shape() {
-        let primitive = find_primitive("Ellipse").expect("Ellipse built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(primitive);
+        let info = catalog_lookup("Ellipse").expect("Ellipse built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert_eq!(descriptor.family, PrimitiveFamily::VectorShape);
         assert!(descriptor.capabilities.vector_paths);
     }
@@ -184,13 +184,13 @@ mod tests {
     fn capabilities_pass_through_untouched_for_builtins() {
         // The full schema capability set is preserved instead of being
         // stripped down to a family-inferred subset.
-        let rect = find_primitive("Rect").expect("Rect built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(rect);
+        let info = catalog_lookup("Rect").expect("Rect built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(descriptor.capabilities.vector_paths);
         assert!(descriptor.capabilities.is_shape);
 
-        let curve = find_primitive("PlotCurve").expect("PlotCurve built-in");
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(curve);
+        let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
+        let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(descriptor.capabilities.plot_geometry);
         assert!(descriptor.capabilities.morphable_paths);
         assert!(!descriptor.capabilities.is_shape);
@@ -200,25 +200,16 @@ mod tests {
     fn sloppy_container_category_gets_layout_defaults() {
         use crate::ast::{InlineItem, Modifier, Property};
         use crate::primitives::BuildCtx;
-        use crate::timeline::ActorCategory;
 
-        // A plugin that declares only a Container category inherits the
-        // schema's container capability defaults (layout_container +
-        // is_container), so it must classify as a layout container even
-        // without explicit ABI capability flags.
+        // A plugin that declares Container capabilities (layout_container +
+        // is_container, as the schema defaults and the ABI describe) must
+        // classify as a layout container, and the flags pass through
+        // unstripped.
+        #[allow(dead_code)] // Referenced only through the registration info card below
         struct SloppyContainer;
         impl crate::primitives::Primitive for SloppyContainer {
             fn type_name(&self) -> &str {
                 "Sloppy"
-            }
-            fn display_name(&self) -> &str {
-                "Sloppy"
-            }
-            fn category(&self) -> ActorCategory {
-                ActorCategory::Container
-            }
-            fn icon_id(&self) -> &'static str {
-                "sloppy"
             }
             fn build(
                 &self,
@@ -232,9 +223,24 @@ mod tests {
             }
         }
 
-        let descriptor = PrimitiveFamilyDescriptor::from_primitive(&SloppyContainer);
+        let mut container_info = animatix_std::PrimitiveInfo::extension(
+            "SloppyContainer",
+            crate::timeline::ActorCategory::Container,
+        );
+        container_info.capabilities.layout_container = true;
+        container_info.capabilities.is_container = true;
+        let descriptor = PrimitiveFamilyDescriptor::from_info(&container_info);
         assert_eq!(descriptor.family, PrimitiveFamily::Container);
         assert!(descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
+
+        // A genuinely sloppy card (Container category, no capability flags)
+        // still normalizes to a recursable group container.
+        let bare_info = animatix_std::PrimitiveInfo::extension(
+            "BareContainer",
+            crate::timeline::ActorCategory::Container,
+        );
+        let bare = PrimitiveFamilyDescriptor::from_info(&bare_info);
+        assert!(bare.is_recursive_container());
     }
 }

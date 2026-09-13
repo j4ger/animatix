@@ -315,7 +315,8 @@ impl Timeline {
                 TextDeclarationKind::Math => "Math",
             };
             if let Some(primitive) = self.primitive_registry.find(primitive_type) {
-                if let Some(scheme_color) = self.get_default_color(primitive, "color") {
+                let caps = animatix_std::caps_for_type(primitive_type).unwrap_or_default();
+                if let Some(scheme_color) = self.get_default_color(primitive, &caps, "color") {
                     initial_track_color = Some(scheme_color);
                     color_rgba = scheme_color;
                 }

@@ -135,7 +135,7 @@ impl PreviewContext<'_> {
                     let registry = t.primitive_registry_snapshot();
                     let mode: preview::ResizeMode =
                         if let Some(primitive) = registry.find(&tr.actor_type) {
-                            match primitive.resize_mode() {
+                            match primitive.resize_mode(&tr.caps) {
                                 animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
                                 _ => preview::ResizeMode::Size,
                             }
@@ -192,8 +192,8 @@ impl PreviewContext<'_> {
                 // snapshot Arc alive while `find` borrows from it.
                 let registry = timeline.primitive_registry_snapshot();
                 registry
-                    .find(&track.actor_type)
-                    .filter(|p| p.capabilities().text_paths)
+                    .info_of(&track.actor_type)
+                    .filter(|info| info.capabilities.text_paths)
                     .map(|_| "content")
             },
         }

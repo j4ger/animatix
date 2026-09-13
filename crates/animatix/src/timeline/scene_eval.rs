@@ -771,7 +771,7 @@ impl Timeline {
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
         };
-        let path = primitive.clip_path(&ctx);
+        let path = primitive.clip_path(&ctx, &child.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.
         let _ = child.take_shape_command_bounds();
         // Place the (origin-centered) clip geometry with the child's fully

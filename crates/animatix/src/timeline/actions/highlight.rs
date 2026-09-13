@@ -53,9 +53,8 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
 fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     timeline
         .primitive_registry
-        .find(&track.actor_type)
-        .map(|primitive| primitive.child_processing() == ChildProcessing::Equation)
-        .unwrap_or(false)
+        .info_of(&track.actor_type)
+        .is_some_and(|info| info.child_processing == ChildProcessing::Equation)
 }
 
 /// Find the parent Equation track label for a given Fragment label, if any.

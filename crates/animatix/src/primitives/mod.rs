@@ -55,8 +55,9 @@ use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
-    ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions, Timeline,
-    TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath, default_stroke_width,
+    ActorCaps, ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
+    Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
+    default_stroke_width,
 };
 
 /// Map the runtime UI category onto the schema category used by tooling.
@@ -1007,73 +1008,18 @@ pub(crate) fn clip_bezpath_from_commands(commands: &[RenderCommand]) -> Option<k
     (!path.elements().is_empty()).then_some(path)
 }
 
-/// Every actor type in Animatix implements this trait.
-///
-/// Metadata, build logic, and (optionally) render logic live in one place.
+/// Every actor type in Animatix implements this trait: the *behaviour* half
+/// of a primitive (build/evaluate/render). The metadata half lives in the
+/// `animatix-std` catalog for built-ins and in the registration info for
+/// extensions, keyed by [`Primitive::type_name`].
 pub trait Primitive: Send + Sync {
-    // ── Metadata ──
+    // ── Identity ──
 
-    /// Source-text type name, e.g. "Rect", "Text", "Row".
+    /// Source-text type name, e.g. "Rect", "Text", "Row" — the registry key.
+    /// Metadata (display name, category, icon, capabilities, child
+    /// processing) lives in the `animatix-std` catalog for built-ins and in
+    /// the registration info for extensions; it is looked up by this name.
     fn type_name(&self) -> &str;
-
-    /// Human-readable label for UI palettes and tooltips.
-    fn display_name(&self) -> &str;
-
-    /// UI category (Shapes, Text, Media, Plots, Containers).
-    fn category(&self) -> ActorCategory;
-
-    /// Opaque icon identifier. The GUI maps this to a concrete icon.
-    fn icon_id(&self) -> &'static str;
-
-    /// When true, shown in a "More..." submenu instead of top-level.
-    fn is_advanced(&self) -> bool {
-        false
-    }
-
-    /// Returns true if this primitive is a layout container.
-    fn is_container(&self) -> bool {
-        false
-    }
-
-    /// Returns true if this primitive renders as a vector shape.
-    fn is_shape(&self) -> bool {
-        false
-    }
-
-    /// Shared schema capabilities for this primitive.
-    ///
-    /// This is the migration point for metadata that previously lived in
-    /// `PrimitiveDescriptor` string matching. Primitives can override it when
-    /// they need capabilities beyond the category defaults.
-    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-        animatix_syntax::schema::primitive_capabilities(
-            self.type_name(),
-            actor_category_to_primitive_category(self.category()),
-        )
-    }
-
-    /// Child-processing capability used by the scene subtree renderer.
-    ///
-    /// Container primitives override this when `scene_eval` must aggregate or
-    /// transform children before drawing them.
-    fn child_processing(&self) -> ChildProcessing {
-        ChildProcessing::Generic
-    }
-
-    /// Returns true when the GUI should offer to nest new actors inside this
-    /// container: it is a container AND children render through the generic
-    /// scene-graph recursion (not Mask/Filter/Equation aggregation).
-    fn is_nestable_container(&self) -> bool {
-        self.is_container() && self.child_processing() == ChildProcessing::Generic
-    }
-
-    /// Returns true for plain structural groups (a container without layout
-    /// semantics) that the GUI's group/ungroup actions apply to.
-    fn is_group_like(&self) -> bool {
-        self.is_container()
-            && !self.capabilities().layout_container
-            && self.child_processing() == ChildProcessing::Generic
-    }
 
     /// Property names this primitive declares from the built-in or extension
     /// property registries.
@@ -1089,24 +1035,6 @@ pub trait Primitive: Send + Sync {
     /// extension property registry.
     fn declares_property(&self, name: &str) -> bool {
         self.declared_property_names().contains(&name)
-    }
-
-    /// The concrete shape geometry, for shape primitives.
-    ///
-    /// Replaces the old `ActorKindId::Shape(ShapeKind)` identity: the
-    /// capability is data on the primitive, not an enum variant.
-    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
-        None
-    }
-
-    /// The text engine backing this actor, for text-like primitives.
-    fn text_kind(&self) -> Option<crate::timeline::TextKind> {
-        None
-    }
-
-    /// Renders as a stroke-based path (shapes and `PlotCurve`).
-    fn has_stroke_path(&self) -> bool {
-        self.is_shape()
     }
 
     // ── Build: AST → Timeline ──
@@ -1141,8 +1069,8 @@ pub trait Primitive: Send + Sync {
     /// warns and falls back to a rectangular clip. The path is in the
     /// primitive's local space — the caller composes the child transform and
     /// the mask transform.
-    fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
-        if self.capabilities().plot_geometry {
+    fn clip_path(&self, ctx: &EvaluateCtx, caps: &ActorCaps) -> Option<kurbo::BezPath> {
+        if caps.plot_geometry {
             return None;
         }
         let commands = self.evaluate(ctx, None).ok()??;
@@ -1205,16 +1133,16 @@ pub trait Primitive: Send + Sync {
 
     /// Returns the colorscheme key for default color lookup.
     /// For example, "Text" returns "text.primary", shapes return "accent.primary".
-    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+    fn default_color_key(&self, property: &str, caps: &ActorCaps) -> Option<&'static str> {
         match property {
-            "color" => match self.category() {
+            "color" => match caps.category {
                 ActorCategory::Text => Some("text.primary"),
                 ActorCategory::Shape | ActorCategory::Plot => Some("surface.primary"),
                 ActorCategory::Media => Some("text.primary"),
                 ActorCategory::Container => None,
                 ActorCategory::Annotation => None,
             },
-            "stroke" | "stroke_color" => match self.category() {
+            "stroke" | "stroke_color" => match caps.category {
                 ActorCategory::Shape => Some("stroke.default"),
                 _ => None,
             },
@@ -1223,8 +1151,8 @@ pub trait Primitive: Send + Sync {
     }
 
     /// How the GUI should resize this actor.
-    fn resize_mode(&self) -> crate::timeline::ResizeMode {
-        match self.category() {
+    fn resize_mode(&self, caps: &ActorCaps) -> crate::timeline::ResizeMode {
+        match caps.category {
             ActorCategory::Text | ActorCategory::Media | ActorCategory::Plot => {
                 crate::timeline::ResizeMode::Scale
             },
@@ -1351,44 +1279,17 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
 
 // ── Auto-generated registry ─────────────────────────────────────────────
 
-/// Static metadata generated from `PRIMITIVES`.
-/// Built once at first access via `OnceLock`.
-pub struct ActorKindMeta {
-    /// Source-text type name.
-    pub type_name: &'static str,
-    /// Human-readable display name.
-    pub display_name: &'static str,
-    /// UI category.
-    pub category: ActorCategory,
-    /// Icon identifier.
-    pub icon_id: &'static str,
-    /// Whether shown in advanced submenu.
-    pub advanced: bool,
+/// Metadata for one built-in primitive: the `animatix-std` catalog row.
+pub use animatix_std::PrimitiveInfo as ActorKindMeta;
+
+/// Get the built-in metadata registry (the `animatix-std` catalog).
+pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
+    animatix_std::CATALOG
 }
 
 use std::sync::OnceLock;
 
-static REGISTRY_LOCK: OnceLock<Vec<ActorKindMeta>> = OnceLock::new();
-
-fn build_registry() -> Vec<ActorKindMeta> {
-    PRIMITIVES
-        .iter()
-        .map(|p| ActorKindMeta {
-            type_name: p.type_name(),
-            display_name: p.display_name(),
-            category: p.category(),
-            icon_id: p.icon_id(),
-            advanced: p.is_advanced(),
-        })
-        .collect()
-}
-
-/// Get the auto-generated metadata registry.
-pub fn actor_kind_registry() -> &'static [ActorKindMeta] {
-    REGISTRY_LOCK.get_or_init(build_registry)
-}
-
-/// Look up metadata by type name.
+/// Look up built-in metadata by the actor's type name.
 pub fn actor_kind_meta_by_name(name: &str) -> Option<&'static ActorKindMeta> {
     actor_kind_registry().iter().find(|m| m.type_name == name)
 }
@@ -1492,33 +1393,35 @@ mod tests {
     #[test]
     fn child_processing_capabilities_cover_special_containers() {
         assert_eq!(
-            find_primitive("Filter").expect("Filter built-in").child_processing(),
+            animatix_std::catalog_lookup("Filter")
+                .expect("Filter built-in")
+                .child_processing,
             ChildProcessing::Filter
         );
         assert_eq!(
-            find_primitive("Mask").expect("Mask built-in").child_processing(),
+            animatix_std::catalog_lookup("Mask").expect("Mask built-in").child_processing,
             ChildProcessing::Mask
         );
         assert_eq!(
-            find_primitive("Equation").expect("Equation built-in").child_processing(),
+            animatix_std::catalog_lookup("Equation")
+                .expect("Equation built-in")
+                .child_processing,
             ChildProcessing::Equation
         );
         assert_eq!(
-            find_primitive("Row").expect("Row built-in").child_processing(),
+            animatix_std::catalog_lookup("Row").expect("Row built-in").child_processing,
             ChildProcessing::Generic
         );
     }
 
     #[test]
     fn registry_matches_primitives() {
+        // The catalog (metadata) and the PRIMITIVES array (behaviour) must
+        // stay in lockstep — one row per registered behaviour.
         let registry = actor_kind_registry();
         assert_eq!(registry.len(), PRIMITIVES.len());
         for (meta, prim) in registry.iter().zip(PRIMITIVES.iter()) {
             assert_eq!(meta.type_name, prim.type_name());
-            assert_eq!(meta.display_name, prim.display_name());
-            assert_eq!(meta.category, prim.category());
-            assert_eq!(meta.icon_id, prim.icon_id());
-            assert_eq!(meta.advanced, prim.is_advanced());
         }
     }
 
@@ -1567,9 +1470,9 @@ mod tests {
     }
 
     #[test]
-    fn every_primitive_derives_caps() {
-        for prim in PRIMITIVES.iter() {
-            let caps = crate::timeline::ActorCaps::of(*prim);
+    fn every_catalog_row_derives_caps() {
+        for info in animatix_std::CATALOG {
+            let caps = animatix_std::caps_from_info(info);
             let _ = caps; // derivation must be total over built-ins
         }
     }

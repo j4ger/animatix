@@ -245,12 +245,9 @@ pub(crate) fn expand_group_targets(
 fn is_recursive_container(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     timeline
         .primitive_registry
-        .find(&track.actor_type)
-        .map(|primitive| {
-            crate::timeline::PrimitiveFamilyDescriptor::from_primitive(primitive)
-                .is_recursive_container()
-        })
-        .unwrap_or(false)
+        .info_of(&track.actor_type)
+        .map(crate::timeline::PrimitiveFamilyDescriptor::from_info)
+        .is_some_and(|descriptor| descriptor.is_recursive_container())
 }
 
 pub(crate) fn ensure_vector_reveal_target(
@@ -271,12 +268,9 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    let capabilities = timeline
-        .primitive_registry
-        .find(&track.actor_type)
-        .map(|primitive| primitive.capabilities());
+    let capabilities = timeline.primitive_registry.info_of(&track.actor_type);
 
-    if capabilities.is_some_and(|caps| caps.image_payload) {
+    if capabilities.is_some_and(|info| info.capabilities.image_payload) {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -301,7 +295,8 @@ pub(crate) fn ensure_vector_reveal_target(
 
     // Text/Code/Typst targets are now allowed; draw-in uses char_progress for typewriter effect.
 
-    if capabilities.is_some_and(|caps| caps.is_container || caps.layout_container)
+    if capabilities
+        .is_some_and(|info| info.capabilities.is_container || info.capabilities.layout_container)
         || (timeline.tracks.get(target).is_some_and(|track| !track.children.is_empty())
             && track
                 .shape
@@ -491,26 +486,6 @@ mod tests {
             "FlexContainer"
         }
 
-        fn display_name(&self) -> &str {
-            "Flex Container"
-        }
-
-        fn category(&self) -> ActorCategory {
-            ActorCategory::Container
-        }
-
-        fn icon_id(&self) -> &'static str {
-            "flex"
-        }
-
-        fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-            animatix_syntax::schema::PrimitiveCapabilities {
-                layout_container: true,
-                is_container: true,
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            }
-        }
-
         fn build(
             &self,
             ctx: &mut BuildCtx,
@@ -537,7 +512,13 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut registry = crate::primitives::PrimitiveRegistry::new();
-        registry.register(Arc::new(FlexContainer)).expect("register FlexContainer");
+        let mut flex_info =
+            animatix_std::PrimitiveInfo::extension("FlexContainer", ActorCategory::Container);
+        flex_info.capabilities.layout_container = true;
+        flex_info.capabilities.is_container = true;
+        registry
+            .register(Arc::new(FlexContainer), flex_info)
+            .expect("register FlexContainer");
         let report =
             Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
         let build_unexpected: Vec<_> = report

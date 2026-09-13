@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
 
@@ -15,22 +15,6 @@ pub const TYPST: TypstPrimitive = TypstPrimitive;
 impl Primitive for TypstPrimitive {
     fn type_name(&self) -> &str {
         "Typst"
-    }
-
-    fn text_kind(&self) -> Option<crate::timeline::TextKind> {
-        Some(crate::timeline::TextKind::Typst)
-    }
-    fn display_name(&self) -> &str {
-        "Typst"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Text
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::ARTICLE
-    }
-    fn is_advanced(&self) -> bool {
-        true
     }
 
     fn build(

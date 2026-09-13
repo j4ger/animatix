@@ -15,8 +15,8 @@ use animatix::timeline::{AnimationTrack, Timeline};
 pub fn actor_icon_for_track(track: &AnimationTrack, timeline: &Timeline) -> &'static str {
     timeline
         .primitive_registry_snapshot()
-        .find(&track.actor_type)
-        .map(|primitive| primitive.icon_id())
+        .info_of(&track.actor_type)
+        .map(|info| info.icon_id)
         .unwrap_or(egui_phosphor::regular::PUZZLE_PIECE)
 }
 

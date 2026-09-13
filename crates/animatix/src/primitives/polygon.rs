@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::shapes::parse_point_list_expr;
 use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
@@ -16,22 +16,6 @@ pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 impl Primitive for PolygonPrimitive {
     fn type_name(&self) -> &str {
         "Polygon"
-    }
-
-    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
-        Some(crate::timeline::ShapeKind::Polygon)
-    }
-    fn display_name(&self) -> &str {
-        "Polygon"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Shape
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::POLYGON
-    }
-    fn is_shape(&self) -> bool {
-        true
     }
 
     fn build(

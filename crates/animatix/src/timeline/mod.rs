@@ -219,14 +219,12 @@ impl BuildQuality {
         }
     }
 }
-pub use actor_caps::{
-    ActorCaps, ActorCategory, ActorKindMeta, ShapeKind, TextKind, actor_kind_meta_by_name,
-    actor_kind_registry,
-};
+pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind, actor_kind_meta_by_name};
 pub use animation_track::{
     ActionCategory, ActionEvent, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, PlacementMode,
     PositionBinding, ResizeMode, SceneAnchor,
 };
+pub use animatix_std::{caps_for_type, caps_from_info};
 pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
 use timing::{
@@ -1458,9 +1456,10 @@ impl Timeline {
     pub fn get_default_color(
         &self,
         primitive: &dyn crate::primitives::Primitive,
+        caps: &ActorCaps,
         property: &str,
     ) -> Option<[f32; 4]> {
-        self.colorscheme.default_color_for_primitive(primitive, property)
+        self.colorscheme.default_color_for_primitive(primitive, caps, property)
     }
 
     /// Compute the world-space affine transform for a given actor at the given time.

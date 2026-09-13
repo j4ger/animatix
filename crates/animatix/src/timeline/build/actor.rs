@@ -29,8 +29,8 @@ impl Timeline {
     ) -> Vec<VelloPath> {
         let primitive = self
             .primitive_registry
-            .find(ty)
-            .map(PrimitiveFamilyDescriptor::from_primitive)
+            .info_of(ty)
+            .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
         if primitive.is_graph_host() {
             return build_graph_axis_paths(
@@ -247,12 +247,14 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
-                    // Capabilities come from the registered primitive, not the
-                    // built-in registry: an in-process extension can be a
+                    // Capabilities come from the registration info, not the
+                    // built-in catalog: an in-process extension can be a
                     // text-like or shape-like primitive and must get the full
                     // built-in treatment.
                     track.actor_type = ty.to_string();
-                    track.set_caps_from(primitive);
+                    if let Some(info) = registry.info_of(ty) {
+                        track.set_caps(animatix_std::caps_from_info(info));
+                    }
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
@@ -293,7 +295,7 @@ impl Timeline {
             }
         }
 
-        let Some(caps) = super::ActorCaps::of_type(ty) else {
+        let Some(caps) = animatix_std::caps_for_type(ty) else {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,
@@ -307,8 +309,8 @@ impl Timeline {
 
         let primitive = self
             .primitive_registry
-            .find(ty)
-            .map(PrimitiveFamilyDescriptor::from_primitive)
+            .info_of(ty)
+            .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
         let existing_track = self
             .tracks
@@ -393,7 +395,7 @@ impl Timeline {
         let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
 
         let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
-        let vector_shape = primitive_registry.find(ty).filter(|p| p.is_shape());
+        let vector_shape = primitive_registry.info_of(ty).filter(|info| info.capabilities.is_shape);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let mut vector_shape_state = self.build_vector_shape_state(
             ty,
@@ -441,20 +443,19 @@ impl Timeline {
         let has_explicit_color = props.iter().any(|p| p.name == "color");
         let has_explicit_stroke =
             props.iter().any(|p| p.name == "stroke" || p.name == "stroke_color");
-        let scheme_primitive = self.primitive_registry.find(ty);
         if !has_explicit_color {
-            if let Some(primitive) = scheme_primitive {
-                if let Some(scheme_color) = self.get_default_color(primitive, "color") {
+            if let Some(primitive) = self.primitive_registry.find(ty) {
+                if let Some(scheme_color) = self.get_default_color(primitive, &caps, "color") {
                     color = scheme_color;
-                    if primitive.category() == ActorCategory::Plot {
+                    if caps.category == ActorCategory::Plot {
                         stroke_color = scheme_color;
                     }
                 }
             }
         }
         if !has_explicit_stroke {
-            if let Some(primitive) = scheme_primitive {
-                if let Some(scheme_stroke) = self.get_default_color(primitive, "stroke") {
+            if let Some(primitive) = self.primitive_registry.find(ty) {
+                if let Some(scheme_stroke) = self.get_default_color(primitive, &caps, "stroke") {
                     stroke_color = scheme_stroke;
                 }
             }
@@ -1168,7 +1169,7 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if super::ActorCaps::of_type(ty).is_none() {
+        if animatix_std::caps_for_type(ty).is_none() {
             diagnostics.push(
                 Diagnostic::error(
                     DiagnosticCode::UnknownActorType,

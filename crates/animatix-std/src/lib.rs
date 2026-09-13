@@ -10,12 +10,13 @@
 //!
 //! Effects are complete implementations (parameters, WGSL passes, `pack`,
 //! `support`); primitives are represented by their identity cards
-//! ([`PrimitiveInfo`], Phase B) while their behaviour lives in the engine,
-//! because building an actor needs the engine's `Timeline`.
+//! ([`PrimitiveInfo`] / [`CATALOG`]) while their behaviour lives in the
+//! engine, because building an actor needs the engine's `Timeline`.
 //!
 //! The normative contract for the effect pass layout, uniforms, identity
 //! semantics, and failure policy lives in `docs/effects.md`.
 
+pub mod catalog;
 pub mod effects;
 
 use std::collections::BTreeMap;
@@ -23,6 +24,7 @@ use std::sync::{Mutex, OnceLock};
 
 use animatix_core::effect::{Effect, EffectParamSpec, EffectParams, EffectPassSpec};
 
+pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
 pub use effects::{BLUR, CHROMATIC_ABERRATION, COLOR_GRADE};
 
 // ── Built-in catalog ────────────────────────────────────────────────────────

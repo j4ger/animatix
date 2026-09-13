@@ -3,22 +3,36 @@
 use std::sync::Arc;
 
 use super::{PRIMITIVES, Primitive};
+use animatix_std::{PrimitiveInfo, catalog_lookup};
 
 /// Storage for a registered primitive: compiled-in built-ins keep their
-/// `&'static` identity, extension/plugin primitives own an `Arc` allocation.
+/// `&'static` identity (metadata from the `animatix-std` catalog), extension
+/// primitives own an `Arc` allocation plus the registration info.
 #[derive(Clone)]
 enum RegisteredPrimitive {
     /// A built-in primitive from [`PRIMITIVES`].
     Builtin(&'static dyn Primitive),
     /// A runtime-registered (extension / plugin) primitive.
-    Extension(Arc<dyn Primitive>),
+    Extension(Arc<dyn Primitive>, PrimitiveInfo),
 }
 
 impl RegisteredPrimitive {
     fn as_ref(&self) -> &dyn Primitive {
         match self {
             Self::Builtin(primitive) => *primitive,
-            Self::Extension(primitive) => primitive.as_ref(),
+            Self::Extension(primitive, _) => primitive.as_ref(),
+        }
+    }
+
+    fn info(&self) -> &PrimitiveInfo {
+        match self {
+            Self::Builtin(primitive) => {
+                // Built-ins are pinned to the catalog by test; the expect
+                // documents that invariant at the single lookup funnel.
+                catalog_lookup(primitive.type_name())
+                    .expect("built-in primitive missing from the animatix-std catalog")
+            },
+            Self::Extension(_, info) => info,
         }
     }
 }
@@ -39,16 +53,21 @@ impl PrimitiveRegistry {
         registry
     }
 
-    /// Register a runtime (extension/plugin) primitive.
+    /// Register a runtime (extension/plugin) primitive with its identity card.
+    ///
+    /// Extensions carry their own metadata (the engine trait is behaviour
+    /// only), so the caller supplies the [`PrimitiveInfo`] the plugin or
+    /// embedding declared at registration time.
     pub fn register(
         &mut self,
         primitive: Arc<dyn Primitive>,
+        info: PrimitiveInfo,
     ) -> Result<(), PrimitiveRegistrationError> {
         let name = primitive.type_name();
         if self.find(name).is_some() {
             return Err(PrimitiveRegistrationError::Duplicate(name.to_string()));
         }
-        self.primitives.push(RegisteredPrimitive::Extension(primitive));
+        self.primitives.push(RegisteredPrimitive::Extension(primitive, info));
         Ok(())
     }
 
@@ -66,6 +85,25 @@ impl PrimitiveRegistry {
         }
         self.primitives.remove(index);
         true
+    }
+
+    /// Look up the identity card for a registered primitive.
+    pub fn info_of(&self, name: &str) -> Option<&PrimitiveInfo> {
+        self.primitives
+            .iter()
+            .find(|registered| registered.as_ref().type_name() == name)
+            .map(|registered| match registered {
+                RegisteredPrimitive::Builtin(primitive) => catalog_lookup(primitive.type_name())
+                    .expect("built-in primitive missing from the animatix-std catalog"),
+                RegisteredPrimitive::Extension(_, info) => info,
+            })
+    }
+
+    /// Iterate primitives together with their identity cards.
+    pub fn iter_with_info(&self) -> impl Iterator<Item = (&dyn Primitive, &PrimitiveInfo)> {
+        self.primitives
+            .iter()
+            .map(|registered| (registered.as_ref(), registered.info()))
     }
 
     /// Look up a primitive by type name.
@@ -101,29 +139,15 @@ impl PrimitiveRegistry {
 
     /// Convert the registry to shared schema specs.
     pub fn specs(&self) -> Vec<animatix_syntax::schema::PrimitiveSpec> {
-        self.iter()
-            .map(|primitive| {
-                let capabilities = primitive.capabilities();
-                animatix_syntax::schema::PrimitiveSpec {
-                    type_name: primitive.type_name().to_string(),
-                    display_name: primitive.display_name().to_string(),
-                    category: super::actor_category_to_primitive_category(primitive.category()),
-                    icon_id: primitive.icon_id().to_string(),
-                    advanced: primitive.is_advanced(),
-                    capabilities: animatix_syntax::schema::PrimitiveCapabilities {
-                        text_paths: capabilities.text_paths,
-                        vector_paths: capabilities.vector_paths,
-                        image_payload: capabilities.image_payload,
-                        layout_container: capabilities.layout_container,
-                        morphable_paths: capabilities.morphable_paths,
-                        vector_reveal_target: capabilities.vector_reveal_target,
-                        plot_geometry: capabilities.plot_geometry,
-                        plot_host: capabilities.plot_host,
-                        is_container: primitive.is_container(),
-                        is_shape: primitive.is_shape(),
-                    },
-                    child_processing: primitive.child_processing(),
-                }
+        self.iter_with_info()
+            .map(|(primitive, info)| animatix_syntax::schema::PrimitiveSpec {
+                type_name: primitive.type_name().to_string(),
+                display_name: info.display_name.to_string(),
+                category: super::actor_category_to_primitive_category(info.category),
+                icon_id: info.icon_id.to_string(),
+                advanced: info.advanced,
+                capabilities: info.capabilities,
+                child_processing: info.child_processing,
             })
             .collect()
     }
@@ -151,9 +175,7 @@ mod tests {
     use super::PrimitiveRegistry;
     use crate::ast::{InlineItem, Modifier, Property};
     use crate::diagnostics::Diagnostic;
-    use crate::primitives::{
-        ActorCategory, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
-    };
+    use crate::primitives::{BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
     use crate::renderer::error::RenderError;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -163,18 +185,6 @@ mod tests {
     impl Primitive for Gauge {
         fn type_name(&self) -> &str {
             "Gauge"
-        }
-
-        fn display_name(&self) -> &str {
-            "Gauge"
-        }
-
-        fn category(&self) -> ActorCategory {
-            ActorCategory::Plot
-        }
-
-        fn icon_id(&self) -> &'static str {
-            "gauge"
         }
 
         fn build(
@@ -203,6 +213,21 @@ mod tests {
         }
     }
 
+    fn gauge_info() -> animatix_std::PrimitiveInfo {
+        animatix_std::PrimitiveInfo {
+            type_name: "Gauge",
+            display_name: "Gauge",
+            category: crate::timeline::ActorCategory::Plot,
+            icon_id: "gauge",
+            advanced: false,
+            capabilities: Default::default(),
+            child_processing: Default::default(),
+            shape: None,
+            text: None,
+            stroke_path: false,
+        }
+    }
+
     #[test]
     fn registry_layers_custom_primitive_over_builtins() {
         let mut registry = PrimitiveRegistry::new();
@@ -210,7 +235,7 @@ mod tests {
         assert!(registry.is_builtin("Rect"));
         assert!(registry.find("Gauge").is_none());
         assert!(!registry.is_builtin("Gauge"));
-        assert!(registry.register(Arc::new(Gauge)).is_ok());
+        assert!(registry.register(Arc::new(Gauge), gauge_info()).is_ok());
         assert!(registry.find("Gauge").is_some());
         assert!(!registry.is_builtin("Gauge"));
         assert_eq!(registry.len(), super::PRIMITIVES.len() + 1);
@@ -225,35 +250,30 @@ mod tests {
         let mut registry = PrimitiveRegistry::new();
         assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
         assert!(!registry.remove("Rect"), "built-ins must stay registered");
-        assert!(registry.register(Arc::new(Gauge)).is_ok());
+        assert!(registry.register(Arc::new(Gauge), gauge_info()).is_ok());
         assert_eq!(registry.primitives.len(), super::PRIMITIVES.len() + 1);
         assert!(registry.remove("Gauge"));
         assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
     }
 
+    /// The engine behaviour registry and the `animatix-std` catalog must name
+    /// the same built-in set, in the same order — the catalog is the
+    /// author-visible half of every registered behaviour.
     #[test]
-    fn registry_specs_match_shared_schema_for_builtins() {
-        let registry_specs = PrimitiveRegistry::new().specs();
-        let schema_specs = animatix_syntax::schema::builtin_primitive_specs();
-        assert_eq!(
-            registry_specs.len(),
-            schema_specs.len(),
-            "runtime and shared-schema primitive counts drifted"
-        );
-        for schema in &schema_specs {
-            let runtime = registry_specs
-                .iter()
-                .find(|spec| spec.type_name == schema.type_name)
-                .unwrap_or_else(|| panic!("runtime registry is missing {}", schema.type_name));
-            assert_eq!(runtime, schema, "shared schema drifted for {}", schema.type_name);
-        }
+    fn registry_names_match_std_catalog() {
+        let registry = PrimitiveRegistry::new();
+        let catalog_names: Vec<&str> =
+            animatix_std::CATALOG.iter().map(|info| info.type_name).collect();
+        let registry_names: Vec<&str> =
+            registry.iter().map(|primitive| primitive.type_name()).collect();
+        assert_eq!(registry_names, catalog_names, "registry and catalog drifted");
     }
 
     #[test]
     fn duplicate_primitive_is_rejected() {
         let mut registry = PrimitiveRegistry::new();
-        assert_eq!(registry.register(Arc::new(Gauge)), Ok(()));
-        assert!(registry.register(Arc::new(Gauge)).is_err());
+        assert_eq!(registry.register(Arc::new(Gauge), gauge_info()), Ok(()));
+        assert!(registry.register(Arc::new(Gauge), gauge_info()).is_err());
     }
 
     #[test]
@@ -263,7 +283,23 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut registry = PrimitiveRegistry::new();
-        registry.register(Arc::new(Gauge)).expect("register Gauge");
+        registry
+            .register(
+                Arc::new(Gauge),
+                animatix_std::PrimitiveInfo {
+                    type_name: "Gauge",
+                    display_name: "Gauge",
+                    category: crate::timeline::ActorCategory::Plot,
+                    icon_id: "gauge",
+                    advanced: false,
+                    capabilities: Default::default(),
+                    child_processing: Default::default(),
+                    shape: None,
+                    text: None,
+                    stroke_path: false,
+                },
+            )
+            .expect("register Gauge");
         let report = crate::timeline::Timeline::build_with_primitive_registry(
             &ast,
             &HashMap::new(),

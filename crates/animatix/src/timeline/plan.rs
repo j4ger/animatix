@@ -435,7 +435,7 @@ impl DynTrack {
 #[cfg(test)]
 mod tests {
     use super::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
-    use crate::timeline::{ActorCaps, PropertyValue, property_id};
+    use crate::timeline::{PropertyValue, property_id};
 
     #[test]
     fn plan_binary_searches_by_property_id() {
@@ -501,7 +501,7 @@ mod tests {
     #[test]
     fn actor_kind_plan_maps_registry_properties_by_id() {
         let mut plan = PropertyPlan::for_actor(
-            &ActorCaps::of_type("Rect").expect("Rect is a built-in"),
+            &animatix_std::caps_for_type("Rect").expect("Rect is a built-in"),
             "Rect",
         );
         let position = property_id("position").expect("position is registered");

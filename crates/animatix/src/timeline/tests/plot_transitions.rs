@@ -83,26 +83,6 @@ impl Primitive for PlotExt {
         "PlotExt"
     }
 
-    fn display_name(&self) -> &str {
-        "Plot Extension"
-    }
-
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-
-    fn icon_id(&self) -> &'static str {
-        "plot-ext"
-    }
-
-    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-        animatix_syntax::schema::PrimitiveCapabilities {
-            vector_paths: true,
-            plot_geometry: true,
-            ..animatix_syntax::schema::PrimitiveCapabilities::default()
-        }
-    }
-
     fn build(
         &self,
         ctx: &mut BuildCtx,
@@ -1701,7 +1681,10 @@ fn extension_plot_capability_enables_func_assignments() {
     let ast = ast.expect("parsed AST");
 
     let mut registry = PrimitiveRegistry::new();
-    registry.register(Arc::new(PlotExt)).expect("register PlotExt");
+    let mut plot_info = animatix_std::PrimitiveInfo::extension("PlotExt", ActorCategory::Plot);
+    plot_info.capabilities.plot_geometry = true;
+    plot_info.capabilities.vector_paths = true;
+    registry.register(Arc::new(PlotExt), plot_info).expect("register PlotExt");
     let report = Timeline::build_with_primitive_registry(
         &ast,
         &std::collections::HashMap::new(),

@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, ChildProcessing, Primitive};
+use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The `Mask` primitive.
@@ -15,25 +15,6 @@ impl Primitive for MaskPrimitive {
     fn type_name(&self) -> &str {
         "Mask"
     }
-    fn display_name(&self) -> &str {
-        "Mask"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Container
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::MASK_HAPPY
-    }
-    fn is_advanced(&self) -> bool {
-        true
-    }
-    fn is_container(&self) -> bool {
-        true
-    }
-    fn child_processing(&self) -> ChildProcessing {
-        ChildProcessing::Mask
-    }
-
     fn render_children(
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,

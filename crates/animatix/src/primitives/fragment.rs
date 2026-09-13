@@ -10,7 +10,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::{
-    ActorCategory, AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand,
+    AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand,
 };
 use crate::timeline::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
@@ -27,16 +27,6 @@ impl Primitive for FragmentPrimitive {
     fn type_name(&self) -> &str {
         "Fragment"
     }
-    fn display_name(&self) -> &str {
-        "Fragment"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Text
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::HIGHLIGHTER
-    }
-
     /// A Fragment is the one built-in equation fragment: it contributes its
     /// content and highlight state to the parent `Equation`'s document. Any
     /// other primitive (including an extension) can opt in by overriding this.

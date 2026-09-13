@@ -358,7 +358,7 @@ mod primitives;
 pub fn shape_type_for_actor(ty: &str) -> Option<ShapeType> {
     // Resolve through the primitive's derived caps instead of a parallel
     // string table, so the mapping cannot drift from the primitive.
-    let caps = crate::timeline::ActorCaps::of_type(ty)?;
+    let caps = animatix_std::caps_for_type(ty)?;
     if let Some(kind) = caps.shape {
         return Some(shape_kind_to_shape_type(kind));
     }

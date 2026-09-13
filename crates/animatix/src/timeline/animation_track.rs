@@ -569,7 +569,6 @@ mod tests {
     #[test]
     fn actor_kind_registry_is_complete() {
         use crate::primitives::find_primitive;
-        use crate::timeline::ActorCaps;
 
         for meta in actor_kind_registry() {
             assert!(
@@ -577,29 +576,29 @@ mod tests {
                 "registry metadata for {:?} has no primitive",
                 meta.type_name
             );
-            let caps = ActorCaps::of_type(meta.type_name)
+            let caps = animatix_std::caps_for_type(meta.type_name)
                 .unwrap_or_else(|| panic!("caps missing for {:?}", meta.type_name));
             let _ = caps; // derivation must not panic; contents are per-primitive
         }
 
         // Spot-check the derived projections for representative kinds.
-        let rect = ActorCaps::of_type("Rect").unwrap();
+        let rect = animatix_std::caps_for_type("Rect").unwrap();
         assert_eq!(rect.shape, Some(ShapeKind::Rect));
         assert!(rect.is_shape);
         assert!(rect.stroke_path);
 
-        let text = ActorCaps::of_type("Text").unwrap();
+        let text = animatix_std::caps_for_type("Text").unwrap();
         assert_eq!(text.text, Some(crate::timeline::TextKind::Text));
         assert!(text.text_paths);
 
-        let filter = ActorCaps::of_type("Filter").unwrap();
+        let filter = animatix_std::caps_for_type("Filter").unwrap();
         assert!(filter.is_effect_scope());
 
-        let gauge_like_group = ActorCaps::of_type("Group").unwrap();
+        let gauge_like_group = animatix_std::caps_for_type("Group").unwrap();
         assert!(gauge_like_group.group_like);
         assert!(!gauge_like_group.layout_container);
 
-        let row = ActorCaps::of_type("Row").unwrap();
+        let row = animatix_std::caps_for_type("Row").unwrap();
         assert!(row.layout_container);
     }
 
@@ -610,7 +609,7 @@ mod tests {
         for meta in actor_kind_registry().iter() {
             let track = super::AnimationTrack::new(format!("t"), meta.type_name);
             assert_eq!(track.actor_type, meta.type_name);
-            if let Some(expected) = crate::timeline::ActorCaps::of_type(meta.type_name) {
+            if let Some(expected) = animatix_std::caps_for_type(meta.type_name) {
                 assert_eq!(track.caps, expected, "caps drifted for {}", meta.type_name);
             }
         }

@@ -978,15 +978,6 @@ fn extension_actor_at_position_regression() {
         fn type_name(&self) -> &str {
             "StubPulse"
         }
-        fn display_name(&self) -> &str {
-            "Stub Pulse"
-        }
-        fn category(&self) -> crate::timeline::ActorCategory {
-            crate::timeline::ActorCategory::Shape
-        }
-        fn icon_id(&self) -> &'static str {
-            "stub"
-        }
         fn build(
             &self,
             ctx: &mut crate::primitives::BuildCtx,
@@ -1011,7 +1002,14 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     let parsed = animatix_syntax::parser::parse_canonical(source);
     assert!(parsed.parse_errors.is_empty(), "{:?}", parsed.parse_errors);
     let mut ctx = crate::extension_context::ExtensionContext::new();
-    ctx.register_primitive(std::sync::Arc::new(StubPrim)).expect("register");
+    ctx.register_primitive(
+        std::sync::Arc::new(StubPrim),
+        animatix_std::PrimitiveInfo::extension(
+            "StubPrim",
+            crate::timeline::ActorCategory::Annotation,
+        ),
+    )
+    .expect("register");
     let report = crate::composition::BuildTarget::from_ast_with_context(
         parsed.statements.as_ref().expect("stmts"),
         &std::collections::HashMap::new(),

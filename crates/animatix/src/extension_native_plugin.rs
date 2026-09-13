@@ -426,7 +426,8 @@ unsafe extern "C" fn native_register_primitive(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let name = adapter.type_name.to_string();
-    if host.ctx.register_primitive(std::sync::Arc::new(adapter)).is_err() {
+    let info = adapter.info.clone();
+    if host.ctx.register_primitive(std::sync::Arc::new(adapter), info).is_err() {
         return NATIVE_STATUS_TYPE_ERROR;
     }
     host.primitives.push(name);
@@ -704,12 +705,8 @@ unsafe extern "C" fn native_register_effect(
 /// [`Primitive`].
 struct NativePrimitiveAdapter {
     type_name: String,
-    display_name: String,
-    icon_id: &'static str,
-    category: ActorCategory,
-    advanced: bool,
+    info: animatix_std::PrimitiveInfo,
     child_processing: ChildProcessing,
-    capabilities: animatix_syntax::schema::PrimitiveCapabilities,
     declared_properties: Vec<String>,
     resize_mode: ResizeMode,
     property_ids: HashMap<String, animatix_syntax::schema::PropertyId>,
@@ -735,8 +732,12 @@ impl NativePrimitiveAdapter {
         service_values: HashMap<String, usize>,
     ) -> Option<Self> {
         let type_name = unsafe { read_c_string(primitive.type_name)? };
-        let display_name =
-            unsafe { read_c_string(primitive.display_name) }.unwrap_or_else(|| type_name.clone());
+        // Leaked like `icon_id`: the info card and adapter share the &'static str.
+        let display_name: &'static str = Box::leak(
+            unsafe { read_c_string(primitive.display_name) }
+                .unwrap_or_else(|| type_name.clone())
+                .into_boxed_str(),
+        );
         // Leaked: `Primitive::icon_id` returns `&'static str` (the GUI row
         // builder stores `Option<&'static str>`), and registration happens
         // once per plugin load.
@@ -753,15 +754,25 @@ impl NativePrimitiveAdapter {
                 unsafe { std::slice::from_raw_parts(primitive.properties, primitive.property_len) };
             names.iter().filter_map(|ptr| unsafe { read_c_string(*ptr) }).collect()
         };
+        let child_processing =
+            native_child_processing(primitive.child_processing).unwrap_or_default();
+        let capabilities = native_capabilities(primitive.capabilities);
+        let info = animatix_std::PrimitiveInfo {
+            type_name: Box::leak(type_name.clone().into_boxed_str()),
+            display_name,
+            category,
+            icon_id,
+            advanced: primitive.advanced,
+            capabilities,
+            child_processing,
+            shape: None,
+            text: None,
+            stroke_path: false,
+        };
         Some(Self {
             type_name,
-            display_name,
-            icon_id,
-            category,
-            advanced: primitive.advanced,
-            child_processing: native_child_processing(primitive.child_processing)
-                .unwrap_or_default(),
-            capabilities: native_capabilities(primitive.capabilities),
+            info,
+            child_processing,
             declared_properties,
             resize_mode: native_resize_mode(primitive.resize_mode),
             property_ids,
@@ -810,38 +821,6 @@ impl Primitive for NativePrimitiveAdapter {
         &self.type_name
     }
 
-    fn display_name(&self) -> &str {
-        &self.display_name
-    }
-
-    fn category(&self) -> ActorCategory {
-        self.category
-    }
-
-    fn icon_id(&self) -> &'static str {
-        &self.icon_id
-    }
-
-    fn is_advanced(&self) -> bool {
-        self.advanced
-    }
-
-    fn is_container(&self) -> bool {
-        self.capabilities.is_container
-    }
-
-    fn is_shape(&self) -> bool {
-        self.capabilities.is_shape
-    }
-
-    fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-        self.capabilities
-    }
-
-    fn child_processing(&self) -> ChildProcessing {
-        self.child_processing
-    }
-
     fn declared_property_names(&self) -> Vec<&str> {
         self.declared_properties.iter().map(String::as_str).collect()
     }
@@ -850,7 +829,7 @@ impl Primitive for NativePrimitiveAdapter {
         self.declared_properties.iter().any(|declared| declared == name)
     }
 
-    fn resize_mode(&self) -> ResizeMode {
+    fn resize_mode(&self, _caps: &crate::timeline::ActorCaps) -> ResizeMode {
         self.resize_mode
     }
 
@@ -889,7 +868,11 @@ impl Primitive for NativePrimitiveAdapter {
         props
     }
 
-    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+    fn default_color_key(
+        &self,
+        property: &str,
+        _caps: &crate::timeline::ActorCaps,
+    ) -> Option<&'static str> {
         let callback = self.default_color_key?;
         let property_c = std::ffi::CString::new(property).ok()?;
         let mut out: *const c_char = std::ptr::null();
@@ -928,9 +911,9 @@ impl Primitive for NativePrimitiveAdapter {
             });
             let type_name = self.type_name.clone();
             track.actor_type = type_name;
-            // Native adapters report `ActorKindId::Extension`; use the primitive's
-            // capabilities stay consistent with the primitive's own.
-            track.set_caps_from(self);
+            // Native adapters carry their own registration info; the track
+            // caps stay consistent with it.
+            track.set_caps(animatix_std::caps_from_info(&self.info));
             track.rebuild_property_plan();
         }
         let Some(build) = self.build else {
@@ -1114,7 +1097,11 @@ impl Primitive for NativePrimitiveAdapter {
         Ok(Some(host.commands))
     }
 
-    fn clip_path(&self, ctx: &EvaluateCtx) -> Option<kurbo::BezPath> {
+    fn clip_path(
+        &self,
+        ctx: &EvaluateCtx,
+        _caps: &crate::timeline::ActorCaps,
+    ) -> Option<kurbo::BezPath> {
         let clip_path = self.clip_path?;
         let mut host = NativePrimitiveEvaluateHost {
             ctx,
@@ -3655,7 +3642,12 @@ mod tests {
         )
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+        let adapter_info = animatix_std::PrimitiveInfo::extension(
+            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.info.category,
+        );
+        ctx.register_primitive(Arc::new(adapter), adapter_info)
+            .expect("register primitive");
         BUILD_CHILD_COUNT.store(0, std::sync::atomic::Ordering::SeqCst);
 
         let report = crate::timeline::Timeline::build_with_context(
@@ -3816,7 +3808,9 @@ mod tests {
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let ctx = sample_evaluate_ctx(&track, &asset_cache);
 
-        let clip = adapter.clip_path(&ctx).expect("native clip path");
+        let clip = adapter
+            .clip_path(&ctx, &crate::timeline::ActorCaps::default())
+            .expect("native clip path");
         // Two rects (5 path elements each) must both be present.
         assert!(
             clip.elements().len() >= 10,
@@ -3921,8 +3915,8 @@ mod tests {
             "size default should be a 2-tuple"
         );
 
-        assert_eq!(adapter.default_color_key("color"), Some("accent.primary"));
-        assert_eq!(adapter.default_color_key("stroke"), None);
+        assert_eq!(adapter.default_color_key("color", &Default::default()), Some("accent.primary"));
+        assert_eq!(adapter.default_color_key("stroke", &Default::default()), None);
     }
 
     #[test]
@@ -4049,7 +4043,12 @@ mod tests {
         )
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+        let adapter_info = animatix_std::PrimitiveInfo::extension(
+            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.info.category,
+        );
+        ctx.register_primitive(Arc::new(adapter), adapter_info)
+            .expect("register primitive");
 
         let (ast, errors) =
             animatix_syntax::parser::parse_source("p: Pulse, position: (10, 20), color: red");
@@ -4116,7 +4115,12 @@ mod tests {
         )
         .expect("adapter");
         let mut ctx = ExtensionContext::new();
-        ctx.register_primitive(Arc::new(adapter)).expect("register primitive");
+        let adapter_info = animatix_std::PrimitiveInfo::extension(
+            Box::leak(adapter.type_name.clone().into_boxed_str()),
+            adapter.info.category,
+        );
+        ctx.register_primitive(Arc::new(adapter), adapter_info)
+            .expect("register primitive");
 
         let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse, glow: 0.25");
         assert!(errors.is_empty(), "parse errors: {errors:?}");

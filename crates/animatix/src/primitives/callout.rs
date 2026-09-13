@@ -2,11 +2,12 @@ use crate::ast::{Expr, InlineItem, Modifier, Property, array_actor_label};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
-    ActorCategory, AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
+    AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
     evaluate_text_paths, sample_shape_style,
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
+use crate::timeline::ActorCaps;
 use crate::timeline::callout_geometry::derive_callout_geometry;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{ActorField, ValueType};
@@ -52,19 +53,6 @@ impl Primitive for CalloutPrimitive {
     fn type_name(&self) -> &str {
         "Callout"
     }
-    fn display_name(&self) -> &str {
-        "Callout"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Annotation
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::TEXT_T
-    }
-    fn is_advanced(&self) -> bool {
-        false
-    }
-
     fn build(
         &self,
         _ctx: &mut BuildCtx,
@@ -258,7 +246,7 @@ impl Primitive for CalloutPrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+    fn default_color_key(&self, property: &str, _caps: &ActorCaps) -> Option<&'static str> {
         match property {
             "stroke" | "stroke_color" => Some("stroke.default"),
             "color" => None,

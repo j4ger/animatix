@@ -29,9 +29,8 @@ fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u6
 fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     timeline
         .primitive_registry
-        .find(&track.actor_type)
-        .map(|primitive| primitive.capabilities().text_paths)
-        .unwrap_or(false)
+        .info_of(&track.actor_type)
+        .is_some_and(|info| info.capabilities.text_paths)
 }
 
 /// Draws in vector targets by animating stroke progress first, then revealing fill.
@@ -503,8 +502,8 @@ mod tests {
     use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
     use crate::primitives::{BuildCtx, Primitive};
-    use crate::timeline::ActorCategory;
     use crate::timeline::actions::process_action;
+    use animatix_core::caps::ActorCategory;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -513,27 +512,6 @@ mod tests {
     impl Primitive for TextExt {
         fn type_name(&self) -> &str {
             "TextExt"
-        }
-
-        fn display_name(&self) -> &str {
-            "Text Extension"
-        }
-
-        fn category(&self) -> ActorCategory {
-            ActorCategory::Text
-        }
-
-        fn icon_id(&self) -> &'static str {
-            "text-ext"
-        }
-
-        fn capabilities(&self) -> animatix_syntax::schema::PrimitiveCapabilities {
-            animatix_syntax::schema::PrimitiveCapabilities {
-                text_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
-                ..animatix_syntax::schema::PrimitiveCapabilities::default()
-            }
         }
 
         fn build(
@@ -1027,7 +1005,11 @@ mod tests {
         let ast = ast.expect("parsed AST");
 
         let mut registry = crate::primitives::PrimitiveRegistry::new();
-        registry.register(Arc::new(TextExt)).expect("register TextExt");
+        let mut text_ext_info =
+            animatix_std::PrimitiveInfo::extension("TextExt", ActorCategory::Text);
+        text_ext_info.capabilities.text_paths = true;
+        text_ext_info.text = Some(animatix_core::caps::TextKind::Text);
+        registry.register(Arc::new(TextExt), text_ext_info).expect("register TextExt");
         let report =
             Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
         assert!(

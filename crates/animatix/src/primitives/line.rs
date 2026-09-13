@@ -2,7 +2,8 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::timeline::ActorCaps;
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
     Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
@@ -18,22 +19,6 @@ pub const LINE: LinePrimitive = LinePrimitive;
 impl Primitive for LinePrimitive {
     fn type_name(&self) -> &str {
         "Line"
-    }
-
-    fn shape_kind(&self) -> Option<crate::timeline::ShapeKind> {
-        Some(crate::timeline::ShapeKind::Line)
-    }
-    fn display_name(&self) -> &str {
-        "Line"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Shape
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::MINUS
-    }
-    fn is_shape(&self) -> bool {
-        true
     }
 
     fn build(
@@ -87,7 +72,7 @@ impl Primitive for LinePrimitive {
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    fn default_color_key(&self, property: &str) -> Option<&'static str> {
+    fn default_color_key(&self, property: &str, _caps: &ActorCaps) -> Option<&'static str> {
         match property {
             "stroke" | "stroke_color" => Some("stroke.default"),
             "color" => None,

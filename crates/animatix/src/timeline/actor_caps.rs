@@ -10,92 +10,9 @@
 //! which is exactly when the compiler should force every dispatch site to be
 //! revisited.
 
-pub use animatix_core::caps::{ActorCategory, ShapeKind, TextKind};
+pub use animatix_core::caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
-use crate::primitives::ChildProcessing;
 use crate::timeline::shapes::ShapeType;
-
-/// What the engine needs to know about an actor's kind.
-///
-/// Derived once at identity time via [`ActorCaps::of`]; unregistered
-/// (extension) type names derive all-false caps until their primitive's build
-/// path refines them from the registry.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ActorCaps {
-    /// How children of this actor are processed
-    /// (generic / mask / filter / equation).
-    pub child_processing: ChildProcessing,
-    /// The concrete shape geometry, for the six shape primitives.
-    pub shape: Option<ShapeKind>,
-    /// The text engine backing this actor, for text-like primitives.
-    pub text: Option<TextKind>,
-    /// Renders as a vector shape.
-    pub is_shape: bool,
-    /// Renders as a stroke-based path (shapes and `PlotCurve`).
-    pub stroke_path: bool,
-    /// Produces text paths (text, code, typst, math).
-    pub text_paths: bool,
-    /// Produces morphable vector paths.
-    pub vector_paths: bool,
-    /// Carries a raster image payload (`Image`).
-    pub image_payload: bool,
-    /// Participates in parent layout as a row/column/grid/stack.
-    pub layout_container: bool,
-    /// Is a container of children.
-    pub is_container: bool,
-    /// Hosts time-varying plot geometry.
-    pub plot_geometry: bool,
-    /// Is the `Graph` coordinate host.
-    pub plot_host: bool,
-    /// Can be a morph target between vector paths.
-    pub morphable_paths: bool,
-    /// Can be revealed by tracing vector paths.
-    pub vector_reveal_target: bool,
-    /// Is a plain structural group (no layout semantics).
-    pub group_like: bool,
-}
-
-impl ActorCaps {
-    /// Derive the capability projection from a primitive.
-    pub fn of(primitive: &dyn crate::primitives::Primitive) -> Self {
-        let capabilities = primitive.capabilities();
-        ActorCaps {
-            child_processing: primitive.child_processing(),
-            shape: primitive.shape_kind(),
-            text: primitive.text_kind(),
-            is_shape: capabilities.is_shape,
-            stroke_path: primitive.has_stroke_path(),
-            text_paths: capabilities.text_paths,
-            vector_paths: capabilities.vector_paths,
-            image_payload: capabilities.image_payload,
-            layout_container: capabilities.layout_container,
-            is_container: capabilities.is_container,
-            plot_geometry: capabilities.plot_geometry,
-            plot_host: capabilities.plot_host,
-            morphable_paths: capabilities.morphable_paths,
-            vector_reveal_target: capabilities.vector_reveal_target,
-            group_like: primitive.is_group_like(),
-        }
-    }
-
-    /// Derive caps for an authored type name from the built-in registry.
-    /// Returns `None` for unregistered names — callers decide the fallback
-    /// (the all-false [`ActorCaps::default()`] mirrors the old `Extension`
-    /// behaviour).
-    pub fn of_type(actor_type: &str) -> Option<Self> {
-        crate::primitives::find_primitive(actor_type).map(Self::of)
-    }
-
-    /// `true` when this actor renders its children to an offscreen texture and
-    /// applies an effect chain (a `Filter` compositing scope).
-    pub fn is_effect_scope(&self) -> bool {
-        self.child_processing == ChildProcessing::Filter
-    }
-}
 
 impl From<ShapeType> for ShapeKind {
     fn from(st: ShapeType) -> Self {
@@ -143,7 +60,9 @@ pub fn find_actor_kind(ty: &str) -> Option<Box<dyn ActorKind + Send + Sync>> {
     let primitive = crate::primitives::find_primitive(ty)?;
     // Shapes, containers, and Callout are handled inline by process_body, not via ActorKind
     // dispatch. Callout is an annotation but its properties now use the generic build path.
-    match primitive.category() {
+    let info = animatix_std::catalog_lookup(ty)
+        .expect("find_actor_kind only dispatches catalog-registered built-ins");
+    match info.category {
         ActorCategory::Shape | ActorCategory::Container => None,
         _ if primitive.type_name() == "Callout" => None,
         _ => Some(Box::new(PrimitiveActorKind(primitive)) as Box<dyn ActorKind + Send + Sync>),

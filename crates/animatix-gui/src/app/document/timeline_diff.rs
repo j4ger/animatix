@@ -626,9 +626,7 @@ mod tests {
 
     #[test]
     fn lane_schema_maps_typed_lanes_to_writable_source_names() {
-        use animatix::timeline::ActorCaps;
-
-        let rect_caps = ActorCaps::of_type("Rect").expect("Rect is a built-in");
+        let rect_caps = animatix::timeline::caps_for_type("Rect").expect("Rect is a built-in");
 
         // Internal lane names that differ from the source property name must
         // resolve to the writable schema, not to an ambiguous sibling.

@@ -8,7 +8,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, ChildProcessing, Primitive, RenderCommand};
+use crate::primitives::{BuildCtx, Primitive, RenderCommand};
 use crate::timeline::SceneDimensions;
 
 /// The `Equation` primitive.
@@ -21,22 +21,6 @@ impl Primitive for EquationPrimitive {
     fn type_name(&self) -> &str {
         "Equation"
     }
-    fn display_name(&self) -> &str {
-        "Equation"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Container
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::SIGMA
-    }
-    fn is_container(&self) -> bool {
-        true
-    }
-    fn child_processing(&self) -> ChildProcessing {
-        ChildProcessing::Equation
-    }
-
     fn render_children(
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,

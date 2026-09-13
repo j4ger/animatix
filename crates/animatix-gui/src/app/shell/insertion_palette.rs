@@ -109,12 +109,12 @@ impl InsertionPalette {
         let registry = timeline
             .map(animatix::timeline::Timeline::primitive_registry_snapshot)
             .unwrap_or_else(|| std::sync::Arc::new(animatix::primitives::PrimitiveRegistry::new()));
-        for prim in registry.iter() {
+        for (prim, info) in registry.iter_with_info() {
             self.items.push(PaletteItem {
-                label: prim.display_name().to_string(),
+                label: info.display_name.to_string(),
                 detail: prim.type_name().to_string(),
-                icon: prim.icon_id().to_string(),
-                color: category_color(prim.category(), theme),
+                icon: info.icon_id.to_string(),
+                color: category_color(info.category, theme),
                 kind: ItemKind::Primitive {
                     type_name: prim.type_name().to_string(),
                 },

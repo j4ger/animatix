@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{ActorCategory, BuildCtx, Primitive};
+use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::SceneDimensions;
 
 /// The `Graph` plot primitive.
@@ -21,16 +21,6 @@ impl Primitive for GraphPrimitive {
     fn type_name(&self) -> &str {
         "Graph"
     }
-    fn display_name(&self) -> &str {
-        "Graph"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::CHART_BAR
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -81,22 +71,6 @@ impl Primitive for GraphPrimitive {
 impl Primitive for PlotCurvePrimitive {
     fn type_name(&self) -> &str {
         "PlotCurve"
-    }
-
-    fn has_stroke_path(&self) -> bool {
-        true
-    }
-    fn display_name(&self) -> &str {
-        "Plot Curve"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::CHART_LINE_UP
-    }
-    fn is_advanced(&self) -> bool {
-        true
     }
 
     fn evaluate(
@@ -187,19 +161,6 @@ impl Primitive for VectorFieldPrimitive {
     fn type_name(&self) -> &str {
         "VectorField"
     }
-    fn display_name(&self) -> &str {
-        "Vector Field"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::ARROWS_OUT_CARDINAL
-    }
-    fn is_advanced(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -265,19 +226,6 @@ impl Primitive for HeatmapPrimitive {
     fn type_name(&self) -> &str {
         "Heatmap"
     }
-    fn display_name(&self) -> &str {
-        "Heatmap"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::GRADIENT
-    }
-    fn is_advanced(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -340,19 +288,6 @@ impl Primitive for ContourSetPrimitive {
     fn type_name(&self) -> &str {
         "ContourSet"
     }
-    fn display_name(&self) -> &str {
-        "Contour Set"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::CHART_DONUT
-    }
-    fn is_advanced(&self) -> bool {
-        true
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
@@ -417,16 +352,6 @@ impl Primitive for NumberPlanePrimitive {
     fn type_name(&self) -> &str {
         "NumberPlane"
     }
-    fn display_name(&self) -> &str {
-        "Number Plane"
-    }
-    fn category(&self) -> ActorCategory {
-        ActorCategory::Plot
-    }
-    fn icon_id(&self) -> &'static str {
-        crate::icon_glyphs::SQUARES_FOUR
-    }
-
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
