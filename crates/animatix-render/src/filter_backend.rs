@@ -133,8 +133,14 @@ impl GpuFilterBackend {
             }
         }
         let total = (n as u32).div_ceil(step as u32);
+        let _ = std::fs::create_dir_all("/tmp/stages");
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQ: AtomicU32 = AtomicU32::new(0);
+        let seq = SEQ.fetch_add(1, Ordering::SeqCst);
+        let path = format!("/tmp/stages/{seq:03}_{label}.png");
+        let _ = image::save_buffer(&path, data, dims.width, dims.height, image::ColorType::Rgba8);
         eprintln!(
-            "[stages] {label}: opaque={opaque}/{total} avg_rgb=({},{},{})",
+            "[stages] {seq:03} {label}: opaque={opaque}/{total} avg_rgb=({},{},{})",
             if opaque > 0 { sum_r / opaque as u64 } else { 0 },
             if opaque > 0 { sum_g / opaque as u64 } else { 0 },
             if opaque > 0 { sum_b / opaque as u64 } else { 0 },
