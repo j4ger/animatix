@@ -282,7 +282,7 @@ fn keyword_completions(symbols: &SymbolTable) -> Vec<CompletionItem> {
 
 /// Type completions with documentation.
 fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<CompletionItem> {
-    let items = symbols
+    symbols
         .types
         .iter()
         .map(|ty| {
@@ -310,9 +310,7 @@ fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<
                 insert_text: None,
             }
         })
-        .collect::<Vec<_>>();
-
-    items
+        .collect()
 }
 
 /// Label completions (actor names, let bindings).

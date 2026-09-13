@@ -607,7 +607,7 @@ mod tests {
     #[test]
     fn track_identity_derives_caps_from_registry() {
         for meta in actor_kind_registry().iter() {
-            let track = super::AnimationTrack::new(format!("t"), meta.type_name);
+            let track = super::AnimationTrack::new("t".to_string(), meta.type_name);
             assert_eq!(track.actor_type, meta.type_name);
             if let Some(expected) = animatix_std::caps_for_type(meta.type_name) {
                 assert_eq!(track.caps, expected, "caps drifted for {}", meta.type_name);

@@ -426,7 +426,7 @@ unsafe extern "C" fn native_register_primitive(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let name = adapter.type_name.to_string();
-    let info = adapter.info.clone();
+    let info = adapter.info;
     if host.ctx.register_primitive(std::sync::Arc::new(adapter), info).is_err() {
         return NATIVE_STATUS_TYPE_ERROR;
     }
@@ -4206,11 +4206,6 @@ mod tests {
             unsafe { read_c_string_len(out.string, out.string_len) }.as_deref(),
             Some("ring")
         );
-    }
-
-    #[test]
-    fn zz_probe_registers_here() {
-        assert!(true);
     }
 
     #[cfg(feature = "render")]

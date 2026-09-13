@@ -1411,7 +1411,7 @@ bg: Filter {
     assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
 
     // Effects are not actors: no track is created for the stage label.
-    assert!(timeline.tracks.get("soft").is_none());
+    assert!(!timeline.tracks.contains_key("soft"));
 }
 
 /// `scope.stage.param = value` animates an effect parameter over time.
