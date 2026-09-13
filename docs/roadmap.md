@@ -504,6 +504,20 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
 - **Analyzer.** `animatix_syntax::schema::effect_specs()` provides effect types
   and parameters for completion and property diagnostics; a drift test pins the
   table to the runtime descriptors.
+- **Built-in effects wave 1 (planned).** The catalog makes each new effect a
+  one-file + one-line addition in `animatix-std`. Next batch, chosen to cover
+  focus/finish/speed/texture/grading with single-pass GPU work and clean
+  identity semantics: `Sharpen` (amount, radius — counteracts softness in
+  scaled/exported text and plots), `Vignette` (amount, radius, softness, color
+  — zero-neighborhood, near-free), `MotionBlur` (length, angle — the first
+  animation-native effect; exercises the linear sampler), `Grain` (amount,
+  seed, monochrome — `time_ms` animates it for free), and `Levels`
+  (in_black/in_white/gamma/out_black/out_white — black/white point + gamma,
+  the grading complement to `ColorGrade`). Follow-ups: `Duotone`,
+  hard-edged `DropShadow` (callout/panel elevation), `Edge`, `Posterize`,
+  `LensDistortion`; `Bloom`/soft `DropShadow`/generic chain `Mix` wait on the
+  second-input-texture ABI bump (see `docs/effects.md` §4.1).
+
 - **Crate layering (2026-09-13).** The workspace gained `animatix-core`
   (capability vocabulary, effect trait, icon glyphs — zero heavy deps) and
   `animatix-std` (the built-in catalog: full effect definitions and primitive
@@ -516,8 +530,27 @@ its own device, so no GPU handle crosses the FFI boundary. Contract:
   line (engine), with the engine's metadata trait methods (display name,
   category, icon, capabilities, child processing across 30 files) deleted and
   `ExtensionContext::register_primitive` taking a `PrimitiveInfo` card.
-  Phase C (property-applicability predicates) and Phase D (renderer split +
-  facade) remain future work.
+  Phase C (property-applicability predicates) landed 2026-09-13: the
+  `Applicable` predicate vocabulary lives in `animatix-core`, the parser
+  crate's property rows declare one predicate each (the ~900 lines of
+  hand-maintained actor-type lists are gone — adding a capability-shaped
+  property needs no per-primitive list edits), and `property_specs()`
+  materializes the per-type lists over the catalog. The golden comparison
+  against the old lists caught and fixed two stale-data bugs: the
+  near-universal rows (at/anchor/opacity/position/rotation/scale/shift/
+  transform/legend) had silently excluded `Math`, and the Phase-3
+  `SizedActors` conversion had silently included `Equation` (both restored to
+  their pre-refactor intent). Phase D (renderer split) is **closed as
+  infeasible as scoped**: the engine's build/evaluate paths construct
+  `renderer::text::FontContext` directly (120+ `crate::renderer::*` references
+  across 50 engine files), and the engine's own effect seam uses
+  `wgpu::Texture`/`vello::Scene` — so a separate renderer crate would violate
+  Cargo's no-cyclic-dependency rule. Unblocking it requires two redesigns, not
+  moves: (1) inverting the text compiler into an injected host service so
+  build/evaluate stop calling it directly, and (2) relocating the effect
+  compositing seam (`FilterBackend` + `PendingComposite` + vello scene
+  production) out of the engine. Revisit only if compile-isolation of the GPU
+  stack becomes a concrete need.
 
 - **Identity unification (2026-09-12).** Identity is the authored type name
   everywhere: `EffectId` is the effect's name (persisted as a bare string, so
