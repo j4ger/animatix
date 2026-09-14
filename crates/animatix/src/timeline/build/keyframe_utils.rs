@@ -12,6 +12,7 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
     let start_line_from = track.shape.line_from.get(t_start_ms, [-50.0, 0.0]);
     let start_line_to = track.shape.line_to.get(t_start_ms, [50.0, 0.0]);
     let start_arc_angles = track.shape.arc_angles.get(t_start_ms, default_arc);
+    let start_corner_radius = track.shape.corner_radius.get(t_start_ms, 0.0);
     let start_color = track.style.color.get(t_start_ms, DEFAULT_WHITE);
     let start_shape_type = track.shape.shape_type.get(t_start_ms, ShapeType::Rect);
     let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
@@ -51,6 +52,11 @@ pub(crate) fn insert_start_keyframes(track: &mut AnimationTrack, t_start_ms: u64
         .line_to
         .ensure([50.0, 0.0])
         .add_keyframe(t_start_ms, start_line_to, Easing::Linear);
+    track.shape.corner_radius.ensure(0.0).add_keyframe(
+        t_start_ms,
+        start_corner_radius,
+        Easing::Linear,
+    );
     track.shape.arc_angles.ensure(default_arc).add_keyframe(
         t_start_ms,
         start_arc_angles,

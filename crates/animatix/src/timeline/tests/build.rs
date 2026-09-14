@@ -2105,3 +2105,35 @@ box.at = {280, "x"} [300ms]
         report.diagnostics
     );
 }
+
+/// A timed declaration seeds a start snapshot *and* an end keyframe for every
+/// shape value it carries. `corner_radius` was missing from the start list
+/// while being present in the end list, which made a timed radius declaration
+/// jump straight to its final value instead of animating from the current one.
+#[test]
+fn timed_declaration_snapshots_the_corner_radius() {
+    let source = r#"
+#0s
+r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 [600ms]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let track = report.output.get_track("r").expect("track r");
+    assert_eq!(
+        property_keyframe_times(track, crate::timeline::ActorField::CornerRadius),
+        vec![0, 600],
+        "a timed declaration needs a start snapshot and an end keyframe"
+    );
+    assert_eq!(
+        crate::timeline::read_property_value(track, crate::timeline::ActorField::CornerRadius, 0),
+        Some(crate::timeline::PropertyValue::F32(0.0)),
+        "the animation starts from the pre-declaration value"
+    );
+    assert_eq!(
+        crate::timeline::read_property_value(track, crate::timeline::ActorField::CornerRadius, 600),
+        Some(crate::timeline::PropertyValue::F32(30.0)),
+        "and ends at the declared value"
+    );
+}
