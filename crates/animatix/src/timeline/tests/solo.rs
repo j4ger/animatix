@@ -147,3 +147,80 @@ b: Rect, at: (160, 90), size: (40, 40), color: (0, 1, 0, 1), solo: true
         "a hidden actor neither draws nor suppresses the scene"
     );
 }
+
+/// `SoloState` is resolved per frame and is deliberately *not* part of the
+/// frame-cache key, so correctness depends on `solo` never varying with time:
+/// it must stay out of the animatable set. If this test fails, whoever made
+/// `solo` animatable must also add it to the frame-cache key (and to the
+/// static-subtree key), or cached frames will disagree with the solo state.
+#[test]
+fn solo_is_not_animatable() {
+    let schema = crate::timeline::property_registry::lookup_property("solo")
+        .expect("`solo` must stay registered");
+    assert!(
+        !schema
+            .flags
+            .contains(crate::timeline::property_registry::PropertyFlags::ANIMATED),
+        "`solo` became animatable: add it to the frame-cache key before shipping this"
+    );
+}
+
+/// The flag must remain assignable, or authored `solo: true` would stop being
+/// read from source.
+#[test]
+fn solo_is_assignable() {
+    let schema = crate::timeline::property_registry::lookup_property("solo")
+        .expect("`solo` must stay registered");
+    assert!(
+        schema
+            .flags
+            .contains(crate::timeline::property_registry::PropertyFlags::ASSIGNABLE),
+        "`solo` must stay assignable from source"
+    );
+}
+
+/// `solo` is not animatable, so an `always` block cannot drive it per frame.
+/// The write used to be dropped in silence; it now reports
+/// `always-write-not-animatable` and leaves the frame ungated.
+#[test]
+fn always_written_solo_is_reported_not_silently_dropped() {
+    let source = r#"
+#0s
+a: Rect, at: (60, 90), size: (40, 40), color: (1, 0, 0, 1)
+b: Rect, at: (160, 90), size: (40, 40), color: (0, 1, 0, 1)
+
+always {
+  a.solo = true
+}
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| matches!(
+            d.code,
+            animatix_syntax::diagnostics::DiagnosticCode::AlwaysWriteNotAnimatable
+        )),
+        "an ignored per-frame write must be reported: {:?}",
+        report.diagnostics
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d.message.contains("solo")),
+        "the diagnostic must name the property"
+    );
+    // Both actors still draw: the ignored write did not gate the frame.
+    let mut backend: Option<&mut dyn crate::timeline::effects::FilterBackend> = None;
+    let program = report.output.evaluate_program_with_debug(
+        1.0,
+        SceneDimensions {
+            width: 320,
+            height: 180,
+        },
+        DebugRenderOptions::default(),
+        &mut backend,
+    );
+    assert_eq!(program.precise_bounds.len(), 2, "an ignored write must not hide anything");
+}

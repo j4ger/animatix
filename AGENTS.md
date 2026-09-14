@@ -105,6 +105,12 @@ Without the `video` feature, PNG and WebP export work normally. The export dialo
 - Every `#[allow(dead_code)]` must have an inline justification comment explaining why the item is intentionally unused (e.g., `// Reserved for future X integration`). `#[allow(dead_code)]` without a comment is not allowed in committed code.
 - Remove truly dead code instead of marking it dead, unless there is a concrete forward-looking reason to keep it.
 - Never commit with `cargo check --workspace` errors. If a crate has pre-existing errors unrelated to your changes, document them in a comment in your commit message.
+- **`#[allow(unreachable_code)]` is banned.** It only ever appears when an early `return` made the rest of a function dead — which means the change disabled a code path rather than adding to it. Remove the early return or delete the dead path. (A committed debug experiment once left the whole multithreaded export loop unreachable behind this attribute; see `docs/history.md`, "Debug scaffolding that shipped as behaviour".)
+
+### Commit-Time Guards Beyond `cargo test`
+- **Hot-path changes need a benchmark.** Anything touching the per-frame render, scene-evaluation, or export loops must ship with the result of `scripts/perf-bench.sh compare` in the commit message. A committed investigation probe once added an unconditional full-canvas GPU readback to every filter scope, every frame; no test and no lint could see it, and the perf harness was not part of the checklist.
+- **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_STAGES`, `ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders, encodes, or how many threads it uses. If a probe needs a behavioural change to reach the bug, make that change a separate commit with its own justification.
+- **Pinned dependencies carry their reason.** Every git/rev pin in a `Cargo.toml` needs a comment naming what the pin protects against and what would lift it (see the `vello` pin), plus a test at the dependency boundary where one is feasible (`crates/animatix-render/tests/vello_img_probe.rs`).
 
 ### Never Silently Drop Values
 - All property value drops must be logged with `tracing::warn!` or documented with a comment explaining why the drop is intentional.

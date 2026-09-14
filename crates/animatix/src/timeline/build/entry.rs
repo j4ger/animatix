@@ -653,7 +653,33 @@ impl Timeline {
             {
                 let actor_key = crate::timeline::assignment_target_key(target);
                 if let Some(track) = timeline.tracks.get(&actor_key) {
-                    if track.has_keyframes_for(property) {
+                    // A per-frame write only lands on an animatable property; for
+                    // anything else the modifier runtime has nowhere to put it and
+                    // the write is dropped. Say so instead of dropping it quietly
+                    // (`solo` is the current example: it is assignable but
+                    // deliberately not animatable).
+                    let not_animatable = crate::timeline::property_registry::lookup_property(
+                        property,
+                    )
+                    .is_some_and(|schema| {
+                        !schema
+                            .flags
+                            .contains(crate::timeline::property_registry::PropertyFlags::ANIMATED)
+                    });
+                    if not_animatable {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::AlwaysWriteNotAnimatable,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Always block writes `{property}` on actor `{actor_key}`, which \
+                                     is not animatable, so the per-frame write is ignored. Set it \
+                                     in a declaration or a keyframe assignment instead."
+                                ),
+                            )
+                            .with_subject(property),
+                        );
+                    } else if track.has_keyframes_for(property) {
                         diagnostics.push(
                             Diagnostic::warning(
                                 DiagnosticCode::AlwaysOverridesKeyframes,

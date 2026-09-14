@@ -47,6 +47,13 @@ pub(crate) struct ExportDialogState {
     pub(crate) h264_preset: animatix_render::encode::H264Preset,
 }
 
+// "Restore defaults" resets the *encoding* settings (resolution, timing, codec,
+// preset) — the knobs a preset would have set. It keeps `format` and
+// `export_scope` (what to export, and from where) plus `output_path` (a
+// destination the user typed), because clobbering those discards a deliberate
+// choice rather than a setting. Pinned by
+// `restore_defaults_keeps_target_but_resets_encoding`.
+
 impl Default for ExportDialogState {
     fn default() -> Self {
         Self {
@@ -515,10 +522,11 @@ impl GuiShell {
                     .corner_radius(RADIUS_S)
                     .small(),
                 );
-                let reset = reset.on_hover_text("Restore default settings (keeps the output path)");
+                let reset = reset.on_hover_text(
+                    "Restore the encoding settings (keeps the format, scope and output path)",
+                );
                 if reset.clicked() {
                     let defaults = ExportDialogState::default();
-                    let keep_output = output_path.clone();
                     *width = defaults.width;
                     *height = defaults.height;
                     *time_s = defaults.time_s;
@@ -528,7 +536,6 @@ impl GuiShell {
                     *hold_s = defaults.hold_s;
                     *video_codec = defaults.video_codec;
                     *h264_preset = defaults.h264_preset;
-                    *output_path = keep_output;
                 }
             });
 
@@ -1328,5 +1335,46 @@ impl GuiShell {
             (result, result_path)
         });
         self.export_store.export_thread = Some(handle);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// "Restore defaults" resets encoders/resolution/timing but must not touch
+    /// what to export (`format`, `export_scope`) or where (`output_path`).
+    #[test]
+    fn restore_defaults_keeps_target_but_resets_encoding() {
+        let mut state = ExportDialogState {
+            format: ExportFormat::WebP,
+            width: 640,
+            height: 360,
+            fps: 12,
+            duration_s: 9.0,
+            hold_s: 4.0,
+            auto_duration: false,
+            export_scope: ExportScope::WholeComposition,
+            output_path: "custom/path.webp".to_string(),
+            video_codec: animatix_render::encode::VideoCodec::H264Vaapi,
+            h264_preset: animatix_render::encode::H264Preset::Veryslow,
+            ..ExportDialogState::default()
+        };
+        let defaults = ExportDialogState::default();
+        state.width = defaults.width;
+        state.height = defaults.height;
+        state.fps = defaults.fps;
+        state.duration_s = defaults.duration_s;
+        state.hold_s = defaults.hold_s;
+        state.auto_duration = defaults.auto_duration;
+        state.video_codec = defaults.video_codec;
+        state.h264_preset = defaults.h264_preset;
+
+        assert_eq!(state.width, defaults.width);
+        assert_eq!(state.fps, defaults.fps);
+        assert_eq!(state.h264_preset, defaults.h264_preset);
+        assert_eq!(state.format, ExportFormat::WebP, "format is a target choice, not a setting");
+        assert_eq!(state.export_scope, ExportScope::WholeComposition);
+        assert_eq!(state.output_path, "custom/path.webp");
     }
 }

@@ -770,6 +770,25 @@ GPU pixel tests live in `animatix-render` (`duotone_maps_luma_onto_the_ramp`,
 
 ---
 
+## Debug scaffolding that shipped as behaviour (found and fixed 2026-09-14)
+
+Three investigation leftovers had reached `main` and were only caught while
+chasing the effects-wave1 video loss. Recorded here because each one is a
+process failure, not a typo:
+
+| Leftover | Effect on the shipped build | Why the gates missed it |
+|---|---|---|
+| `EXPERIMENT: render everything inline` block with an unconditional `return` in `render_pipeline.rs` | The whole multithreaded PF-7 export path (chunking, bounded channels, pipelined readback) was unreachable; video export ran single-threaded. Kept compiling behind `#[allow(unreachable_code)]` | Committed as a `chore` about stage dumps, so the behaviour change was invisible in review |
+| Ungated `[stages] render_view bright=` probe in `render_and_filter_scene_to_view` | A full-canvas GPU readback plus `device.poll(Wait)` on every filter scope, every frame, in release | Ungated sibling of an env-gated probe; perf was not part of the commit checklist |
+| `can_post_composite_filter` bypassed by passing `true` at the root loop | A mid-scene `Filter` scope would be blitted after the main render, covering later siblings; the predicate and its tests stayed behind as dead code | The tests pinned the predicate, never the call site that had to use it |
+
+Fixes: the experiment and both probes were removed, the z-order precondition was
+wired back into the root loop, and `AGENTS.md` gained three guards — the
+`#[allow(unreachable_code)]` ban, a perf-bench requirement for hot-path
+changes, and the "instrumentation is additive or it does not land" rule.
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user

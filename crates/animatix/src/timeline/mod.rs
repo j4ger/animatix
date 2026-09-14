@@ -644,6 +644,20 @@ pub(crate) struct EvalCaches {
     /// Authored solo gate for the current frame. Empty (and allocation-free)
     /// in the common case where no actor declares `solo: true`.
     pub(crate) solo: std::cell::RefCell<SoloState>,
+    /// Whether any actor is soloed this frame. A `Cell<bool>` rather than a
+    /// read of `solo`: the per-node gate consults this on every drawn actor,
+    /// and a plain load keeps that free in the common case.
+    pub(crate) solo_active: std::cell::Cell<bool>,
+    /// Whether resolving the solo gate has to walk the tracks at all.
+    ///
+    /// Deriving this costs the same O(tracks) walk the gate itself does, so it
+    /// is cached: `None` means "unknown, derive it" (the initial state and what
+    /// `invalidate_frame_cache` resets to), and the common scene — no `solo`
+    /// and no frame-time writers — settles on `Some(false)` after one walk and
+    /// then skips the scan for every later frame. A timeline with `always`
+    /// blocks always reports `true`, because an always block can write the flag
+    /// per frame without going through a mutation.
+    pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
     /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling
@@ -1410,6 +1424,9 @@ impl Timeline {
         if let Some(entry) = self.eval_caches.frame_cache.borrow_mut().take() {
             *self.eval_caches.scene_buffer.borrow_mut() = Some(entry.program.scene);
         }
+        // Mutations can add or remove `solo` (and add modifiers), so the
+        // cached "does solo need a scan" answer is no longer trustworthy.
+        self.eval_caches.solo_scan_needed.set(None);
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();

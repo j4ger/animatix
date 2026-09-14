@@ -968,12 +968,17 @@ impl eframe::App for AnimatixApp {
 ///
 /// Enabled with `ANIMATIX_SCREENSHOT=<png>` (and optional
 /// `ANIMATIX_SCREENSHOT_FRAMES=<n>`), only compiled with `dev-screenshots`.
+///
+/// `ANIMATIX_SCREENSHOT_SIZE=<w>x<h>` sets the window size before the capture,
+/// so a review can cover both the wide layout and the compact one (mirrors the
+/// `--width`/`--height` flags of the `widget-screenshot` binary).
 #[cfg(feature = "dev-screenshots")]
 struct ScreenshotSession {
     path: PathBuf,
     after_frames: u32,
     frame: u32,
     requested: bool,
+    size: Option<egui::Vec2>,
 }
 
 #[cfg(feature = "dev-screenshots")]
@@ -984,11 +989,16 @@ impl ScreenshotSession {
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(8);
+        let size = std::env::var("ANIMATIX_SCREENSHOT_SIZE").ok().and_then(|value| {
+            let (w, h) = value.split_once('x')?;
+            Some(egui::Vec2::new(w.trim().parse().ok()?, h.trim().parse().ok()?))
+        });
         Some(Self {
             path,
             after_frames,
             frame: 0,
             requested: false,
+            size,
         })
     }
 }
@@ -1001,6 +1011,11 @@ impl AnimatixApp {
         };
         session.frame += 1;
         if session.frame < session.after_frames {
+            if session.frame == 1 {
+                if let Some(size) = session.size {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+                }
+            }
             ui.ctx().request_repaint();
             return;
         }

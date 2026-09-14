@@ -64,6 +64,9 @@ pub enum DiagnosticCode {
     InvalidAssignmentTarget,
     /// A modifier value is invalid.
     InvalidModifierValue,
+    /// An `always` block writes a property that is not animatable; the
+    /// per-frame write is ignored.
+    AlwaysWriteNotAnimatable,
     /// A configuration value is invalid.
     InvalidConfigValue,
     /// Two modifier keys conflict with each other.
@@ -185,6 +188,9 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "invalid-assignment-target")
             },
             DiagnosticCode::InvalidModifierValue => write!(f, "invalid-modifier-value"),
+            DiagnosticCode::AlwaysWriteNotAnimatable => {
+                write!(f, "always-write-not-animatable")
+            },
             DiagnosticCode::InvalidConfigValue => write!(f, "invalid-config-value"),
             DiagnosticCode::ConflictingModifierKey => write!(f, "conflicting-modifier-key"),
             DiagnosticCode::UnknownAction => write!(f, "unknown-action"),

@@ -289,6 +289,11 @@ impl Timeline {
     /// `visible: false` still wins over solo — an explicitly hidden actor stays
     /// hidden. Nothing soloed is the common case and allocates nothing.
     fn resolve_solo_state(&self, time_ms: u64) -> super::SoloState {
+        // Scenes that cannot be soloed (the overwhelming majority) skip the
+        // per-track walk entirely; see `EvalCaches::solo_scan_needed`.
+        if !self.solo_scan_needed() {
+            return super::SoloState::default();
+        }
         let mut soloed: Option<std::collections::HashSet<String>> = None;
         for label in self.tracks.keys() {
             if !self.track_is_soloed(label, time_ms) {
@@ -312,7 +317,37 @@ impl Timeline {
         }
     }
 
-    /// Read one actor's `solo` flag at `time_ms`.
+    /// Derive (once per mutation) whether the solo gate needs a per-frame walk.
+    ///
+    /// Deriving it costs the same walk as the gate itself, so the answer is
+    /// cached and reset by `invalidate_frame_cache`. Two things can make the
+    /// walk necessary:
+    ///
+    /// - some actor declares `solo: true` (the flag is non-animatable, so this
+    ///   only changes with the timeline); or
+    /// - an `always` block writes `solo` on some actor, which happens per frame
+    ///   *without* a mutation and would otherwise go unnoticed.
+    ///
+    /// The second test is exact rather than a blanket "has modifiers" flag:
+    /// timelines that merely animate other properties (the common case, and
+    /// what the actor-count benchmarks measure) still take the fast path.
+    fn solo_scan_needed(&self) -> bool {
+        if let Some(needed) = self.eval_caches.solo_scan_needed.get() {
+            return needed;
+        }
+        let always_writes_solo = self.modifiers.iter().any(|stmt| {
+            matches!(
+                stmt,
+                crate::ast::Stmt::Assignment { property, .. } if property == "solo"
+            )
+        });
+        let needed = always_writes_solo
+            || self.tracks.values().any(|track| self.track_declares_solo(track, 0));
+        self.eval_caches.solo_scan_needed.set(Some(needed));
+        needed
+    }
+
+    /// Read one actor's `solo` flag at `time_ms`; the visibility rule applies.
     fn track_is_soloed(&self, label: &str, time_ms: u64) -> bool {
         let Some(track) = self.tracks.get(label) else {
             return false;
@@ -323,6 +358,12 @@ impl Timeline {
         if !track.visible {
             return false;
         }
+        self.track_declares_solo(track, time_ms)
+    }
+
+    /// The raw flag read, without the visibility rule: the scan asks whether
+    /// the flag is declared at all, independent of `visible`.
+    fn track_declares_solo(&self, track: &crate::timeline::AnimationTrack, time_ms: u64) -> bool {
         matches!(
             crate::timeline::dispatch::read_property_value(
                 track,
@@ -455,13 +496,14 @@ impl Timeline {
         // soloed actor is pruned whole — unlike `visible`, which hides only the
         // node itself. Ancestors of a soloed actor stay traversable but do not
         // draw their own commands.
-        let draws_self = {
+        let draws_self = if self.eval_caches.solo_active.get() {
             let solo = self.eval_caches.solo.borrow();
-            let active = solo.is_active();
-            if active && !solo.is_reachable(node_label) {
+            if !solo.is_reachable(node_label) {
                 return (parent_transform, parent_opacity);
             }
-            !active || solo.is_soloed(node_label)
+            solo.is_soloed(node_label)
+        } else {
+            true
         };
 
         // Skip actors that haven't been declared yet.
@@ -1757,7 +1799,9 @@ impl Timeline {
         // EvaluateCtx (legend label-contrast) without re-sampling the constant
         // background track once per node.
         self.eval_caches.background_color.set(bg_color);
-        self.eval_caches.solo.replace(self.resolve_solo_state(time_ms));
+        let solo_state = self.resolve_solo_state(time_ms);
+        self.eval_caches.solo_active.set(solo_state.is_active());
+        self.eval_caches.solo.replace(solo_state);
 
         // Collect actor world-space bounding boxes for click-to-select
         let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();

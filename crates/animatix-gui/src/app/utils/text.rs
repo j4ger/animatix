@@ -20,9 +20,66 @@ pub fn truncate_middle(s: &str, head: usize, tail: usize) -> String {
     }
 }
 
+/// Ellipsize `s` with a trailing `…` so its measured width fits `max_width`.
+///
+/// `measure` reports the rendered width of a candidate string, which keeps this
+/// independent of egui (and therefore unit-testable). Binary search over the
+/// prefix length: O(log n) measurements per call. Returns `…` when not even
+/// the ellipsis fits.
+pub fn elide_to_width(s: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String {
+    if max_width <= 0.0 {
+        return String::new();
+    }
+    if measure(s) <= max_width {
+        return s.to_string();
+    }
+    let chars: Vec<char> = s.chars().collect();
+    let mut lo = 0usize;
+    let mut hi = chars.len();
+    while lo < hi {
+        let mid = (lo + hi).div_ceil(2);
+        let candidate: String = chars[..mid].iter().collect::<String>() + "…";
+        if measure(&candidate) <= max_width {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    let candidate: String = chars[..lo].iter().collect::<String>() + "…";
+    candidate
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// One unit of width per character — stands in for a font measurement.
+    fn measure_chars(s: &str) -> f32 {
+        s.chars().count() as f32
+    }
+
+    #[test]
+    fn elide_keeps_text_that_fits() {
+        assert_eq!(elide_to_width("short", 10.0, measure_chars), "short");
+    }
+
+    #[test]
+    fn elide_truncates_to_the_widest_prefix_that_fits() {
+        // 6 units of budget: "abc" + "…" == 4 fits, "abcd" + "…" == 5 fits,
+        // "abcde" + "…" == 6 fits, "abcdef" + "…" == 7 does not.
+        assert_eq!(elide_to_width("abcdefgh", 6.0, measure_chars), "abcde…");
+    }
+
+    #[test]
+    fn elide_falls_back_to_the_ellipsis_when_nothing_fits() {
+        assert_eq!(elide_to_width("abcdefgh", 1.0, measure_chars), "…");
+        assert_eq!(elide_to_width("abcdefgh", 0.0, measure_chars), "");
+    }
+
+    #[test]
+    fn elide_is_utf8_safe() {
+        assert_eq!(elide_to_width("中文测试文本", 4.0, measure_chars), "中文测…");
+    }
 
     #[test]
     fn test_truncate_chars_ascii() {

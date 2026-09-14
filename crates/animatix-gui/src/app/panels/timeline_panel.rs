@@ -39,6 +39,7 @@ use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::timeline_diff::{
     KeyframeId, collect_per_property_keyframes, collect_property_lanes, lane_schema,
 };
+use crate::app::utils::text::elide_to_width;
 
 /// In-flight keyframe drag.
 ///
@@ -1144,6 +1145,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 }
             }
 
+            // Solo / eye / lock live in a fixed strip at the right edge of the
+            // label column; the label is clipped to `icon_strip_left` so the
+            // two never overlap.
+            const ICON_W: f32 = 16.0;
+            const ICON_GAP: f32 = 2.0;
+            let icon_strip_left =
+                bar_origin_x - sp.base.space_2 - (ICON_W * 3.0 + ICON_GAP * 2.0);
+
             // Property expand toggle (LIST icon)
             let prop_expanded = expanded_properties.contains(actor_label);
             let prop_toggle_x = chevron_x + if has_children { 18.0 } else { 4.0 };
@@ -1175,18 +1184,23 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 }
             }
 
-            // Track label
+            // Track label — elided to the icon strip, not to a fixed character
+            // count: solo/eye/lock claim a fixed slice of the label column, so
+            // a character-count cut still runs long names under the icons.
             let label_x = prop_toggle_x + 16.0 + sp.base.space_2;
-            let label_text = if actor_label.chars().count() > 16 {
-                actor_label.chars().take(15).collect::<String>() + "…"
-            } else {
-                actor_label.clone()
-            };
+            let label_max_w = (icon_strip_left - sp.base.space_2 - label_x).max(24.0);
+            let label_font = TextRole::BodyS.font_id();
+            let label_text = elide_to_width(actor_label, label_max_w, |candidate| {
+                painter
+                    .layout_no_wrap(candidate.to_owned(), label_font.clone(), Color32::WHITE)
+                    .size()
+                    .x
+            });
             painter.text(
                 Pos2::new(label_x, track_rect.center().y),
                 Align2::LEFT_CENTER,
                 &label_text,
-                TextRole::BodyS.font_id(),
+                label_font,
                 if is_selected {
                     theme.palette.text.primary
                 } else {
@@ -1236,19 +1250,22 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             // hit-test prefers these smaller widgets when the pointer is over
             // them — same pattern as the chevron / property toggle.
             if let Some(track) = timeline.and_then(|tl| tl.get_track(actor_label)) {
-                let icon_w = 16.0;
-                let icon_gap = 2.0;
+                let icon_size = Vec2::new(ICON_W, sp.timeline.track_row_height - 4.0);
                 let lock_rect = Rect::from_min_size(
-                    Pos2::new(bar_origin_x - sp.base.space_2 - icon_w, at_top + 2.0),
-                    Vec2::new(icon_w, sp.timeline.track_row_height - 4.0),
+                    Pos2::new(bar_origin_x - sp.base.space_2 - ICON_W, at_top + 2.0),
+                    icon_size,
                 );
                 let eye_rect = Rect::from_min_size(
-                    Pos2::new(lock_rect.left() - icon_gap - icon_w, at_top + 2.0),
-                    Vec2::new(icon_w, sp.timeline.track_row_height - 4.0),
+                    Pos2::new(lock_rect.left() - ICON_GAP - ICON_W, at_top + 2.0),
+                    icon_size,
                 );
                 let solo_rect = Rect::from_min_size(
-                    Pos2::new(eye_rect.left() - icon_gap - icon_w, at_top + 2.0),
-                    Vec2::new(icon_w, sp.timeline.track_row_height - 4.0),
+                    Pos2::new(eye_rect.left() - ICON_GAP - ICON_W, at_top + 2.0),
+                    icon_size,
+                );
+                debug_assert!(
+                    (solo_rect.left() - icon_strip_left).abs() < 0.5,
+                    "label clip must match the icon strip"
                 );
 
                 let visible = track.visible;
