@@ -1903,20 +1903,22 @@ impl Timeline {
                         // The scratch subtree swaps both the draw target and the
                         // item sink, so it builds its own outputs rather than
                         // reusing the frame's.
-                        let mut temp_out = crate::primitives::RenderOutputs {
-                            scene: &mut temp_scene,
-                            hit_regions: &mut *out.hit_regions,
-                            program_items: &mut subtree_items_slot,
-                            filter_backend: &mut *out.filter_backend,
-                        };
-                        self.evaluate_node(
-                            root,
-                            kurbo::Affine::IDENTITY,
-                            1.0,
-                            &crate::timeline::layout::LayoutPositions::new(),
-                            true,
-                            &frame,
-                            &mut temp_out,
+                        // The scratch subtree swaps both the draw target and
+                        // the item sink, so it runs through its own outputs.
+                        out.with_scene_and_items(
+                            &mut temp_scene,
+                            &mut subtree_items_slot,
+                            |temp_out| {
+                                self.evaluate_node(
+                                    root,
+                                    kurbo::Affine::IDENTITY,
+                                    1.0,
+                                    &crate::timeline::layout::LayoutPositions::new(),
+                                    true,
+                                    &frame,
+                                    temp_out,
+                                );
+                            },
                         );
                         let subtree_items = subtree_items_slot.take().unwrap_or_default();
                         if let Some(items) = out.program_items.as_mut() {

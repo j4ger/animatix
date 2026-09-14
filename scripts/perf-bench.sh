@@ -93,12 +93,21 @@ collect_new() {
 # while tight leaf benches (tiny std_dev) stay sensitive. Independent of any
 # Criterion subcommand; reads each run's own `mean`/`std_dev` point estimates.
 #
+# Sub-`TINY_NS` benches get a second gate: a tight leaf bench has a tiny
+# within-run std_dev, so the percentage floor alone flagged a 0.9ns -> 1.1ns
+# shift (a 0.2ns absolute move, indistinguishable from code-layout/inlining
+# drift) as a 23% regression on every run. For those, an absolute increase of
+# more than TINY_NS_DELTA is also required, so a genuine slowdown (1ns -> 3ns)
+# still fails while layout noise does not.
+#
 # Prints: "mean_baseline mean_current chg_pct limit_pct verdict" (space-separated).
 compare_estimates() {
     python3 -c '
 import json,sys
 K=float(sys.argv[1])
 FLOOR=float(sys.argv[2])
+TINY_NS=float(sys.argv[5]) if len(sys.argv) > 5 else 10.0
+TINY_NS_DELTA=float(sys.argv[6]) if len(sys.argv) > 6 else 1.0
 b=json.load(open(sys.argv[3]))
 c=json.load(open(sys.argv[4]))
 bm=b["mean"]["point_estimate"]; bs=b["std_dev"]["point_estimate"]
@@ -108,9 +117,14 @@ noise=K*(bs+cs)/bm*100      # combined-std bound, expressed in % of baseline
 limit=max(noise, FLOOR)
 verdict="ok"
 if cm > bm and chg > limit:
-    verdict="REGRESSION"
+    tiny = bm < TINY_NS
+    if tiny and (cm - bm) <= TINY_NS_DELTA:
+        # Layout/inlining drift on a sub-nanosecond bench, not a real change.
+        verdict="ok"
+    else:
+        verdict="REGRESSION"
 print(f"{bm} {cm} {chg:.2f} {limit:.2f} {verdict}")
-' "$K" "$THRESH" "$1" "$2"
+' "$K" "$THRESH" "$1" "$2" "${PERF_TINY_NS:-10}" "${PERF_TINY_NS_DELTA:-1}"
 }
 
 case "$MODE" in

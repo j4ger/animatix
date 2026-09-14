@@ -623,6 +623,16 @@ filtered re-run reproduces the delta against a same-session comparison. A
 verified optimization lands with a re-saved baseline, which also resets the
 session level.
 
+**Tiny-bench absolute gate (added 2026-09-14):** the percentage floor alone
+flagged `interpolate_f32` on every run — 0.9 ns → 1.1 ns, a 0.2 ns absolute
+move that is code-layout/inlining drift rather than an algorithmic change, but
+23% relative. Benches whose *baseline* mean is below `PERF_TINY_NS` (default
+10 ns) now also require an absolute increase above `PERF_TINY_NS_DELTA`
+(default 1 ns) before the gate fails, so a genuine slowdown on the same bench
+(0.9 ns → 3 ns) still fails while layout noise does not. Heavier benches whose
+session-level drift dominates (see the 2026-09-01 note below) still need an
+adjacent A/B or `--thresh`; the gate cannot infer that from within-run σ.
+
 **Known limitation (observed 2026-09-01):** that drift is not confined to
 sub-100ns leaves — on 45–55 µs benches a whole session can shift **2–3.5%**,
 the same order as a worthwhile optimization. Two techniques made A/Bs

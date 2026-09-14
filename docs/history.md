@@ -817,6 +817,12 @@ state (`RenderFrame`) and the mutable outputs (`RenderOutputs`), with
 sub-scene. `RenderChildrenCtx` keeps its documented public fields (extension
 authors read them) and assembles the contexts in its two render methods.
 
+**Process lesson (scripted rewrites).** Moving that 97-row engine table was
+done with a parser + rewrite script. The first version found zero rows and wrote
+its (empty) output anyway, wiping the table; it was restored from git within the
+same minute. The fix is the rule for any future table rewrite: assert the parsed
+row count *before* writing, never after.
+
 **Process lesson.** The full-suite check used to summarize
 `cargo test` output with a field-splitting `awk` over `test result:` lines. A
 failing suite prints `test result: FAILED. N passed; M failed`, whose fields

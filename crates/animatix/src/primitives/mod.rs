@@ -648,10 +648,10 @@ pub(crate) struct RenderOutputs<'s, 'f> {
 impl RenderOutputs<'_, '_> {
     /// Run `f` with the draw target temporarily replaced by `scene`.
     ///
-    /// The Filter strategy renders its children into an offscreen sub-scene and
-    /// the static-subtree cache into a scratch scene — both stack locals with a
-    /// shorter lifetime than this context, so the swap happens through a fresh
-    /// borrow rather than an assignment to [`Self::scene`].
+    /// The Filter strategy renders its children into an offscreen sub-scene —
+    /// a stack local with a shorter lifetime than this context — so the swap
+    /// happens through a fresh borrow rather than an assignment to
+    /// [`Self::scene`].
     pub(crate) fn with_scene<R>(
         &mut self,
         scene: &mut vello::Scene,
@@ -661,6 +661,26 @@ impl RenderOutputs<'_, '_> {
             scene,
             hit_regions: &mut *self.hit_regions,
             program_items: &mut *self.program_items,
+            filter_backend: &mut *self.filter_backend,
+        };
+        f(&mut swapped)
+    }
+
+    /// [`Self::with_scene`] plus a replacement item sink.
+    ///
+    /// The static-subtree cache renders a subtree into a scratch scene *and*
+    /// collects its items into a per-subtree slot, so both differ from the
+    /// frame's; everything else is reborrowed unchanged.
+    pub(crate) fn with_scene_and_items<R>(
+        &mut self,
+        scene: &mut vello::Scene,
+        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        f: impl FnOnce(&mut RenderOutputs<'_, '_>) -> R,
+    ) -> R {
+        let mut swapped = RenderOutputs {
+            scene,
+            hit_regions: &mut *self.hit_regions,
+            program_items,
             filter_backend: &mut *self.filter_backend,
         };
         f(&mut swapped)

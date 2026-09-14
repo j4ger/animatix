@@ -494,6 +494,12 @@ type StaticSubtreeEntry = (
 /// evaluation state.
 #[derive(Clone)]
 pub struct Timeline {
+    /// Every actor track, keyed by label.
+    ///
+    /// Mutating a track after the first evaluation must invalidate the frame
+    /// cache, so post-build code goes through [`Self::get_track_mut`] or
+    /// [`Self::tracks_mut`] (both invalidate). Direct access to this field is
+    /// for the build phase, which runs before any cached frame exists.
     pub(crate) tracks: BTreeMap<String, AnimationTrack>,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,

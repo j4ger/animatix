@@ -185,6 +185,20 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 ---
 
+## Animatable vs assignable
+
+`PropertyFlags::ANIMATED` decides more than keyframes: a property without it
+cannot be written per frame at all. An `always` block that assigns a
+non-animatable property (today: `solo`) is reported as
+`always-write-not-animatable` and ignored, because the modifier runtime has no
+track to write into. Set such properties in a declaration or a keyframe
+assignment instead.
+
+This is deliberate for `solo`: it selects what renders this frame, so animating
+it would have to be threaded into the frame-cache key and the static-subtree key
+rather than just sampled. If a property should be drivable from `always`, mark it
+`ANIMATED` and make sure the caches that depend on it key on time.
+
 ## Environment Injection
 
 Every `INJECTABLE` property is injected into the `always` evaluation environment
