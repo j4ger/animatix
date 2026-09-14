@@ -27,10 +27,13 @@
 //! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only —
 //!    no metadata methods).
 //! 3. Add `&<name>::CONST` to the `PRIMITIVES` array below.
-//! 4. If the primitive has properties, add rows to
-//!    `animatix-syntax/src/schema.rs::raw_property_specs()` (one applicability
-//!    predicate + type); `property_specs()` materializes the per-type lists
-//!    over the catalog.
+//! 4. If the primitive has properties, add the descriptor row to
+//!    `animatix-core::property::PROPERTY_DESCRIPTORS` (name + applicability +
+//!    value kind), its type row to
+//!    `animatix-syntax/src/schema.rs::raw_property_types()`, and the runtime
+//!    binding to `timeline/property_registry.rs::BINDINGS`; the tests in those
+//!    modules fail until all three line up. Append descriptor rows — the row
+//!    index is the serialized `PropertyId`.
 //! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region
 //!    coverage if it draws.
 //!
