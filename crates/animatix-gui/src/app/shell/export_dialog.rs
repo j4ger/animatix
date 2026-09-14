@@ -501,6 +501,35 @@ impl GuiShell {
                         *h264_preset = preset.h264_preset;
                     }
                 }
+
+                ui.add_space(sp.base.space_2);
+
+                let reset = ui.add(
+                    egui::Button::new(
+                        RichText::new(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
+                            .size(TextRole::Micro.size())
+                            .color(theme.palette.text.secondary),
+                    )
+                    .fill(theme.palette.surface.widget)
+                    .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
+                    .corner_radius(RADIUS_S)
+                    .small(),
+                );
+                let reset = reset.on_hover_text("Restore default settings (keeps the output path)");
+                if reset.clicked() {
+                    let defaults = ExportDialogState::default();
+                    let keep_output = output_path.clone();
+                    *width = defaults.width;
+                    *height = defaults.height;
+                    *time_s = defaults.time_s;
+                    *fps = defaults.fps;
+                    *auto_duration = defaults.auto_duration;
+                    *duration_s = defaults.duration_s;
+                    *hold_s = defaults.hold_s;
+                    *video_codec = defaults.video_codec;
+                    *h264_preset = defaults.h264_preset;
+                    *output_path = keep_output;
+                }
             });
 
             ui.add_space(sp.base.space_1);
@@ -617,6 +646,40 @@ impl GuiShell {
                                 .size(TextRole::Micro.size())
                                 .color(theme.palette.text.muted),
                         );
+                    }
+
+                    // Encoder choice: MP4 and MOV honour it; WebM is pinned to
+                    // VP9 at the call site and GIF has a single encoder, so the
+                    // row is hidden there rather than shown as a no-op.
+                    if matches!(format, ExportFormat::Video | ExportFormat::Mov) {
+                        ui.add_space(sp.base.space_1);
+                        Self::settings_row(ui, "Encoder", |ui| {
+                            // Added right-to-left: preset first so it lands on
+                            // the right of the codec selector.
+                            egui::ComboBox::from_id_salt("export_h264_preset")
+                                .selected_text(
+                                    RichText::new(h264_preset.as_str())
+                                        .size(TextRole::Micro.size()),
+                                )
+                                .width(96.0)
+                                .show_ui(ui, |ui| {
+                                    for preset in animatix_render::encode::H264Preset::ALL {
+                                        ui.selectable_value(h264_preset, *preset, preset.as_str());
+                                    }
+                                });
+                            ui.add_space(sp.base.space_2);
+                            egui::ComboBox::from_id_salt("export_video_codec")
+                                .selected_text(
+                                    RichText::new(video_codec.to_string())
+                                        .size(TextRole::Micro.size()),
+                                )
+                                .width(120.0)
+                                .show_ui(ui, |ui| {
+                                    for codec in animatix_render::encode::VideoCodec::ALL {
+                                        ui.selectable_value(video_codec, *codec, codec.to_string());
+                                    }
+                                });
+                        });
                     }
                 },
             }
@@ -737,12 +800,26 @@ impl GuiShell {
                     }
                 },
                 ExportStatus::Failed(err) => {
+                    // Keep the bar readable but never hide the reason: the full
+                    // message is one hover away and copied on request, since
+                    // encoder failures carry the actionable detail.
                     let truncated = truncate_chars(err, 37);
                     let resp = ui.add(
                         Tag::new(format!("{} {}", egui_phosphor::regular::WARNING, truncated))
                             .color(theme.palette.status.error)
                             .removable(true),
                     );
+                    let resp = resp.on_hover_ui(|ui| {
+                        ui.set_max_width(420.0);
+                        ui.label(RichText::new(err).size(TextRole::BodyS.size()));
+                        ui.add_space(sp.base.space_1);
+                        if ui
+                            .small_button(format!("{} Copy", egui_phosphor::regular::COPY))
+                            .clicked()
+                        {
+                            ui.ctx().copy_text(err.clone());
+                        }
+                    });
                     if resp.clicked() {
                         self.export_store.export_status = ExportStatus::Idle;
                     }

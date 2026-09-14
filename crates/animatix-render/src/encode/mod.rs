@@ -250,7 +250,7 @@ impl std::str::FromStr for MaxRenderThreads {
 }
 
 /// Video encoder selection for MP4/WebM exports.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VideoCodec {
     /// Software H.264 (`libx264`) — the portable default. `find_encoder` only
     /// proves a hardware encoder *exists* in the FFmpeg build, not that it can
@@ -265,6 +265,17 @@ pub enum VideoCodec {
     H264Vaapi,
     /// Software VP9 encoder (libvpx-vp9) for WebM.
     Vp9,
+}
+
+impl VideoCodec {
+    /// Every encoder choice, in the order the GUI lists them.
+    pub const ALL: &[VideoCodec] = &[
+        Self::Auto,
+        Self::Libx264,
+        Self::H264Nvenc,
+        Self::H264Vaapi,
+        Self::Vp9,
+    ];
 }
 
 impl std::fmt::Display for VideoCodec {
@@ -299,7 +310,7 @@ impl std::str::FromStr for VideoCodec {
 ///
 /// Slower presets produce smaller files at the cost of encoding time.
 /// Ignored for hardware encoders.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum H264Preset {
     /// Fastest, largest file size.
     Ultrafast,
@@ -322,6 +333,19 @@ pub enum H264Preset {
 }
 
 impl H264Preset {
+    /// Every preset, fastest first — the order the GUI and CLI list them in.
+    pub const ALL: &[H264Preset] = &[
+        Self::Ultrafast,
+        Self::Superfast,
+        Self::Veryfast,
+        Self::Faster,
+        Self::Fast,
+        Self::Medium,
+        Self::Slow,
+        Self::Slower,
+        Self::Veryslow,
+    ];
+
     /// Returns the ffmpeg preset name.
     pub fn as_str(&self) -> &'static str {
         match self {

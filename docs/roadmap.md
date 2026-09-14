@@ -14,6 +14,13 @@ information architecture, per-surface redesign, open decisions). The
 2026-09-11 phases shipped directly on `main`; the remaining items below are
 small enough to land there too.
 
+Export/settings polish shipped 2026-09-14: the failure tag keeps its short
+label but reveals the full encoder message on hover with a copy action, the
+dialog gained explicit `Encoder` (codec + libx264 preset) selectors for the
+formats that honour them, and a reset control restores the default settings
+while keeping the output path. CRF/bitrate controls remain unscheduled — they
+need encoder-parameter plumbing in `animatix-render`, not just dialog state.
+
 Diagnostics peek shipped 2026-09-14: the status-bar chip raises a transient
 overlay anchored above itself (single click peeks, double click pins the docked
 panel; Escape, a click outside, or picking a diagnostic closes it).
@@ -58,7 +65,6 @@ Remaining:
 |---|---|---|
 | Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
 | Multi-actor curves | The Curves editor edits the first selected actor only | Not started |
-| Export/settings polish | Detailed error text, codec/quality controls, restore-defaults | Not started |
 
 ## Planned Effects
 
