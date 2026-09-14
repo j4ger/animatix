@@ -14,6 +14,12 @@ information architecture, per-surface redesign, open decisions). The
 2026-09-11 phases shipped directly on `main`; the remaining items below are
 small enough to land there too.
 
+Track solo shipped 2026-09-14 as an authored property rather than an
+ephemeral view toggle: `solo: true` hides every other subtree recursively in
+preview and export alike (see `docs/spec.md`), and the timeline track header
+gained a solo button that edits the source through the normal property-edit
+pipeline, so it is undoable and persists in the `.amx`.
+
 Multi-actor curves shipped 2026-09-14: the Curves panel overlays every selected
 actor, qualifying labels as `actor · property.X` so legend keys and widget ids
 stay unique, shading later actors' canonical channel colours deterministically,
@@ -70,7 +76,6 @@ Remaining:
 
 | Item | Scope | Status |
 |---|---|---|
-| Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
 
 ## Planned Effects
 

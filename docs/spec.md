@@ -531,7 +531,7 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 
 | Actor kind | Useful properties |
 |---|---|
-| All actors | `at`, `position`, `anchor`, `offset`, `opacity`, `rotation`, `scale`, `transform` |
+| All actors | `at`, `position`, `anchor`, `offset`, `opacity`, `rotation`, `scale`, `transform`, `solo` |
 
 > **Layout-managed children** (`Row`/`Col`/`Grid`/`Stack`): `at` and `position` trigger a build-time warning. Use `transform` for visual offsets inside managed layouts — it works seamlessly without disrupting the container's layout algorithm.
 | Sized actors | `size` |
@@ -540,6 +540,17 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
 | `Callout` | `from`, `to`, `head_size`, `label`, `label_at`; targeted mode: `target: actor`, `place: top/bottom/left/right/auto`, `standoff`, `to_offset` |
+
+**Solo.** `solo: true` (default `false`) is authored state, honoured by the
+preview and every export path alike. While any actor in the scene declares
+`solo: true`, only soloed actors draw, and the hiding is **recursive**: a
+non-solo container is pruned whole rather than merely hidden itself, so its
+children disappear with it. Ancestors of a soloed actor stay traversable (a
+soloed actor nested inside a container still draws, at its ancestor's
+transform), and multiple soloed actors simply show together. `visible: false`
+wins over `solo`: an explicitly hidden actor is neither drawn nor counted as
+soloed, so it cannot suppress the rest of the scene. Unlike the GUI's
+eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 
 **Callout targeted mode** places the arrow tip automatically on a named actor's edge. When `target` is set:
 

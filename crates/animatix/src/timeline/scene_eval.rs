@@ -281,6 +281,58 @@ impl Timeline {
         glyphs
     }
 
+    /// Resolve the authored `solo` flags for this frame.
+    ///
+    /// While any actor declares `solo: true`, only soloed actors draw: their
+    /// ancestors stay traversable (so a soloed descendant of a non-soloed
+    /// container still renders) while every other subtree is pruned whole.
+    /// `visible: false` still wins over solo — an explicitly hidden actor stays
+    /// hidden. Nothing soloed is the common case and allocates nothing.
+    fn resolve_solo_state(&self, time_ms: u64) -> super::SoloState {
+        let mut soloed: Option<std::collections::HashSet<String>> = None;
+        for label in self.tracks.keys() {
+            if !self.track_is_soloed(label, time_ms) {
+                continue;
+            }
+            soloed.get_or_insert_with(std::collections::HashSet::new).insert(label.clone());
+        }
+        let Some(soloed) = soloed else {
+            return super::SoloState::default();
+        };
+        let mut visible = soloed.clone();
+        for label in &soloed {
+            if let Some(path) = self.find_path_to_actor(label) {
+                // The path ends at the actor itself; ancestors are its prefix.
+                visible.extend(path.into_iter().take_while(|step| step != label));
+            }
+        }
+        super::SoloState {
+            visible: Some(visible),
+            soloed: Some(soloed),
+        }
+    }
+
+    /// Read one actor's `solo` flag at `time_ms`.
+    fn track_is_soloed(&self, label: &str, time_ms: u64) -> bool {
+        let Some(track) = self.tracks.get(label) else {
+            return false;
+        };
+        // `visible: false` wins: an explicitly hidden actor is not soloed back
+        // into view, and a hidden actor must not keep the rest of the scene
+        // suppressed.
+        if !track.visible {
+            return false;
+        }
+        matches!(
+            crate::timeline::dispatch::read_property_value(
+                track,
+                crate::timeline::property_registry::ActorField::Tagged("solo"),
+                time_ms,
+            ),
+            Some(crate::timeline::PropertyValue::Bool(true))
+        )
+    }
+
     /// Check whether a filter actor can safely use zero-readback post-render compositing.
     /// This is only safe when the filter is the last child in every ancestor container
     /// (nothing renders after the filter in the scene graph).
@@ -397,6 +449,19 @@ impl Timeline {
     ) -> (kurbo::Affine, f32) {
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
+        };
+
+        // Authored solo: while any actor is soloed, a subtree that contains no
+        // soloed actor is pruned whole — unlike `visible`, which hides only the
+        // node itself. Ancestors of a soloed actor stay traversable but do not
+        // draw their own commands.
+        let draws_self = {
+            let solo = self.eval_caches.solo.borrow();
+            let active = solo.is_active();
+            if active && !solo.is_reachable(node_label) {
+                return (parent_transform, parent_opacity);
+            }
+            !active || solo.is_soloed(node_label)
         };
 
         // Skip actors that haven't been declared yet.
@@ -599,7 +664,7 @@ impl Timeline {
         // P2.19: Only sample properties and render if actor is visible on screen.
         // For off-screen actors we still return transform/opacity so children
         // (which may extend back into view) are correctly evaluated.
-        if is_visible {
+        if is_visible && draws_self {
             // ── Phase 10b.3: Trait-dispatch scene evaluation ──
             // The primitive's evaluate() is the only render path (no per-type
             // dispatch table). `Some(commands)`
@@ -1692,6 +1757,7 @@ impl Timeline {
         // EvaluateCtx (legend label-contrast) without re-sampling the constant
         // background track once per node.
         self.eval_caches.background_color.set(bg_color);
+        self.eval_caches.solo.replace(self.resolve_solo_state(time_ms));
 
         // Collect actor world-space bounding boxes for click-to-select
         let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();

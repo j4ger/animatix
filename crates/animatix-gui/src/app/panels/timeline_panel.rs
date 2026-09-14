@@ -21,7 +21,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use animatix::composition::Composition;
-use animatix::timeline::Timeline;
+use animatix::timeline::{ActorField, PropertyValue, Timeline, read_property_value};
 use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 use eparts::widget::UiExt;
 
@@ -1246,6 +1246,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     Pos2::new(lock_rect.left() - icon_gap - icon_w, at_top + 2.0),
                     Vec2::new(icon_w, sp.timeline.track_row_height - 4.0),
                 );
+                let solo_rect = Rect::from_min_size(
+                    Pos2::new(eye_rect.left() - icon_gap - icon_w, at_top + 2.0),
+                    Vec2::new(icon_w, sp.timeline.track_row_height - 4.0),
+                );
 
                 let visible = track.visible;
                 let eye_icon = if visible {
@@ -1283,6 +1287,55 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 );
                 if eye_resp.clicked() {
                     commands.push_back(ActorCommand::ToggleActorVisibility(actor_label.clone()).into());
+                }
+
+                // Solo is authored state (`solo: true` in the declaration), not
+                // ephemeral view state like the eye/lock pair: it goes through
+                // the property-edit pipeline so it round-trips through source,
+                // undo, and export.
+                let solo = matches!(
+                    read_property_value(track, ActorField::Tagged("solo"), 0),
+                    Some(PropertyValue::Bool(true))
+                );
+                let solo_resp = ui.interact(
+                    solo_rect,
+                    ui.id().with(("actor_solo", actor_label)),
+                    Sense::click(),
+                );
+                painter.text(
+                    solo_rect.center(),
+                    Align2::CENTER_CENTER,
+                    egui_phosphor::regular::HEADPHONES,
+                    TextRole::BodyS.font_id(),
+                    if solo {
+                        theme.palette.status.warning
+                    } else if solo_resp.hovered() {
+                        theme.palette.text.primary
+                    } else {
+                        theme.palette.text.disabled
+                    },
+                );
+                text_tooltip(
+                    ui,
+                    solo_resp.id.with("tooltip"),
+                    &solo_resp,
+                    if solo {
+                        "Unsolo layer"
+                    } else {
+                        "Solo layer (hides every other layer)"
+                    },
+                );
+                if solo_resp.clicked() {
+                    commands.push_back(
+                        DocumentCommand::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor_label.clone(),
+                            property: "solo".to_string(),
+                            value: PropertyValue::Bool(!solo),
+                            create_keyframe: false,
+                        })
+                        .into(),
+                    );
                 }
 
                 let locked = track.locked;

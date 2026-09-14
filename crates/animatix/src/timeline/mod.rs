@@ -641,11 +641,42 @@ pub(crate) struct EvalCaches {
     /// invariant covers every track mutation). `None` until first needed.
     bounds_registry: std::cell::RefCell<Option<BoundsRegistry>>,
     pub(crate) runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
+    /// Authored solo gate for the current frame. Empty (and allocation-free)
+    /// in the common case where no actor declares `solo: true`.
+    pub(crate) solo: std::cell::RefCell<SoloState>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
     /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling
     /// the constant background track once per node.
     background_color: std::cell::Cell<[f32; 4]>,
+}
+
+/// Per-frame resolution of the authored `solo` flags.
+///
+/// `visible` holds every soloed actor *and its ancestors*, so traversal still
+/// reaches a soloed descendant through a container that does not draw itself;
+/// `soloed` names the actors that actually draw. Both are `None` when nothing
+/// is soloed, which keeps the common path free of set lookups.
+#[derive(Default)]
+pub(crate) struct SoloState {
+    visible: Option<std::collections::HashSet<String>>,
+    soloed: Option<std::collections::HashSet<String>>,
+}
+
+impl SoloState {
+    pub(crate) fn is_active(&self) -> bool {
+        self.visible.is_some()
+    }
+
+    /// `true` when `label` is a soloed actor itself.
+    pub(crate) fn is_soloed(&self, label: &str) -> bool {
+        self.soloed.as_ref().is_some_and(|set| set.contains(label))
+    }
+
+    /// `true` when `label` is a soloed actor or an ancestor of one.
+    pub(crate) fn is_reachable(&self, label: &str) -> bool {
+        self.visible.as_ref().is_some_and(|set| set.contains(label))
+    }
 }
 
 /// Dense per-frame precise-bounds storage (PF-6 slot-id design).

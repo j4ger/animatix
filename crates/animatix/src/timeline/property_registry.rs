@@ -1292,6 +1292,18 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
         Applicable::SizedActors,
         |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])
     ),
+    // Authored solo flag. `ASSIGNABLE` only (not `ANIMATED`): solo selects what
+    // renders this frame, so animating it would fight the static-subtree cache
+    // and the frame cache for no authoring value.
+    schema!(
+        "solo",
+        ValueType::Bool,
+        F::ASSIGNABLE,
+        ActorField::Tagged("solo"),
+        None,
+        Applicable::Everything,
+        |_| super::property_engine::PropertyValue::Bool(false)
+    ),
     schema!(
         "source",
         ValueType::String,

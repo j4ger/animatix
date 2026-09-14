@@ -616,6 +616,9 @@ fn raw_property_specs() -> Vec<(&'static str, Applicable, Type, PropertyValueKin
             PropertyValueKind::Generic,
         ),
         ("size", Applicable::ExceptTextLike, Type::Vec2, PropertyValueKind::Vec2),
+        // Authored solo flag: while any actor declares `solo: true`, every
+        // non-solo subtree is hidden (recursively) in preview and export alike.
+        ("solo", Applicable::Everything, Type::Bool, PropertyValueKind::Generic),
         ("source", Applicable::Actors(&["Audio"]), Type::Str, PropertyValueKind::String),
         ("standoff", Applicable::Actors(&["Callout"]), Type::Num, PropertyValueKind::F32),
         ("stroke", Applicable::AllStrokePaths, Type::Color, PropertyValueKind::Vec4),

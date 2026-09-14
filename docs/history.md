@@ -744,6 +744,32 @@ GPU pixel tests live in `animatix-render` (`duotone_maps_luma_onto_the_ramp`,
 
 ---
 
+## Authored `solo` (2026-09-14)
+
+`Track solo` landed as a language property, not a GUI-only view state:
+
+- `solo: true` (default `false`) is registered in both property tables
+  (`animatix-syntax` shared schema and the engine's `PROPERTY_REGISTRY`,
+  `ActorField::Tagged("solo")`), so declarations, assignments, analyzer
+  validation, completion, and the formatter all pick it up with no bespoke
+  code. It is `ASSIGNABLE` but deliberately **not** `ANIMATED`: solo selects
+  what renders, so keyframing it would fight the frame/static-subtree caches
+  for no authoring value.
+- Evaluation resolves the flags once per frame into `SoloState` (an
+  allocation-free `None` when nothing is soloed) and prunes non-solo subtrees
+  whole in `render_actor_node`, while ancestors of a soloed actor stay
+  traversable so deeply nested soloed actors still draw. `visible: false`
+  wins over solo.
+- The timeline track header gained a headphones toggle that pushes a
+  `PropertyEdit` for `solo` through the existing source-edit pipeline, so the
+  change is undoable and persisted to the `.amx` — unlike the eye/lock pair,
+  which remain ephemeral by design.
+- Tests: `timeline/tests/solo.rs` covers the no-solo baseline, root-level
+  solo, sibling hiding inside a container, recursive subtree pruning, a
+  deeply nested soloed actor, and the hidden-wins rule.
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user
