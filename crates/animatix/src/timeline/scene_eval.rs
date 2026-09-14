@@ -421,51 +421,30 @@ impl Timeline {
     pub(crate) fn evaluate_node(
         &self,
         node_label: &str,
-        time_ms: u64,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         layout_positions: &crate::timeline::layout::LayoutPositions,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
         let (global_transform, global_opacity) = self.render_actor_node(
             node_label,
-            time_ms,
             parent_transform,
             parent_opacity,
-            scene_dimensions,
-            debug_options,
-            scene,
-            overrides,
             layout_positions,
-            hit_regions,
-            frame_env,
-            filter_backend,
             allow_pending_composites,
-            program_items,
+            frame,
+            out,
         );
 
         self.render_node_children(
             node_label,
-            time_ms,
             global_transform,
             global_opacity,
-            scene_dimensions,
-            debug_options,
-            scene,
-            overrides,
-            hit_regions,
-            frame_env,
-            filter_backend,
             allow_pending_composites,
-            program_items,
+            frame,
+            out,
         );
     }
 
@@ -474,20 +453,21 @@ impl Timeline {
     fn render_actor_node(
         &self,
         node_label: &str,
-        time_ms: u64,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         layout_positions: &crate::timeline::layout::LayoutPositions,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
+        let debug_options = frame.debug_options;
+        let overrides = frame.overrides;
+        let frame_env = frame.frame_env;
+        let scene = &mut *out.scene;
+        let hit_regions = &mut *out.hit_regions;
+        let program_items = &mut *out.program_items;
         let Some(track) = self.tracks.get(node_label) else {
             return (parent_transform, parent_opacity);
         };
@@ -515,19 +495,12 @@ impl Timeline {
             for child_label in children {
                 self.evaluate_node(
                     child_label,
-                    time_ms,
                     parent_transform,
                     parent_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
                     layout_positions,
-                    hit_regions,
-                    frame_env,
-                    filter_backend,
                     allow_pending_composites,
-                    program_items,
+                    frame,
+                    out,
                 );
             }
             return (parent_transform, parent_opacity);
@@ -911,19 +884,17 @@ impl Timeline {
     pub(crate) fn render_node_children(
         &self,
         node_label: &str,
-        time_ms: u64,
         global_transform: kurbo::Affine,
         global_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
+        let debug_options = frame.debug_options;
+        let overrides = frame.overrides;
+        let frame_env = frame.frame_env;
         let Some(track) = self.tracks.get(node_label) else {
             return;
         };
@@ -952,10 +923,10 @@ impl Timeline {
             layout_positions: child_layout_positions,
             frame_env,
             allow_pending_composites,
-            scene,
-            hit_regions,
-            program_items,
-            filter_backend,
+            scene: &mut *out.scene,
+            hit_regions: &mut *out.hit_regions,
+            program_items: &mut *out.program_items,
+            filter_backend: &mut *out.filter_backend,
         };
         if let Err(e) = primitive.render_children(&mut ctx, &children) {
             let label = node_label.to_string();
@@ -976,19 +947,14 @@ impl Timeline {
     fn render_filter_children(
         &self,
         node_label: &str,
-        time_ms: u64,
         global_transform: kurbo::Affine,
         global_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
         let Some(track) = self.tracks.get(node_label) else {
             return;
         };
@@ -1004,7 +970,7 @@ impl Timeline {
         }
 
         // Check if a filter backend is available
-        let has_backend = filter_backend.is_some();
+        let has_backend = out.filter_backend.is_some();
         if !has_backend {
             // Surface the fallback: authored filter effects are silently
             // dropped without it.
@@ -1022,19 +988,12 @@ impl Timeline {
             for child in &children {
                 self.evaluate_node(
                     child,
-                    time_ms,
                     global_transform,
                     global_opacity,
-                    scene_dimensions,
-                    debug_options,
-                    scene,
-                    overrides,
                     &child_layout_positions,
-                    hit_regions,
-                    frame_env,
-                    filter_backend,
                     allow_pending_composites,
-                    program_items,
+                    frame,
+                    out,
                 );
             }
             return;
@@ -1042,31 +1001,26 @@ impl Timeline {
 
         // Build sub-scene with children rendered at their world positions
         let mut sub_scene = vello::Scene::new();
-        for child in &children {
-            self.evaluate_node(
-                child,
-                time_ms,
-                global_transform,
-                global_opacity,
-                scene_dimensions,
-                debug_options,
-                &mut sub_scene,
-                overrides,
-                &child_layout_positions,
-                hit_regions,
-                frame_env,
-                filter_backend,
-                false,
-                program_items,
-            );
-        }
+        out.with_scene(&mut sub_scene, |out| {
+            for child in &children {
+                self.evaluate_node(
+                    child,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    false,
+                    frame,
+                    out,
+                );
+            }
+        });
 
         // Effects are lowered onto the scope's chain at build time; identity
         // and disabled stages are dropped during sampling.
         let chain = track.effects.build_chain(time_ms);
 
         if chain.is_empty() {
-            scene.encoding_mut().append(sub_scene.encoding(), &None);
+            out.scene.encoding_mut().append(sub_scene.encoding(), &None);
             return;
         }
 
@@ -1100,7 +1054,7 @@ impl Timeline {
         // full-canvas scopes in exported video (see docs/roadmap.md Known
         // Issues).
         if allow_pending_composites {
-            if let Some(backend) = filter_backend.as_mut() {
+            if let Some(backend) = out.filter_backend.as_mut() {
                 match backend.render_scene_to_pending_composite(
                     &sub_scene,
                     scene_dimensions,
@@ -1123,7 +1077,7 @@ impl Timeline {
         }
 
         // Render sub-scene to image via backend, apply GPU filters, draw result
-        if let Some(backend) = filter_backend.as_mut() {
+        if let Some(backend) = out.filter_backend.as_mut() {
             match backend.render_scene_to_image_gpu_filtered(
                 &sub_scene,
                 scene_dimensions,
@@ -1144,7 +1098,7 @@ impl Timeline {
                         .with_extend(vello::peniko::Extend::Pad)
                         .with_quality(vello::peniko::ImageQuality::Medium)
                         .with_alpha(global_opacity);
-                    scene.draw_image(&brush, transform);
+                    out.scene.draw_image(&brush, transform);
                 },
                 Err(e) => {
                     tracing::warn!(
@@ -1160,7 +1114,7 @@ impl Timeline {
                             ),
                         ),
                     );
-                    scene.encoding_mut().append(sub_scene.encoding(), &None);
+                    out.scene.encoding_mut().append(sub_scene.encoding(), &None);
                 },
             }
         }
@@ -1240,19 +1194,15 @@ impl Timeline {
     fn render_mask_children(
         &self,
         node_label: &str,
-        time_ms: u64,
         global_transform: kurbo::Affine,
         global_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
+        let overrides = frame.overrides;
         let Some(track) = self.tracks.get(node_label) else {
             return;
         };
@@ -1305,11 +1255,11 @@ impl Timeline {
         let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
 
         // Push clip layer. The clip path is in the mask's LOCAL space, so
-        // it must be transformed into scene space — pushing it with the
-        // identity transform pinned the clip at the scene origin, clipping
+        // it must be transformed into out.scene space — pushing it with the
+        // identity transform pinned the clip at the out.scene origin, clipping
         // away every child of any mask not positioned at the top-left
         // corner (Mask + Image children were the visible symptom).
-        scene.push_layer(
+        out.scene.push_layer(
             vello::peniko::Fill::NonZero,
             vello::peniko::BlendMode::default(),
             1.0,
@@ -1327,24 +1277,17 @@ impl Timeline {
             }
             self.evaluate_node(
                 child,
-                time_ms,
                 global_transform,
                 global_opacity,
-                scene_dimensions,
-                debug_options,
-                scene,
-                overrides,
                 &child_layout_positions,
-                hit_regions,
-                frame_env,
-                filter_backend,
                 allow_pending_composites,
-                program_items,
+                frame,
+                out,
             );
         }
 
         // Pop clip layer
-        scene.pop_layer();
+        out.scene.pop_layer();
     }
 
     /// Equation strategy: fragment children aggregate into one Typst document.
@@ -1352,19 +1295,15 @@ impl Timeline {
     fn render_equation_children(
         &self,
         node_label: &str,
-        time_ms: u64,
         global_transform: kurbo::Affine,
         global_opacity: f32,
-        scene_dimensions: SceneDimensions,
-        debug_options: DebugRenderOptions,
-        scene: &mut vello::Scene,
-        overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-        hit_regions: &mut Vec<(String, kurbo::Rect)>,
-        frame_env: Option<&super::Environment>,
-        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         allow_pending_composites: bool,
-        program_items: &mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
+        let overrides = frame.overrides;
         let Some(track) = self.tracks.get(node_label) else {
             return;
         };
@@ -1442,7 +1381,7 @@ impl Timeline {
 
             // Compile the Typst markup. Memoized process-wide: fragment
             // content and font properties rarely change between frames, so
-            // scrubbing an equation-heavy scene reuses one compilation
+            // scrubbing an equation-heavy out.scene reuses one compilation
             // instead of re-running Typst every frame.
             match crate::renderer::text::compile_typst_grouped_cached(
                 &typst_body,
@@ -1514,12 +1453,12 @@ impl Timeline {
                         let cmd = crate::primitives::RenderCommand::Text {
                             paths: std::sync::Arc::clone(&compiled.glyphs),
                         };
-                        cmd.execute(scene, &global_transform, global_opacity);
+                        cmd.execute(out.scene, &global_transform, global_opacity);
                     }
 
                     // Render highlight overlays.
                     for cmd in &highlight_cmds {
-                        cmd.execute(scene, &global_transform, global_opacity);
+                        cmd.execute(out.scene, &global_transform, global_opacity);
                     }
                 },
                 Err(e) => {
@@ -1535,19 +1474,12 @@ impl Timeline {
         for child in children {
             self.evaluate_node(
                 child,
-                time_ms,
                 global_transform,
                 global_opacity,
-                scene_dimensions,
-                debug_options,
-                scene,
-                overrides,
                 &child_layout_positions,
-                hit_regions,
-                frame_env,
-                filter_backend,
                 allow_pending_composites,
-                program_items,
+                frame,
+                out,
             );
         }
     }
@@ -1557,20 +1489,29 @@ impl Timeline {
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
     ) {
+        // The container primitives drive their own recursion through
+        // `RenderChildrenCtx` (the documented extension surface); the render
+        // recursion itself takes the bundled frame/outputs.
+        let frame = crate::primitives::RenderFrame {
+            time_ms: ctx.time_ms,
+            scene_dimensions: ctx.scene_dimensions,
+            debug_options: ctx.debug_options,
+            overrides: ctx.overrides,
+            frame_env: ctx.frame_env,
+        };
+        let mut out = crate::primitives::RenderOutputs {
+            scene: &mut *ctx.scene,
+            hit_regions: &mut *ctx.hit_regions,
+            program_items: &mut *ctx.program_items,
+            filter_backend: &mut *ctx.filter_backend,
+        };
         self.render_filter_children(
             ctx.node_label,
-            ctx.time_ms,
             ctx.global_transform,
             ctx.global_opacity,
-            ctx.scene_dimensions,
-            ctx.debug_options,
-            &mut *ctx.scene,
-            ctx.overrides,
-            &mut *ctx.hit_regions,
-            ctx.frame_env,
-            &mut *ctx.filter_backend,
             ctx.allow_pending_composites,
-            &mut *ctx.program_items,
+            &frame,
+            &mut out,
         );
     }
 
@@ -1579,20 +1520,29 @@ impl Timeline {
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
     ) {
+        // The container primitives drive their own recursion through
+        // `RenderChildrenCtx` (the documented extension surface); the render
+        // recursion itself takes the bundled frame/outputs.
+        let frame = crate::primitives::RenderFrame {
+            time_ms: ctx.time_ms,
+            scene_dimensions: ctx.scene_dimensions,
+            debug_options: ctx.debug_options,
+            overrides: ctx.overrides,
+            frame_env: ctx.frame_env,
+        };
+        let mut out = crate::primitives::RenderOutputs {
+            scene: &mut *ctx.scene,
+            hit_regions: &mut *ctx.hit_regions,
+            program_items: &mut *ctx.program_items,
+            filter_backend: &mut *ctx.filter_backend,
+        };
         self.render_mask_children(
             ctx.node_label,
-            ctx.time_ms,
             ctx.global_transform,
             ctx.global_opacity,
-            ctx.scene_dimensions,
-            ctx.debug_options,
-            &mut *ctx.scene,
-            ctx.overrides,
-            &mut *ctx.hit_regions,
-            ctx.frame_env,
-            &mut *ctx.filter_backend,
             ctx.allow_pending_composites,
-            &mut *ctx.program_items,
+            &frame,
+            &mut out,
         );
     }
 
@@ -1601,20 +1551,29 @@ impl Timeline {
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
     ) {
+        // The container primitives drive their own recursion through
+        // `RenderChildrenCtx` (the documented extension surface); the render
+        // recursion itself takes the bundled frame/outputs.
+        let frame = crate::primitives::RenderFrame {
+            time_ms: ctx.time_ms,
+            scene_dimensions: ctx.scene_dimensions,
+            debug_options: ctx.debug_options,
+            overrides: ctx.overrides,
+            frame_env: ctx.frame_env,
+        };
+        let mut out = crate::primitives::RenderOutputs {
+            scene: &mut *ctx.scene,
+            hit_regions: &mut *ctx.hit_regions,
+            program_items: &mut *ctx.program_items,
+            filter_backend: &mut *ctx.filter_backend,
+        };
         self.render_equation_children(
             ctx.node_label,
-            ctx.time_ms,
             ctx.global_transform,
             ctx.global_opacity,
-            ctx.scene_dimensions,
-            ctx.debug_options,
-            &mut *ctx.scene,
-            ctx.overrides,
-            &mut *ctx.hit_regions,
-            ctx.frame_env,
-            &mut *ctx.filter_backend,
             ctx.allow_pending_composites,
-            &mut *ctx.program_items,
+            &frame,
+            &mut out,
         );
     }
 
@@ -1875,109 +1834,126 @@ impl Timeline {
         } else {
             None
         };
+        // The frame-invariant bundle and the mutable outputs are built once and
+        // threaded through the whole recursion (see `RenderFrame`).
+        let frame = crate::primitives::RenderFrame {
+            time_ms,
+            scene_dimensions,
+            debug_options,
+            overrides: &overrides,
+            frame_env: frame_env.as_ref(),
+        };
         // `sample` covers per-frame property sampling and node evaluation; the
         // vello encoding is currently interleaved inside it (see `stage::ENCODE_SCENE`).
         let _sample_stage = crate::perf::ScopedStage::new(crate::perf::stage::SAMPLE);
-        for root in &self.root_nodes {
-            // P2.17: Static subtree cache — fully-static subtrees are evaluated once
-            // and their vello encoding is reused on subsequent frames. Dimensions
-            // and item collection are part of the key so different canvas sizes or
-            // observable-program requests cannot reuse an incompatible entry.
-            // PF-11: hit regions no longer opt out — the entry captures the
-            // subtree's (label, rect) pairs once and restores them on hits, so
-            // the GUI (which always requests `compute_hit_regions` for picking)
-            // keeps its static-subtree reuse.
-            if filter_backend.is_none() && self.is_static_subtree(root) {
-                let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
-                let cache = self.eval_caches.static_subtree_cache.borrow_mut();
-                if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
-                    cache.get(&cache_key)
-                {
-                    // Fast path: append cached encoding directly and restore the
-                    // precise bounds that were computed for this subtree.
-                    scene.encoding_mut().append(cached_scene.encoding(), &None);
+        // Scoped so the output borrows end with the loop: the code below reuses
+        // `scene` / `hit_regions` / `program_items` directly.
+        {
+            let mut out = crate::primitives::RenderOutputs {
+                scene: &mut scene,
+                hit_regions: &mut hit_regions,
+                program_items: &mut program_items,
+                filter_backend: &mut *filter_backend,
+            };
+            for root in &self.root_nodes {
+                // P2.17: Static subtree cache — fully-static subtrees are evaluated once
+                // and their vello encoding is reused on subsequent frames. Dimensions
+                // and item collection are part of the key so different canvas sizes or
+                // observable-program requests cannot reuse an incompatible entry.
+                // PF-11: hit regions no longer opt out — the entry captures the
+                // subtree's (label, rect) pairs once and restores them on hits, so
+                // the GUI (which always requests `compute_hit_regions` for picking)
+                // keeps its static-subtree reuse.
+                if out.filter_backend.is_none() && self.is_static_subtree(root) {
+                    let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
+                    let cache = self.eval_caches.static_subtree_cache.borrow_mut();
+                    if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
+                        cache.get(&cache_key)
                     {
-                        let mut table = self.eval_caches.precise_bounds.borrow_mut();
-                        for &(slot, rect) in cached_bounds {
-                            table.write(slot, rect);
+                        // Fast path: append cached encoding directly and restore the
+                        // precise bounds that were computed for this subtree.
+                        out.scene.encoding_mut().append(cached_scene.encoding(), &None);
+                        {
+                            let mut table = self.eval_caches.precise_bounds.borrow_mut();
+                            for &(slot, rect) in cached_bounds {
+                                table.write(slot, rect);
+                            }
                         }
-                    }
-                    if debug_options.compute_hit_regions {
-                        hit_regions.extend(cached_hit_regions.iter().cloned());
-                    }
-                    if let Some(items) = program_items.as_mut() {
-                        items.extend(cached_items.iter().cloned());
+                        if debug_options.compute_hit_regions {
+                            out.hit_regions.extend(cached_hit_regions.iter().cloned());
+                        }
+                        if let Some(items) = out.program_items.as_mut() {
+                            items.extend(cached_items.iter().cloned());
+                        }
+                    } else {
+                        drop(cache);
+                        let mut temp_scene = vello::Scene::new();
+                        // Snapshot offset into the frame's `written` list: entries
+                        // appended during this subtree's evaluation are exactly its
+                        // bounds (deterministic, unlike the old count-based skip
+                        // over unordered HashMap iteration).
+                        let subtree_written_before =
+                            self.eval_caches.precise_bounds.borrow().written.len();
+                        let mut subtree_items_slot = if collect_items {
+                            Some(Vec::new())
+                        } else {
+                            None
+                        };
+                        let subtree_hits_before = out.hit_regions.len();
+                        // The scratch subtree swaps both the draw target and the
+                        // item sink, so it builds its own outputs rather than
+                        // reusing the frame's.
+                        let mut temp_out = crate::primitives::RenderOutputs {
+                            scene: &mut temp_scene,
+                            hit_regions: &mut *out.hit_regions,
+                            program_items: &mut subtree_items_slot,
+                            filter_backend: &mut *out.filter_backend,
+                        };
+                        self.evaluate_node(
+                            root,
+                            kurbo::Affine::IDENTITY,
+                            1.0,
+                            &crate::timeline::layout::LayoutPositions::new(),
+                            true,
+                            &frame,
+                            &mut temp_out,
+                        );
+                        let subtree_items = subtree_items_slot.take().unwrap_or_default();
+                        if let Some(items) = out.program_items.as_mut() {
+                            items.extend(subtree_items.iter().cloned());
+                        }
+                        // Capture the subtree's hit regions once (only collected
+                        // when requested; see the cache-key's debug_options).
+                        let new_hit_regions: Vec<(String, kurbo::Rect)> =
+                            out.hit_regions[subtree_hits_before..].to_vec();
+                        // Append to main out.scene and cache for next time.
+                        out.scene.encoding_mut().append(temp_scene.encoding(), &None);
+                        let new_bounds: Vec<(u32, kurbo::Rect)> = self
+                            .eval_caches
+                            .precise_bounds
+                            .borrow()
+                            .pairs_from(subtree_written_before);
+                        self.eval_caches.static_subtree_cache.borrow_mut().insert(
+                            cache_key,
+                            (temp_scene, new_bounds, subtree_items, new_hit_regions),
+                        );
                     }
                 } else {
-                    drop(cache);
-                    let mut temp_scene = vello::Scene::new();
-                    // Snapshot offset into the frame's `written` list: entries
-                    // appended during this subtree's evaluation are exactly its
-                    // bounds (deterministic, unlike the old count-based skip
-                    // over unordered HashMap iteration).
-                    let subtree_written_before =
-                        self.eval_caches.precise_bounds.borrow().written.len();
-                    let mut subtree_items_slot = if collect_items {
-                        Some(Vec::new())
-                    } else {
-                        None
-                    };
-                    let subtree_hits_before = hit_regions.len();
+                    // A filter scope may only take the zero-readback pending path
+                    // when nothing renders after it (`can_post_composite_filter`);
+                    // otherwise its post-render blit would cover later siblings.
+                    // Mid-out.scene filters fall back to the inline readback path.
+                    let allow_pending = self.can_post_composite_filter(root);
                     self.evaluate_node(
                         root,
-                        time_ms,
                         kurbo::Affine::IDENTITY,
                         1.0,
-                        scene_dimensions,
-                        debug_options,
-                        &mut temp_scene,
-                        &overrides,
-                        &crate::timeline::layout::LayoutPositions::new(),
-                        &mut hit_regions,
-                        frame_env.as_ref(),
-                        filter_backend,
-                        true,
-                        &mut subtree_items_slot,
-                    );
-                    let subtree_items = subtree_items_slot.take().unwrap_or_default();
-                    if let Some(items) = program_items.as_mut() {
-                        items.extend(subtree_items.iter().cloned());
-                    }
-                    // Capture the subtree's hit regions once (only collected
-                    // when requested; see the cache-key's debug_options).
-                    let new_hit_regions: Vec<(String, kurbo::Rect)> =
-                        hit_regions[subtree_hits_before..].to_vec();
-                    // Append to main scene and cache for next time.
-                    scene.encoding_mut().append(temp_scene.encoding(), &None);
-                    let new_bounds: Vec<(u32, kurbo::Rect)> =
-                        self.eval_caches.precise_bounds.borrow().pairs_from(subtree_written_before);
-                    self.eval_caches.static_subtree_cache.borrow_mut().insert(
-                        cache_key,
-                        (temp_scene, new_bounds, subtree_items, new_hit_regions),
+                        &crate::timeline::layout::LayoutPositions::new(), // empty for roots
+                        allow_pending,
+                        &frame,
+                        &mut out,
                     );
                 }
-            } else {
-                // A filter scope may only take the zero-readback pending path
-                // when nothing renders after it (`can_post_composite_filter`);
-                // otherwise its post-render blit would cover later siblings.
-                // Mid-scene filters fall back to the inline readback path.
-                let allow_pending = self.can_post_composite_filter(root);
-                self.evaluate_node(
-                    root,
-                    time_ms,
-                    kurbo::Affine::IDENTITY,
-                    1.0,
-                    scene_dimensions,
-                    debug_options,
-                    &mut scene,
-                    &overrides,
-                    &crate::timeline::layout::LayoutPositions::new(), // empty for roots
-                    &mut hit_regions,
-                    frame_env.as_ref(),
-                    filter_backend,
-                    allow_pending,
-                    &mut program_items,
-                );
             }
         }
 

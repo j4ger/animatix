@@ -606,14 +606,76 @@ pub struct EvaluateCtx<'a> {
     pub target_resolver: Option<&'a dyn TargetResolver>,
 }
 
+/// Frame-invariant, read-only state shared by every node rendered this frame.
+///
+/// Bundling these is what keeps the render recursion's argument list short:
+/// `evaluate_node` and friends used to take fourteen positional arguments, and a
+/// mis-ordered argument there is a silent semantic change rather than a compile
+/// error. Per-container values (`layout_positions`) and per-call values
+/// (`allow_pending_composites`) deliberately stay parameters — they are not
+/// frame-invariant.
+#[derive(Clone, Copy)]
+pub(crate) struct RenderFrame<'a> {
+    /// Current time in milliseconds.
+    pub(crate) time_ms: u64,
+    /// Scene dimensions for this frame.
+    pub(crate) scene_dimensions: SceneDimensions,
+    /// Debug overlay options for this frame.
+    pub(crate) debug_options: crate::timeline::DebugRenderOptions,
+    /// Property overrides produced by modifiers, keyed by actor label.
+    pub(crate) overrides:
+        &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    /// The frame environment, when modifiers or procedural plots needed one.
+    pub(crate) frame_env: Option<&'a Environment>,
+}
+
+/// Mutable outputs of one render call.
+///
+/// The three table outputs and the backend handle are reborrowed unchanged when
+/// a container renders its children into a different scene; see
+/// [`Self::with_scene`].
+pub(crate) struct RenderOutputs<'s, 'f> {
+    /// Scene receiving the draw commands.
+    pub(crate) scene: &'s mut vello::Scene,
+    /// Hit regions (world bounds) collected for this frame.
+    pub(crate) hit_regions: &'s mut Vec<(String, kurbo::Rect)>,
+    /// Observable scene items, when collection was requested.
+    pub(crate) program_items: &'s mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    /// The active filter backend, when one is available.
+    pub(crate) filter_backend: &'s mut Option<&'f mut dyn crate::timeline::effects::FilterBackend>,
+}
+
+impl RenderOutputs<'_, '_> {
+    /// Run `f` with the draw target temporarily replaced by `scene`.
+    ///
+    /// The Filter strategy renders its children into an offscreen sub-scene and
+    /// the static-subtree cache into a scratch scene — both stack locals with a
+    /// shorter lifetime than this context, so the swap happens through a fresh
+    /// borrow rather than an assignment to [`Self::scene`].
+    pub(crate) fn with_scene<R>(
+        &mut self,
+        scene: &mut vello::Scene,
+        f: impl FnOnce(&mut RenderOutputs<'_, '_>) -> R,
+    ) -> R {
+        let mut swapped = RenderOutputs {
+            scene,
+            hit_regions: &mut *self.hit_regions,
+            program_items: &mut *self.program_items,
+            filter_backend: &mut *self.filter_backend,
+        };
+        f(&mut swapped)
+    }
+}
+
 /// Mutable context passed to [`Primitive::render_children`].
 ///
 /// The scene-subtree renderer hands each container primitive this context so the
 /// primitive drives its own recursion, instead of the pipeline branching on a
 /// `ChildProcessing` value. `scene`, `hit_regions`, `program_items`, and
 /// `filter_backend` are the caller-local outputs; every other field is
-/// read-only frame state. The recursion entry point (`Timeline::evaluate_node`)
-/// and the frame caches are reached through [`Self::timeline`].
+/// read-only frame state, handed to the recursion entry point
+/// (`Timeline::evaluate_node`) through [`Self::render_frame`] and
+/// [`RenderOutputs`]. The frame caches are reached through [`Self::timeline`].
 pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// The timeline being rendered.
     pub timeline: &'a Timeline,
@@ -648,52 +710,66 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     pub filter_backend: &'b mut Option<&'c mut dyn crate::timeline::effects::FilterBackend>,
 }
 
-impl RenderChildrenCtx<'_, '_, '_> {
+impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     /// The container track these children belong to.
     pub fn track(&self) -> Option<&AnimationTrack> {
         self.timeline.tracks.get(self.node_label)
     }
 
+    /// This context's read-only frame state, for the render recursion.
+    ///
+    /// The returned frame borrows the *frame data* (`'a`), not `self`, so the
+    /// caller can still take the mutable outputs afterwards.
+    fn render_frame(&self) -> RenderFrame<'a> {
+        RenderFrame {
+            time_ms: self.time_ms,
+            scene_dimensions: self.scene_dimensions,
+            debug_options: self.debug_options,
+            overrides: self.overrides,
+            frame_env: self.frame_env,
+        }
+    }
+
     /// Render one child into this context's scene, preserving the caller's
     /// `allow_pending_composites` flag.
     pub fn render_child(&mut self, child: &str) {
+        let frame = self.render_frame();
         let allow_pending_composites = self.allow_pending_composites;
+        let mut out = RenderOutputs {
+            scene: &mut *self.scene,
+            hit_regions: &mut *self.hit_regions,
+            program_items: &mut *self.program_items,
+            filter_backend: &mut *self.filter_backend,
+        };
         self.timeline.evaluate_node(
             child,
-            self.time_ms,
             self.global_transform,
             self.global_opacity,
-            self.scene_dimensions,
-            self.debug_options,
-            &mut *self.scene,
-            self.overrides,
             &self.layout_positions,
-            &mut *self.hit_regions,
-            self.frame_env,
-            &mut *self.filter_backend,
             allow_pending_composites,
-            &mut *self.program_items,
+            &frame,
+            &mut out,
         );
     }
 
     /// Render one child into a caller-provided scene (the Filter strategy
     /// renders into an offscreen sub-scene, which never parks composites).
     pub fn render_child_into(&mut self, scene: &mut vello::Scene, child: &str) {
+        let frame = self.render_frame();
+        let mut out = RenderOutputs {
+            scene,
+            hit_regions: &mut *self.hit_regions,
+            program_items: &mut *self.program_items,
+            filter_backend: &mut *self.filter_backend,
+        };
         self.timeline.evaluate_node(
             child,
-            self.time_ms,
             self.global_transform,
             self.global_opacity,
-            self.scene_dimensions,
-            self.debug_options,
-            scene,
-            self.overrides,
             &self.layout_positions,
-            &mut *self.hit_regions,
-            self.frame_env,
-            &mut *self.filter_backend,
             false,
-            &mut *self.program_items,
+            &frame,
+            &mut out,
         );
     }
 
