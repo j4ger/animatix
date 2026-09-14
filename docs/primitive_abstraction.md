@@ -172,7 +172,7 @@ generic `mix` in v1. The first two effects are `Blur` and `ColorGrade`.
 > (`timeline/mod.rs:765`), and extension properties are only written by
 > `write_extension_properties_for_decl` when a context is attached. Built-in
 > effect parameters must be intrinsic built-in properties (`PROPERTY_REGISTRY` +
-> `raw_property_specs`) with a generic per-track binding (`Tagged`/plan-slot),
+> `PROPERTY_DESCRIPTORS`) with a generic per-track binding (`Tagged`/plan-slot),
 > not per-parameter `ActorField` variants. Plugin effects (Stage 4) imply an
 > extension context and can use the extension-property path.
 

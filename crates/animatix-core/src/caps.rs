@@ -182,7 +182,7 @@ impl ActorCaps {
 /// -shaped variants read the projection fields; [`Applicable::Actors`] matches
 /// authored type names for genuinely name-specific properties (`code` only on
 /// `Code`, `density` only on `VectorField`).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Applicable {
     /// Applies to every actor kind including Group.
     Everything,

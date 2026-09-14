@@ -747,14 +747,20 @@ Steps:
    methods of `Primitive` (`build`/`evaluate`/`render`/`default_props`).
 3. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`. A
    test pins the behaviour registry names to the catalog.
-4. If the primitive declares properties, add them to BOTH
-   `animatix-syntax::schema::raw_property_specs()` (a capability predicate —
-   new actor types matching the predicate pick the property up automatically;
-   name-specific properties use `Applicable::Actors`) and
-   `timeline::property_registry::PROPERTY_REGISTRY` (storage semantics; the
-   same `Applicable` vocabulary; pinned by
-   `shared_schema_covers_every_runtime_property`). Adding a capability-shaped
-   property therefore needs no per-primitive list edits at all.
+4. If the primitive declares properties, add the row to
+   `animatix_core::property::PROPERTY_DESCRIPTORS` — the single declaration of
+   name, `Applicable` predicate, and finite value kind. Two derivations follow
+   from it:
+   - `animatix-syntax` adds the type-system view (`raw_property_types()`, same
+     order, pinned by `property_types_line_up_with_descriptors`);
+   - `animatix` adds the runtime binding (`BINDINGS` in
+     `timeline/property_registry.rs`: plan-slot `ValueType`, flags, storage
+     field, default, read source), joined into `PROPERTY_REGISTRY` by name.
+
+   A capability-shaped predicate means new actor types matching it pick the
+   property up with no per-primitive edits at all. `PropertyId` is the row
+   index and serialized plans store it, so **append** rows rather than
+   reordering them (`property_id_order_is_pinned` guards the order).
 5. Document in `docs/primitives.md` / `docs/spec.md` (including the LLM
    checklist name list and its mirror in `AGENTS.md`); add render/hit-region
    tests if the primitive draws.

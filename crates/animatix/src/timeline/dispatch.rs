@@ -524,7 +524,7 @@ impl AnimationTrack {
     pub fn max_keyframe_time(&self) -> Option<u64> {
         use crate::timeline::property_registry::PROPERTY_REGISTRY;
         let mut max: Option<u64> = None;
-        for schema in PROPERTY_REGISTRY {
+        for schema in PROPERTY_REGISTRY.iter() {
             if let Some(t) = property_keyframe_times(self, schema.field).into_iter().max() {
                 max = Some(max.map_or(t, |m| m.max(t)));
             }
@@ -560,7 +560,7 @@ impl AnimationTrack {
     /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
     pub fn has_any_keyframes(&self) -> bool {
         use crate::timeline::property_registry::PROPERTY_REGISTRY;
-        for schema in PROPERTY_REGISTRY {
+        for schema in PROPERTY_REGISTRY.iter() {
             let times = property_keyframe_times(self, schema.field);
             if times.len() > 1 || (times.len() == 1 && times[0] > 0) {
                 return true;

@@ -181,7 +181,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 ---
 
-*This file is generated from `crates/animatix/src/timeline/property_registry.rs`. If you add a property, update both the registry and this table.*
+*Source of truth: `animatix_core::property::PROPERTY_DESCRIPTORS` (name, applicability, value kind) joined with the engine's `BINDINGS` in `crates/animatix/src/timeline/property_registry.rs` (plan-slot type, flags, storage field, default). If you add a property, add the descriptor row, the parser's type row, and the engine binding, then update this table.*
 
 ---
 

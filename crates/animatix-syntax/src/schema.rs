@@ -12,34 +12,7 @@ pub use animatix_core::caps::Applicable;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-/// Stable property identifier used by runtime plans and schema consumers.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PropertyId(pub u32);
-
-/// Finite value kind understood by extension property tracks.
-///
-/// This mirrors the runtime `DynTrack` storage while staying free of
-/// renderer/runtime dependencies so analyzer and LSP can consume it too.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PropertyValueKind {
-    /// 32-bit float.
-    F32,
-    /// 32-bit unsigned integer.
-    U32,
-    /// Boolean flag.
-    Bool,
-    /// 2D vector.
-    Vec2,
-    /// 4D vector or color.
-    Vec4,
-    /// String.
-    String,
-    /// List of 2D points.
-    PointList,
-    /// Any finite property value.
-    Generic,
-}
+pub use animatix_core::property::{PropertyId, PropertyValueKind};
 
 /// One known built-in property with its applicable actor types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -351,21 +324,33 @@ pub fn property_specs() -> Vec<PropertySpec> {
                         Some((info.static_type_name()?, animatix_std::caps_from_info(info)))
                     })
                     .collect();
-            raw_property_specs()
-                .into_iter()
+            let types = raw_property_types();
+            let descriptors = animatix_core::property::PROPERTY_DESCRIPTORS;
+            debug_assert_eq!(
+                types.len(),
+                descriptors.len(),
+                "the property type table is out of step with the descriptor table"
+            );
+            descriptors
+                .iter()
                 .enumerate()
-                .map(|(index, (name, applicable, ty, value_kind))| {
+                .map(|(index, descriptor)| {
+                    let (type_name, ty) = &types[index];
+                    debug_assert_eq!(
+                        *type_name, descriptor.name,
+                        "property type table order must match the descriptor table"
+                    );
                     let types: Vec<&'static str> = catalog
                         .iter()
-                        .filter(|(type_name, caps)| applicable.includes(caps, type_name))
+                        .filter(|(type_name, caps)| descriptor.applicable.includes(caps, type_name))
                         .map(|(type_name, _)| *type_name)
                         .collect();
                     PropertySpec {
                         id: PropertyId(index as u32),
-                        name,
+                        name: descriptor.name,
                         actor_types: types.into_boxed_slice(),
-                        ty,
-                        value_kind,
+                        ty: ty.clone(),
+                        value_kind: descriptor.value_kind,
                     }
                 })
                 .collect()
@@ -377,7 +362,9 @@ pub fn property_specs() -> Vec<PropertySpec> {
 ///
 /// Extension (plugin) actor types inherit these so the analyzer does not flag
 /// the standard transform/geometry/layout properties (`at`, `opacity`,
-/// `color`, `size`, ...) as unknown on a custom primitive. Kept as an explicit,
+/// `color`, `size`, ...) as unknown on a custom primitive. `solo` is in the
+/// list for the same reason as the transform set: the render gate is
+/// actor-type-agnostic, so any primitive can be soloed. Kept as an explicit,
 /// reviewable list instead of a count threshold over `actor_types`; the
 /// `common_property_list_stays_in_sync` test pins it against the schema so
 /// adding a new near-universal property forces a deliberate update here.
@@ -398,371 +385,253 @@ pub fn common_property_names() -> &'static [&'static str] {
         "scale",
         "shift",
         "size",
+        "solo",
         "transform",
         "width",
     ]
 }
 
-fn raw_property_specs() -> Vec<(&'static str, Applicable, Type, PropertyValueKind)> {
+/// The type-system view of every built-in property, index-aligned with
+/// [`animatix_core::property::PROPERTY_DESCRIPTORS`].
+///
+/// The names and the order come from the core descriptor table; this function
+/// supplies only the expression type (`Type`), which the runtime- and
+/// analyzer-neutral core crate must not carry (unions, function types, and
+/// actor/component references belong to the type model). A row added, renamed,
+/// or moved here without the matching core change fails
+/// `property_types_line_up_with_descriptors` instead of silently mis-typing a
+/// property.
+fn raw_property_types() -> Vec<(&'static str, Type)> {
     vec![
-        (
-            "align",
-            Applicable::Actors(&["Col", "Grid", "Row", "Stack"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        ("anchor", Applicable::Everything, Type::Any, PropertyValueKind::Generic),
-        ("ascent", Applicable::Never, Type::Num, PropertyValueKind::F32),
-        ("at", Applicable::Everything, Type::Vec2, PropertyValueKind::Vec2),
-        ("background_color", Applicable::Never, Type::Color, PropertyValueKind::Vec4),
-        (
-            "bar_colors",
-            Applicable::Actors(&["BarChart"]),
-            Type::Any,
-            PropertyValueKind::Generic,
-        ),
-        (
-            "bar_width",
-            Applicable::Actors(&["BarChart"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("baseline", Applicable::Never, Type::Num, PropertyValueKind::F32),
-        ("bounds", Applicable::Actors(&["Filter"]), Type::Vec4, PropertyValueKind::Vec4),
-        ("char_progress", Applicable::TextLike, Type::Num, PropertyValueKind::F32),
-        ("code", Applicable::Actors(&["Code"]), Type::Str, PropertyValueKind::String),
-        ("color", Applicable::Everything, Type::Color, PropertyValueKind::Vec4),
-        ("cols", Applicable::Actors(&["Grid"]), Type::Num, PropertyValueKind::U32),
-        ("commands", Applicable::Actors(&["Path"]), Type::Any, PropertyValueKind::Generic),
-        ("data", Applicable::Actors(&["BarChart"]), Type::Any, PropertyValueKind::Generic),
-        (
-            "density",
-            Applicable::Actors(&["VectorField"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("descent", Applicable::Never, Type::Num, PropertyValueKind::F32),
-        (
-            "direction",
-            Applicable::Actors(&["BarChart"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        (
-            "fill_opacity",
-            Applicable::AllShapesExceptLine,
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("font_family", Applicable::TextLike, Type::Str, PropertyValueKind::String),
-        (
-            "font_size",
-            Applicable::Actors(&["Code", "Equation", "Math", "Text", "Typst"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("font_style", Applicable::TextLike, Type::Str, PropertyValueKind::String),
-        (
-            "font_weight",
-            Applicable::TextLike,
-            Type::Union(vec![Type::Num, Type::Str]),
-            PropertyValueKind::F32,
-        ),
-        (
-            "from",
-            Applicable::Actors(&["Arrow", "Callout", "Line"]),
-            Type::Vec2,
-            PropertyValueKind::Vec2,
-        ),
-        (
-            "func",
-            Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve", "VectorField"]),
-            Type::Any,
-            PropertyValueKind::Generic,
-        ),
-        (
-            "gap",
-            Applicable::Actors(&["Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("grid", Applicable::Actors(&["Graph"]), Type::Str, PropertyValueKind::String),
-        (
-            "head_size",
-            Applicable::Actors(&["Arrow", "Callout"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("height", Applicable::SizedActors, Type::Num, PropertyValueKind::F32),
-        (
-            "highlight_color",
-            Applicable::Actors(&["Equation", "Fragment"]),
-            Type::Color,
-            PropertyValueKind::Vec4,
-        ),
-        (
-            "highlight_opacity",
-            Applicable::Actors(&["Equation", "Fragment"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "highlight_padding",
-            Applicable::Actors(&["Equation", "Fragment"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "highlight_radius",
-            Applicable::Actors(&["Equation", "Fragment"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("kind", Applicable::Actors(&["PlotCurve"]), Type::Str, PropertyValueKind::String),
-        ("label", Applicable::Actors(&["Callout"]), Type::Str, PropertyValueKind::String),
-        (
-            "label_at",
-            Applicable::Actors(&["Callout"]),
-            Type::Vec2,
-            PropertyValueKind::Vec2,
-        ),
-        (
-            "label_color",
-            Applicable::Actors(&["Legend"]),
-            Type::Color,
-            PropertyValueKind::Vec4,
-        ),
-        ("latex", Applicable::Never, Type::Str, PropertyValueKind::String),
-        ("legend", Applicable::Everything, Type::Str, PropertyValueKind::Generic),
-        (
-            "letter_spacing",
-            Applicable::Actors(&[
-                "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
-            ]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "levels",
-            Applicable::Actors(&["ContourSet"]),
-            Type::Any,
-            PropertyValueKind::Vec2,
-        ),
-        ("line_cap", Applicable::AllShapes, Type::Num, PropertyValueKind::U32),
-        ("line_height", Applicable::TextLike, Type::Num, PropertyValueKind::F32),
-        ("line_join", Applicable::AllShapes, Type::Num, PropertyValueKind::U32),
-        ("math", Applicable::Actors(&["Typst"]), Type::Str, PropertyValueKind::String),
-        (
-            "max_depth",
-            Applicable::Actors(&["ContourSet", "PlotCurve"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("max_height", Applicable::SizedActors, Type::Num, PropertyValueKind::F32),
-        (
-            "max_value",
-            Applicable::Actors(&["BarChart"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "max_width",
-            Applicable::Actors(&[
-                "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
-            ]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("min_height", Applicable::SizedActors, Type::Num, PropertyValueKind::F32),
-        ("min_width", Applicable::SizedActors, Type::Num, PropertyValueKind::F32),
-        ("offset", Applicable::Everything, Type::Vec2, PropertyValueKind::Vec2),
-        ("opacity", Applicable::Everything, Type::Num, PropertyValueKind::F32),
-        ("overflow", Applicable::TextLike, Type::Str, PropertyValueKind::String),
-        (
-            "padding",
-            Applicable::Actors(&["Col", "Graph", "Grid", "Row", "Stack"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("place", Applicable::Actors(&["Callout"]), Type::Str, PropertyValueKind::Generic),
-        (
-            "points",
-            Applicable::Actors(&["Polygon"]),
-            Type::List(Box::new(Type::Vec2)),
-            PropertyValueKind::PointList,
-        ),
-        ("position", Applicable::Everything, Type::Vec2, PropertyValueKind::Vec2),
-        ("radius_x", Applicable::Actors(&["Ellipse"]), Type::Num, PropertyValueKind::F32),
-        ("radius_y", Applicable::Actors(&["Ellipse"]), Type::Num, PropertyValueKind::F32),
-        (
-            "resolution",
-            Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("rotation", Applicable::Everything, Type::Num, PropertyValueKind::F32),
-        ("scale", Applicable::Everything, Type::Num, PropertyValueKind::F32),
-        ("shift", Applicable::Everything, Type::Vec2, PropertyValueKind::Vec2),
-        (
-            "show_axis",
-            Applicable::Actors(&["BarChart"]),
-            Type::Bool,
-            PropertyValueKind::Generic,
-        ),
-        (
-            "show_labels",
-            Applicable::Actors(&["BarChart"]),
-            Type::Bool,
-            PropertyValueKind::Generic,
-        ),
-        ("size", Applicable::ExceptTextLike, Type::Vec2, PropertyValueKind::Vec2),
-        // Authored solo flag: while any actor declares `solo: true`, every
-        // non-solo subtree is hidden (recursively) in preview and export alike.
-        ("solo", Applicable::Everything, Type::Bool, PropertyValueKind::Generic),
-        ("source", Applicable::Actors(&["Audio"]), Type::Str, PropertyValueKind::String),
-        ("standoff", Applicable::Actors(&["Callout"]), Type::Num, PropertyValueKind::F32),
-        ("stroke", Applicable::AllStrokePaths, Type::Color, PropertyValueKind::Vec4),
-        ("stroke_progress", Applicable::AllStrokePaths, Type::Num, PropertyValueKind::F32),
-        (
-            "stroke_width",
-            Applicable::Actors(&[
-                "Arrow",
-                "ContourSet",
-                "Ellipse",
-                "Graph",
-                "Heatmap",
-                "Line",
-                "NumberPlane",
-                "Path",
-                "PlotCurve",
-                "Polygon",
-                "Rect",
-                "VectorField",
-            ]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "swatch_size",
-            Applicable::Actors(&["Legend"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "t_domain",
-            Applicable::Actors(&["PlotCurve"]),
-            Type::Vec2,
-            PropertyValueKind::Vec2,
-        ),
-        (
-            "target",
-            Applicable::Actors(&["Callout"]),
-            Type::Any,
-            PropertyValueKind::Generic,
-        ),
-        (
-            "text",
-            Applicable::Actors(&["Math", "Text"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        ("text_align", Applicable::TextLike, Type::Str, PropertyValueKind::String),
-        (
-            "text_max_width",
-            Applicable::Actors(&["Legend"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "tick_labels",
-            Applicable::Actors(&["Graph"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        ("ticks", Applicable::Actors(&["Graph"]), Type::Str, PropertyValueKind::String),
-        ("title", Applicable::Actors(&["Legend"]), Type::Str, PropertyValueKind::String),
-        (
-            "to",
-            Applicable::Actors(&["Arrow", "Callout", "Line"]),
-            Type::Vec2,
-            PropertyValueKind::Vec2,
-        ),
-        (
-            "to_offset",
-            Applicable::Actors(&["Callout"]),
-            Type::Vec2,
-            PropertyValueKind::Vec2,
-        ),
-        (
-            "tolerance",
-            Applicable::Actors(&["PlotCurve"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        (
-            "transform",
-            Applicable::Everything,
-            transform_type(),
-            PropertyValueKind::Generic,
-        ),
-        (
-            "url",
-            Applicable::Actors(&["Image", "Svg"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        (
-            "vertical_align",
-            Applicable::Actors(&["Col", "Row"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        ("volume", Applicable::Actors(&["Audio"]), Type::Num, PropertyValueKind::F32),
-        ("width", Applicable::SizedActors, Type::Num, PropertyValueKind::F32),
-        ("word_spacing", Applicable::TextLike, Type::Num, PropertyValueKind::F32),
-        ("x_domain", Applicable::PlotGeometry, Type::Vec2, PropertyValueKind::Vec2),
-        (
-            "x_range",
-            Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
-            Type::Any,
-            PropertyValueKind::Vec2,
-        ),
-        ("x_scale", Applicable::Actors(&["Graph"]), Type::Str, PropertyValueKind::String),
-        ("y_domain", Applicable::PlotGeometry, Type::Vec2, PropertyValueKind::Vec2),
-        (
-            "y_range",
-            Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
-            Type::Any,
-            PropertyValueKind::Vec2,
-        ),
-        ("y_scale", Applicable::Actors(&["Graph"]), Type::Str, PropertyValueKind::String),
-        ("content", Applicable::TextLike, Type::Str, PropertyValueKind::String),
-        ("language", Applicable::Actors(&["Code"]), Type::Str, PropertyValueKind::String),
-        ("fill", Applicable::AllShapesExceptLine, Type::Color, PropertyValueKind::Vec4),
-        (
-            "radius",
-            Applicable::Actors(&["Ellipse", "Polygon", "Rect"]),
-            Type::Num,
-            PropertyValueKind::F32,
-        ),
-        ("start", Applicable::Actors(&["Line"]), Type::Vec2, PropertyValueKind::Vec2),
-        ("end", Applicable::Actors(&["Line"]), Type::Vec2, PropertyValueKind::Vec2),
-        (
-            "function",
-            Applicable::Actors(&["Graph", "PlotCurve"]),
-            Type::Str,
-            PropertyValueKind::String,
-        ),
-        ("stroke_color", Applicable::AllStrokePaths, Type::Color, PropertyValueKind::Vec4),
+        ("align", Type::Str),
+        ("anchor", Type::Any),
+        ("ascent", Type::Num),
+        ("at", Type::Vec2),
+        ("background_color", Type::Color),
+        ("bar_colors", Type::Any),
+        ("bar_width", Type::Num),
+        ("baseline", Type::Num),
+        ("bounds", Type::Vec4),
+        ("char_progress", Type::Num),
+        ("code", Type::Str),
+        ("color", Type::Color),
+        ("cols", Type::Num),
+        ("commands", Type::Any),
+        ("data", Type::Any),
+        ("density", Type::Num),
+        ("descent", Type::Num),
+        ("direction", Type::Str),
+        ("fill_opacity", Type::Num),
+        ("font_family", Type::Str),
+        ("font_size", Type::Num),
+        ("font_style", Type::Str),
+        ("font_weight", Type::Union(vec![Type::Num, Type::Str])),
+        ("from", Type::Vec2),
+        ("func", Type::Any),
+        ("gap", Type::Num),
+        ("grid", Type::Str),
+        ("head_size", Type::Num),
+        ("height", Type::Num),
+        ("highlight_color", Type::Color),
+        ("highlight_opacity", Type::Num),
+        ("highlight_padding", Type::Num),
+        ("highlight_radius", Type::Num),
+        ("kind", Type::Str),
+        ("label", Type::Str),
+        ("label_at", Type::Vec2),
+        ("label_color", Type::Color),
+        ("latex", Type::Str),
+        ("legend", Type::Str),
+        ("letter_spacing", Type::Num),
+        ("levels", Type::Any),
+        ("line_cap", Type::Num),
+        ("line_height", Type::Num),
+        ("line_join", Type::Num),
+        ("math", Type::Str),
+        ("max_depth", Type::Num),
+        ("max_height", Type::Num),
+        ("max_value", Type::Num),
+        ("max_width", Type::Num),
+        ("min_height", Type::Num),
+        ("min_width", Type::Num),
+        ("offset", Type::Vec2),
+        ("opacity", Type::Num),
+        ("overflow", Type::Str),
+        ("padding", Type::Num),
+        ("place", Type::Str),
+        ("points", Type::List(Box::new(Type::Vec2))),
+        ("position", Type::Vec2),
+        ("radius_x", Type::Num),
+        ("radius_y", Type::Num),
+        ("resolution", Type::Num),
+        ("rotation", Type::Num),
+        ("scale", Type::Num),
+        ("shift", Type::Vec2),
+        ("show_axis", Type::Bool),
+        ("show_labels", Type::Bool),
+        ("size", Type::Vec2),
+        // Authored solo flag: hides every non-solo subtree (recursively).
+        ("solo", Type::Bool),
+        ("source", Type::Str),
+        ("standoff", Type::Num),
+        ("stroke", Type::Color),
+        ("stroke_progress", Type::Num),
+        ("stroke_width", Type::Num),
+        ("swatch_size", Type::Num),
+        ("t_domain", Type::Vec2),
+        ("target", Type::Any),
+        ("text", Type::Str),
+        ("text_align", Type::Str),
+        ("text_max_width", Type::Num),
+        ("tick_labels", Type::Str),
+        ("ticks", Type::Str),
+        ("title", Type::Str),
+        ("to", Type::Vec2),
+        ("to_offset", Type::Vec2),
+        ("tolerance", Type::Num),
+        ("transform", transform_type()),
+        ("url", Type::Str),
+        ("vertical_align", Type::Str),
+        ("volume", Type::Num),
+        ("width", Type::Num),
+        ("word_spacing", Type::Num),
+        ("x_domain", Type::Vec2),
+        ("x_range", Type::Any),
+        ("x_scale", Type::Str),
+        ("y_domain", Type::Vec2),
+        ("y_range", Type::Any),
+        ("y_scale", Type::Str),
+        ("content", Type::Str),
+        ("language", Type::Str),
+        ("fill", Type::Color),
+        ("radius", Type::Num),
+        ("start", Type::Vec2),
+        ("end", Type::Vec2),
+        ("function", Type::Str),
+        ("stroke_color", Type::Color),
     ]
 }
+
 #[cfg(test)]
 mod tests {
     use super::{
         ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
-        builtin_primitive_specs, common_property_names, property_specs,
+        builtin_primitive_specs, common_property_names, property_specs, raw_property_types,
     };
     use crate::typing::Type;
+    use animatix_core::property::{PROPERTY_DESCRIPTORS, PropertyValueKind};
+
+    /// The type-system view must line up with the core descriptor table: same
+    /// rows, same order. A rename or reorder here would otherwise mis-type a
+    /// property silently (the tables are joined by index).
+
+    #[test]
+    fn property_types_line_up_with_descriptors() {
+        let types = raw_property_types();
+        let descriptors = PROPERTY_DESCRIPTORS;
+        assert_eq!(
+            types.len(),
+            descriptors.len(),
+            "the property type table has {} rows but the descriptor table has {}",
+            types.len(),
+            descriptors.len()
+        );
+        for (index, ((name, _), descriptor)) in types.iter().zip(descriptors).enumerate() {
+            assert_eq!(
+                *name, descriptor.name,
+                "row {index} names `{name}` here but `{}` in the descriptor table",
+                descriptor.name
+            );
+        }
+    }
+
+    /// [`PropertyId`] is the descriptor row index and serialized plans store
+    /// those ids, so the order is an ABI. This pins the total count and a set of
+    /// sentinel ids: appending rows is fine, but reordering or removing one
+    /// shifts every later id and would invalidate saved files.
+    #[test]
+    fn property_id_order_is_pinned() {
+        let specs = property_specs();
+        assert_eq!(
+            specs.len(),
+            105,
+            "the built-in property count changed; update this pin deliberately (ids are persisted)"
+        );
+        // Dense, unique ids starting at zero — no gaps for a join to fall into.
+        for (index, spec) in specs.iter().enumerate() {
+            assert_eq!(spec.id.0 as usize, index);
+        }
+        for (name, expected) in [
+            ("align", 0),
+            ("at", 3),
+            ("transform", 85),
+            ("stroke_color", 104),
+        ] {
+            let spec = specs
+                .iter()
+                .find(|spec| spec.name == name)
+                .unwrap_or_else(|| panic!("`{name}` missing from the schema"));
+            assert_eq!(
+                spec.id.0, expected,
+                "`{name}` moved in the property table; ids are persisted, so this is an ABI break"
+            );
+        }
+    }
+
+    /// Every expression type that has a finite runtime kind must agree with the
+    /// descriptor's kind. This is the check whose absence let `solo` be declared
+    /// `Type::Bool` with a `Generic` kind (and the engine's `Bool`) without any
+    /// test noticing.
+    #[test]
+    fn declared_types_agree_with_descriptor_kinds() {
+        /// Kinds a declared expression type may legitimately store as.
+        ///
+        /// `Num` is deliberately two-way: counts and indices (`cols`) store as
+        /// `U32` while measurements store as `F32`, and the expression type
+        /// cannot tell them apart — the engine's finer `ValueType` can, and its
+        /// own totality test pins that side.
+        fn kinds_of_type(ty: &Type) -> Option<&'static [PropertyValueKind]> {
+            use PropertyValueKind::*;
+            Some(match ty {
+                Type::Num => &[F32, U32],
+                Type::Bool => &[Bool],
+                Type::Str => &[String],
+                Type::Vec2 => &[Vec2],
+                Type::Color | Type::Vec4 => &[Vec4],
+                Type::List(inner) if matches!(**inner, Type::Vec2) => &[PointList],
+                // Expression-only types carry no finite track kind.
+                Type::Any
+                | Type::Vec3
+                | Type::Actor(_)
+                | Type::Component(_)
+                | Type::Scene
+                | Type::List(_)
+                | Type::Tuple(_)
+                | Type::Union(_)
+                | Type::Enum(_)
+                | Type::Function { .. } => return None,
+            })
+        }
+
+        for spec in property_specs() {
+            // `Generic` is the catch-all track kind: it accepts whatever the
+            // declared type produces (e.g. `legend` is written as a string and
+            // stored as a mode), so there is nothing to contradict.
+            if spec.value_kind == PropertyValueKind::Generic {
+                continue;
+            }
+            let Some(kinds) = kinds_of_type(&spec.ty) else {
+                continue;
+            };
+            assert!(
+                kinds.contains(&spec.value_kind),
+                "`{}` is declared `{:?}` but stores as {:?} (allowed: {kinds:?})",
+                spec.name,
+                spec.ty,
+                spec.value_kind
+            );
+        }
+    }
 
     #[test]
     fn common_property_list_stays_in_sync_with_schema() {

@@ -248,6 +248,19 @@ Acceptance:
 - One property table edit updates analyzer/GUI/runtime where applicable.
 - Persistence, interpolation, and frame injection tests pass.
 
+**Done 2026-09-14.** `animatix-core` now declares the shared descriptor table
+(`property::PROPERTY_DESCRIPTORS`: name, `Applicable`, `PropertyValueKind`, with
+the row index as the serialized `PropertyId`). The parser derives its specs from
+it and adds only the type-system view; the engine keeps a bindings-only table
+(name-sorted) and composes `PROPERTY_REGISTRY` by joining the two, so
+applicability and value kind are declared once. The checks that used to be a
+one-way superset test with a `_ => Generic` fallback are now total: every
+binding has a descriptor, the descriptor set minus bindings is a pinned list,
+and both the engine's `ValueType` and the parser's `Type` map onto the shared
+kind through total functions that must agree (that pair of tests is what caught
+`solo`, whose shared kind had been left `Generic` while the engine stored
+`Bool`).
+
 ### Phase 4: Capability Dispatch Migration
 
 Implemented: action target expansion, plot `func` dispatch, draw-in text

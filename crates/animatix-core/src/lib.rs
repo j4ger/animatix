@@ -19,3 +19,4 @@ pub mod caps;
 pub mod effect;
 pub mod error;
 pub mod icon_glyphs;
+pub mod property;

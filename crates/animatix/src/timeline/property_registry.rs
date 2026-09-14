@@ -17,7 +17,7 @@
 //! goes through two steps:
 //!
 //! 1. `lookup_property(name)` → `&PropertySchema`  (O(log n) binary search)
-//! 2. Match over `schema.field` / `schema.flags` / `schema.group`  (exhaustive enum)
+//! 2. Match over `schema.field` / `schema.flags`  (exhaustive enum)
 //!
 //! ## Adding a new property
 //!
@@ -499,29 +499,6 @@ impl ActorField {
 // Group resolution
 // ─────────────────────────────────────────────────────────────
 
-/// Identifies a compound resolution handler.
-///
-/// Several properties depend on each other and must be resolved together.
-/// Each group variant has one handler function in `property_groups.rs`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum GroupHandlerId {
-    /// at + anchor + offset → PositionBinding
-    PositionBinding,
-    /// radius, sides, from, to, start_angle, sweep_angle, points, commands
-    VectorShapeState,
-    /// x_domain, y_domain, t_domain, func, tolerance, max_depth, resolution
-    PlotDomain,
-    /// gap, align, cols → container layout metadata
-    ContainerLayout,
-}
-
-/// Describes a property's membership in a compound resolution group.
-#[derive(Clone, Copy, Debug)]
-pub struct GroupMembership {
-    /// The compound resolution group this property belongs to.
-    pub group_id: GroupHandlerId,
-}
-
 // ─────────────────────────────────────────────────────────────
 // Property schema
 // ─────────────────────────────────────────────────────────────
@@ -540,7 +517,7 @@ pub use animatix_core::caps::Applicable;
 /// The complete description of one property in the system.
 ///
 /// This is pure data — no function pointers. All dispatch logic is driven
-/// by matching over the enum fields (ValueType, ActorField, GroupHandlerId).
+/// by matching over the enum fields (ValueType, ActorField).
 #[derive(Clone, Copy, Debug)]
 pub struct PropertySchema {
     /// Canonical name as it appears in source text.
@@ -554,10 +531,6 @@ pub struct PropertySchema {
 
     /// Which storage field or side-effect handler this property maps to.
     pub field: ActorField,
-
-    /// For compound properties: which resolution group this belongs to.
-    /// None for simple independent properties.
-    pub group: Option<GroupMembership>,
 
     /// Which actor kinds this property is applicable to.
     pub applicable: Applicable,
@@ -580,245 +553,188 @@ pub struct PropertySchema {
 /// A `#[test]` below verifies this invariant.
 use PropertyFlags as F;
 
-use super::ShapeKind;
-
-macro_rules! schema {
-    ($name:expr, $ty:expr, $flags:expr, $field:expr, $group:expr, $applicable:expr, $default:expr) => {
-        schema!(
-            $name,
-            $ty,
-            $flags,
-            $field,
-            $group,
-            $applicable,
-            $default,
-            ReadSource::Field($field)
-        )
-    };
-    ($name:expr, $ty:expr, $flags:expr, $field:expr, $group:expr, $applicable:expr, $default:expr, $read:expr) => {
-        PropertySchema {
+macro_rules! binding {
+    ($name:expr, $ty:expr, $flags:expr, $field:expr, $default:expr $(, $read:expr)?) => {
+        PropertyBinding {
             name: $name,
             value_type: $ty,
             flags: $flags,
             field: $field,
-            group: $group,
-            applicable: $applicable,
             default_value: $default,
-            read_source: $read,
+            read_source: binding!(@read $field $(, $read)?),
         }
+    };
+    (@read $field:expr) => {
+        ReadSource::Field($field)
+    };
+    (@read $field:expr, $read:expr) => {
+        $read
     };
 }
 
+/// One property's engine-side binding.
+///
+/// Everything here is engine-only; the shared metadata (name, applicability,
+/// finite value kind) comes from the core descriptor table, so adding a
+/// property cannot leave the two sides disagreeing about what a property is.
+#[derive(Clone, Copy)]
+struct PropertyBinding {
+    /// Canonical name — the join key with the descriptor table.
+    name: &'static str,
+    /// Fine-grained plan-slot type (adds shape/placement/anchor kinds).
+    value_type: ValueType,
+    /// Feature flags.
+    flags: PropertyFlags,
+    /// Storage field or side-effect handler.
+    field: ActorField,
+    /// Default when the actor does not declare the property.
+    default_value: fn(&super::ActorCaps) -> super::property_engine::PropertyValue,
+    /// How the property is read at frame time.
+    read_source: ReadSource,
+}
+
+/// The composed registry: shared descriptors joined with engine bindings.
+///
+/// Name-sorted, so the existing binary-search lookups and the indices returned
+/// by [`allowed_property_indices`] keep working. Composing (rather than
+/// re-declaring) is what makes the descriptor table the single source for
+/// names and applicability; the join is checked by
+/// `every_binding_has_a_descriptor` and `unbound_descriptors_are_pinned`.
+pub static PROPERTY_REGISTRY: std::sync::LazyLock<Vec<PropertySchema>> =
+    std::sync::LazyLock::new(|| {
+        BINDINGS
+            .iter()
+            .map(|binding| {
+                let descriptor =
+                    animatix_core::property::descriptor(binding.name).unwrap_or_else(|| {
+                        panic!(
+                            "property binding `{}` has no descriptor in \
+                             animatix_core::property::PROPERTY_DESCRIPTORS",
+                            binding.name
+                        )
+                    });
+                PropertySchema {
+                    name: binding.name,
+                    value_type: binding.value_type,
+                    flags: binding.flags,
+                    field: binding.field,
+                    applicable: descriptor.applicable,
+                    default_value: binding.default_value,
+                    read_source: binding.read_source,
+                }
+            })
+            .collect()
+    });
+
 /// Registry of all built-in actor properties with their schemas.
-pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
-    schema!(
-        "align",
-        ValueType::String,
-        F::empty(),
-        ActorField::ContainerLayoutGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::ContainerLayout
-        }),
-        Applicable::Actors(&["Row", "Col", "Grid", "Stack"]),
-        |_| super::property_engine::PropertyValue::String("center".to_string())
-    ),
-    schema!(
+/// Engine-side bindings, name-sorted (binary search depends on it).
+///
+/// A binding carries only what the runtime adds to the shared descriptor in
+/// `animatix-core`: the finer [`ValueType`] its plan slot stores, the property
+/// flags, the storage field, the default value, and the frame-time read
+/// source. Names, applicability, and the finite value kind live in
+/// [`animatix_core::property::PROPERTY_DESCRIPTORS`] and are joined in by
+/// [`PROPERTY_REGISTRY`].
+static BINDINGS: &[PropertyBinding] = &[
+    binding!("align", ValueType::String, F::empty(), ActorField::ContainerLayoutGroup, |_| {
+        super::property_engine::PropertyValue::String("center".to_string())
+    }),
+    binding!(
         "anchor",
         ValueType::SceneAnchor,
         F::ASSIGNABLE_AI,
         ActorField::PositionBindingGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PositionBinding
-        }),
-        Applicable::Everything,
         |_| super::property_engine::PropertyValue::String("center".to_string()),
         ReadSource::None_
     ),
-    schema!(
-        "ascent",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::Ascent,
-        None,
-        Applicable::Never,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
+    binding!("ascent", ValueType::F32, F::ANIMATED, ActorField::Ascent, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!(
         "at",
         ValueType::Vec2,
         F::ASSIGNABLE_AI,
         ActorField::PositionBindingGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PositionBinding
-        }),
-        Applicable::Everything,
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
         ReadSource::Alias(ActorField::Position)
     ),
-    schema!(
+    binding!(
         "background_color",
         ValueType::Color,
         F::ASSIGNABLE_AI,
         ActorField::Color,
-        None,
-        Applicable::Never,
         |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 1.0]),
         ReadSource::None_
     ),
-    schema!(
+    binding!(
         "bar_colors",
         ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
-    schema!(
-        "bar_width",
-        ValueType::F32,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "baseline",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::Baseline,
-        None,
-        Applicable::Never,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    // Region of interest for a `Filter` scope: `(x, y, w, h)` in scene pixels.
-    // Stored in the generic tagged map (no plan slot: the shared id belongs to
-    // the canonical name, the tag scopes it to Filter scopes).
-    schema!(
+    binding!("bar_width", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("baseline", ValueType::F32, F::ANIMATED, ActorField::Baseline, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!(
         "bounds",
         ValueType::Vec4,
         F::ASSIGNABLE_AI,
         ActorField::Tagged("filter_bounds"),
-        None,
-        Applicable::Actors(&["Filter"]),
         |_| super::property_engine::PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0])
     ),
-    schema!(
+    binding!(
         "char_progress",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::CharProgress,
-        None,
-        Applicable::Actors(&["Text", "Code", "Typst"]),
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    schema!(
-        "code",
-        ValueType::String,
-        F::ANIMATED,
-        ActorField::TextContent,
-        None,
-        Applicable::Actors(&["Code"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
-        "color",
-        ValueType::Color,
-        F::ASSIGNABLE_AI,
-        ActorField::Color,
-        None,
-        Applicable::AllDrawables,
-        |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
-    ),
-    schema!(
-        "cols",
-        ValueType::U32,
-        F::empty(),
-        ActorField::ContainerLayoutGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::ContainerLayout
-        }),
-        Applicable::Actors(&["Grid"]),
-        |_| super::property_engine::PropertyValue::U32(2)
-    ),
-    schema!(
+    binding!("code", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("color", ValueType::Color, F::ASSIGNABLE_AI, ActorField::Color, |_| {
+        super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
+    }),
+    binding!("cols", ValueType::U32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
+        super::property_engine::PropertyValue::U32(2)
+    }),
+    binding!(
         "commands",
         ValueType::CommandList,
         F::ASSIGNABLE_A,
         ActorField::Commands,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::ShapeKinds(&[ShapeKind::Path]),
         |_| super::property_engine::PropertyValue::CommandList(String::new())
     ),
-    schema!(
-        "data",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
-        |_| super::property_engine::PropertyValue::String("auto".to_string())
-    ),
-    schema!(
-        "density",
-        ValueType::F32,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["VectorField"]),
-        |_| super::property_engine::PropertyValue::F32(16.0)
-    ),
-    schema!(
-        "descent",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::Descent,
-        None,
-        Applicable::Never,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "direction",
-        ValueType::String,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
-        |_| super::property_engine::PropertyValue::String("vertical".to_string())
-    ),
-    schema!(
+    binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("auto".to_string())
+    }),
+    binding!("density", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::F32(16.0)
+    }),
+    binding!("descent", ValueType::F32, F::ANIMATED, ActorField::Descent, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("direction", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("vertical".to_string())
+    }),
+    binding!(
         "fill_opacity",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::FillOpacity,
-        None,
-        Applicable::AllShapesExceptLine,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    schema!(
-        "font_family",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::FontFamily,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::String(
-            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+    binding!("font_family", ValueType::String, F::ASSIGNABLE, ActorField::FontFamily, |_| {
+        super::property_engine::PropertyValue::String(
+            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string(),
         )
-    ),
-    schema!(
-        "font_size",
-        ValueType::F32,
-        F::ASSIGNABLE_A,
-        ActorField::FontSize,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |caps| match caps.text {
+    }),
+    binding!("font_size", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontSize, |caps| {
+        match caps.text {
             Some(crate::timeline::actor_caps::TextKind::Text) => {
                 super::property_engine::PropertyValue::F32(48.0)
             },
@@ -827,93 +743,37 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
             },
             _ => super::property_engine::PropertyValue::F32(24.0),
         }
-    ),
-    schema!(
-        "font_style",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::FontStyle,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::String("normal".to_string())
-    ),
-    schema!(
-        "font_weight",
-        ValueType::F32,
-        F::ASSIGNABLE,
-        ActorField::FontWeight,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::F32(400.0)
-    ),
-    schema!(
-        "from",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::LineFrom,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::Any(&[
-            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
-            Applicable::Actors(&["Callout"])
-        ]),
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    ),
-    schema!(
+    }),
+    binding!("font_style", ValueType::String, F::ASSIGNABLE, ActorField::FontStyle, |_| {
+        super::property_engine::PropertyValue::String("normal".to_string())
+    }),
+    binding!("font_weight", ValueType::F32, F::ASSIGNABLE, ActorField::FontWeight, |_| {
+        super::property_engine::PropertyValue::F32(400.0)
+    }),
+    binding!("from", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LineFrom, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
+    }),
+    binding!(
         "func",
         ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve", "VectorField", "Heatmap", "ContourSet"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
-    schema!(
-        "gap",
-        ValueType::F32,
-        F::empty(),
-        ActorField::ContainerLayoutGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::ContainerLayout
-        }),
-        Applicable::Actors(&["Row", "Col", "Grid"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "grid",
-        ValueType::String,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["Graph"]),
-        |_| super::property_engine::PropertyValue::String("auto".to_string())
-    ),
-    schema!(
-        "head_size",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::HeadSize,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::Any(&[
-            Applicable::ShapeKinds(&[ShapeKind::Arrow]),
-            Applicable::Actors(&["Callout"])
-        ]),
-        |_| super::property_engine::PropertyValue::F32(10.0)
-    ),
-    schema!(
+    binding!("gap", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("grid", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::String("auto".to_string())
+    }),
+    binding!("head_size", ValueType::F32, F::ASSIGNABLE_AI, ActorField::HeadSize, |_| {
+        super::property_engine::PropertyValue::F32(10.0)
+    }),
+    binding!(
         "height",
         ValueType::F32,
         F::ANIMATED_I,
         ActorField::Size,
-        None,
-        Applicable::SizedActors,
         |_| super::property_engine::PropertyValue::F32(100.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -921,289 +781,135 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
             scale: 2.0
         }
     ),
-    schema!(
+    binding!(
         "highlight_color",
         ValueType::Color,
         F::ANIMATED,
         ActorField::HighlightColor,
-        None,
-        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0])
     ),
-    schema!(
+    binding!(
         "highlight_opacity",
         ValueType::F32,
         F::ANIMATED,
         ActorField::HighlightOpacity,
-        None,
-        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
-    schema!(
+    binding!(
         "highlight_padding",
         ValueType::F32,
         F::ANIMATED,
         ActorField::HighlightPadding,
-        None,
-        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(4.0)
     ),
-    schema!(
+    binding!(
         "highlight_radius",
         ValueType::F32,
         F::ANIMATED,
         ActorField::HighlightRadius,
-        None,
-        Applicable::Actors(&["Equation", "Fragment"]),
         |_| super::property_engine::PropertyValue::F32(3.0)
     ),
-    schema!(
-        "kind",
-        ValueType::String,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve"]),
-        |_| super::property_engine::PropertyValue::String("cartesian".to_string())
-    ),
-    schema!(
-        "label",
-        ValueType::String,
-        F::ASSIGNABLE_A,
-        ActorField::TextContent,
-        None,
-        Applicable::Actors(&["Callout"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
-        "label_at",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::LabelAt,
-        None,
-        Applicable::Actors(&["Callout"]),
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    ),
-    schema!(
+    binding!("kind", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::String("cartesian".to_string())
+    }),
+    binding!("label", ValueType::String, F::ASSIGNABLE_A, ActorField::TextContent, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("label_at", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LabelAt, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
+    }),
+    binding!(
         "label_color",
         ValueType::Color,
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_label_color"),
-        None,
-        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     ),
-    schema!(
-        "latex",
-        ValueType::String,
-        F::ANIMATED,
-        ActorField::TextContent,
-        None,
-        Applicable::Never,
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
+    binding!("latex", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!(
         "legend",
         ValueType::Sum(LEGEND_SUM_VARIANTS),
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend"),
-        None,
-        Applicable::Everything,
         |_| super::property_engine::PropertyValue::Bool(true)
     ),
-    schema!(
+    binding!(
         "letter_spacing",
         ValueType::F32,
         F::ASSIGNABLE,
         ActorField::LetterSpacing,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
-    schema!(
-        "levels",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["ContourSet"]),
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])
-    ),
-    schema!(
-        "line_cap",
-        ValueType::U32,
-        F::ASSIGNABLE_AI,
-        ActorField::LineCap,
-        None,
-        Applicable::AllShapes,
-        |_| super::property_engine::PropertyValue::U32(0)
-    ),
-    schema!(
-        "line_height",
-        ValueType::F32,
-        F::ASSIGNABLE,
-        ActorField::LineHeight,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::F32(1.2)
-    ),
-    schema!(
-        "line_join",
-        ValueType::U32,
-        F::ASSIGNABLE_AI,
-        ActorField::LineJoin,
-        None,
-        Applicable::AllShapes,
-        |_| super::property_engine::PropertyValue::U32(0)
-    ),
-    schema!(
-        "math",
-        ValueType::String,
-        F::ANIMATED,
-        ActorField::TextContent,
-        None,
-        Applicable::Actors(&["Typst"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
-        "max_depth",
-        ValueType::F32,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve", "ContourSet"]),
-        |_| super::property_engine::PropertyValue::F32(12.0)
-    ),
-    schema!(
-        "max_height",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::MaxHeight,
-        None,
-        Applicable::SizedActors,
-        |_| super::property_engine::PropertyValue::F32(f32::INFINITY)
-    ),
-    schema!(
-        "max_value",
-        ValueType::F32,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "max_width",
-        ValueType::F32,
-        F::ASSIGNABLE,
-        ActorField::TextMaxWidth,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "min_height",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::MinHeight,
-        None,
-        Applicable::SizedActors,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "min_width",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::MinWidth,
-        None,
-        Applicable::SizedActors,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
+    binding!("levels", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 1.0])
+    }),
+    binding!("line_cap", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineCap, |_| {
+        super::property_engine::PropertyValue::U32(0)
+    }),
+    binding!("line_height", ValueType::F32, F::ASSIGNABLE, ActorField::LineHeight, |_| {
+        super::property_engine::PropertyValue::F32(1.2)
+    }),
+    binding!("line_join", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineJoin, |_| {
+        super::property_engine::PropertyValue::U32(0)
+    }),
+    binding!("math", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("max_depth", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::F32(12.0)
+    }),
+    binding!("max_height", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MaxHeight, |_| {
+        super::property_engine::PropertyValue::F32(f32::INFINITY)
+    }),
+    binding!("max_value", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("max_width", ValueType::F32, F::ASSIGNABLE, ActorField::TextMaxWidth, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("min_height", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MinHeight, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("min_width", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MinWidth, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!(
         "offset",
         ValueType::Vec2,
         F::ASSIGNABLE_AI,
         ActorField::PositionBindingGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PositionBinding
-        }),
-        Applicable::Everything,
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
         ReadSource::None_
     ),
-    schema!(
-        "opacity",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Opacity,
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
-        "overflow",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::Overflow,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::String("visible".to_string())
-    ),
-    schema!(
-        "padding",
-        ValueType::F32,
-        F::empty(),
-        ActorField::ContainerLayoutGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::ContainerLayout
-        }),
-        Applicable::Actors(&["Graph", "Row", "Col", "Grid", "Stack"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
+    binding!("opacity", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Opacity, |_| {
+        super::property_engine::PropertyValue::F32(1.0)
+    }),
+    binding!("overflow", ValueType::String, F::ASSIGNABLE, ActorField::Overflow, |_| {
+        super::property_engine::PropertyValue::String("visible".to_string())
+    }),
+    binding!("padding", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!(
         "place",
         ValueType::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),
         F::ASSIGNABLE,
         ActorField::Tagged("callout_place"),
-        None,
-        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::Enum("right".to_string())
     ),
-    schema!(
-        "points",
-        ValueType::PointList,
-        F::ASSIGNABLE_A,
-        ActorField::Points,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::ShapeKinds(&[ShapeKind::Polygon]),
-        |_| super::property_engine::PropertyValue::PointList(Vec::new())
-    ),
-    schema!(
-        "position",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::Position,
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    ),
-    schema!(
+    binding!("points", ValueType::PointList, F::ASSIGNABLE_A, ActorField::Points, |_| {
+        super::property_engine::PropertyValue::PointList(Vec::new())
+    }),
+    binding!("position", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::Position, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
+    }),
+    binding!(
         "radius_x",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::Size,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::ShapeKinds(&[ShapeKind::Ellipse]),
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -1211,15 +917,11 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
             scale: 1.0
         }
     ),
-    schema!(
+    binding!(
         "radius_y",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::Size,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::ShapeKinds(&[ShapeKind::Ellipse]),
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -1227,292 +929,142 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
             scale: 1.0
         }
     ),
-    schema!(
-        "resolution",
-        ValueType::F32,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve", "Heatmap", "ContourSet"]),
-        |_| super::property_engine::PropertyValue::F32(48.0)
-    ),
-    schema!(
-        "rotation",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Rotation,
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "scale",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Scale,
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
-        "shift",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::MotionOffset,
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    ),
-    schema!(
-        "show_axis",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
-        |_| super::property_engine::PropertyValue::String("true".to_string())
-    ),
-    schema!(
+    binding!("resolution", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::F32(48.0)
+    }),
+    binding!("rotation", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Rotation, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("scale", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Scale, |_| {
+        super::property_engine::PropertyValue::F32(1.0)
+    }),
+    binding!("shift", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::MotionOffset, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
+    }),
+    binding!("show_axis", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("true".to_string())
+    }),
+    binding!(
         "show_labels",
         ValueType::BuildTimeOnly,
         F::empty(),
         ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["BarChart"]),
         |_| super::property_engine::PropertyValue::String("true".to_string())
     ),
-    schema!(
-        "size",
-        ValueType::Vec2,
-        F::ALL,
-        ActorField::Size,
-        None,
-        Applicable::SizedActors,
-        |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])
-    ),
-    // Authored solo flag. `ASSIGNABLE` only (not `ANIMATED`): solo selects what
-    // renders this frame, so animating it would fight the static-subtree cache
-    // and the frame cache for no authoring value.
-    schema!(
-        "solo",
-        ValueType::Bool,
-        F::ASSIGNABLE,
-        ActorField::Tagged("solo"),
-        None,
-        Applicable::Everything,
-        |_| super::property_engine::PropertyValue::Bool(false)
-    ),
-    schema!(
-        "source",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::AudioSource,
-        None,
-        Applicable::Actors(&["Audio"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
+    binding!("size", ValueType::Vec2, F::ALL, ActorField::Size, |_| {
+        super::property_engine::PropertyValue::Vec2([50.0, 50.0])
+    }),
+    binding!("solo", ValueType::Bool, F::ASSIGNABLE, ActorField::Tagged("solo"), |_| {
+        super::property_engine::PropertyValue::Bool(false)
+    }),
+    binding!("source", ValueType::String, F::ASSIGNABLE, ActorField::AudioSource, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!(
         "standoff",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::CalloutStandoff,
-        None,
-        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::F32(40.0)
     ),
-    schema!(
-        "stroke",
-        ValueType::Color,
-        F::ASSIGNABLE_AI,
-        ActorField::StrokeColor,
-        None,
-        Applicable::AllStrokePaths,
-        |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
-    ),
-    schema!(
+    binding!("stroke", ValueType::Color, F::ASSIGNABLE_AI, ActorField::StrokeColor, |_| {
+        super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
+    }),
+    binding!(
         "stroke_progress",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::StrokeProgress,
-        None,
-        Applicable::AllStrokePaths,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    schema!(
+    binding!(
         "stroke_width",
         ValueType::F32,
         F::ASSIGNABLE_AI,
         ActorField::StrokeWidth,
-        None,
-        Applicable::AllStrokePaths,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    schema!(
+    binding!(
         "swatch_size",
         ValueType::F32,
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_swatch_size"),
-        None,
-        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::F32(16.0)
     ),
-    schema!(
-        "t_domain",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve"]),
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 1.0])
-    ),
-    schema!(
+    binding!("t_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([0.0, 1.0])
+    }),
+    binding!(
         "target",
         ValueType::BuildTimeOnly,
         F::ASSIGNABLE,
         ActorField::CalloutTarget,
-        None,
-        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
-    schema!(
-        "text",
-        ValueType::String,
-        F::ASSIGNABLE_A,
-        ActorField::TextContent,
-        None,
-        Applicable::Actors(&["Text"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
-        "text_align",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::TextAlign,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::String("left".to_string())
-    ),
-    schema!(
+    binding!("text", ValueType::String, F::ASSIGNABLE_A, ActorField::TextContent, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("text_align", ValueType::String, F::ASSIGNABLE, ActorField::TextAlign, |_| {
+        super::property_engine::PropertyValue::String("left".to_string())
+    }),
+    binding!(
         "text_max_width",
         ValueType::F32,
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_text_max_width"),
-        None,
-        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::F32(240.0)
     ),
-    schema!(
+    binding!(
         "tick_labels",
         ValueType::String,
         F::empty(),
         ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["Graph"]),
         |_| super::property_engine::PropertyValue::String("auto".to_string())
     ),
-    schema!(
-        "ticks",
-        ValueType::String,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["Graph"]),
-        |_| super::property_engine::PropertyValue::String("auto".to_string())
-    ),
-    schema!(
+    binding!("ticks", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::String("auto".to_string())
+    }),
+    binding!(
         "title",
         ValueType::String,
         F::ASSIGNABLE_A,
         ActorField::Tagged("legend_title"),
-        None,
-        Applicable::Actors(&["Legend"]),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
-    schema!(
-        "to",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::LineTo,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::VectorShapeState
-        }),
-        Applicable::Any(&[
-            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
-            Applicable::Actors(&["Callout"])
-        ]),
-        |_| super::property_engine::PropertyValue::Vec2([100.0, 0.0])
-    ),
-    schema!(
+    binding!("to", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LineTo, |_| {
+        super::property_engine::PropertyValue::Vec2([100.0, 0.0])
+    }),
+    binding!(
         "to_offset",
         ValueType::Vec2,
         F::ASSIGNABLE_AI,
         ActorField::CalloutToOffset,
-        None,
-        Applicable::Actors(&["Callout"]),
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     ),
-    schema!(
-        "tolerance",
-        ValueType::F32,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["PlotCurve"]),
-        |_| super::property_engine::PropertyValue::F32(2.0)
-    ),
-    schema!(
+    binding!("tolerance", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::F32(2.0)
+    }),
+    binding!(
         "transform",
         ValueType::Transform,
         F::ASSIGNABLE_AI,
         ActorField::Transform,
-        None,
-        Applicable::Everything,
         |_| super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     ),
-    schema!(
-        "url",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::ImageData,
-        None,
-        Applicable::Actors(&["Image", "Svg"]),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    schema!(
-        "vertical_align",
-        ValueType::String,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["Row", "Col"]),
-        |_| super::property_engine::PropertyValue::String("center".to_string())
-    ),
-    schema!(
-        "volume",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::AudioVolume,
-        None,
-        Applicable::Actors(&["Audio"]),
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    schema!(
+    binding!("url", ValueType::String, F::ASSIGNABLE, ActorField::ImageData, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("vertical_align", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("center".to_string())
+    }),
+    binding!("volume", ValueType::F32, F::ASSIGNABLE_AI, ActorField::AudioVolume, |_| {
+        super::property_engine::PropertyValue::F32(1.0)
+    }),
+    binding!(
         "width",
         ValueType::F32,
         F::ANIMATED_I,
         ActorField::Size,
-        None,
-        Applicable::SizedActors,
         |_| super::property_engine::PropertyValue::F32(100.0),
         ReadSource::Component {
             field: ActorField::Size,
@@ -1520,93 +1072,27 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
             scale: 2.0
         }
     ),
-    schema!(
-        "word_spacing",
-        ValueType::F32,
-        F::ASSIGNABLE,
-        ActorField::WordSpacing,
-        None,
-        Applicable::Actors(&["Text", "Typst", "Code"]),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    schema!(
-        "x_domain",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&[
-            "Graph",
-            "PlotCurve",
-            "VectorField",
-            "Heatmap",
-            "ContourSet",
-            "NumberPlane",
-            "BarChart"
-        ]),
-        |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
-    ),
-    schema!(
-        "x_range",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["NumberPlane"]),
-        |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
-    ),
-    schema!(
-        "x_scale",
-        ValueType::String,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["Graph"]),
-        |_| super::property_engine::PropertyValue::String("linear".to_string())
-    ),
-    schema!(
-        "y_domain",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&[
-            "Graph",
-            "PlotCurve",
-            "VectorField",
-            "Heatmap",
-            "ContourSet",
-            "NumberPlane",
-            "BarChart"
-        ]),
-        |_| super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
-    ),
-    schema!(
-        "y_range",
-        ValueType::Vec2,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        Some(GroupMembership {
-            group_id: GroupHandlerId::PlotDomain
-        }),
-        Applicable::Actors(&["NumberPlane"]),
-        |_| super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
-    ),
-    schema!(
-        "y_scale",
-        ValueType::String,
-        F::empty(),
-        ActorField::NoStorage,
-        None,
-        Applicable::Actors(&["Graph"]),
-        |_| super::property_engine::PropertyValue::String("linear".to_string())
-    ),
+    binding!("word_spacing", ValueType::F32, F::ASSIGNABLE, ActorField::WordSpacing, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("x_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
+    }),
+    binding!("x_range", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
+    }),
+    binding!("x_scale", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("linear".to_string())
+    }),
+    binding!("y_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
+    }),
+    binding!("y_range", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
+        super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
+    }),
+    binding!("y_scale", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String("linear".to_string())
+    }),
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -1615,9 +1101,12 @@ pub static PROPERTY_REGISTRY: &[PropertySchema] = &[
 
 /// Return the index of a property in [`PROPERTY_REGISTRY`].
 ///
-/// Uses binary search over the sorted registry.
+/// Uses the name map rather than a binary search: the map is built once and
+/// already carries the index, and the composed registry is behind a
+/// `LazyLock`, so a hash lookup beats re-dereferencing the table for every
+/// probe.
 fn property_index(name: &str) -> Option<usize> {
-    PROPERTY_REGISTRY.binary_search_by_key(&name, |s| s.name).ok()
+    resolved_properties().get(name).map(|(index, _)| *index)
 }
 
 /// Look up a property schema by name.
@@ -1738,7 +1227,7 @@ fn property_schema_by_id_cache()
     > = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
         let mut map = std::collections::HashMap::new();
-        for schema in PROPERTY_REGISTRY {
+        for schema in PROPERTY_REGISTRY.iter() {
             if let Some(id) = property_id(schema.name) {
                 map.insert(id, schema);
             }
@@ -1791,7 +1280,7 @@ mod tests {
     /// Verify every property can be looked up by name.
     #[test]
     fn every_property_is_lookupable() {
-        for schema in PROPERTY_REGISTRY {
+        for schema in PROPERTY_REGISTRY.iter() {
             let found = lookup_property(schema.name);
             assert!(found.is_some(), "Property '{}' cannot be looked up by name", schema.name);
             assert_eq!(found.unwrap().name, schema.name);
@@ -1810,45 +1299,117 @@ mod tests {
 
     #[test]
     fn property_ids_roundtrip_through_registry() {
-        for schema in PROPERTY_REGISTRY {
+        for schema in PROPERTY_REGISTRY.iter() {
             let id = property_id(schema.name).expect("runtime property must have a schema id");
             assert_eq!(property_schema_by_id(id).map(|s| s.name), Some(schema.name));
             assert_eq!(property_name(id), Some(schema.name));
         }
     }
 
+    /// Every engine binding must have a shared descriptor: the composed
+    /// registry panics otherwise, and a test failure names the offender instead
+    /// of surfacing at first render.
     #[test]
-    fn shared_schema_covers_every_runtime_property() {
-        let shared = animatix_syntax::schema::property_specs();
-        let shared_names: std::collections::HashSet<_> =
-            shared.iter().map(|spec| spec.name).collect();
-        assert!(
-            shared_names.len() >= PROPERTY_REGISTRY.len(),
-            "shared schema shrank below runtime registry size"
-        );
-        for schema in PROPERTY_REGISTRY {
+    fn every_binding_has_a_descriptor() {
+        for binding in BINDINGS {
             assert!(
-                shared_names.contains(schema.name),
-                "shared schema is missing runtime property '{}'",
-                schema.name
+                animatix_core::property::descriptor(binding.name).is_some(),
+                "binding `{}` has no descriptor in animatix_core::property::PROPERTY_DESCRIPTORS",
+                binding.name
             );
-            let id = property_id(schema.name).expect("runtime property has schema id");
-            let shared =
-                shared.iter().find(|spec| spec.id == id).expect("schema id resolves to spec");
-            let expected = match schema.value_type {
-                ValueType::F32 => animatix_syntax::schema::PropertyValueKind::F32,
-                ValueType::U32 => animatix_syntax::schema::PropertyValueKind::U32,
-                ValueType::Vec2 => animatix_syntax::schema::PropertyValueKind::Vec2,
-                ValueType::Vec4 | ValueType::Color => {
-                    animatix_syntax::schema::PropertyValueKind::Vec4
-                },
-                ValueType::String => animatix_syntax::schema::PropertyValueKind::String,
-                ValueType::PointList => animatix_syntax::schema::PropertyValueKind::PointList,
-                _ => animatix_syntax::schema::PropertyValueKind::Generic,
-            };
+        }
+    }
+
+    /// Descriptors the runtime deliberately does not bind. These are written by
+    /// bespoke dispatch paths (no plan slot, no property track), so the engine
+    /// has nothing to bind them to. Pinned so a new unbound property has to be
+    /// added here on purpose rather than silently having no runtime meaning.
+    const UNBOUND_DESCRIPTORS: &[&str] = &[
+        "content",
+        "end",
+        "fill",
+        "function",
+        "language",
+        "radius",
+        "start",
+        "stroke_color",
+    ];
+
+    #[test]
+    fn unbound_descriptors_are_pinned() {
+        let bound: std::collections::HashSet<&str> = BINDINGS.iter().map(|b| b.name).collect();
+        let unbound: Vec<&str> = animatix_core::property::PROPERTY_DESCRIPTORS
+            .iter()
+            .map(|descriptor| descriptor.name)
+            .filter(|name| !bound.contains(name))
+            .collect();
+        let mut unbound = unbound;
+        unbound.sort_unstable();
+        let mut expected = UNBOUND_DESCRIPTORS.to_vec();
+        expected.sort_unstable();
+        assert_eq!(
+            unbound, expected,
+            "the set of descriptors without an engine binding changed; add the binding \
+             (or extend UNBOUND_DESCRIPTORS with a reason)"
+        );
+    }
+
+    /// `ValueType` is finer than the shared `PropertyValueKind`, so the mapping
+    /// is total here (no `_ => Generic` catch-all, which is exactly what let
+    /// `solo`'s `Bool`/`Generic` disagreement hide) and must match the
+    /// descriptor for every bound property.
+    #[test]
+    fn value_kinds_agree_with_descriptors() {
+        use animatix_core::property::PropertyValueKind as Kind;
+
+        fn kind_of(value_type: ValueType) -> Kind {
+            match value_type {
+                ValueType::F32 => Kind::F32,
+                ValueType::U32 => Kind::U32,
+                ValueType::Vec2 => Kind::Vec2,
+                ValueType::Vec4 | ValueType::Color => Kind::Vec4,
+                ValueType::String => Kind::String,
+                ValueType::Bool => Kind::Bool,
+                ValueType::PointList => Kind::PointList,
+                ValueType::ShapeType
+                | ValueType::PlacementMode
+                | ValueType::SceneAnchor
+                | ValueType::PositionBinding
+                | ValueType::MorphOptions
+                | ValueType::CalloutPlace
+                | ValueType::CommandList
+                | ValueType::BuildTimeOnly
+                | ValueType::Enum(_)
+                | ValueType::Union(_)
+                | ValueType::Sum(_)
+                | ValueType::Transform => Kind::Generic,
+            }
+        }
+
+        for schema in PROPERTY_REGISTRY.iter() {
+            let descriptor = animatix_core::property::descriptor(schema.name)
+                .expect("binding without descriptor");
             assert_eq!(
-                shared.value_kind, expected,
-                "schema value kind drifted for '{}'",
+                kind_of(schema.value_type),
+                descriptor.value_kind,
+                "`{}` stores as {:?} in the engine but {:?} in the shared descriptor",
+                schema.name,
+                schema.value_type,
+                descriptor.value_kind
+            );
+        }
+    }
+
+    /// The composed registry must expose the applicability from the descriptor
+    /// table (the engine no longer declares it), for every bound property.
+    #[test]
+    fn applicability_comes_from_the_descriptor_table() {
+        for schema in PROPERTY_REGISTRY.iter() {
+            let descriptor = animatix_core::property::descriptor(schema.name)
+                .expect("binding without descriptor");
+            assert_eq!(
+                schema.applicable, descriptor.applicable,
+                "`{}` applicability disagrees with the descriptor table",
                 schema.name
             );
         }

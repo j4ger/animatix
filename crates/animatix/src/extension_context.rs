@@ -90,7 +90,6 @@ pub enum PropertyBinding {
         /// Frame-time read source.
         read_source: crate::timeline::property_registry::ReadSource,
         /// Optional compound resolution group.
-        group: Option<crate::timeline::property_registry::GroupMembership>,
         /// Runtime feature flags.
         flags: crate::timeline::property_registry::PropertyFlags,
         /// Default value, potentially actor-kind dependent.
@@ -137,7 +136,6 @@ impl PropertyRegistry {
                     .map(|schema| PropertyBinding::Direct {
                         field: schema.field,
                         read_source: schema.read_source,
-                        group: schema.group,
                         flags: schema.flags,
                         default_value: schema.default_value,
                     })
@@ -969,7 +967,7 @@ mod tests {
     #[test]
     fn builtin_property_entries_cover_runtime_registry() {
         let registry = PropertyRegistry::new();
-        for schema in crate::timeline::PROPERTY_REGISTRY {
+        for schema in crate::timeline::PROPERTY_REGISTRY.iter() {
             let entry = registry
                 .builtins
                 .iter()

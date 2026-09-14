@@ -4,7 +4,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, icon glyphs, `RenderError`); zero engine/parser deps.
+- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`); zero engine/parser deps.
 - `crates/animatix-std`: built-in catalog — effect definitions (WGSL/pack/support) and primitive identity cards; the single source for built-in metadata.
 - `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; derives its contract tables from `animatix-std`.
 - `crates/animatix-text`: the typst/fontdb text compiler behind the engine's `text` feature.
@@ -99,6 +99,24 @@ cargo check -p animatix-gui --features video
 ```
 
 Without the `video` feature, PNG and WebP export work normally. The export dialog will only show a "requires the 'video' feature (FFmpeg)" message when attempting an FFmpeg-dependent format (MP4/WebM/MOV/GIF).
+
+## Adding or Changing a Property
+
+`animatix-core::property::PROPERTY_DESCRIPTORS` is the single declaration of the
+built-in property list (name, `Applicable` predicate, value kind). Two
+derivations must follow, and tests fail the build if they don't line up:
+
+1. `animatix-syntax::schema::raw_property_types()` — the type-system view, index
+   aligned with the descriptor rows (`property_types_line_up_with_descriptors`).
+2. `animatix::timeline::property_registry::BINDINGS` — the engine binding
+   (plan-slot `ValueType`, flags, storage field, default, read source), joined
+   into `PROPERTY_REGISTRY` by name (`every_binding_has_a_descriptor`,
+   `value_kinds_agree_with_descriptors`). A descriptor with no binding must be
+   listed in `UNBOUND_DESCRIPTORS` with a reason.
+
+`PropertyId` is the descriptor row index and serialized plans store it: **append
+rows, never reorder or remove** (`property_id_order_is_pinned` pins the count
+and sentinel ids).
 
 ## Code Rules
 

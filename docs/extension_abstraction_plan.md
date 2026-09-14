@@ -219,13 +219,16 @@ Acceptance:
   metadata now consumes the shared schema.
 - Phase 1: stable `PropertyId` and `PropertySpec` added; ids are assigned in
   declaration order and covered by tests.
-- Phase 1: runtime `PROPERTY_REGISTRY` migration still pending; shared
-  primitive specs now match runtime specs and are covered by a drift guard.
+- Phase 1: **done 2026-09-14** — the shared descriptor table moved to
+  `animatix-core::property::PROPERTY_DESCRIPTORS` (name, applicability, value
+  kind, row index as `PropertyId`); the parser derives from it and the runtime
+  `PROPERTY_REGISTRY` is composed from descriptors + engine bindings.
 - Phase 1: built-in property schema remains additive relative to the runtime
   registry; external properties use shared `PropertyValueKind` descriptors.
 - Phase 2: runtime `PROPERTY_REGISTRY` now exposes `property_id` /
-  `property_schema_by_id` for its own registry index; shared-schema built-in
-  property ids are still declaration-order and not yet unified.
+  `property_schema_by_id`; since 2026-09-14 the descriptors it joins against are
+  the single declaration, so the ids are unified by construction
+  (`value_kinds_agree_with_descriptors`, `unbound_descriptors_are_pinned`).
 - Phase 2: `timeline::plan::PropertyPlan` and `DynTrack` prototype added;
   frame-time access is by sorted id and finite value-kind dispatch.
 - Phase 2: benchmark added for `property_plan_lookup_and_sample`: ~6.2 ns
