@@ -14,6 +14,10 @@ information architecture, per-surface redesign, open decisions). The
 2026-09-11 phases shipped directly on `main`; the remaining items below are
 small enough to land there too.
 
+Diagnostics peek shipped 2026-09-14: the status-bar chip raises a transient
+overlay anchored above itself (single click peeks, double click pins the docked
+panel; Escape, a click outside, or picking a diagnostic closes it).
+
 Phase 0 shipped 2026-09-11: visible auto-key (default off), caret-anchored
 completion, click-latched Delete scope, layout-preserving Inspector toggle,
 explicit keyframe-diamond model, labeled scene inspector, platform-aware
@@ -52,7 +56,6 @@ Remaining:
 
 | Item | Scope | Status |
 |---|---|---|
-| Diagnostics peek | A transient overlay from the status-bar chip (today the chip toggles the existing bottom panel) | Not started |
 | Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
 | Multi-actor curves | The Curves editor edits the first selected actor only | Not started |
 | Export/settings polish | Detailed error text, codec/quality controls, restore-defaults | Not started |

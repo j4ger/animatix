@@ -816,6 +816,9 @@ impl GuiShell {
         }
 
         // Status bar — thin bar at the bottom showing preview status and scene dimensions
+        // Filled by the diagnostics chip below; the peek overlay anchors to it.
+        let mut diagnostics_chip_rect: Option<egui::Rect> = None;
+
         egui::Panel::bottom("status_bar")
             .frame(
                 egui::Frame::new()
@@ -904,21 +907,41 @@ impl GuiShell {
                                 .with_icon(chip_icon)
                                 .icon_color(chip_color)
                                 .hover_icon_color(chip_color)
-                                .active(self.ui_store.view.diagnostics_panel_visible),
+                                .active(
+                                    self.ui_store.view.diagnostics_panel_visible
+                                        || self.ui_store.view.diagnostics_peek_open,
+                                ),
                         );
                         text_tooltip(
                             ui,
                             chip.id.with("diag_chip_tip"),
                             &chip,
-                            &format!("{chip_label} — click to toggle the diagnostics panel"),
+                            &format!(
+                                "{chip_label} — click to peek, double-click to pin the \
+                                 diagnostics panel"
+                            ),
                         );
-                        if chip.clicked() {
+                        diagnostics_chip_rect = Some(chip.rect);
+                        if chip.double_clicked() {
+                            self.ui_store.view.diagnostics_peek_open = false;
                             self.ui_store.view.diagnostics_panel_visible =
                                 !self.ui_store.view.diagnostics_panel_visible;
+                        } else if chip.clicked() {
+                            self.ui_store.view.diagnostics_peek_open =
+                                !self.ui_store.view.diagnostics_peek_open;
                         }
                     });
                 });
             });
+
+        if self.ui_store.view.diagnostics_peek_open {
+            match diagnostics_chip_rect {
+                Some(chip_rect) => self.diagnostics_peek_ui(ui, chip_rect, &diagnostics),
+                // The chip is not drawn while the welcome screen owns the
+                // workspace; a stranded overlay would outlive its anchor.
+                None => self.ui_store.view.diagnostics_peek_open = false,
+            }
+        }
 
         // Central workspace — edge-to-edge tiles, no outer margin
         // When welcome screen is open, show it instead of the workspace.
@@ -1252,6 +1275,125 @@ impl GuiShell {
     /// Renders the same content as the docked sidebar (via
     /// `sidebar_tab_content_ui`) in a floating left panel, opened from the icon
     /// rail. Shown only while the drawer is the active compact drawer.
+    /// Transient diagnostics overlay raised from the status-bar chip.
+    ///
+    /// Anchored above the chip so the counts stay readable without docking the
+    /// bottom panel. Transient by design: Escape, a click outside, or picking a
+    /// diagnostic (which also scrolls the editor to it) closes it.
+    fn diagnostics_peek_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        chip_rect: egui::Rect,
+        diagnostics: &[Diagnostic],
+    ) {
+        let theme = eparts::theme(ui);
+        let screen = ui.ctx().viewport_rect();
+        let width = 440.0f32.min(screen.width() - 16.0);
+        // Anchor above the chip, nudged inside the screen if it would overflow.
+        let x = (chip_rect.right() - width).max(screen.left() + 8.0);
+        let y = (chip_rect.top() - 12.0).max(screen.top() + 8.0);
+        let errors = diagnostics.iter().filter(|d| d.is_error()).count();
+        let warnings = diagnostics.len() - errors;
+        let mut close = false;
+        let mut scroll_to: Option<(usize, usize)> = None;
+
+        let overlay = egui::Area::new(egui::Id::new("diagnostics_peek"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(egui::pos2(x, y))
+            .show(ui.ctx(), |ui| {
+                ui.set_width(width);
+                egui::Frame::new()
+                    .fill(theme.palette.surface.panel)
+                    .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
+                    .corner_radius(RADIUS_L)
+                    .inner_margin(egui::Margin::same(8))
+                    .shadow(theme.elevation_overlay())
+                    .show(ui, |ui| {
+                        ui.set_width(width - 16.0);
+                        ui.horizontal(|ui| {
+                            let (icon, color) = if errors > 0 {
+                                (egui_phosphor::regular::X_CIRCLE, theme.palette.status.error)
+                            } else if warnings > 0 {
+                                (egui_phosphor::regular::WARNING, theme.palette.status.warning)
+                            } else {
+                                (egui_phosphor::regular::CHECK_CIRCLE, theme.palette.status.success)
+                            };
+                            ui.label(
+                                egui::RichText::new(icon).size(TextRole::Body.size()).color(color),
+                            );
+                            ui.label(
+                                egui::RichText::new(format!(
+                                    "{errors} error(s) · {warnings} warning(s)"
+                                ))
+                                .size(TextRole::BodyS.size())
+                                .color(theme.palette.text.primary),
+                            );
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let pin = ui.add(
+                                        Button::ghost("")
+                                            .with_icon(egui_phosphor::regular::ARROW_SQUARE_DOWN),
+                                    );
+                                    text_tooltip(
+                                        ui,
+                                        pin.id.with("diag_peek_pin"),
+                                        &pin,
+                                        "Pin to the bottom panel",
+                                    );
+                                    if pin.clicked() {
+                                        self.ui_store.view.diagnostics_panel_visible = true;
+                                        close = true;
+                                    }
+                                    let dismiss = ui.add(
+                                        Button::ghost("").with_icon(egui_phosphor::regular::X),
+                                    );
+                                    if dismiss.clicked() {
+                                        close = true;
+                                    }
+                                },
+                            );
+                        });
+                        ui.separator();
+                        egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
+                            if diagnostics.is_empty() {
+                                ui.add_space(SPACE_2);
+                                ui.label(
+                                    egui::RichText::new("No diagnostics — all clear")
+                                        .size(TextRole::BodyS.size())
+                                        .color(theme.palette.status.success),
+                                );
+                            } else if let Some(target) = components::diagnostics::diagnostics_list(
+                                ui,
+                                diagnostics,
+                                &mut close,
+                            ) {
+                                scroll_to = Some((target.line, target.column));
+                                close = true;
+                            }
+                        });
+                    });
+            })
+            .response;
+
+        if let Some((line, column)) = scroll_to {
+            self.ui_store
+                .pending_actions
+                .push_back(ViewCommand::ScrollToLine(line, column).into());
+        }
+
+        let escape = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
+        let clicked_outside = ui.ctx().input(|i| {
+            i.pointer.any_pressed()
+                && i.pointer
+                    .interact_pos()
+                    .is_some_and(|p| !overlay.rect.contains(p) && !chip_rect.contains(p))
+        });
+        if close || escape || clicked_outside {
+            self.ui_store.view.diagnostics_peek_open = false;
+        }
+    }
+
     fn compact_sidebar_drawer_ui(
         &mut self,
         ui: &mut egui::Ui,

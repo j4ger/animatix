@@ -221,6 +221,8 @@ pub struct ViewStore {
     pub collapsed_actors: HashSet<String>,
     pub expanded_properties: HashSet<String>,
     pub diagnostics_panel_visible: bool,
+    /// Transient diagnostics overlay opened from the status-bar chip.
+    pub diagnostics_peek_open: bool,
     pub settings_open: bool,
     pub tool_mode: ToolMode,
     pub debug_bounds: bool,
@@ -279,6 +281,7 @@ impl ViewStore {
             collapsed_actors: HashSet::new(),
             expanded_properties: HashSet::new(),
             diagnostics_panel_visible: false,
+            diagnostics_peek_open: false,
             settings_open: false,
             tool_mode: ToolMode::Select,
             debug_bounds: false,
