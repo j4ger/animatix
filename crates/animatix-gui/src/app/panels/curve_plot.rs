@@ -29,7 +29,12 @@ const SEGMENTS_PER_SPAN: usize = 20;
 /// component back through [`PropertyValue`](animatix::timeline::PropertyValue).
 #[derive(Debug, Clone)]
 pub(crate) struct CurveChannel {
+    /// Legend label — actor-qualified when more than one actor is graphed.
     pub label: String,
+    /// Label without the actor prefix, kept for tooltips and diagnostics.
+    pub base_label: String,
+    /// Actor this channel belongs to; edits address it by this name.
+    pub actor: String,
     pub color: Color32,
     /// Sampled keyframes as `(time_s, value)`.
     pub points: Vec<(f64, f32)>,
@@ -48,7 +53,11 @@ pub(crate) struct CurveChannel {
 ///
 /// Properties with fewer than two keyframes are skipped: a single keyframe has
 /// no curve to draw.
-pub(crate) fn collect_curves(track: &AnimationTrack, theme: Theme) -> Vec<CurveChannel> {
+pub(crate) fn collect_curves(
+    actor: &str,
+    track: &AnimationTrack,
+    theme: Theme,
+) -> Vec<CurveChannel> {
     let mut curves: Vec<CurveChannel> = Vec::new();
 
     for &idx in &allowed_property_indices(&track.caps, &track.actor_type) {
@@ -74,7 +83,9 @@ pub(crate) fn collect_curves(track: &AnimationTrack, theme: Theme) -> Vec<CurveC
                 })
                 .collect();
             curves.push(CurveChannel {
+                base_label: label.clone(),
                 label,
+                actor: actor.to_string(),
                 color,
                 points,
                 segment_easing,
@@ -148,6 +159,53 @@ pub(crate) fn collect_curves(track: &AnimationTrack, theme: Theme) -> Vec<CurveC
     }
 
     curves
+}
+
+/// Collect one actor's channels for a multi-actor overlay.
+///
+/// `qualify` prefixes every label with the actor name — required as soon as
+/// two actors are graphed, because the legend keys, the per-keyframe widget
+/// ids, and the tooltips are all keyed by label. `shade` scales the canonical
+/// channel colours down so the same property of two actors stays
+/// distinguishable; pass `1.0` to keep them as-is.
+pub(crate) fn collect_curves_for_actor(
+    actor: &str,
+    track: &AnimationTrack,
+    theme: Theme,
+    qualify: bool,
+    shade: f32,
+) -> Vec<CurveChannel> {
+    let mut curves = collect_curves(actor, track, theme);
+    for curve in &mut curves {
+        if qualify {
+            curve.label = format!("{actor} · {}", curve.base_label);
+        }
+        if shade < 1.0 {
+            curve.color = shade_color(curve.color, shade);
+        }
+    }
+    curves
+}
+
+/// Lightness factors applied to the canonical channel colours, one per
+/// additional actor. The first (sorted) actor keeps the canonical colours.
+pub(crate) const ACTOR_SHADES: [f32; 3] = [0.78, 0.60, 0.88];
+
+/// Deterministic per-actor lightness factor.
+///
+/// Hashed from the name rather than the selection index so an actor's colour
+/// does not depend on which other actors happen to be selected.
+pub(crate) fn actor_shade_factor(actor: &str) -> f32 {
+    let hash = actor
+        .bytes()
+        .fold(2166136261u32, |acc, byte| (acc ^ u32::from(byte)).wrapping_mul(16777619));
+    ACTOR_SHADES[(hash % ACTOR_SHADES.len() as u32) as usize]
+}
+
+/// Scale a colour's channels, leaving alpha alone.
+fn shade_color(color: Color32, factor: f32) -> Color32 {
+    let scale = |channel: u8| (f32::from(channel) * factor).round().clamp(0.0, 255.0) as u8;
+    Color32::from_rgba_unmultiplied(scale(color.r()), scale(color.g()), scale(color.b()), color.a())
 }
 
 /// Stable component color: index 0/1 use the canonical accent/error pairing,
@@ -478,6 +536,72 @@ mod tests {
     fn degenerate_value_window_is_padded() {
         let (min, max) = pad_range(3.0, 3.0);
         assert!(max > min);
+    }
+
+    /// Two actors animating the same property: qualified labels must stay
+    /// unique (they key the legend, the widget ids, and the tooltips), while
+    /// the single-actor path keeps the canonical labels the Inspector shows.
+    #[test]
+    fn qualified_labels_keep_two_actors_distinct() {
+        let timeline = two_actor_timeline();
+        let theme = eparts::Theme::default();
+        let a = timeline.get_track("a").expect("track a");
+        let b = timeline.get_track("b").expect("track b");
+
+        let a_curves = collect_curves_for_actor("a", a, theme, true, 1.0);
+        let b_curves = collect_curves_for_actor("b", b, theme, true, 1.0);
+        assert!(!a_curves.is_empty(), "actor a must have graphed channels");
+        assert!(!b_curves.is_empty(), "actor b must have graphed channels");
+        for curve in a_curves.iter().chain(b_curves.iter()) {
+            assert!(
+                curve.label.starts_with(&curve.actor),
+                "qualified label must name its actor, got {}",
+                curve.label
+            );
+            assert_eq!(curve.base_label, curve.label.split(" · ").nth(1).unwrap());
+        }
+        for left in &a_curves {
+            assert!(
+                !b_curves.iter().any(|right| right.label == left.label),
+                "labels from different actors must not collide: {}",
+                left.label
+            );
+        }
+
+        let unqualified = collect_curves_for_actor("a", a, theme, false, 1.0);
+        assert!(
+            unqualified.iter().all(|curve| curve.label == curve.base_label),
+            "single-actor labels stay canonical"
+        );
+    }
+
+    #[test]
+    fn actor_shade_factor_is_stable_and_off_canonical() {
+        let first = actor_shade_factor("card_reel");
+        assert_eq!(first, actor_shade_factor("card_reel"), "shade must be deterministic");
+        assert!(ACTOR_SHADES.contains(&first));
+        assert!(first < 1.0, "additional actors must differ from the canonical colour");
+    }
+
+    /// A `Rect` with two timed `at` assignments: the shared fixture for the
+    /// multi-actor curve tests.
+    fn two_actor_timeline() -> animatix::timeline::Timeline {
+        let source = r#"
+#0s
+a: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
+b: Rect, at: (10, 10), size: (20, 20), color: (1, 1, 1, 1)
+
+#0.5s
+a.at = (100, 0)
+b.at = (0, 100)
+
+#1s
+a.at = (200, 0)
+b.at = (0, 200)
+"#;
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        animatix::timeline::Timeline::build(&ast.expect("ast"))
     }
 
     #[test]

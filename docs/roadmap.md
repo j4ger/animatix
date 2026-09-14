@@ -14,6 +14,13 @@ information architecture, per-surface redesign, open decisions). The
 2026-09-11 phases shipped directly on `main`; the remaining items below are
 small enough to land there too.
 
+Multi-actor curves shipped 2026-09-14: the Curves panel overlays every selected
+actor, qualifying labels as `actor · property.X` so legend keys and widget ids
+stay unique, shading later actors' canonical channel colours deterministically,
+and committing each drag against the track that owns the keyframe. The value
+window already derives from the visible curves, so it fits whatever the legend
+leaves on. The Inspector's read-only graph editor still shows one actor.
+
 Export/settings polish shipped 2026-09-14: the failure tag keeps its short
 label but reveals the full encoder message on hover with a copy action, the
 dialog gained explicit `Encoder` (codec + libx264 preset) selectors for the
@@ -64,7 +71,6 @@ Remaining:
 | Item | Scope | Status |
 |---|---|---|
 | Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
-| Multi-actor curves | The Curves editor edits the first selected actor only | Not started |
 
 ## Planned Effects
 

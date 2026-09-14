@@ -125,10 +125,12 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         return;
     };
 
-    // Deterministic single-actor editing target: the first selected label.
+    // Every selected actor is graphed, sorted for deterministic colours and
+    // legend order. Edits address each curve's own actor, so the shared
+    // keyframe selection works across actors.
     let mut actors: Vec<&String> = ctx.selected_actors.iter().collect();
     actors.sort();
-    let Some(actor) = actors.first().map(|s| s.as_str()) else {
+    if actors.is_empty() {
         layout::empty_state(
             ui,
             egui_phosphor::regular::CURSOR_CLICK,
@@ -136,17 +138,24 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             "Click an actor in the preview or timeline",
         );
         return;
-    };
+    }
 
-    let Some(track) = timeline.get_track(actor) else {
+    let tracks: Vec<(&str, &AnimationTrack)> = actors
+        .iter()
+        .filter_map(|label| timeline.get_track(label).map(|track| (label.as_str(), track)))
+        .collect();
+    let Some(actor) = tracks.first().map(|(label, _)| *label) else {
         layout::empty_state(
             ui,
             egui_phosphor::regular::CHART_LINE,
-            "No track for this actor",
-            "The actor has no animation data in this scene",
+            "No track for these actors",
+            "The actors have no animation data in this scene",
         );
         return;
     };
+    // Actor qualification is what keeps labels — and therefore legend keys and
+    // per-keyframe widget ids — unique once two actors are graphed.
+    let qualify = tracks.len() > 1;
 
     // Reserve the pane so the docked region keeps its size, then paint into
     // the full rect (egui_tiles gives the pane exactly this space).
@@ -154,8 +163,18 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     let painter = ui.painter_at(outer);
     painter.rect_filled(outer, 0.0, theme.palette.surface.base);
 
-    let curves = curve_plot::collect_curves(track, theme);
     let scene = ctx.active_scene.map(ToOwned::to_owned);
+    let mut curves: Vec<CurveChannel> = Vec::new();
+    for (index, (label, track)) in tracks.iter().enumerate() {
+        // The first actor keeps the canonical channel colours; the rest get a
+        // deterministic shade so two actors' `position.X` stay told apart.
+        let shade = if index == 0 {
+            1.0
+        } else {
+            curve_plot::actor_shade_factor(label)
+        };
+        curves.extend(curve_plot::collect_curves_for_actor(label, track, theme, qualify, shade));
+    }
 
     // The shared keyframe selection is the single source of truth, so a
     // timeline selection carries over when switching tabs and vice versa.
@@ -164,8 +183,9 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
     // ── Header ──────────────────────────────────────────────────────────
     let header_rect = egui::Rect::from_min_size(outer.min, Vec2::new(outer.width(), HEADER_HEIGHT));
-    let header = if actors.len() > 1 {
-        format!("Editing: {actor}  ({} actors selected; showing first)", actors.len())
+    let header = if tracks.len() > 1 {
+        let names: Vec<&str> = tracks.iter().map(|(label, _)| *label).collect();
+        format!("Editing: {}  ({} actors)", names.join(", "), tracks.len())
     } else {
         format!("Editing: {actor}")
     };
@@ -253,7 +273,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             let time_ms = (*time_s * 1000.0).round() as u64;
             let id = KeyframeId {
                 scene: scene.clone(),
-                actor: actor.to_string(),
+                actor: curve.actor.clone(),
                 property: curve.property.to_string(),
                 time_ms,
             };
@@ -454,7 +474,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
         if resp.drag_stopped() {
             if let Some(d) = new_drag.take() {
-                emit_drag_commands(ctx.commands, &d, actor, &scene, track);
+                emit_drag_commands(ctx.commands, &d, &tracks, &scene);
             }
         }
     }
@@ -468,7 +488,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         }
     });
     if selection != selection_before {
-        let canonical = prune_selection(&selection, &curves, actor, &scene);
+        let canonical = prune_selection(&selection, &curves, &scene);
         *ctx.selected_keyframes = canonical.clone();
         ctx.commands
             .push_back(ShellAction::Command(Command::SetSelectedKeyframes(canonical)));
@@ -479,10 +499,13 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 fn emit_drag_commands(
     commands: &mut ActionQueue,
     drag: &CurveDrag,
-    actor: &str,
+    tracks: &[(&str, &AnimationTrack)],
     scene: &Option<String>,
-    track: &AnimationTrack,
 ) {
+    // A drag can carry ids from several actors; each edit reads the value out
+    // of the track that owns it.
+    let track_for =
+        |actor: &str| tracks.iter().find(|(label, _)| *label == actor).map(|(_, track)| *track);
     match drag.mode {
         Some(DragMode::Time) => {
             let delta = drag.time_delta_s();
@@ -504,7 +527,6 @@ fn emit_drag_commands(
                 })
                 .collect();
             tracing::debug!(
-                actor = %actor,
                 scene = ?scene,
                 count = specs.len(),
                 delta_s = delta,
@@ -520,11 +542,18 @@ fn emit_drag_commands(
                 return;
             }
             let time_ms = edit.id.time_ms;
+            let Some(track) = track_for(&edit.id.actor) else {
+                tracing::warn!(
+                    actor = %edit.id.actor,
+                    "curves value drag: no track for actor; skipping edit"
+                );
+                return;
+            };
             let Some(mut value) =
                 animatix::timeline::read_property_value(track, edit.field, time_ms)
             else {
                 tracing::warn!(
-                    actor = %actor,
+                    actor = %edit.id.actor,
                     property = %edit.id.property,
                     time_ms,
                     "curves value drag: no value at keyframe; skipping edit"
@@ -533,7 +562,7 @@ fn emit_drag_commands(
             };
             if !curve_plot::set_channel(&mut value, edit.channel, edit.current_value) {
                 tracing::warn!(
-                    actor = %actor,
+                    actor = %edit.id.actor,
                     property = %edit.id.property,
                     channel = edit.channel,
                     value = ?value,
@@ -542,7 +571,7 @@ fn emit_drag_commands(
                 return;
             }
             tracing::debug!(
-                actor = %actor,
+                actor = %edit.id.actor,
                 property = %edit.id.property,
                 time_s = edit.id.time_ms as f64 / 1000.0,
                 "setting keyframe value from curves panel"
@@ -563,16 +592,15 @@ fn emit_drag_commands(
 fn prune_selection(
     selection: &[KeyframeId],
     curves: &[CurveChannel],
-    actor: &str,
     scene: &Option<String>,
 ) -> Vec<KeyframeId> {
     selection
         .iter()
         .filter(|id| {
-            id.actor == actor
-                && id.scene == *scene
+            id.scene == *scene
                 && curves.iter().any(|c| {
-                    c.property == id.property
+                    c.actor == id.actor
+                        && c.property == id.property
                         && c.points.iter().any(|(t, _)| (*t * 1000.0).round() as u64 == id.time_ms)
                 })
         })
@@ -637,5 +665,75 @@ fn draw_ruler(
             theme.palette.text.muted,
         );
         t += tick_step;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::panels::curve_plot::{CurveChannel, collect_curves_for_actor};
+
+    /// Two `Rect`s animating the same property — the multi-actor fixture.
+    fn two_actor_timeline() -> Timeline {
+        let source = r#"
+#0s
+a: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
+b: Rect, at: (10, 10), size: (20, 20), color: (1, 1, 1, 1)
+
+#0.5s
+a.at = (100, 0)
+b.at = (0, 100)
+
+#1s
+a.at = (200, 0)
+b.at = (0, 200)
+"#;
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        Timeline::build(&ast.expect("ast"))
+    }
+
+    fn id_at(curve: &CurveChannel, point: usize) -> KeyframeId {
+        KeyframeId {
+            scene: None,
+            actor: curve.actor.clone(),
+            property: curve.property.to_string(),
+            time_ms: (curve.points[point].0 * 1000.0).round() as u64,
+        }
+    }
+
+    /// The shared keyframe selection spans actors, so pruning must keep every
+    /// id that still has a drawn keyframe — the single-actor filter used to
+    /// drop the other actors' ids on the first edit.
+    #[test]
+    fn prune_selection_keeps_ids_from_every_graphed_actor() {
+        let timeline = two_actor_timeline();
+        let theme = eparts::Theme::default();
+        let mut curves: Vec<CurveChannel> = Vec::new();
+        for actor in ["a", "b"] {
+            let track = timeline.get_track(actor).expect("track");
+            curves.extend(collect_curves_for_actor(actor, track, theme, true, 1.0));
+        }
+        assert!(curves.len() >= 2, "both actors must contribute channels");
+
+        let a_curve = curves.iter().find(|c| c.actor == "a").expect("a curve");
+        let b_curve = curves.iter().find(|c| c.actor == "b").expect("b curve");
+        let mut selection = vec![id_at(a_curve, 1), id_at(b_curve, 1)];
+        selection.push(KeyframeId {
+            scene: None,
+            actor: "not_graph".to_string(),
+            property: a_curve.property.to_string(),
+            time_ms: id_at(a_curve, 1).time_ms,
+        });
+
+        let pruned = prune_selection(&selection, &curves, &None);
+        assert_eq!(pruned.len(), 2, "each graphed actor keeps its id: {pruned:?}");
+        assert!(pruned.iter().any(|id| id.actor == "a"));
+        assert!(pruned.iter().any(|id| id.actor == "b"));
+
+        // A time that is not a keyframe of that actor is dropped.
+        let mut stale = vec![id_at(a_curve, 1)];
+        stale[0].time_ms += 7;
+        assert!(prune_selection(&stale, &curves, &None).is_empty());
     }
 }

@@ -37,7 +37,7 @@ pub fn render_multi_fcurve(
         egui::StrokeKind::Outside,
     );
 
-    let curves = curve_plot::collect_curves(track, theme);
+    let curves = curve_plot::collect_curves(&track.label, track, theme);
 
     if curves.is_empty() {
         painter.text(
