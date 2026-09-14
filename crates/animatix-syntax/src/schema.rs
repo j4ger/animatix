@@ -499,6 +499,9 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("y_domain", Type::Vec2),
         ("y_range", Type::Any),
         ("y_scale", Type::Str),
+        // Appended with the descriptor row: the two tables are index aligned,
+        // and new descriptors go at the end (the row index is `PropertyId`).
+        ("corner_radius", Type::Num),
     ]
 }
 
@@ -547,7 +550,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            95,
+            96,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

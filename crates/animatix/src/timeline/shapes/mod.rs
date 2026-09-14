@@ -96,11 +96,16 @@ impl Interpolate for ShapeType {
 pub struct RectState {
     /// Width and height of the rectangle.
     pub size: [f32; 2],
+    /// Corner rounding radius in scene pixels; 0 keeps square corners.
+    pub corner_radius: f32,
 }
 
 impl Default for RectState {
     fn default() -> Self {
-        Self { size: [50.0, 50.0] }
+        Self {
+            size: [50.0, 50.0],
+            corner_radius: 0.0,
+        }
     }
 }
 
@@ -256,7 +261,10 @@ impl VectorShapeState {
     /// `line_to` / `arc_angles` are only stored when the variant supports them.
     pub fn new(shape_type: ShapeType, size: [f32; 2]) -> Self {
         match shape_type {
-            ShapeType::Rect => Self::Rect(RectState { size }),
+            ShapeType::Rect => Self::Rect(RectState {
+                size,
+                corner_radius: 0.0,
+            }),
             ShapeType::Ellipse => Self::Ellipse(EllipseState {
                 size,
                 arc_angles: [0.0, 0.0],
@@ -280,7 +288,10 @@ impl VectorShapeState {
                 custom_path: None,
             }),
             // Graph/Plot are not vector shapes with state
-            ShapeType::Graph | ShapeType::Plot => Self::Rect(RectState { size }),
+            ShapeType::Graph | ShapeType::Plot => Self::Rect(RectState {
+                size,
+                corner_radius: 0.0,
+            }),
             ShapeType::Arrow => Self::Arrow(ArrowState {
                 from: [-50.0, 0.0],
                 to: [50.0, 0.0],
@@ -431,10 +442,10 @@ pub fn vector_shape_is_arrow(shape_type: ShapeType) -> bool {
 
 /// Extract the individual shape-state values for backward-compatible APIs.
 ///
-/// Returns `(size, line_from, line_to, arc_angles)`.
+/// Returns `(size, line_from, line_to, arc_angles, corner_radius)`.
 pub fn extract_shape_state_values(
     state: &VectorShapeState,
-) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2]) {
+) -> ([f32; 2], [f32; 2], [f32; 2], [f32; 2], f32) {
     let size = state.size();
     let (line_from, line_to, arc_angles) = match state {
         VectorShapeState::Line(line) => (line.line_from, line.line_to, [0.0, 0.0]),
@@ -443,7 +454,11 @@ pub fn extract_shape_state_values(
         VectorShapeState::Ellipse(ellipse) => ([-50.0, 0.0], [50.0, 0.0], ellipse.arc_angles),
         _ => ([-50.0, 0.0], [50.0, 0.0], [0.0, 0.0]),
     };
-    (size, line_from, line_to, arc_angles)
+    let corner_radius = match state {
+        VectorShapeState::Rect(rect) => rect.corner_radius,
+        _ => 0.0,
+    };
+    (size, line_from, line_to, arc_angles, corner_radius)
 }
 
 /// Build a `VelloPath` for a vector shape via the primitive renderer.
@@ -767,7 +782,10 @@ pub fn build_shape_vello_path(
     fill_opacity: f32,
 ) -> VelloPath {
     let state = match shape_type {
-        ShapeType::Rect => VectorShapeState::Rect(RectState { size }),
+        ShapeType::Rect => VectorShapeState::Rect(RectState {
+            size,
+            corner_radius: 0.0,
+        }),
         ShapeType::Ellipse => VectorShapeState::Ellipse(EllipseState {
             size,
             arc_angles,

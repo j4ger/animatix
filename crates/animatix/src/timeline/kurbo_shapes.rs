@@ -34,6 +34,20 @@ pub enum KurboShape {
         y1: f64,
     },
 
+    /// Rectangle with rounded corners.
+    RoundedRect {
+        /// Minimum x coordinate.
+        x0: f64,
+        /// Minimum y coordinate.
+        y0: f64,
+        /// Maximum x coordinate.
+        x1: f64,
+        /// Maximum y coordinate.
+        y1: f64,
+        /// Corner radius in scene pixels (clamped to half the shorter side).
+        radius: f64,
+    },
+
     /// Line segment from start to end point
     Line {
         /// Start point
@@ -83,6 +97,21 @@ impl KurboShape {
     /// Create a rectangle from min and max coordinates
     pub fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         KurboShape::Rect { x0, y0, x1, y1 }
+    }
+
+    /// Create a rectangle with rounded corners.
+    ///
+    /// The radius is clamped to half the shorter side, so an over-large radius
+    /// yields a stadium/circle rather than a self-intersecting path.
+    pub fn rounded_rect(x0: f64, y0: f64, x1: f64, y1: f64, radius: f64) -> Self {
+        let clamped = radius.abs().min((x1 - x0).abs() / 2.0).min((y1 - y0).abs() / 2.0);
+        KurboShape::RoundedRect {
+            x0,
+            y0,
+            x1,
+            y1,
+            radius: clamped,
+        }
     }
 
     /// Create a line segment
@@ -168,6 +197,19 @@ impl KurboShape {
             KurboShape::Rect { x0, y0, x1, y1 } => {
                 Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
             },
+            KurboShape::RoundedRect {
+                x0,
+                y0,
+                x1,
+                y1,
+                radius,
+            } => {
+                if *radius <= 0.0 {
+                    Rect::new(*x0, *y0, *x1, *y1).into_path(tolerance)
+                } else {
+                    kurbo::RoundedRect::new(*x0, *y0, *x1, *y1, *radius).into_path(tolerance)
+                }
+            },
             KurboShape::Line { p0, p1 } => Line::new(*p0, *p1).into_path(tolerance),
             KurboShape::Ellipse {
                 center,
@@ -228,6 +270,50 @@ pub fn morph_kurbo_shapes_default(from: &KurboShape, to: &KurboShape, t: f64) ->
 
 #[cfg(test)]
 mod tests {
+    use kurbo::Shape;
+
+    /// A positive radius rounds the corners; zero keeps them square. Checked
+    /// geometrically (a corner point is outside the path) so the assertion does
+    /// not depend on rasterization.
+    #[test]
+    fn rounded_rect_rounds_corners_and_keeps_square_at_zero() {
+        let corner = Point::new(1.0, 1.0);
+        let square = KurboShape::rounded_rect(0.0, 0.0, 100.0, 60.0, 0.0).to_path_default();
+        assert!(square.contains(corner), "radius 0 must keep the corner inside the path");
+
+        let rounded = KurboShape::rounded_rect(0.0, 0.0, 100.0, 60.0, 20.0).to_path_default();
+        assert!(!rounded.contains(corner), "the corner must be cut out");
+        // The edge midpoint and the interior stay inside.
+        assert!(rounded.contains(Point::new(50.0, 0.5)));
+        assert!(rounded.contains(Point::new(50.0, 30.0)));
+        // Bounds are unchanged: rounding never grows the shape. Compared with a
+        // tolerance because the flattened corner arcs land a hair off the exact
+        // coordinates (~1e-30).
+        let (rb, sb) = (rounded.bounding_box(), square.bounding_box());
+        for (a, b) in [
+            (rb.x0, sb.x0),
+            (rb.y0, sb.y0),
+            (rb.x1, sb.x1),
+            (rb.y1, sb.y1),
+        ] {
+            assert!((a - b).abs() < 1e-6, "bounds drifted: {rb:?} vs {sb:?}");
+        }
+    }
+
+    /// An over-large radius clamps to half the shorter side (a stadium), rather
+    /// than producing a self-intersecting path.
+    #[test]
+    fn rounded_rect_clamps_an_over_large_radius() {
+        let clamped = KurboShape::rounded_rect(0.0, 0.0, 100.0, 60.0, 500.0);
+        let KurboShape::RoundedRect { radius, .. } = clamped else {
+            panic!("expected a rounded rect");
+        };
+        assert_eq!(radius, 30.0, "clamped to half the shorter side");
+        let path = clamped.to_path_default();
+        assert!(path.contains(Point::new(50.0, 30.0)));
+        assert!(!path.contains(Point::new(1.0, 1.0)));
+    }
+
     use super::*;
 
     #[test]

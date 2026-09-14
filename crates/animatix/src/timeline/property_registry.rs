@@ -289,6 +289,8 @@ pub enum ActorField {
     LineTo,
     /// Start and sweep angles for arc shapes.
     ArcAngles,
+    /// Corner rounding radius for rectangles, in scene pixels.
+    CornerRadius,
     /// Vertices for polygon shapes.
     Points,
     /// Drawing commands for path shapes.
@@ -432,6 +434,8 @@ impl ActorField {
             ActorField::ShapeType => PropertyValue::U32(0),
             ActorField::LineFrom => PropertyValue::Vec2([-50.0, 0.0]),
             ActorField::LineTo => PropertyValue::Vec2([50.0, 0.0]),
+
+            ActorField::CornerRadius => PropertyValue::F32(0.0),
             ActorField::ArcAngles => PropertyValue::Vec2([0.0, std::f32::consts::PI]),
             ActorField::Points => PropertyValue::PointList(Vec::new()),
             ActorField::Commands => PropertyValue::CommandList(String::new()),
@@ -708,6 +712,13 @@ static BINDINGS: &[PropertyBinding] = &[
         F::ASSIGNABLE_A,
         ActorField::Commands,
         |_| super::property_engine::PropertyValue::CommandList(String::new())
+    ),
+    binding!(
+        "corner_radius",
+        ValueType::F32,
+        F::ASSIGNABLE_AI,
+        ActorField::CornerRadius,
+        |_| super::property_engine::PropertyValue::F32(0.0)
     ),
     binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())

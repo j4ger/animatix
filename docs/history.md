@@ -866,6 +866,28 @@ property back, plus tokenizer selection and theme-aware token colours.
 
 ---
 
+## `Rect` corner radius (2026-09-14)
+
+`Rect` gained `corner_radius` (F32, default `0`, scene pixels), animatable like
+any other property and clamped to half the shorter side so an over-large value
+becomes a stadium rather than a self-intersecting path. A rounded `Rect` used as
+a `clip_shape` clips to the rounded outline, because `clip_path` derives from the
+same render commands.
+
+It travels the shape-property route rather than the tagged-property one:
+`RectPrimitive::apply_property` lands the authored value on `RectState`, the
+build seeds that state from the existing track (so a re-declaration that omits
+the property keeps its radius) and `insert_end_keyframes` writes it into
+`ShapeTracks::corner_radius` — the same path `arc_angles` takes. `KurboShape`
+gained a `RoundedRect` variant; the PF-6 shape→path memo keys on the sampled
+shape, so a radius change rebuilds the path with no extra bookkeeping.
+
+Tests: a geometric unit test (a corner point is outside the path at radius > 0,
+inside at 0, bounds unchanged, radius clamped) and an end-to-end render test
+(rasterized corner empty, edge and interior painted).
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user

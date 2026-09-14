@@ -1,7 +1,7 @@
 //! Rectangle shape primitive.
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
@@ -32,12 +32,15 @@ impl Primitive for RectPrimitive {
         let VectorShapeState::Rect(state) = ctx.state else {
             return None;
         };
-        // PF-6: static-size rects share one memoized BezPath per track.
-        let shape = KurboShape::Rect {
-            x0: -(state.size[0] as f64),
-            y0: -(state.size[1] as f64),
-            x1: state.size[0] as f64,
-            y1: state.size[1] as f64,
+        // PF-6: static-size rects share one memoized BezPath per track. The
+        // memo key is the sampled `KurboShape`, so a change in the corner
+        // radius (animated or not) rebuilds the path instead of reusing it.
+        let (x0, y0) = (-(state.size[0] as f64), -(state.size[1] as f64));
+        let (x1, y1) = (state.size[0] as f64, state.size[1] as f64);
+        let shape = if state.corner_radius > 0.0 {
+            KurboShape::rounded_rect(x0, y0, x1, y1, state.corner_radius as f64)
+        } else {
+            KurboShape::Rect { x0, y0, x1, y1 }
         };
         let path = ctx.track.shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
@@ -58,6 +61,43 @@ impl Primitive for RectPrimitive {
         ]
     }
 
+    /// `corner_radius` arrives as a shape property, like `arc_angles`: it lands
+    /// on the shape state here, and the build writes the state into the shape
+    /// track that [`Self::evaluate`] samples.
+    fn apply_property(
+        &self,
+        name: &str,
+        value: &Expr,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+        state: &mut VectorShapeState,
+    ) -> bool {
+        let VectorShapeState::Rect(rect) = state else {
+            return false;
+        };
+        match name {
+            "corner_radius" => {
+                match crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
+                    value,
+                    env,
+                    diagnostics,
+                    subject,
+                ) {
+                    Some(crate::timeline::Value::Num(radius)) => rect.corner_radius = radius as f32,
+                    Some(other) => diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!("corner_radius expects a number, got {other:?}"),
+                    )),
+                    None => {},
+                }
+                true
+            },
+            _ => false,
+        }
+    }
+
     fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
@@ -73,12 +113,18 @@ impl Primitive for RectPrimitive {
         use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
 
         let half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-        let mut state = RectState { size: half_size };
+        let mut state = RectState {
+            size: half_size,
+            corner_radius: ctx.track.shape.corner_radius.get(ctx.time_ms, 0.0),
+        };
 
         if let Some(overrides) = ctx.overrides {
             if let Some(crate::timeline::Value::Vec2(s)) = overrides.get("size") {
                 state.size[0] = s[0] as f32;
                 state.size[1] = s[1] as f32;
+            }
+            if let Some(crate::timeline::Value::Num(radius)) = overrides.get("corner_radius") {
+                state.corner_radius = *radius as f32;
             }
         }
 

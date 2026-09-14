@@ -35,6 +35,44 @@ fn new_renderer() -> Option<OffscreenRenderer> {
     }
 }
 
+/// `corner_radius` must reach the rasterizer: with a radius the corner pixels
+/// stay empty while the edge midpoints and the interior are painted, and with
+/// no radius the corner is painted.
+#[test]
+fn corner_radius_rounds_a_rect_end_to_end() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let source = r#"
+#0s
+square: Rect, at: (50, 50), size: (60, 60), color: (1, 1, 1, 1)
+round: Rect, at: (150, 50), size: (60, 60), color: (1, 1, 1, 1), corner_radius: 18
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = animatix::timeline::Timeline::build_with_diagnostics(
+        &ast.expect("AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    let dims = SceneDimensions {
+        width: 200,
+        height: 100,
+    };
+    let frame = renderer.render_timeline(&report.output, 0.0, dims).expect("render");
+    // The offscreen frame carries an opaque background, so "painted" shows up as
+    // a bright white pixel and "cut away" as the dark background.
+    let red_at = |x: usize, y: usize| frame.rgba[(y * 200 + x) * 4];
+
+    // Square rect spans 20..80; its top-left corner is painted.
+    assert!(red_at(22, 22) > 200, "square corner must be painted");
+    // Rounded rect spans 120..180; its top-left corner is cut away, while the
+    // edge midpoint and the interior remain.
+    assert!(red_at(122, 22) < 40, "rounded corner must stay empty");
+    assert!(red_at(150, 22) > 200, "the top edge must still be painted");
+    assert!(red_at(150, 50) > 200, "the interior must be painted");
+}
+
 #[test]
 fn offscreen_renderer_render_timeline_produces_frame() {
     let Some(mut renderer) = new_renderer() else {

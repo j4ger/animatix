@@ -537,9 +537,16 @@ img: Image, url: "examples/assets/checker.png", at: (100, 100), size: (200, 150)
 | Sized actors | `size` |
 | Drawables | `color` |
 | Shapes | `stroke`, `stroke_width`, `fill_opacity`, `stroke_progress` |
+| `Rect` | `corner_radius` |
 | `Line` | `from`, `to` |
 | `Arrow` | `from`, `to`, `head_size` |
 | `Callout` | `from`, `to`, `head_size`, `label`, `label_at`; targeted mode: `target: actor`, `place: top/bottom/left/right/auto`, `standoff`, `to_offset` |
+
+**Rounded rectangles.** `Rect` accepts `corner_radius` (default `0`, scene
+pixels): the corners are rounded with that radius, clamped to half the shorter
+side so an over-large value yields a stadium rather than a self-intersecting
+path. It animates like any other property, and a `Rect` used as a `clip_shape`
+clips to the rounded outline.
 
 **Solo.** `solo: true` (default `false`) is authored state, honoured by the
 preview and every export path alike. While any actor in the scene declares

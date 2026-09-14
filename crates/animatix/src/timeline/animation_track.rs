@@ -398,6 +398,8 @@ pub struct ShapeTracks {
     pub head_size: Option<PropertyTrack<f32>>,
     /// Arc start and end angles.
     pub arc_angles: Option<PropertyTrack<[f32; 2]>>,
+    /// Corner rounding radius for `Rect`, in scene pixels (0 = square corners).
+    pub corner_radius: Option<PropertyTrack<f32>>,
     /// Polygon vertex list.
     pub points: Option<PropertyTrack<Vec<[f32; 2]>>>,
     /// Path command string (e.g. SVG path data).

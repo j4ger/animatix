@@ -327,6 +327,9 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new("y_scale", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
+    // Appended last on purpose: `PropertyId` is the row index, so new rows go
+    // at the end rather than into name order.
+    PropertyDescriptor::new("corner_radius", Applicable::Actors(&["Rect"]), PropertyValueKind::F32),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

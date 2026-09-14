@@ -103,6 +103,7 @@ pub(crate) fn preserve_delayed_values(track: &mut AnimationTrack, t_start_ms: u6
     preserve_instant_delayed_value(&mut track.shape.line_from, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.line_to, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.arc_angles, t_start_ms);
+    preserve_instant_delayed_value(&mut track.shape.corner_radius, t_start_ms);
     preserve_instant_delayed_value(&mut track.style.color, t_start_ms);
     preserve_instant_delayed_value(&mut track.shape.shape_type, t_start_ms);
     preserve_instant_delayed_value(&mut track.style.opacity, t_start_ms);
@@ -122,6 +123,7 @@ pub(crate) fn insert_end_keyframes(
     line_from: [f32; 2],
     line_to: [f32; 2],
     arc_angles: [f32; 2],
+    corner_radius: f32,
     color: [f32; 4],
     shape_type: ShapeType,
     opacity: f32,
@@ -158,6 +160,11 @@ pub(crate) fn insert_end_keyframes(
         .arc_angles
         .ensure(default_arc)
         .add_keyframe(t_end_ms, arc_angles, easing);
+    track
+        .shape
+        .corner_radius
+        .ensure(0.0)
+        .add_keyframe(t_end_ms, corner_radius, easing);
     track.style.color.ensure(DEFAULT_WHITE).add_keyframe(t_end_ms, color, easing);
     track
         .shape

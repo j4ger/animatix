@@ -4,6 +4,14 @@
 use super::*;
 use crate::ast::Property;
 
+/// The mutable `RectState` of a shape state, when it is a rectangle.
+fn rect_state_mut(state: &mut VectorShapeState) -> Option<&mut crate::timeline::shapes::RectState> {
+    match state {
+        VectorShapeState::Rect(rect) => Some(rect),
+        _ => None,
+    }
+}
+
 impl Timeline {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn build_vector_shape_state(
@@ -15,6 +23,7 @@ impl Timeline {
         line_from: [f32; 2],
         line_to: [f32; 2],
         arc_angles: [f32; 2],
+        corner_radius: f32,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> VectorShapeState {
         let eval_env = self.build_eval_env(time_ms as u64);
@@ -44,6 +53,11 @@ impl Timeline {
             VectorShapeState::Ellipse(ellipse) => {
                 ellipse.arc_angles = arc_angles;
             },
+            // Seeded from the existing track like the values above, so a
+            // re-declaration that omits `corner_radius` keeps the radius it had.
+            VectorShapeState::Rect(rect) => {
+                rect.corner_radius = corner_radius;
+            },
             _ => {},
         }
         apply_vector_shape_defaults(ty, &mut vector_shape_state);
@@ -52,6 +66,22 @@ impl Timeline {
             let prop_subject = format!("{}.{}", ty, prop.name);
             match prop.name.as_str() {
                 "at" | "anchor" | "offset" => {},
+                // Rect-specific: seeds the initial shape state so the build-time
+                // paths match what `Rect::evaluate` recomputes from the track.
+                "corner_radius" => {
+                    let radius = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    if let (Value::Num(radius), Some(rect)) =
+                        (radius, rect_state_mut(&mut vector_shape_state))
+                    {
+                        rect.corner_radius = radius as f32;
+                    }
+                },
                 "size" => {
                     let size_val = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,

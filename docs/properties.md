@@ -43,6 +43,7 @@
 | `offset` | Vec2 | ✓ | ✓ | Everything |
 | `anchor` | SceneAnchor | ✓ | ✓ | Everything |
 | `size` | Vec2 | ✓ | ✓ | Sized actors |
+| `corner_radius` | F32 | ✓ | ✓ | Rect |
 | `width` | F32 | ✓ | ✓ | Sized actors |
 | `height` | F32 | ✓ | ✓ | Sized actors |
 | `rotation` | F32 | ✓ | ✓ | Everything |

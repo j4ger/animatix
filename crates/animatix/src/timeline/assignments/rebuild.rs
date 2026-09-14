@@ -238,6 +238,9 @@ pub(super) fn rebuild_vector_paths(
 
     // Build vector shape state and compute paths
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);
+    if let VectorShapeState::Rect(rect) = &mut vector_shape_state {
+        rect.corner_radius = track.shape.corner_radius.last(0.0);
+    }
     // Restore shape-specific fields from track data
     match &mut vector_shape_state {
         VectorShapeState::Line(line) => {

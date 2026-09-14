@@ -155,6 +155,7 @@ impl Timeline {
         line_from: [f32; 2],
         line_to: [f32; 2],
         arc_angles: [f32; 2],
+        corner_radius: f32,
         color: [f32; 4],
         shape_type: ShapeType,
         opacity: f32,
@@ -190,6 +191,7 @@ impl Timeline {
             line_from,
             line_to,
             arc_angles,
+            corner_radius,
             color,
             shape_type,
             opacity,
@@ -374,6 +376,7 @@ impl Timeline {
         let mut line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_track.shape.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
+        let mut corner_radius = existing_track.shape.corner_radius.last(0.0);
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         // Deliberately computed after the early track creation above: recursive
@@ -405,9 +408,11 @@ impl Timeline {
             line_from,
             line_to,
             arc_angles,
+            corner_radius,
             diagnostics,
         );
-        (size, line_from, line_to, arc_angles) = extract_shape_state_values(&vector_shape_state);
+        (size, line_from, line_to, arc_angles, corner_radius) =
+            extract_shape_state_values(&vector_shape_state);
 
         let ParsedTimingModifiers {
             duration_ms,
@@ -564,7 +569,7 @@ impl Timeline {
                         &mut vector_shape_state,
                     ) =>
                 {
-                    (size, line_from, line_to, arc_angles) =
+                    (size, line_from, line_to, arc_angles, corner_radius) =
                         extract_shape_state_values(&vector_shape_state);
                 },
                 _ => {},
@@ -586,7 +591,7 @@ impl Timeline {
 
         if vector_shape.is_some() {
             finalize_vector_shape_state(ty, &mut vector_shape_state);
-            (size, line_from, line_to, arc_angles) =
+            (size, line_from, line_to, arc_angles, corner_radius) =
                 extract_shape_state_values(&vector_shape_state);
         }
 
@@ -949,6 +954,7 @@ impl Timeline {
             line_from,
             line_to,
             arc_angles,
+            corner_radius,
             color,
             shape_type,
             opacity,
@@ -1349,6 +1355,8 @@ impl Timeline {
                 line_from,
                 line_to,
                 arc_angles,
+                // Plot hosts are never `Rect`; carry the track value through.
+                track.shape.corner_radius.last(0.0),
                 color,
                 shape_type,
                 opacity,
