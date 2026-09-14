@@ -1,0 +1,26 @@
+# Content checks for effects-wave1 — see dogfood/README.md for the grammar.
+# Times are global composition times in seconds.
+
+# The backdrop is a full-canvas Filter scope behind everything, so `visible`
+# and `reveals` on it prove nothing: its bounds contain every other actor, and
+# its region changes whenever the card moves. The whole-frame ink floor is the
+# check that catches its loss — with the backdrop composited, the checker fills
+# the frame; without it the frame collapses to background plus a small card.
+ink 0.6 0.35
+ink 2.5 0.5
+ink 5.0 0.5
+ink 9.5 0.35
+
+# The backdrop fades in over its first 600ms.
+reveals backdrop 0.05 1.2 0.04
+
+# Card fly-in: on screen once settled, and the MotionBlur smear animates.
+visible 2.6 card_reel
+differs 1.2 1.8 0.005
+
+# Sharpen focus-pull on the headline (amount 0 -> 2.5 -> 0).
+differs 4.2 5.2 0.005
+
+# Day -> night grade keeps ink on screen but changes the frame.
+differs 6.8 8.6 0.02
+differs 8.8 9.6 0.005
