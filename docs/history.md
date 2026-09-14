@@ -789,6 +789,43 @@ changes, and the "instrumentation is additive or it does not land" rule.
 
 ---
 
+## Property descriptors and render contexts (2026-09-14)
+
+Two structural refactors from the same review pass.
+
+**The property list is declared once.** `animatix-core::property::PROPERTY_DESCRIPTORS`
+now holds name, `Applicable`, and the finite `PropertyValueKind` for all 105
+built-in properties, with the row index as the serialized `PropertyId`. The
+parser derives its specs from it plus a type-system view; the engine keeps a
+bindings-only table and composes `PROPERTY_REGISTRY` by joining the two. The old
+one-way superset test (whose value-kind mapping ended in `_ => Generic`) is
+replaced by total checks: binding↔descriptor membership, a pinned list of
+descriptors without bindings, and total `ValueType → kind` and `Type → kind`
+mappings that must agree with the descriptor.
+
+That change paid for itself immediately by finding two bugs the weak test could
+not see: `solo` had been registered with a `Generic` kind while the engine
+stores `Bool` (the earlier drift failure had been "fixed" by changing the wrong
+side), and `solo` was missing from `common_property_names()` — a test that had
+been failing since `solo` landed. The engine's never-read `group` /
+`GroupMembership` / `GroupHandlerId` vocabulary was deleted in the same pass.
+
+**The render recursion takes contexts.** `evaluate_node` and its friends went
+from fourteen positional arguments to seven by bundling the frame-invariant
+state (`RenderFrame`) and the mutable outputs (`RenderOutputs`), with
+`with_scene` for the container strategies that draw into an offscreen
+sub-scene. `RenderChildrenCtx` keeps its documented public fields (extension
+authors read them) and assembles the contexts in its two render methods.
+
+**Process lesson.** The full-suite check used to summarize
+`cargo test` output with a field-splitting `awk` over `test result:` lines. A
+failing suite prints `test result: FAILED. N passed; M failed`, whose fields
+shift, so the summary reported "0 failed" while `animatix-syntax` was failing —
+which is how the `common_property_names` failure survived a claimed green run.
+Count `FAILED` lines instead of summing columns.
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user
