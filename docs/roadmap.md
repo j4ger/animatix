@@ -60,16 +60,8 @@ Remaining:
 ## Planned Effects
 
 Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
-2026-09-13 — see `docs/history.md` ("Built-in effects, wave 1"). Remaining
-follow-ups, cheapest first:
-
-| Effect | Notes |
-|---|---|
-| `Duotone` | Two-colour map on luma; zero-neighborhood, single pass |
-| `DropShadow` (hard) | Callout/panel elevation; needs a second pass over alpha only |
-| `Edge` | Sobel magnitude; zero extra inputs, useful for sketch styles |
-| `Posterize` | Level quantisation; trivial single pass |
-| `LensDistortion` | Barrel/pincushion UV warp through the linear sampler |
+2026-09-13, wave 2 (`Duotone`, `Posterize`, `Edge`, `LensDistortion`,
+`DropShadow`) shipped 2026-09-14 — see `docs/history.md` for both.
 
 `Bloom`, soft `DropShadow`, and a generic chain `Mix` are blocked on the
 second-input-texture ABI bump (`docs/effects.md` §4.1) and are **not**

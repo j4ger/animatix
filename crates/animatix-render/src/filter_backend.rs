@@ -1366,4 +1366,207 @@ mod tests {
         let a = raw[(y * w + 45) * 4 + 3];
         assert!(a < 20, "smear must not reach beyond length pixels, got a={a}");
     }
+
+    /// Duotone must map black onto the shadow colour and white onto the
+    /// highlight colour at full strength.
+    #[test]
+    fn duotone_maps_luma_onto_the_ramp() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let mut scene = filled_scene(
+            vello::peniko::Color::from_rgba8(0, 0, 0, 255),
+            kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
+        );
+        let white = filled_scene(
+            vello::peniko::Color::from_rgba8(255, 255, 255, 255),
+            kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
+        );
+        scene.encoding_mut().append(white.encoding(), &None);
+
+        let chain = effect_chain(
+            "Duotone",
+            vec![
+                EffectParamValue::F32(1.0),                   // amount
+                EffectParamValue::Vec4([0.0, 0.0, 1.0, 1.0]), // shadow: blue
+                EffectParamValue::Vec4([1.0, 0.5, 0.0, 1.0]), // highlight: orange
+            ],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("duotone path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+
+        let dark = &raw[(32 * w + 8) * 4..(32 * w + 8) * 4 + 3];
+        assert!(
+            dark[2] > 200 && dark[0] < 60,
+            "black input must map to the shadow colour, got {dark:?}"
+        );
+        let light = &raw[(32 * w + 56) * 4..(32 * w + 56) * 4 + 3];
+        assert!(
+            light[0] > 200 && light[2] < 80,
+            "white input must map to the highlight colour, got {light:?}"
+        );
+    }
+
+    /// Posterize with two levels must push 0.4 to black and 0.6 to white.
+    #[test]
+    fn posterize_quantises_midtones() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let mut scene = filled_scene(
+            vello::peniko::Color::from_rgba8(102, 102, 102, 255),
+            kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
+        );
+        let lighter = filled_scene(
+            vello::peniko::Color::from_rgba8(153, 153, 153, 255),
+            kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
+        );
+        scene.encoding_mut().append(lighter.encoding(), &None);
+
+        let chain = effect_chain("Posterize", vec![EffectParamValue::F32(2.0)]);
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("posterize path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+
+        let low = raw[(32 * w + 8) * 4];
+        let high = raw[(32 * w + 56) * 4];
+        assert!(low < 40, "0.4 must quantise down to black, got {low}");
+        assert!(high > 200, "0.6 must quantise up to white, got {high}");
+    }
+
+    /// Edge must light the step boundary and darken flat interiors.
+    #[test]
+    fn edge_lights_the_step_boundary() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let mut scene = filled_scene(
+            vello::peniko::Color::from_rgba8(0, 0, 0, 255),
+            kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
+        );
+        let white = filled_scene(
+            vello::peniko::Color::from_rgba8(255, 255, 255, 255),
+            kurbo::Rect::new(32.0, 0.0, 64.0, 64.0),
+        );
+        scene.encoding_mut().append(white.encoding(), &None);
+
+        let chain =
+            effect_chain("Edge", vec![EffectParamValue::F32(1.0), EffectParamValue::F32(0.0)]);
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("edge path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+
+        let boundary = raw[(32 * w + 32) * 4];
+        let flat = raw[(32 * w + 50) * 4];
+        assert!(boundary > 150, "the step edge must light up, got {boundary}");
+        assert!(flat < 40, "a flat region must stay dark, got {flat}");
+    }
+
+    /// LensDistortion must displace samples: a band that survives at the
+    /// control setting must move out of a near-edge pixel at high `amount`,
+    /// while the centre (radius 0) is untouched either way.
+    #[test]
+    fn lens_distortion_displaces_samples_toward_the_centre() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        // White band over the leftmost 16 columns.
+        let scene =
+            filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 16.0, 64.0));
+
+        let control = effect_chain("LensDistortion", vec![EffectParamValue::F32(0.0)]);
+        let control_image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &control)
+            .expect("control path should succeed");
+        let cw = control_image.natural_size[0] as usize;
+        let control_raw = control_image.data.data.data();
+        assert!(control_raw[(32 * cw + 8) * 4] > 200, "control must show the white band at x=8");
+
+        let warped = effect_chain("LensDistortion", vec![EffectParamValue::F32(130.0)]);
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &warped)
+            .expect("lens-distortion path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+        assert!(
+            raw[(32 * w + 8) * 4] < 60,
+            "the warp must pull the band out of the near-edge pixel, got {}",
+            raw[(32 * w + 8) * 4]
+        );
+    }
+
+    /// DropShadow must paint the silhouette offset behind the content, and
+    /// leave the content itself untouched.
+    #[test]
+    fn drop_shadow_offsets_the_silhouette() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let scene =
+            filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(24.0, 16.0, 56.0, 48.0));
+        let chain = effect_chain(
+            "DropShadow",
+            vec![
+                EffectParamValue::Vec2([-8.0, 0.0]), // offset (shadow to the left)
+                EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]), // opaque black shadow
+            ],
+        );
+        let image = backend
+            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+            .expect("drop-shadow path should succeed");
+        let w = image.natural_size[0] as usize;
+        let raw = image.data.data.data();
+
+        let shadow = &raw[(32 * w + 20) * 4..(32 * w + 20) * 4 + 4];
+        assert!(
+            shadow[0] < 40 && shadow[3] > 200,
+            "the offset silhouette must be dark and opaque, got {shadow:?}"
+        );
+        let content = raw[(32 * w + 40) * 4];
+        assert!(content > 200, "the content must stay white, got {content}");
+        let clear = raw[(32 * w + 4) * 4 + 3];
+        assert!(clear < 20, "outside the shadow extent the frame stays empty, got {clear}");
+    }
 }

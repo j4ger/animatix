@@ -26,7 +26,8 @@ use animatix_core::effect::{Effect, EffectParamSpec, EffectParams, EffectPassSpe
 
 pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
 pub use effects::{
-    BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, GRAIN, LEVELS, MOTION_BLUR, SHARPEN, VIGNETTE,
+    BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, DROP_SHADOW, DUOTONE, EDGE, GRAIN, LENS_DISTORTION,
+    LEVELS, MOTION_BLUR, POSTERIZE, SHARPEN, VIGNETTE,
 };
 
 // ── Built-in catalog ────────────────────────────────────────────────────────
@@ -41,6 +42,11 @@ pub static EFFECTS: &[&dyn Effect] = &[
     &effects::MOTION_BLUR,
     &effects::GRAIN,
     &effects::LEVELS,
+    &effects::DROP_SHADOW,
+    &effects::DUOTONE,
+    &effects::EDGE,
+    &effects::LENS_DISTORTION,
+    &effects::POSTERIZE,
 ];
 
 // ── Dispatch ────────────────────────────────────────────────────────────────

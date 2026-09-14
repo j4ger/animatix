@@ -710,6 +710,40 @@ LG-3 closes automatically when Stage B lands; re-spec then.
 
 ---
 
+## Built-in effects, wave 2 (2026-09-14)
+
+`Duotone`, `Posterize`, `Edge`, `LensDistortion`, and `DropShadow` (hard)
+shipped through the same single-source route as wave 1: one file in
+`animatix-std/src/effects/` plus one `EFFECTS` entry each, no parser row, no
+GUI change — the insertion palette and Inspector picked them up from the
+catalog.
+
+- `Duotone` — Rec. 709 luma mapped onto a `shadow` → `highlight` ramp, with
+  `amount` blending the ramp over the original so identity (all params at
+  identity) stays a no-op.
+- `Posterize` — `round(c × (levels-1)) / (levels-1)`, which keeps 0 and 1
+  exact; `levels: 2` is a hard threshold.
+- `Edge` — 3×3 Sobel on luma, magnitude normalised by 4 (the kernel's
+  positive weight sum), `threshold` gating and `amount` blending; `support`
+  is 1 px for the neighbourhood.
+- `LensDistortion` — quadratic UV warp through the linear sampler, scaled by
+  the canvas diagonal so the corner displacement equals `amount` px on both
+  axes; `support = |amount|` (the true maximum is `0.707 × amount`).
+- `DropShadow` — reads the source alpha at `coord - offset` (integer texels,
+  so the shadow stays hard and `support = |offset|` exactly) and composes the
+  original over it in premultiplied space. Unlike `Bloom`, this needs no
+  second input texture: the shadow colour is constant, so one displaced read
+  is enough — the roadmap's "second pass over alpha only" was an
+  over-estimate. Hard shadow only; the soft variant still waits on the
+  second-input ABI.
+
+GPU pixel tests live in `animatix-render` (`duotone_maps_luma_onto_the_ramp`,
+`posterize_quantises_midtones`, `edge_lights_the_step_boundary`,
+`lens_distortion_displaces_samples_toward_the_centre`,
+`drop_shadow_offsets_the_silhouette`).
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user

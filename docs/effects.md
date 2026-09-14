@@ -94,6 +94,15 @@ Built-in examples:
 | `Levels` | `gamma` | `1` |
 | `Levels` | `out_black` | `0` |
 | `Levels` | `out_white` | `1` |
+| `Duotone` | `amount` | `0` |
+| `Duotone` | `shadow` | `(0, 0, 0, 1)` |
+| `Duotone` | `highlight` | `(1, 1, 1, 1)` |
+| `Posterize` | `levels` | `0` |
+| `Edge` | `amount` | `0` |
+| `Edge` | `threshold` | `0` |
+| `LensDistortion` | `amount` | `0` |
+| `DropShadow` | `offset` | `(0, 0)` |
+| `DropShadow` | `color` | `(0, 0, 0, 1)` |
 
 ## 3. Spatial support and ROI
 
