@@ -1126,14 +1126,13 @@ impl Timeline {
                     "kind" | "func" | "x_domain" | "y_domain" | "t_domain" | "tolerance"
                     | "max_depth" | "resolution" | "density" | "levels" | "grid" | "ticks"
                     | "tick_labels" | "x_range" | "y_range" | "size" | "at" | "position"
-                    | "color" | "opacity" | "stroke" | "stroke_color" | "stroke_width"
-                    | "stroke_progress" | "fill_opacity" | "radius" | "radius_x" | "radius_y"
-                    | "from" | "to" | "head_size" | "text" | "content" | "code" | "font_size"
-                    | "font_family" | "url" | "source" | "volume" | "anchor" | "offset"
-                    | "rotation" | "scale" | "transform" | "blur" | "brightness" | "contrast"
-                    | "saturate" | "hue_rotate" | "sepia" | "gap" | "padding" | "align"
-                    | "cols" | "data" | "bar_width" | "bar_colors" | "direction" | "max_value"
-                    | "show_axis" | "show_labels" => {},
+                    | "color" | "opacity" | "stroke" | "stroke_width" | "stroke_progress"
+                    | "fill_opacity" | "radius_x" | "radius_y" | "from" | "to" | "head_size"
+                    | "text" | "code" | "font_size" | "font_family" | "url" | "source"
+                    | "volume" | "anchor" | "offset" | "rotation" | "scale" | "transform"
+                    | "blur" | "brightness" | "contrast" | "saturate" | "hue_rotate" | "sepia"
+                    | "gap" | "padding" | "align" | "cols" | "data" | "bar_width"
+                    | "bar_colors" | "direction" | "max_value" | "show_axis" | "show_labels" => {},
                     _ => {
                         // Treat unknown numeric props as plot parameters
                         let eval_env = self.build_eval_env(time_ms as u64);

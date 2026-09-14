@@ -603,10 +603,10 @@ config { colorscheme: "editorial-dark" }
 
 #0s
 eq: Equation, font_size: 48, color: text.primary, at: (960, 540) {
-  lhs: Fragment, content: "E"
-  eq_sign: Fragment, content: " = "
-  mass: Fragment, content: "m"
-  c2: Fragment, content: "c^2"
+  lhs: Fragment, text: "E"
+  eq_sign: Fragment, text: " = "
+  mass: Fragment, text: "m"
+  c2: Fragment, text: "c^2"
 }
 
 // Without this the subtree is static and the static-subtree cache serves

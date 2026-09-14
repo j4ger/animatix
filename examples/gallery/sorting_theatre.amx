@@ -130,7 +130,7 @@ finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
 
 finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.success
 
-footnote: Typst, content: "insertion sort: \$O(n^2)\$ comparisons · \$O(1)\$ extra memory",
+footnote: Typst, text: "insertion sort: \$O(n^2)\$ comparisons · \$O(1)\$ extra memory",
   font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
 
 endnote: Text, text: "one timeline function emitted every beat you just watched",

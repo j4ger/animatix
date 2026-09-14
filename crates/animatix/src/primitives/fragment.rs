@@ -65,10 +65,10 @@ impl Primitive for FragmentPrimitive {
         track.set_identity("Fragment");
         track.first_seen_ms = ctx.time_ms as u64;
 
-        // Extract `content` property and store as text_content.
+        // Extract the text body and store it as text_content.
         for prop in props {
             match prop.name.as_str() {
-                "content" => {
+                "text" => {
                     let content_str = match &prop.value {
                         Expr::Str(s) => s.clone(),
                         other => {
@@ -136,7 +136,7 @@ impl Primitive for FragmentPrimitive {
         subject: &str,
     ) -> bool {
         match property {
-            "content" => {
+            "text" => {
                 let content_str =
                     evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                         .map(|v| v.as_str().to_string())

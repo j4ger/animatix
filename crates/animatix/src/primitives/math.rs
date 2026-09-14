@@ -56,7 +56,7 @@ impl Primitive for MathPrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text" | "latex" | "math" | "content") {
+        if !matches!(property, "text") {
             return false;
         }
         let target = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)

@@ -148,7 +148,7 @@ impl Primitive for ArrowPrimitive {
 
     fn default_color_key(&self, property: &str, _caps: &ActorCaps) -> Option<&'static str> {
         match property {
-            "stroke" | "stroke_color" => Some("stroke.default"),
+            "stroke" => Some("stroke.default"),
             "color" => None,
             _ => None,
         }

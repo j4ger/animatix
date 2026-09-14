@@ -56,7 +56,7 @@ impl Primitive for TypstPrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text" | "latex" | "math" | "code" | "content") {
+        if !matches!(property, "text" | "code") {
             return false;
         }
         let target_text = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
@@ -167,7 +167,7 @@ impl Primitive for TypstPrimitive {
                     Expr::Num(scene.height as f64 / 2.0),
                 ]),
             ),
-            Property::new("content", Expr::Str("*bold* and _italic_".into())),
+            Property::new("text", Expr::Str("*bold* and _italic_".into())),
             Property::new("font_size", Expr::Num(48.0)),
         ]
     }

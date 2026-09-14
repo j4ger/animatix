@@ -83,18 +83,18 @@ sum_graph: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8),
 }
 
 term_eq: Typst,
-  content: "$S_n(x) = sum_(k=0)^n (-1)^k x^(2k+1) / (2k+1)!$",
+  text: "$S_n(x) = sum_(k=0)^n (-1)^k x^(2k+1) / (2k+1)!$",
   font_size: 22, color: text.secondary, anchor: scene.bottom, offset: (0, -95)
 
 // Labels are absolutely positioned: as Col children they auto-inherit a
 // text width and wrap their fractions across lines (see notes.md).
-p1_label: Typst, content: "$n = 1: quad x$",
+p1_label: Typst, text: "$n = 1: quad x$",
   font_size: 16, color: accent.warning, at: (1055, 235), opacity: 0
-p3_label: Typst, content: "$n = 3: quad x - x^3/6$",
+p3_label: Typst, text: "$n = 3: quad x - x^3/6$",
   font_size: 16, color: accent.secondary, at: (1055, 270), opacity: 0
-p5_label: Typst, content: "$n = 5: quad + x^5/120$",
+p5_label: Typst, text: "$n = 5: quad + x^5/120$",
   font_size: 16, color: accent.success, at: (1055, 305), opacity: 0
-p7_label: Typst, content: "$n = 7: quad - x^7/5040$",
+p7_label: Typst, text: "$n = 7: quad - x^7/5040$",
   font_size: 16, color: accent.danger, at: (1055, 340), opacity: 0
 
 #0.4s
@@ -180,7 +180,7 @@ play Outro [fade, 400ms]
 # Outro
 
 final_eq: Typst,
-  content: "$sin(x) = x - frac(x^3, 3!) + frac(x^5, 5!) - frac(x^7, 7!) + dots.h$",
+  text: "$sin(x) = x - frac(x^3, 3!) + frac(x^5, 5!) - frac(x^7, 7!) + dots.h$",
   font_size: 36, color: text.primary, anchor: scene.center, offset: (0, -30)
 
 tag: Text, text: "taylor series  ·  animatix", font_size: 18,

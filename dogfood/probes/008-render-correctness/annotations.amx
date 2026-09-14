@@ -12,10 +12,10 @@ line_c: Line, from: (900, 280), to: (1050, 280), color: (0, 0, 1, 1), stroke_wid
 legend: Legend, at: (1000, 130), title: "Series", swatch_size: 16, gap: 8, text_max_width: 240
 
 eq: Equation, at: (520, 470), font_size: 44, color: (1, 1, 1, 1) {
-  lhs: Fragment, content: "E"
-  eq_sign: Fragment, content: " = "
-  mass: Fragment, content: "m"
-  c2: Fragment, content: "c^2"
+  lhs: Fragment, text: "E"
+  eq_sign: Fragment, text: " = "
+  mass: Fragment, text: "m"
+  c2: Fragment, text: "c^2"
 }
 
 #0s

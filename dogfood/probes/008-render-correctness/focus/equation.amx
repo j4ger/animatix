@@ -3,12 +3,12 @@ config { resolution: (1280, 720) }
 
 #0s
 eq1: Equation, at: (400, 200), font_size: 46, color: (1, 1, 1, 1) {
-  a: Fragment, content: "a"
-  op: Fragment, content: "="
-  b: Fragment, content: "b"
+  a: Fragment, text: "a"
+  op: Fragment, text: "="
+  b: Fragment, text: "b"
 }
 eq2: Equation, at: (400, 420), font_size: 46, color: (1, 1, 1, 1) {
-  x: Fragment, content: "$x^2 + y$"
+  x: Fragment, text: "$x^2 + y$"
 }
 
 #0s

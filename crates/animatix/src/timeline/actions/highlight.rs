@@ -335,7 +335,7 @@ mod tests {
                     array_index: None,
                     ty: "Fragment".to_string(),
                     props: vec![Property {
-                        name: "content".to_string(),
+                        name: "text".to_string(),
                         value: Expr::Str("x^2".to_string()),
                         value_span: None,
                         trailing_comment: None,
@@ -358,7 +358,7 @@ mod tests {
                 array_index: None,
                 ty: "Fragment".to_string(),
                 props: vec![Property {
-                    name: "content".to_string(),
+                    name: "text".to_string(),
                     value: Expr::Str("x".to_string()),
                     value_span: None,
                     trailing_comment: None,
@@ -404,7 +404,7 @@ mod tests {
                             array_index: None,
                             ty: "Fragment".to_string(),
                             props: vec![Property {
-                                name: "content".to_string(),
+                                name: "text".to_string(),
                                 value: Expr::Str("a1".to_string()),
                                 value_span: None,
                                 trailing_comment: None,
@@ -417,7 +417,7 @@ mod tests {
                             array_index: None,
                             ty: "Fragment".to_string(),
                             props: vec![Property {
-                                name: "content".to_string(),
+                                name: "text".to_string(),
                                 value: Expr::Str("a2".to_string()),
                                 value_span: None,
                                 trailing_comment: None,
@@ -442,7 +442,7 @@ mod tests {
                             array_index: None,
                             ty: "Fragment".to_string(),
                             props: vec![Property {
-                                name: "content".to_string(),
+                                name: "text".to_string(),
                                 value: Expr::Str("b1".to_string()),
                                 value_span: None,
                                 trailing_comment: None,
@@ -455,7 +455,7 @@ mod tests {
                             array_index: None,
                             ty: "Fragment".to_string(),
                             props: vec![Property {
-                                name: "content".to_string(),
+                                name: "text".to_string(),
                                 value: Expr::Str("b2".to_string()),
                                 value_span: None,
                                 trailing_comment: None,

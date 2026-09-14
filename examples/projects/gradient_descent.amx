@@ -103,7 +103,7 @@ down_label: Text, text: "−∇f (descend)", font_size: 16,
 
 // Gradient equation
 gradient_eq: Typst,
-  content: "$nabla f = (partial f)/(partial x), (partial f)/(partial y)$",
+  text: "$nabla f = (partial f)/(partial x), (partial f)/(partial y)$",
   font_size: 22, color: text.secondary, anchor: scene.center, offset: (400, 0)
 
 #0.5s
@@ -266,7 +266,7 @@ play Outro [fade, 400ms]
 # Outro
 config { colorscheme: "editorial-dark" }
 
-thanks: Typst, content: "$theta^* = min_(theta) L(theta)$",
+thanks: Typst, text: "$theta^* = min_(theta) L(theta)$",
   font_size: 40, color: text.primary, anchor: scene.center, offset: (0, -30)
 
 tag: Text, text: "gradient descent  ·  animatix", font_size: 18,

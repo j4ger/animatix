@@ -832,6 +832,40 @@ Count `FAILED` lines instead of summing columns.
 
 ---
 
+## Redundant property aliases removed (2026-09-14)
+
+The property table carried eight names the runtime could not store. Measured
+before removal, on a real scene:
+
+| Name | Behaviour | Real content use |
+|---|---|---|
+| `content` | worked (second name for `TextContent`) | 53 files, all rewritable to `text` |
+| `stroke_color` | worked (second name for `stroke`) | 1 file |
+| `fill`, `radius`, `start`, `end`, `function` | **silently ignored** — an actor declaring only `fill` drew nothing, `radius: 18` left square corners, `start`/`end` never moved a `Line`, `function` never reached the plot | 0 |
+| `language` | no consumer at all (`Code` renders plain text) | 0 |
+
+All eight are gone from the descriptor table and the parser's type table, so the
+analyzer now reports `unknown-property` instead of accepting a value the runtime
+drops on the floor — a direct violation of the "never silently drop" rule that
+had been shipping unnoticed.
+
+Along the way the text body was unified: `text` is now applicable to every
+text-like actor (it previously listed only `Text` and `Math`, which left `Typst`
+with no body property the analyzer recognised once `content` was gone), `code`
+remains the `Code` spelling, and the unused `latex`/`math` aliases went with the
+other eight. The runtime's per-kind spelling table and the frame-time override
+lookups were narrowed to match, so analyzer and runtime agree on one set.
+
+Removing `latex`/`math` shifted the ids of every row after them (`transform`
+85 → 83). Nothing in-tree writes built-in ids to disk — autosave stores source
+text and carry bags normalize by name on injection — so no migration is needed;
+`property_id_order_is_pinned` now records the new values and explains why.
+
+`Code` syntax highlighting is tracked in the roadmap: it needs a `language`
+property back, plus tokenizer selection and theme-aware token colours.
+
+---
+
 ## Archived Ideas
 
 These are not open tasks and should not be scheduled without a concrete user

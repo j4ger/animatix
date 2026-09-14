@@ -87,12 +87,12 @@ decomp_graph: Graph, at: (640, 400), size: (900, 320),
 
 decomp_eq: Equation, font_size: 22, color: text.muted,
   anchor: scene.center, offset: (0, -200) {
-  pre: Fragment, content: "x(t) = "
-  f1: Fragment, content: "sin(2 pi dot 2t)"
-  mid1: Fragment, content: " + 0.55 dot "
-  f2: Fragment, content: "sin(2 pi dot 5t)"
-  mid2: Fragment, content: " + 0.3 dot "
-  f3: Fragment, content: "sin(2 pi dot 9t)"
+  pre: Fragment, text: "x(t) = "
+  f1: Fragment, text: "sin(2 pi dot 2t)"
+  mid1: Fragment, text: " + 0.55 dot "
+  f2: Fragment, text: "sin(2 pi dot 5t)"
+  mid2: Fragment, text: " + 0.3 dot "
+  f3: Fragment, text: "sin(2 pi dot 9t)"
 }
 
 #0.5s
@@ -130,7 +130,7 @@ config { colorscheme: "editorial-dark" }
 step3_title: Text, text: "3. Frequency Spectrum", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
 
-equation: Typst, content: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$",
+equation: Typst, text: "$x(t) = sum_(k) A_k sin(2 pi f_k t)$",
   font_size: 24, color: accent.primary, anchor: scene.center, offset: (0, -200)
 
 spectrum: BarChart,
@@ -161,7 +161,7 @@ config { colorscheme: "editorial-dark" }
 step4_title: Text, text: "4. Reconstruction: Sum = Original", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
 
-eqn2: Typst, content: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$",
+eqn2: Typst, text: "$hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N)$",
   font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, -200)
 
 reconstruct_graph: Graph, at: (640, 400), size: (900, 300),

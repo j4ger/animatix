@@ -1091,7 +1091,7 @@ mod tests {
     fn plot_curve_has_graph_ranges() {
         let properties = known_properties();
         let plot_curve = properties.get("PlotCurve").expect("PlotCurve property list");
-        for property in ["x_range", "y_range", "function"] {
+        for property in ["x_range", "y_range", "func"] {
             assert!(plot_curve.contains(&property.to_string()), "missing {property}");
         }
     }

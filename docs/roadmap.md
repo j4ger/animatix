@@ -77,6 +77,12 @@ Remaining:
 | Item | Scope | Status |
 |---|---|---|
 
+## Planned Features
+
+| Feature | Notes | Status |
+|---|---|---|
+| `Code` syntax highlighting | The `Code` actor renders its body as plain text. A per-language highlighter needs a `language` property (the name that was removed from the property table on 2026-09-14 for having no consumer), a tokenizer selection, and theme-aware token colours that respect the active colorscheme. | Not started |
+
 ## Dependency & Verification Constraints
 
 | Item | What it is | Status |

@@ -1150,7 +1150,7 @@ mod tests {
         }];
         let table = SymbolTable::build_from_ast(&stmts);
         let text_props = table.properties.get("Text").unwrap();
-        assert!(text_props.contains(&"content".to_string()));
+        assert!(text_props.contains(&"text".to_string()));
         assert!(text_props.contains(&"font_size".to_string()));
     }
 

@@ -563,7 +563,7 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
-| `Text` / `Typst` / `Code` | `text` / `content` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
+| `Text` / `Typst` / `Code` | `text` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
 | `Image` / `Svg` | `url` |
 | `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
@@ -585,7 +585,7 @@ eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 
 eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
 ```
 
-A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `content` property. A label is required. Modifiers are supported.
+A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.
 
 ### Typography Properties
 

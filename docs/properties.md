@@ -93,9 +93,7 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `text` | String | ✓ | ✓ | Text |
-| `content` | String | ✓ | ✓ | Typst |
 | `code` | String | ✓ | ✓ | Code |
-| `latex` | String | ✓ | — | Deprecated |
 | `font_family` | String | — | ✓ | Text, Typst, Code |
 | `font_size` | F32 | ✓ | ✓ | Text, Typst, Code |
 

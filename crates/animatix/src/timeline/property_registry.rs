@@ -825,9 +825,6 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::Tagged("legend_label_color"),
         |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     ),
-    binding!("latex", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
     binding!(
         "legend",
         ValueType::Sum(LEGEND_SUM_VARIANTS),
@@ -853,9 +850,6 @@ static BINDINGS: &[PropertyBinding] = &[
     }),
     binding!("line_join", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineJoin, |_| {
         super::property_engine::PropertyValue::U32(0)
-    }),
-    binding!("math", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
-        super::property_engine::PropertyValue::String(String::new())
     }),
     binding!("max_depth", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(12.0)
@@ -1320,20 +1314,19 @@ mod tests {
         }
     }
 
-    /// Descriptors the runtime deliberately does not bind. These are written by
-    /// bespoke dispatch paths (no plan slot, no property track), so the engine
-    /// has nothing to bind them to. Pinned so a new unbound property has to be
-    /// added here on purpose rather than silently having no runtime meaning.
-    const UNBOUND_DESCRIPTORS: &[&str] = &[
-        "content",
-        "end",
-        "fill",
-        "function",
-        "language",
-        "radius",
-        "start",
-        "stroke_color",
-    ];
+    /// Descriptors the runtime deliberately does not bind.
+    ///
+    /// Empty since 2026-09-14: every built-in property now has a binding. The
+    /// list stays as the gate — a new descriptor without a binding fails
+    /// `unbound_descriptors_are_pinned`, so accepting a property the runtime
+    /// cannot store has to be a deliberate, reviewed act rather than an
+    /// oversight. The eight names that used to be listed here were either pure
+    /// second names for an existing field (`content`, `stroke_color`) or had no
+    /// consumer at all (`fill`, `radius`, `start`, `end`, `function`,
+    /// `language`); they were removed from the table instead, so the analyzer
+    /// rejects them with a clear "unknown property" rather than accepting a
+    /// drop that never reaches the screen.
+    const UNBOUND_DESCRIPTORS: &[&str] = &[];
 
     #[test]
     fn unbound_descriptors_are_pinned() {

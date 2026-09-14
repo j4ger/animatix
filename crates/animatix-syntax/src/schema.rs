@@ -440,14 +440,12 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("label", Type::Str),
         ("label_at", Type::Vec2),
         ("label_color", Type::Color),
-        ("latex", Type::Str),
         ("legend", Type::Str),
         ("letter_spacing", Type::Num),
         ("levels", Type::Any),
         ("line_cap", Type::Num),
         ("line_height", Type::Num),
         ("line_join", Type::Num),
-        ("math", Type::Str),
         ("max_depth", Type::Num),
         ("max_height", Type::Num),
         ("max_value", Type::Num),
@@ -501,14 +499,6 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("y_domain", Type::Vec2),
         ("y_range", Type::Any),
         ("y_scale", Type::Str),
-        ("content", Type::Str),
-        ("language", Type::Str),
-        ("fill", Type::Color),
-        ("radius", Type::Num),
-        ("start", Type::Vec2),
-        ("end", Type::Vec2),
-        ("function", Type::Str),
-        ("stroke_color", Type::Color),
     ]
 }
 
@@ -545,28 +535,29 @@ mod tests {
         }
     }
 
-    /// [`PropertyId`] is the descriptor row index and serialized plans store
-    /// those ids, so the order is an ABI. This pins the total count and a set of
-    /// sentinel ids: appending rows is fine, but reordering or removing one
-    /// shifts every later id and would invalidate saved files.
+    /// [`PropertyId`] is the descriptor row index, and serialized plans carry
+    /// those ids, so the order is an interface. This pins the total count and a
+    /// set of sentinel ids: appending rows is fine, but reordering or removing
+    /// one shifts every later id. Today's in-tree persistence stores source text
+    /// rather than ids, so a shift is not corruption — but it changes what any
+    /// stored id means for a plugin or a future format, so it stays a deliberate
+    /// decision made visible here.
     #[test]
     fn property_id_order_is_pinned() {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            105,
+            95,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.
         for (index, spec) in specs.iter().enumerate() {
             assert_eq!(spec.id.0 as usize, index);
         }
-        for (name, expected) in [
-            ("align", 0),
-            ("at", 3),
-            ("transform", 85),
-            ("stroke_color", 104),
-        ] {
+        // `transform`/`y_scale` moved 85->83 and 96->94 on 2026-09-14, when the
+        // redundant `latex` and `math` body aliases were removed (both rows sat
+        // before `transform`).
+        for (name, expected) in [("align", 0), ("at", 3), ("transform", 83), ("y_scale", 94)] {
             let spec = specs
                 .iter()
                 .find(|spec| spec.name == name)
@@ -687,14 +678,7 @@ mod tests {
         // property a text actor can receive must also list `Math` so the
         // analyzer and the GUI inspector do not flag `Math { text: ... }`.
         let specs = property_specs();
-        for name in [
-            "text",
-            "content",
-            "font_size",
-            "font_family",
-            "line_height",
-            "color",
-        ] {
+        for name in ["text", "font_size", "font_family", "line_height", "color"] {
             let spec = specs
                 .iter()
                 .find(|spec| spec.name == name)

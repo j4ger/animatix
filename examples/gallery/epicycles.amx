@@ -138,11 +138,11 @@ hero_link: Line, from: tip.center, to: wave_tip.center,
 
 hero_eq: Equation, font_size: 22, color: text.muted,
   anchor: scene.bottom, offset: (0, -120) {
-  pre: Fragment, content: "y(x) = "
-  f1: Fragment, content: "sin(x)"
-  m3: Fragment, content: " + sin(3x)/3"
-  m5: Fragment, content: " + sin(5x)/5"
-  m7: Fragment, content: " + sin(7x)/7"
+  pre: Fragment, text: "y(x) = "
+  f1: Fragment, text: "sin(x)"
+  m3: Fragment, text: " + sin(3x)/3"
+  m5: Fragment, text: " + sin(5x)/5"
+  m7: Fragment, text: " + sin(7x)/7"
 }
 
 #0.3s
@@ -216,7 +216,7 @@ config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
 spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
 
-spec_eq: Typst, content: "a_k = 4 / (pi k)   for odd k,   0   otherwise",
+spec_eq: Typst, text: "a_k = 4 / (pi k)   for odd k,   0   otherwise",
   font_size: 24, color: accent.primary, anchor: scene.center, offset: (0, -215)
 
 spectrum: BarChart,
@@ -269,7 +269,7 @@ vector: Line, from: (420, 400), to: (620, 400),
 
 vec_tip: Ellipse, size: (14, 14), color: accent.warning, at: (620, 400)
 
-cp_eq: Typst, content: "e^(i theta) = cos(theta) + i sin(theta)",
+cp_eq: Typst, text: "e^(i theta) = cos(theta) + i sin(theta)",
   font_size: 26, color: accent.primary, anchor: scene.center, offset: (500, -60)
 
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",

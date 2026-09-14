@@ -706,8 +706,8 @@ fn high_frequency_curve_meets_resolution_floor() {
 fn equation_container_builds_with_fragment_children() {
     let source = r#"
         eq: Equation {
-            f1: Fragment, content: "x^2"
-            f2: Fragment, content: "+ y"
+            f1: Fragment, text: "x^2"
+            f2: Fragment, text: "+ y"
         }
     "#;
 
@@ -732,7 +732,7 @@ fn equation_container_builds_with_fragment_children() {
         eq_track.children
     );
 
-    // Fragment f1 track should exist with content stored
+    // Fragment f1 track should exist with its body stored
     let f1_track = report.output.tracks.get("f1").expect("f1 track should exist");
     let f1_content = f1_track
         .text
@@ -757,13 +757,13 @@ fn equation_container_builds_with_fragment_children() {
 fn equation_fragment_dot_path_assignment() {
     let source = r#"
         eq: Equation {
-            f1: Fragment, content: "x^2"
-            f2: Fragment, content: "+ y"
+            f1: Fragment, text: "x^2"
+            f2: Fragment, text: "+ y"
         }
 
         #+1s
         eq.f1.highlight_opacity = 1.0 [800ms]
-        eq.f2.content = "+ z"
+        eq.f2.text = "+ z"
     "#;
 
     let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);

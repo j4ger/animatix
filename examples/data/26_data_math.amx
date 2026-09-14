@@ -88,10 +88,10 @@ title3: Text, text: "Equation + Fragment highlighting", font_size: 32,
 // Use highlight/unhighlight actions to animate the overlay per segment
 eq: Equation, font_size: 48, color: text.primary,
   anchor: scene.center, offset: (0, -20) {
-  lhs: Fragment, content: "E"
-  eq_sign: Fragment, content: " = "
-  mass: Fragment, content: "m"
-  c2: Fragment, content: "c^2"
+  lhs: Fragment, text: "E"
+  eq_sign: Fragment, text: " = "
+  mass: Fragment, text: "m"
+  c2: Fragment, text: "c^2"
 }
 
 hint: Text, text: "← each Fragment highlighted independently",

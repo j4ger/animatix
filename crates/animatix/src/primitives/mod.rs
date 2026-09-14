@@ -100,13 +100,7 @@ pub fn evaluate_text_paths(
 
     let mut content_override: Option<String> = None;
     if let Some(ov) = ctx.overrides {
-        if let Some(Value::Str(s)) = ov
-            .get("text")
-            .or_else(|| ov.get("code"))
-            .or_else(|| ov.get("math"))
-            .or_else(|| ov.get("latex"))
-            .or_else(|| ov.get("content"))
-        {
+        if let Some(Value::Str(s)) = ov.get("text").or_else(|| ov.get("code")) {
             content_override = Some(s.clone());
             content = s.clone();
         }
@@ -249,9 +243,7 @@ pub fn sample_shape_style(
         if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
-        if let Some(Value::Color(c) | Value::Vec4(c)) =
-            node_overrides.get("stroke_color").or_else(|| node_overrides.get("stroke"))
-        {
+        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("stroke") {
             stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
         if let Some(Value::Num(width)) =
@@ -1235,7 +1227,7 @@ pub trait Primitive: Send + Sync {
                 ActorCategory::Container => None,
                 ActorCategory::Annotation => None,
             },
-            "stroke" | "stroke_color" => match caps.category {
+            "stroke" => match caps.category {
                 ActorCategory::Shape => Some("stroke.default"),
                 _ => None,
             },

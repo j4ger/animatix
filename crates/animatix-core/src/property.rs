@@ -174,7 +174,6 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         Applicable::Actors(&["Legend"]),
         PropertyValueKind::Vec4,
     ),
-    PropertyDescriptor::new("latex", Applicable::Never, PropertyValueKind::String),
     PropertyDescriptor::new("legend", Applicable::Everything, PropertyValueKind::Generic),
     PropertyDescriptor::new(
         "letter_spacing",
@@ -187,7 +186,6 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("line_cap", Applicable::AllShapes, PropertyValueKind::U32),
     PropertyDescriptor::new("line_height", Applicable::TextLike, PropertyValueKind::F32),
     PropertyDescriptor::new("line_join", Applicable::AllShapes, PropertyValueKind::U32),
-    PropertyDescriptor::new("math", Applicable::Actors(&["Typst"]), PropertyValueKind::String),
     PropertyDescriptor::new(
         "max_depth",
         Applicable::Actors(&["ContourSet", "PlotCurve"]),
@@ -272,11 +270,11 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new("target", Applicable::Actors(&["Callout"]), PropertyValueKind::Generic),
-    PropertyDescriptor::new(
-        "text",
-        Applicable::Actors(&["Math", "Text"]),
-        PropertyValueKind::String,
-    ),
+    // The uniform body property for every text-like actor (`Text`, `Typst`,
+    // `Code`, `Math`); `code` remains the `Code` spelling. It used to list only
+    // Text and Math, which left `Typst` with no body property the analyzer
+    // recognised once the redundant `content` alias was removed.
+    PropertyDescriptor::new("text", Applicable::TextLike, PropertyValueKind::String),
     PropertyDescriptor::new("text_align", Applicable::TextLike, PropertyValueKind::String),
     PropertyDescriptor::new(
         "text_max_width",
@@ -329,22 +327,6 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new("y_scale", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
-    PropertyDescriptor::new("content", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
-    PropertyDescriptor::new("fill", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
-    PropertyDescriptor::new(
-        "radius",
-        Applicable::Actors(&["Ellipse", "Polygon", "Rect"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("start", Applicable::Actors(&["Line"]), PropertyValueKind::Vec2),
-    PropertyDescriptor::new("end", Applicable::Actors(&["Line"]), PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "function",
-        Applicable::Actors(&["Graph", "PlotCurve"]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new("stroke_color", Applicable::AllStrokePaths, PropertyValueKind::Vec4),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.
