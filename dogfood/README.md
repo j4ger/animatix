@@ -81,6 +81,22 @@ The file is line-based: one check per line, `#` comments and blank lines
 ignored, times are **global** composition times (see `animatix timeline`).
 Copy `templates/verify.txt` to start.
 
+**Every project is expected to ship a `verify.txt`.** `scripts/dogfood-verify.sh`
+only runs the checks when the file exists, so a project without one passes the
+gate on `check` alone — which is how `effects-wave1` kept a full-canvas backdrop
+scope that vanished from every exported frame while its card rendered fine.
+That gate stays **local by decision** (it needs a GPU and dogfood content tracks
+the language); it is not wired into CI, so the file is the reminder rather than
+the enforcement.
+
+`dogfood/projects/effects-wave1/verify.txt` is the calibration example for the
+hard case: a full-canvas `Filter` scope whose bounds contain every other actor.
+`visible` and `reveals` on such a scope prove nothing — its region changes
+whenever any child moves, and it has ink whenever anything draws. Assert a
+whole-frame `ink` floor instead (that project uses 35–50% against a measured
+94–96%), which collapses to roughly the card's area alone when the scope loses
+its composite.
+
 | Check | Meaning |
 |---|---|
 | `visible <t> <label>` | the actor put ink inside its evaluated bounds at `t` |

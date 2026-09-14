@@ -5,6 +5,26 @@ use super::fullscreen_blit::FullscreenBlitPipeline;
 use animatix_core::error::RenderError;
 
 /// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
+///
+/// # Dependency invariant: one renderer, many renders per frame
+///
+/// A frame renders the same canvas several times through this single shared
+/// [`Renderer`]: once per `Filter` scope's sub-scene, plus the main scene, plus
+/// the compositing blits. That relies on an assumption Vello does not state
+/// anywhere — that `render_to_texture` leaves no cross-call state which changes
+/// what a *later* render draws.
+///
+/// Upstream's image-atlas residency change (vello #1558, between revs
+/// `d8686d52` and `17166312`) broke exactly that assumption: an image-bearing
+/// render drew nothing whenever a non-image render ran between two image
+/// renders, which is our multi-scope shape. The workspace therefore pins Vello
+/// to `d8686d52` (see the `vello` entries in the `Cargo.toml`s) and guards the
+/// boundary with `tests/vello_img_probe.rs`, which reproduces the failing
+/// sequence against a bare renderer.
+///
+/// Before moving the pin forward: run that test, then
+/// `animatix video dogfood/projects/effects-wave1/entry.amx` and confirm the
+/// checker backdrop survives every frame. `docs/roadmap.md` tracks the pin.
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,

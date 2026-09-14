@@ -77,6 +77,14 @@ Remaining:
 | Item | Scope | Status |
 |---|---|---|
 
+## Dependency & Verification Constraints
+
+| Item | What it is | Status |
+|---|---|---|
+| Vello pin lift | The workspace pins Vello to `d8686d52` because upstream #1558 (image-atlas residency) makes an image-bearing render draw nothing when a non-image render runs between two image renders — our multi-scope filter shape hits it on every frame. Lift the pin when upstream ships a fix, then re-run the dependency-boundary matrix (`crates/animatix-render/tests/vello_img_probe.rs`) and `animatix video dogfood/projects/effects-wave1/entry.amx`, confirming the backdrop survives every frame. The invariant this protects is documented on `RendererCore`. | Pinned, guard in place |
+| Fewer Vello renders per frame | A frame currently renders the canvas once per `Filter` scope plus once for the main scene. Identity chains already skip the offscreen round-trip; further reduction means merging scopes that carry no effects. | **Not scheduled** — small payoff, medium risk (the multi-render sequence is exactly what the pin above protects) |
+| GUI panel-level screenshot regression | The headless screenshot driver (`ANIMATIX_SCREENSHOT`, `ANIMATIX_SCREENSHOT_SIZE`) reviews a single, non-interactive app state. The diagnostics peek, the export dialog, and multi-actor curves were verified by compile + unit tests only, because `--demo-script` can only play/pause/scrub. Extending its grammar to switch tabs / open dialogs would make those surfaces screenshot-testable. | Not started |
+
 ## Planned Effects
 
 Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
