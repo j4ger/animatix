@@ -735,6 +735,22 @@ superseded by later implementation.
 
 ---
 
+## Demo Gallery Redesign (2026-08-21 → 2026-08-25)
+
+Five phases shipped on `feat/demo-gallery` / `feat/demo-gallery-p3` and merged
+into `main` (both branches appear in `git branch --merged main`). Source plan:
+`docs/demo_gallery_plan.md`.
+
+| Phase | Deliverable | Outcome |
+|---|---|---|
+| 1 | Shared `lib/` design system + `theme_studio.amx` | Done; engine workarounds documented in the plan (positioned components wrapped in `Group`, Text wrapped in `Group` inside `Col`) |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | Done 2026-08-24; engine fixes landed with it (`docs/handoff_phase2.md`) |
+| 3 | `epicycles.amx` + `sorting_theatre.amx` | Done 2026-08-25; `sorting_theatre` uses `dynamic_layout`, build-time sort precomputation, and `swap` actions |
+| 4 | `brand_reel/` capstone | Done 2026-08-25; all six `play` transitions, `persist`, audio, cross-file scenes; multi-scene zero-duration bug fixed |
+| 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` | Done 2026-08-25; `animation/16_showcase.amx` and `composition/20_feature_reel.amx` superseded by the gallery |
+
+---
+
 ## Built-in effects, wave 1 (2026-09-13)
 
 `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, and `Levels` shipped, one file

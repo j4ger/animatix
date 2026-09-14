@@ -1018,8 +1018,10 @@ for the remaining eparts widget-adoption backlog and `crates/animatix-gui/src/ap
 for the command-split implementation.
 
 The 2026-09-11 UX pass is documented in §12 (diagnosis, target information
-architecture, per-surface redesign, phased plan). Its Phase 0 batch is
-implemented on `feat/gui-redesign`; Phases 1–4 remain.
+architecture, per-surface redesign, phased plan). Its Phase 0 batch and the
+layout / bottom-tab / later phases all shipped on 2026-09-11 and are on `main`
+(the short-lived `feat/gui-redesign` worktree is gone); what remains is tracked
+in `docs/roadmap.md`.
 
 **Completed:**
 - Phase 1 (token refoundation): 3-layer token system extracted into `eparts`

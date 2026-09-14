@@ -7,25 +7,12 @@ closed work lives in [`history.md`](history.md) — do not re-add it here.
 
 ## Backlog & Prioritization
 
-### Demo Gallery Redesign (active)
-
-Source of truth: `docs/demo_gallery_plan.md`. Work happens on a short-lived git
-worktree off `main` (e.g. `feat/demo-gallery`) and is merged back when a phase
-lands.
-
-| Phase | Deliverable | Status | Acceptance | Known Blockers / Notes |
-|---|---|---|---|---|
-| 1 | Shared `lib/` design system + `theme_studio.amx` | **Done** | clean `check`; PNG render smoke | Engine workarounds documented in plan: wrap positioned components in `Group`; wrap Text in `Group` inside Col |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | **Done** 2026-08-24 (merged) | clean `check`; PNG smoke of every scene | Engine fixes landed with it — see `docs/handoff_phase2.md` |
-| 3 | `epicycles.amx` + `sorting_theatre.amx` | **Done** 2026-08-25 (merged) | clean `check`; 3-frame PNG smoke | Epicycles wave-reveal polish noted but merged; `sorting_theatre` uses `dynamic_layout` + build-time sort precomputation + `swap` actions |
-| 4 | `brand_reel/` capstone | **Done** 2026-08-25 (merged) | all six `play` transitions ≥1×; `persist`; Audio; cross-file scenes | Multi-scene zero-duration bug fixed; cross-file slot fills / component-instance positioning workarounds landing with it |
-| 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` smoke | **Done** 2026-08-25 | script green; render smoke covers all examples | Reuses new `lib/`; `animation/16_showcase.amx` and `composition/20_feature_reel.amx` are superseded by the gallery |
-
 ### GUI UX Redesign (active)
 
 Source of truth: `docs/gui_design_language.md` §12 (diagnosis, target
-information architecture, per-surface redesign, open decisions). Work
-happens on the short-lived `feat/gui-redesign` worktree off `main`.
+information architecture, per-surface redesign, open decisions). The
+2026-09-11 phases shipped directly on `main`; the remaining items below are
+small enough to land there too.
 
 Phase 0 shipped 2026-09-11: visible auto-key (default off), caret-anchored
 completion, click-latched Delete scope, layout-preserving Inspector toggle,
@@ -69,7 +56,6 @@ Remaining:
 | Track solo | A `ToggleActorSolo` command + muted state (eye/lock shipped) | Not started |
 | Multi-actor curves | The Curves editor edits the first selected actor only | Not started |
 | Export/settings polish | Detailed error text, codec/quality controls, restore-defaults | Not started |
-| main rebase | `main` moved to `9cbb2dfa` (`actor_type` is now `String`); rebase + adapt before merging | Not started |
 
 ## Planned Effects
 
@@ -85,7 +71,8 @@ follow-ups, cheapest first:
 | `Posterize` | Level quantisation; trivial single pass |
 | `LensDistortion` | Barrel/pincushion UV warp through the linear sampler |
 
-`Bloom` / soft `DropShadow` / a generic chain `Mix` wait on the
-second-input-texture ABI bump (`docs/effects.md` §4.1).
-`Edge`, `Posterize`, `LensDistortion`. `Bloom` / soft `DropShadow` / a generic
-chain `Mix` wait on the second-input-texture ABI bump (`docs/effects.md` §4.1).
+`Bloom`, soft `DropShadow`, and a generic chain `Mix` are blocked on the
+second-input-texture ABI bump (`docs/effects.md` §4.1) and are **not**
+scheduled: the ping-pong chain overwrites the original after the first pass,
+so an add-back has no source. `Mix` additionally needs named intermediate
+chain outputs — a separate chain-model change, not part of that bump.
