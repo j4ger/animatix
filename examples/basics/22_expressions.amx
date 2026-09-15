@@ -1,5 +1,5 @@
-// 22 — Expressions: Constructs, Colors & Math
-// rgb/rgba, lerp, clamp, rand, percentages, index access.
+// 22 — Expressions: Constructs, Colors, Math & Methods
+// rgb/rgba, lerp, clamp, rand, percentages, index access, string methods.
 
 import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
@@ -8,13 +8,24 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
 let width = lerp(120.0, 260.0, clamp(seeded_rand(22), 0.0, 1.0))
 
+// Method calls on values: trim() yields the label text, length() drives size.
+let padded = "  animatix DSL  "
+let name = padded.trim()
+let name_len = name.length()
+
 title: Text, text: "Expressions", font_size: 42, color: rgb(0.38, 0.78, 1.0), at: (50%, 18%)
 bar: Rect, size: (width, 56.0), color: rgba(0.35, 0.85, 0.55, 0.85), at: (50%, 46%)
 dot: Ellipse, size: (48.0, 48.0), color: rgb(1.0, 0.75, 0.3), at: (50%, 70%)
-note: Text, text: "lerp · clamp · rand · rgb · index", font_size: 18, color: text.secondary, at: (50%, 84%)
+note: Text, text: "lerp · clamp · rand · rgb · index", font_size: 18, color: text.secondary, at: (50%, 82%)
+m1: Text, text: name, font_size: 18, color: text.primary, at: (50%, 90%)
+m2: Rect, size: (name_len * 14.0, 20.0), color: accent.success, at: (50%, 96%)
+m3: Text, text: "padded.trim() = label; .length() = 12 → bar width", font_size: 14, color: text.muted, at: (50%, 99%)
 
 #0.5s
 fade-in title [500ms]
 fade-in bar [500ms, delay: 100ms]
 fade-in dot [500ms, delay: 200ms]
 fade-in note [500ms, delay: 300ms]
+fade-in m1 [500ms, delay: 400ms]
+fade-in m2 [500ms, delay: 400ms]
+fade-in m3 [500ms, delay: 450ms]

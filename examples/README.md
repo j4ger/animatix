@@ -35,7 +35,7 @@ Real-content capstones demonstrating the full language. Start here.
 | `gallery/motion_poster.amx` | Single-poster motion piece: stagger choreography, path morph, Filter sweeps |
 | `gallery/epicycles.amx` | Fourier story: Graph-hosted PlotCurves, `stroke_progress` reveals, always-driven pen |
 | `gallery/sorting_theatre.amx` | Insertion-sort theatre: `for` loops, build-time `if`, `[step:]` clocks, `list_swap` |
-| `gallery/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
+| `projects/fft_explain.amx` | Explainer: Typst equation fragments, colored plots, per-fragment reveals |
 | `gallery/brand_reel/` | Multi-file capstone: all six `play` transitions, `persist`/`remove` mascot chain, Audio bed, cross-file scenes (`import as` + `play alias.Scene`) |
 
 Shared library the gallery builds on lives in [`lib/`](lib/) (`theme.amx`
@@ -49,6 +49,7 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 | `basics/01_shapes.amx` | Primitive shapes, image, SVG, Typst, Text, Code |
 | `basics/03_timing.amx` | Timing: sequence, stagger, easing curves |
 | `basics/22_expressions.amx` | Expressions: index access, methods, lerp, clamp, rand |
+| `basics/31_code.amx` | Code: `language` syntax highlighting + token colours following the colorscheme |
 
 ## Layout
 
@@ -68,7 +69,7 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 | `animation/05_morph.amx` | Re-declaration morphing |
 | `animation/06_reactive.amx` | Reactive expressions and `is_animating(&prop)` state queries |
 | `animation/08_effects.amx` | Filter, shake, pulse, bounce |
-| `animation/16_showcase.amx` | Combined layout, morphing, paths, transforms, always |
+| `animation/30_effects_catalog.amx` | All 13 built-in effects side by side (Blur … Posterize) |
 | `animation/21_actions.amx` | Entrance, motion, exit, and effect actions |
 
 ## Components
@@ -95,7 +96,6 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 |------|-------------|
 | `composition/14_multiscene.amx` | Scene declarations and transitions |
 | `composition/19_cross_file_scenes.amx` | Imported scene modules and `play alias.Scene` |
-| `composition/20_feature_reel.amx` | Compact capstone showcase |
 | `composition/25_persistence.amx` | `persist` / `remove` across scene transitions |
 
 ## Generation

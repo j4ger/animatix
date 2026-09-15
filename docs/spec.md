@@ -38,11 +38,11 @@ Use these rules when generating `.amx` files:
 | Expressions | `Expr::Method` | Yes | Runtime-real | Yes | Yes | Method dispatch: `string.length()`, `list.get(0)`, `num.abs()` |
 | Expressions | `Expr::Index` | Yes | Runtime-real | Yes | Yes | Array/vector/string index: `items[0]`, `pos[1]`, `text[0]` |
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
-| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/composition/20_feature_reel.amx` |
+| Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/gallery/motion_poster.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
-| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting (empty/unknown renders plain). See `examples/basics/01_shapes.amx` |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting; token colours follow the colorscheme (empty/unknown renders plain). See `examples/basics/31_code.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
-| Post-processing | `Filter` scope + effect chain (`Blur`, `ColorGrade`) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` |
+| Post-processing | `Filter` scope + effect chain (`Blur`, `ColorGrade`) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (all 13 side by side) |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
 | Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
@@ -1833,10 +1833,10 @@ animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
 
 ```bash
 # Export to WebM with VP9
-animatix video examples/composition/20_feature_reel.amx -o out.webm --codec vp9
+animatix video examples/gallery/brand_reel/main.amx -o out.webm --codec vp9
 
 # Auto-detect WebM from output extension (auto-selects VP9)
-animatix video examples/composition/20_feature_reel.amx -o out.webm
+animatix video examples/gallery/brand_reel/main.amx -o out.webm
 
 # WebM with custom resolution and framerate
 animatix video examples/composition/14_multiscene.amx --width 960 --height 540 --fps 24 -o out.webm
@@ -1844,7 +1844,7 @@ animatix video examples/composition/14_multiscene.amx --width 960 --height 540 -
 
 ```bash
 # Low-FPS quick preview
-animatix gif examples/composition/20_feature_reel.amx -o out.gif --fps 10
+animatix gif examples/gallery/brand_reel/main.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.

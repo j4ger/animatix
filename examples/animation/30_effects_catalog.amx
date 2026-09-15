@@ -1,0 +1,89 @@
+// 30 — Effects Catalog: All 13 Built-in Post-Processing Effects
+// One Filter scope per effect, applied to the same checker backdrop, so the
+// effects can be compared side by side. Effects are labelled children of a
+// Filter scope, applied in declaration order (docs/effects.md).
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Static reference grid: declare everything after a #0s marker so every cell
+// is visible by default (actors declared before the first keyframe are hidden).
+#0s
+
+title: Text, text: "Effects Catalog", font_size: 28, color: text.primary, at: (640, 42)
+subtitle: Text, text: "each cell = one Filter scope + one effect", font_size: 15, color: text.muted, at: (640, 70)
+
+// Row 1 — blur / grade / chromatic / sharpen
+f_blur: Filter, at: (170, 190) {
+  fx: Blur, radius: 8
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_grade: Filter, at: (470, 190) {
+  fx: ColorGrade, contrast: 1.5, saturate: 1.7
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_chroma: Filter, at: (770, 190) {
+  fx: ChromaticAberration, offset: 7
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_sharpen: Filter, at: (1070, 190) {
+  fx: Sharpen, amount: 3, radius: 2
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+
+// Row 2 — vignette / motion blur / grain / levels
+f_vignette: Filter, at: (170, 345) {
+  fx: Vignette, amount: 0.9, radius: 0.5, softness: 0.6
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_motion: Filter, at: (470, 345) {
+  fx: MotionBlur, length: 16, angle: 0
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_grain: Filter, at: (770, 345) {
+  fx: Grain, amount: 0.7, seed: 3, monochrome: true
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_levels: Filter, at: (1070, 345) {
+  fx: Levels, in_black: 0.18, in_white: 0.82, gamma: 1.4
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+
+// Row 3 — drop shadow / duotone / edge / lens distortion
+f_shadow: Filter, at: (170, 500) {
+  fx: DropShadow, offset: (14, 14), color: (0, 0, 0, 0.7)
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_duotone: Filter, at: (470, 500) {
+  fx: Duotone, amount: 1, shadow: (0.05, 0.05, 0.25, 1), highlight: (1, 0.85, 0.3, 1)
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_edge: Filter, at: (770, 500) {
+  fx: Edge, amount: 1.5, threshold: 0.15
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+f_lens: Filter, at: (1070, 500) {
+  fx: LensDistortion, amount: 0.45
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+
+// Row 4 — posterize
+f_posterize: Filter, at: (170, 625) {
+  fx: Posterize, levels: 4
+  img: Image, url: "examples/assets/checker.png", size: (250, 110)
+}
+note: Text, text: "13 built-in effects; every stage animates like any other property (see 08_effects)", font_size: 14, color: text.muted, at: (660, 625)
+
+// Labels under each cell.
+l_blur: Text, text: "Blur", font_size: 14, color: text.secondary, at: (170, 262)
+l_grade: Text, text: "ColorGrade", font_size: 14, color: text.secondary, at: (470, 262)
+l_chroma: Text, text: "ChromaticAberration", font_size: 14, color: text.secondary, at: (770, 262)
+l_sharpen: Text, text: "Sharpen", font_size: 14, color: text.secondary, at: (1070, 262)
+l_vignette: Text, text: "Vignette", font_size: 14, color: text.secondary, at: (170, 417)
+l_motion: Text, text: "MotionBlur", font_size: 14, color: text.secondary, at: (470, 417)
+l_grain: Text, text: "Grain", font_size: 14, color: text.secondary, at: (770, 417)
+l_levels: Text, text: "Levels", font_size: 14, color: text.secondary, at: (1070, 417)
+l_shadow: Text, text: "DropShadow", font_size: 14, color: text.secondary, at: (170, 572)
+l_duotone: Text, text: "Duotone", font_size: 14, color: text.secondary, at: (470, 572)
+l_edge: Text, text: "Edge", font_size: 14, color: text.secondary, at: (770, 572)
+l_lens: Text, text: "LensDistortion", font_size: 14, color: text.secondary, at: (1070, 572)
+l_posterize: Text, text: "Posterize", font_size: 14, color: text.secondary, at: (170, 690)

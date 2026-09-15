@@ -1,0 +1,62 @@
+// 31 — Code: Syntax Highlighting & Colorscheme-Following Tokens
+// The same snippets in two scenes with different colorschemes: token colours
+// follow the active scheme (keyword→accent.danger, function→accent.primary,
+// string→accent.success, number→accent.secondary, comment→text.muted).
+
+pub let neon = Colorscheme {
+  extends: "editorial-dark",
+  text.primary: (0.95, 0.95, 0.95, 1),
+  text.secondary: (0.7, 0.7, 0.75, 1),
+  text.muted: (0.5, 0.5, 0.55, 1),
+  accent.danger: (1, 0.1, 0.1, 1),
+  accent.primary: (0.1, 1, 0.35, 1),
+  accent.success: (0.25, 0.5, 1, 1),
+  accent.secondary: (1, 1, 0.1, 1),
+  accent.info: (1, 0.2, 1, 1),
+}
+
+config { resolution: (1280, 720) }
+
+# Editorial
+config { colorscheme: "editorial-dark" }
+h1: Text, text: "editorial-dark", font_size: 22, color: text.primary, at: (640, 70)
+r1: Code, code: "fn main() { let x = 42; }", language: "rust", font_size: 26, at: (640, 180)
+p1: Code, code: "def greet(name): return 'hi ' + name", language: "python", font_size: 26, at: (640, 280)
+c1: Code, code: "int main() { return 0; }", language: "cpp", font_size: 26, at: (640, 380)
+n1: Code, code: "no language tag renders plain", font_size: 26, color: accent.warning, at: (640, 480)
+t1: Text, text: "language: rust | python | cpp — unknown or empty renders plain", font_size: 15, color: text.muted, at: (640, 560)
+
+#0.3s
+fade-in h1 [300ms]
+fade-in r1 [300ms, delay: 150ms]
+fade-in p1 [300ms, delay: 250ms]
+fade-in c1 [300ms, delay: 350ms]
+fade-in n1 [300ms, delay: 450ms]
+fade-in t1 [300ms, delay: 550ms]
+
+#3.6s
+fade-out h1 [300ms]
+fade-out r1 [300ms]
+fade-out p1 [300ms]
+fade-out c1 [300ms]
+fade-out n1 [300ms]
+fade-out t1 [300ms]
+
+play Neon [fade, 500ms]
+
+# Neon
+config { colorscheme: "neon" }
+h2: Text, text: "neon (custom colorscheme)", font_size: 22, color: text.primary, at: (640, 70)
+r2: Code, code: "fn main() { let x = 42; }", language: "rust", font_size: 26, at: (640, 180)
+p2: Code, code: "def greet(name): return 'hi ' + name", language: "python", font_size: 26, at: (640, 280)
+c2: Code, code: "int main() { return 0; }", language: "cpp", font_size: 26, at: (640, 380)
+n2: Code, code: "no language tag renders plain", font_size: 26, color: accent.warning, at: (640, 480)
+t2: Text, text: "same snippets — token colours now follow the neon accents", font_size: 15, color: text.muted, at: (640, 560)
+
+#0.3s
+fade-in h2 [300ms]
+fade-in r2 [300ms, delay: 150ms]
+fade-in p2 [300ms, delay: 250ms]
+fade-in c2 [300ms, delay: 350ms]
+fade-in n2 [300ms, delay: 450ms]
+fade-in t2 [300ms, delay: 550ms]
