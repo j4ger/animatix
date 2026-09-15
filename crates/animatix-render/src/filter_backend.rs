@@ -41,6 +41,13 @@ struct EffectContextUniform {
 
 const EFFECT_CONTEXT_SIZE: u64 = std::mem::size_of::<EffectContextUniform>() as u64;
 
+/// Dynamic-offset stride between per-pass context uniforms. 256 covers every
+/// backend's `min_uniform_buffer_offset_alignment` and keeps offsets aligned.
+const CONTEXT_STRIDE: u32 = 256;
+
+/// Maximum effect passes dispatchable in one chain (context slots available).
+const MAX_CHAIN_PASSES: u32 = 64;
+
 // ── Backend struct ──────────────────────────────────────────────────────────
 
 /// GPU-backed effect backend that owns its own temporary targets and a
@@ -273,13 +280,14 @@ impl GpuFilterBackend {
                     },
                     count: None,
                 },
-                // 3: host context
+                // 3: host context (dynamic offset — one buffer serves every
+                // pass of a chain so seed + passes encode in one submit)
                 wgpu::BindGroupLayoutEntry {
                     binding: 3,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
+                        has_dynamic_offset: true,
                         min_binding_size: wgpu::BufferSize::new(EFFECT_CONTEXT_SIZE),
                     },
                     count: None,
@@ -312,7 +320,7 @@ impl GpuFilterBackend {
 
         let context_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Animatix Effect Context Uniforms"),
-            size: EFFECT_CONTEXT_SIZE,
+            size: u64::from(CONTEXT_STRIDE * MAX_CHAIN_PASSES),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -382,33 +390,15 @@ impl GpuFilterBackend {
 
     /// Dispatch one effect pass, src → dst, in its own submitted encoder.
     #[allow(clippy::too_many_arguments)]
-    fn dispatch_effect_pass(
+    /// Bind group for one pass: views plus the context uniform at `slot`'s
+    /// dynamic offset in the shared context buffer.
+    fn effect_bind_group_for_slot(
         &self,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
-        pipeline: &wgpu::ComputePipeline,
         uniform_buffer: &wgpu::Buffer,
-        width: u32,
-        height: u32,
-        pass_index: u32,
-        pass_count: u32,
-        time_ms: f32,
-    ) {
-        let width = width.max(1);
-        let height = height.max(1);
-        let context = EffectContextUniform {
-            tex_size: [width, height],
-            _pad0: [0, 0],
-            inv_size: [1.0 / width as f32, 1.0 / height as f32],
-            _pad1: [0.0, 0.0],
-            pass_index,
-            pass_count,
-            time_ms,
-            _pad2: 0.0,
-        };
-        self.queue.write_buffer(&self.context_buffer, 0, bytemuck::bytes_of(&context));
-
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+    ) -> wgpu::BindGroup {
+        self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Animatix Effect Bind Group"),
             layout: &self.bind_group_layout,
             entries: &[
@@ -426,28 +416,42 @@ impl GpuFilterBackend {
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
-                    resource: self.context_buffer.as_entire_binding(),
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: &self.context_buffer,
+                        offset: 0,
+                        size: Some(std::num::NonZeroU64::new(EFFECT_CONTEXT_SIZE).expect("nonzero")),
+                    }),
+                    // The dynamic offset itself is supplied in set_bind_group.
                 },
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
                 },
             ],
-        });
+        })
+    }
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Effect Encoder"),
-        });
+    /// Encode one effect pass into `encoder` (dispatch at `width`×`height`,
+    /// context uniform at the bind group's dynamic offset).
+    fn encode_effect_pass(
+        encoder: &mut wgpu::CommandEncoder,
+        bind_group: &wgpu::BindGroup,
+        pass_pipeline: &wgpu::ComputePipeline,
+        width: u32,
+        height: u32,
+        slot_offset: u32,
+    ) {
+        let width = width.max(1);
+        let height = height.max(1);
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("Animatix Effect Pass"),
                 timestamp_writes: None,
             });
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, &bind_group, &[]);
+            pass.set_pipeline(pass_pipeline);
+            pass.set_bind_group(0, bind_group, &[slot_offset]);
             pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
         }
-        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     /// Render a scene and apply `chain`, keeping the result on the GPU.
@@ -550,11 +554,15 @@ impl GpuFilterBackend {
             return Ok(render_view);
         }
 
-        // Seed the ping-pong with the rendered frame.
+        // Seed the ping-pong with the rendered frame, then run every pass —
+        // all in ONE command encoder and ONE submit. Same-queue submissions are
+        // ordered, and each pass reads its own context through a dynamic
+        // offset, so the batch is correct and the chain costs one submit
+        // instead of one per stage.
         let width = dispatch_dims.width.max(1);
         let height = dispatch_dims.height.max(1);
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Effect Seed Encoder"),
+            label: Some("Animatix Effect Chain Encoder"),
         });
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
@@ -575,10 +583,14 @@ impl GpuFilterBackend {
                 depth_or_array_layers: 1,
             },
         );
-        self.queue.submit(std::iter::once(encoder.finish()));
         self.dump_stage("tex_a_seed", &pp_a, dispatch_dims);
         let t_seed = t_all.elapsed() - t_render;
 
+        // Plan the passes, write every context once (one slot per pass), then
+        // encode seed + passes into a single encoder.
+        // Owns cloned wgpu handles so plan entries never borrow `self` across
+        // the mutable pipeline-ensure calls.
+        let mut pass_plan: Vec<(wgpu::ComputePipeline, wgpu::Buffer, u32, u32)> = Vec::new();
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
             let Some(effect) = effect(&instance.id) else {
@@ -592,31 +604,68 @@ impl GpuFilterBackend {
 
             let mut uniforms = vec![0u8; effect.author_uniform_size() as usize];
             effect.pack(&instance.params, &mut uniforms);
+            // Author-parameter writes land before the encoder's commands on
+            // submit; each effect has its own uniform buffer, so writes cannot
+            // collide across effects.
             self.queue.write_buffer(&pipeline.uniform_buffer, 0, &uniforms);
 
             let pass_count = pipeline.passes.len() as u32;
             for (index, pass_pipeline) in pipeline.passes.iter().enumerate() {
-                let (src_view, dst_view, next) = match current {
-                    FilteredSource::TexA => (&pp_a_view, &pp_b_view, FilteredSource::TexB),
-                    FilteredSource::TexB => (&pp_b_view, &pp_a_view, FilteredSource::TexA),
-                    FilteredSource::Render => {
-                        unreachable!("render texture is never a ping-pong source")
-                    },
-                };
-                self.dispatch_effect_pass(
-                    src_view,
-                    dst_view,
-                    pass_pipeline,
-                    &pipeline.uniform_buffer,
-                    width,
-                    height,
+                pass_plan.push((
+                    pass_pipeline.clone(),
+                    pipeline.uniform_buffer.clone(),
                     index as u32,
                     pass_count,
-                    chain.time_ms,
-                );
-                current = next;
+                ));
             }
         }
+
+        let mut context_bytes = vec![0u8; (CONTEXT_STRIDE * MAX_CHAIN_PASSES) as usize];
+        for (slot, (pass_pipeline, uniform_buffer, pass_index, pass_count)) in
+            pass_plan.iter().enumerate()
+        {
+            let context = EffectContextUniform {
+                tex_size: [width, height],
+                _pad0: [0, 0],
+                inv_size: [1.0 / width as f32, 1.0 / height as f32],
+                _pad1: [0.0, 0.0],
+                pass_index: *pass_index,
+                pass_count: *pass_count,
+                time_ms: chain.time_ms,
+                _pad2: 0.0,
+            };
+            let base = (slot as u32 * CONTEXT_STRIDE) as usize;
+            context_bytes[base..base + EFFECT_CONTEXT_SIZE as usize]
+                .copy_from_slice(bytemuck::bytes_of(&context));
+            let bind_group = self.effect_bind_group_for_slot(
+                if matches!(current, FilteredSource::TexA) {
+                    &pp_a_view
+                } else {
+                    &pp_b_view
+                },
+                if matches!(current, FilteredSource::TexA) {
+                    &pp_b_view
+                } else {
+                    &pp_a_view
+                },
+                uniform_buffer,
+            );
+            Self::encode_effect_pass(
+                &mut encoder,
+                &bind_group,
+                pass_pipeline,
+                width,
+                height,
+                slot as u32 * CONTEXT_STRIDE,
+            );
+            current = match current {
+                FilteredSource::TexA => FilteredSource::TexB,
+                _ => FilteredSource::TexA,
+            };
+        }
+        self.queue
+            .write_buffer(&self.context_buffer, 0, &context_bytes);
+        self.queue.submit(std::iter::once(encoder.finish()));
 
         let (result_texture, result_view) = match current {
             FilteredSource::TexA => (pp_a, pp_a_view),
