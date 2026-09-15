@@ -229,4 +229,64 @@ impl ResolvedColorscheme {
         let key = primitive.default_color_key(property, caps)?;
         self.color(key)
     }
+
+    /// Build the `Code` syntax-highlighting palette from this colorscheme,
+    /// mapping each token role to a named scheme colour (with fallbacks so a
+    /// scheme missing a token still yields a usable palette). This is the same
+    /// `self.color(key)` resolution other primitives use for their `color`
+    /// property — just eight roles instead of one, resolved once at build.
+    pub fn highlight_palette(&self) -> crate::renderer::text::HighlightPalette {
+        // First present key wins; final fallback keeps the render valid.
+        let pick = |keys: &[&str], fallback: [f32; 4]| -> [f32; 4] {
+            keys.iter().find_map(|k| self.color(k)).unwrap_or(fallback)
+        };
+        let text_primary = pick(&["text.primary"], [1.0, 1.0, 1.0, 1.0]);
+        crate::renderer::text::HighlightPalette {
+            keyword: pick(&["accent.danger"], text_primary),
+            function: pick(&["accent.primary"], text_primary),
+            string: pick(&["accent.success"], text_primary),
+            number: pick(&["accent.secondary"], text_primary),
+            comment: pick(&["text.muted", "text.secondary"], [0.6, 0.6, 0.65, 1.0]),
+            interpolation: pick(&["accent.info"], text_primary),
+            escape: pick(&["accent.info", "accent.primary"], text_primary),
+            annotation: pick(&["text.secondary", "text.muted"], text_primary),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The highlight palette's roles are resolved from the scheme's named
+    /// colours — the same `color(key)` path every other primitive uses for its
+    /// `color` property.
+    #[test]
+    fn highlight_palette_maps_roles_to_scheme_tokens() {
+        let scheme = BuiltInColorscheme::DefaultDark.resolved();
+        let palette = scheme.highlight_palette();
+        assert_eq!(palette.keyword, scheme.color("accent.danger").unwrap());
+        assert_eq!(palette.function, scheme.color("accent.primary").unwrap());
+        assert_eq!(palette.string, scheme.color("accent.success").unwrap());
+        assert_eq!(palette.number, scheme.color("accent.secondary").unwrap());
+        assert_eq!(palette.comment, scheme.color("text.muted").unwrap());
+    }
+
+    /// A scheme missing the accent tokens still yields a valid palette via the
+    /// fallbacks (never a dropped/black token).
+    #[test]
+    fn highlight_palette_falls_back_when_tokens_missing() {
+        let scheme = ResolvedColorscheme {
+            name: "sparse".to_string(),
+            colors: std::collections::BTreeMap::from([(
+                "text.primary".to_string(),
+                [0.1, 0.2, 0.3, 1.0],
+            )]),
+            auto_cycle: Vec::new(),
+        };
+        let palette = scheme.highlight_palette();
+        // accent.* are absent → every role falls back to text.primary.
+        assert_eq!(palette.keyword, [0.1, 0.2, 0.3, 1.0]);
+        assert_eq!(palette.function, [0.1, 0.2, 0.3, 1.0]);
+    }
 }

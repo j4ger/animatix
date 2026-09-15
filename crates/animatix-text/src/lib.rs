@@ -1065,6 +1065,83 @@ fn plain_code_fence(code: &str) -> String {
     format!("````\n{escaped}````")
 }
 
+/// A role → RGBA palette that recolours syntax-highlighted `Code` tokens so
+/// they follow the active colorscheme instead of Typst's fixed raw theme.
+///
+/// Each field corresponds to a role in Typst's built-in `RAW_THEME`;
+/// [`HighlightPalette::resolve`] maps a syntect foreground colour back to its
+/// role. The engine builds one per colorscheme at build time (see
+/// `ResolvedColorscheme::highlight_palette`) and hands it to the compiler, so
+/// — like every other primitive's colour — the highlight path only ever sees
+/// concrete RGBA, never the scheme.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HighlightPalette {
+    /// Keywords and storage modifiers (Typst theme `#d73948`).
+    pub keyword: [f32; 4],
+    /// Function / entity names and macros (`#4b69c6`, `#16718d`).
+    pub function: [f32; 4],
+    /// Strings and inserted-diff text (`#198810`).
+    pub string: [f32; 4],
+    /// Constants and numbers (`#b60157`).
+    pub number: [f32; 4],
+    /// Comments and raw markup (`#74747c`, `#6b6b6f`).
+    pub comment: [f32; 4],
+    /// Interpolation and other-name scopes (`#8b41b1`).
+    pub interpolation: [f32; 4],
+    /// Escapes, math operators and labels (`#1d6c76`).
+    pub escape: [f32; 4],
+    /// Meta annotations (`#301414`).
+    pub annotation: [f32; 4],
+}
+
+impl HighlightPalette {
+    /// Map a syntect theme foreground colour to its palette colour. Colours not
+    /// in Typst's fixed theme are returned unchanged (normalised to 0..1 RGBA),
+    /// so an unexpected theme never drops a token.
+    pub fn resolve(&self, color: &syntect::highlighting::Color) -> [f32; 4] {
+        match (color.r, color.g, color.b) {
+            (0xd7, 0x39, 0x48) => self.keyword,
+            (0x4b, 0x69, 0xc6) | (0x16, 0x71, 0x8d) => self.function,
+            (0x19, 0x88, 0x10) => self.string,
+            (0xb6, 0x01, 0x57) => self.number,
+            (0x74, 0x74, 0x7c) | (0x6b, 0x6b, 0x6f) => self.comment,
+            (0x8b, 0x41, 0xb1) => self.interpolation,
+            (0x1d, 0x6c, 0x76) => self.escape,
+            (0x30, 0x14, 0x14) => self.annotation,
+            _ => [
+                color.r as f32 / 255.0,
+                color.g as f32 / 255.0,
+                color.b as f32 / 255.0,
+                1.0,
+            ],
+        }
+    }
+
+    /// A stable, hashable fingerprint of this palette for the text cache key
+    /// (two colorschemes must not share a highlighted compile entry).
+    fn cache_bits(&self) -> Vec<u32> {
+        [
+            self.keyword,
+            self.function,
+            self.string,
+            self.number,
+            self.comment,
+            self.interpolation,
+            self.escape,
+            self.annotation,
+        ]
+        .into_iter()
+        .flat_map(|c| c.map(f32::to_bits))
+        .collect()
+    }
+}
+
+/// Format a 0..1 RGBA colour as a Typst `rgb(...)` call (tokens are opaque).
+fn typst_rgb(color: [f32; 4]) -> String {
+    let channel = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    format!("rgb({}, {}, {})", channel(color[0]), channel(color[1]), channel(color[2]))
+}
+
 /// Build Typst markup that highlights `code` as `language`, using Typst's own
 /// `raw` syntax set (`RAW_SYNTAXES`) and theme (`RAW_THEME`) so the colours
 /// match what a `#set raw(theme: auto)` fence would produce.
@@ -1085,7 +1162,11 @@ fn plain_code_fence(code: &str) -> String {
 /// `fill`, so they inherit the actor's own `color` (set by the caller's
 /// `#set text`). Only the string metacharacters `\` and `"` are escaped — the
 /// token text never reaches Typst as markup.
-fn highlighted_code_markup(code: &str, language: &str) -> Option<String> {
+fn highlighted_code_markup(
+    code: &str,
+    language: &str,
+    palette: Option<&HighlightPalette>,
+) -> Option<String> {
     use std::mem;
     use syntect::easy::HighlightLines;
     use syntect::highlighting::Color;
@@ -1142,10 +1223,18 @@ fn highlighted_code_markup(code: &str, language: &str) -> Option<String> {
         for (text, color) in merged {
             let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
             match color {
-                Some(c) => out.push_str(&format!(
-                    "#text(fill: rgb(\"{:02x}{:02x}{:02x}\"), \"{escaped}\")",
-                    c.r, c.g, c.b
-                )),
+                Some(c) => {
+                    let fill = match palette {
+                        Some(palette) => palette.resolve(&c),
+                        None => [
+                            c.r as f32 / 255.0,
+                            c.g as f32 / 255.0,
+                            c.b as f32 / 255.0,
+                            1.0,
+                        ],
+                    };
+                    out.push_str(&format!("#text(fill: {}, \"{escaped}\")", typst_rgb(fill)));
+                },
                 None => out.push_str(&format!("#text(\"{escaped}\")")),
             }
         }
@@ -1161,9 +1250,13 @@ fn highlighted_code_markup(code: &str, language: &str) -> Option<String> {
 /// A non-empty `language` that Typst recognizes turns on syntax highlighting
 /// (Typst's built-in `raw` theme colors the tokens; un-highlighted text keeps
 /// the actor's own `color`). Empty, or unknown after a warning, renders plain.
+///
+/// When `palette` is `Some`, token colours are remapped through it so the
+/// highlight follows the active colorscheme; `None` keeps Typst's fixed theme.
 pub fn compile_code(
     code: &str,
     language: &str,
+    palette: Option<&HighlightPalette>,
     font_size: f32,
     color: typst::visualize::Color,
     font_family: &str,
@@ -1191,7 +1284,7 @@ pub fn compile_code(
     let highlighted_markup = if language.is_empty() {
         None
     } else {
-        highlighted_code_markup(code, language)
+        highlighted_code_markup(code, language, palette)
     };
     if !language.is_empty() && highlighted_markup.is_none() {
         tracing::warn!(
@@ -2093,6 +2186,10 @@ struct TextCacheKey {
     /// key: highlighting changes glyph colors, so different languages must
     /// not share an entry). Empty for every other kind.
     language: String,
+    /// Highlight palette fingerprint (see [`HighlightPalette::cache_bits`]).
+    /// Two colorschemes recolour the same snippet differently, so they must not
+    /// share a cache entry. `None` for un-highlighted text.
+    palette_bits: Option<Vec<u32>>,
     font_family: String,
     font_size_bits: u32,
     font_weight_bits: u32,
@@ -2237,6 +2334,7 @@ pub fn compile_text_cached(
     kind: TextKind,
     content: &str,
     language: &str,
+    palette: Option<&HighlightPalette>,
     font_family: &str,
     font_size: f32,
     font_weight: f32,
@@ -2254,6 +2352,7 @@ pub fn compile_text_cached(
     let key = TextCacheKey {
         content: content.to_string(),
         language: language.to_string(),
+        palette_bits: palette.map(HighlightPalette::cache_bits),
         font_family: font_family.to_string(),
         font_size_bits: font_size.to_bits(),
         font_weight_bits: font_weight.to_bits(),
@@ -2361,6 +2460,7 @@ pub fn compile_text_cached(
             TextKind::Code => compile_code(
                 content,
                 language,
+                palette,
                 font_size,
                 typst_color,
                 font_family,
@@ -2438,6 +2538,7 @@ pub fn compile_typst_grouped_cached(
         content: typst_markup.to_string(),
         // The grouped Typst path (Equation/Fragment) has no Code highlighting.
         language: String::new(),
+        palette_bits: None,
         font_family: font_family.to_string(),
         font_size_bits: font_size.to_bits(),
         font_weight_bits: font_weight.to_bits(),
@@ -2506,12 +2607,18 @@ pub struct TextCompiler {
     /// Whether the plain-text fast path is enabled (default: true).
     /// Can be disabled via `config { text_fast_path: false }` for debugging.
     pub text_fast_path: bool,
+    /// Role→RGBA palette for `Code` syntax highlighting, derived from the
+    /// active colorscheme. `None` keeps Typst's fixed raw theme. Set once per
+    /// `Timeline` at build (see the engine's `apply_colorscheme`); the palette
+    /// is a timeline-wide constant, so it lives here rather than per-actor.
+    pub highlight_palette: Option<HighlightPalette>,
 }
 
 impl Default for TextCompiler {
     fn default() -> Self {
         Self {
             text_fast_path: true,
+            highlight_palette: None,
         }
     }
 }
@@ -2551,6 +2658,7 @@ impl TextCompiler {
             kind,
             content,
             language,
+            self.highlight_palette.as_ref(),
             font_family,
             font_size,
             font_weight,
@@ -2663,6 +2771,7 @@ mod tests {
             TextKind::Code,
             "fn main() { let x = 42; }",
             language,
+            None,
             "monospace",
             24.0,
             400.0,
@@ -2715,6 +2824,7 @@ mod tests {
                 TextKind::Code,
                 code,
                 language,
+                None,
                 "monospace",
                 24.0,
                 400.0,
@@ -2753,6 +2863,7 @@ mod tests {
                 TextKind::Code,
                 "def f(x): return x",
                 lang,
+                None,
                 "monospace",
                 24.0,
                 400.0,
@@ -2779,6 +2890,94 @@ mod tests {
         assert!(
             !std::sync::Arc::ptr_eq(&python, &rust),
             "different languages of the same content must not share a cache entry"
+        );
+    }
+
+    /// A palette with distinct sentinel colours per role, for assertions.
+    fn sentinel_palette() -> HighlightPalette {
+        HighlightPalette {
+            keyword: [0.0, 1.0, 0.0, 1.0],
+            function: [1.0, 1.0, 0.0, 1.0],
+            string: [0.0, 1.0, 1.0, 1.0],
+            number: [1.0, 0.0, 1.0, 1.0],
+            comment: [0.5, 0.5, 0.5, 1.0],
+            interpolation: [0.0, 0.0, 1.0, 1.0],
+            escape: [1.0, 0.0, 0.0, 1.0],
+            annotation: [0.0, 1.0, 0.5, 1.0],
+        }
+    }
+
+    fn compile_code_with(
+        font_ctx: &FontContext,
+        code: &str,
+        palette: Option<&HighlightPalette>,
+    ) -> std::sync::Arc<CachedText> {
+        compile_text_cached(
+            TextKind::Code,
+            code,
+            "rust",
+            palette,
+            "monospace",
+            24.0,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            0.0,
+            "left",
+            "visible",
+            false,
+            font_ctx,
+        )
+        .expect("Code compiles")
+    }
+
+    fn glyph_hexes(cached: &CachedText) -> Vec<String> {
+        cached
+            .paths
+            .iter()
+            .filter_map(|p| match &p.color {
+                typst::visualize::Paint::Solid(c) => Some(c.to_hex().to_string()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn highlight_palette_recolours_tokens() {
+        let font_ctx = test_font_ctx();
+        // `fn` is a keyword; the sentinel palette maps keyword → pure green.
+        let with =
+            glyph_hexes(&compile_code_with(&font_ctx, "fn main() {}", Some(&sentinel_palette())));
+        assert!(
+            with.iter().any(|h| h.eq_ignore_ascii_case("#00ff00")),
+            "a token should take its palette role colour, got {with:?}"
+        );
+        // Without a palette, Typst's fixed theme colour is used (not the green sentinel).
+        let without = glyph_hexes(&compile_code_with(&font_ctx, "fn main() {}", None));
+        assert!(
+            !without.iter().any(|h| h.eq_ignore_ascii_case("#00ff00")),
+            "no palette must keep the built-in theme colours, got {without:?}"
+        );
+    }
+
+    #[test]
+    fn palette_is_part_of_text_cache_key() {
+        let _cache = cache_test_guard();
+        let font_ctx = test_font_ctx();
+        let code = "fn main() {}";
+        let a = sentinel_palette();
+        let mut b = sentinel_palette();
+        b.keyword = [0.2, 0.3, 0.4, 1.0];
+        let ca = compile_code_with(&font_ctx, code, Some(&a));
+        let cb = compile_code_with(&font_ctx, code, Some(&b));
+        let ca_again = compile_code_with(&font_ctx, code, Some(&a));
+        assert!(std::sync::Arc::ptr_eq(&ca, &ca_again), "same palette + content is a cache hit");
+        assert!(
+            !std::sync::Arc::ptr_eq(&ca, &cb),
+            "different palettes must not share a cache entry"
         );
     }
 
@@ -3124,6 +3323,7 @@ mod tests {
                 TextKind::Typst,
                 "$ x^2 $",
                 "",
+                None,
                 "Open Sans",
                 24.0,
                 400.0,
@@ -3222,6 +3422,7 @@ mod tests {
                 TextKind::Typst,
                 "$ e^{i\\pi} $",
                 "",
+                None,
                 "Open Sans",
                 24.0,
                 400.0,

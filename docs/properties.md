@@ -104,7 +104,8 @@ languages, e.g. `"rust"`, `"python"`, `"cpp"`; matched case-insensitively).
 Empty or unrecognized renders plain — an unrecognized spelling warns and
 falls back, never drops the actor. Highlighting only recolors tokens; the
 un-highlighted text keeps the actor's `color`, and glyph metrics (and thus
-layout) are unchanged.
+layout) are unchanged. Token colours follow the active colorscheme (each role
+maps to a named scheme colour, resolved at build like any other `color`).
 
 ## Media
 

@@ -13,6 +13,14 @@ impl Timeline {
         bg_track.add_keyframe(0, background, Easing::Linear);
         self.background_color = bg_track;
         self.colorscheme = colorscheme;
+        // `Code` syntax highlighting recolours tokens through this palette so
+        // it follows the active colorscheme. The palette is a timeline-wide
+        // constant (every Code actor shares the current scheme's accents), so it
+        // lives on the timeline-scoped TextCompiler — mirroring how every other
+        // primitive's colour is resolved from the scheme at build time, only at
+        // timeline scope instead of per-actor.
+        self.text_compiler.borrow_mut().highlight_palette =
+            Some(self.colorscheme.highlight_palette());
     }
 
     // === Colorscheme Declaration Parsing ===

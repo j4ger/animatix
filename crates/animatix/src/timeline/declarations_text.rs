@@ -478,6 +478,9 @@ impl Timeline {
             // the track lane; read it back so the build-time precompile shares
             // the render path's cache key (and highlights identically).
             &track.text.language.get(t_end_ms, String::new()),
+            // Same palette the render path uses, so the precompile shares its
+            // cache entry and the build-time glyphs highlight identically.
+            self.text_compiler.borrow().highlight_palette.as_ref(),
             &font_family,
             font_size,
             font_weight,

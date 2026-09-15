@@ -703,6 +703,9 @@ impl Timeline {
             props.text_kind,
             &props.content,
             &props.language,
+            // Match the render path's palette so width-recompiles share its
+            // cache entry (and highlight identically).
+            self.text_compiler.borrow().highlight_palette.as_ref(),
             &props.font_family,
             props.font_size,
             props.font_weight,

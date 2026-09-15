@@ -952,6 +952,9 @@ pub(crate) fn recompile_text_at_assignment(
         text_kind,
         &target_text,
         &language,
+        // Same palette the `text_compiler.compile` call above used, so this is
+        // still a cache hit rather than a second compilation.
+        text_compiler.highlight_palette.as_ref(),
         &font_family,
         font_size,
         font_weight,

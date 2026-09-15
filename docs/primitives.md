@@ -65,11 +65,14 @@ eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
 ## Code
 
 Renders via the text-path pipeline (Typst `raw` block). Setting `language` to
-one of Typst's built-in highlighting languages turns on syntax highlighting —
-tokens are recolored by Typst's built-in theme, the un-highlighted text keeps
-the actor's `color`, and glyph metrics (and thus layout) are unchanged. An
-empty or unrecognized `language` renders plain (a warning is logged for the
-latter, never an error).
+one of Typst's built-in highlighting languages turns on syntax highlighting.
+Token colours follow the active colorscheme: each token role is mapped to a
+named scheme colour (keyword→`accent.danger`, function→`accent.primary`,
+string→`accent.success`, number→`accent.secondary`, comment→`text.muted`, …),
+resolved once at build like any other primitive's `color`. The un-highlighted
+text keeps the actor's `color`, and glyph metrics (and thus layout) are
+unchanged. An empty or unrecognized `language` renders plain (a warning is
+logged for the latter, never an error).
 
 **Properties:**
 - `code`: String
