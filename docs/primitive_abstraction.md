@@ -26,7 +26,8 @@ per-type branching in the pipeline:
 | Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin.rs` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 8). |
 
 Invariants are pinned by tests: `every_built_track_identity_is_consistent`
-(`timeline/tests/build.rs`), `registry_matches_primitives` /
+(`timeline/tests/build.rs`), `registry_matches_primitives` (card/behaviour
+symbol pairing and set equality — the two lists no longer share an order) /
 `child_processing_capabilities_cover_special_containers` (`primitives/mod.rs`),
 `custom_primitive_builds_through_timeline` (`primitives/registry.rs`).
 

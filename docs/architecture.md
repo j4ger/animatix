@@ -700,19 +700,15 @@ Rendering is trait-dispatched; adding a primitive is one identity card, one
 behaviour file, and one registration line — no parallel metadata anywhere:
 
 ```rust
-// animatix-std/src/catalog.rs — the identity card (single metadata source)
-PrimitiveInfo {
-    type_name: "Triangle",
-    display_name: "Triangle",
-    category: ActorCategory::Shape,
-    icon_id: crate::icon_glyphs::TRIANGLE,
-    advanced: false,
-    capabilities: SHAPE_CAPS,
-    child_processing: ChildProcessingKind::Generic,
-    shape: Some(ShapeKind::Rect),
-    text: None,
-    stroke_path: true,
-},
+// animatix-std/src/catalog.rs — the identity card (single metadata source),
+// built with a const-fn constructor and listed in CATALOG (presentation
+// order only).
+pub static TRIANGLE: PrimitiveInfo = PrimitiveInfo::shape(
+    "Triangle",
+    "Triangle",
+    icon_glyphs::TRIANGLE,
+    ShapeKind::Polygon,
+);
 
 // animatix/src/primitives/triangle.rs — the behaviour (engine side)
 pub struct TrianglePrimitive;
@@ -735,18 +731,27 @@ impl Primitive for TrianglePrimitive {
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> { vec![...] }
 }
+
+// animatix/src/primitives/mod.rs — the registration row: card and behaviour
+// referenced by symbol, so the two lists cannot drift positionally.
+pub static BUILT_INS: &[BuiltIn] = &[
+    // … existing rows …
+    BuiltIn::new(&animatix_std::catalog::TRIANGLE, &TRIANGLE),
+];
 ```
 
 Steps:
-1. Add the identity card: a `PrimitiveInfo` row in `animatix-std`'s `CATALOG`
-   (display name, category, icon, capabilities, child processing, shape/text
-   projection). This is the single metadata source — the runtime, the parser
-   crate's `builtin_primitive_specs()`, and `builtins::types()` all derive
-   from it.
+1. Add the identity card: a `pub static <NAME>: PrimitiveInfo` in
+   `animatix-std/src/catalog.rs` (display name, category, icon, capabilities,
+   child processing, shape/text projection) and its name in `CATALOG`
+   (presentation order). This is the single metadata source — the runtime, the
+   parser crate's `builtin_primitive_specs()`, and `builtins::types()` all
+   derive from it.
 2. Create `animatix/src/primitives/<name>.rs` implementing the behaviour
    methods of `Primitive` (`build`/`evaluate`/`render`/`default_props`).
-3. Add `&name::CONST` to the `PRIMITIVES` array in `primitives/mod.rs`. A
-   test pins the behaviour registry names to the catalog.
+3. Add a `BuiltIn::new(&animatix_std::catalog::<NAME>, &<NAME>::CONST)` row
+   to the `BUILT_INS` array in `primitives/mod.rs`. The card is referenced by
+   symbol; tests pin the name pairing and the catalog/behaviour set equality.
 4. If the primitive declares properties, add the row to
    `animatix_core::property::PROPERTY_DESCRIPTORS` — the single declaration of
    name, `Applicable` predicate, and finite value kind. Two derivations follow
@@ -766,8 +771,9 @@ Steps:
    tests if the primitive draws.
 
 The metadata registry is the `animatix-std` catalog itself (the former
-`ActorKindMeta` was replaced by `PrimitiveInfo`), and the engine behaviour
-registry is pinned to it by name. External primitives register through
+`ActorKindMeta` was replaced by `PrimitiveInfo`), and each engine `BUILT_INS`
+row references its card by symbol — only name-set drift remains possible, and
+the pairing test catches it. External primitives register through
 `PrimitiveRegistry` or `ExtensionContext` with their own `PrimitiveInfo` card
 (the same data shape the native ABI descriptor carries); external properties
 are stored in the actor's `PropertyPlan`/`DynTrack` slots.
