@@ -27,11 +27,7 @@ fn highlight_palette() -> HighlightPalette {
     }
 }
 
-fn compile_once(
-    compiler: &mut TextCompiler,
-    font_ctx: &FontContext,
-    language: &str,
-) -> usize {
+fn compile_once(compiler: &mut TextCompiler, font_ctx: &FontContext, language: &str) -> usize {
     compiler
         .compile(
             CODE,

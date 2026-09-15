@@ -35,12 +35,14 @@ by evidence and not intuition.
 ### 2.1 What is already measured
 
 The project already ships a mature Criterion suite under `crates/animatix/benches/`
-(17 benches, all compile against the current API):
+(19 benches, all compile against the current API):
 
 | Area | Bench | What it measures |
 |---|---|---|
 | Build/compile | `build_time.rs` | `Timeline::build` over synthetic workloads |
 | Text-heavy rebuild | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
+| Code highlight compile | `code_highlight.rs` | `compile_text_cached` for a `Code` body: plain fence vs highlighted spans vs highlighted with a colorscheme palette (cache cleared per iter — the GUI rebuild-per-keystroke cost) |
+| Per-demo frame cost | `demos_frame_cost.rs` | steady-state GPU frame time for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path — the 30fps-preview gate |
 | Full editor path | `full_pipeline.rs` | parse → module load → typecheck → expand → build (incl. real examples) |
 | Parse-only / build-only | `full_pipeline.rs` | isolation of parse vs. build stage cost |
 | Frame evaluation | `timeline_eval.rs` | `Timeline::evaluate` at several times (cache hit) |

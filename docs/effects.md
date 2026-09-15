@@ -114,24 +114,33 @@ and sums the per-stage maxima, so the result is constant per track (PF-7: no
 per-frame reallocation).
 
 **Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts the
-effect *harvest* to that region: the result is read back (or viewport-blitted)
-from `bounds ∪ worst-case support` (clamped to the scene) and composited back
-at the region origin. The chain itself always dispatches over the **full
-canvas**: the compute shaders address `src` with normalized UVs, so a
-region-cropped seed made every sample outside the crop read stale texels from
-the previous scope's render (found by the effects-wave1 dogfood: a moving
-`MotionBlur` card dragged opaque garbage with it). Region-scoped *dispatch*
-returns only with an origin-aware `EffectContext` (an ABI bump — see
-"Planned Effects" in `roadmap.md`). Without `bounds`, the whole scene is
-processed exactly as before.
+effect to that region: the sub-scene is rendered, seeded, dispatched, and
+harvested entirely inside `bounds ∪ worst-case support` (clamped to the scene),
+and the result is composited back at the region origin.
+
+**Region-scoped dispatch (implemented 2026-09-16).** The chain dispatches over
+the **region**, not the full canvas: the sub-scene is rendered into a
+region-sized target via a translate crop, the seed copy and every compute pass
+run at region extent, and the shaders' UV space is exactly the region. This
+makes the stale-texel hazard impossible by construction (dispatch == seed ==
+sampled extent — the original full-canvas dispatch existed because a
+region-cropped seed read through full-canvas UVs pulled stale texels from the
+previous scope's render; found by the effects-wave1 dogfood). Cost of a scope
+now scales with its region instead of the canvas. Scratch targets are
+quantized to 64-px steps and cached per size, so animated regions never
+reallocate in steady state (PF-7 intent preserved; effects whose semantics
+assume scene-centred coordinates — none today — would need an origin-aware
+`EffectContext` first). Without `bounds`, the region is derived from content
+bounds (below) and the same region-scoped path applies; only a region that
+covers the whole scene falls back to the historical full-canvas textures.
 
 **Derived ROI (implemented).** When no `bounds:` is authored, the region is
 derived from the content bounds the sub-scene evaluation itself records
 (`precise_bounds`): union the content subtree's world bounds, pad by the chain's
 worst-case support, and clamp to the scene. The bounds are exact for the frame
-being rendered — no staleness, no heuristics — and since the GPU textures stay
-at full scene capacity, a region that grows or shrinks between frames never
-reallocates. `Blur.radius` animating simply widens the region automatically.
+being rendered — no staleness, no heuristics — and the 64-px quantization means
+a region that grows or shrinks between frames rarely reallocates.
+`Blur.radius` animating simply widens the region automatically.
 
 Composite ordering: the zero-readback path keeps the existing
 `can_post_composite_filter` precondition ("this scope is the last rendered

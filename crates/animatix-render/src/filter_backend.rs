@@ -92,6 +92,26 @@ pub struct GpuFilterBackend {
     last_region: Option<EffectRegion>,
     /// Pending zero-readback filter textures to be composited after scene render.
     pending_composites: Vec<PendingComposite>,
+    /// Region-scoped scratch targets, keyed by quantized size. Region paths
+    /// render, seed, ping-pong, and harvest entirely inside these textures so
+    /// per-scope cost scales with the scope, not the canvas (PF-7's
+    /// no-reallocation guarantee is preserved by quantizing sizes and capping
+    /// the cache: steady-state scenes reuse one entry per distinct ROI).
+    region_scratch: HashMap<(u32, u32), RegionScratch>,
+    /// Ping-pong texture of the most recent *region-scoped* run, when one was
+    /// used. Its contents cover `last_effect_dims` starting at (0, 0).
+    last_region_pp: Option<(wgpu::Texture, wgpu::TextureView)>,
+}
+
+/// Region-scoped scratch targets for one quantized ROI size.
+#[derive(Clone)]
+struct RegionScratch {
+    render_texture: wgpu::Texture,
+    render_view: wgpu::TextureView,
+    pp_a: wgpu::Texture,
+    pp_a_view: wgpu::TextureView,
+    pp_b: wgpu::Texture,
+    pp_b_view: wgpu::TextureView,
 }
 
 /// Identifies which internal texture holds the filtered result.
@@ -319,6 +339,8 @@ impl GpuFilterBackend {
             last_effect_dims: dimensions,
             last_region: None,
             pending_composites: Vec::new(),
+            region_scratch: HashMap::new(),
+            last_region_pp: None,
         })
     }
 
@@ -430,65 +452,119 @@ impl GpuFilterBackend {
 
     /// Render a scene and apply `chain`, keeping the result on the GPU.
     ///
-    /// Returns the [`wgpu::TextureView`] holding the final image (the render
-    /// texture when the chain is empty). `self.last_filtered_source` records
-    /// which texture it is so callers can read it back or copy it, and
-    /// `self.last_effect_dims` the extent the chain covered.
+    /// Returns the [`wgpu::TextureView`] holding the final image. The result
+    /// location is recorded on `self`: `last_region_pp` for the region-scoped
+    /// path (contents cover `last_effect_dims` from (0, 0)), or
+    /// `last_filtered_source` + `last_effect_dims` for the full-canvas path.
     ///
-    /// `region` scopes only the *harvest*: the chain itself always dispatches
-    /// over the full canvas. Cropping the seed to the region and dispatching
-    /// at the region size made the compute shaders sample the full-canvas
-    /// ping-pong textures with region-normalized UVs, reading stale pixels
-    /// from outside the crop (found by the effects-wave1 dogfood: a moving
-    /// `MotionBlur` card dragged opaque backdrop garbage with it). Revisit the
-    /// region dispatch only together with an origin-aware `EffectContext`.
+    /// Region-scoped scopes render, seed, and dispatch entirely at region
+    /// size, so per-scope cost scales with the scope instead of the canvas.
+    /// Dispatch extent == seed extent == the shaders' UV space, which makes
+    /// the stale-texel hazard that originally forced full-canvas dispatch (a
+    /// cropped seed read through region-independent UVs; found by the
+    /// effects-wave1 dogfood when a moving `MotionBlur` card dragged opaque
+    /// backdrop garbage with it) impossible by construction. Shaders address
+    /// `tex_size`-relative pixels, so pixel-denominated parameters (blur
+    /// radius, offsets) keep their meaning at region size.
     fn render_and_filter_scene_to_view(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
         region: Option<EffectRegion>,
         chain: &EffectChain,
-    ) -> Result<&wgpu::TextureView, String> {
+    ) -> Result<wgpu::TextureView, String> {
+        let mut wrapped;
+        let (dispatch_dims, scene_ref, scratch) = match region {
+            Some(r) => {
+                let (width, height) = Self::quantize_region_size(r.size, dimensions);
+                wrapped = vello::Scene::new();
+                wrapped.append(
+                    scene,
+                    Some(kurbo::Affine::translate(kurbo::Vec2::new(
+                        -f64::from(r.origin[0]),
+                        -f64::from(r.origin[1]),
+                    ))),
+                );
+                (
+                    SceneDimensions { width, height },
+                    &wrapped,
+                    Some(self.region_scratch_for(width, height)),
+                )
+            },
+            None => (dimensions, scene, None),
+        };
+        let scratch = scratch.map(std::sync::Arc::new);
+        let (render_view, seed_texture, pp_a, pp_a_view, pp_b, pp_b_view) = match &scratch {
+            Some(s) => (
+                s.render_view.clone(),
+                s.render_texture.clone(),
+                s.pp_a.clone(),
+                s.pp_a_view.clone(),
+                s.pp_b.clone(),
+                s.pp_b_view.clone(),
+            ),
+            None => (
+                self.render_view.clone(),
+                self.render_texture.clone(),
+                self.tex_a.clone(),
+                self.tex_a_view.clone(),
+                self.tex_b.clone(),
+                self.tex_b_view.clone(),
+            ),
+        };
+
+        // TEMPORARY perf probe (env-gated): per-stage cost of one scope.
+        let timing = std::env::var_os("ANIMATIX_FILTER_TIMING").is_some();
+        let t_all = std::time::Instant::now();
+
         self.core
             .render_vello_scene_with_background(
                 &self.device,
                 &self.queue,
-                &self.render_view,
-                dimensions.width,
-                dimensions.height,
-                scene,
+                &render_view,
+                dispatch_dims.width,
+                dispatch_dims.height,
+                scene_ref,
                 vello::peniko::Color::TRANSPARENT,
             )
             .map_err(|e| e.to_string())?;
+        let t_render = t_all.elapsed();
 
-        self.dump_stage("render_view", &self.render_texture, dimensions);
+        self.dump_stage("render_view", &seed_texture, dispatch_dims);
+
+        // Harvest extent: the true region size (dispatch may be quantized
+        // larger; the padding is never harvested).
+        self.last_effect_dims = match region {
+            Some(r) => r.size,
+            None => dimensions,
+        };
+        self.last_region = region;
+        self.last_region_pp = None;
 
         if chain.is_empty() {
             self.last_filtered_source = FilteredSource::Render;
-            return Ok(&self.render_view);
+            if region.is_some() {
+                // The unfiltered result lives in the region render target.
+                self.last_region_pp = Some((seed_texture.clone(), render_view.clone()));
+            }
+            return Ok(render_view);
         }
 
-        // The chain always dispatches over the full canvas: the shaders address
-        // `src` with region-independent normalized UVs, so a cropped seed would
-        // read stale texels outside the crop.
-        let width = dimensions.width.max(1);
-        let height = dimensions.height.max(1);
-        self.last_effect_dims = dimensions;
-        self.last_region = region;
-
-        // Copy the render texture into ping-pong A as the starting point.
+        // Seed the ping-pong with the rendered frame.
+        let width = dispatch_dims.width.max(1);
+        let height = dispatch_dims.height.max(1);
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Effect Seed Encoder"),
         });
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &self.render_texture,
+                texture: &seed_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
-                texture: &self.tex_a,
+                texture: &pp_a,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
@@ -500,7 +576,8 @@ impl GpuFilterBackend {
             },
         );
         self.queue.submit(std::iter::once(encoder.finish()));
-        self.dump_stage("tex_a_seed", &self.tex_a, dimensions);
+        self.dump_stage("tex_a_seed", &pp_a, dispatch_dims);
+        let t_seed = t_all.elapsed() - t_render;
 
         let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
@@ -520,12 +597,8 @@ impl GpuFilterBackend {
             let pass_count = pipeline.passes.len() as u32;
             for (index, pass_pipeline) in pipeline.passes.iter().enumerate() {
                 let (src_view, dst_view, next) = match current {
-                    FilteredSource::TexA => {
-                        (&self.tex_a_view, &self.tex_b_view, FilteredSource::TexB)
-                    },
-                    FilteredSource::TexB => {
-                        (&self.tex_b_view, &self.tex_a_view, FilteredSource::TexA)
-                    },
+                    FilteredSource::TexA => (&pp_a_view, &pp_b_view, FilteredSource::TexB),
+                    FilteredSource::TexB => (&pp_b_view, &pp_a_view, FilteredSource::TexA),
                     FilteredSource::Render => {
                         unreachable!("render texture is never a ping-pong source")
                     },
@@ -545,19 +618,90 @@ impl GpuFilterBackend {
             }
         }
 
-        if let Some(src) = match current {
-            FilteredSource::TexA => Some(&self.tex_a),
-            FilteredSource::TexB => Some(&self.tex_b),
-            FilteredSource::Render => None,
-        } {
-            self.dump_stage("tex_b_fx", src, dimensions);
-        }
-        self.last_filtered_source = current;
-        Ok(match current {
-            FilteredSource::TexA => &self.tex_a_view,
-            FilteredSource::TexB => &self.tex_b_view,
+        let (result_texture, result_view) = match current {
+            FilteredSource::TexA => (pp_a, pp_a_view),
+            FilteredSource::TexB => (pp_b, pp_b_view),
             FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
-        })
+        };
+        self.dump_stage("tex_b_fx", &result_texture, dispatch_dims);
+        let t_passes = t_all.elapsed() - t_seed - t_render;
+        if timing {
+            eprintln!(
+                "[filter-timing] dims={}x{} stages={} render={:.2}ms seed={:.2}ms passes={:.2}ms",
+                dispatch_dims.width,
+                dispatch_dims.height,
+                chain.instances.len(),
+                t_render.as_secs_f64() * 1000.0,
+                t_seed.as_secs_f64() * 1000.0,
+                t_passes.as_secs_f64() * 1000.0,
+            );
+        }
+
+        self.last_filtered_source = current;
+        if region.is_some() {
+            // Region results live in the region scratch ping-pong, covering
+            // `last_effect_dims` from (0, 0).
+            self.last_region_pp = Some((result_texture.clone(), result_view.clone()));
+        }
+        Ok(result_view)
+    }
+
+    /// Quantize a region size up to 64-px steps (clamped to the canvas) so a
+    /// moving scope reuses one scratch allocation instead of churning.
+    fn quantize_region_size(size: SceneDimensions, canvas: SceneDimensions) -> (u32, u32) {
+        let step = |v: u32, max: u32| (v.div_ceil(64).max(1) * 64).min(max.max(1));
+        (step(size.width, canvas.width), step(size.height, canvas.height))
+    }
+
+    /// Get (creating on first use) the region-scoped scratch targets for a
+    /// quantized size. Textures are cloned out (refcount bumps) so the cache
+    /// stays owned by the backend across the mutable render call.
+    fn region_scratch_for(&mut self, width: u32, height: u32) -> RegionScratch {
+        const MAX_REGION_SCRATCH_ENTRIES: usize = 12;
+        if self.region_scratch.len() > MAX_REGION_SCRATCH_ENTRIES {
+            // A scene uses a handful of distinct ROIs; if churn ever exceeds
+            // the cap, start over rather than growing unbounded.
+            self.region_scratch.clear();
+        }
+        if let Some(scratch) = self.region_scratch.get(&(width, height)) {
+            return scratch.clone();
+        }
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::COPY_DST;
+        let make = |label: &str| {
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage,
+                label: Some(label),
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            (texture, view)
+        };
+        let (render_texture, render_view) = make("Animatix Region Render Target");
+        let (pp_a, pp_a_view) = make("Animatix Region Ping A");
+        let (pp_b, pp_b_view) = make("Animatix Region Ping B");
+        let scratch = RegionScratch {
+            render_texture,
+            render_view,
+            pp_a,
+            pp_a_view,
+            pp_b,
+            pp_b_view,
+        };
+        self.region_scratch.insert((width, height), scratch.clone());
+        scratch
     }
 
     /// Debug instrumentation: read a texture region back as a [`SceneImage`].
@@ -649,21 +793,16 @@ impl GpuFilterBackend {
         })
     }
 
-    /// Copy the most recent filtered view to a dedicated texture for deferred
-    /// compositing.
+    /// Copy the most recent filtered result to a dedicated texture for
+    /// deferred compositing.
     fn copy_last_filtered_to_pending(
         &self,
         dimensions: SceneDimensions,
         alpha: f32,
         origin: [f32; 2],
+        source: &wgpu::Texture,
         source_origin: wgpu::Origin3d,
     ) -> Result<PendingComposite, String> {
-        let source = match self.last_filtered_source {
-            FilteredSource::Render => &self.render_texture,
-            FilteredSource::TexA => &self.tex_a,
-            FilteredSource::TexB => &self.tex_b,
-        };
-
         let texture = self.device.create_texture(&wgpu::TextureDescriptor {
             size: wgpu::Extent3d {
                 width: dimensions.width,
@@ -723,6 +862,26 @@ impl FilterBackend for GpuFilterBackend {
     ) -> Result<SceneImage, String> {
         self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
 
+        if let Some((texture, _)) = &self.last_region_pp {
+            // Region-scoped result: contents cover `last_effect_dims` from
+            // (0, 0) inside the scratch texture.
+            let t = std::time::Instant::now();
+            let image = self.readback_to_scene_image_at(
+                texture,
+                wgpu::Origin3d::ZERO,
+                self.last_effect_dims,
+            );
+            if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+                eprintln!(
+                    "[filter-timing] readback dims={}x{} took={:.2}ms",
+                    self.last_effect_dims.width,
+                    self.last_effect_dims.height,
+                    t.elapsed().as_secs_f64() * 1000.0,
+                );
+            }
+            return image;
+        }
+
         let texture = match self.last_filtered_source {
             FilteredSource::Render => &self.render_texture,
             FilteredSource::TexA => &self.tex_a,
@@ -751,19 +910,41 @@ impl FilterBackend for GpuFilterBackend {
         alpha: f32,
     ) -> Result<(), String> {
         let origin = region.map_or([0.0, 0.0], |region| region.origin);
+        let t_copy = std::time::Instant::now();
         self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
-        let harvest = self.last_region.map_or(self.last_effect_dims, |region| region.size);
-        let harvest_origin = self.last_region.map_or([0.0, 0.0], |region| region.origin);
-        let composite = self.copy_last_filtered_to_pending(
-            harvest,
-            alpha,
-            origin,
-            wgpu::Origin3d {
-                x: harvest_origin[0].max(0.0) as u32,
-                y: harvest_origin[1].max(0.0) as u32,
-                z: 0,
-            },
-        )?;
+        let t_after_render = t_copy.elapsed();
+        let harvest = self.last_effect_dims;
+        let (source, source_origin) = if let Some((texture, _)) = &self.last_region_pp {
+            // Region-scoped result: the scratch ping-pong covers
+            // `last_effect_dims` from (0, 0).
+            (texture, wgpu::Origin3d::ZERO)
+        } else {
+            let texture = match self.last_filtered_source {
+                FilteredSource::Render => &self.render_texture,
+                FilteredSource::TexA => &self.tex_a,
+                FilteredSource::TexB => &self.tex_b,
+            };
+            let harvest_origin = self.last_region.map_or([0.0, 0.0], |region| region.origin);
+            (
+                texture,
+                wgpu::Origin3d {
+                    x: harvest_origin[0].max(0.0) as u32,
+                    y: harvest_origin[1].max(0.0) as u32,
+                    z: 0,
+                },
+            )
+        };
+        let composite =
+            self.copy_last_filtered_to_pending(harvest, alpha, origin, source, source_origin)?;
+        if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+            eprintln!(
+                "[filter-timing] pending dims={}x{} render+chain={:.2}ms copy_alloc={:.2}ms",
+                harvest.width,
+                harvest.height,
+                t_after_render.as_secs_f64() * 1000.0,
+                (t_copy.elapsed() - t_after_render).as_secs_f64() * 1000.0,
+            );
+        }
         self.pending_composites.push(composite);
         Ok(())
     }

@@ -134,3 +134,7 @@ harness = false
 [[bench]]
 name = "code_highlight"
 harness = false
+
+[[bench]]
+name = "demos_frame_cost"
+harness = false
