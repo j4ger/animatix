@@ -130,3 +130,7 @@ harness = false
 [[bench]]
 name = "equation_frame"
 harness = false
+
+[[bench]]
+name = "code_highlight"
+harness = false
