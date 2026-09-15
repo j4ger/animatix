@@ -2,16 +2,17 @@
 
 use std::sync::Arc;
 
-use super::{PRIMITIVES, Primitive};
-use animatix_std::{PrimitiveInfo, catalog_lookup};
+use super::{BUILT_INS, BuiltIn, Primitive};
+use animatix_std::PrimitiveInfo;
 
 /// Storage for a registered primitive: compiled-in built-ins keep their
-/// `&'static` identity (metadata from the `animatix-std` catalog), extension
-/// primitives own an `Arc` allocation plus the registration info.
+/// `&'static` identity (the [`BuiltIn`] row carries both behaviour and the
+/// `animatix-std` card), extension primitives own an `Arc` allocation plus
+/// the registration info.
 #[derive(Clone)]
 enum RegisteredPrimitive {
-    /// A built-in primitive from [`PRIMITIVES`].
-    Builtin(&'static dyn Primitive),
+    /// A built-in primitive from [`BUILT_INS`].
+    Builtin(&'static BuiltIn),
     /// A runtime-registered (extension / plugin) primitive.
     Extension(Arc<dyn Primitive>, PrimitiveInfo),
 }
@@ -19,19 +20,14 @@ enum RegisteredPrimitive {
 impl RegisteredPrimitive {
     fn as_ref(&self) -> &dyn Primitive {
         match self {
-            Self::Builtin(primitive) => *primitive,
+            Self::Builtin(builtin) => builtin.behavior,
             Self::Extension(primitive, _) => primitive.as_ref(),
         }
     }
 
     fn info(&self) -> &PrimitiveInfo {
         match self {
-            Self::Builtin(primitive) => {
-                // Built-ins are pinned to the catalog by test; the expect
-                // documents that invariant at the single lookup funnel.
-                catalog_lookup(primitive.type_name())
-                    .expect("built-in primitive missing from the animatix-std catalog")
-            },
+            Self::Builtin(builtin) => builtin.info,
             Self::Extension(_, info) => info,
         }
     }
@@ -47,8 +43,8 @@ impl PrimitiveRegistry {
     /// Create a registry seeded with all built-in primitives.
     pub fn new() -> Self {
         let mut registry = Self::default();
-        for primitive in PRIMITIVES {
-            registry.primitives.push(RegisteredPrimitive::Builtin(*primitive));
+        for builtin in BUILT_INS {
+            registry.primitives.push(RegisteredPrimitive::Builtin(builtin));
         }
         registry
     }
@@ -92,11 +88,7 @@ impl PrimitiveRegistry {
         self.primitives
             .iter()
             .find(|registered| registered.as_ref().type_name() == name)
-            .map(|registered| match registered {
-                RegisteredPrimitive::Builtin(primitive) => catalog_lookup(primitive.type_name())
-                    .expect("built-in primitive missing from the animatix-std catalog"),
-                RegisteredPrimitive::Extension(_, info) => info,
-            })
+            .map(RegisteredPrimitive::info)
     }
 
     /// Iterate primitives together with their identity cards.
@@ -238,7 +230,7 @@ mod tests {
         assert!(registry.register(Arc::new(Gauge), gauge_info()).is_ok());
         assert!(registry.find("Gauge").is_some());
         assert!(!registry.is_builtin("Gauge"));
-        assert_eq!(registry.len(), super::PRIMITIVES.len() + 1);
+        assert_eq!(registry.len(), super::BUILT_INS.len() + 1);
 
         let specs = registry.specs();
         assert!(specs.iter().any(|spec| spec.type_name == "Rect"));
@@ -248,26 +240,28 @@ mod tests {
     #[test]
     fn builtins_and_extensions_share_one_registration_storage() {
         let mut registry = PrimitiveRegistry::new();
-        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
+        assert_eq!(registry.primitives.len(), super::BUILT_INS.len());
         assert!(!registry.remove("Rect"), "built-ins must stay registered");
         assert!(registry.register(Arc::new(Gauge), gauge_info()).is_ok());
-        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len() + 1);
+        assert_eq!(registry.primitives.len(), super::BUILT_INS.len() + 1);
         assert!(registry.remove("Gauge"));
-        assert_eq!(registry.primitives.len(), super::PRIMITIVES.len());
+        assert_eq!(registry.primitives.len(), super::BUILT_INS.len());
     }
 
     /// The engine behaviour registry and the `animatix-std` catalog must name
-    /// the same built-in set, in the same order — the catalog is the
-    /// author-visible half of every registered behaviour.
+    /// the same built-in set — the catalog is the author-visible half of
+    /// every registered behaviour. The comparison is set-based: registration
+    /// pairs by symbol in `BUILT_INS`, so list order is presentation-only.
     #[test]
     fn registry_names_match_std_catalog() {
         let registry = PrimitiveRegistry::new();
-        let catalog_names: Vec<&str> = animatix_std::CATALOG
+        let catalog_names: std::collections::HashSet<&str> = animatix_std::CATALOG
             .iter()
             .filter_map(|info| info.static_type_name())
             .collect();
-        let registry_names: Vec<&str> =
+        let registry_names: std::collections::HashSet<&str> =
             registry.iter().map(|primitive| primitive.type_name()).collect();
+        assert_eq!(catalog_names.len(), registry_names.len(), "duplicate names?");
         assert_eq!(registry_names, catalog_names, "registry and catalog drifted");
     }
 

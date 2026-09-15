@@ -11,7 +11,9 @@
 //! Effects are complete implementations (parameters, WGSL passes, `pack`,
 //! `support`); primitives are represented by their identity cards
 //! ([`PrimitiveInfo`] / [`CATALOG`]) while their behaviour lives in the
-//! engine, because building an actor needs the engine's `Timeline`.
+//! engine, because building an actor needs the engine's `Timeline`. The
+//! engine's `BUILT_INS` rows pair each behaviour with its card by symbol, so
+//! metadata and behaviour cannot drift positionally.
 //!
 //! The normative contract for the effect pass layout, uniforms, identity
 //! semantics, and failure policy lives in `docs/effects.md`.

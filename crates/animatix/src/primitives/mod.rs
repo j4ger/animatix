@@ -1,13 +1,14 @@
 //! Unified primitive system for Animatix.
 //!
 //! Every actor type (shape, text, media, plot, container) is a `Primitive`.
-//! `PRIMITIVES` is the bootstrap list; `PrimitiveRegistry` seeds built-ins
-//! through the same registration path used by extensions.
+//! `BUILT_INS` is the bootstrap list — each row pairs an `animatix-std`
+//! identity card with the behaviour implementing it; `PrimitiveRegistry`
+//! seeds built-ins through the same registration path used by extensions.
 //!
 //! ## Architecture
 //!
 //! ```text
-//! PRIMITIVES array (bootstrap, behaviour)
+//! BUILT_INS array (bootstrap: card + behaviour, paired by symbol)
 //!        │
 //!        ├──► PrimitiveRegistry (single storage for built-ins + extensions)
 //!        ├──► find_primitive() — compatibility lookup for static built-ins
@@ -20,13 +21,16 @@
 //!
 //! ## Adding a new primitive
 //!
-//! 1. Add the identity card: a `PrimitiveInfo` row in
-//!    `animatix-std/src/catalog.rs::CATALOG` (type/display/icon/category/
-//!    advanced/capabilities/child processing). Tooling, the parser's contract
-//!    tables, and the inspector palette all derive from it.
+//! 1. Add the identity card: a `pub const <NAME>: PrimitiveInfo` in
+//!    `animatix-std/src/catalog.rs` (type/display/icon/category/advanced/
+//!    capabilities/child processing) and its name in the `CATALOG` list.
+//!    Tooling, the parser's contract tables, and the inspector palette all
+//!    derive from the card.
 //! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only —
 //!    no metadata methods).
-//! 3. Add `&<name>::CONST` to the `PRIMITIVES` array below.
+//! 3. Add `BuiltIn::new(&catalog::<NAME>, &<NAME>::CONST)` to the `BUILT_INS`
+//!    array below. The card is referenced by symbol, so the two lists cannot
+//!    drift positionally; a name mismatch fails the pairing test.
 //! 4. If the primitive has properties, add the descriptor row to
 //!    `animatix-core::property::PROPERTY_DESCRIPTORS` (name + applicability +
 //!    value kind), its type row to
@@ -1319,49 +1323,70 @@ pub trait Primitive: Send + Sync {
 
 // ── The one static array ────────────────────────────────────────────────
 
+/// A built-in primitive: its `animatix-std` identity card paired by symbol
+/// with the engine behaviour that implements it.
+///
+/// One row per primitive in [`BUILT_INS`]; referencing the card directly is
+/// what removes the positional coupling between the catalog and the
+/// behaviour list.
+pub struct BuiltIn {
+    /// The identity card from the `animatix-std` catalog (metadata source).
+    pub info: &'static PrimitiveInfo,
+    /// The compiled-in behaviour implementation.
+    pub behavior: &'static dyn Primitive,
+}
+
+impl BuiltIn {
+    /// Pair a catalog card with its behaviour implementation.
+    pub const fn new(info: &'static PrimitiveInfo, behavior: &'static dyn Primitive) -> Self {
+        Self { info, behavior }
+    }
+}
+
 /// Bootstrap list of all built-in primitives.
 ///
 /// `PrimitiveRegistry::new()` registers these through the same `register`
-/// path used by extension primitives.
-pub static PRIMITIVES: &[&dyn Primitive] = &[
+/// path used by extension primitives. Order mirrors the catalog for
+/// presentation only; pairing is by symbol, not position.
+pub static BUILT_INS: &[BuiltIn] = &[
     // Shapes
-    &RECT,
-    &ELLIPSE,
-    &LINE,
-    &ARROW,
-    &POLYGON,
-    &PATH,
+    BuiltIn::new(&animatix_std::catalog::RECT, &RECT),
+    BuiltIn::new(&animatix_std::catalog::ELLIPSE, &ELLIPSE),
+    BuiltIn::new(&animatix_std::catalog::LINE, &LINE),
+    BuiltIn::new(&animatix_std::catalog::ARROW, &ARROW),
+    BuiltIn::new(&animatix_std::catalog::POLYGON, &POLYGON),
+    BuiltIn::new(&animatix_std::catalog::PATH, &PATH),
     // Text
-    &TEXT,
-    &CODE,
-    &MATH,
-    &TYPST,
+    BuiltIn::new(&animatix_std::catalog::TEXT, &TEXT),
+    BuiltIn::new(&animatix_std::catalog::CODE, &CODE),
+    BuiltIn::new(&animatix_std::catalog::MATH, &MATH),
+    BuiltIn::new(&animatix_std::catalog::TYPST, &TYPST),
     // Media
-    &IMAGE,
-    &SVG,
-    &AUDIO,
+    BuiltIn::new(&animatix_std::catalog::IMAGE, &IMAGE),
+    BuiltIn::new(&animatix_std::catalog::SVG, &SVG),
+    BuiltIn::new(&animatix_std::catalog::AUDIO, &AUDIO),
     // Plots
-    &GRAPH,
-    &PLOT_CURVE,
-    &VECTOR_FIELD,
-    &HEATMAP,
-    &CONTOUR_SET,
-    &NUMBER_PLANE,
-    &BAR_CHART,
+    BuiltIn::new(&animatix_std::catalog::GRAPH, &GRAPH),
+    BuiltIn::new(&animatix_std::catalog::PLOT_CURVE, &PLOT_CURVE),
+    BuiltIn::new(&animatix_std::catalog::VECTOR_FIELD, &VECTOR_FIELD),
+    BuiltIn::new(&animatix_std::catalog::HEATMAP, &HEATMAP),
+    BuiltIn::new(&animatix_std::catalog::CONTOUR_SET, &CONTOUR_SET),
+    BuiltIn::new(&animatix_std::catalog::NUMBER_PLANE, &NUMBER_PLANE),
+    BuiltIn::new(&animatix_std::catalog::BAR_CHART, &BAR_CHART),
     // Containers
-    &ROW,
-    &COL,
-    &GRID,
-    &STACK,
-    &GROUP,
-    &MASK,
-    &FILTER,
+    BuiltIn::new(&animatix_std::catalog::ROW, &ROW),
+    BuiltIn::new(&animatix_std::catalog::COL, &COL),
+    BuiltIn::new(&animatix_std::catalog::GRID, &GRID),
+    BuiltIn::new(&animatix_std::catalog::STACK, &STACK),
+    BuiltIn::new(&animatix_std::catalog::GROUP, &GROUP),
+    BuiltIn::new(&animatix_std::catalog::MASK, &MASK),
+    BuiltIn::new(&animatix_std::catalog::FILTER, &FILTER),
+    BuiltIn::new(&animatix_std::catalog::EQUATION, &EQUATION),
     // Equation / Fragment
-    &EQUATION,
-    &FRAGMENT,
+    BuiltIn::new(&animatix_std::catalog::FRAGMENT, &FRAGMENT),
     // Annotations
-    &CALLOUT,
-    &LEGEND,
+    BuiltIn::new(&animatix_std::catalog::CALLOUT, &CALLOUT),
+    BuiltIn::new(&animatix_std::catalog::LEGEND, &LEGEND),
 ];
 
 // ── Built-in metadata ───────────────────────────────────────────────────
@@ -1369,7 +1394,7 @@ pub static PRIMITIVES: &[&dyn Primitive] = &[
 pub use animatix_std::PrimitiveInfo;
 
 /// The built-in primitive catalog (the `animatix-std` identity cards).
-pub fn primitive_catalog() -> &'static [PrimitiveInfo] {
+pub fn primitive_catalog() -> &'static [&'static PrimitiveInfo] {
     animatix_std::CATALOG
 }
 
@@ -1377,7 +1402,7 @@ use std::sync::OnceLock;
 
 /// Look up built-in metadata by the actor's authored type name.
 pub fn primitive_info_by_name(name: &str) -> Option<&'static PrimitiveInfo> {
-    primitive_catalog().iter().find(|m| m.type_name == name)
+    animatix_std::catalog_lookup(name)
 }
 
 /// Expose built-in primitive metadata through the shared schema model.
@@ -1413,8 +1438,8 @@ mod tests {
     #[test]
     fn all_primitives_have_unique_type_names() {
         let mut seen = std::collections::HashSet::new();
-        for p in PRIMITIVES.iter() {
-            let name = p.type_name();
+        for entry in BUILT_INS.iter() {
+            let name = entry.behavior.type_name();
             assert!(seen.insert(name), "Duplicate type_name: {:?}", name);
         }
     }
@@ -1469,10 +1494,11 @@ mod tests {
 
     #[test]
     fn find_primitive_roundtrips() {
-        for p in PRIMITIVES.iter() {
-            let found = find_primitive(p.type_name());
-            assert!(found.is_some(), "find_primitive({:?}) returned None", p.type_name());
-            assert_eq!(found.unwrap().type_name(), p.type_name());
+        for entry in BUILT_INS.iter() {
+            let ty = entry.behavior.type_name();
+            let found = find_primitive(ty);
+            assert!(found.is_some(), "find_primitive({:?}) returned None", ty);
+            assert_eq!(found.unwrap().type_name(), ty);
         }
     }
 
@@ -1502,13 +1528,28 @@ mod tests {
 
     #[test]
     fn registry_matches_primitives() {
-        // The catalog (metadata) and the PRIMITIVES array (behaviour) must
-        // stay in lockstep — one row per registered behaviour.
-        let registry = primitive_catalog();
-        assert_eq!(registry.len(), PRIMITIVES.len());
-        for (meta, prim) in registry.iter().zip(PRIMITIVES.iter()) {
-            assert_eq!(meta.type_name, prim.type_name());
+        // Each BUILT_INS row pairs a behaviour with the catalog card it
+        // references by symbol, so positional drift is impossible; this test
+        // pins the remaining failure mode — a name mismatch or a set drift
+        // (card added without a behaviour, or vice versa). Ordering of
+        // either list is presentation-only.
+        for entry in BUILT_INS.iter() {
+            assert_eq!(
+                &*entry.info.type_name,
+                entry.behavior.type_name(),
+                "BUILT_INS row pairs a behaviour with the wrong catalog card"
+            );
         }
+        let catalog_names: std::collections::HashSet<&str> =
+            primitive_catalog().iter().map(|info| &*info.type_name).collect();
+        assert_eq!(
+            catalog_names.len(),
+            primitive_catalog().len(),
+            "duplicate type_name in the animatix-std catalog"
+        );
+        let behavior_names: std::collections::HashSet<&str> =
+            BUILT_INS.iter().map(|entry| entry.behavior.type_name()).collect();
+        assert_eq!(catalog_names, behavior_names, "catalog and BUILT_INS drifted apart");
     }
 
     #[test]
@@ -1546,7 +1587,7 @@ mod tests {
     #[test]
     fn primitive_specs_cover_builtins_with_capabilities() {
         let specs = primitive_specs();
-        assert_eq!(specs.len(), PRIMITIVES.len());
+        assert_eq!(specs.len(), BUILT_INS.len());
         let rect = specs.iter().find(|spec| spec.type_name == "Rect").expect("Rect is a built-in");
         assert_eq!(rect.category, animatix_syntax::schema::PrimitiveCategory::Shape);
         assert!(rect.capabilities.vector_paths);
