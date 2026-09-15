@@ -46,6 +46,8 @@ fn compile_legend_text(
         0.0,
         color,
         crate::renderer::text::TextKind::Text,
+        // Legend text is plain prose — no Code highlighting.
+        "",
         text_ctx.font_context,
         max_width,
         "left",

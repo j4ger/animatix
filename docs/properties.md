@@ -95,8 +95,16 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 |----------|------|----------|------------|------------|
 | `text` | String | ✓ | ✓ | Text |
 | `code` | String | ✓ | ✓ | Code |
+| `language` | String | — | ✓ | Code |
 | `font_family` | String | — | ✓ | Text, Typst, Code |
 | `font_size` | F32 | ✓ | ✓ | Text, Typst, Code |
+
+`language` is the syntax-highlighting tag for `Code` (Typst's built-in `raw`
+languages, e.g. `"rust"`, `"python"`, `"cpp"`; matched case-insensitively).
+Empty or unrecognized renders plain — an unrecognized spelling warns and
+falls back, never drops the actor. Highlighting only recolors tokens; the
+un-highlighted text keeps the actor's `color`, and glyph metrics (and thus
+layout) are unchanged.
 
 ## Media
 

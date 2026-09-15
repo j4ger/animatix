@@ -474,6 +474,10 @@ impl Timeline {
         let compiled = crate::renderer::text::compile_text_cached(
             text_kind,
             &text_content,
+            // The generic property loop above already wrote `language` into
+            // the track lane; read it back so the build-time precompile shares
+            // the render path's cache key (and highlights identically).
+            &track.text.language.get(t_end_ms, String::new()),
             &font_family,
             font_size,
             font_weight,

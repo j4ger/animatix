@@ -64,10 +64,16 @@ eq: Typst, content: "x^2 + 3", font_size: 18, at: (640, 360)
 
 ## Code
 
-Renders via the text-path pipeline (no syntax highlighting in v1).
+Renders via the text-path pipeline (Typst `raw` block). Setting `language` to
+one of Typst's built-in highlighting languages turns on syntax highlighting —
+tokens are recolored by Typst's built-in theme, the un-highlighted text keeps
+the actor's `color`, and glyph metrics (and thus layout) are unchanged. An
+empty or unrecognized `language` renders plain (a warning is logged for the
+latter, never an error).
 
 **Properties:**
 - `code`: String
+- `language`: String — highlighting language tag (`"rust"`, `"python"`, `"cpp"`, …; case-insensitive)
 - `font_size`: Number
 - `color`: Color
 - `at`: Tuple `(x, y)`
@@ -76,7 +82,7 @@ Renders via the text-path pipeline (no syntax highlighting in v1).
 
 **Example:**
 ```animatix
-snippet: Code { code: "let velocity = x + 1", font_size: 28, at: (640, 360) }
+snippet: Code { code: "let velocity = x + 1", language: "rust", font_size: 28, at: (640, 360) }
 ```
 
 ## Svg

@@ -12,3 +12,6 @@ ttf-parser = "0.25.1"
 typst = "0.15.1"
 tracing = { workspace = true }
 typst-layout = "0.15.1"
+# Reused (same version/features as typst-library) to tokenize Code bodies with
+# typst's own `raw` syntax set + theme, so highlighting matches typst exactly.
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "plist-load", "yaml-load"] }

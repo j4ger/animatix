@@ -595,6 +595,8 @@ pub(crate) struct TextChildProps {
     pub text_align: String,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     pub overflow: String,
+    /// Syntax-highlighting language for `Code` children (empty = plain).
+    pub language: String,
     /// Existing max_width value (0 = no explicit width).
     pub existing_max_width: f32,
 }
@@ -644,6 +646,7 @@ impl Timeline {
             color: track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
             text_align: track.text.text_align.get(time_ms, "left".to_string()),
             overflow: track.text.overflow.get(time_ms, "visible".to_string()),
+            language: track.text.language.get(time_ms, String::new()),
             existing_max_width: track.text.text_max_width.get(time_ms, 0.0),
         })
     }
@@ -699,6 +702,7 @@ impl Timeline {
         let compiled = match crate::renderer::text::compile_text_cached(
             props.text_kind,
             &props.content,
+            &props.language,
             &props.font_family,
             props.font_size,
             props.font_weight,

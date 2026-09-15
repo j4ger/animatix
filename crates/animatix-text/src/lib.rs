@@ -1053,9 +1053,117 @@ pub fn compile_text(
     Ok(document.pages()[0].frame.clone())
 }
 
+/// Typst's `raw` show rule renders code at `0.8em` of the surrounding text
+/// size. The span-based highlight path reproduces that scale so a `Code` actor
+/// is the same size whether or not `language` is set.
+const RAW_TEXT_EM_SCALE: f32 = 0.8;
+
+/// A plain (un-highlighted) Typst raw block: four backticks so the code body is
+/// taken verbatim (no markup interpretation, no escaping beyond backslashes).
+fn plain_code_fence(code: &str) -> String {
+    let escaped = code.replace('\\', "\\\\");
+    format!("````\n{escaped}````")
+}
+
+/// Build Typst markup that highlights `code` as `language`, using Typst's own
+/// `raw` syntax set (`RAW_SYNTAXES`) and theme (`RAW_THEME`) so the colours
+/// match what a `#set raw(theme: auto)` fence would produce.
+///
+/// Returns `None` when the language has no syntax definition (the caller then
+/// falls back to a plain fence).
+///
+/// Two deliberate departures from a raw fence, both to defeat Typst's inline
+/// line builder, which drops whitespace-only inline elements (it treats a
+/// styled-run boundary as a line-break opportunity and trims the space):
+/// - whitespace-only pieces are merged into their neighbouring token, so every
+///   space lives *inside* a non-empty `#text` element and survives;
+/// - each source line is emitted as its own run of `#text` spans joined by a
+///   forced line break (`\`), because a bare newline in markup collapses to a
+///   space.
+///
+/// Tokens whose colour equals the theme's base foreground are emitted without a
+/// `fill`, so they inherit the actor's own `color` (set by the caller's
+/// `#set text`). Only the string metacharacters `\` and `"` are escaped — the
+/// token text never reaches Typst as markup.
+fn highlighted_code_markup(code: &str, language: &str) -> Option<String> {
+    use std::mem;
+    use syntect::easy::HighlightLines;
+    use syntect::highlighting::Color;
+    use syntect::util::LinesWithEndings;
+
+    let syntaxes = &*typst::text::RAW_SYNTAXES;
+    let syntax = syntaxes.find_syntax_by_token(language)?;
+    let theme = &*typst::text::RAW_THEME;
+    let base_fg = theme.settings.foreground;
+    let mut highlighter = HighlightLines::new(syntax, theme);
+
+    let lines: Vec<&str> = LinesWithEndings::from(code).collect();
+    let mut out = String::new();
+    for (index, line) in lines.iter().enumerate() {
+        let line = line.strip_suffix('\n').unwrap_or(line);
+        let ranges = highlighter.highlight_line(line, syntaxes).ok()?;
+
+        // Merge whitespace-only pieces into the previous token (or the next,
+        // for leading whitespace) so no standalone whitespace element survives
+        // to be trimmed by the line builder.
+        let mut merged: Vec<(String, Option<Color>)> = Vec::new();
+        let mut pending = String::new();
+        for (style, piece) in ranges {
+            if piece.is_empty() {
+                continue;
+            }
+            if piece.trim().is_empty() {
+                match merged.last_mut() {
+                    Some(last) => last.0.push_str(piece),
+                    None => pending.push_str(piece),
+                }
+                continue;
+            }
+            let mut text = mem::take(&mut pending);
+            text.push_str(piece);
+            let color = if Some(style.foreground) == base_fg {
+                None
+            } else {
+                Some(style.foreground)
+            };
+            merged.push((text, color));
+        }
+        if !pending.is_empty() {
+            match merged.last_mut() {
+                Some(last) => last.0.push_str(&pending),
+                None => merged.push((pending.clone(), None)),
+            }
+        }
+        // A blank line still needs to occupy its row.
+        if merged.is_empty() {
+            merged.push((" ".to_string(), None));
+        }
+
+        for (text, color) in merged {
+            let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+            match color {
+                Some(c) => out.push_str(&format!(
+                    "#text(fill: rgb(\"{:02x}{:02x}{:02x}\"), \"{escaped}\")",
+                    c.r, c.g, c.b
+                )),
+                None => out.push_str(&format!("#text(\"{escaped}\")")),
+            }
+        }
+        if index + 1 < lines.len() {
+            out.push_str("\\\n");
+        }
+    }
+    Some(out)
+}
+
 /// Compile code text into a Typst frame.
+///
+/// A non-empty `language` that Typst recognizes turns on syntax highlighting
+/// (Typst's built-in `raw` theme colors the tokens; un-highlighted text keeps
+/// the actor's own `color`). Empty, or unknown after a warning, renders plain.
 pub fn compile_code(
     code: &str,
+    language: &str,
     font_size: f32,
     color: typst::visualize::Color,
     font_family: &str,
@@ -1073,17 +1181,36 @@ pub fn compile_code(
     let fallback = collect_fallback_fonts(font_ctx, code, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
-    // Use Typst raw block (4 backticks) to avoid markup interpretation of code text.
-    let escaped = code.replace('\\', "\\\\");
-    let page_preamble = typst_page_preamble(max_width, code, font_size, letter_spacing);
+    // Highlighted code is emitted as `#text` spans (see `highlighted_code_markup`);
+    // plain code uses a Typst raw block (4 backticks) to avoid markup
+    // interpretation of the code text.
+    //
+    // Typst's `raw` show rule renders at `0.8em` of the set text size. The span
+    // path has no such show rule, so it sets the size to the same `0.8em`
+    // effective value — otherwise toggling `language` would resize the block.
+    let highlighted_markup = if language.is_empty() {
+        None
+    } else {
+        highlighted_code_markup(code, language)
+    };
+    if !language.is_empty() && highlighted_markup.is_none() {
+        tracing::warn!(
+            "Code: unknown 'language' {language:?}; rendering without syntax highlighting \
+             (only Typst's built-in raw languages are supported)"
+        );
+    }
+    let (content, set_size) = match highlighted_markup {
+        Some(markup) => (markup, font_size * RAW_TEXT_EM_SCALE),
+        None => (plain_code_fence(code), font_size),
+    };
+    let page_preamble = typst_page_preamble(max_width, code, set_size, letter_spacing);
     let base_markup = format!(
-        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n````\n{}````",
+        "{}{}#set text(size: {}pt, fill: rgb(\"{}\"), font: \"{}\")\n{content}",
         extra_rules,
         leading_rule,
-        font_size,
+        set_size,
         color.to_hex(),
         font,
-        escaped
     );
     // The page rule must stay at the document top level; only the content is
     // wrapped in the width-constrained block.
@@ -1962,6 +2089,10 @@ pub fn default_font_size(kind: TextKind) -> f32 {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct TextCacheKey {
     content: String,
+    /// Syntax-highlighting language for `TextKind::Code` (part of the cache
+    /// key: highlighting changes glyph colors, so different languages must
+    /// not share an entry). Empty for every other kind.
+    language: String,
     font_family: String,
     font_size_bits: u32,
     font_weight_bits: u32,
@@ -2105,6 +2236,7 @@ pub fn grouped_text_compile_cache_len() -> usize {
 pub fn compile_text_cached(
     kind: TextKind,
     content: &str,
+    language: &str,
     font_family: &str,
     font_size: f32,
     font_weight: f32,
@@ -2121,6 +2253,7 @@ pub fn compile_text_cached(
 ) -> Result<std::sync::Arc<CachedText>, RenderError> {
     let key = TextCacheKey {
         content: content.to_string(),
+        language: language.to_string(),
         font_family: font_family.to_string(),
         font_size_bits: font_size.to_bits(),
         font_weight_bits: font_weight.to_bits(),
@@ -2227,6 +2360,7 @@ pub fn compile_text_cached(
             )?,
             TextKind::Code => compile_code(
                 content,
+                language,
                 font_size,
                 typst_color,
                 font_family,
@@ -2302,6 +2436,8 @@ pub fn compile_typst_grouped_cached(
 ) -> Result<std::sync::Arc<CachedGroupedText>, RenderError> {
     let key = TextCacheKey {
         content: typst_markup.to_string(),
+        // The grouped Typst path (Equation/Fragment) has no Code highlighting.
+        language: String::new(),
         font_family: font_family.to_string(),
         font_size_bits: font_size.to_bits(),
         font_weight_bits: font_weight.to_bits(),
@@ -2389,6 +2525,10 @@ impl TextCompiler {
     /// Compile text into glyph paths, using the process-wide cache when possible.
     /// Cache hits return an `Arc<[TextPath]>` — a single refcount increment
     /// instead of cloning the entire vector of BezPath objects.
+    ///
+    /// `language` is the `Code` syntax-highlighting tag (empty for every other
+    /// kind and for plain `Code`).
+    #[allow(clippy::too_many_arguments)] // Mirrors the compile_* parameter sets it dispatches to.
     pub fn compile(
         &mut self,
         content: &str,
@@ -2401,6 +2541,7 @@ impl TextCompiler {
         word_spacing: f32,
         color: [f32; 4],
         kind: TextKind,
+        language: &str,
         font_ctx: &FontContext,
         max_width: f32,
         text_align: &str,
@@ -2409,6 +2550,7 @@ impl TextCompiler {
         let cached = compile_text_cached(
             kind,
             content,
+            language,
             font_family,
             font_size,
             font_weight,
@@ -2438,6 +2580,17 @@ mod tests {
     /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
     fn test_font_ctx() -> FontContext {
         FontContext::with_fast_path(true)
+    }
+
+    /// Serialize the tests that assert on the process-wide compile cache
+    /// (clearing it, pointer identity, or cache length). The cache is a
+    /// process singleton, so these tests cannot run concurrently with each
+    /// other; they previously relied on the workspace's serial `--test-threads=1`
+    /// checklist, which a parallel `cargo test -p animatix-text` does not
+    /// guarantee.
+    fn cache_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        static CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        CACHE_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     #[test]
@@ -2499,6 +2652,133 @@ mod tests {
             sigs.iter().any(|s| s.starts_with("700:"))
                 || sigs.iter().any(|s| s.starts_with("800:")),
             "expected a bold (>700) face, got {sigs:?}"
+        );
+    }
+
+    /// Distinct glyph fill colors produced by a `Code` compilation of the same
+    /// snippet under `language` ("" = plain).
+    fn distinct_code_colors(language: &str) -> usize {
+        let font_ctx = test_font_ctx();
+        let cached = compile_text_cached(
+            TextKind::Code,
+            "fn main() { let x = 42; }",
+            language,
+            "monospace",
+            24.0,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            0.0,
+            "left",
+            "visible",
+            false,
+            &font_ctx,
+        )
+        .expect("Code compiles");
+        let mut colors: Vec<String> =
+            cached.paths.iter().map(|p| format!("{:?}", p.color)).collect();
+        colors.sort();
+        colors.dedup();
+        colors.len()
+    }
+
+    #[test]
+    fn code_highlight_adds_glyph_colors() {
+        assert_eq!(distinct_code_colors(""), 1, "plain Code draws in the actor color");
+        assert!(
+            distinct_code_colors("rust") > 1,
+            "a recognized language must highlight tokens with distinct colors"
+        );
+    }
+
+    #[test]
+    fn unknown_highlight_language_renders_plain() {
+        // An unsupported `language` warns (see compile_code) and falls back to
+        // the plain single-color render — never an error, never a dropped actor.
+        assert_eq!(distinct_code_colors("not-a-language"), 1);
+    }
+
+    /// Highlighting recolors tokens but must not change layout: the plain and
+    /// highlighted renders of the same snippet have identical glyph counts and
+    /// total advance width. This is the regression guard for Typst's line
+    /// builder dropping inter-token whitespace at styled-run boundaries (which
+    /// `highlighted_code_markup` avoids by keeping every space inside a token).
+    #[test]
+    fn highlight_preserves_spacing() {
+        let font_ctx = test_font_ctx();
+        let code = "fn main() {\n    let x = 42;\n}";
+        let measure = |language: &str| {
+            let cached = compile_text_cached(
+                TextKind::Code,
+                code,
+                language,
+                "monospace",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                0.0,
+                "left",
+                "visible",
+                false,
+                &font_ctx,
+            )
+            .expect("Code compiles");
+            let width = cached.paths.iter().map(|p| p.path.bounding_box().width()).sum::<f64>();
+            (cached.paths.len(), width)
+        };
+        let (plain_n, plain_w) = measure("");
+        let (hl_n, hl_w) = measure("rust");
+        assert!(plain_n > 10, "plain render should have glyphs, got {plain_n}");
+        assert!(hl_n > 10, "highlighted render should have glyphs, got {hl_n}");
+        assert_eq!(plain_n, hl_n, "highlighting must not change the glyph count");
+        assert!(
+            (plain_w - hl_w).abs() < plain_w * 0.02 + 1.0,
+            "highlighting must not change the total width: plain={plain_w} highlighted={hl_w}"
+        );
+    }
+
+    #[test]
+    fn language_is_part_of_text_cache_key() {
+        let _cache = cache_test_guard();
+        let font_ctx = test_font_ctx();
+        let compile = |lang: &str| {
+            compile_text_cached(
+                TextKind::Code,
+                "def f(x): return x",
+                lang,
+                "monospace",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                0.0,
+                "left",
+                "visible",
+                false,
+                &font_ctx,
+            )
+            .expect("Code compiles")
+        };
+        let python = compile("python");
+        let rust = compile("rust");
+        let python_again = compile("python");
+        assert!(
+            std::sync::Arc::ptr_eq(&python, &python_again),
+            "the same (content, language) pair is a cache hit"
+        );
+        assert!(
+            !std::sync::Arc::ptr_eq(&python, &rust),
+            "different languages of the same content must not share a cache entry"
         );
     }
 
@@ -2676,6 +2956,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Text,
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2695,6 +2976,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Text,
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2725,6 +3007,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Text,
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2754,6 +3037,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Text,
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2788,6 +3072,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Text,
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2817,6 +3102,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 TextKind::Code, // Code kind → always Typst
+                "",
                 &font_ctx,
                 0.0,
                 "left",
@@ -2829,6 +3115,7 @@ mod tests {
 
     #[test]
     fn compile_cache_keys_on_wrapping_params() {
+        let _cache = cache_test_guard();
         let font_ctx = test_font_ctx();
         clear_text_compile_cache();
 
@@ -2836,6 +3123,7 @@ mod tests {
             compile_text_cached(
                 TextKind::Typst,
                 "$ x^2 $",
+                "",
                 "Open Sans",
                 24.0,
                 400.0,
@@ -2877,6 +3165,7 @@ mod tests {
 
     #[test]
     fn grouped_typst_compile_is_memoized() {
+        let _cache = cache_test_guard();
         let font_ctx = test_font_ctx();
         clear_text_compile_cache();
 
@@ -2926,11 +3215,13 @@ mod tests {
 
     #[test]
     fn font_epoch_invalidates_cache() {
+        let _cache = cache_test_guard();
         clear_text_compile_cache();
         let compile_at_current_epoch = |font_ctx: &FontContext| {
             compile_text_cached(
                 TextKind::Typst,
                 "$ e^{i\\pi} $",
+                "",
                 "Open Sans",
                 24.0,
                 400.0,
@@ -2968,6 +3259,7 @@ mod tests {
 
     #[test]
     fn compile_cache_survives_new_compiler_instances() {
+        let _cache = cache_test_guard();
         let font_ctx = test_font_ctx();
         clear_text_compile_cache();
 
@@ -2985,6 +3277,7 @@ mod tests {
                     0.0,
                     [1.0, 1.0, 1.0, 1.0],
                     TextKind::Text,
+                    "",
                     &font_ctx,
                     0.0,
                     "left",

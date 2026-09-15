@@ -294,6 +294,7 @@ dependencies = [
  "animatix-core",
  "fontdb",
  "kurbo",
+ "syntect",
  "tracing",
  "ttf-parser",
  "typst",

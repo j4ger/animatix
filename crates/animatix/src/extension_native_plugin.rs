@@ -1682,6 +1682,9 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
         command.word_spacing as f32,
         color,
         text_kind,
+        // The native text command ABI carries no language tag (yet); plugin
+        // `Code` text renders plain.
+        "",
         font_ctx,
         command.max_width as f32,
         &text_align,

@@ -881,6 +881,7 @@ pub(crate) fn recompile_text_at_assignment(
     let letter_spacing = track.text.letter_spacing.get(t_end_ms, 0.0);
     let word_spacing = track.text.word_spacing.get(t_end_ms, 0.0);
     let color = track.style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
+    let language = track.text.language.get(t_end_ms, String::new());
 
     let new_paths = text_compiler.compile(
         &target_text,
@@ -893,6 +894,7 @@ pub(crate) fn recompile_text_at_assignment(
         word_spacing,
         color,
         text_kind,
+        &language,
         font_ctx,
         0.0,
         "left",
@@ -949,6 +951,7 @@ pub(crate) fn recompile_text_at_assignment(
     let (ascent, descent, baseline_offset) = match crate::renderer::text::compile_text_cached(
         text_kind,
         &target_text,
+        &language,
         &font_family,
         font_size,
         font_weight,

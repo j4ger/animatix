@@ -1061,6 +1061,7 @@ mod tests {
             color: [1.0, 1.0, 1.0, 1.0],
             text_align: "left".to_string(),
             overflow: "visible".to_string(),
+            language: String::new(),
             existing_max_width: 0.0,
         };
         let _cloned = props.clone();

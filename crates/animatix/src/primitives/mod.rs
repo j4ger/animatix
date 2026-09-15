@@ -104,6 +104,7 @@ pub fn evaluate_text_paths(
     let mut text_align = ctx.track.text.text_align.get(ctx.time_ms, "left".to_string());
     let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
+    let mut language = ctx.track.text.language.get(ctx.time_ms, String::new());
 
     let mut content_override: Option<String> = None;
     if let Some(ov) = ctx.overrides {
@@ -144,6 +145,9 @@ pub fn evaluate_text_paths(
         if let Some(Value::Color(c) | Value::Vec4(c)) = ov.get("color") {
             color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
         }
+        if let Some(Value::Str(s)) = ov.get("language") {
+            language = s.clone();
+        }
     }
     // An explicit empty-string override means "no visible content", not "keep
     // the cached build-time glyphs". This makes `always { box.text = "" }`
@@ -175,6 +179,7 @@ pub fn evaluate_text_paths(
                     word_spacing,
                     color,
                     kind,
+                    &language,
                     text_ctx.font_context,
                     max_width,
                     &text_align,
@@ -191,6 +196,7 @@ pub fn evaluate_text_paths(
                     word_spacing,
                     color,
                     kind,
+                    &language,
                     text_ctx.font_context,
                     max_width,
                     &text_align,
@@ -221,6 +227,7 @@ pub fn evaluate_text_paths(
             word_spacing,
             color,
             kind,
+            &language,
             text_ctx.font_context,
             max_width,
             &text_align,

@@ -82,7 +82,7 @@ Remaining:
 | Feature | Notes | Status |
 |---|---|---|
 | Build-time warning for unknown declaration properties | A typo'd property (`colour:`) is surfaced only by `animatix check` as an info diagnostic; the build and render paths say nothing and the actor simply draws without it. The engine can tell the cases apart (registry hit vs extension property vs plot parameter), so this wants a real build-time warning alongside the analyzer/LSP work. | Not started |
-| `Code` syntax highlighting | The `Code` actor renders its body as plain text. A per-language highlighter needs a `language` property (the name that was removed from the property table on 2026-09-14 for having no consumer), a tokenizer selection, and theme-aware token colours that respect the active colorscheme. | Not started |
+| `Code` custom highlighting theme | Highlighting shipped on 2026-09-15 using Typst's built-in `raw` theme (token colors are fixed, not derived from the active colorscheme). A colorscheme-aware token palette would load a custom `.tmTheme` per scheme; deferred until a real content need. | Not started |
 
 ## Dependency & Verification Constraints
 

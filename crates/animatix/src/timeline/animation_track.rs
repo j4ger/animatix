@@ -466,6 +466,9 @@ pub struct TextTracks {
     pub text_align: Option<PropertyTrack<String>>,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     pub overflow: Option<PropertyTrack<String>>,
+    /// Syntax-highlighting language tag for `Code` actors (Typst raw fence
+    /// token, e.g. "rust"). `None`/empty = no highlighting.
+    pub language: Option<PropertyTrack<String>>,
     /// Pre-built text paths for rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub text_paths: Option<PropertyTrack<Vec<TextPath>>>,

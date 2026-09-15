@@ -1657,6 +1657,33 @@ b: Code, text: "hello code"
     );
 }
 
+/// `Code, language: "rust"` reaches the text lane through the generic property
+/// pipeline (the `ActorField::Language` binding), so the frame-time compile
+/// can pick it up; an absent `language` stays empty (plain rendering).
+#[test]
+fn code_language_reaches_text_lane() {
+    use crate::timeline::TrackAccessor;
+
+    let source = r#"
+a: Code, code: "fn main() {}", language: "rust"
+b: Code, code: "x = 1"
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "diagnostics: {:?}",
+        report.diagnostics
+    );
+
+    let a_track = report.output.tracks.get("a").expect("a track");
+    assert_eq!(a_track.text.language.get(0, String::new()), "rust");
+    let b_track = report.output.tracks.get("b").expect("b track");
+    assert_eq!(b_track.text.language.get(0, String::new()), "", "default is plain");
+}
+
 #[test]
 fn invalid_easing_name_warns_on_assignment() {
     let source = r#"

@@ -40,7 +40,7 @@ Use these rules when generating `.amx` files:
 | Expressions | `Expr::Construct` | Yes | Runtime-real | Yes | Yes | Object construction: `Point { x: 10, y: 20 }` |
 | Primitives | All shapes (`Text`, `Typst`, `Svg`, `Image`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Mask`, etc.) | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx`, `examples/layout/13_paths.amx`, `examples/composition/20_feature_reel.amx` |
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
-| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | See `examples/basics/01_shapes.amx` |
+| Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting (empty/unknown renders plain). See `examples/basics/01_shapes.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
 | Post-processing | `Filter` scope + effect chain (`Blur`, `ColorGrade`) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |

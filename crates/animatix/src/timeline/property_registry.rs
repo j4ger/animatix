@@ -329,6 +329,9 @@ pub enum ActorField {
     TextAlign,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     Overflow,
+    /// Syntax-highlighting language tag for `Code` actors (Typst raw fence
+    /// token, e.g. "rust"). Empty string = no highlighting.
+    Language,
 
     /// Character reveal progress (0-1) for typewriter effect.
     CharProgress,
@@ -457,6 +460,7 @@ impl ActorField {
             ActorField::TextMaxWidth => PropertyValue::F32(0.0),
             ActorField::TextAlign => PropertyValue::String("left".to_string()),
             ActorField::Overflow => PropertyValue::String("visible".to_string()),
+            ActorField::Language => PropertyValue::String(String::new()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
 
             // ── Font metrics ──
@@ -836,6 +840,9 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::Tagged("legend_label_color"),
         |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     ),
+    binding!("language", ValueType::String, F::ASSIGNABLE, ActorField::Language, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
     binding!(
         "legend",
         ValueType::Sum(LEGEND_SUM_VARIANTS),

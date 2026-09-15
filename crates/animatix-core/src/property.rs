@@ -330,6 +330,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // Appended last on purpose: `PropertyId` is the row index, so new rows go
     // at the end rather than into name order.
     PropertyDescriptor::new("corner_radius", Applicable::Actors(&["Rect"]), PropertyValueKind::F32),
+    PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.
