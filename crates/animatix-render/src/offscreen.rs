@@ -143,8 +143,22 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
+        // TEMPORARY perf probe (env-gated): evaluate vs render vs readback.
+        let timing = std::env::var_os("ANIMATIX_FILTER_TIMING").is_some();
+        let t0 = std::time::Instant::now();
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        self.readback_output(dimensions)
+        let t_eval_render = t0.elapsed();
+        let frame = self.readback_output(dimensions)?;
+        if timing {
+            eprintln!(
+                "[frame-timing] {}x{} evaluate+render={:.2}ms readback={:.2}ms",
+                dimensions.width,
+                dimensions.height,
+                t_eval_render.as_secs_f64() * 1000.0,
+                t0.elapsed().as_secs_f64() * 1000.0 - t_eval_render.as_secs_f64() * 1000.0,
+            );
+        }
+        Ok(frame)
     }
 
     /// PF-7 pipelined variant of [`Self::render_timeline_with_debug`]:
@@ -249,8 +263,11 @@ impl OffscreenRenderer {
         time_s: f64,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        collect_items: bool,
+        _collect_items: bool,
     ) -> Result<Option<animatix::timeline::scene_program::SceneProgram>, String> {
+        // `_collect_items` is vestigial: the zero-readback evaluate path always
+        // produces the observable program (the pending-filter blits below
+        // require it), so both callers receive identical behavior.
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -267,11 +284,12 @@ impl OffscreenRenderer {
         let filter_backend = self.filter_backend.as_mut().unwrap();
         let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
             Some(filter_backend);
-        let program = if collect_items {
-            Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb))
-        } else {
-            None
-        };
+        let t_eval = std::time::Instant::now();
+        // Always take the zero-readback (pending) evaluate path: scopes record
+        // GPU composites that are blitted after the main render (below), so
+        // per-scope GPU->CPU readback stalls never enter the frame.
+        let program =
+            Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb));
         // The observable path borrows the scene out of `program`; the
         // scene-only path evaluates directly. Either way `scene` is a borrow
         // that ends before the render call returns.
@@ -284,6 +302,7 @@ impl OffscreenRenderer {
                 &scene_owned
             },
         };
+        let probe_eval = t_eval.elapsed();
 
         let output_view = self
             .output_view
@@ -300,6 +319,13 @@ impl OffscreenRenderer {
                 scene,
             )
             .map_err(|e| e.to_string())?;
+        if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+            eprintln!(
+                "[frame-phases] evaluate={:.2}ms main_render={:.2}ms",
+                probe_eval.as_secs_f64() * 1000.0,
+                (t_eval.elapsed() - probe_eval).as_secs_f64() * 1000.0,
+            );
+        }
 
         // Blit pending zero-readback filter composites on top of the rendered scene
         let pending = self

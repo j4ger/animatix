@@ -2,6 +2,11 @@
 // One Filter scope per effect, applied to the same checker backdrop, so the
 // effects can be compared side by side. Effects are labelled children of a
 // Filter scope, applied in declaration order (docs/effects.md).
+//
+// Performance boundary (see docs/roadmap.md): this is a deliberate stress
+// reference — 13 simultaneous effect scopes at 720p. On integrated GPUs
+// (measured on Intel UHD 770) it previews at ~15 fps; discrete GPUs preview
+// well above 30 fps. Every other example is far below the frame budget.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 

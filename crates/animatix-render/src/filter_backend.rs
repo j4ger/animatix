@@ -419,7 +419,9 @@ impl GpuFilterBackend {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: &self.context_buffer,
                         offset: 0,
-                        size: Some(std::num::NonZeroU64::new(EFFECT_CONTEXT_SIZE).expect("nonzero")),
+                        size: Some(
+                            std::num::NonZeroU64::new(EFFECT_CONTEXT_SIZE).expect("nonzero"),
+                        ),
                     }),
                     // The dynamic offset itself is supplied in set_bind_group.
                 },
@@ -663,8 +665,7 @@ impl GpuFilterBackend {
                 _ => FilteredSource::TexA,
             };
         }
-        self.queue
-            .write_buffer(&self.context_buffer, 0, &context_bytes);
+        self.queue.write_buffer(&self.context_buffer, 0, &context_bytes);
         self.queue.submit(std::iter::once(encoder.finish()));
 
         let (result_texture, result_view) = match current {

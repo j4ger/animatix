@@ -137,6 +137,17 @@ fn bench_demo_frame_cost(c: &mut Criterion) {
         group.bench_function(name.clone(), |b| {
             b.iter(|| std::hint::black_box(render_frame(&target, &mut renderer, FRAME_TIME_S)))
         });
+        // Env-gated stage breakdown for this demo (one warm frame).
+        if std::env::var_os("ANIMATIX_STAGE_REPORT").is_some() {
+            let _ = animatix::perf::take_measurements();
+            let _ = render_frame(&target, &mut renderer, FRAME_TIME_S);
+            let mut stages: Vec<(String, std::time::Duration)> =
+                animatix::perf::take_measurements();
+            stages.sort_by(|a, b| b.1.cmp(&a.1));
+            for (stage, dur) in stages {
+                eprintln!("[stage] {name} {stage} = {:.3} ms", dur.as_secs_f64() * 1000.0);
+            }
+        }
     }
     group.finish();
 }
