@@ -1,0 +1,6 @@
+#0s
+circle: Ellipse, at: (0, 0)
+#0.5s
+fade-in circle [100ms]
+#2s
+circle: Ellipse, at: (100, 100) [2s]

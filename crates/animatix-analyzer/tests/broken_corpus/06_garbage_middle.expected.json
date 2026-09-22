@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "parse-0", "severity": "error", "line": 2, "col": 0 }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "diagnostics": [
+    { "code": "braced-property-silent-drop", "severity": "warning", "line": 1, "col": 8 },
+    { "code": "braced-property-silent-drop", "severity": "warning", "line": 2, "col": 9 },
+    { "code": "braced-property-silent-drop", "severity": "warning", "line": 3, "col": 13 }
+  ]
+}

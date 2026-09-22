@@ -1,0 +1,6 @@
+{
+  "diagnostics": [
+    { "code": "type-mismatch", "severity": "warning", "line": 0, "col": 0 },
+    { "code": "unknown-property", "severity": "info", "line": 0, "col": 0 }
+  ]
+}

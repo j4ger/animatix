@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "unknown-action", "severity": "warning", "line": 2, "col": 0 }
+  ]
+}

@@ -1,0 +1,4 @@
+title: Text, text: "one"
+title: Text, text: "two"
+#0s
+fade-in title [1s]

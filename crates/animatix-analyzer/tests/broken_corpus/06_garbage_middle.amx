@@ -1,0 +1,7 @@
+title: Text, text: "before"
+
+@@@ total garbage @@@
+
+subtitle: Text, text: "after"
+#0s
+fade-in title [1s]

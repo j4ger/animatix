@@ -1,0 +1,6 @@
+{
+  "diagnostics": [
+    { "code": "unused-label", "severity": "warning", "line": 1, "col": 0 },
+    { "code": "duplicate-label", "severity": "warning", "line": 2, "col": 0 }
+  ]
+}
