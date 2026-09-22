@@ -17,6 +17,7 @@ mod completer;
 mod definition;
 mod diagnostics;
 mod document_symbol;
+mod duplicates;
 mod extension_discovery;
 mod extension_manifest;
 mod hover;
@@ -58,6 +59,10 @@ pub struct Analyzer {
     path: Option<PathBuf>,
     ast: Option<Vec<Stmt>>,
     parse_errors: Vec<ParseError>,
+    /// Non-fatal parse-time warnings (e.g. `BracedPropertySilentDrop`).
+    /// Dropped by older parse entry points; surfaced in
+    /// [`Analyzer::diagnostics_with_config`] so silent drops become visible.
+    parse_warnings: Vec<animatix_syntax::diagnostics::Diagnostic>,
     tokens: Vec<Token>,
     occurrences: Vec<animatix_syntax::occurrence::Occurrence>,
     symbols: SymbolTable,
@@ -83,6 +88,7 @@ impl Analyzer {
             path,
             ast: None,
             parse_errors: Vec::new(),
+            parse_warnings: Vec::new(),
             tokens: Vec::new(),
             occurrences: Vec::new(),
             symbols: SymbolTable::default(),
@@ -146,10 +152,11 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        let (ast, parse_errors, occurrences) =
-            animatix_syntax::parser::parse_source_with_occurrences(source);
+        let (ast, parse_errors, parse_warnings, occurrences) =
+            animatix_syntax::parser::parse_source_full(source);
         self.ast = ast;
         self.parse_errors = parse_errors;
+        self.parse_warnings = parse_warnings;
         self.occurrences = occurrences;
         self.tokens = animatix_syntax::token::tokenize(source);
 
@@ -312,6 +319,55 @@ impl Analyzer {
         }
     }
 
+    /// Convert a parse-time warning into an analyzer diagnostic.
+    ///
+    /// Parse warnings carry a byte span with placeholder line/column values,
+    /// so resolve the position from the span when available.
+    fn convert_parse_warning(
+        source: &str,
+        d: animatix_syntax::diagnostics::Diagnostic,
+    ) -> diagnostics::Diagnostic {
+        let severity = match d.severity {
+            animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
+                diagnostics::DiagnosticSeverity::Error
+            },
+            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
+                diagnostics::DiagnosticSeverity::Warning
+            },
+            animatix_syntax::diagnostics::DiagnosticSeverity::Info => {
+                diagnostics::DiagnosticSeverity::Info
+            },
+            animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
+                diagnostics::DiagnosticSeverity::Hint
+            },
+        };
+        let (line, col, end_line, end_col) = match &d.location.span {
+            Some(span) => {
+                let s = Span::from_range(source, span.clone());
+                (
+                    s.start_line.saturating_sub(1),
+                    s.start_col.saturating_sub(1),
+                    s.end_line.saturating_sub(1),
+                    s.end_col.saturating_sub(1),
+                )
+            },
+            None => {
+                let line = d.location.line.unwrap_or(1).saturating_sub(1);
+                let col = d.location.column.unwrap_or(1).saturating_sub(1);
+                (line, col, line, col + 1)
+            },
+        };
+        diagnostics::Diagnostic {
+            severity,
+            line,
+            col,
+            end_line,
+            end_col,
+            message: d.message,
+            code: Some(d.code.to_string()),
+        }
+    }
+
     /// Get the file path, if any.
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
@@ -364,6 +420,28 @@ impl Analyzer {
             &self.tokens,
             config,
         );
+        // Scope-aware duplicate-label warnings and parse-time warnings (e.g.
+        // braced-property silent drops) honor the same lint config as the
+        // semantic warnings above.
+        let mut warnings = Vec::new();
+        if let Some(stmts) = &self.ast {
+            warnings.extend(duplicates::collect_duplicate_labels(
+                stmts,
+                &self.occurrences,
+                &self.source,
+            ));
+        }
+        for warning in &self.parse_warnings {
+            warnings.push(Self::convert_parse_warning(&self.source, warning.clone()));
+        }
+        for warning in warnings {
+            let suppressed = warning.severity == diagnostics::DiagnosticSeverity::Warning
+                && (config.disable_all_warnings
+                    || warning.code.as_deref().is_some_and(|code| config.is_disabled(code)));
+            if !suppressed {
+                diagnostics.push(warning);
+            }
+        }
         diagnostics.extend_from_slice(&self.type_diagnostics);
         diagnostics
     }
@@ -852,9 +930,9 @@ always {
         assert!(loc.is_some());
         let loc = loc.unwrap();
         assert!(loc.file.is_none(), "definition in same file ");
-        // Declaration "title:" on line 2 (0-based): enrich_positions sets line to 2+1=3
-        assert_eq!(loc.line, 3);
-        assert_eq!(loc.col, 1);
+        // Declaration "title:" on line 2 (0-based); Location is 0-based.
+        assert_eq!(loc.line, 2);
+        assert_eq!(loc.col, 0);
     }
 
     #[test]
@@ -1005,8 +1083,9 @@ btn: Button {
         assert_eq!(title_sym.kind, SymbolKind::Actor);
         assert_eq!(title_sym.detail.as_deref(), Some("Text"));
 
-        assert!(title_sym.line > 0);
-        assert!(title_sym.col > 0);
+        // "title:" is declared on 0-based line 2, col 0.
+        assert_eq!(title_sym.line, 2);
+        assert_eq!(title_sym.col, 0);
     }
 
     #[test]

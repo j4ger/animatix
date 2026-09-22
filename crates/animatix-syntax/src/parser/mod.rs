@@ -69,6 +69,22 @@ pub fn parse_source_with_occurrences(
     (ast, errors, occurrences)
 }
 
+/// Parse source and return AST, errors, parser warnings, and occurrences.
+///
+/// This is the entry point for consumers that surface parse-time warnings
+/// (currently `BracedPropertySilentDrop`) alongside the rest of the
+/// diagnostics pipeline.
+pub fn parse_source_full(
+    source: &str,
+) -> (
+    Option<Vec<Stmt>>,
+    Vec<ParseError>,
+    Vec<Diagnostic>,
+    Vec<crate::occurrence::Occurrence>,
+) {
+    parse_impl(source)
+}
+
 fn parse_impl(
     source: &str,
 ) -> (

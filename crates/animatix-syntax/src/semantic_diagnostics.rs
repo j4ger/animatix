@@ -53,6 +53,9 @@ const STRUCTURAL_CONTAINER_TYPES: &[&str] =
 ///
 /// This is the single emitter for analyzer-style lint checks. Build/typecheck
 /// diagnostics remain produced by the typechecker and timeline build.
+/// Duplicate labels are detected in the analyzer layer (`duplicates.rs`),
+/// which knows the keyframe/morph scoping rules; a plain `HashMap` iteration
+/// can never observe a duplicate.
 pub fn collect_semantic_diagnostics(
     stmts: &[Stmt],
     symbols: &SymbolTable,
@@ -61,20 +64,6 @@ pub fn collect_semantic_diagnostics(
 ) -> Vec<Diagnostic> {
     let structural_containers = collect_structural_container_labels(stmts);
     let mut diagnostics = Vec::new();
-
-    let mut seen_labels = HashSet::new();
-    for (name, info) in &symbols.labels {
-        if !seen_labels.insert(name) {
-            diagnostics.push(span_diagnostic(
-                DiagnosticSeverity::Warning,
-                DiagnosticCode::DuplicateLabel,
-                format!("Duplicate label: {}", name),
-                info.line,
-                info.col,
-                info.col + name.len(),
-            ));
-        }
-    }
 
     for (name, info) in &symbols.labels {
         if !symbols.referenced_labels.contains(name) {

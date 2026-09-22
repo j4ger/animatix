@@ -6,6 +6,9 @@ use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::types::{DocumentSymbol, SymbolKind};
 
 /// Get all document symbols for outline view.
+///
+/// Positions are 0-based (LSP-compatible), normalized from the symbol
+/// table's 1-based span positions.
 pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
     let mut result = Vec::new();
 
@@ -20,8 +23,8 @@ pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
         result.push(DocumentSymbol {
             name: name.clone(),
             kind,
-            line: info.line,
-            col: info.col,
+            line: info.line.saturating_sub(1),
+            col: info.col.saturating_sub(1),
             detail: info.ty.clone(),
         });
     }
@@ -34,8 +37,8 @@ pub fn document_symbols(symbols: &SymbolTable) -> Vec<DocumentSymbol> {
         result.push(DocumentSymbol {
             name: name.clone(),
             kind: SymbolKind::Component,
-            line: info.line,
-            col: info.col,
+            line: info.line.saturating_sub(1),
+            col: info.col.saturating_sub(1),
             detail: Some(format!("({} params)", info.params.len())),
         });
     }

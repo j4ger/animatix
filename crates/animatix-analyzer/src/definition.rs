@@ -25,12 +25,14 @@ pub fn definition_at(
         _ => return None,
     };
 
+    // Symbol-table entries carry 1-based positions (populated from AST
+    // spans); every analyzer output is 0-based, so normalize here.
     // Check if it's a label defined in this file
     if let Some(info) = symbols.labels.get(text) {
         return Some(Location {
             file: None, // Same file
-            line: info.line,
-            col: info.col,
+            line: info.line.saturating_sub(1),
+            col: info.col.saturating_sub(1),
         });
     }
 
@@ -38,8 +40,8 @@ pub fn definition_at(
     if let Some(info) = symbols.components.get(text) {
         return Some(Location {
             file: None,
-            line: info.line,
-            col: info.col,
+            line: info.line.saturating_sub(1),
+            col: info.col.saturating_sub(1),
         });
     }
 
@@ -47,8 +49,8 @@ pub fn definition_at(
     if let Some(info) = symbols.scenes.get(text) {
         return Some(Location {
             file: None,
-            line: info.line,
-            col: info.col,
+            line: info.line.saturating_sub(1),
+            col: info.col.saturating_sub(1),
         });
     }
 
@@ -62,24 +64,24 @@ pub fn definition_at(
                     if let Some(info) = symbols.labels.get(text) {
                         return Some(Location {
                             file: Some(import_path.display().to_string()),
-                            line: info.line,
-                            col: info.col,
+                            line: info.line.saturating_sub(1),
+                            col: info.col.saturating_sub(1),
                         });
                     }
                     // Check components in imported file
                     if let Some(info) = symbols.components.get(text) {
                         return Some(Location {
                             file: Some(import_path.display().to_string()),
-                            line: info.line,
-                            col: info.col,
+                            line: info.line.saturating_sub(1),
+                            col: info.col.saturating_sub(1),
                         });
                     }
                     // Check scenes in imported file
                     if let Some(info) = symbols.scenes.get(text) {
                         return Some(Location {
                             file: Some(import_path.display().to_string()),
-                            line: info.line,
-                            col: info.col,
+                            line: info.line.saturating_sub(1),
+                            col: info.col.saturating_sub(1),
                         });
                     }
                 }

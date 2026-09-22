@@ -5,7 +5,7 @@
 pub struct HoverInfo {
     /// Markdown content to display.
     pub contents: String,
-    /// Range of the hovered element (start_line, start_col, end_line, end_col).
+    /// Range of the hovered element (start_line, start_col, end_line, end_col), 0-based.
     pub range: Option<(usize, usize, usize, usize)>,
 }
 
@@ -14,9 +14,9 @@ pub struct HoverInfo {
 pub struct Location {
     /// File path (None = same file).
     pub file: Option<String>,
-    /// The 1-based line number.
+    /// The 0-based line number.
     pub line: usize,
-    /// The 1-based column number.
+    /// The 0-based column number.
     pub col: usize,
 }
 
@@ -27,9 +27,9 @@ pub struct DocumentSymbol {
     pub name: String,
     /// The kind of symbol (actor, variable, etc.).
     pub kind: SymbolKind,
-    /// The 1-based line number of the declaration.
+    /// The 0-based line number of the declaration.
     pub line: usize,
-    /// The 1-based column number of the declaration.
+    /// The 0-based column number of the declaration.
     pub col: usize,
     /// Optional detail text (e.g., type name or parameter list).
     pub detail: Option<String>,

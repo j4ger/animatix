@@ -44,11 +44,7 @@ callout2.to = (200, 300) [2s, ease: ease-in-out]
 
 // ── Targeted mode ──────────────────────────────────────────────────────────
 // The actor being annotated
-box1: Rect, at: (300, 200) {
-    at: (700, 200),
-    size: (120, 60),
-    color: (0.2, 0.6, 0.9, 1.0),
-}
+box1: Rect, at: (300, 200), size: (120, 60), color: (0.2, 0.6, 0.9, 1.0)
 
 #1s
 fade-in box1 [400ms]

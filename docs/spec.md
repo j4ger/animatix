@@ -390,6 +390,14 @@ circle: Ellipse, at: (0, 0)
 circle: Ellipse, at: (100, 100) [2s]
 ```
 
+> **Duplicate labels vs. morph.** Re-declaring a label at a *later* keyframe is
+> the morph form and is legal. Declaring the same label twice in one scope —
+> the same keyframe, two keyframes with the same timestamp, one scene's top
+> level, or one container's children — is a conflict and is flagged as a
+> `duplicate-label` warning by `animatix check`, `animatix lint`, and the LSP
+> (`// lint-disable: duplicate-label` suppresses it). Scenes are separate
+> namespaces: the same label may appear in different scenes.
+
 **Shipped morph modifiers** (timed path-morphing only):
 ```animatix
 [2s, strategy: auto]     // Engine decides (default)
@@ -411,6 +419,13 @@ title.text = "New"
 ```animatix
 morpher.size = (100, 100) [2s, ease: ease-out]
 ```
+
+> **Properties go before the children block.** In `Type, prop: value { ... }`
+> the braces hold *children*; a bare property written inside the braces of a
+> non-container actor has no actor to attach to and is silently dropped at
+> parse time. The drop is surfaced as a `braced-property-silent-drop` warning
+> by `check`/`lint`/LSP, so a missing `size:`/`color:` is visible instead of a
+> silently wrong render.
 
 ---
 
