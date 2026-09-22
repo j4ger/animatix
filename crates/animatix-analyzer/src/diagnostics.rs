@@ -170,7 +170,7 @@ pub fn collect_diagnostics_with_config(
     let mut diagnostics = Vec::new();
 
     // 1. Chumsky parse errors (structured with positions)
-    for (i, error) in parse_errors.iter().enumerate() {
+    for error in parse_errors {
         let end_span = Span::from_range(source, error.span.clone());
         diagnostics.push(Diagnostic {
             severity: DiagnosticSeverity::Error,
@@ -179,7 +179,9 @@ pub fn collect_diagnostics_with_config(
             end_line: end_span.end_line.saturating_sub(1),
             end_col: end_span.end_col.saturating_sub(1),
             message: error.message.clone(),
-            code: Some(format!("parse-{}", i)),
+            // One stable code so `lint-disable: parse-error` works regardless
+            // of how many errors a file has.
+            code: Some("parse-error".to_string()),
         });
     }
 

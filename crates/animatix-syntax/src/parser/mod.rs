@@ -398,7 +398,17 @@ impl ParseError {
                 expected: exp,
                 found: f,
             } => {
-                expected = exp.iter().map(|p| p.to_string()).collect();
+                // Drop chumsky's placeholder label and dedupe: the raw
+                // expectation list leaks combinator internals ("expected
+                // something else, statement, something else, ...") that read
+                // as noise to authors.
+                let mut seen = std::collections::HashSet::new();
+                expected = exp
+                    .iter()
+                    .map(|p| p.to_string())
+                    .filter(|label| label != "something else")
+                    .filter(|label| seen.insert(label.clone()))
+                    .collect();
                 found = f.as_ref().map(|c| c.to_string());
                 let expected_str = expected.join(", ");
                 match (expected_str.is_empty(), found.as_ref()) {

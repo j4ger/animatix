@@ -354,7 +354,6 @@ always {
 
     #[test]
     fn missing_import_file_flags_unresolved_import() {
-
         let dir = std::env::temp_dir().join(format!(
             "animatix-missing-import-{}-{}",
             std::process::id(),
@@ -390,7 +389,6 @@ always {
 
     #[test]
     fn existing_import_file_does_not_flag() {
-
         let dir = std::env::temp_dir().join(format!(
             "animatix-ok-import-{}-{}",
             std::process::id(),
