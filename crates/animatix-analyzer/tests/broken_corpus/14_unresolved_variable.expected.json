@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "unresolved-variable", "severity": "warning", "line": 1, "col": 11 }
+  ]
+}

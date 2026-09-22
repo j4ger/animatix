@@ -64,11 +64,7 @@ fn broken_corpus_matches_goldens() {
         .collect();
     cases.sort();
 
-    assert!(
-        !cases.is_empty(),
-        "corpus must not be empty: {}",
-        dir.display()
-    );
+    assert!(!cases.is_empty(), "corpus must not be empty: {}", dir.display());
 
     for amx_path in cases {
         let source = fs::read_to_string(&amx_path).expect("read corpus source");
@@ -83,7 +79,8 @@ fn broken_corpus_matches_goldens() {
         let expected_set: BTreeSet<ExpectedDiagnostic> = expected.diagnostics.into_iter().collect();
 
         assert_eq!(
-            actual, expected_set,
+            actual,
+            expected_set,
             "diagnostics drifted for {}\nactual = {}",
             amx_path.display(),
             serde_json::to_string_pretty(&actual).expect("serialize actual"),
@@ -126,10 +123,7 @@ fn repo_content_parses_clean() {
         }
     }
 
-    assert!(
-        checked >= 100,
-        "expected to sweep the full repo corpus, saw {checked} files"
-    );
+    assert!(checked >= 100, "expected to sweep the full repo corpus, saw {checked} files");
     assert!(
         failures.is_empty(),
         "shipped content must parse cleanly:\n{}",

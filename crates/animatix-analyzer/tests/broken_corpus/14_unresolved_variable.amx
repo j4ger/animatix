@@ -1,0 +1,4 @@
+always {
+  accent = undefined_color
+  x = accent + 1
+}

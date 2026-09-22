@@ -24,9 +24,10 @@ fn is_plot_runtime_param(ty: &str, prop_name: &str, props: &[crate::ast::Propert
 
 /// Collect the runtime-parameter names a plot-family actor's declaration
 /// implies: every name that appears as a closure parameter or free identifier
-/// inside its `func` property. Also consumed by `SymbolTable` so assignment
-/// targets (`curve.freq = ...`) can resolve against the same set.
-pub(crate) fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<String> {
+/// inside its `func` property. Also consumed by `SymbolTable` (and the
+/// analyzer's unresolved-variable check) so assignment targets and bare
+/// references resolve against the same set.
+pub fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<String> {
     const PLOT_HOSTS: [&str; 4] = ["PlotCurve", "VectorField", "Heatmap", "ContourSet"];
     if !PLOT_HOSTS.contains(&ty) {
         return Vec::new();

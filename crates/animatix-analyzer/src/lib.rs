@@ -24,6 +24,7 @@ mod hover;
 mod references;
 mod symbol_table;
 mod types;
+mod unresolved;
 mod workspace;
 
 // chumsky::Parser trait is not needed directly; parser functions are called via module API.
@@ -420,14 +421,21 @@ impl Analyzer {
             &self.tokens,
             config,
         );
-        // Scope-aware duplicate-label warnings and parse-time warnings (e.g.
-        // braced-property silent drops) honor the same lint config as the
-        // semantic warnings above.
+        // Scope-aware duplicate-label warnings, unresolved-name warnings, and
+        // parse-time warnings (e.g. braced-property silent drops) honor the
+        // same lint config as the semantic warnings above.
         let mut warnings = Vec::new();
         if let Some(stmts) = &self.ast {
             warnings.extend(duplicates::collect_duplicate_labels(
                 stmts,
                 &self.occurrences,
+                &self.source,
+            ));
+            warnings.extend(unresolved::collect_unresolved_variables(
+                stmts,
+                &self.occurrences,
+                &self.symbols,
+                &self.tokens,
                 &self.source,
             ));
         }
