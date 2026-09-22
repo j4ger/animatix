@@ -323,8 +323,6 @@ always {
 
     #[test]
     fn imported_pub_let_does_not_flag() {
-        use std::path::PathBuf;
-
         // merge_import_symbols resolves imports from disk, so stage the
         // imported module in a real temp directory.
         let dir = std::env::temp_dir().join(format!(
@@ -356,7 +354,6 @@ always {
 
     #[test]
     fn missing_import_file_flags_unresolved_import() {
-        use std::path::PathBuf;
 
         let dir = std::env::temp_dir().join(format!(
             "animatix-missing-import-{}-{}",
@@ -393,7 +390,6 @@ always {
 
     #[test]
     fn existing_import_file_does_not_flag() {
-        use std::path::PathBuf;
 
         let dir = std::env::temp_dir().join(format!(
             "animatix-ok-import-{}-{}",

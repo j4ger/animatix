@@ -155,7 +155,9 @@ dependencies = [
  "animatix-syntax",
  "chumsky",
  "serde",
+ "serde_json",
  "toml",
+ "walkdir",
 ]
 
 [[package]]
