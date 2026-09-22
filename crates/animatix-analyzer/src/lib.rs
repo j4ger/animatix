@@ -439,6 +439,10 @@ impl Analyzer {
                 &self.source,
             ));
         }
+        // Imports that resolve to no file are errors (the CLI build rejects
+        // them), surfaced at the import string span.
+        warnings
+            .extend(unresolved::collect_unresolved_imports(&self.symbols, self.path.as_deref()));
         for warning in &self.parse_warnings {
             warnings.push(Self::convert_parse_warning(&self.source, warning.clone()));
         }

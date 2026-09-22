@@ -1,12 +1,16 @@
-//! Unresolved-identifier detection for expression positions.
+//! Unresolved-reference detection: bare identifiers that bind to no
+//! declaration, and imports that resolve to no file.
 //!
 //! A bare identifier read as a value (`accent = undefined_color`) that binds
 //! to no lexical declaration is almost certainly a typo, and before this
-//! check it was silently evaluated to a default at runtime. The check is
-//! deliberately conservative: names bound by imports (merged into the symbol
-//! table), plot runtime parameters, and builtins never flag.
+//! check it was silently evaluated to a default at runtime. Import paths that
+//! resolve to nothing were equally silent in the editor while the CLI build
+//! failed. Both checks are deliberately conservative: names bound by imports
+//! (merged into the symbol table), plot runtime parameters, and builtins
+//! never flag.
 
 use std::collections::HashSet;
+use std::path::Path;
 
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::builtins;
@@ -16,6 +20,42 @@ use animatix_syntax::token::{Token, TokenKind, byte_to_line_col};
 
 use crate::diagnostics::{Diagnostic, DiagnosticSeverity};
 use crate::symbol_table::SymbolTable;
+
+/// Collect errors for imports that resolve to no file.
+///
+/// The check needs the document path (imports resolve relative to it) and
+/// only fires on imports whose string span was recorded, so callers that
+/// never call `merge_import_symbols`/position enrichment see no diagnostics
+/// rather than wrong ones.
+pub fn collect_unresolved_imports(symbols: &SymbolTable, path: Option<&Path>) -> Vec<Diagnostic> {
+    let Some(path) = path else {
+        return Vec::new();
+    };
+    let mut diagnostics = Vec::new();
+    for import in &symbols.imports {
+        let Some(span) = import.span else {
+            continue;
+        };
+        let resolved = crate::Workspace::resolve_import_path(path, &import.path);
+        if resolved.exists() {
+            continue;
+        }
+        diagnostics.push(Diagnostic {
+            severity: DiagnosticSeverity::Error,
+            line: span.start_line.saturating_sub(1),
+            col: span.start_col.saturating_sub(1),
+            end_line: span.end_line.saturating_sub(1),
+            end_col: span.end_col.saturating_sub(1),
+            message: format!(
+                "Imported file '{}' not found (resolved to {})",
+                import.path,
+                resolved.display()
+            ),
+            code: Some("unresolved-import".to_string()),
+        });
+    }
+    diagnostics
+}
 
 /// Collect warnings for `Variable`-kind references that bind to no
 /// declaration in their lexical scope chain.
@@ -310,6 +350,73 @@ always {
             .filter(|d| d.code.as_deref() == Some("unresolved-variable"))
             .collect();
         assert!(diags.is_empty(), "imported bindings must not flag: {diags:?}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_import_file_flags_unresolved_import() {
+        use std::path::PathBuf;
+
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-missing-import-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        // Only main.amx exists; lib.amx was never written.
+        let main_path = dir.join("main.amx");
+        let source = "import \"lib.amx\"\nbox: Rect, size: (10, 10)\n";
+        std::fs::write(&main_path, source).expect("write main");
+        let mut analyzer = crate::Analyzer::new_with_path(source, Some(main_path));
+        analyzer.merge_import_symbols();
+
+        let import_diags: Vec<_> = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unresolved-import"))
+            .collect();
+        assert_eq!(import_diags.len(), 1, "missing import must error: {import_diags:?}");
+        assert!(
+            import_diags[0].message.contains("lib.amx"),
+            "error names the missing file: {:?}",
+            import_diags[0].message
+        );
+        // Line 0 (0-based), where the import string sits.
+        assert_eq!(import_diags[0].line, 0);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn existing_import_file_does_not_flag() {
+        use std::path::PathBuf;
+
+        let dir = std::env::temp_dir().join(format!(
+            "animatix-ok-import-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        std::fs::write(dir.join("lib.amx"), "pub let primary = rgb(1, 0, 0)\n").expect("write lib");
+        let main_path = dir.join("main.amx");
+        let source = "import \"lib.amx\"\nbox: Rect, size: (10, 10)\n";
+        std::fs::write(&main_path, source).expect("write main");
+        let mut analyzer = crate::Analyzer::new_with_path(source, Some(main_path));
+        analyzer.merge_import_symbols();
+
+        let import_diags: Vec<_> = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unresolved-import"))
+            .collect();
+        assert!(import_diags.is_empty(), "existing import must not flag: {import_diags:?}");
 
         std::fs::remove_dir_all(&dir).ok();
     }
