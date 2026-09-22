@@ -54,7 +54,7 @@ pub fn completions_at(
         None
     } else {
         let byte = line_col_to_byte(source, line, col);
-        Some(CompletionContext::from_tokens(tokens, byte, symbols))
+        Some(CompletionContext::from_tokens(tokens, byte, symbols, source))
     };
 
     match context {
@@ -81,6 +81,10 @@ pub fn completions_at(
         },
         Some(CompletionContext::ActionTarget) => {
             items.extend(label_completions(symbols));
+        },
+        Some(CompletionContext::VerbPosition) => {
+            items.extend(action_completions(symbols));
+            items.extend(keyword_completions(symbols));
         },
         Some(CompletionContext::ModifierList) => {
             items.extend(modifier_completions());
@@ -111,6 +115,10 @@ enum CompletionContext {
     PropertyBlock { actor_type: Option<String> },
     /// After an action verb (expecting actor labels)
     ActionTarget,
+    /// At a statement's verb slot: start of a line/block, or a word that is
+    /// not a known action in verb position (offers action verbs so a typo'd
+    /// verb like `fly` can be corrected from the completion list)
+    VerbPosition,
     /// Inside a modifier list [ ... ] (expecting modifier names)
     ModifierList,
     /// Inside a property value (after "=" or ":")
@@ -123,7 +131,7 @@ enum CompletionContext {
 }
 
 impl CompletionContext {
-    fn from_tokens(tokens: &[Token], byte: usize, symbols: &SymbolTable) -> Self {
+    fn from_tokens(tokens: &[Token], byte: usize, symbols: &SymbolTable, source: &str) -> Self {
         // Find the last non-trivia token that ends at or before the cursor.
         let prev = tokens
             .iter()
@@ -164,12 +172,34 @@ impl CompletionContext {
             TokenKind::Ident(name) if symbols.actions.contains(name) => {
                 CompletionContext::ActionTarget
             },
+            TokenKind::Ident(_) if in_verb_position(tokens, prev, source) => {
+                CompletionContext::VerbPosition
+            },
             TokenKind::LBrace => CompletionContext::PropertyBlock {
                 actor_type: find_actor_type_before_brace(tokens, prev, symbols),
             },
             _ => CompletionContext::Unknown,
         }
     }
+}
+
+/// True when `token` sits where a statement's action verb would start: it is
+/// the first token on its line, or the first token after `#0s`-style keyframe
+/// time, `{`, or `;`. This is what lets a partially typed or typo'd verb
+/// (`fa`, `fly`) still surface the action-verb list.
+fn in_verb_position(tokens: &[Token], token: &Token, source: &str) -> bool {
+    use animatix_syntax::token::byte_to_line_col;
+
+    let Some(index) = tokens.iter().position(|t| t.span == token.span) else {
+        return false;
+    };
+    let before = tokens[..index].iter().rev().find(|t| !matches!(t.kind, TokenKind::Comment(_)));
+    let Some(before) = before else {
+        return true; // first statement in the file
+    };
+    let before_line = byte_to_line_col(source, before.span.start).0;
+    let token_line = byte_to_line_col(source, token.span.start).0;
+    before_line < token_line || matches!(before.kind, TokenKind::Time { .. } | TokenKind::LBrace)
 }
 
 fn find_actor_type_before_brace(
@@ -786,6 +816,54 @@ fn value_for_property(
 mod tests {
     use super::*;
     use crate::symbol_table::SymbolTable;
+
+    #[test]
+    fn verb_position_offers_actions_after_unknown_verb() {
+        // `fly` is not a real action; the caret sits after it in verb slot.
+        let source = "#0s\nfly \n";
+        let symbols = SymbolTable::build_from_ast(&[]);
+        let tokens = animatix_syntax::token::tokenize(source);
+        let items = completions_at(&symbols, &tokens, source, 1, 4, &ExtensionManifest::default());
+
+        let actions: Vec<_> = items
+            .iter()
+            .filter(|i| i.kind == CompletionKind::Action)
+            .map(|i| i.label.as_str())
+            .collect();
+        assert!(
+            actions.contains(&"fade-in") && actions.contains(&"move"),
+            "unknown verb in verb position must still offer the action list: {actions:?}"
+        );
+    }
+
+    #[test]
+    fn partial_verb_at_line_start_offers_actions() {
+        let source = "#0s\nfa\n";
+        let symbols = SymbolTable::build_from_ast(&[]);
+        let tokens = animatix_syntax::token::tokenize(source);
+        let items = completions_at(&symbols, &tokens, source, 1, 2, &ExtensionManifest::default());
+
+        assert!(
+            items.iter().any(|i| i.label == "fade-in" && i.kind == CompletionKind::Action),
+            "partial verb at line start must offer action verbs"
+        );
+    }
+
+    #[test]
+    fn known_verb_still_completes_targets() {
+        let source = "box: Rect, size: (10, 10)\n#0s\nfade-in box [1s]\n";
+        let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "test source must parse: {errors:?}");
+        let symbols = SymbolTable::build_from_ast(stmts.as_deref().unwrap_or(&[]));
+        let tokens = animatix_syntax::token::tokenize(source);
+        // Caret right after `fade-in ` on line 2.
+        let items = completions_at(&symbols, &tokens, source, 2, 8, &ExtensionManifest::default());
+
+        assert!(
+            items.iter().any(|i| i.label == "box" && i.kind == CompletionKind::Label),
+            "known action must complete actor targets"
+        );
+    }
 
     #[test]
     fn top_level_completions_include_keywords() {

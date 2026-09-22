@@ -1368,6 +1368,11 @@ fn main() {
                     if diagnostics.is_empty() && semantic.is_empty() {
                         println!(r#"{{"passed":true}}"#);
                     } else {
+                        // `passed` mirrors the exit code: warnings are
+                        // reported but do not fail the run, so CI consumers
+                        // never see passed:false alongside exit 0.
+                        let has_error = diagnostics.iter().any(|d| d.is_error())
+                            || semantic.iter().any(|d| d.is_error());
                         let mut errors: Vec<String> =
                             diagnostics.iter().map(diagnostic_to_json).collect();
                         for diag in &semantic {
@@ -1384,10 +1389,8 @@ fn main() {
                                 severity,
                             ));
                         }
-                        println!(r#"{{"passed":false,"errors":[{}]}}"#, errors.join(","));
-                        if diagnostics.iter().any(|d| d.is_error())
-                            || semantic.iter().any(|d| d.is_error())
-                        {
+                        println!(r#"{{"passed":{},"errors":[{}]}}"#, !has_error, errors.join(","));
+                        if has_error {
                             std::process::exit(1);
                         }
                     }
