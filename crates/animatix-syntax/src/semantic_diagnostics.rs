@@ -227,6 +227,35 @@ fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
     structural
 }
 
+/// Detect a `scope.stage.param = value` assignment so the caller can skip
+/// host-property validation.
+///
+/// The shape is: at least two target segments with the last naming an inline
+/// child (a stage). Whatever that stage's effect declares, the property is a
+/// *stage parameter*, not a property of the host actor — validating
+/// `panel.pix.size = 6` against `Filter.size` (Vec2) produced false
+/// `type-mismatch` warnings for every plugin effect whose parameter list is
+/// not in the static schema (e.g. `Pixelate` before its library loads).
+///
+/// Returns the stage label when the shape matches.
+fn stage_param_segment(
+    target: &[crate::ast::TargetSegment],
+    symbols: &SymbolTable,
+    _property: &str,
+) -> Option<String> {
+    if target.len() < 2 {
+        return None;
+    }
+    let label = target.last()?.label_str();
+    let stage_ty = symbols.inline_child_type(label)?;
+    // A recognized effect is validated by the effect branch above; an
+    // unrecognized stage type is left to the unknown-type diagnostic.
+    if symbols.is_effect_type(stage_ty) {
+        return None;
+    }
+    Some(label.to_string())
+}
+
 fn find_ident_range(
     tokens: &[Token],
     source: &str,
@@ -431,6 +460,16 @@ fn check_stmt(
                         ));
                     }
                 }
+            } else if let Some(stage_label) = stage_param_segment(target, symbols, property) {
+                // A `scope.stage.param` target whose stage type is not a known
+                // effect (typically a plugin effect whose library is not
+                // loaded) is still *stage-parameter* position, not a host
+                // property assignment. Checking it against the host actor's
+                // property table produced false `type-mismatch` warnings — e.g.
+                // `panel.pix.size = 6` compared against `Filter.size` (Vec2)
+                // because `Pixelate` was unknown. Stay silent instead: the
+                // unknown effect type is already reported elsewhere.
+                let _ = stage_label;
             } else {
                 let resolved = target.first().and_then(|seg| symbols.labels.get(seg.label_str()));
                 let label = target.first().map(|seg| seg.label_str()).unwrap_or("");

@@ -594,6 +594,36 @@ mod tests {
     use super::*;
 
     #[test]
+    fn stage_param_assignment_is_not_checked_against_host_properties() {
+        // `panel.pix.size` addresses an effect-stage parameter. The stage's
+        // effect type (`Pixelate`) is unknown here (a plugin effect), and its
+        // `size` (Num) must not be compared against the host `Filter.size`
+        // (Vec2) — that produced false type-mismatch warnings.
+        let source = r#"panel: Filter, size: (100, 200) {
+  pix: Pixelate, size: 6
+}
+box: Rect, size: 42
+#0s
+fade-in box [1s]
+"#;
+        let analyzer = Analyzer::new(source);
+        let mismatches: Vec<String> = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("type-mismatch"))
+            .map(|d| d.message)
+            .collect();
+        assert!(
+            !mismatches.iter().any(|m| m.contains("panel.size")),
+            "stage parameter must not be validated against the host: {mismatches:?}"
+        );
+        assert!(
+            mismatches.iter().any(|m| m.contains("Rect.size")),
+            "a genuine host property mismatch must still be reported: {mismatches:?}"
+        );
+    }
+
+    #[test]
     fn analyzer_parses_valid_source() {
         let source = r#"
 # 0s
