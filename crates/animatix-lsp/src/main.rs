@@ -291,6 +291,10 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
                 // Watch `.amx` sources and plugin manifests so a change to an
                 // imported module or an extension manifest on disk (not open
                 // in the editor) refreshes the affected documents.
@@ -663,6 +667,108 @@ impl LanguageServer for Backend {
         } else {
             Ok(Some(locations))
         }
+    }
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let uri = params.text_document.uri.to_string();
+        let position = params.position;
+
+        let range = {
+            let analyzers = self.analyzers.lock().await;
+            let Some(analyzer) = analyzers.get(&uri) else {
+                return Ok(None);
+            };
+            match analyzer.rename_at(position.line as usize, position.character as usize) {
+                Ok(target) => target.range,
+                // Refusing here is what makes the editor show "cannot rename"
+                // instead of letting the user type a name that would be
+                // rejected at apply time.
+                Err(_) => return Ok(None),
+            }
+        };
+
+        Ok(Some(PrepareRenameResponse::Range(Range::new(
+            Position::new(range.0 as u32, range.1 as u32),
+            Position::new(range.2 as u32, range.3 as u32),
+        ))))
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.to_string();
+        let position = params.text_document_position.position;
+        let new_name = params.new_name;
+
+        if let Err(reason) = animatix_analyzer::validate_new_name(&new_name) {
+            // Rejecting without an edit surfaces the reason through the client
+            // rather than writing a name the analyzer would then flag.
+            self.client
+                .show_message(MessageType::ERROR, format!("Rename failed: {reason}"))
+                .await;
+            return Ok(None);
+        }
+
+        let analyzers = self.analyzers.lock().await;
+
+        // Resolve the target in the originating file: its scope-aware
+        // references are authoritative.
+        let Some(analyzer) = analyzers.get(&uri) else {
+            return Ok(None);
+        };
+        let target = match analyzer.rename_at(position.line as usize, position.character as usize) {
+            Ok(target) => target,
+            Err(reason) => {
+                drop(analyzers);
+                self.client
+                    .show_message(
+                        MessageType::ERROR,
+                        format!("Rename failed: {}", reason.message()),
+                    )
+                    .await;
+                return Ok(None);
+            },
+        };
+
+        let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+
+        // The originating file uses cursor-based scope resolution. Other files
+        // fall back to name lookup, matching how `references` reports them.
+        for (file_uri, file_analyzer) in analyzers.iter() {
+            let ranges = if file_uri == &uri {
+                target.references.clone()
+            } else {
+                file_analyzer.find_references(&target.name)
+            };
+            if ranges.is_empty() {
+                continue;
+            }
+            let Ok(url) = Url::parse(file_uri) else {
+                continue;
+            };
+            let edits = ranges
+                .into_iter()
+                .map(|(start_line, start_col, end_line, end_col)| TextEdit {
+                    range: Range::new(
+                        Position::new(start_line as u32, start_col as u32),
+                        Position::new(end_line as u32, end_col as u32),
+                    ),
+                    new_text: new_name.clone(),
+                })
+                .collect();
+            changes.insert(url, edits);
+        }
+
+        if changes.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }))
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {

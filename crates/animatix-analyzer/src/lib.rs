@@ -22,6 +22,7 @@ mod extension_discovery;
 mod extension_manifest;
 mod hover;
 mod references;
+mod rename;
 mod symbol_table;
 mod types;
 mod unresolved;
@@ -45,6 +46,7 @@ pub use extension_discovery::{
 pub use extension_manifest::{
     ExtensionManifest, ManifestEffect, ManifestEffectParam, ManifestPrimitive, ManifestProperty,
 };
+pub use rename::{RenameRejection, RenameTarget, rename_at, validate_new_name};
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
 };
@@ -418,6 +420,11 @@ impl Analyzer {
         &self.symbols
     }
 
+    /// Get the parser-recorded identifier occurrences.
+    pub fn occurrences(&self) -> &[animatix_syntax::occurrence::Occurrence] {
+        &self.occurrences
+    }
+
     /// Get structured parse errors with position information.
     pub fn parse_errors(&self) -> &[ParseError] {
         &self.parse_errors
@@ -545,6 +552,18 @@ impl Analyzer {
     /// shadowed declarations do not leak references from unrelated scopes.
     pub fn find_references_at(&self, line: usize, col: usize) -> Vec<(usize, usize, usize, usize)> {
         references::find_references_at(&self.occurrences, &self.source, line, col)
+    }
+
+    /// Resolve a rename at a cursor position.
+    ///
+    /// Returns the ranges to rewrite (scope-aware, so same-named bindings in
+    /// other scopes are untouched) or a reason the symbol cannot be renamed.
+    pub fn rename_at(
+        &self,
+        line: usize,
+        col: usize,
+    ) -> Result<rename::RenameTarget, rename::RenameRejection> {
+        rename::rename_at(&self.occurrences, &self.symbols, &self.source, line, col)
     }
 
     /// Document symbols (outline view).
