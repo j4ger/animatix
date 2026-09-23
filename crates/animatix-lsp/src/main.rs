@@ -142,6 +142,16 @@ impl Backend {
         }
     }
 
+    /// Republish diagnostics for every open document: after a save or an
+    /// external change to an imported file, both the changed file and the
+    /// files importing it may have different diagnostics.
+    async fn republish_all_diagnostics(&self) {
+        let uris: Vec<String> = self.analyzers.lock().await.keys().cloned().collect();
+        for open_uri in uris {
+            self.publish_diagnostics(&open_uri).await;
+        }
+    }
+
     /// Publish diagnostics for a document to the LSP client.
     async fn publish_diagnostics(&self, uri: &str) {
         let diagnostics = {
@@ -217,6 +227,13 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                // Watch `*.amx` files so a change to an imported module on
+                // disk (not open in the editor) refreshes the diagnostics of
+                // the documents that import it.
+                workspace: Some(WorkspaceServerCapabilities {
+                    workspace_folders: None,
+                    file_operations: None,
+                }),
                 semantic_tokens_provider: Some(
                     SemanticTokensServerCapabilities::SemanticTokensOptions(
                         SemanticTokensOptions {
@@ -293,12 +310,26 @@ impl LanguageServer for Backend {
                 analyzer.merge_import_symbols();
             }
         }
-        // Republish every open document: the saved file's diagnostics may have
-        // changed, and so may those of files importing it.
-        let uris: Vec<String> = self.analyzers.lock().await.keys().cloned().collect();
-        for open_uri in uris {
-            self.publish_diagnostics(&open_uri).await;
+        self.republish_all_diagnostics().await;
+    }
+
+    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
+        // An imported file changed outside the editor: re-resolve every open
+        // document's import symbols from disk, then republish, so the
+        // diagnostics of the importing documents track the new content.
+        if params.changes.iter().all(|change| {
+            let path = uri_to_path(change.uri.as_ref()).unwrap_or_default();
+            path.extension().is_none_or(|ext| ext != "amx")
+        }) {
+            return;
         }
+        {
+            let mut analyzers = self.analyzers.lock().await;
+            for analyzer in analyzers.values_mut() {
+                analyzer.merge_import_symbols();
+            }
+        }
+        self.republish_all_diagnostics().await;
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
