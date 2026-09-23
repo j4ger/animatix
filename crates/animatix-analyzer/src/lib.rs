@@ -194,7 +194,10 @@ impl Analyzer {
             let module_fns = std::collections::HashMap::new();
             let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
             let syntax_diagnostics = env.check_statements(stmts);
-            syntax_diagnostics.into_iter().map(Self::convert_type_diagnostic).collect()
+            syntax_diagnostics
+                .into_iter()
+                .map(|d| Self::convert_type_diagnostic(source, d))
+                .collect()
         } else {
             Vec::new()
         };
@@ -234,7 +237,13 @@ impl Analyzer {
     }
 
     /// Convert a syntax-level diagnostic to an analyzer diagnostic.
+    ///
+    /// Position resolution prefers a byte span (resolved against `source`),
+    /// so producers that hold only a span — like the type checker, which sees
+    /// a property's `value_span` but not the text — still land on the right
+    /// line instead of the file start.
     fn convert_type_diagnostic(
+        source: &str,
         d: animatix_syntax::diagnostics::Diagnostic,
     ) -> diagnostics::Diagnostic {
         let severity = match d.severity {
@@ -251,14 +260,28 @@ impl Analyzer {
                 diagnostics::DiagnosticSeverity::Hint
             },
         };
-        let line = d.location.line.unwrap_or(1).saturating_sub(1);
-        let col = d.location.column.unwrap_or(1).saturating_sub(1);
+        let (line, col, end_line, end_col) = match &d.location.span {
+            Some(span) if span.end <= source.len() => {
+                let s = Span::from_range(source, span.clone());
+                (
+                    s.start_line.saturating_sub(1),
+                    s.start_col.saturating_sub(1),
+                    s.end_line.saturating_sub(1),
+                    s.end_col.saturating_sub(1),
+                )
+            },
+            _ => {
+                let line = d.location.line.unwrap_or(1).saturating_sub(1);
+                let col = d.location.column.unwrap_or(1).saturating_sub(1);
+                (line, col, line, col + 1)
+            },
+        };
         diagnostics::Diagnostic {
             severity,
             line,
             col,
-            end_line: line,
-            end_col: col + 1,
+            end_line,
+            end_col,
             message: d.message,
             code: Some(d.code.to_string()),
         }

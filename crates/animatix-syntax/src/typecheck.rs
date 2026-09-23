@@ -594,7 +594,8 @@ impl<'a> TypeEnv<'a> {
                                     expr_summary(&prop.value)
                                 ),
                             )
-                            .with_subject(format!("{}.{}", component_name, prop.name)),
+                            .with_subject(format!("{}.{}", component_name, prop.name))
+                            .with_byte_span(prop.value_span),
                         );
                     }
                 }

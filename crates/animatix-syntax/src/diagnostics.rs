@@ -355,6 +355,18 @@ impl Diagnostic {
         self
     }
 
+    /// Attaches a byte span without line/column information.
+    ///
+    /// For producers that hold a span (e.g. a property's `value_span`) but have
+    /// no access to the source text: a consumer that does hold the source can
+    /// derive the line/column from the span.
+    pub fn with_byte_span(mut self, span: Option<crate::ast::ByteSpan>) -> Self {
+        if let Some(span) = span {
+            self.location.span = Some(span.start..span.end);
+        }
+        self
+    }
+
     /// Returns true if this diagnostic represents an error (not a warning).
     pub fn is_error(&self) -> bool {
         self.severity == DiagnosticSeverity::Error

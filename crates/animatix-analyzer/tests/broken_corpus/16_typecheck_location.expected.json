@@ -1,0 +1,5 @@
+{
+  "diagnostics": [
+    { "code": "type-mismatch", "severity": "error", "line": 4, "col": 19 }
+  ]
+}

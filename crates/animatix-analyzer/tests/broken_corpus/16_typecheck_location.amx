@@ -1,0 +1,7 @@
+pub component Card(size: Vec2) {
+  frame: Rect, size: size
+}
+
+card1: Card, size: 42
+#0s
+fade-in card1 [1s]

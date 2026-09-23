@@ -244,6 +244,44 @@ fn find_ident_range(
         })
 }
 
+/// Locate the `Type` identifier in a `label: Type` declaration pair.
+///
+/// Matching on the label first keeps several declarations that share a type
+/// (`dot: Pulse`, `ring: Pulse`, `cross: Pulse`) pointing at their own line
+/// instead of all resolving to the first occurrence of the type name.
+/// Returns 0-based `((line, col), (line, col))`.
+fn find_decl_type_range(
+    tokens: &[Token],
+    source: &str,
+    label: &str,
+    ty: &str,
+) -> Option<((usize, usize), (usize, usize))> {
+    let label_index = tokens
+        .iter()
+        .position(|t| matches!(&t.kind, TokenKind::Ident(name) if name == label))?;
+    // Scan forward for `: Type` immediately after the label.
+    let mut index = label_index + 1;
+    while index + 1 < tokens.len() {
+        if matches!(tokens[index].kind, TokenKind::Colon) {
+            if let TokenKind::Ident(name) = &tokens[index + 1].kind {
+                if name == ty {
+                    let token = &tokens[index + 1];
+                    return Some((
+                        byte_to_line_col(source, token.span.start),
+                        byte_to_line_col(source, token.span.end),
+                    ));
+                }
+            }
+            break; // a different type name on this declaration
+        }
+        if matches!(tokens[index].kind, TokenKind::Ident(_)) {
+            break; // moved past the label without finding a colon
+        }
+        index += 1;
+    }
+    None
+}
+
 /// Return the source-level identifier text for a resolved target string.
 fn target_source_text(target: &str) -> &str {
     let first = target.split('.').next().unwrap_or(target);
@@ -439,9 +477,19 @@ fn check_stmt(
         },
 
         Stmt::ActorDecl {
-            ty, props, span, ..
+            label,
+            ty,
+            props,
+            span,
+            ..
         } => {
             let (line, col, _end_line, end_col) = span_positions(span);
+            // Actor declaration spans are not populated by the parser, so a
+            // diagnostic anchored on the declaration would fall back to the
+            // file start. Locate this declaration's own `label: Type` token
+            // pair instead, so each of several same-typed declarations points
+            // at its own line rather than the first one in the file.
+            let type_range = find_decl_type_range(tokens, source, label, ty);
 
             // Component instances are valid actor types too: accept local and
             // imported (`pub component`) components as well as namespaced ones
@@ -455,13 +503,17 @@ fn check_stmt(
                 // same severity here so the editor and the CLI agree; only a
                 // registered primitive whose extension plugin is missing stays
                 // a warning, and that case is not visible at this layer.
+                let (ty_line, ty_col, ty_end_col) = match type_range {
+                    Some((start, end)) => (start.0 + 1, start.1 + 1, end.1 + 1),
+                    None => (line, col, end_col),
+                };
                 diagnostics.push(span_diagnostic(
                     DiagnosticSeverity::Error,
                     DiagnosticCode::UnknownType,
                     format!("Unknown type: {}", ty),
-                    line,
-                    col,
-                    end_col,
+                    ty_line,
+                    ty_col,
+                    ty_end_col,
                 ));
             }
 
