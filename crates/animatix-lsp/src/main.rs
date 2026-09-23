@@ -696,11 +696,16 @@ impl LanguageServer for Backend {
             Err(_) => return Ok(None),
         };
 
-        for diagnostic in analyzer.diagnostics() {
+        // Diagnostics are computed once per request and reused by every
+        // action family below: each pass is a full re-check (~0.4ms on a
+        // large file), and the cleanup actions need the same set.
+        let diagnostics = analyzer.diagnostics();
+
+        for diagnostic in diagnostics.iter() {
             // Only act on diagnostics the client actually asked about: the
             // request carries the visible range, and offering a fix for an
             // off-screen problem would apply an edit the user never saw.
-            if !range_contains(requested, &diagnostic) {
+            if !range_contains(requested, diagnostic) {
                 continue;
             }
             let Some(code) = diagnostic.code.as_deref() else {
@@ -709,7 +714,7 @@ impl LanguageServer for Backend {
 
             match code {
                 "undefined-label" => {
-                    if let Some(misspelled) = misspelled_name(&diagnostic) {
+                    if let Some(misspelled) = misspelled_name(diagnostic) {
                         let candidates = animatix_analyzer::suggest_label_names(
                             analyzer.symbols(),
                             &misspelled,
@@ -723,7 +728,7 @@ impl LanguageServer for Backend {
                                 title: format!("Replace with '{}'", candidate.name),
                                 kind: Some(CodeActionKind::QUICKFIX),
                                 diagnostics: None,
-                                edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
+                                edit: Some(replace_range_edit(&url, diagnostic, &candidate.name)),
                                 command: None,
                                 is_preferred: unambiguous.then_some(true),
                                 disabled: None,
@@ -731,14 +736,14 @@ impl LanguageServer for Backend {
                             }));
                         }
                     }
-                    if let Some(name) = undefined_label_name(&diagnostic) {
+                    if let Some(name) = undefined_label_name(diagnostic) {
                         if let Some(action) = declare_actor_action(analyzer.source(), &url, &name) {
                             actions.push(CodeActionOrCommand::CodeAction(action));
                         }
                     }
                 },
                 "unknown-action" => {
-                    if let Some(misspelled) = misspelled_name(&diagnostic) {
+                    if let Some(misspelled) = misspelled_name(diagnostic) {
                         let candidates = animatix_analyzer::suggest_action_names(
                             analyzer.symbols(),
                             &misspelled,
@@ -750,7 +755,7 @@ impl LanguageServer for Backend {
                                 title: format!("Replace with '{}'", candidate.name),
                                 kind: Some(CodeActionKind::QUICKFIX),
                                 diagnostics: None,
-                                edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
+                                edit: Some(replace_range_edit(&url, diagnostic, &candidate.name)),
                                 command: None,
                                 is_preferred: unambiguous.then_some(true),
                                 disabled: None,
@@ -760,7 +765,7 @@ impl LanguageServer for Backend {
                     }
                 },
                 "unused-label" => {
-                    if let Some(name) = unused_name(&diagnostic) {
+                    if let Some(name) = unused_name(diagnostic) {
                         if let Some(action) = remove_declaration_action(analyzer, &url, &name) {
                             actions.push(CodeActionOrCommand::CodeAction(action));
                         }
@@ -774,7 +779,7 @@ impl LanguageServer for Backend {
         // A file-wide cleanup is offered when the document has several unused
         // top-level declarations: deleting them one at a time is tedious on
         // content like a dashboard with dozens of retired actors.
-        if let Some(action) = remove_all_unused_action(analyzer, &url) {
+        if let Some(action) = remove_all_unused_action(analyzer, &diagnostics, &url) {
             actions.push(CodeActionOrCommand::CodeAction(action));
         }
         // A cleanup spanning several open documents gets its own action, so
@@ -1157,12 +1162,14 @@ fn remove_declaration_action(
 /// Removal edits for one document's unused top-level declarations.
 ///
 /// Empty when the document has fewer than two removable declarations.
-fn unused_removal_edits(analyzer: &animatix_analyzer::Analyzer) -> Vec<TextEdit> {
-    let names: Vec<String> = analyzer
-        .diagnostics()
-        .into_iter()
+fn unused_removal_edits(
+    analyzer: &animatix_analyzer::Analyzer,
+    diagnostics: &[animatix_analyzer::Diagnostic],
+) -> Vec<TextEdit> {
+    let names: Vec<String> = diagnostics
+        .iter()
         .filter(|d| d.code.as_deref() == Some("unused-label"))
-        .filter_map(|d| unused_name(&d))
+        .filter_map(unused_name)
         .collect();
     if names.len() < 2 {
         return Vec::new();
@@ -1195,9 +1202,10 @@ fn unused_removal_edits(analyzer: &animatix_analyzer::Analyzer) -> Vec<TextEdit>
 /// Build the "remove all unused declarations" action for one document.
 fn remove_all_unused_action(
     analyzer: &animatix_analyzer::Analyzer,
+    diagnostics: &[animatix_analyzer::Diagnostic],
     url: &Url,
 ) -> Option<CodeAction> {
-    let edits = unused_removal_edits(analyzer);
+    let edits = unused_removal_edits(analyzer, diagnostics);
     if edits.is_empty() {
         return None;
     }
@@ -1218,7 +1226,8 @@ fn remove_all_unused_workspace_action(
     let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
     let mut total = 0usize;
     for (uri, analyzer) in analyzers {
-        let edits = unused_removal_edits(analyzer);
+        let document_diagnostics = analyzer.diagnostics();
+        let edits = unused_removal_edits(analyzer, &document_diagnostics);
         if edits.is_empty() {
             continue;
         }
