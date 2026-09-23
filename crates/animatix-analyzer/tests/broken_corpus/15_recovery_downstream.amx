@@ -1,0 +1,8 @@
+config { resolution: (640, 360) }
+good1: Text, text: "before"
+#0s
+fade-in good1 [1s]
+@@@ garbage @@@
+after1: Text, text: "after"
+#1s
+fly after1 [1s]

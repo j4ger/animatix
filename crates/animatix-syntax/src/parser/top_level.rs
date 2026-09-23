@@ -10,6 +10,7 @@ use super::common::{self, ModifiersParser, PropertyParser};
 use super::token_parser::*;
 use crate::ast::*;
 use crate::occurrence::OccurrenceKind;
+use crate::token::TokenKind;
 
 /// Build the top-level parser combining all top-level constructs.
 pub(crate) fn parser<'src>(
@@ -86,6 +87,19 @@ pub(crate) fn parser<'src>(
         })
         .labelled("keyframe");
 
+    // Recovery synchronization point: a token that can begin a fresh top-level
+    // statement. When a statement fails to parse, the recovery strategy skips
+    // forward to the next such token instead of abandoning the whole file, so
+    // one malformed statement no longer blinds the analyzer to everything after
+    // it.
+    let statement_start = select! {
+        TokenKind::Hash => (),
+        TokenKind::Keyword(k) if k == "config" || k == "play" => (),
+        TokenKind::Ident(_) => (),
+        TokenKind::LBrace => (),
+        TokenKind::RBrace => (),
+    };
+
     choice((
         keyframe,
         scene_decl,
@@ -100,6 +114,10 @@ pub(crate) fn parser<'src>(
             other => other,
         }),
     ))
+    // Skip the offending run of tokens and resume at the next statement start.
+    // `any()` consumes at least one token, so the repeat always advances and
+    // can never spin on the same position.
+    .recover_with(skip_then_retry_until(any().ignored(), statement_start))
     .repeated()
     .collect::<Vec<_>>()
     .map(group_scenes)

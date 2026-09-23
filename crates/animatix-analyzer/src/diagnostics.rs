@@ -194,6 +194,25 @@ pub fn collect_diagnostics_with_config(
         diagnostics.extend(syntax_diagnostics.into_iter().map(convert_syntax_diagnostic));
     }
 
+    // 2b. Suppress semantic warnings that share a line with a parse error.
+    //
+    // Error recovery (chumsky `skip_then_retry_until`) resumes at the next
+    // statement start, so the tokens it skipped can still be re-read as a
+    // malformed statement — e.g. a garbage line `@@@ nope @@@` parses as an
+    // action `nope`, yielding a phantom "unknown action". That warning is an
+    // artefact of the recovery, not a real problem with the source, so drop
+    // warnings on any line that already carries a parse error. Errors are
+    // never suppressed.
+    let parse_error_lines: HashSet<usize> =
+        diagnostics.iter().filter(|d| d.is_error()).map(|d| d.line).collect();
+    if !parse_error_lines.is_empty() {
+        diagnostics.retain(|d| {
+            d.is_error()
+                || d.severity == DiagnosticSeverity::Error
+                || !parse_error_lines.contains(&d.line)
+        });
+    }
+
     // 3. Filter based on lint config
     diagnostics.retain(|d| {
         // Never suppress errors
