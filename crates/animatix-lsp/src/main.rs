@@ -291,6 +291,15 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                code_action_provider: Some(CodeActionProviderCapability::Options(
+                    CodeActionOptions {
+                        // Only spelling fixes for now; the kind hint lets
+                        // clients group them under "Quick Fix".
+                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        resolve_provider: Some(false),
+                        ..Default::default()
+                    },
+                )),
                 rename_provider: Some(OneOf::Right(RenameOptions {
                     prepare_provider: Some(true),
                     work_done_progress_options: Default::default(),
@@ -669,6 +678,79 @@ impl LanguageServer for Backend {
         }
     }
 
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = params.text_document.uri.to_string();
+        let requested = params.range;
+
+        let analyzers = self.analyzers.lock().await;
+        let Some(analyzer) = analyzers.get(&uri) else {
+            return Ok(None);
+        };
+
+        let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+
+        for diagnostic in analyzer.diagnostics() {
+            // Only act on diagnostics the client actually asked about: the
+            // request carries the visible range, and offering a fix for an
+            // off-screen problem would apply an edit the user never saw.
+            if !range_contains(requested, &diagnostic) {
+                continue;
+            }
+            let Some(code) = diagnostic.code.as_deref() else {
+                continue;
+            };
+            let Some(misspelled) = misspelled_name(&diagnostic) else {
+                continue;
+            };
+
+            let candidates = match code {
+                "undefined-label" => {
+                    animatix_analyzer::suggest_label_names(analyzer.symbols(), &misspelled, 3)
+                },
+                "unknown-action" => {
+                    animatix_analyzer::suggest_action_names(analyzer.symbols(), &misspelled, 3)
+                },
+                // Other codes have no spelling fix to offer yet.
+                _ => continue,
+            };
+            let Ok(url) = Url::parse(&uri) else {
+                continue;
+            };
+
+            for candidate in candidates {
+                let edit = TextEdit {
+                    range: Range::new(
+                        Position::new(diagnostic.line as u32, diagnostic.col as u32),
+                        Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32),
+                    ),
+                    new_text: candidate.name.clone(),
+                };
+                let mut changes = HashMap::new();
+                changes.insert(url.clone(), vec![edit]);
+                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                    title: format!("Replace with '{}'", candidate.name),
+                    kind: Some(CodeActionKind::QUICKFIX),
+                    diagnostics: None,
+                    edit: Some(WorkspaceEdit {
+                        changes: Some(changes),
+                        document_changes: None,
+                        change_annotations: None,
+                    }),
+                    command: None,
+                    is_preferred: None,
+                    disabled: None,
+                    data: None,
+                }));
+            }
+        }
+
+        if actions.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(actions))
+        }
+    }
+
     async fn prepare_rename(
         &self,
         params: TextDocumentPositionParams,
@@ -847,6 +929,37 @@ fn role_index(role: &str) -> u32 {
         .position(|name| *name == role)
         .map(|idx| idx as u32)
         .unwrap_or(6) // fall back to variable for unknown roles
+}
+
+/// True when `diagnostic`'s range falls inside `range`.
+///
+/// A client asks for actions over the range the user is looking at; offering
+/// an edit outside it would apply a change the user never saw.
+fn range_contains(range: Range, diagnostic: &animatix_analyzer::Diagnostic) -> bool {
+    let start = Position::new(diagnostic.line as u32, diagnostic.col as u32);
+    let end = Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32);
+    position_le(range.start, start) && position_le(end, range.end)
+}
+
+fn position_le(a: Position, b: Position) -> bool {
+    (a.line, a.character) <= (b.line, b.character)
+}
+
+/// Extract the offending name from a spelling-related diagnostic message.
+///
+/// The analyzer phrases these as `Undefined label: NAME` and `Unknown action:
+/// NAME`; anything else yields `None` so unrelated diagnostics are skipped.
+fn misspelled_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
+    const PREFIXES: [&str; 2] = ["Undefined label: ", "Unknown action: "];
+    for prefix in PREFIXES {
+        if let Some(rest) = diagnostic.message.strip_prefix(prefix) {
+            let name = rest.trim();
+            if !name.is_empty() {
+                return Some(name.to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Convert a file:// URI to a PathBuf.

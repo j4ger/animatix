@@ -20,6 +20,7 @@ mod document_symbol;
 mod duplicates;
 mod extension_discovery;
 mod extension_manifest;
+mod fixes;
 mod hover;
 mod references;
 mod rename;
@@ -46,6 +47,7 @@ pub use extension_discovery::{
 pub use extension_manifest::{
     ExtensionManifest, ManifestEffect, ManifestEffectParam, ManifestPrimitive, ManifestProperty,
 };
+pub use fixes::{SpellingCandidate, suggest_action_names, suggest_label_names};
 pub use rename::{RenameRejection, RenameTarget, rename_at, validate_new_name};
 pub use symbol_table::{
     ComponentInfo, ImportInfo, LabelInfo, LabelKind, ParamInfo, SceneInfo, SymbolTable,
