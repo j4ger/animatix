@@ -428,8 +428,13 @@ fn check_stmt(
                 || symbols.components.contains_key(ty)
                 || symbols.resolve_namespaced_component(ty).is_some();
             if !ty_known {
+                // A genuinely unknown type cannot render, and the build layer
+                // rejects it as an error (`unknown-actor-type`). Report the
+                // same severity here so the editor and the CLI agree; only a
+                // registered primitive whose extension plugin is missing stays
+                // a warning, and that case is not visible at this layer.
                 diagnostics.push(span_diagnostic(
-                    DiagnosticSeverity::Warning,
+                    DiagnosticSeverity::Error,
                     DiagnosticCode::UnknownType,
                     format!("Unknown type: {}", ty),
                     line,

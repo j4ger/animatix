@@ -281,6 +281,86 @@ enum PluginCommands {
 // Shared helpers
 // ----------------------------------------------------------------------------
 
+/// Turn a module-load failure into structured diagnostics so `check`/`lint`
+/// report parse errors through the same stdout channel as semantic
+/// diagnostics. Previously these printed only via `tracing` (stderr), which
+/// meant `--format json` emitted nothing at all for an unparseable file.
+fn module_error_diagnostics(err: &animatix_syntax::module::ModuleError) -> Vec<Diagnostic> {
+    use animatix_syntax::module::ModuleError;
+
+    match err {
+        ModuleError::ParseErrors(errors) => {
+            errors.iter().map(|error| error.to_diagnostic()).collect()
+        },
+        other => vec![Diagnostic::error(
+            DiagnosticCode::ParseError,
+            DiagnosticPhase::Parse,
+            other.to_string(),
+        )],
+    }
+}
+
+/// Print a `check` report for one file and exit 1 when any error is present.
+///
+/// Both diagnostic families share this path: `build` diagnostics (from
+/// `ModuleGraph`/build, pretty-printed against the source) and analyzer
+/// `semantic` diagnostics. JSON output puts them in one `errors` array so a
+/// CI consumer sees a complete report on stdout.
+fn emit_check_report(
+    file_label: &str,
+    source: &str,
+    diagnostics: Vec<Diagnostic>,
+    semantic: Vec<animatix_analyzer::Diagnostic>,
+    format: &OutputFormat,
+) {
+    let has_error =
+        diagnostics.iter().any(|d| d.is_error()) || semantic.iter().any(|d| d.is_error());
+
+    match format {
+        OutputFormat::Json => {
+            if diagnostics.is_empty() && semantic.is_empty() {
+                println!(r#"{{"passed":true}}"#);
+            } else {
+                // `passed` mirrors the exit code: warnings are reported but do
+                // not fail the run, so CI consumers never see passed:false
+                // alongside exit 0.
+                let mut errors: Vec<String> = diagnostics.iter().map(diagnostic_to_json).collect();
+                for diag in &semantic {
+                    let line = diag.line.to_string();
+                    let col = diag.col.to_string();
+                    let severity = format!("{:?}", diag.severity).to_lowercase();
+                    let code = diag.code.as_deref().unwrap_or("");
+                    errors.push(format!(
+                        r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}"}}"#,
+                        line,
+                        col,
+                        escape_json(&diag.message),
+                        code,
+                        severity,
+                    ));
+                }
+                println!(r#"{{"passed":{},"errors":[{}]}}"#, !has_error, errors.join(","));
+            }
+        },
+        OutputFormat::Text => {
+            if diagnostics.is_empty() && semantic.is_empty() {
+                println!("{file_label}: OK (no diagnostics)");
+            } else {
+                for diag in &diagnostics {
+                    println!("{}", format_diagnostic_with_source(diag, source));
+                }
+                for diag in &semantic {
+                    println!("{}:{}", file_label, diag);
+                }
+            }
+        },
+    }
+
+    if has_error {
+        std::process::exit(1);
+    }
+}
+
 /// Extensions loaded from CLI `--plugin` arguments.
 struct CliExtensions {
     loader: PluginLoader,
@@ -1312,7 +1392,15 @@ fn main() {
                     (expanded, program.namespaces, diagnostics)
                 },
                 Err(e) => {
-                    error!("Error: {}", e);
+                    // Report the parse failure through the normal diagnostic
+                    // channel (stdout, honouring --format) instead of exiting
+                    // on a tracing line. The branch only fires when the module
+                    // graph could not parse, so the whole report is the parse
+                    // failure — running the analyzer too would duplicate every
+                    // error, since it re-parses the same source.
+                    let parse_diagnostics = module_error_diagnostics(&e);
+                    emit_check_report(&file_label, &source, parse_diagnostics, Vec::new(), &format);
+                    // Every parse failure is an error, so this always exits 1.
                     std::process::exit(1);
                 },
             };
@@ -1363,56 +1451,7 @@ fn main() {
             let lint_config = animatix_analyzer::LintConfig::from_source(&source);
             let semantic = analyzer.diagnostics_with_config(&lint_config);
 
-            match format {
-                OutputFormat::Json => {
-                    if diagnostics.is_empty() && semantic.is_empty() {
-                        println!(r#"{{"passed":true}}"#);
-                    } else {
-                        // `passed` mirrors the exit code: warnings are
-                        // reported but do not fail the run, so CI consumers
-                        // never see passed:false alongside exit 0.
-                        let has_error = diagnostics.iter().any(|d| d.is_error())
-                            || semantic.iter().any(|d| d.is_error());
-                        let mut errors: Vec<String> =
-                            diagnostics.iter().map(diagnostic_to_json).collect();
-                        for diag in &semantic {
-                            let line = diag.line.to_string();
-                            let col = diag.col.to_string();
-                            let severity = format!("{:?}", diag.severity).to_lowercase();
-                            let code = diag.code.as_deref().unwrap_or("");
-                            errors.push(format!(
-                                r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}"}}"#,
-                                line,
-                                col,
-                                escape_json(&diag.message),
-                                code,
-                                severity,
-                            ));
-                        }
-                        println!(r#"{{"passed":{},"errors":[{}]}}"#, !has_error, errors.join(","));
-                        if has_error {
-                            std::process::exit(1);
-                        }
-                    }
-                },
-                OutputFormat::Text => {
-                    if diagnostics.is_empty() && semantic.is_empty() {
-                        println!("{}: OK (no diagnostics)", file_label);
-                    } else {
-                        for diag in &diagnostics {
-                            println!("{}", format_diagnostic_with_source(diag, &source));
-                        }
-                        for diag in &semantic {
-                            println!("{}:{}", file_label, diag);
-                        }
-                        if diagnostics.iter().any(|d| d.is_error())
-                            || semantic.iter().any(|d| d.is_error())
-                        {
-                            std::process::exit(1);
-                        }
-                    }
-                },
-            }
+            emit_check_report(&file_label, &source, diagnostics, semantic, &format);
         },
 
         Commands::Verify {
@@ -1722,6 +1761,32 @@ fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn module_parse_errors_become_structured_diagnostics() {
+        // A module that fails to parse must produce one diagnostic per parse
+        // error, tagged with the stable parse-error code — not a bare tracing
+        // line, which `--format json` could not surface.
+        let (ast, errors) =
+            animatix_syntax::parser::parse_source("title: Text {\n  text: \"x\"\n#0s\n");
+        assert!(ast.is_none() || !errors.is_empty(), "source must be malformed");
+        let err = animatix_syntax::module::ModuleError::ParseErrors(errors);
+        let diagnostics = module_error_diagnostics(&err);
+        assert!(!diagnostics.is_empty(), "parse failure must yield diagnostics");
+        assert!(
+            diagnostics.iter().all(|d| d.code == DiagnosticCode::ParseError && d.is_error()),
+            "every parse diagnostic is a parse-error: {diagnostics:?}"
+        );
+    }
+
+    #[test]
+    fn non_parse_module_errors_become_one_diagnostic() {
+        let err = animatix_syntax::module::ModuleError::FileNotFound(PathBuf::from("/nope.amx"));
+        let diagnostics = module_error_diagnostics(&err);
+        assert_eq!(diagnostics.len(), 1);
+        assert!(diagnostics[0].is_error());
+        assert!(diagnostics[0].message.contains("/nope.amx"));
+    }
 
     #[test]
     fn plugin_paths_are_classified() {
