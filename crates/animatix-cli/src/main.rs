@@ -1937,4 +1937,52 @@ mod tests {
 
         std::fs::remove_dir_all(dir).ok();
     }
+    #[test]
+    fn backticked_label_extracts_actor_names() {
+        assert_eq!(
+            backticked_label("Actor `title` is declared before any keyframe"),
+            Some("title".to_string())
+        );
+        // A label is a single token; a backticked phrase is not a label.
+        assert_eq!(backticked_label("see `the docs here` for details"), None);
+        assert_eq!(backticked_label("no backticks at all"), None);
+        assert_eq!(backticked_label("empty `` label"), None);
+    }
+
+    #[test]
+    fn unpositioned_build_diagnostics_get_anchored() {
+        // A `never-revealed` warning reaches the CLI with no location; the
+        // analyzer resolves the quoted label to its declaration.
+        let source = "title: Text, text: \"hi\"\n#0s\nfade-in title [1s]\n";
+        let analyzer = animatix_analyzer::Analyzer::new(source);
+        let mut diagnostics = vec![Diagnostic::warning(
+            DiagnosticCode::NeverRevealed,
+            DiagnosticPhase::Build,
+            "Actor `title` is declared before any keyframe".to_string(),
+        )];
+        assert!(diagnostics[0].location.line.is_none(), "starts unpositioned");
+
+        resolve_build_diagnostic_positions(&mut diagnostics, &analyzer);
+
+        assert_eq!(diagnostics[0].location.line, Some(1), "anchored to the declaration");
+        assert_eq!(diagnostics[0].location.column, Some(1));
+    }
+
+    #[test]
+    fn positioned_diagnostics_are_left_alone() {
+        let source = "title: Text, text: \"hi\"\n";
+        let analyzer = animatix_analyzer::Analyzer::new(source);
+        let mut diagnostics = vec![
+            Diagnostic::warning(
+                DiagnosticCode::NeverRevealed,
+                DiagnosticPhase::Build,
+                "Actor `title` is declared before any keyframe".to_string(),
+            )
+            .with_location(9, 9, 0..1),
+        ];
+
+        resolve_build_diagnostic_positions(&mut diagnostics, &analyzer);
+
+        assert_eq!(diagnostics[0].location.line, Some(9), "existing position is respected");
+    }
 }
