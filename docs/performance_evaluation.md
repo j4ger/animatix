@@ -35,7 +35,8 @@ by evidence and not intuition.
 ### 2.1 What is already measured
 
 The project already ships a mature Criterion suite under `crates/animatix/benches/`
-(19 benches, all compile against the current API):
+(23 benches, all compile against the current API), plus a second suite under
+`crates/animatix-analyzer/benches/` for editor intelligence:
 
 | Area | Bench | What it measures |
 |---|---|---|
@@ -55,6 +56,11 @@ The project already ships a mature Criterion suite under `crates/animatix/benche
 | Static scene | `static_scene.rs`, `static_scene_item_collection.rs` | scene-only eval + item collection |
 | Scrubbing | `scrubbing.rs` | interactive scrub pattern (GUI-adjacent) |
 | Equation frames | `equation_frame.rs` | per-frame Typst recompilation of an `Equation`/`Fragment` subtree (dynamic scene, so the static-subtree cache does not apply) |
+| **Editor intelligence** | `animatix-analyzer/benches/editor_intelligence.rs` | **the per-keystroke analyzer path**: `Analyzer::update` (parse + symbols + typecheck), `Analyzer::diagnostics`, and `diagnostics_with_config`, over real example and dogfood files |
+
+The editor-intelligence suite lives in its own crate because the layering is
+one-way: the engine does not depend on `animatix-analyzer`, so the engine's
+benches cannot reach it. `scripts/perf-bench.sh` covers both crates.
 
 ### 2.2 CI gate today
 
@@ -95,6 +101,14 @@ optimization loop:
    (`full_pipeline` loads a handful of examples). Large / reactive / generated
    scenes — the worst case for the planner, modifier runtime, and layout — are
    underrepresented.
+8. **Editor intelligence was unmeasured.** *(Closed 2026-09-23.)* The analyzer
+   runs on the authoring latency path — the GUI re-checks the document on every
+   text change (`Analyzer::update`) and every frame (`Analyzer::diagnostics`) —
+   but no bench covered it, and the regression guard could not see it: every
+   bench lived in `animatix`, which does not depend on `animatix-analyzer`.
+   `crates/animatix-analyzer/benches/editor_intelligence.rs` now covers
+   `update` / `diagnostics` / `diagnostics_with_config` over real files, and
+   `scripts/perf-bench.sh` runs both crates.
 
 ---
 
@@ -786,6 +800,36 @@ it moves and the **gate** that protects it.
   buffers) so CPU and GPU overlap — worth it for ≥1080p exports and large
   scenes; at 720p/30 fps the current 5–6× headroom is sufficient.
 - **Gate:** GPU CI runner (future) or on-demand `perf-report` only.
+
+### P5 — Editor intelligence (analyzer)
+
+- **Target:** `analyzer_update.*` and `analyzer_diagnostics.*`. Both sit on the
+  authoring latency path: the GUI re-runs `Analyzer::update` on every text
+  change and `Analyzer::diagnostics` every frame.
+- **Baseline (2026-09-23, this machine, real files):** `update` 123 µs (449 B
+  `00_hello`) / 1.07 ms (`taylor-sin/entry.amx`) / 1.59 ms (`dashboard_story`,
+  253 lines); `diagnostics` 12 µs / 789 µs / 321 µs. Stage split of a
+  `dashboard_story` update: **parse 803 µs (50%)**, semantic diagnostics
+  296 µs, symbol table 104 µs, tokenize 59 µs, typecheck 11 µs.
+- **Landed (commit `09cdd1dd`):**
+  1. **Memoized `diagnostics`/`diagnostics_with_config`.** Every input is fixed
+     once `update()` returns, so the result is cached by lint-config
+     fingerprint and invalidated in `rebuild_symbols` (the single choke point
+     all five state-changing entry points route through). Measured by the
+     guard: **−99.7% to −100%** (321 µs → 928 ns large, 789 µs → 24 ns
+     dogfood). This is the per-frame path, so the win is per-frame.
+  2. **One lexer pass per parse.** `parse_impl` already tokenized the source and
+     threw the tokens away; the analyzer then tokenized again. New
+     `parse_source_complete` hands the token stream back, so the analyzer reuses
+     it. **−2.7% to −5.1%** on `update` (tokenize was only 4% of the stage
+     split, but this removes the duplicate work outright).
+- **Remaining suspects:** parse is now the clear majority of `update`. Cutting
+  it means **incremental parsing** (re-parse only the changed region) — a
+  structural change to the chumsky grammar's entry points, not a local
+  optimization. Secondary: `semantic_diagnostics` (296 µs) re-runs on every
+  `update` even when the change is inside a comment.
+- **Gate:** covered by `scripts/perf-bench.sh` (both crates) once a baseline is
+  saved.
 
 ---
 
