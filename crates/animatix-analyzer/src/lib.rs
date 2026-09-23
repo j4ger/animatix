@@ -65,6 +65,9 @@ pub struct Analyzer {
     /// [`Analyzer::diagnostics_with_config`] so silent drops become visible.
     parse_warnings: Vec<animatix_syntax::diagnostics::Diagnostic>,
     tokens: Vec<Token>,
+    /// Lexical issues (currently unterminated string literals) that explain
+    /// otherwise-confusing downstream parse errors.
+    token_issues: Vec<animatix_syntax::token::TokenIssue>,
     occurrences: Vec<animatix_syntax::occurrence::Occurrence>,
     symbols: SymbolTable,
     /// Resolved symbols from this file's imports, cached between symbol
@@ -91,6 +94,7 @@ impl Analyzer {
             parse_errors: Vec::new(),
             parse_warnings: Vec::new(),
             tokens: Vec::new(),
+            token_issues: Vec::new(),
             occurrences: Vec::new(),
             symbols: SymbolTable::default(),
             import_symbols: None,
@@ -159,7 +163,9 @@ impl Analyzer {
         self.parse_errors = parse_errors;
         self.parse_warnings = parse_warnings;
         self.occurrences = occurrences;
-        self.tokens = animatix_syntax::token::tokenize(source);
+        let (tokens, token_issues) = animatix_syntax::token::tokenize_with_issues(source);
+        self.tokens = tokens;
+        self.token_issues = token_issues;
 
         self.rebuild_symbols();
     }
@@ -443,6 +449,20 @@ impl Analyzer {
         // them), surfaced at the import string span.
         warnings
             .extend(unresolved::collect_unresolved_imports(&self.symbols, self.path.as_deref()));
+        // Lexical issues: an unterminated string literal explains the parse
+        // errors that follow it, so report the real cause too.
+        for issue in &self.token_issues {
+            let span = Span::from_byte_span(&self.source, issue.span);
+            warnings.push(diagnostics::Diagnostic {
+                severity: diagnostics::DiagnosticSeverity::Error,
+                line: span.start_line.saturating_sub(1),
+                col: span.start_col.saturating_sub(1),
+                end_line: span.end_line.saturating_sub(1),
+                end_col: span.end_col.saturating_sub(1),
+                message: issue.kind.to_string(),
+                code: Some("unterminated-string".to_string()),
+            });
+        }
         for warning in &self.parse_warnings {
             warnings.push(Self::convert_parse_warning(&self.source, warning.clone()));
         }

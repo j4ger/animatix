@@ -202,6 +202,45 @@ impl chumsky::span::Span for ByteSpan {
 /// input is recovered by emitting [`TokenKind::Ident`] for unrecognized runs
 /// instead of failing.
 pub fn tokenize(source: &str) -> Vec<Token> {
+    Lexer::new(source).run().0
+}
+
+/// A lexical problem that does not stop tokenization but changes how the
+/// remaining source is read.
+///
+/// Surfaced separately from [`Token`] so consumers that only need the token
+/// stream ([`tokenize`]) stay unchanged, while diagnostics can report the real
+/// cause instead of the downstream confusion it produces.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TokenIssue {
+    /// What went wrong.
+    pub kind: TokenIssueKind,
+    /// Byte span of the malformed token.
+    pub span: ByteSpan,
+}
+
+/// The kind of lexical problem in a [`TokenIssue`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TokenIssueKind {
+    /// A string literal opened with a quote is never closed. The lexer
+    /// swallows the rest of the line (and, because it stops only at the quote
+    /// or end of input, potentially the rest of the file), so the parser then
+    /// reports unrelated errors further down.
+    UnterminatedString,
+}
+
+impl std::fmt::Display for TokenIssueKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TokenIssueKind::UnterminatedString => {
+                write!(f, "unterminated string literal (missing closing quote)")
+            },
+        }
+    }
+}
+
+/// Tokenize `source`, also returning any lexical issues.
+pub fn tokenize_with_issues(source: &str) -> (Vec<Token>, Vec<TokenIssue>) {
     Lexer::new(source).run()
 }
 
@@ -210,6 +249,7 @@ struct Lexer<'a> {
     bytes: &'a [u8],
     pos: usize,
     tokens: Vec<Token>,
+    issues: Vec<TokenIssue>,
 }
 
 impl<'a> Lexer<'a> {
@@ -219,10 +259,11 @@ impl<'a> Lexer<'a> {
             bytes: src.as_bytes(),
             pos: 0,
             tokens: Vec::new(),
+            issues: Vec::new(),
         }
     }
 
-    fn run(mut self) -> Vec<Token> {
+    fn run(mut self) -> (Vec<Token>, Vec<TokenIssue>) {
         while self.pos < self.bytes.len() {
             if self.skip_ws_and_comments() {
                 continue;
@@ -231,7 +272,7 @@ impl<'a> Lexer<'a> {
             let kind = self.lex_token();
             self.push(kind, start, self.pos);
         }
-        self.tokens
+        (self.tokens, self.issues)
     }
 
     fn skip_ws_and_comments(&mut self) -> bool {
@@ -355,18 +396,37 @@ impl<'a> Lexer<'a> {
 
     fn lex_string(&mut self) -> TokenKind {
         let quote = self.peek();
+        let open = self.pos;
         self.pos += 1; // opening quote
         let start = self.pos;
-        while self.pos < self.bytes.len() && self.peek() != quote {
+        let mut terminated = false;
+        while self.pos < self.bytes.len() {
+            if self.peek() == quote {
+                terminated = true;
+                break;
+            }
             if self.peek() == b'\\' {
                 self.pos += 2; // skip escape
+            } else if self.peek() == b'\n' {
+                // A newline before the closing quote means the literal was
+                // never terminated; stop here so the error stays on one line
+                // instead of swallowing the rest of the file.
+                break;
             } else {
                 self.pos += 1;
             }
         }
-        let text = self.src[start..self.pos].to_string();
-        if self.pos < self.bytes.len() {
+        let text = self.src[start..self.pos.min(self.src.len())].to_string();
+        if terminated {
             self.pos += 1; // closing quote
+        } else {
+            self.issues.push(TokenIssue {
+                kind: TokenIssueKind::UnterminatedString,
+                span: crate::ast::ByteSpan {
+                    start: open,
+                    end: self.pos,
+                },
+            });
         }
         TokenKind::Str(text)
     }
@@ -622,6 +682,45 @@ impl<'a> LineIndex<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unterminated_string_is_reported_and_does_not_cross_newlines() {
+        let source = "a: Text, text: \"oops\nb: Text, text: \"fine\"\n";
+        let (tokens, issues) = tokenize_with_issues(source);
+
+        assert_eq!(issues.len(), 1, "one unterminated literal: {issues:?}");
+        assert_eq!(issues[0].kind, TokenIssueKind::UnterminatedString);
+        // The issue span starts at the opening quote on line 0.
+        assert_eq!(issues[0].span.start, source.find('"').unwrap());
+
+        // The newline ends the malformed literal, so line 1 still lexes as its
+        // own statement rather than being swallowed into the string.
+        let idents: Vec<&str> = tokens
+            .iter()
+            .filter_map(|t| match &t.kind {
+                TokenKind::Ident(name) => Some(name.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(idents.contains(&"a"), "first statement present: {idents:?}");
+        assert!(idents.contains(&"b"), "second statement survives: {idents:?}");
+    }
+
+    #[test]
+    fn terminated_string_reports_no_issue() {
+        let (_, issues) = tokenize_with_issues("a: Text, text: \"fine\"\n");
+        assert!(issues.is_empty(), "well-formed source has no issues: {issues:?}");
+    }
+
+    #[test]
+    fn escaped_quote_does_not_end_the_literal() {
+        let (tokens, issues) = tokenize_with_issues("a: Text, text: \"say \\\"hi\\\"\"\n");
+        assert!(issues.is_empty(), "escaped quotes are fine: {issues:?}");
+        assert!(
+            tokens.iter().any(|t| matches!(&t.kind, TokenKind::Str(s) if s.contains("say"))),
+            "the literal is one token: {tokens:?}"
+        );
+    }
 
     #[test]
     fn tokenizes_keywords_identifiers_and_literals() {
