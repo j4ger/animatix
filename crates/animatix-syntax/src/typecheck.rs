@@ -165,6 +165,7 @@ impl<'a> TypeEnv<'a> {
                                     component_name,
                                     &template.params,
                                     &action.modifiers,
+                                    action.byte_span,
                                     diagnostics,
                                 );
                                 checked = true;
@@ -180,6 +181,7 @@ impl<'a> TypeEnv<'a> {
                                 "module",
                                 &template.params,
                                 &action.modifiers,
+                                action.byte_span,
                                 diagnostics,
                             );
                         }
@@ -462,6 +464,7 @@ impl<'a> TypeEnv<'a> {
         component_name: &str,
         params: &[ParamDef],
         modifiers: &[Modifier],
+        byte_span: Option<crate::ast::ByteSpan>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         // Build a set of provided param names from named modifiers
@@ -490,7 +493,8 @@ impl<'a> TypeEnv<'a> {
                                     expr_summary(value)
                                 ),
                             )
-                            .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name)),
+                            .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name))
+                            .with_byte_span(byte_span),
                         );
                     }
                 } else if param.default.is_none() {
@@ -503,7 +507,8 @@ impl<'a> TypeEnv<'a> {
                                 param.name, component_name, fn_name, target
                             ),
                         )
-                        .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name)),
+                        .with_subject(format!("{}.{}.{}", component_name, fn_name, param.name))
+                        .with_byte_span(byte_span),
                     );
                 }
             }

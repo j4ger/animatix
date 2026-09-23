@@ -1,11 +1,15 @@
-//! Code-action inputs: spelling suggestions for likely typos.
+//! Code-action inputs: spelling suggestions for likely typos, plus the source
+//! ranges the structural fixes need.
 //!
 //! The two most common diagnostics in real content are `undefined-label` (a
 //! reference to a name nothing declares) and `unused-label` (a declaration
 //! nothing references). They are usually two views of the same typo, so the
-//! useful fix is "did you mean X?" over the names that *do* exist in the same
-//! role. This module produces those candidates; the LSP turns them into edits.
+//! useful fixes are "did you mean X?" over the names that *do* exist in the
+//! same role, "remove the unused declaration", and "declare the missing
+//! actor". This module produces the candidates and computes the ranges; the
+//! LSP turns them into edits.
 
+use animatix_syntax::occurrence::{Occurrence, OccurrenceKind};
 use animatix_syntax::symbol_table::SymbolTable;
 
 /// A suggested replacement for a misspelled name.
@@ -101,6 +105,206 @@ pub fn suggest_action_names(
     candidates
 }
 
+/// True when `byte` sits at top level (outside every brace/paren block).
+///
+/// An *inline child* declaration (an effect stage inside a `Filter`, an actor
+/// inside a `Row`) renders as part of its parent even when its label is never
+/// referenced, so a "remove unused" fix must only ever be offered for
+/// top-level declarations, which are invisible without an entrance action.
+pub fn is_top_level_position(source: &str, byte: usize) -> bool {
+    let bytes = source.as_bytes();
+    let mut brace_depth: i64 = 0;
+    let mut paren_depth: i64 = 0;
+    let mut in_string = false;
+    let mut escape = false;
+    let mut index = 0;
+    while index < bytes.len() && index < byte {
+        match bytes[index] {
+            b'"' => {
+                in_string = !in_string;
+                escape = false;
+            },
+            b'\\' if in_string => escape = !escape,
+            b'\n' => in_string = false,
+            _ if in_string => {},
+            b'{' => brace_depth += 1,
+            b'}' => brace_depth -= 1,
+            b'(' => paren_depth += 1,
+            b')' => paren_depth -= 1,
+            _ => {},
+        }
+        index += 1;
+    }
+    brace_depth <= 0 && paren_depth <= 0
+}
+
+/// Byte offset of the first declaration of `name`, if one was recorded.
+pub fn first_declaration_byte(occurrences: &[Occurrence], name: &str) -> Option<usize> {
+    occurrences
+        .iter()
+        .find(|o| o.declaration && o.name == name && matches!(o.kind, OccurrenceKind::Label))
+        .map(|o| o.span.start)
+}
+
+/// The full source range of the statement containing `decl_byte`.
+///
+/// Returns `(start, end)` where `start` is the beginning of the declaration's
+/// line (including indentation) and `end` is just past its terminating
+/// newline, so a delete edit removes the whole statement cleanly.
+///
+/// The statement extends past its first line only through brace or parenthesis
+/// nesting; string literals, `$$` typst blocks, and `//` comments on the way
+/// are skipped so their braces and newlines do not end (or extend) the
+/// statement early. Returns `None` when nesting goes negative (a stray closer)
+/// — the source is not shaped like a removable statement.
+pub fn statement_removal_range(source: &str, decl_byte: usize) -> Option<(usize, usize)> {
+    let bytes = source.as_bytes();
+    if decl_byte >= bytes.len() {
+        return None;
+    }
+    let start = bytes[..decl_byte]
+        .iter()
+        .rposition(|b| *b == b'\n')
+        .map_or(0, |newline| newline + 1);
+
+    let mut brace_depth: i64 = 0;
+    let mut paren_depth: i64 = 0;
+    let mut index = start;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'"' => {
+                index += 1;
+                while index < bytes.len() {
+                    match bytes[index] {
+                        b'\\' => index += 2,
+                        b'"' => {
+                            index += 1;
+                            break;
+                        },
+                        b'\n' => break, // unterminated: the newline ends the line
+                        _ => index += 1,
+                    }
+                }
+            },
+            b'$' if bytes.get(index + 1) == Some(&b'$') => {
+                // `$$` typst block: skip to the closing `$$`. The loop leaves
+                // `index` just past the closer when it is found.
+                index += 2;
+                while index + 1 < bytes.len() {
+                    if bytes[index] == b'$' && bytes[index + 1] == b'$' {
+                        index += 2;
+                        break;
+                    }
+                    index += 1;
+                }
+            },
+            b'/' if bytes.get(index + 1) == Some(&b'/') => {
+                while index < bytes.len() && bytes[index] != b'\n' {
+                    index += 1;
+                }
+            },
+            b'{' => {
+                brace_depth += 1;
+                index += 1;
+            },
+            b'}' => {
+                brace_depth -= 1;
+                if brace_depth < 0 {
+                    return None;
+                }
+                index += 1;
+            },
+            b'(' => {
+                paren_depth += 1;
+                index += 1;
+            },
+            b')' => {
+                paren_depth -= 1;
+                if paren_depth < 0 {
+                    return None;
+                }
+                index += 1;
+            },
+            b'\n' if brace_depth == 0 && paren_depth == 0 => {
+                return Some((start, index + 1));
+            },
+            _ => index += 1,
+        }
+    }
+    // End of input with balanced nesting: the statement runs to the end.
+    Some((start, bytes.len()))
+}
+
+/// The line index a new top-level declaration should be inserted before.
+///
+/// Declarations must precede their uses, and uses live in keyframes
+/// (`#0s …`) and `always` blocks — so insert before the first top-level
+/// keyframe marker, else before the first top-level `always`, else at the end
+/// of the file. Returns `source.lines().count()` for the append case.
+pub fn declaration_insertion_line(source: &str) -> usize {
+    let mut brace_depth: i64 = 0;
+    let mut paren_depth: i64 = 0;
+    let mut in_string = false;
+    let mut escape = false;
+    let first_keyframe: Option<usize> = None;
+    let mut first_always: Option<usize> = None;
+
+    for (index, line) in source.lines().enumerate() {
+        let trimmed = line.trim_start();
+        if brace_depth == 0 && paren_depth == 0 {
+            if first_keyframe.is_none() && is_keyframe_marker(trimmed) {
+                return index;
+            }
+            if first_always.is_none() && trimmed.starts_with("always") {
+                first_always = Some(index);
+            }
+        }
+        // Track nesting so a `#…` inside a block or string is not mistaken
+        // for a top-level keyframe marker.
+        let mut chars = line.chars().peekable();
+        while let Some(c) = chars.next() {
+            if in_string {
+                match c {
+                    '\\' => escape = true,
+                    '"' if !escape => in_string = false,
+                    _ => escape = false,
+                }
+                continue;
+            }
+            match c {
+                '"' => in_string = true,
+                '/' if chars.peek() == Some(&'/') => break,
+                '{' => brace_depth += 1,
+                '}' => brace_depth -= 1,
+                '(' => paren_depth += 1,
+                ')' => paren_depth -= 1,
+                _ => {},
+            }
+        }
+    }
+
+    first_keyframe.or(first_always).unwrap_or(source.lines().count())
+}
+
+/// True when a trimmed line starts an absolute or relative keyframe
+/// (`#0s`, `# 0.5s`, `#+1s`), as opposed to a scene marker (`# Intro`).
+fn is_keyframe_marker(trimmed: &str) -> bool {
+    let Some(rest) = trimmed.strip_prefix('#') else {
+        return false;
+    };
+    let rest = rest.strip_prefix('+').unwrap_or(rest);
+    let rest = rest.trim_start();
+    rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+}
+
+/// The statement text to insert when declaring a missing actor named `name`.
+///
+/// `Rect` with an explicit size renders visibly and accepts every common
+/// action as a target, which is what the author was trying to reference.
+pub fn missing_actor_statement(name: &str) -> String {
+    format!("{name}: Rect, size: (100, 100)\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +359,69 @@ mod tests {
         for pair in picks.windows(2) {
             assert!(pair[0].distance <= pair[1].distance);
         }
+    }
+    #[test]
+    fn removal_range_covers_single_line_statement() {
+        let source = "box: Rect, size: (100, 100)\nkeep: Text, text: \"k\"\n";
+        let decl = source.find("box").unwrap();
+        let (start, end) = statement_removal_range(source, decl).unwrap();
+        assert_eq!(&source[start..end], "box: Rect, size: (100, 100)\n");
+    }
+
+    #[test]
+    fn removal_range_covers_braced_statement() {
+        let source = "panel: Filter, size: (1, 2) {\n  pix: Blur, radius: 4\n}\nkeep: Text\n";
+        let decl = source.find("panel").unwrap();
+        let (start, end) = statement_removal_range(source, decl).unwrap();
+        assert_eq!(
+            &source[start..end],
+            "panel: Filter, size: (1, 2) {\n  pix: Blur, radius: 4\n}\n"
+        );
+    }
+
+    #[test]
+    fn removal_range_ignores_braces_in_strings_and_comments() {
+        let source = "t: Text, text: \"a}b\" // } not a close\nkeep: Text\n";
+        let decl = source.find("t:").unwrap();
+        let (start, end) = statement_removal_range(source, decl).unwrap();
+        assert_eq!(&source[start..end].lines().count(), &1);
+        assert!(source[start..end].contains("a}b"));
+    }
+
+    #[test]
+    fn removal_range_ignores_typst_blocks() {
+        let source = "eq: Typst, content: $$ x { y } $$\nkeep: Text\n";
+        let decl = source.find("eq:").unwrap();
+        let (start, end) = statement_removal_range(source, decl).unwrap();
+        assert_eq!(&source[start..end].lines().count(), &1);
+    }
+
+    #[test]
+    fn insertion_line_lands_before_first_keyframe() {
+        let source = "a: Text, text: \"x\"\n#0s\nfade-in a [1s]\n";
+        assert_eq!(declaration_insertion_line(source), 1);
+    }
+
+    #[test]
+    fn insertion_line_handles_spaced_keyframes_and_always() {
+        assert_eq!(declaration_insertion_line("# 0s\n"), 0, "spaced marker");
+        assert_eq!(declaration_insertion_line("#+1s\n"), 0, "relative marker");
+        assert_eq!(declaration_insertion_line("# Intro\n"), 1, "scene marker is not a keyframe");
+        assert_eq!(declaration_insertion_line("always {\n  x = 1\n}\n"), 0);
+        assert_eq!(declaration_insertion_line(""), 0, "empty file appends at 0");
+    }
+
+    #[test]
+    fn insertion_skips_keyframe_markers_inside_blocks() {
+        // The `#` here sits inside a string inside a block: not a top-level
+        // keyframe, so insertion falls back to the end.
+        let source = "t: Text, text: \"#0s\"\n";
+        assert_eq!(declaration_insertion_line(source), 1);
+    }
+
+    #[test]
+    fn missing_actor_statement_is_parseable() {
+        let statement = missing_actor_statement("ghost");
+        assert_eq!(statement, "ghost: Rect, size: (100, 100)\n");
     }
 }

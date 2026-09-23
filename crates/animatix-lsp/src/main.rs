@@ -688,6 +688,10 @@ impl LanguageServer for Backend {
         };
 
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
+        let url = match Url::parse(&uri) {
+            Ok(url) => url,
+            Err(_) => return Ok(None),
+        };
 
         for diagnostic in analyzer.diagnostics() {
             // Only act on diagnostics the client actually asked about: the
@@ -699,48 +703,62 @@ impl LanguageServer for Backend {
             let Some(code) = diagnostic.code.as_deref() else {
                 continue;
             };
-            let Some(misspelled) = misspelled_name(&diagnostic) else {
-                continue;
-            };
 
-            let candidates = match code {
+            match code {
                 "undefined-label" => {
-                    animatix_analyzer::suggest_label_names(analyzer.symbols(), &misspelled, 3)
+                    if let Some(misspelled) = misspelled_name(&diagnostic) {
+                        for candidate in animatix_analyzer::suggest_label_names(
+                            analyzer.symbols(),
+                            &misspelled,
+                            3,
+                        ) {
+                            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                                title: format!("Replace with '{}'", candidate.name),
+                                kind: Some(CodeActionKind::QUICKFIX),
+                                diagnostics: None,
+                                edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
+                                command: None,
+                                is_preferred: None,
+                                disabled: None,
+                                data: None,
+                            }));
+                        }
+                    }
+                    if let Some(name) = undefined_label_name(&diagnostic) {
+                        if let Some(action) = declare_actor_action(analyzer.source(), &url, &name) {
+                            actions.push(CodeActionOrCommand::CodeAction(action));
+                        }
+                    }
                 },
                 "unknown-action" => {
-                    animatix_analyzer::suggest_action_names(analyzer.symbols(), &misspelled, 3)
+                    if let Some(misspelled) = misspelled_name(&diagnostic) {
+                        for candidate in animatix_analyzer::suggest_action_names(
+                            analyzer.symbols(),
+                            &misspelled,
+                            3,
+                        ) {
+                            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                                title: format!("Replace with '{}'", candidate.name),
+                                kind: Some(CodeActionKind::QUICKFIX),
+                                diagnostics: None,
+                                edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
+                                command: None,
+                                is_preferred: None,
+                                disabled: None,
+                                data: None,
+                            }));
+                        }
+                    }
                 },
-                // Other codes have no spelling fix to offer yet.
-                _ => continue,
-            };
-            let Ok(url) = Url::parse(&uri) else {
-                continue;
-            };
-
-            for candidate in candidates {
-                let edit = TextEdit {
-                    range: Range::new(
-                        Position::new(diagnostic.line as u32, diagnostic.col as u32),
-                        Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32),
-                    ),
-                    new_text: candidate.name.clone(),
-                };
-                let mut changes = HashMap::new();
-                changes.insert(url.clone(), vec![edit]);
-                actions.push(CodeActionOrCommand::CodeAction(CodeAction {
-                    title: format!("Replace with '{}'", candidate.name),
-                    kind: Some(CodeActionKind::QUICKFIX),
-                    diagnostics: None,
-                    edit: Some(WorkspaceEdit {
-                        changes: Some(changes),
-                        document_changes: None,
-                        change_annotations: None,
-                    }),
-                    command: None,
-                    is_preferred: None,
-                    disabled: None,
-                    data: None,
-                }));
+                "unused-label" => {
+                    if let Some(name) = unused_name(&diagnostic) {
+                        if let Some(action) = remove_declaration_action(analyzer, &url, &name) {
+                            actions.push(CodeActionOrCommand::CodeAction(action));
+                        }
+                    }
+                },
+                // Other codes have no quick fix to offer yet.
+                _ => {},
             }
         }
 
@@ -816,10 +834,20 @@ impl LanguageServer for Backend {
         let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
 
         // The originating file uses cursor-based scope resolution. Other files
-        // fall back to name lookup, matching how `references` reports them.
+        // fall back to name lookup, with one safety guard: a file that
+        // *declares its own* binding of the same name keeps it — those
+        // occurrences are its own symbol, not the renamed one, and rewriting
+        // them would be a silent wrong edit. Files that merely reference an
+        // imported name (no declaration of their own) are renamed.
         for (file_uri, file_analyzer) in analyzers.iter() {
             let ranges = if file_uri == &uri {
                 target.references.clone()
+            } else if file_analyzer
+                .occurrences()
+                .iter()
+                .any(|o| o.declaration && o.name == target.name)
+            {
+                continue;
             } else {
                 file_analyzer.find_references(&target.name)
             };
@@ -945,6 +973,28 @@ fn position_le(a: Position, b: Position) -> bool {
     (a.line, a.character) <= (b.line, b.character)
 }
 
+/// A single-range replace edit wrapped in a `WorkspaceEdit`.
+fn replace_range_edit(
+    url: &Url,
+    diagnostic: &animatix_analyzer::Diagnostic,
+    new_text: &str,
+) -> WorkspaceEdit {
+    let edit = TextEdit {
+        range: Range::new(
+            Position::new(diagnostic.line as u32, diagnostic.col as u32),
+            Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32),
+        ),
+        new_text: new_text.to_string(),
+    };
+    let mut changes = HashMap::new();
+    changes.insert(url.clone(), vec![edit]);
+    WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+        change_annotations: None,
+    }
+}
+
 /// Extract the offending name from a spelling-related diagnostic message.
 ///
 /// The analyzer phrases these as `Undefined label: NAME` and `Unknown action:
@@ -960,6 +1010,103 @@ fn misspelled_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String>
         }
     }
     None
+}
+
+/// Extract the name from an `undefined-label` diagnostic.
+fn undefined_label_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
+    diagnostic
+        .message
+        .strip_prefix("Undefined label: ")
+        .map(|rest| rest.trim().to_string())
+        .filter(|name| !name.is_empty())
+}
+
+/// Extract the name from an `unused-label` diagnostic (`Unused actor: 'x'`,
+/// `Unused binding: 'x'`, …).
+fn unused_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
+    for kind in ["actor", "binding", "label", "component"] {
+        let prefix = format!("Unused {kind}: '");
+        if let Some(rest) = diagnostic.message.strip_prefix(prefix.as_str()) {
+            return rest.strip_suffix('\'').map(str::to_string);
+        }
+    }
+    None
+}
+
+/// Build the "declare the missing actor" quick fix.
+///
+/// Inserts the declaration before the first keyframe (or `always` block, or
+/// end of file) so it precedes every use the author is reaching for.
+fn declare_actor_action(source: &str, url: &Url, name: &str) -> Option<CodeAction> {
+    let line = animatix_analyzer::declaration_insertion_line(source);
+    let edit = TextEdit {
+        range: Range::new(Position::new(line as u32, 0), Position::new(line as u32, 0)),
+        new_text: animatix_analyzer::missing_actor_statement(name),
+    };
+    let mut changes = HashMap::new();
+    changes.insert(url.clone(), vec![edit]);
+    Some(CodeAction {
+        title: format!("Declare actor '{name}'"),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: None,
+        disabled: None,
+        data: None,
+    })
+}
+
+/// Build the "remove the unused declaration" quick fix.
+///
+/// The removal range covers the whole statement (brace-matched), and is only
+/// offered for actors and `let` bindings — unused components and other kinds
+/// may be intentional scaffolding a quick fix should not delete.
+fn remove_declaration_action(
+    analyzer: &animatix_analyzer::Analyzer,
+    url: &Url,
+    name: &str,
+) -> Option<CodeAction> {
+    let decl_byte = animatix_analyzer::first_declaration_byte(analyzer.occurrences(), name)?;
+    // Only top-level declarations are safe to remove: an inline child (an
+    // effect stage inside a Filter, an actor inside a Row) renders as part of
+    // its parent even when its label is never referenced, so deleting it
+    // would silently change the output.
+    if !animatix_analyzer::is_top_level_position(analyzer.source(), decl_byte) {
+        return None;
+    }
+    let (start_byte, end_byte) =
+        animatix_analyzer::statement_removal_range(analyzer.source(), decl_byte)?;
+    let (start_line, start_col) =
+        animatix_syntax::token::byte_to_line_col(analyzer.source(), start_byte);
+    let (end_line, end_col) = animatix_syntax::token::byte_to_line_col(analyzer.source(), end_byte);
+    let edit = TextEdit {
+        range: Range::new(
+            Position::new(start_line as u32, start_col as u32),
+            Position::new(end_line as u32, end_col as u32),
+        ),
+        new_text: String::new(),
+    };
+    let mut changes = HashMap::new();
+    changes.insert(url.clone(), vec![edit]);
+    Some(CodeAction {
+        title: format!("Remove unused '{name}'"),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: None,
+        disabled: None,
+        data: None,
+    })
 }
 
 /// Convert a file:// URI to a PathBuf.
