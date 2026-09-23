@@ -324,22 +324,16 @@ fn emit_check_report(
                 // `passed` mirrors the exit code: warnings are reported but do
                 // not fail the run, so CI consumers never see passed:false
                 // alongside exit 0.
-                let mut errors: Vec<String> = diagnostics.iter().map(diagnostic_to_json).collect();
-                for diag in &semantic {
-                    let line = diag.line.to_string();
-                    let col = diag.col.to_string();
-                    let severity = format!("{:?}", diag.severity).to_lowercase();
-                    let code = diag.code.as_deref().unwrap_or("");
-                    errors.push(format!(
-                        r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}"}}"#,
-                        line,
-                        col,
-                        escape_json(&diag.message),
-                        code,
-                        severity,
-                    ));
-                }
-                println!(r#"{{"passed":{},"errors":[{}]}}"#, !has_error, errors.join(","));
+                let errors: Vec<serde_json::Value> = diagnostics
+                    .iter()
+                    .map(diagnostic_to_json)
+                    .chain(semantic.iter().map(semantic_diagnostic_to_json))
+                    .collect();
+                let report = serde_json::json!({
+                    "passed": !has_error,
+                    "errors": errors,
+                });
+                println!("{report}");
             }
         },
         OutputFormat::Text => {
@@ -1637,14 +1631,17 @@ fn main() {
                             },
                             OutputFormat::Json => {
                                 for diag in &diagnostics {
-                                    all_diagnostics.push(serde_json::json!({
-                                        "file": file.display().to_string(),
-                                        "line": diag.line,
-                                        "col": diag.col,
-                                        "severity": format!("{:?}", diag.severity).to_lowercase(),
-                                        "code": diag.code,
-                                        "message": diag.message,
-                                    }));
+                                    // Same per-diagnostic shape as `check
+                                    // --format json`, plus the file it came
+                                    // from; lint sweeps many files.
+                                    let mut value = semantic_diagnostic_to_json(diag);
+                                    if let Some(object) = value.as_object_mut() {
+                                        object.insert(
+                                            "file".to_string(),
+                                            serde_json::Value::String(file.display().to_string()),
+                                        );
+                                    }
+                                    all_diagnostics.push(value);
                                 }
                             },
                         }
@@ -1707,44 +1704,37 @@ fn format_file(
     Ok(())
 }
 
-/// Escapes a string for safe inclusion in JSON output.
-fn escape_json(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => result.push_str("\\\""),
-            '\\' => result.push_str("\\\\"),
-            '\n' => result.push_str("\\n"),
-            '\r' => result.push_str("\\r"),
-            '\t' => result.push_str("\\t"),
-            c if c.is_control() => {
-                result.push_str(&format!("\\u{:04x}", c as u32));
-            },
-            c => result.push(c),
-        }
-    }
-    result
+/// Serializes a single build diagnostic as a JSON value.
+///
+/// Both diagnostic families go through this shape so a consumer parses one
+/// schema: the same keys are present whether the diagnostic came from the
+/// build or from the analyzer, with `phase` naming which.
+fn diagnostic_to_json(d: &Diagnostic) -> serde_json::Value {
+    serde_json::json!({
+        "line": d.location.line,
+        "col": d.location.column,
+        "message": d.message,
+        "code": d.code.to_string(),
+        "severity": d.severity.to_string(),
+        "phase": d.phase.to_string(),
+    })
 }
 
-/// Serializes a single diagnostic as a JSON object string.
-fn diagnostic_to_json(d: &Diagnostic) -> String {
-    let line = match d.location.line {
-        Some(l) => l.to_string(),
-        None => "null".to_string(),
-    };
-    let col = match d.location.column {
-        Some(c) => c.to_string(),
-        None => "null".to_string(),
-    };
-    format!(
-        r#"{{"line":{},"col":{},"message":"{}","code":"{}","severity":"{}","phase":"{}"}}"#,
-        line,
-        col,
-        escape_json(&d.message),
-        d.code,
-        d.severity,
-        d.phase,
-    )
+/// Serializes a single analyzer (semantic) diagnostic as a JSON value.
+///
+/// Uses the same keys as [`diagnostic_to_json`]; the analyzer's checks run
+/// alongside the build, which is what `phase` reports.
+fn semantic_diagnostic_to_json(d: &animatix_analyzer::Diagnostic) -> serde_json::Value {
+    serde_json::json!({
+        "line": d.line,
+        "col": d.col,
+        "end_line": d.end_line,
+        "end_col": d.end_col,
+        "message": d.message,
+        "code": d.code,
+        "severity": format!("{:?}", d.severity).to_lowercase(),
+        "phase": "build",
+    })
 }
 
 fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
@@ -1761,6 +1751,36 @@ fn print_build_diagnostics(diagnostics: &[Diagnostic]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn check_and_lint_json_share_one_diagnostic_shape() {
+        // Consumers parse both commands with one schema, so a diagnostic from
+        // either family must carry the same keys (`code`, `severity`, `phase`).
+        let build = diagnostic_to_json(&Diagnostic::error(
+            DiagnosticCode::ParseError,
+            DiagnosticPhase::Parse,
+            "boom",
+        ));
+        for key in ["line", "col", "message", "code", "severity", "phase"] {
+            assert!(build.get(key).is_some(), "build diagnostic is missing `{key}`");
+        }
+
+        let semantic = semantic_diagnostic_to_json(&animatix_analyzer::Diagnostic {
+            severity: animatix_analyzer::DiagnosticSeverity::Warning,
+            line: 3,
+            col: 4,
+            end_line: 3,
+            end_col: 9,
+            message: "Unused actor: 'x'".to_string(),
+            code: Some("unused-label".to_string()),
+        });
+        for key in ["line", "col", "message", "code", "severity", "phase"] {
+            assert!(semantic.get(key).is_some(), "semantic diagnostic is missing `{key}`");
+        }
+        assert_eq!(semantic["severity"], "warning");
+        assert_eq!(semantic["phase"], "build");
+        assert_eq!(semantic["line"], 3);
+    }
 
     #[test]
     fn module_parse_errors_become_structured_diagnostics() {
