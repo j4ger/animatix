@@ -431,6 +431,25 @@ impl Analyzer {
         &self.occurrences
     }
 
+    /// Source range of the declaration of `name`, as 0-based
+    /// `(line, col, end_line, end_col)`.
+    ///
+    /// Matches inline children too, so a diagnostic naming an actor inside a
+    /// container still resolves. Build-layer diagnostics carry only a subject
+    /// label; this is how a consumer gives them a position.
+    pub fn declaration_range(&self, name: &str) -> Option<(usize, usize, usize, usize)> {
+        let byte = fixes::first_declaration_byte(&self.occurrences, name)?;
+        let end_byte = self
+            .occurrences
+            .iter()
+            .find(|o| o.declaration && o.name == name && o.span.start == byte)
+            .map(|o| o.span.end)
+            .unwrap_or(byte);
+        let start = animatix_syntax::token::byte_to_line_col(&self.source, byte);
+        let end = animatix_syntax::token::byte_to_line_col(&self.source, end_byte);
+        Some((start.0, start.1, end.0, end.1))
+    }
+
     /// Get structured parse errors with position information.
     pub fn parse_errors(&self) -> &[ParseError] {
         &self.parse_errors

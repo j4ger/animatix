@@ -5,6 +5,7 @@
 //! and namespace resolution all come from the shared module graph so the
 //! analyzer/LSP and runtime/module pipelines cannot drift.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use animatix_syntax::module::source_map::resolve_import;
@@ -88,14 +89,50 @@ impl Workspace {
     /// imports whose target was registered later (and vice versa), which made
     /// this answer depend on the order files happened to be opened.
     pub fn imports(&self, importer: &Path, target: &Path) -> bool {
-        let Some(source) = self.source(importer) else {
-            return false;
-        };
         let target = animatix_syntax::module::source_map::normalize_path(target);
-        import_paths(source).iter().any(|import_path| {
-            let resolved = resolve_import(importer, import_path);
+        self.direct_imports(importer).into_iter().any(|resolved| {
             animatix_syntax::module::source_map::normalize_path(&resolved) == target
         })
+    }
+
+    /// True when `importer` reaches `target` through any chain of imports.
+    ///
+    /// Rename needs this, not [`Workspace::imports`]: a symbol re-exported
+    /// through an intermediate module (`colors` → `theme` → `main`) is still
+    /// the same binding in the deep importer, so a direct-edge-only check
+    /// would leave that file's references unrenamed.
+    ///
+    /// Walks breadth-first with a visited set, so an import cycle terminates.
+    pub fn imports_transitively(&self, importer: &Path, target: &Path) -> bool {
+        let target = animatix_syntax::module::source_map::normalize_path(target);
+        let mut visited: HashSet<PathBuf> = HashSet::new();
+        let mut queue: Vec<PathBuf> = vec![importer.to_path_buf()];
+
+        while let Some(current) = queue.pop() {
+            let current = animatix_syntax::module::source_map::normalize_path(&current);
+            if !visited.insert(current.clone()) {
+                continue;
+            }
+            for resolved in self.direct_imports(&current) {
+                let normalized = animatix_syntax::module::source_map::normalize_path(&resolved);
+                if normalized == target {
+                    return true;
+                }
+                queue.push(normalized);
+            }
+        }
+        false
+    }
+
+    /// Resolve each `import "…"` line in `path` to an absolute path.
+    fn direct_imports(&self, path: &Path) -> Vec<PathBuf> {
+        let Some(source) = self.source(path) else {
+            return Vec::new();
+        };
+        import_paths(source)
+            .iter()
+            .map(|import_path| resolve_import(path, import_path))
+            .collect()
     }
 }
 
@@ -169,5 +206,57 @@ mod tests {
         w.add_file(main.clone(), "import \"../lib.amx\" as l\nuse = l.widget\n");
         w.add_file(lib.clone(), "pub let widget = rgb(1, 0, 0)\n");
         assert!(w.imports(&main, &lib), "relative alias import resolves");
+    }
+    #[test]
+    fn transitive_imports_follow_reexport_chains() {
+        // colors → theme → main: main reaches colors only through theme.
+        let colors = PathBuf::from("/p/colors.amx");
+        let theme = PathBuf::from("/p/theme.amx");
+        let main = PathBuf::from("/p/main.amx");
+        let mut w = Workspace::new();
+        w.add_file(colors.clone(), "pub let accent = rgb(1, 0, 0)\n");
+        w.add_file(theme.clone(), "import \"colors.amx\" as c\npub let primary = c.accent\n");
+        w.add_file(main.clone(), "import \"theme.amx\" as t\nbox: Rect, size: t.primary\n");
+
+        assert!(w.imports(&theme, &colors), "direct edge");
+        assert!(!w.imports(&main, &colors), "no direct edge from main to colors");
+        assert!(w.imports_transitively(&main, &colors), "main reaches colors through theme");
+        assert!(w.imports_transitively(&main, &theme), "direct edge still reachable");
+        assert!(!w.imports_transitively(&colors, &main), "edges are directed");
+    }
+
+    #[test]
+    fn transitive_imports_terminate_on_cycles() {
+        let a = PathBuf::from("/p/a.amx");
+        let b = PathBuf::from("/p/b.amx");
+        let lonely = PathBuf::from("/p/lonely.amx");
+        let mut w = Workspace::new();
+        w.add_file(a.clone(), "import \"b.amx\"\n");
+        w.add_file(b.clone(), "import \"a.amx\"\n");
+        w.add_file(lonely.clone(), "box: Rect\n");
+
+        // Must terminate, and must not invent an edge to an unimported file.
+        assert!(w.imports_transitively(&a, &b));
+        assert!(w.imports_transitively(&b, &a));
+        assert!(!w.imports_transitively(&a, &lonely));
+    }
+
+    #[test]
+    fn transitive_imports_depth_is_unbounded() {
+        let mut w = Workspace::new();
+        // chain.amx -> m9 -> m8 -> ... -> m0
+        let depth = 6;
+        for i in 0..depth {
+            let path = PathBuf::from(format!("/p/m{i}.amx"));
+            let source = if i + 1 < depth {
+                format!("import \"m{}.amx\"\n", i + 1)
+            } else {
+                "pub let leaf = 1\n".to_string()
+            };
+            w.add_file(path, &source);
+        }
+        let head = PathBuf::from("/p/m0.amx");
+        let tail = PathBuf::from(format!("/p/m{}.amx", depth - 1));
+        assert!(w.imports_transitively(&head, &tail), "deep chain resolves");
     }
 }

@@ -777,6 +777,11 @@ impl LanguageServer for Backend {
         if let Some(action) = remove_all_unused_action(analyzer, &url) {
             actions.push(CodeActionOrCommand::CodeAction(action));
         }
+        // A cleanup spanning several open documents gets its own action, so
+        // the user does not have to run the per-file one in each tab.
+        if let Some(action) = remove_all_unused_workspace_action(&analyzers) {
+            actions.push(CodeActionOrCommand::CodeAction(action));
+        }
 
         if actions.is_empty() {
             Ok(None)
@@ -863,12 +868,13 @@ impl LanguageServer for Backend {
             } else {
                 let file_path = uri_to_path(file_uri);
                 // Only rewrite another file's occurrences when that file
-                // actually imports the renamed symbol's module: a same-named
-                // identifier elsewhere is a different symbol, and rewriting it
-                // on name coincidence is a silent wrong edit.
+                // reaches the renamed module through its imports (directly or
+                // via a re-exporting intermediate): a same-named identifier
+                // elsewhere is a different symbol, and rewriting it on name
+                // coincidence is a silent wrong edit.
                 let imports_target = match (workspace.as_deref(), &target_path, &file_path) {
                     (Some(workspace), Some(target_path), Some(file_path)) => {
-                        workspace.imports(file_path, target_path)
+                        workspace.imports_transitively(file_path, target_path)
                     },
                     // Without a workspace (single-file session) there is no
                     // cross-file set to be wrong about.
@@ -1148,10 +1154,10 @@ fn remove_declaration_action(
 /// for the removals the analyzer confirms are safe (top-level statements with
 /// a determinable extent). Edits are emitted in reverse source order so a
 /// client applying them sequentially does not shift the later ranges.
-fn remove_all_unused_action(
-    analyzer: &animatix_analyzer::Analyzer,
-    url: &Url,
-) -> Option<CodeAction> {
+/// Removal edits for one document's unused top-level declarations.
+///
+/// Empty when the document has fewer than two removable declarations.
+fn unused_removal_edits(analyzer: &animatix_analyzer::Analyzer) -> Vec<TextEdit> {
     let names: Vec<String> = analyzer
         .diagnostics()
         .into_iter()
@@ -1159,18 +1165,18 @@ fn remove_all_unused_action(
         .filter_map(|d| unused_name(&d))
         .collect();
     if names.len() < 2 {
-        return None;
+        return Vec::new();
     }
     let mut ranges =
         animatix_analyzer::batch_removal_ranges(analyzer.occurrences(), analyzer.source(), &names);
     if ranges.len() < 2 {
-        return None;
+        return Vec::new();
     }
     // Reverse order: each edit's range stays valid as earlier ones are applied.
     ranges.sort_unstable_by(|a, b| b.0.cmp(&a.0));
 
     let source = analyzer.source();
-    let edits: Vec<TextEdit> = ranges
+    ranges
         .into_iter()
         .map(|(start, end)| {
             let (start_line, start_col) = animatix_syntax::token::byte_to_line_col(source, start);
@@ -1183,26 +1189,83 @@ fn remove_all_unused_action(
                 new_text: String::new(),
             }
         })
-        .collect();
+        .collect()
+}
+
+/// Build the "remove all unused declarations" action for one document.
+fn remove_all_unused_action(
+    analyzer: &animatix_analyzer::Analyzer,
+    url: &Url,
+) -> Option<CodeAction> {
+    let edits = unused_removal_edits(analyzer);
+    if edits.is_empty() {
+        return None;
+    }
     let count = edits.len();
-    let mut changes = HashMap::new();
-    changes.insert(url.clone(), edits);
-    Some(CodeAction {
-        title: format!("Remove all {count} unused declarations"),
+    Some(source_action(
+        format!("Remove all {count} unused declarations"),
+        single_file_edit(url, edits),
+    ))
+}
+
+/// Build the workspace-wide "remove all unused declarations" action.
+///
+/// Offered only when the cleanup spans more than one document, so it does not
+/// duplicate the per-file action in the common single-file case.
+fn remove_all_unused_workspace_action(
+    analyzers: &HashMap<String, animatix_analyzer::Analyzer>,
+) -> Option<CodeAction> {
+    let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
+    let mut total = 0usize;
+    for (uri, analyzer) in analyzers {
+        let edits = unused_removal_edits(analyzer);
+        if edits.is_empty() {
+            continue;
+        }
+        let Ok(url) = Url::parse(uri) else {
+            continue;
+        };
+        total += edits.len();
+        changes.insert(url, edits);
+    }
+    if changes.len() < 2 {
+        return None;
+    }
+    Some(source_action(
+        format!("Remove all {total} unused declarations in {} files", changes.len()),
+        WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        },
+    ))
+}
+
+/// Wrap an edit in a `source`-kind code action.
+fn source_action(title: String, edit: WorkspaceEdit) -> CodeAction {
+    CodeAction {
+        title,
         // A source action so it is reachable from the file-level menu rather
         // than only from a diagnostic's lightbulb.
         kind: Some(CodeActionKind::SOURCE),
         diagnostics: None,
-        edit: Some(WorkspaceEdit {
-            changes: Some(changes),
-            document_changes: None,
-            change_annotations: None,
-        }),
+        edit: Some(edit),
         command: None,
         is_preferred: None,
         disabled: None,
         data: None,
-    })
+    }
+}
+
+/// A `WorkspaceEdit` touching one document.
+fn single_file_edit(url: &Url, edits: Vec<TextEdit>) -> WorkspaceEdit {
+    let mut changes = HashMap::new();
+    changes.insert(url.clone(), edits);
+    WorkspaceEdit {
+        changes: Some(changes),
+        document_changes: None,
+        change_annotations: None,
+    }
 }
 
 /// Convert a file:// URI to a PathBuf.

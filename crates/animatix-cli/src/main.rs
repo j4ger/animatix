@@ -1459,6 +1459,12 @@ fn main() {
             let lint_config = animatix_analyzer::LintConfig::from_source(&source);
             let semantic = analyzer.diagnostics_with_config(&lint_config);
 
+            // Build-layer diagnostics that name an actor but carry no position
+            // (they are produced from the runtime track table, which has no
+            // source spans) are anchored at that actor's declaration, so the
+            // report points somewhere useful instead of at 1:1.
+            resolve_build_diagnostic_positions(&mut diagnostics, &analyzer);
+
             emit_check_report(&file_label, &source, diagnostics, semantic, &format);
         },
 
@@ -1686,6 +1692,43 @@ fn main() {
             }
         },
     }
+}
+
+/// Anchor build diagnostics that name an actor but carry no position.
+///
+/// `never-revealed` and friends are produced while walking the runtime track
+/// table, which keeps no source spans, so they reach the CLI with no location.
+/// Their message quotes the actor label in backticks; when the analyzer can
+/// resolve that label to a declaration, the diagnostic is pointed there.
+fn resolve_build_diagnostic_positions(
+    diagnostics: &mut [Diagnostic],
+    analyzer: &animatix_analyzer::Analyzer,
+) {
+    for diagnostic in diagnostics.iter_mut() {
+        if diagnostic.location.line.is_some() {
+            continue;
+        }
+        let Some(label) = backticked_label(&diagnostic.message) else {
+            continue;
+        };
+        let Some((line, col, end_line, end_col)) = analyzer.declaration_range(&label) else {
+            continue;
+        };
+        // Diagnostics are 1-based on this side; the analyzer reports 0-based.
+        diagnostic.location.line = Some(line + 1);
+        diagnostic.location.column = Some(col + 1);
+        diagnostic.location.end_line = Some(end_line + 1);
+        diagnostic.location.end_col = Some(end_col + 1);
+    }
+}
+
+/// Extract the first `` `label` `` from a diagnostic message.
+fn backticked_label(message: &str) -> Option<String> {
+    let start = message.find('`')? + 1;
+    let rest = &message[start..];
+    let end = rest.find('`')?;
+    let label = &rest[..end];
+    (!label.is_empty() && !label.contains(' ')).then(|| label.to_string())
 }
 
 /// Format a single .amx file.
