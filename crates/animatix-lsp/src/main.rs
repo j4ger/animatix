@@ -855,16 +855,33 @@ impl LanguageServer for Backend {
         // occurrences are its own symbol, not the renamed one, and rewriting
         // them would be a silent wrong edit. Files that merely reference an
         // imported name (no declaration of their own) are renamed.
+        let workspace = self.cached_workspace.lock().await;
+        let target_path = uri_to_path(&uri);
         for (file_uri, file_analyzer) in analyzers.iter() {
             let ranges = if file_uri == &uri {
                 target.references.clone()
-            } else if file_analyzer
-                .occurrences()
-                .iter()
-                .any(|o| o.declaration && o.name == target.name)
-            {
-                continue;
             } else {
+                let file_path = uri_to_path(file_uri);
+                // Only rewrite another file's occurrences when that file
+                // actually imports the renamed symbol's module: a same-named
+                // identifier elsewhere is a different symbol, and rewriting it
+                // on name coincidence is a silent wrong edit.
+                let imports_target = match (workspace.as_deref(), &target_path, &file_path) {
+                    (Some(workspace), Some(target_path), Some(file_path)) => {
+                        workspace.imports(file_path, target_path)
+                    },
+                    // Without a workspace (single-file session) there is no
+                    // cross-file set to be wrong about.
+                    _ => false,
+                };
+                if !imports_target
+                    || file_analyzer
+                        .occurrences()
+                        .iter()
+                        .any(|o| o.declaration && o.name == target.name)
+                {
+                    continue;
+                }
                 file_analyzer.find_references(&target.name)
             };
             if ranges.is_empty() {
