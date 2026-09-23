@@ -367,6 +367,15 @@ impl Diagnostic {
         self
     }
 
+    /// Attaches an end position, so the diagnostic describes a range rather
+    /// than a single point. Pairs with [`Diagnostic::with_location`] or
+    /// [`Diagnostic::with_byte_span`].
+    pub fn with_end_location(mut self, end_line: usize, end_col: usize) -> Self {
+        self.location.end_line = Some(end_line);
+        self.location.end_col = Some(end_col);
+        self
+    }
+
     /// Returns true if this diagnostic represents an error (not a warning).
     pub fn is_error(&self) -> bool {
         self.severity == DiagnosticSeverity::Error

@@ -48,8 +48,9 @@ pub use extension_manifest::{
     ExtensionManifest, ManifestEffect, ManifestEffectParam, ManifestPrimitive, ManifestProperty,
 };
 pub use fixes::{
-    SpellingCandidate, declaration_insertion_line, first_declaration_byte, is_top_level_position,
-    missing_actor_statement, statement_removal_range, suggest_action_names, suggest_label_names,
+    SpellingCandidate, batch_removal_ranges, declaration_insertion_line, first_declaration_byte,
+    is_top_level_position, missing_actor_statement, statement_removal_range, suggest_action_names,
+    suggest_label_names,
 };
 pub use rename::{RenameRejection, RenameTarget, rename_at, validate_new_name};
 pub use symbol_table::{

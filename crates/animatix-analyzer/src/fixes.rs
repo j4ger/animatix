@@ -305,6 +305,33 @@ pub fn missing_actor_statement(name: &str) -> String {
     format!("{name}: Rect, size: (100, 100)\n")
 }
 
+/// Removal ranges for every top-level declaration of the given names.
+///
+/// Returns one `(start_byte, end_byte)` per name that resolves to a removable
+/// top-level statement, de-duplicated and sorted by position. Names that are
+/// not declared, are declared inline (removal-unsafe), or whose statement
+/// extent cannot be determined are skipped — so callers can offer a batched
+/// cleanup without risking a wrong edit.
+pub fn batch_removal_ranges(
+    occurrences: &[Occurrence],
+    source: &str,
+    names: &[String],
+) -> Vec<(usize, usize)> {
+    let mut ranges: Vec<(usize, usize)> = names
+        .iter()
+        .filter_map(|name| {
+            let decl_byte = first_declaration_byte(occurrences, name)?;
+            if !is_top_level_position(source, decl_byte) {
+                return None;
+            }
+            statement_removal_range(source, decl_byte)
+        })
+        .collect();
+    ranges.sort_unstable();
+    ranges.dedup();
+    ranges
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,5 +450,40 @@ mod tests {
     fn missing_actor_statement_is_parseable() {
         let statement = missing_actor_statement("ghost");
         assert_eq!(statement, "ghost: Rect, size: (100, 100)\n");
+    }
+    #[test]
+    fn batch_ranges_skip_inline_and_unknown_names() {
+        let source = "orphan: Rect, size: (1, 1)\ncallout: Filter, size: (2, 2) {\n  stage: Blur, radius: 3\n}\n";
+        let analyzer = Analyzer::new(source);
+        let names = vec![
+            "orphan".to_string(),  // top-level: removable
+            "stage".to_string(),   // inline child: must be skipped
+            "missing".to_string(), // never declared: skipped
+        ];
+        let ranges = batch_removal_ranges(analyzer.occurrences(), source, &names);
+        assert_eq!(ranges.len(), 1, "only the top-level declaration is removable: {ranges:?}");
+        assert_eq!(&source[ranges[0].0..ranges[0].1], "orphan: Rect, size: (1, 1)\n");
+    }
+
+    #[test]
+    fn batch_ranges_are_sorted_and_deduped() {
+        let source = "a1: Rect, size: (1, 1)\nb2: Rect, size: (2, 2)\n";
+        let analyzer = Analyzer::new(source);
+        // Same name twice must not produce two overlapping edits.
+        let names = vec!["b2".to_string(), "a1".to_string(), "b2".to_string()];
+        let ranges = batch_removal_ranges(analyzer.occurrences(), source, &names);
+        assert_eq!(ranges.len(), 2, "one range per distinct declaration: {ranges:?}");
+        assert!(ranges[0].0 < ranges[1].0, "sorted by position");
+    }
+
+    #[test]
+    fn batch_ranges_handle_multiline_statements() {
+        let source = "keep: Rect\nbig: Filter, size: (1, 2) {\n  pix: Blur\n}\ntail: Rect\n";
+        let analyzer = Analyzer::new(source);
+        let ranges = batch_removal_ranges(analyzer.occurrences(), source, &["big".to_string()]);
+        assert_eq!(ranges.len(), 1);
+        let removed = &source[ranges[0].0..ranges[0].1];
+        assert!(removed.starts_with("big: Filter"), "{removed:?}");
+        assert!(removed.ends_with("}\n"), "whole braced statement: {removed:?}");
     }
 }

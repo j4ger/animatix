@@ -295,7 +295,10 @@ impl LanguageServer for Backend {
                     CodeActionOptions {
                         // Only spelling fixes for now; the kind hint lets
                         // clients group them under "Quick Fix".
-                        code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                        code_action_kinds: Some(vec![
+                            CodeActionKind::QUICKFIX,
+                            CodeActionKind::SOURCE,
+                        ]),
                         resolve_provider: Some(false),
                         ..Default::default()
                     },
@@ -707,18 +710,22 @@ impl LanguageServer for Backend {
             match code {
                 "undefined-label" => {
                     if let Some(misspelled) = misspelled_name(&diagnostic) {
-                        for candidate in animatix_analyzer::suggest_label_names(
+                        let candidates = animatix_analyzer::suggest_label_names(
                             analyzer.symbols(),
                             &misspelled,
                             3,
-                        ) {
+                        );
+                        // A single unambiguous correction is the preferred fix;
+                        // several candidates leave the choice to the author.
+                        let unambiguous = candidates.len() == 1;
+                        for candidate in candidates {
                             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                                 title: format!("Replace with '{}'", candidate.name),
                                 kind: Some(CodeActionKind::QUICKFIX),
                                 diagnostics: None,
                                 edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
                                 command: None,
-                                is_preferred: None,
+                                is_preferred: unambiguous.then_some(true),
                                 disabled: None,
                                 data: None,
                             }));
@@ -732,18 +739,20 @@ impl LanguageServer for Backend {
                 },
                 "unknown-action" => {
                     if let Some(misspelled) = misspelled_name(&diagnostic) {
-                        for candidate in animatix_analyzer::suggest_action_names(
+                        let candidates = animatix_analyzer::suggest_action_names(
                             analyzer.symbols(),
                             &misspelled,
                             3,
-                        ) {
+                        );
+                        let unambiguous = candidates.len() == 1;
+                        for candidate in candidates {
                             actions.push(CodeActionOrCommand::CodeAction(CodeAction {
                                 title: format!("Replace with '{}'", candidate.name),
                                 kind: Some(CodeActionKind::QUICKFIX),
                                 diagnostics: None,
                                 edit: Some(replace_range_edit(&url, &diagnostic, &candidate.name)),
                                 command: None,
-                                is_preferred: None,
+                                is_preferred: unambiguous.then_some(true),
                                 disabled: None,
                                 data: None,
                             }));
@@ -760,6 +769,13 @@ impl LanguageServer for Backend {
                 // Other codes have no quick fix to offer yet.
                 _ => {},
             }
+        }
+
+        // A file-wide cleanup is offered when the document has several unused
+        // top-level declarations: deleting them one at a time is tedious on
+        // content like a dashboard with dozens of retired actors.
+        if let Some(action) = remove_all_unused_action(analyzer, &url) {
+            actions.push(CodeActionOrCommand::CodeAction(action));
         }
 
         if actions.is_empty() {
@@ -1096,6 +1112,69 @@ fn remove_declaration_action(
     Some(CodeAction {
         title: format!("Remove unused '{name}'"),
         kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        }),
+        command: None,
+        is_preferred: None,
+        disabled: None,
+        data: None,
+    })
+}
+
+/// Build the file-wide "remove all unused declarations" action.
+///
+/// Only offered when more than one top-level declaration is unused, and only
+/// for the removals the analyzer confirms are safe (top-level statements with
+/// a determinable extent). Edits are emitted in reverse source order so a
+/// client applying them sequentially does not shift the later ranges.
+fn remove_all_unused_action(
+    analyzer: &animatix_analyzer::Analyzer,
+    url: &Url,
+) -> Option<CodeAction> {
+    let names: Vec<String> = analyzer
+        .diagnostics()
+        .into_iter()
+        .filter(|d| d.code.as_deref() == Some("unused-label"))
+        .filter_map(|d| unused_name(&d))
+        .collect();
+    if names.len() < 2 {
+        return None;
+    }
+    let mut ranges =
+        animatix_analyzer::batch_removal_ranges(analyzer.occurrences(), analyzer.source(), &names);
+    if ranges.len() < 2 {
+        return None;
+    }
+    // Reverse order: each edit's range stays valid as earlier ones are applied.
+    ranges.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+
+    let source = analyzer.source();
+    let edits: Vec<TextEdit> = ranges
+        .into_iter()
+        .map(|(start, end)| {
+            let (start_line, start_col) = animatix_syntax::token::byte_to_line_col(source, start);
+            let (end_line, end_col) = animatix_syntax::token::byte_to_line_col(source, end);
+            TextEdit {
+                range: Range::new(
+                    Position::new(start_line as u32, start_col as u32),
+                    Position::new(end_line as u32, end_col as u32),
+                ),
+                new_text: String::new(),
+            }
+        })
+        .collect();
+    let count = edits.len();
+    let mut changes = HashMap::new();
+    changes.insert(url.clone(), edits);
+    Some(CodeAction {
+        title: format!("Remove all {count} unused declarations"),
+        // A source action so it is reachable from the file-level menu rather
+        // than only from a diagnostic's lightbulb.
+        kind: Some(CodeActionKind::SOURCE),
         diagnostics: None,
         edit: Some(WorkspaceEdit {
             changes: Some(changes),

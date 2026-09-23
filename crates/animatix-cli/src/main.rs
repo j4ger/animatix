@@ -285,13 +285,27 @@ enum PluginCommands {
 /// report parse errors through the same stdout channel as semantic
 /// diagnostics. Previously these printed only via `tracing` (stderr), which
 /// meant `--format json` emitted nothing at all for an unparseable file.
-fn module_error_diagnostics(err: &animatix_syntax::module::ModuleError) -> Vec<Diagnostic> {
+///
+/// `source` is the entry file's text, used to resolve each parse error's byte
+/// span into an end position so JSON consumers get a full range.
+fn module_error_diagnostics(
+    err: &animatix_syntax::module::ModuleError,
+    source: &str,
+) -> Vec<Diagnostic> {
     use animatix_syntax::module::ModuleError;
 
     match err {
-        ModuleError::ParseErrors(errors) => {
-            errors.iter().map(|error| error.to_diagnostic()).collect()
-        },
+        ModuleError::ParseErrors(errors) => errors
+            .iter()
+            .map(|error| {
+                let diagnostic = error.to_diagnostic();
+                // The error carries a byte span; the end line/column is only
+                // knowable with the source in hand.
+                let span = error.span.clone();
+                let end = animatix_syntax::ast::Span::from_range(source, span);
+                diagnostic.with_end_location(end.end_line, end.end_col)
+            })
+            .collect(),
         other => vec![Diagnostic::error(
             DiagnosticCode::ParseError,
             DiagnosticPhase::Parse,
@@ -1392,7 +1406,7 @@ fn main() {
                     // graph could not parse, so the whole report is the parse
                     // failure — running the analyzer too would duplicate every
                     // error, since it re-parses the same source.
-                    let parse_diagnostics = module_error_diagnostics(&e);
+                    let parse_diagnostics = module_error_diagnostics(&e, &source);
                     emit_check_report(&file_label, &source, parse_diagnostics, Vec::new(), &format);
                     // Every parse failure is an error, so this always exits 1.
                     std::process::exit(1);
@@ -1713,6 +1727,8 @@ fn diagnostic_to_json(d: &Diagnostic) -> serde_json::Value {
     serde_json::json!({
         "line": d.location.line,
         "col": d.location.column,
+        "end_line": d.location.end_line,
+        "end_col": d.location.end_col,
         "message": d.message,
         "code": d.code.to_string(),
         "severity": d.severity.to_string(),
@@ -1761,7 +1777,9 @@ mod tests {
             DiagnosticPhase::Parse,
             "boom",
         ));
-        for key in ["line", "col", "message", "code", "severity", "phase"] {
+        for key in [
+            "line", "col", "end_line", "end_col", "message", "code", "severity", "phase",
+        ] {
             assert!(build.get(key).is_some(), "build diagnostic is missing `{key}`");
         }
 
@@ -1774,7 +1792,9 @@ mod tests {
             message: "Unused actor: 'x'".to_string(),
             code: Some("unused-label".to_string()),
         });
-        for key in ["line", "col", "message", "code", "severity", "phase"] {
+        for key in [
+            "line", "col", "end_line", "end_col", "message", "code", "severity", "phase",
+        ] {
             assert!(semantic.get(key).is_some(), "semantic diagnostic is missing `{key}`");
         }
         assert_eq!(semantic["severity"], "warning");
@@ -1790,8 +1810,9 @@ mod tests {
         let (ast, errors) =
             animatix_syntax::parser::parse_source("title: Text {\n  text: \"x\"\n#0s\n");
         assert!(ast.is_none() || !errors.is_empty(), "source must be malformed");
+        let source = "title: Text {\n  text: \"x\"\n#0s\n";
         let err = animatix_syntax::module::ModuleError::ParseErrors(errors);
-        let diagnostics = module_error_diagnostics(&err);
+        let diagnostics = module_error_diagnostics(&err, source);
         assert!(!diagnostics.is_empty(), "parse failure must yield diagnostics");
         assert!(
             diagnostics.iter().all(|d| d.code == DiagnosticCode::ParseError && d.is_error()),
@@ -1802,7 +1823,7 @@ mod tests {
     #[test]
     fn non_parse_module_errors_become_one_diagnostic() {
         let err = animatix_syntax::module::ModuleError::FileNotFound(PathBuf::from("/nope.amx"));
-        let diagnostics = module_error_diagnostics(&err);
+        let diagnostics = module_error_diagnostics(&err, "");
         assert_eq!(diagnostics.len(), 1);
         assert!(diagnostics[0].is_error());
         assert!(diagnostics[0].message.contains("/nope.amx"));
