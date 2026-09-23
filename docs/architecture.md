@@ -657,7 +657,13 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
   pipeline and the analyzer workspace. `Workspace` is a thin facade over that
   graph, so analyzer and runtime resolution cannot drift.
 - **Canonical parser API**: Chumsky remains the semantic AST source of truth; the analyzer uses the lossless token stream plus AST for position queries
-- **LSP capabilities**: completion, hover, goto-definition, document symbols, diagnostics
+- **LSP capabilities**: completion (context-aware, including action verbs in
+  verb position), hover, goto-definition, document symbols, workspace symbols,
+  references, rename (`prepareRename` + scope-aware `rename`), code actions
+  (spelling quick-fixes for `undefined-label`/`unknown-action`), semantic
+  tokens, formatting, and diagnostics. Watched-file notifications
+  (`workspace/didChangeWatchedFiles`) refresh import and plugin-manifest
+  symbols when a file changes on disk outside the editor.
 - **Clean boundary**: `animatix-analyzer` depends only on `animatix-syntax`, not the full runtime engine
 
 ---
