@@ -161,6 +161,28 @@ fn span_positions(span: &Option<Span>) -> (usize, usize, usize, usize) {
     }
 }
 
+/// Positions for a property diagnostic: the property's own value span when
+/// the parser recorded one, falling back to the actor declaration position.
+///
+/// Returns 1-based `(line, col, end_line, end_col)`, matching the diagnostic
+/// location convention used by this module.
+fn property_positions(
+    prop: &crate::ast::Property,
+    source: &str,
+    actor_line: usize,
+    actor_col: usize,
+    actor_end_col: usize,
+) -> (usize, usize, usize, usize) {
+    let Some(byte_span) = prop.value_span else {
+        return (actor_line, actor_col, actor_line, actor_end_col);
+    };
+    if source.is_empty() || byte_span.end > source.len() {
+        return (actor_line, actor_col, actor_line, actor_end_col);
+    }
+    let span = Span::from_byte_span(source, byte_span);
+    (span.start_line, span.start_col, span.end_line, span.end_col)
+}
+
 fn is_component_array_member(symbols: &SymbolTable, label: &str) -> bool {
     let Some(base) = is_array_member_label(label) else {
         return false;
@@ -445,6 +467,11 @@ fn check_stmt(
 
             if let Some(known_props) = symbols.properties.get(ty) {
                 for prop in props {
+                    // Point at the property's own value span so the squiggle
+                    // lands on the offending property rather than the actor
+                    // declaration's first character.
+                    let (prop_line, prop_col, prop_end_line, prop_end_col) =
+                        property_positions(prop, source, line, col, end_col);
                     if !known_props.contains(&prop.name)
                         && !is_plot_runtime_param(ty, &prop.name, props)
                     {
@@ -455,10 +482,13 @@ fn check_stmt(
                                 "Property '{}' not commonly used on {} (may still be valid)",
                                 prop.name, ty
                             ),
-                            line,
-                            col,
-                            end_col,
+                            prop_line,
+                            prop_col,
+                            prop_end_col,
                         ));
+                        if let Some(last) = diagnostics.last_mut() {
+                            last.location.end_line = Some(prop_end_line);
+                        }
                     }
 
                     let key = (ty.clone(), prop.name.clone());
@@ -472,10 +502,13 @@ fn check_stmt(
                                     "Type mismatch for '{}.{}': expected {:?}, found {:?}",
                                     ty, prop.name, expected_type, actual_type
                                 ),
-                                line,
-                                col,
-                                end_col,
+                                prop_line,
+                                prop_col,
+                                prop_end_col,
                             ));
+                            if let Some(last) = diagnostics.last_mut() {
+                                last.location.end_line = Some(prop_end_line);
+                            }
                         }
                     }
                 }
