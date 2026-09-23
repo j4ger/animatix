@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use animatix_analyzer::{Analyzer, ExtensionManifest, Workspace, discover_manifest_sources};
+use animatix_analyzer::{
+    Analyzer, ExtensionManifest, Workspace, discover_manifest_sources, fingerprint_sources,
+};
 use animatix_syntax::token::LineIndex;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
@@ -45,6 +47,17 @@ struct Backend {
     cached_workspace: Mutex<Option<Arc<Workspace>>>,
     /// Analyzer-only extension manifests loaded from the document workspace.
     manifests: Mutex<Vec<ExtensionManifest>>,
+    /// Per-directory manifest cache, so keystroke-level updates do not rescan
+    /// the directory and re-parse every `*.amx-plugin.toml` on disk.
+    manifest_cache: Mutex<HashMap<PathBuf, ManifestCacheEntry>>,
+}
+
+/// Cached manifest discovery for one directory, keyed by content fingerprint.
+struct ManifestCacheEntry {
+    /// Combined fingerprint of the manifests found in the directory.
+    fingerprint: u64,
+    /// The merged manifests that fingerprint represents.
+    manifests: Vec<ExtensionManifest>,
 }
 
 impl Backend {
@@ -54,22 +67,55 @@ impl Backend {
             analyzers: Mutex::new(HashMap::new()),
             cached_workspace: Mutex::new(None),
             manifests: Mutex::new(Vec::new()),
+            manifest_cache: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Reload `*.amx-plugin.toml` manifests from the document's directory.
+    /// Reload `*.amx-plugin.toml` manifests for a document's directory.
+    ///
+    /// Discovery is fingerprint-cached: a redisplay of the same directory with
+    /// unchanged manifest content reuses the parsed manifests. The fingerprint
+    /// still requires reading the manifest files (their content is part of it),
+    /// so this is called only when manifests could actually have changed —
+    /// document open, save, or a watched-file notification — never on an
+    /// ordinary keystroke.
     async fn refresh_manifests(&self, path: Option<&Path>) {
-        let sources = path
-            .and_then(Path::parent)
-            .map(|dir| discover_manifest_sources(Some(dir), None, &[]))
-            .unwrap_or_default();
-        *self.manifests.lock().await = sources.into_iter().map(|source| source.manifest).collect();
+        let Some(dir) = path.and_then(Path::parent) else {
+            *self.manifests.lock().await = Vec::new();
+            return;
+        };
+        let dir = dir.to_path_buf();
+
+        let sources = discover_manifest_sources(Some(&dir), None, &[]);
+        let fingerprint = fingerprint_sources(&sources);
+
+        let mut cache = self.manifest_cache.lock().await;
+        if cache.get(&dir).is_some_and(|entry| entry.fingerprint == fingerprint) {
+            let cached = cache[&dir].manifests.clone();
+            drop(cache);
+            *self.manifests.lock().await = cached;
+            return;
+        }
+        let manifests: Vec<ExtensionManifest> =
+            sources.into_iter().map(|source| source.manifest).collect();
+        cache.insert(
+            dir,
+            ManifestCacheEntry {
+                fingerprint,
+                manifests: manifests.clone(),
+            },
+        );
+        drop(cache);
+        *self.manifests.lock().await = manifests;
     }
 
     /// Update the analyzer for a document. Rebuilds workspace if needed.
+    ///
+    /// Manifest refresh is *not* part of this path: it reads the filesystem,
+    /// and this runs on every keystroke. Call [`Backend::reload_manifests`]
+    /// first from the events where manifests could have changed.
     async fn update_analyzer(&self, uri: String, text: String) {
         let path = uri_to_path(&uri);
-        self.refresh_manifests(path.as_deref()).await;
         let manifest = ExtensionManifest::merge(&self.manifests.lock().await);
         let is_new;
         {
@@ -93,6 +139,24 @@ impl Backend {
             self.rebuild_workspace().await;
         } else {
             self.update_workspace_file(&uri, &text).await;
+        }
+    }
+
+    /// Refresh manifests from disk, then apply them to every open document.
+    ///
+    /// Call this from the events where a manifest can plausibly have changed —
+    /// document open, save, or an external file change — not per keystroke.
+    async fn reload_manifests(&self, path: Option<&Path>) {
+        let before = self.manifests.lock().await.clone();
+        self.refresh_manifests(path).await;
+        let after = self.manifests.lock().await.clone();
+        if before == after {
+            return;
+        }
+        let merged = ExtensionManifest::merge(&after);
+        let mut analyzers = self.analyzers.lock().await;
+        for analyzer in analyzers.values_mut() {
+            analyzer.set_extension_manifest(merged.clone());
         }
     }
 
@@ -227,9 +291,9 @@ impl LanguageServer for Backend {
                 document_symbol_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
-                // Watch `*.amx` files so a change to an imported module on
-                // disk (not open in the editor) refreshes the diagnostics of
-                // the documents that import it.
+                // Watch `.amx` sources and plugin manifests so a change to an
+                // imported module or an extension manifest on disk (not open
+                // in the editor) refreshes the affected documents.
                 workspace: Some(WorkspaceServerCapabilities {
                     workspace_folders: None,
                     file_operations: None,
@@ -287,6 +351,8 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
         let text = params.text_document.text;
+        // Opening a document is a natural point to pick up manifests on disk.
+        self.reload_manifests(uri_to_path(&uri).as_deref()).await;
         self.update_analyzer(uri.clone(), text).await;
         self.publish_diagnostics(&uri).await;
     }
@@ -294,16 +360,20 @@ impl LanguageServer for Backend {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri.to_string();
         if let Some(change) = params.content_changes.into_iter().next() {
+            // Keystroke path: no filesystem work beyond re-parsing the buffer.
             self.update_analyzer(uri.clone(), change.text).await;
             self.publish_diagnostics(&uri).await;
         }
     }
 
     async fn did_save(&self, params: DidSaveTextDocumentParams) {
-        let _saved_uri = params.text_document.uri;
+        let saved_uri = params.text_document.uri;
         // A save is the natural point to re-resolve imports from disk:
         // imported files may have changed since each document was opened.
         // merge_import_symbols refreshes the cached import table and rebuilds.
+        // Manifests are refreshed too — a save often follows adding or editing
+        // a plugin manifest in the same directory.
+        self.reload_manifests(uri_to_path(saved_uri.as_ref()).as_deref()).await;
         {
             let mut analyzers = self.analyzers.lock().await;
             for analyzer in analyzers.values_mut() {
@@ -317,13 +387,29 @@ impl LanguageServer for Backend {
         // An imported file changed outside the editor: re-resolve every open
         // document's import symbols from disk, then republish, so the
         // diagnostics of the importing documents track the new content.
-        if params.changes.iter().all(|change| {
-            let path = uri_to_path(change.uri.as_ref()).unwrap_or_default();
-            path.extension().is_none_or(|ext| ext != "amx")
-        }) {
+        let changed: Vec<PathBuf> = params
+            .changes
+            .iter()
+            .filter_map(|change| uri_to_path(change.uri.as_ref()))
+            .collect();
+        if changed.is_empty() {
             return;
         }
-        {
+        let manifest_changed = changed
+            .iter()
+            .any(|path| is_manifest_file_name(path) || !has_amx_extension(path));
+
+        // A watched manifest (or a directory-level change) must refresh the
+        // cached manifests before the analyzers are rebuilt.
+        if manifest_changed {
+            for path in &changed {
+                self.reload_manifests(Some(path.as_path())).await;
+            }
+        }
+        // Import resolution must be re-run whenever a source file changed; it
+        // is a no-op for a manifest-only change, but the diagnostics still
+        // need republishing because the extension symbols just changed.
+        if changed.iter().any(|path| has_amx_extension(path)) {
             let mut analyzers = self.analyzers.lock().await;
             for analyzer in analyzers.values_mut() {
                 analyzer.merge_import_symbols();
@@ -667,6 +753,18 @@ fn path_to_uri(path: &str) -> Option<Url> {
     Url::parse(&format!("file://{path}")).ok()
 }
 
+/// True when a path names an Animatix source file.
+fn has_amx_extension(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| ext == "amx")
+}
+
+/// True when a path names an `*.amx-plugin.toml` extension manifest.
+fn is_manifest_file_name(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with(".amx-plugin.toml"))
+}
+
 #[tokio::main]
 async fn main() {
     let stdin = tokio::io::stdin();
@@ -696,6 +794,17 @@ mod tests {
     #[test]
     fn uri_to_path_handles_empty_string() {
         assert_eq!(uri_to_path(""), None);
+    }
+
+    #[test]
+    fn manifest_and_source_paths_are_classified() {
+        assert!(is_manifest_file_name(Path::new("/p/demo.amx-plugin.toml")));
+        assert!(!is_manifest_file_name(Path::new("/p/demo.amx")));
+        assert!(!is_manifest_file_name(Path::new("/p/plain.toml")));
+
+        assert!(has_amx_extension(Path::new("/p/main.amx")));
+        assert!(!has_amx_extension(Path::new("/p/demo.amx-plugin.toml")));
+        assert!(!has_amx_extension(Path::new("/p/notes.txt")));
     }
 
     #[test]
