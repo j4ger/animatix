@@ -74,6 +74,23 @@ pub struct LintConfig {
 }
 
 impl LintConfig {
+    /// A stable fingerprint of the configuration's effect on output.
+    ///
+    /// `HashSet` iteration order is unspecified, so the disabled codes are
+    /// sorted before hashing; two configs with the same codes and the same
+    /// `disable_all_warnings` always produce the same value, which is what a
+    /// diagnostics cache keys on.
+    pub fn fingerprint(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut codes: Vec<&str> = self.disabled.iter().map(String::as_str).collect();
+        codes.sort_unstable();
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        codes.hash(&mut hasher);
+        self.disable_all_warnings.hash(&mut hasher);
+        hasher.finish()
+    }
+
     /// Parse lint config from inline comments in the source.
     /// Looks for `// lint-disable: code1, code2` and `// lint-disable-all-warnings`.
     pub fn from_source(source: &str) -> Self {

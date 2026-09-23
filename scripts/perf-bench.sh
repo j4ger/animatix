@@ -23,7 +23,10 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-PKG="animatix"
+# Crates whose benches the regression guard covers. The engine owns the
+# render/frame suite; the analyzer owns the editor-intelligence suite (it
+# cannot live in the engine's benches: the engine does not depend on it).
+PKGS=(animatix animatix-analyzer)
 BASELINE_DIR="${PERF_BASELINE_DIR:-target/perf/baseline}"
 LOG_DIR="${PERF_LOG_DIR:-target/perf/latest}"
 RUN_MARKER="target/perf/.run-start"
@@ -54,24 +57,33 @@ run_suite() {
     local filter="${1:-}"
     mkdir -p "$LOG_DIR"
     touch "$RUN_MARKER"
+    local args=()
+    for pkg in "${PKGS[@]}"; do
+        args+=(-p "$pkg")
+    done
     if [[ -n "$filter" ]]; then
-        cargo bench -p "$PKG" -- "$filter"
+        cargo bench "${args[@]}" -- "$filter"
     else
-        cargo bench -p "$PKG"
+        cargo bench "${args[@]}"
     fi
 }
 
-# Collect fresh `new/estimates.json` -> a flat directory of <bench>__<func>.json
+# Collect fresh `new/estimates.json` -> a flat directory of <id>.json
 collect_new() {
     local dest="$1"
     local filter="${2:-}"
     rm -rf "$dest"
     mkdir -p "$dest"
-    # Criterion writes target/criterion/<bench-id>/new/estimates.json; bench-id
-    # is the benchmark function name (e.g. timeline_evaluate_0s).
+    # Criterion writes target/criterion/<group>/<function>/new/estimates.json,
+    # or <function>/new/estimates.json when a bench declares no group. Use the
+    # whole path below target/criterion as the id so grouped benches keep their
+    # group name: taking only the parent directory collapsed `analyzer_update/
+    # small` to `small`, which then failed the filter and was silently dropped.
     find target/criterion -name estimates.json -path "*/new/*" -newer "$RUN_MARKER" 2>/dev/null | while read -r f; do
         local id
-        id="$(basename "$(dirname "$(dirname "$f")")")"
+        id="${f#target/criterion/}"
+        id="${id%/new/estimates.json}"
+        id="${id//\//__}"
         if [[ -n "$filter" && "$id" != *"$filter"* ]]; then
             continue
         fi

@@ -57,16 +57,16 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 pub fn parse_source_diagnostics(
     source: &str,
 ) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<Diagnostic>) {
-    let (ast, errors, warnings, _occurrences) = parse_impl(source);
-    (ast, errors, warnings)
+    let parsed = parse_impl(source);
+    (parsed.ast, parsed.errors, parsed.warnings)
 }
 
 /// Parse source and return AST, errors, and parser-recorded occurrences.
 pub fn parse_source_with_occurrences(
     source: &str,
 ) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<crate::occurrence::Occurrence>) {
-    let (ast, errors, _warnings, occurrences) = parse_impl(source);
-    (ast, errors, occurrences)
+    let parsed = parse_impl(source);
+    (parsed.ast, parsed.errors, parsed.occurrences)
 }
 
 /// Parse source and return AST, errors, parser warnings, and occurrences.
@@ -82,19 +82,42 @@ pub fn parse_source_full(
     Vec<Diagnostic>,
     Vec<crate::occurrence::Occurrence>,
 ) {
+    let parsed = parse_impl(source);
+    (parsed.ast, parsed.errors, parsed.warnings, parsed.occurrences)
+}
+
+/// Parse source and return every artifact, including the token stream.
+///
+/// Use this when the caller needs the tokens as well: the alternative is
+/// [`parse_source_full`] followed by a second `tokenize`, which lexes the
+/// same source twice.
+pub fn parse_source_complete(source: &str) -> ParsedSource {
     parse_impl(source)
 }
 
-fn parse_impl(
-    source: &str,
-) -> (
-    Option<Vec<Stmt>>,
-    Vec<ParseError>,
-    Vec<Diagnostic>,
-    Vec<crate::occurrence::Occurrence>,
-) {
+/// Everything a parse produces, including the token stream.
+///
+/// The lexer runs once here; handing the tokens back lets a caller that also
+/// needs them (the analyzer keeps a token stream for hover/completion/highlight
+/// queries) avoid tokenizing the same source a second time.
+pub struct ParsedSource {
+    /// Parsed statements, absent when the source could not be parsed at all.
+    pub ast: Option<Vec<Stmt>>,
+    /// Structured parse errors.
+    pub errors: Vec<ParseError>,
+    /// Non-fatal parse-time warnings.
+    pub warnings: Vec<Diagnostic>,
+    /// Parser-recorded identifier occurrences.
+    pub occurrences: Vec<crate::occurrence::Occurrence>,
+    /// The token stream the parse consumed.
+    pub tokens: Vec<crate::token::Token>,
+    /// Lexical issues found while tokenizing.
+    pub token_issues: Vec<crate::token::TokenIssue>,
+}
+
+fn parse_impl(source: &str) -> ParsedSource {
     let warnings = Rc::new(RefCell::new(Vec::new()));
-    let tokens = crate::token::tokenize(source);
+    let (tokens, token_issues) = crate::token::tokenize_with_issues(source);
     let spanned = token_parser::spanned(&tokens);
     let input = token_parser::as_input(&spanned);
     let ((ast, errors), occurrences) = crate::occurrence::with_occurrences(|| {
@@ -110,7 +133,14 @@ fn parse_impl(
         Ok(cell) => cell.into_inner(),
         Err(_) => Vec::new(),
     };
-    (ast, owned_errors, owned_warnings, occurrences)
+    ParsedSource {
+        ast,
+        errors: owned_errors,
+        warnings: owned_warnings,
+        occurrences,
+        tokens,
+        token_issues,
+    }
 }
 
 /// Parse source into an AST and structured parse errors.

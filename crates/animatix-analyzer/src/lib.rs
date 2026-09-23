@@ -85,6 +85,15 @@ pub struct Analyzer {
     type_diagnostics: Vec<diagnostics::Diagnostic>,
     lint_config: diagnostics::LintConfig,
     extension_manifest: ExtensionManifest,
+    /// Memoized diagnostics for the current source.
+    ///
+    /// The GUI calls `diagnostics()` every frame on unchanged text, and the
+    /// full run costs ~0.3 ms on a large file (semantic checks, duplicate
+    /// detection, unresolved-name analysis). Every input is fixed once
+    /// `update()` returns, so the result only varies with the lint config —
+    /// which this caches by fingerprint.
+    diagnostics_cache:
+        std::sync::Mutex<Option<(u64, std::sync::Arc<Vec<diagnostics::Diagnostic>>)>>,
 }
 
 impl Analyzer {
@@ -109,6 +118,7 @@ impl Analyzer {
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
             extension_manifest: ExtensionManifest::default(),
+            diagnostics_cache: std::sync::Mutex::new(None),
         };
         analyzer.update(source);
         analyzer
@@ -165,15 +175,17 @@ impl Analyzer {
 
         self.source = source.to_string();
 
-        let (ast, parse_errors, parse_warnings, occurrences) =
-            animatix_syntax::parser::parse_source_full(source);
-        self.ast = ast;
-        self.parse_errors = parse_errors;
-        self.parse_warnings = parse_warnings;
-        self.occurrences = occurrences;
-        let (tokens, token_issues) = animatix_syntax::token::tokenize_with_issues(source);
-        self.tokens = tokens;
-        self.token_issues = token_issues;
+        // Parse once and keep the token stream it produced: tokenizing again
+        // here would lex the same source a second time (the lexer is ~4% of a
+        // keystroke rebuild, and the tokens are needed for hover/completion/
+        // highlighting queries anyway).
+        let parsed = animatix_syntax::parser::parse_source_complete(source);
+        self.ast = parsed.ast;
+        self.parse_errors = parsed.errors;
+        self.parse_warnings = parsed.warnings;
+        self.occurrences = parsed.occurrences;
+        self.tokens = parsed.tokens;
+        self.token_issues = parsed.token_issues;
 
         self.rebuild_symbols();
     }
@@ -219,6 +231,13 @@ impl Analyzer {
         self.extension_manifest.apply_to(&mut table);
 
         self.symbols = table;
+
+        // Every caller of this function changes something the diagnostics
+        // depend on (source, manifest, or imported symbols), so invalidating
+        // here covers the whole state-change surface: `update`,
+        // `merge_import_symbols`, `clear_import_symbols`, and
+        // `set_extension_manifest` all route through it.
+        *self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
     /// Build a component registry from AST statements for the type checker.
@@ -473,7 +492,30 @@ impl Analyzer {
     }
 
     /// All diagnostics with explicit lint configuration.
+    ///
+    /// Memoized: repeated calls with the same configuration reuse the first
+    /// result, and any `update()` invalidates it.
     pub fn diagnostics_with_config(&self, config: &diagnostics::LintConfig) -> Vec<Diagnostic> {
+        let key = config.fingerprint();
+        // A poisoning panic can only come from a panic inside this method,
+        // which would already have aborted the caller's work; recovering the
+        // guard keeps later queries working instead of cascading.
+        {
+            let cache = self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner());
+            if let Some((cached_key, cached)) = cache.as_ref() {
+                if *cached_key == key {
+                    return cached.as_ref().clone();
+                }
+            }
+        }
+        let computed = std::sync::Arc::new(self.compute_diagnostics(config));
+        let mut cache = self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner());
+        *cache = Some((key, computed.clone()));
+        computed.as_ref().clone()
+    }
+
+    /// Run every diagnostic pass against the current source.
+    fn compute_diagnostics(&self, config: &diagnostics::LintConfig) -> Vec<Diagnostic> {
         let mut diagnostics = diagnostics::collect_diagnostics_with_config(
             &self.source,
             &self.parse_errors,
@@ -1478,5 +1520,97 @@ title: Text { content: "Hello" }
             "workspace should include the direct-import scene"
         );
         assert_eq!(graph_scenes, Vec::<&str>::new(), "direct scene is not a namespace export");
+    }
+    #[test]
+    fn diagnostics_cache_returns_identical_results() {
+        let source = "title: Text, text: \"hi\"\ntitle: Text, text: \"dup\"\n";
+        let analyzer = Analyzer::new(source);
+        let first = analyzer.diagnostics();
+        let second = analyzer.diagnostics();
+        assert_eq!(first.len(), second.len(), "cached call matches the first");
+        for (a, b) in first.iter().zip(second.iter()) {
+            assert_eq!(a.code, b.code);
+            assert_eq!(a.line, b.line);
+            assert_eq!(a.col, b.col);
+            assert_eq!(a.message, b.message);
+        }
+        assert!(!first.is_empty(), "fixture must produce diagnostics");
+    }
+
+    #[test]
+    fn diagnostics_cache_invalidates_on_update() {
+        let mut analyzer = Analyzer::new("title: Text, text: \"hi\"\n");
+        let before = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("duplicate-label"))
+            .count();
+        assert_eq!(before, 0);
+
+        // Introducing a duplicate must show up on the next query.
+        analyzer.update("title: Text, text: \"hi\"\ntitle: Text, text: \"dup\"\n");
+        let after = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("duplicate-label"))
+            .count();
+        assert_eq!(after, 1, "cache must not serve the pre-edit result");
+    }
+
+    #[test]
+    fn diagnostics_cache_is_keyed_by_lint_config() {
+        let source = "title: Text, text: \"hi\"\n";
+        let analyzer = Analyzer::new(source);
+        let mut config = crate::LintConfig::default();
+        let unfiltered = analyzer.diagnostics_with_config(&config).len();
+
+        config.disabled.insert("unused-label".to_string());
+        let filtered = analyzer.diagnostics_with_config(&config).len();
+        assert!(filtered < unfiltered, "disabled code must drop from the result");
+
+        // Asking again with the first config must not return the filtered set.
+        let back = analyzer.diagnostics_with_config(&crate::LintConfig::default()).len();
+        assert_eq!(back, unfiltered, "config change invalidates the cache");
+    }
+
+    #[test]
+    fn diagnostics_cache_invalidates_on_manifest_change() {
+        let source = "g: Gauge, level: 42";
+        let mut analyzer = Analyzer::new(source);
+        let unknown_before = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unknown-type"))
+            .count();
+        assert_eq!(unknown_before, 1, "Gauge is unknown without a manifest");
+
+        let manifest = ExtensionManifest::from_toml(
+            "[[primitives]]\ntype_name = \"Gauge\"\n\n[[properties]]\nactor_type = \"Gauge\"\nname = \"level\"\ntype = \"Num\"\n",
+        )
+        .expect("parse manifest");
+        analyzer.set_extension_manifest(manifest);
+
+        let unknown_after = analyzer
+            .diagnostics()
+            .into_iter()
+            .filter(|d| d.code.as_deref() == Some("unknown-type"))
+            .count();
+        assert_eq!(unknown_after, 0, "manifest change must invalidate the cache");
+    }
+
+    #[test]
+    fn lint_config_fingerprint_is_order_independent() {
+        let mut a = crate::LintConfig::default();
+        a.disabled.insert("unused-label".to_string());
+        a.disabled.insert("unknown-type".to_string());
+        let mut b = crate::LintConfig::default();
+        b.disabled.insert("unknown-type".to_string());
+        b.disabled.insert("unused-label".to_string());
+        assert_eq!(a.fingerprint(), b.fingerprint(), "set order must not matter");
+
+        let mut c = crate::LintConfig::default();
+        c.disabled.insert("unused-label".to_string());
+        assert_ne!(a.fingerprint(), c.fingerprint(), "different codes differ");
+        assert_ne!(crate::LintConfig::default().fingerprint(), c.fingerprint(),);
     }
 }

@@ -14,3 +14,11 @@ serde = { workspace = true }
 [dev-dependencies]
 serde_json = "1"
 walkdir = "2"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Editor-intelligence cost lives on the authoring latency path (per keystroke
+# and per frame) but cannot be reached from the engine's bench suite: the
+# engine does not depend on this crate.
+[[bench]]
+name = "editor_intelligence"
+harness = false
