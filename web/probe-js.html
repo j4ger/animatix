@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>js webgpu probe</title></head>
+<body style="background:#222">
+<canvas id="c" width="640" height="480" style="background:#000"></canvas>
+<script>
+(async () => {
+  const report = {};
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    window.__keepAdapter = adapter;
+    const device = await adapter.requestDevice();
+    window.__keepDevice = device;
+    report.lost = "no";
+    device.addEventListener?.("uncapturederror", (e) => { report.err = String(e.error.message).slice(0,160); });
+    const canvas = document.getElementById("c");
+    const ctx = canvas.getContext("webgpu");
+    const format = navigator.gpu.getPreferredCanvasFormat();
+    report.format = format;
+    try {
+      ctx.configure({ device, format, alphaMode: "opaque",
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+      report.storageOnCanvas = "accepted";
+    } catch (e) { report.storageOnCanvas = "REJECTED: " + String(e).slice(0,120);
+      ctx.configure({ device, format, alphaMode: "opaque", usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+    }
+    // offscreen storage texture path (what vello needs)
+    const tex = device.createTexture({ size: [640,480], format,
+      usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC });
+    const enc = device.createCommandEncoder();
+    const pass = enc.beginRenderPass({ colorAttachments: [{
+      view: tex.createView(),
+      loadOp: "clear", storeOp: "store",
+      clearValue: { r: 0.2, g: 0.9, b: 0.3, a: 1 } }] });
+    pass.end();
+    const rb = device.createBuffer({ size: 640*480*4, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+    enc.copyTextureToBuffer({ texture: tex }, { buffer: rb, bytesPerRow: 640*4, rowsPerImage: 480 }, [640,480,1]);
+    device.queue.submit([enc.finish()]);
+    await rb.mapAsync(GPUMapMode.READ);
+    const arr = new Uint32Array(rb.getMappedRange());
+    let green = 0; for (let i = 0; i < arr.length; i += 997) { const g = (arr[i] >> 8) & 0xff; if (g > 200 && (arr[i] & 0xff) < 100) green++; }
+    report.readbackGreenSamples = green;
+    report.totalSamples = Math.floor(arr.length / 997);
+  } catch (e) { report.error = String(e).slice(0,200); }
+  window.__jsprobe = JSON.stringify(report);
+})();
+</script></body></html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animatix Web — layout-first animation DSL</title>
+  <meta name="description" content="Write .amx animation scenes in the browser and play them on a WebGPU canvas. No backend, no install." />
+  <link rel="stylesheet" href="./css/main.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23151a22'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E" />
+</head>
+<body class="mode-editor">
+
+  <!-- ── Top bar ─────────────────────────────────────────────── -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span class="brand-name">Animatix</span>
+      <span class="brand-tag">web demo</span>
+    </div>
+
+    <label class="example-picker" title="Load an example scene">
+      <span class="picker-label">Example</span>
+      <select id="example-select"></select>
+    </label>
+
+    <div class="mode-switch" role="tablist" aria-label="View mode">
+      <button id="mode-editor" class="mode-btn active" role="tab" aria-selected="true">Edit</button>
+      <button id="mode-player" class="mode-btn" role="tab" aria-selected="false">Play</button>
+    </div>
+
+    <div class="topbar-meta">
+      <span id="engine-status" class="engine-status">starting…</span>
+    </div>
+  </header>
+
+  <!-- ── Editor mode workspace ───────────────────────────────── -->
+  <main class="workspace" id="workspace">
+    <section class="editor-pane" aria-label="Scene source">
+      <div id="editor" class="editor-host"></div>
+
+      <div class="diag-strip" id="diag-strip">
+        <button class="diag-toggle" id="diag-toggle" aria-expanded="true">
+          <span id="diag-summary">no issues</span>
+          <span class="diag-chevron" aria-hidden="true"></span>
+        </button>
+        <ul class="diag-list" id="diag-list" role="list"></ul>
+      </div>
+    </section>
+
+    <div class="divider" id="divider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
+
+    <section class="preview-pane" aria-label="Preview">
+      <div class="canvas-frame" id="canvas-frame">
+        <canvas id="stage" width="1280" height="720"></canvas>
+        <div class="stale-chip hidden" id="stale-chip">showing last working build</div>
+        <div class="canvas-hint hidden" id="canvas-hint">building…</div>
+      </div>
+
+      <div class="transport" id="transport">
+        <button class="tbtn primary" id="btn-play" title="Play/pause (space)">
+          <span class="icon icon-play" id="icon-play"></span>
+        </button>
+        <button class="tbtn" id="btn-restart" title="Restart">
+          <span class="icon icon-restart"></span>
+        </button>
+        <span class="time-readout" id="time-readout">0.00 / 0.00 s</span>
+        <input type="range" id="scrubber" class="scrubber" min="0" max="1000" value="0" step="1"
+               aria-label="Timeline position" />
+        <button class="tbtn toggled" id="btn-loop" title="Loop" aria-pressed="true">
+          <span class="icon icon-loop"></span>
+        </button>
+        <span class="meta-badge" id="fps-badge" title="Render frames per second">— fps</span>
+        <span class="meta-badge" id="dims-badge" title="Scene resolution">—</span>
+        <span class="meta-badge" id="build-badge" title="Last build time">—</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Player mode stage ───────────────────────────────────── -->
+  <!-- The single #stage canvas is moved here in play mode: moving a canvas
+       within the document preserves its GPU context, so one WebGPU device
+       serves both modes. -->
+  <main class="playerstage hidden" id="playerstage" aria-label="Player">
+    <div class="player-canvas-host" id="player-canvas-host"></div>
+    <a class="player-back" id="player-back" href="#" title="Back to editor (Esc)">&#8592; editor</a>
+    <div class="player-controls" id="player-controls">
+      <button class="tbtn primary big" id="pbtn-play" title="Play/pause (space)">
+        <span class="icon icon-play paused" id="picon-play"></span>
+      </button>
+      <input type="range" id="pscrubber" class="scrubber" min="0" max="1000" value="0" step="1"
+             aria-label="Timeline position" />
+      <span class="time-readout" id="ptime-readout">0.00 s</span>
+    </div>
+  </main>
+
+  <!-- ── Boot / failure overlays ─────────────────────────────── -->
+  <div class="overlay" id="boot-overlay">
+    <div class="overlay-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <h1 id="boot-title">Loading Animatix</h1>
+      <p id="boot-detail">Fetching the engine module — first visit downloads ~12&nbsp;MB.</p>
+    </div>
+  </div>
+
+  <div class="overlay hidden" id="fail-overlay">
+    <div class="overlay-card">
+      <div class="fail-glyph" aria-hidden="true">&#9888;</div>
+      <h1 id="fail-title">WebGPU is required</h1>
+      <p id="fail-detail">
+        This demo renders through WebGPU. Try a recent
+        <strong>Chrome / Edge 113+</strong>, <strong>Firefox 141+</strong>,
+        or <strong>Safari 26+</strong>. Linux users may need a GPU with
+        Vulkan support.
+      </p>
+      <p class="fail-tech" id="fail-tech"></p>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js?v=2"></script>
+</body>
+</html>
