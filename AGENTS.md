@@ -13,6 +13,10 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-gui`: eframe/egui IDE, preview, inspector, `SourceEdit`.
 - `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
 - `crates/animatix-lsp`: LSP wrapper over analyzer.
+- `crates/animatix-web`: wasm32 driver for the engine (browser editor/player
+  demo). Parse/build reuses the module system in `SourcesOnly` mode; frames
+  render into an offscreen vello target that is blitted to the WebGPU canvas
+  surface. Build/serve instructions in `web/README.md`.
 - `crates/eparts`: themed egui widget framework used by the GUI.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
 - `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
