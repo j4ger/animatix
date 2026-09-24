@@ -30,3 +30,7 @@ target
 dogfood/runs/*/
 !dogfood/runs/README.md
 dhat-export.json
+
+# Web demo build artifacts (regenerate with scripts/build-web.sh)
+web/pkg/
+web/tools/node_modules/

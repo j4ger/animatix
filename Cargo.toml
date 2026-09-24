@@ -13,6 +13,7 @@ members = [
     "crates/animatix-plugin-tooling",
     "crates/animatix-syntax",
     "crates/animatix-text",
+    "crates/animatix-web",
     "crates/eparts"
 ]
 resolver = "2"

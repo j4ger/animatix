@@ -9,7 +9,11 @@ default = []
 video = ["dep:rsmpeg"]
 
 [dependencies]
-animatix = { path = "../animatix" }
+# default-features = false so a wasm build of this crate does not force
+# `perf-tracing` (std `Instant` panics on wasm32) into the engine. Full
+# native builds re-enable it through the GUI/CLI crates' own `animatix`
+# dependency, so stage tracing behaviour is unchanged there.
+animatix = { path = "../animatix", default-features = false }
 animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 kurbo = { workspace = true }

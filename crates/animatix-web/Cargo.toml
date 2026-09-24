@@ -1,0 +1,40 @@
+[package]
+name = "animatix-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+animatix = { path = "../animatix", default-features = false }
+animatix-core = { path = "../animatix-core" }
+animatix-syntax = { path = "../animatix-syntax" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Web-only stack. The cdylib target is wasm32-unknown-unknown; native builds
+# compile the pure host-side modules (parse/build pipeline + DTOs) for the
+# workspace test gates and skip everything below.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+animatix-render = { path = "../animatix-render" }
+console_error_panic_hook = "0.1"
+js-sys = "0.3"
+kurbo = { workspace = true }
+serde-wasm-bindgen = "0.6"
+# Pinned pre-#1558 (atlas residency), matching animatix/animatix-render — see
+# the comment on their `vello` entries.
+vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
+# Pinned to the installed wasm-bindgen-cli version; a mismatch fails at
+# `wasm-bindgen` glue generation time. futures 0.4.78 is the line that pins
+# the same wasm-bindgen version.
+wasm-bindgen = "=0.2.128"
+wasm-bindgen-futures = "0.4.78"
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "console"] }
+# `webgpu` selects the browser backend (native builds select vulkan/metal/...),
+# `fragile-send-sync-non-atomic-wasm` is required because wgpu types are
+# !Send on non-atomic wasm32 and the engine stores them in single-threaded
+# driver structs.
+wgpu = { workspace = true, features = ["webgpu", "fragile-send-sync-non-atomic-wasm"] }
