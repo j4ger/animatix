@@ -8,12 +8,17 @@
 //   src        (required) URL of the .amx file
 //   autoplay   play when scrolled into view (default unless reduced-motion/save-data)
 //   loop       restart from the beginning at the end of the timeline
+//   hold       seconds to keep the finished timeline on screen before a looping
+//              restart (default 0.7; 0 loops with no rest at all)
 //   controls   show a minimal play/pause + scrub bar on hover
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
-//   data-runtime-base  URL where the engine bundle lives
-//                      (default: relative to this script's own URL)
+//
+// The engine bundle directory is a `data-runtime-base` attribute on the
+// <script> tag that loads this component (absolute, or relative to the page) —
+// e.g. `data-runtime-base="/pkg-slim"`. Default: the `pkg` directory beside
+// this component's parent.
 //
 // Loading UX (no build-time poster required):
 //   1. skeleton with shimmer + title, correct aspect ratio
@@ -21,23 +26,48 @@
 //   3. first rendered frame becomes the poster; autoplay decision follows
 //   4. paused instances show a subtle play affordance
 //
+// Looping: a scene's timeline ends at its last keyframe, so a naive wrap cuts
+// from the finished composition straight to an empty first frame. Looping
+// embeds therefore run a cycle of `hold` + `duration`: the finished frame rests,
+// then dissolves out and back in. A scene author writes no hold of their own —
+// `config { duration: N }` does not extend a single-scene timeline; the
+// timeline ends at its last keyframe (`Timeline::duration_seconds`).
+//
 // Performance: all visible playing instances are driven by ONE shared
 // requestAnimationFrame loop; offscreen instances pause automatically. All
 // players share one WebGPU engine context inside the wasm module.
 
+const LOADER_SCRIPT = [...document.querySelectorAll("script[type=module]")].find((s) =>
+  (s.src || "").includes("amx-player.js"),
+);
+
 const RUNTIME_BASE = (() => {
-  for (const script of document.querySelectorAll("script[type=module]")) {
-    const src = script.src || "";
-    if (src.endsWith("/amx-player.js") || src.includes("/amx-player.js?")) {
-      const i = src.lastIndexOf("/amx-player.js");
-      return src.slice(0, i);
-    }
-  }
+  const src = LOADER_SCRIPT?.src || "";
+  const i = src.lastIndexOf("/amx-player.js");
+  if (i >= 0) return src.slice(0, i);
   return new URL(".", import.meta.url).href.replace(/\/$/, "");
+})();
+
+// Directories that may hold the wasm module + its JS glue. The loader script's
+// `data-runtime-base` picks the first one — a page of plain-text scenes can
+// serve the slim build instead of the full one. The default directory beside
+// this component is always the last resort, so a page that points at a profile
+// the host did not build degrades to the other one instead of a blank figure.
+const ENGINE_BASES = (() => {
+  const fallback = `${RUNTIME_BASE}/../pkg`;
+  const override = LOADER_SCRIPT?.getAttribute("data-runtime-base");
+  if (!override) return [fallback];
+  const configured = new URL(override, document.baseURI).href.replace(/\/$/, "");
+  return configured === fallback ? [fallback] : [configured, fallback];
 })();
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 const SAVE_DATA = navigator.connection?.saveData === true;
+
+// Loop treatment. FADE_EACH is the dissolve on either side of a looping
+// restart; it never exceeds a third of the cycle so the finished frame always
+// gets real rest time.
+const FADE_EACH = 0.28;
 
 // ── shared engine loading ───────────────────────────────────────────
 
@@ -46,10 +76,21 @@ let enginePromise = null;
 function loadEngine() {
   if (!enginePromise) {
     enginePromise = (async () => {
-      const module = await import(`${RUNTIME_BASE}/../pkg/animatix_web.js`);
-      await module.default();
-      await module.init_engine?.();
-      return module;
+      let lastError;
+      for (const [i, base] of ENGINE_BASES.entries()) {
+        try {
+          const module = await import(`${base}/animatix_web.js`);
+          await module.default();
+          await module.init_engine?.();
+          return module;
+        } catch (err) {
+          lastError = err;
+          if (i + 1 < ENGINE_BASES.length) {
+            console.info(`amx-player: no engine at ${base}, trying ${ENGINE_BASES[i + 1]}`);
+          }
+        }
+      }
+      throw lastError;
     })();
   }
   return enginePromise;
@@ -93,7 +134,7 @@ const ASPECTS = {
 };
 
 class AmxPlayerElement extends HTMLElement {
-  static observedAttributes = ["src", "autoplay", "loop", "controls", "title", "aspect"];
+  static observedAttributes = ["src", "autoplay", "loop", "hold", "controls", "title", "aspect"];
 
   constructor() {
     super();
@@ -102,8 +143,13 @@ class AmxPlayerElement extends HTMLElement {
     this._player = null;
     this._playing = false;
     this._loop = false;
-    this._time = 0;
+    this._time = 0; // position within the playback cycle
     this._duration = 0;
+    this._holdSeconds = 0;
+    this._cycle = 0;
+    this._fade = 0;
+    this._restTime = 0; // frame shown while paused
+    this._lastAlpha = 1;
     this._visible = false;
     this._observer = null;
     this._initialized = false;
@@ -125,6 +171,9 @@ class AmxPlayerElement extends HTMLElement {
   attributeChangedCallback(name) {
     if (name === "aspect" && this._initialized) {
       this.style.aspectRatio = String(this._aspectRatio());
+    }
+    if (name === "hold" && this._initialized && this._duration > 0) {
+      this._configureCycle();
     }
     if (name === "src" && this._initialized) {
       this._state = "idle";
@@ -153,14 +202,14 @@ class AmxPlayerElement extends HTMLElement {
     const style = document.createElement("style");
     style.textContent = `
       :host { display: block; position: relative; overflow: hidden;
-              border-radius: 8px; background: #10141b; }
+              border-radius: 8px; background: #0a0f17; }
       .skeleton {
         position: absolute; inset: 0;
         display: flex; align-items: center; justify-content: center;
-        background: linear-gradient(120deg, #10141b 40%, #1a2130 50%, #10141b 60%);
+        background: linear-gradient(120deg, #0a0f17 40%, #141c28 50%, #0a0f17 60%);
         background-size: 300% 100%;
         animation: shimmer 2.2s linear infinite;
-        color: #5b6575; font: 13px/1.4 system-ui, sans-serif;
+        color: #808fa6; font: 13px/1.4 system-ui, sans-serif;
       }
       @keyframes shimmer { to { background-position: -300% 0; } }
       canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -226,6 +275,34 @@ class AmxPlayerElement extends HTMLElement {
     this._veil.className = "veil";
   }
 
+  // ── loop timing ─────────────────────────────────────────────────
+
+  _looping() {
+    return this.hasAttribute("loop") || this._loop === true;
+  }
+
+  /// A looping embed plays `duration` + `hold`: the finished composition rests
+  /// on screen, then dissolves out and the build-up starts again. Without the
+  /// hold the wrap is a hard cut from the full diagram to an empty stage.
+  _configureCycle() {
+    const attr = this.getAttribute("hold");
+    const parsed = attr === null ? NaN : Number(attr);
+    const hold = Number.isFinite(parsed) && parsed >= 0 ? Math.min(parsed, 30) : 0.7;
+    this._holdSeconds = hold;
+    this._cycle = this._duration + hold;
+    // Both dissolves live inside the rest window and never eat the timeline.
+    this._fade = hold > 0 ? Math.min(FADE_EACH, hold / 2, this._duration / 4) : 0;
+  }
+
+  /// Canvas opacity at the current cycle position.
+  _loopAlpha() {
+    if (!this._playing || !this._looping() || this._fade <= 0) return 1;
+    if (this._time < this._fade) return this._time / this._fade;
+    const fadeOutStart = this._cycle - this._fade;
+    if (this._time > fadeOutStart) return Math.max(0, (this._cycle - this._time) / this._fade);
+    return 1;
+  }
+
   // ── lifecycle ───────────────────────────────────────────────────
 
   _setupObserver() {
@@ -282,6 +359,11 @@ class AmxPlayerElement extends HTMLElement {
       this._canvas.width = Math.round(result.width || 1280);
       this._canvas.height = Math.round(result.height || 720);
       this.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      this._configureCycle();
+      // Poster = the finished composition, not frame 0. These scenes build up
+      // from nothing, so frame 0 is an empty stage: a reader who never presses
+      // play (or who asked for reduced motion) would see a blank box.
+      this._restTime = this._duration;
       this._renderScene();
 
       // swap skeleton for canvas + interactions
@@ -323,6 +405,7 @@ class AmxPlayerElement extends HTMLElement {
     btn.addEventListener("click", () => (this._playing ? this.pause() : this.play()));
     scrub.addEventListener("input", () => {
       this._time = (Number(scrub.value) / 1000) * this._duration;
+      this._restTime = this._time;
       this._renderScene();
       this._updateTime(time);
     });
@@ -340,7 +423,7 @@ class AmxPlayerElement extends HTMLElement {
   play() {
     if (this._state !== "ready") return;
     if (!this._player?.has_document()) return;
-    if (this._time >= this._duration) this._time = 0;
+    if (!this._looping() && this._time >= this._duration) this._time = 0;
     this._playing = true;
     this._playbtn.classList.remove("show");
     if (this._controls) this._controls.btn.textContent = "⏸";
@@ -362,12 +445,15 @@ class AmxPlayerElement extends HTMLElement {
   /// Called by the shared loop each frame. Returns whether it played.
   advance(dt) {
     if (!this._playing || !this._visible) return false;
+    const looping = this._looping();
+    const limit = looping ? this._cycle : this._duration;
     this._time += dt;
-    if (this._time >= this._duration) {
-      if (this.hasAttribute("loop") || this._loop) {
-        this._time %= this._duration;
+    if (this._time >= limit) {
+      if (looping) {
+        this._time %= limit;
       } else {
         this._time = this._duration;
+        this._restTime = this._duration;
         this.pause();
         this._renderScene();
         return false;
@@ -375,7 +461,9 @@ class AmxPlayerElement extends HTMLElement {
     }
     this._renderScene();
     if (this._controls) {
-      this._controls.scrub.value = Math.round((this._time / this._duration) * 1000);
+      this._controls.scrub.value = Math.round(
+        (Math.min(this._time, this._duration) / this._duration) * 1000,
+      );
       this._updateTime(this._controls.time);
     }
     return true;
@@ -385,7 +473,14 @@ class AmxPlayerElement extends HTMLElement {
     if (!this._player) return;
     try {
       // render at the scene's own resolution; CSS scales it down
-      this._player.render_frame(this._time);
+      const t = this._playing ? Math.min(this._time, this._duration) : this._restTime;
+      if (this._playing) this._restTime = t;
+      this._player.render_frame(t);
+      const alpha = this._loopAlpha();
+      if (alpha !== this._lastAlpha) {
+        this._canvas.style.opacity = String(alpha);
+        this._lastAlpha = alpha;
+      }
     } catch (err) {
       console.warn("amx-player: render failed", err);
     }
