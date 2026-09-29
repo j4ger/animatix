@@ -1,11 +1,12 @@
-//! wasm-bindgen entry points: WebGPU canvas presentation for a built document.
+//! wasm-bindgen entry points: WebGPU canvas presentation for built documents.
 //!
 //! Mirrors the GUI's `PreviewSurface` shape (evaluate → vello scene →
-//! `RendererCore`) without its offscreen/compositor machinery: single-scene
-//! documents render straight into the canvas surface; multi-scene documents
-//! render the active scene (transitions cut instead of blending — see the
-//! web README).
+//! `RendererCore` offscreen, then blit to the presented view). All player
+//! instances share one process-wide WebGPU context ([`EngineContext`]) so a
+//! page with many `<amx-player>` embeds pays for adapter/device/renderer
+//! initialization exactly once.
 
+use std::cell::RefCell;
 use std::sync::Arc;
 
 use wasm_bindgen::prelude::*;
@@ -24,62 +25,53 @@ use crate::host;
 use crate::host::BuiltDocument;
 use wgpu::CurrentSurfaceTexture;
 
-/// Player + editor backend: owns the WebGPU context and the built document.
-#[wasm_bindgen]
-pub struct AmxPlayer {
-    canvas: HtmlCanvasElement,
-    /// The surface and its configuration were derived from the instance and
-    /// adapter; kept alive alongside them so the pairing they describe can
-    /// never be invalidated from under the surface.
+/// Process-wide WebGPU context: adapter, device, queue, and the one vello
+/// renderer. Created once by [`ensure_engine`]; every [`AmxPlayer`] shares it.
+struct EngineContext {
+    /// The adapter/device pairing lives here for the process lifetime —
+    /// dropping the instance or adapter can invalidate derived state.
     _instance: wgpu::Instance,
     _adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    surface: wgpu::Surface<'static>,
-    config: wgpu::SurfaceConfiguration,
-    core: RendererCore,
-    filter_backend: Option<GpuFilterBackend>,
-    /// Offscreen vello target (scene is rendered here, then blitted to the
-    /// canvas surface). Kept as texture+view so the view never outlives it.
-    offscreen: Option<(wgpu::Texture, wgpu::TextureView, u32, u32)>,
-    /// Scene-space dimensions of the loaded document (canvas pixels follow
-    /// the aspect ratio at whatever scale the shell picks).
-    dims: SceneDimensions,
-    duration_s: f64,
-    target: Option<BuildTarget>,
+    /// Vello's `render_to_texture` encodes through `&mut self`. Frames are
+    /// ticked sequentially on the single wasm thread, so a `RefCell` is
+    /// enough; a second player rendering concurrently is impossible.
+    core: RefCell<RendererCore>,
 }
 
-/// Identifies the running build from the JS side (stale-artifact checks).
-#[wasm_bindgen]
-pub fn build_id() -> u32 {
-    48
+thread_local! {
+    /// wasm runs single-threaded, so a `thread_local` slot is the safe home
+    /// for the non-`Sync` vello renderer; every player method reaches the
+    /// context through [`with_engine`].
+    static CONTEXT: RefCell<Option<EngineContext>> = const { RefCell::new(None) };
 }
 
-/// Request a WebGPU adapter/device for `canvas` and prepare the surface.
-///
-/// The returned promise rejects with a readable message when WebGPU is
-/// unavailable — the shell is expected to have feature-detected
-/// `navigator.gpu` first and shown its own fallback for that case.
-///
-/// (A free async function rather than an `async` constructor: wasm-bindgen
-/// deprecates the constructor form.)
-#[wasm_bindgen]
-pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsError> {
-    console_error_panic_hook::set_once();
+/// Run `f` with the shared context (or the reason it is missing).
+fn with_engine<R>(f: impl FnOnce(Result<&EngineContext, String>) -> R) -> R {
+    CONTEXT.with(|cell| {
+        let ctx = cell.borrow();
+        f(ctx.as_ref().ok_or_else(|| "engine not initialized".to_string()))
+    })
+}
+
+/// Create the shared context if it does not exist yet. Idempotent; the JS
+/// shell additionally funnels concurrent first calls through one promise.
+async fn ensure_engine() -> Result<(), String> {
+    let already = CONTEXT.with(|cell| cell.borrow().is_some());
+    if already {
+        return Ok(());
+    }
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-    let surface = instance
-        .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
-        .map_err(|e| JsError::new(&format!("failed to create canvas surface: {e}")))?;
-
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: Some(&surface),
+            compatible_surface: None,
             force_fallback_adapter: false,
         })
         .await
-        .map_err(|e| JsError::new(&format!("no WebGPU adapter available: {e}")))?;
+        .map_err(|e| format!("no WebGPU adapter available: {e}"))?;
 
     let (device, queue) = adapter
         .request_device(&wgpu::DeviceDescriptor {
@@ -90,41 +82,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             ..Default::default()
         })
         .await
-        .map_err(|e| JsError::new(&format!("failed to request WebGPU device: {e}")))?;
-
-    let capabilities = surface.get_capabilities(&adapter);
-    let format = capabilities
-        .formats
-        .first()
-        .copied()
-        .ok_or_else(|| JsError::new("surface reports no supported formats"))?;
-    let alpha_mode = capabilities
-        .alpha_modes
-        .iter()
-        .copied()
-        .find(|m| *m == wgpu::CompositeAlphaMode::Auto)
-        .unwrap_or_else(|| {
-            capabilities
-                .alpha_modes
-                .first()
-                .copied()
-                .unwrap_or(wgpu::CompositeAlphaMode::Auto)
-        });
-
-    let config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: canvas.width().max(1),
-        height: canvas.height().max(1),
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &config);
-
-    let core = RendererCore::new(&device, &queue)
-        .map_err(|e| JsError::new(&format!("renderer init failed: {e}")))?;
+        .map_err(|e| format!("failed to request WebGPU device: {e}"))?;
 
     // Surface wgpu's internal validation errors on the JS console — the
     // default handler logs through `log`, which has no subscriber here.
@@ -135,21 +93,117 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
         web_sys::console::error_1(&format!("wgpu device lost: {reason:?} — {message}").into());
     });
 
-    Ok(AmxPlayer {
-        canvas,
-        _instance: instance,
-        _adapter: adapter,
-        device,
-        queue,
-        surface,
-        config,
-        core,
-        filter_backend: None,
-        offscreen: None,
-        dims: SceneDimensions::default(),
-        duration_s: 0.1,
-        target: None,
+    let core = RendererCore::new(&device, &queue)
+        .map_err(|e| format!("renderer init failed: {e}"))?;
+
+    CONTEXT.with(|cell| {
+        *cell.borrow_mut() = Some(EngineContext {
+            _instance: instance,
+            _adapter: adapter,
+            device,
+            queue,
+            core: RefCell::new(core),
+        });
+    });
+    Ok(())
+}
+
+/// Identifies the running build from the JS side (stale-artifact checks).
+#[wasm_bindgen]
+pub fn build_id() -> u32 {
+    49
+}
+
+/// Initialize the shared WebGPU context (adapter, device, vello renderer).
+///
+/// Idempotent and cheap after the first call; `create_player` also runs it,
+/// so shells that skip this still work — calling it explicitly just lets a
+/// page funnel N embeds' startup through one awaited promise.
+#[wasm_bindgen]
+pub async fn init_engine() -> Result<(), JsError> {
+    console_error_panic_hook::set_once();
+    ensure_engine().await.map_err(|e| JsError::new(&e))
+}
+
+/// Create a player bound to `canvas`, sharing the process-wide engine
+/// context. Rejects with a readable message when WebGPU is unavailable — the
+/// shell is expected to have feature-detected `navigator.gpu` first.
+#[wasm_bindgen]
+pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsError> {
+    console_error_panic_hook::set_once();
+    ensure_engine()
+        .await
+        .map_err(|e| JsError::new(&e))?;
+
+    with_engine(|ctx| {
+        let ctx = ctx.map_err(|e| JsError::new(&e))?;
+
+        let surface = ctx
+            ._instance
+            .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
+            .map_err(|e| JsError::new(&format!("failed to create canvas surface: {e}")))?;
+
+        let capabilities = surface.get_capabilities(&ctx._adapter);
+        let format = capabilities
+            .formats
+            .first()
+            .copied()
+            .ok_or_else(|| JsError::new("surface reports no supported formats"))?;
+        let alpha_mode = capabilities
+            .alpha_modes
+            .iter()
+            .copied()
+            .find(|m| *m == wgpu::CompositeAlphaMode::Auto)
+            .unwrap_or_else(|| {
+                capabilities
+                    .alpha_modes
+                    .first()
+                    .copied()
+                    .unwrap_or(wgpu::CompositeAlphaMode::Auto)
+            });
+
+        let config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format,
+            width: canvas.width().max(1),
+            height: canvas.height().max(1),
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode,
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&ctx.device, &config);
+
+        Ok(AmxPlayer {
+            canvas,
+            surface,
+            config,
+            filter_backend: None,
+            offscreen: None,
+            dims: SceneDimensions::default(),
+            duration_s: 0.1,
+            target: None,
+        })
     })
+}
+
+/// Player + editor backend bound to one canvas; shares the process-wide
+/// [`EngineContext`] with every other player on the page.
+#[wasm_bindgen]
+pub struct AmxPlayer {
+    canvas: HtmlCanvasElement,
+    surface: wgpu::Surface<'static>,
+    config: wgpu::SurfaceConfiguration,
+    filter_backend: Option<GpuFilterBackend>,
+    /// Offscreen vello target at scene resolution (scene is rendered here,
+    /// then blitted to the canvas surface). Kept as texture+view so the view
+    /// never outlives it.
+    offscreen: Option<(wgpu::Texture, wgpu::TextureView, u32, u32)>,
+    /// Scene-space dimensions of the loaded document (canvas pixels follow
+    /// the aspect ratio at whatever scale the shell picks).
+    dims: SceneDimensions,
+    duration_s: f64,
+    target: Option<BuildTarget>,
 }
 
 #[wasm_bindgen]
@@ -198,6 +252,17 @@ impl AmxPlayer {
     /// Diagnostic: clear the canvas with a solid color through raw wgpu,
     /// bypassing vello entirely. Bisects "scene content" vs "present chain".
     pub fn debug_fill(&mut self, r: f32, g: f32, b: f32) -> Result<(), JsError> {
+        with_engine(|ctx| self.debug_fill_inner(ctx, r, g, b))
+    }
+
+    fn debug_fill_inner(
+        &mut self,
+        ctx: Result<&EngineContext, String>,
+        r: f32,
+        g: f32,
+        b: f32,
+    ) -> Result<(), JsError> {
+        let ctx = ctx.map_err(|e| JsError::new(&e))?;
         let frame = match self.surface.get_current_texture() {
             CurrentSurfaceTexture::Success(frame) | CurrentSurfaceTexture::Suboptimal(frame) => {
                 frame
@@ -205,7 +270,7 @@ impl AmxPlayer {
             _ => return Ok(()),
         };
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("animatix-web debug fill"),
         });
         {
@@ -231,7 +296,7 @@ impl AmxPlayer {
                 multiview_mask: None,
             });
         }
-        self.queue.submit(std::iter::once(encoder.finish()));
+        ctx.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
         Ok(())
     }
@@ -283,12 +348,21 @@ impl AmxPlayer {
         if !self.has_document() {
             return Ok(());
         }
+        with_engine(|ctx| self.render_frame_inner(ctx, time_s))
+    }
+
+    fn render_frame_inner(
+        &mut self,
+        ctx: Result<&EngineContext, String>,
+        time_s: f64,
+    ) -> Result<(), JsError> {
+        let ctx = ctx.map_err(|e| JsError::new(&e))?;
         let width = self.canvas.width().max(1);
         let height = self.canvas.height().max(1);
         if self.config.width != width || self.config.height != height {
             self.config.width = width;
             self.config.height = height;
-            self.surface.configure(&self.device, &self.config);
+            self.surface.configure(&ctx.device, &self.config);
         }
 
         // Vello draws through a compute pipeline that needs STORAGE_BINDING
@@ -298,7 +372,7 @@ impl AmxPlayer {
         // scaling), then blit it scaled onto the surface view.
         let scene = (self.dims.width, self.dims.height);
         if self.offscreen.as_ref().map(|(_, _, w, h)| (*w, *h)) != Some(scene) {
-            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("animatix-web offscreen target"),
                 size: wgpu::Extent3d {
                     width: scene.0,
@@ -326,7 +400,7 @@ impl AmxPlayer {
             // The surface changed under us (e.g. canvas resize raced the
             // frame) — reconfigure and let the next rAF tick retry.
             CurrentSurfaceTexture::Outdated => {
-                self.surface.configure(&self.device, &self.config);
+                self.surface.configure(&ctx.device, &self.config);
                 return Ok(());
             },
             // Timeout/Occluded/Lost/Validation: skip this frame; the shell's
@@ -335,28 +409,23 @@ impl AmxPlayer {
         };
         let surface_view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let (offscreen_view, ..) = {
-            let Some((_, view, w, h)) = self.offscreen.as_ref() else {
-                return Ok(());
-            };
-            (view, *w, *h)
+        let Some((_, offscreen_view, ..)) = self.offscreen.as_ref() else {
+            return Ok(());
         };
 
         let Self {
             target,
-            core,
             filter_backend,
-            device,
-            queue,
             dims,
             ..
         } = self;
+        let mut core = ctx.core.borrow_mut();
         let result = match target.as_ref() {
             Some(BuildTarget::SingleScene(timeline)) => render_timeline(
-                core,
+                &mut core,
                 filter_backend,
-                device,
-                queue,
+                &ctx.device,
+                &ctx.queue,
                 offscreen_view,
                 timeline,
                 time_s,
@@ -376,10 +445,10 @@ impl AmxPlayer {
                 };
                 match composition.scenes.get(&key) {
                     Some(scene) => render_timeline(
-                        core,
+                        &mut core,
                         filter_backend,
-                        device,
-                        queue,
+                        &ctx.device,
+                        &ctx.queue,
                         offscreen_view,
                         &scene.timeline,
                         local_time_s,
@@ -394,7 +463,15 @@ impl AmxPlayer {
         // Blit the rendered scene onto the swapchain view and present. The
         // blit scales from the offscreen resolution to canvas pixels.
         if result.is_ok() {
-            core.blit_texture(device, queue, offscreen_view, &surface_view, width, height, 1.0);
+            core.blit_texture(
+                &ctx.device,
+                &ctx.queue,
+                offscreen_view,
+                &surface_view,
+                width,
+                height,
+                1.0,
+            );
         }
 
         drop(surface_view);
@@ -420,7 +497,8 @@ fn render_timeline(
         *filter_backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dims)?);
     }
     let mut fb: Option<&mut dyn FilterBackend> = filter_backend.as_mut().map(|b| b as _);
-    let scene = timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
+    let scene =
+        timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
     core.render_vello_scene(device, queue, view, dims.width, dims.height, &scene)
         .map_err(|e| e.to_string())
 }
@@ -441,9 +519,20 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     if player.target.is_none() {
         return Err("no document loaded".to_string());
     }
+    with_engine(|ctx| readback_with(player, ctx, time_s, dims))
+}
+
+/// The readback body, running with the shared context borrowed.
+fn readback_with(
+    player: &mut AmxPlayer,
+    ctx: Result<&EngineContext, String>,
+    time_s: f64,
+    dims: SceneDimensions,
+) -> Result<ReadbackSetup, String> {
+    let ctx = ctx?;
     let bytes_per_row = (dims.width * 4 + 255) & !255;
 
-    let texture = player.device.create_texture(&wgpu::TextureDescriptor {
+    let texture = ctx.device.create_texture(&wgpu::TextureDescriptor {
         label: Some("animatix-web readback target"),
         size: wgpu::Extent3d {
             width: dims.width,
@@ -463,16 +552,21 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
 
     let AmxPlayer {
         target,
-        core,
         filter_backend,
-        device,
-        queue,
         ..
     } = player;
+    let mut core = ctx.core.borrow_mut();
     let render_result = match target.as_ref() {
-        Some(BuildTarget::SingleScene(timeline)) => {
-            render_timeline(core, filter_backend, device, queue, &view, timeline, time_s, dims)
-        },
+        Some(BuildTarget::SingleScene(timeline)) => render_timeline(
+            &mut core,
+            filter_backend,
+            &ctx.device,
+            &ctx.queue,
+            &view,
+            timeline,
+            time_s,
+            dims,
+        ),
         Some(BuildTarget::MultiScene(composition)) => {
             let (scene_name, local_time_s, blend) = composition.evaluate(time_s);
             let key = blend.map(|blend| blend.to_scene).unwrap_or(scene_name);
@@ -482,10 +576,10 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
                 .map(|scene| &scene.timeline)
                 .ok_or_else(|| format!("composition has no scene named '{key}'"))?;
             render_timeline(
-                core,
+                &mut core,
                 filter_backend,
-                device,
-                queue,
+                &ctx.device,
+                &ctx.queue,
                 &view,
                 timeline,
                 local_time_s,
@@ -496,13 +590,13 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
     };
     render_result?;
 
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+    let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("animatix-web readback buffer"),
         size: bytes_per_row as u64 * dims.height as u64,
         usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
         mapped_at_creation: false,
     });
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+    let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("animatix-web readback copy"),
     });
     encoder.copy_texture_to_buffer(
@@ -521,7 +615,7 @@ fn readback_impl(player: &mut AmxPlayer, time_s: f64) -> Result<ReadbackSetup, S
             depth_or_array_layers: 1,
         },
     );
-    queue.submit(std::iter::once(encoder.finish()));
+    ctx.queue.submit(std::iter::once(encoder.finish()));
 
     Ok(ReadbackSetup {
         buffer,
