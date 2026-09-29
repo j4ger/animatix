@@ -13,6 +13,7 @@ use std::sync::Arc;
 use animatix::composition::{BuildTarget, Composition};
 use animatix::extension_context::ExtensionContext;
 use animatix::renderer::text::FontContext;
+use animatix::timeline::assets::AssetCache;
 use animatix::timeline::{BuildQuality, SceneDimensions, Timeline};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
@@ -70,6 +71,18 @@ pub fn build_document(
     font_context: Arc<FontContext>,
     quality: BuildQuality,
 ) -> BuiltDocument {
+    build_document_with_assets(source, font_context, quality, None)
+}
+
+/// `assets` pre-seeds the scene's asset cache (the web player fetches the
+/// bytes), so build-time asset loads resolve from memory instead of the
+/// filesystem.
+pub fn build_document_with_assets(
+    source: &str,
+    font_context: Arc<FontContext>,
+    quality: BuildQuality,
+    assets: Option<Arc<AssetCache>>,
+) -> BuiltDocument {
     let path = PathBuf::from(ENTRY_PATH);
     let mut diagnostics: Vec<DiagnosticDto> = Vec::new();
 
@@ -106,7 +119,7 @@ pub fn build_document(
             &namespaces,
             font_context,
             quality,
-            None,
+            assets,
             context,
         );
         (BuildTarget::MultiScene(report.output), report.diagnostics)
@@ -117,7 +130,7 @@ pub fn build_document(
                 &namespaces,
                 font_context,
                 quality,
-                None,
+                assets,
                 context,
             );
         // `BuildTarget::from_ast*` adds a `PersistTargetNotCarried` warning
@@ -200,6 +213,68 @@ fn module_error_diagnostics(err: &ModuleError, path: &Path) -> Vec<DiagnosticDto
 
 #[cfg(test)]
 mod tests {
+    /// A web build that pre-seeds the asset cache must satisfy an `Image`
+    /// actor's build-time load from memory: the sandbox has no filesystem, so
+    /// without the pre-seed this same scene fails with `MediaLoadFailure`.
+    #[test]
+    fn preseeded_asset_cache_satisfies_build_time_loads() {
+        let png: &[u8] = include_bytes!("../../../examples/assets/checker.png");
+        let mut cache = animatix::timeline::assets::AssetCache::new();
+        cache.insert_image_bytes("dot.png", png).expect("checker.png decodes");
+
+        let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0.1s
+pic: Image, url: "dot.png", size: (400, 240), at: (320, 180)
+fade-in pic [300ms]
+"#;
+        let built = super::build_document_with_assets(
+            source,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            Some(Arc::new(cache)),
+        );
+
+        assert!(
+            built.result.ok,
+            "the pre-seeded asset must satisfy the build: {:?}",
+            built.result.diagnostics
+        );
+        assert!(
+            !built.result.diagnostics.iter().any(|d| d.code == "media-load-failure"),
+            "no media-load failure may remain: {:?}",
+            built.result.diagnostics
+        );
+    }
+
+    /// Same for an `Svg` actor: the pre-registered source must satisfy the
+    /// build-time parse.
+    #[test]
+    fn preseeded_svg_source_satisfies_build_time_parse() {
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><circle cx="40" cy="40" r="30" fill="tomato"/></svg>"#;
+        let mut cache = animatix::timeline::assets::AssetCache::new();
+        cache.insert_svg_source("mark.svg", svg).expect("the inline svg parses");
+
+        let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0.1s
+pic: Svg, url: "mark.svg", size: (300, 300), at: (320, 180)
+fade-in pic [300ms]
+"#;
+        let built = super::build_document_with_assets(
+            source,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            Some(Arc::new(cache)),
+        );
+
+        assert!(
+            built.result.ok,
+            "the pre-seeded svg must satisfy the build: {:?}",
+            built.result.diagnostics
+        );
+    }
+
     use super::*;
 
     const HELLO: &str = include_str!("../../../examples/basics/00_hello.amx");

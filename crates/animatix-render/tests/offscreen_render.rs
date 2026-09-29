@@ -216,3 +216,112 @@ fade-in chip [300ms]
         );
     }
 }
+
+/// A multi-scene transition frame must be a blend of its two scenes, not a cut
+/// to the incoming one. At progress 0.5 the frame sits between the two solid
+/// colours and matches neither endpoint; it is also (near) the linear midpoint,
+/// because the compositor applies the easing itself and `fade` + linear passes
+/// the progress straight through.
+#[test]
+fn transition_midframe_blends_both_scenes() {
+    use animatix::easing::Easing;
+
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+
+    // Two full-bleed single-colour scenes: whatever the compositor does, the
+    // frame average lands on a mix of the two fills.
+    let timeline = |color: &str| {
+        let source = format!(
+            "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
+             #0s\n\
+             r: Rect, size: (200, 200), color: {color}, at: (32, 32)\n\
+             fade-in r [100ms]\n"
+        );
+        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let report =
+            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        report.output
+    };
+
+    let warm = timeline("(0.9, 0.1, 0.1, 1)");
+    let cool = timeline("(0.1, 0.2, 0.9, 1)");
+    let debug = DebugRenderOptions::default();
+
+    let average = |frame: &animatix_render::offscreen::RenderedFrame| -> [f32; 3] {
+        let pixels = frame.rgba.len() / 4;
+        let mut sum = [0f64; 3];
+        for px in frame.rgba.chunks_exact(4) {
+            sum[0] += px[0] as f64;
+            sum[1] += px[1] as f64;
+            sum[2] += px[2] as f64;
+        }
+        [
+            (sum[0] / pixels as f64) as f32,
+            (sum[1] / pixels as f64) as f32,
+            (sum[2] / pixels as f64) as f32,
+        ]
+    };
+
+    // Sample at 0.5s: after the fixtures' own fade-in, so each scene shows its
+    // fill rather than the entrance ramp.
+    let start = renderer
+        .render_transition(
+            &warm,
+            0.5,
+            &cool,
+            0.5,
+            0.0,
+            "fade".to_string(),
+            Easing::Linear,
+            dims,
+            debug,
+        )
+        .expect("progress 0 frame");
+    let mid = renderer
+        .render_transition(
+            &warm,
+            0.5,
+            &cool,
+            0.5,
+            0.5,
+            "fade".to_string(),
+            Easing::Linear,
+            dims,
+            debug,
+        )
+        .expect("mid frame");
+    let end = renderer
+        .render_transition(
+            &warm,
+            0.5,
+            &cool,
+            0.5,
+            1.0,
+            "fade".to_string(),
+            Easing::Linear,
+            dims,
+            debug,
+        )
+        .expect("progress 1 frame");
+
+    let (start_avg, mid_avg, end_avg) = (average(&start), average(&mid), average(&end));
+    assert!(
+        mid_avg != start_avg && mid_avg != end_avg,
+        "the mid frame must differ from both endpoints: {start_avg:?} {mid_avg:?} {end_avg:?}"
+    );
+    for channel in 0..3 {
+        let midpoint = (start_avg[channel] + end_avg[channel]) / 2.0;
+        assert!(
+            (mid_avg[channel] - midpoint).abs() < 12.0,
+            "channel {channel}: mid {mid_avg:?} should sit between {start_avg:?} and {end_avg:?}"
+        );
+    }
+}
