@@ -93,8 +93,8 @@ async fn ensure_engine() -> Result<(), String> {
         web_sys::console::error_1(&format!("wgpu device lost: {reason:?} — {message}").into());
     });
 
-    let core = RendererCore::new(&device, &queue)
-        .map_err(|e| format!("renderer init failed: {e}"))?;
+    let core =
+        RendererCore::new(&device, &queue).map_err(|e| format!("renderer init failed: {e}"))?;
 
     CONTEXT.with(|cell| {
         *cell.borrow_mut() = Some(EngineContext {
@@ -131,9 +131,7 @@ pub async fn init_engine() -> Result<(), JsError> {
 #[wasm_bindgen]
 pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsError> {
     console_error_panic_hook::set_once();
-    ensure_engine()
-        .await
-        .map_err(|e| JsError::new(&e))?;
+    ensure_engine().await.map_err(|e| JsError::new(&e))?;
 
     with_engine(|ctx| {
         let ctx = ctx.map_err(|e| JsError::new(&e))?;
@@ -497,8 +495,7 @@ fn render_timeline(
         *filter_backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dims)?);
     }
     let mut fb: Option<&mut dyn FilterBackend> = filter_backend.as_mut().map(|b| b as _);
-    let scene =
-        timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
+    let scene = timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
     core.render_vello_scene(device, queue, view, dims.width, dims.height, &scene)
         .map_err(|e| e.to_string())
 }

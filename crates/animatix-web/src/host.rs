@@ -249,10 +249,16 @@ mod tests {
     fn transformer_demo_scenes_build_cleanly() {
         const SCENES: &[(&str, &str)] = &[
             ("tokens", include_str!("../../../web/demos/transformer/scenes/tokens.amx")),
-            ("positional", include_str!("../../../web/demos/transformer/scenes/positional.amx")),
+            (
+                "positional",
+                include_str!("../../../web/demos/transformer/scenes/positional.amx"),
+            ),
             ("attention", include_str!("../../../web/demos/transformer/scenes/attention.amx")),
             ("multihead", include_str!("../../../web/demos/transformer/scenes/multihead.amx")),
-            ("feedforward", include_str!("../../../web/demos/transformer/scenes/feedforward.amx")),
+            (
+                "feedforward",
+                include_str!("../../../web/demos/transformer/scenes/feedforward.amx"),
+            ),
             ("pipeline", include_str!("../../../web/demos/transformer/scenes/pipeline.amx")),
         ];
         for (name, source) in SCENES {
