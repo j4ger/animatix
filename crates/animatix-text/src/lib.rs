@@ -2691,6 +2691,11 @@ pub fn compile_typst_grouped_cached(
             glyphs: compiled.glyphs.into(),
             ranges: ranges.into(),
         });
+        {
+            let mut cache = lock_grouped_cache();
+            cache.insert(key, std::sync::Arc::clone(&entry));
+            evict_text_compile_cache(&mut cache);
+        }
         Ok(entry)
     }
 }
@@ -2800,6 +2805,7 @@ mod tests {
         CACHE_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    #[cfg(feature = "rich-text")]
     #[test]
     fn emphasis_faces_load_bold_when_family_has_it() {
         // Regression: the Typst world used to load only one regular face per
@@ -2838,6 +2844,7 @@ mod tests {
         assert!(!is_plain_text("a/b"));
     }
 
+    #[cfg(feature = "rich-text")]
     #[test]
     fn bundled_default_font_covers_bold_and_italic() {
         // Regression: the default family ("Open Sans") used to be a single
@@ -2892,8 +2899,9 @@ mod tests {
         colors.dedup();
         colors.len()
     }
-
+    #[cfg(feature = "rich-text")]
     #[test]
+
     fn code_highlight_adds_glyph_colors() {
         assert_eq!(distinct_code_colors(""), 1, "plain Code draws in the actor color");
         assert!(
@@ -3043,8 +3051,9 @@ mod tests {
             })
             .collect()
     }
-
+    #[cfg(feature = "rich-text")]
     #[test]
+
     fn highlight_palette_recolours_tokens() {
         let font_ctx = test_font_ctx();
         // `fn` is a keyword; the sentinel palette maps keyword → pure green.
@@ -3172,6 +3181,7 @@ mod tests {
         assert!(!compiled.glyphs.is_empty(), "Bold text should produce glyph paths");
     }
 
+    #[cfg(feature = "rich-text")]
     #[test]
     fn fast_path_vs_typst_visually_equivalent() {
         // Compare fast-path output against Typst output for a simple string.
@@ -3868,6 +3878,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "rich-text")]
     /// Regression: non-Latin text must render through glyph-fallback fonts
     /// even when the resolved primary family (bundled mock Open Sans) has no
     /// coverage. Previously CJK glyphs silently vanished.
@@ -3897,6 +3908,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "rich-text")]
     /// Regression: without an explicit page rule Typst applied its default A4
     /// page geometry and wrapped any line wider than ~453pt.
     #[test]
@@ -3928,6 +3940,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "rich-text")]
     #[test]
     fn text_max_width_wraps_long_cjk_line() {
         let font_ctx = test_font_ctx();
@@ -3957,6 +3970,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "rich-text")]
     #[test]
     fn long_latin_line_stays_single_line_without_max_width() {
         let font_ctx = test_font_ctx();
