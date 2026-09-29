@@ -15,7 +15,7 @@
 // Grid: 1280×720. Chips 150×56 at pitch 180, centres x = 280 + 180i. Bars sit
 // on one baseline at y = 560.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
 
 // ── the tokens ──────────────────────────────────────────────────────
 tok1: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (280, 180)

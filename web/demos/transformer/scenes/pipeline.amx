@@ -12,7 +12,7 @@
 // Grid: 1280×720. Blocks 560×80 at x = 640, y = 446 / 334 / 222; input chips at
 // y = 560; output heads at y = 118.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.0 }
 
 // ── input tokens ────────────────────────────────────────────────────
 in1: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (463, 560)

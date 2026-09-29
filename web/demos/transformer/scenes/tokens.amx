@@ -6,7 +6,7 @@
 // centred on the diagram, diagram and its bracket label centred as one figure.
 // No title, subtitle or takeaway line — the page owns the prose.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.0 }
 
 // ── token chips ─────────────────────────────────────────────────────
 chip_the: Rect, size: (200, 64), corner_radius: 14, color: surface.primary, at: (300, 172)

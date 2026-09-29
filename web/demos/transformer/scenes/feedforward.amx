@@ -21,7 +21,7 @@
 // Grid: 1280×720. Rail on y = 390 from x = 120 to 1160, blocks 320×190 at
 // x = 460 / 980, LayerNorm rings at x = 210 / 740.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.4 }
 
 // ── the residual stream ─────────────────────────────────────────────
 rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.40, at: (640, 390)

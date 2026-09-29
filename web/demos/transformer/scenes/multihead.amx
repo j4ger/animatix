@@ -14,7 +14,7 @@
 // Grid: 1280×720. Head centres x = 290, 640, 990; panels 320 wide, cells 64 with
 // a 12px gap, rows at y = 239, 315, 391, output segments at y = 530.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.2 }
 
 // ── panels ──────────────────────────────────────────────────────────
 panel_a: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.55, at: (290, 290)

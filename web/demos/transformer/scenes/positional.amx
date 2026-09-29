@@ -22,7 +22,7 @@
 // Grid: 1280×720. 8 columns × 4 rows of 74px cells, pitch 84. Column x values
 // are 296 + 84i; row y values are 225 + 84r.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.8 }
 
 // ── period 3: a stripe every column ─────────────────────────────────
 c00: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 225)
