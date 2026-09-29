@@ -241,6 +241,33 @@ impl Timeline {
             }
 
             if setting.name != "colorscheme" {
+                // Every key this builder handles was `continue`d above;
+                // `strict_types` belongs to the typechecker phase. Anything else
+                // reaching here is a key no phase reads, and used to be dropped
+                // without a word — indistinguishable from a working one.
+                const KNOWN_CONFIG_KEYS: &[&str] = &[
+                    "colorscheme",
+                    "dynamic_layout",
+                    "text_fast_path",
+                    "export_preset",
+                    "resolution",
+                    "duration",
+                    "strict_types",
+                ];
+                if !KNOWN_CONFIG_KEYS.contains(&setting.name.as_str()) {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownConfigKey,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Unknown config key '{}': it is ignored. Valid keys are {}.",
+                                setting.name,
+                                KNOWN_CONFIG_KEYS.join(", ")
+                            ),
+                        )
+                        .with_subject(&setting.name),
+                    );
+                }
                 continue;
             }
 

@@ -122,6 +122,9 @@ pub enum DiagnosticCode {
     /// `config { duration: N }` is shorter than the last keyframe, so the
     /// timeline ends before that animation is reached.
     DurationShorterThanContent,
+    /// A `config` block names a key the build does not recognise, so it is
+    /// dropped: almost always a typo that silently does nothing.
+    UnknownConfigKey,
     /// A Grid lacks an explicit `cols` and will lay out in a single column.
     MissingGridCols,
     /// Multi-scene composition: a scene is unreachable (no `play` edge leads to it).
@@ -230,6 +233,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::DurationShorterThanContent => {
                 write!(f, "duration-shorter-than-content")
             },
+            DiagnosticCode::UnknownConfigKey => write!(f, "unknown-config-key"),
             DiagnosticCode::MissingGridCols => write!(f, "missing-grid-cols"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),
             DiagnosticCode::PersistIgnoresDuration => write!(f, "persist-ignores-duration"),

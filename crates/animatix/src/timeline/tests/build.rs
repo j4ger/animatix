@@ -2271,3 +2271,53 @@ fade-in r [500ms]
         );
     }
 }
+
+#[test]
+fn unknown_config_key_is_reported_instead_of_dropped() {
+    let report = build_source(
+        r#"
+config { colorscheme: "editorial-dark", colur_scheme: "warm" }
+r: Rect, size: (100, 100), color: accent.primary, opacity: 0.25, at: (640, 360)
+#1s
+fade-in r [500ms]
+"#,
+    );
+
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::UnknownConfigKey
+                && d.location.subject.as_deref() == Some("colur_scheme")
+        }),
+        "a config key no phase reads must be reported, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn every_documented_config_key_is_recognised() {
+    let report = build_source(
+        r#"
+config {
+    colorscheme: "editorial-dark",
+    resolution: (1280, 720),
+    duration: 8.0,
+    dynamic_layout: true,
+    strict_types: false,
+    text_fast_path: true,
+    export_preset: "1080p30",
+}
+r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
+#1s
+fade-in r [500ms]
+"#,
+    );
+
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::UnknownConfigKey),
+        "every documented config key must be recognised, got: {:?}",
+        report.diagnostics
+    );
+}
