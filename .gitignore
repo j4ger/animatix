@@ -34,3 +34,4 @@ dhat-export.json
 # Web demo build artifacts (regenerate with scripts/build-web.sh)
 web/pkg/
 web/tools/node_modules/
+web/**/*.br
