@@ -1,7 +1,7 @@
 // The Full Block — stacking. Attention + FFN with residuals, repeated N times;
 // every token flows up through the tower and comes out contextualized.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.0 }
 
 title: Text, text: "6 · Stacking the Blocks", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 55)

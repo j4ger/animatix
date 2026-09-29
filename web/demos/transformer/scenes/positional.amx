@@ -1,7 +1,7 @@
 // Positional Encoding — injecting word order with waves.
 // Each position gets a unique fingerprint from sinusoids of many frequencies.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.8 }
 
 title: Text, text: "2 · Positional Encoding", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 55)
@@ -14,15 +14,16 @@ main: Graph, x_domain: (0, 32), y_domain: (-1.15, 1.15), size: (860, 420), at: (
   fast: PlotCurve, kind: "cartesian", func: (x) => sin(x / 1.0), color: accent.primary, stroke_width: 2.5
   mid: PlotCurve, kind: "cartesian", func: (x) => sin(x / 2.5) * 0.72, color: accent.success, stroke_width: 2.5
   slow: PlotCurve, kind: "cartesian", func: (x) => sin(x / 6.0) * 0.45, color: accent.warning, stroke_width: 2.5
-  slowest: PlotCurve, kind: "cartesian", func: (x) => sin(x / 14.0) * 0.22, color: accent.danger, stroke_width: 2.5
 }
 
-legend_fast: Rect, size: (16, 4), color: accent.primary, at: (160, 620)
-legend_fast_t: Text, text: "wavelength 2π", font_size: 14, color: text.secondary, at: (255, 620)
-legend_mid: Rect, size: (16, 4), color: accent.success, at: (400, 620)
-legend_mid_t: Text, text: "5π", font_size: 14, color: text.secondary, at: (428, 620)
-legend_slow: Rect, size: (16, 4), color: accent.warning, at: (470, 620)
-legend_slow_t: Text, text: "12π", font_size: 14, color: text.secondary, at: (498, 620)
+pos_label: Text, text: "position →", font_size: 14, color: text.muted, at: (985, 640)
+
+legend_fast: Rect, size: (22, 5), color: accent.primary, at: (150, 636)
+legend_fast_t: Text, text: "wavelength 2π", font_size: 14, color: text.secondary, at: (250, 636)
+legend_mid: Rect, size: (22, 5), color: accent.success, at: (430, 636)
+legend_mid_t: Text, text: "sin(x/2.5)·0.7", font_size: 14, color: text.secondary, at: (545, 636)
+legend_slow: Rect, size: (22, 5), color: accent.warning, at: (735, 636)
+legend_slow_t: Text, text: "sin(x/6)", font_size: 14, color: text.secondary, at: (820, 636)
 
 // The takeaway: position 0 vs position 1 get different vectors
 note: Text, text: "same word at a different position ⇒ a different input vector",
@@ -32,28 +33,26 @@ note: Text, text: "same word at a different position ⇒ a different input vecto
 fade-in title [600ms, ease: ease-out]
 fade-in sub [500ms, delay: 150ms]
 
-#1.0s
-fade-in main [400ms, ease: ease-out]
-draw-in fast [900ms, ease: ease-out]
+#0.7s
+fade-in main [350ms, ease: ease-out]
+draw-in fast [800ms, ease: ease-out]
+
+#1.2s
+draw-in mid [800ms, ease: ease-out]
 
 #1.7s
-draw-in mid [900ms, ease: ease-out]
+draw-in slow [800ms, ease: ease-out]
 
-#2.4s
-draw-in slow [900ms, ease: ease-out]
-
-#3.1s
-draw-in slowest [900ms, ease: ease-out]
-
-#4.2s
-fade-in legend_fast [300ms]
-stagger [120ms] {
-  fade-in legend_fast_t [300ms]
-  fade-in legend_mid [300ms]
-  fade-in legend_mid_t [300ms]
-  fade-in legend_slow [300ms]
-  fade-in legend_slow_t [300ms]
+#3.6s
+stagger [110ms] {
+  fade-in legend_fast [250ms]
+  fade-in legend_fast_t [250ms]
+  fade-in legend_mid [250ms]
+  fade-in legend_mid_t [250ms]
+  fade-in legend_slow [250ms]
+  fade-in legend_slow_t [250ms]
+  fade-in pos_label [250ms]
 }
 
-#5.2s
+#4.6s
 fade-in note [500ms]

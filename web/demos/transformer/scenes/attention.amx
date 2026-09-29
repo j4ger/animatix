@@ -1,8 +1,8 @@
 // Scaled Dot-Product Attention — the heart of the transformer.
-// Every token asks a question (Q), advertises what it knows (K), and offers
-// content (V); attention weights route information between tokens.
+// "it" asks a question (query), every token answers; softmax decides how much
+// of each answer it keeps.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
 
 title: Text, text: "3 · Self-Attention", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 55)
@@ -10,87 +10,101 @@ title: Text, text: "3 · Self-Attention", font_size: 40,
 sub: Text, text: "“it” looks back at every token and pulls in what it needs",
   font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
 
-// Token row along the top
-tok1: Rect, size: (150, 46), corner_radius: 10, color: surface.primary, at: (200, 195)
-tok1_t: Text, text: "The", font_size: 20, color: text.primary, at: (200, 195)
-tok2: Rect, size: (150, 46), corner_radius: 10, color: surface.primary, at: (395, 195)
-tok2_t: Text, text: "animal", font_size: 20, color: text.primary, at: (395, 195)
-tok3: Rect, size: (150, 46), corner_radius: 10, color: surface.primary, at: (590, 195)
-tok3_t: Text, text: "didn't", font_size: 20, color: text.primary, at: (590, 195)
-tok4: Rect, size: (150, 46), corner_radius: 10, color: surface.primary, at: (785, 195)
-tok4_t: Text, text: "cross", font_size: 20, color: text.primary, at: (785, 195)
-tok5: Rect, size: (150, 46), corner_radius: 10, color: surface.primary, at: (980, 195)
-tok5_t: Text, text: "it", font_size: 20, color: text.primary, at: (980, 195)
+// Token row — one chip per key, the last one is the query
+tok1: Rect, size: (140, 48), corner_radius: 10, color: surface.primary, at: (260, 215)
+tok1_t: Text, text: "The", font_size: 20, color: text.primary, at: (260, 215)
+tok2: Rect, size: (140, 48), corner_radius: 10, color: surface.primary, at: (430, 215)
+tok2_t: Text, text: "animal", font_size: 20, color: text.primary, at: (430, 215)
+tok3: Rect, size: (140, 48), corner_radius: 10, color: surface.primary, at: (600, 215)
+tok3_t: Text, text: "didn't", font_size: 20, color: text.primary, at: (600, 215)
+tok4: Rect, size: (140, 48), corner_radius: 10, color: surface.primary, at: (770, 215)
+tok4_t: Text, text: "cross", font_size: 20, color: text.primary, at: (770, 215)
 
-// Attention links from "it" back to earlier tokens — thickness + opacity
-// encode the weight (token row bottom is y=218; links drop to y=300 midway)
-link_low: Line, from: (985, 224), to: (665, 300), stroke_width: 1.5, color: accent.primary, opacity: 0.2
-link_mid: Line, from: (985, 224), to: (470, 300), stroke_width: 3, color: accent.primary, opacity: 0.5
-link_high: Line, from: (985, 224), to: (275, 300), stroke_width: 6, color: accent.primary, opacity: 0.95
+// Query chip + halo
+halo: Rect, size: (156, 64), corner_radius: 13, color: accent.warning, opacity: 0.22, at: (940, 215)
+tok5: Rect, size: (140, 48), corner_radius: 10, color: surface.primary, at: (940, 215)
+tok5_t: Text, text: "it", font_size: 20, color: text.primary, at: (940, 215)
+query_tag: Text, text: "query", font_size: 13, color: accent.warning, at: (940, 178)
 
-// Weight bars — softmax over scores
-bar1: Rect, size: (170, 14), color: accent.primary, opacity: 0.28, at: (190, 560)
-bar2: Rect, size: (170, 14), color: accent.primary, opacity: 0.48, at: (385, 560)
-bar3: Rect, size: (170, 14), color: accent.primary, opacity: 0.75, at: (580, 560)
-bar4: Rect, size: (170, 14), color: accent.primary, opacity: 0.16, at: (775, 560)
-bar5: Rect, size: (170, 14), color: accent.warning, opacity: 1.0, at: (970, 560)
+// Attention weights: one bar per token, drawn under its chip
+bar1: Rect, size: (56, 13), corner_radius: 4, color: accent.primary, opacity: 0.45, at: (260, 433)
+bar2: Rect, size: (56, 64), corner_radius: 4, color: accent.primary, opacity: 1.0, at: (430, 408)
+bar3: Rect, size: (56, 12), corner_radius: 4, color: accent.primary, opacity: 0.4, at: (600, 434)
+bar4: Rect, size: (56, 10), corner_radius: 4, color: accent.primary, opacity: 0.35, at: (770, 435)
+bar5: Rect, size: (56, 32), corner_radius: 4, color: accent.warning, opacity: 1.0, at: (940, 424)
 
-bar1_v: Text, text: "0.03", font_size: 14, color: text.muted, at: (275, 590)
-bar2_v: Text, text: "0.12", font_size: 14, color: text.muted, at: (470, 590)
-bar3_v: Text, text: "0.55", font_size: 14, color: text.muted, at: (665, 590)
-bar4_v: Text, text: "0.02", font_size: 14, color: text.muted, at: (860, 590)
-bar5_v: Text, text: "query", font_size: 14, color: text.secondary, at: (1055, 590)
+v1: Text, text: "0.05", font_size: 14, color: text.muted, at: (260, 462)
+v2: Text, text: "0.62", font_size: 14, color: text.secondary, at: (430, 462)
+v3: Text, text: "0.04", font_size: 14, color: text.muted, at: (600, 462)
+v4: Text, text: "0.02", font_size: 14, color: text.muted, at: (770, 462)
+v5: Text, text: "self 0.27", font_size: 14, color: text.muted, at: (940, 462)
 
-bars_label: Text, text: "softmax(QKᵀ / √d_k) — the weights each query distributes",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -80)
+// Links from the query down to each token's weight bar
+link1: Line, from: (930, 246), to: (262, 425), stroke_width: 2, color: accent.primary, opacity: 0.3
+link2: Line, from: (930, 246), to: (432, 375), stroke_width: 7, color: accent.primary, opacity: 0.95
+link3: Line, from: (925, 246), to: (602, 427), stroke_width: 1.5, color: accent.primary, opacity: 0.22
+link4: Line, from: (922, 246), to: (772, 429), stroke_width: 1.5, color: accent.primary, opacity: 0.18
+
+weights_label: Text, text: "softmax(QKᵀ / √ dₖ) — one weight per token",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -120)
+
+caption: Text, text: "0.62 of “it” comes from “animal” — the noun it refers to",
+  font_size: 16, color: text.secondary, anchor: scene.bottom, offset: (0, -70)
 
 #0.4s
 fade-in title [600ms, ease: ease-out]
 fade-in sub [500ms, delay: 150ms]
 
 #1.0s
-stagger [120ms] {
+stagger [110ms] {
   wipe-in tok1 [350ms]
   wipe-in tok2 [350ms]
   wipe-in tok3 [350ms]
   wipe-in tok4 [350ms]
-  wipe-in tok5 [350ms]
 }
 
-#1.9s
-stagger [100ms] {
+#1.8s
+wipe-in tok5 [350ms]
+stagger [90ms] {
   fade-in tok1_t [300ms]
-  fade-in tok2_t [300ms]
   fade-in tok3_t [300ms]
   fade-in tok4_t [300ms]
-  fade-in tok5_t [300ms]
 }
+fade-in tok2_t [300ms, delay: 120ms]
+fade-in tok5_t [300ms, delay: 250ms]
 
-#2.7s
-draw-in link_low [600ms, ease: ease-out]
+#2.5s
+fade-in halo [450ms, ease: ease-out]
+fade-in query_tag [350ms, delay: 200ms]
 
-#3.2s
-draw-in link_mid [600ms, ease: ease-out]
-
-#3.7s
-draw-in link_high [700ms, ease: ease-out]
-
-
-#4.6s
-stagger [100ms] {
-  wipe-in bar1 [400ms]
-  wipe-in bar2 [400ms]
-  wipe-in bar3 [400ms]
-  wipe-in bar4 [400ms]
-  wipe-in bar5 [400ms]
-}
-
-#5.6s
+#3.0s
 stagger [80ms] {
-  fade-in bar1_v [300ms]
-  fade-in bar2_v [300ms]
-  fade-in bar3_v [300ms]
-  fade-in bar4_v [300ms]
-  fade-in bar5_v [300ms]
-  fade-in bars_label [400ms]
+  wipe-in bar1 [300ms]
+  wipe-in bar2 [300ms]
+  wipe-in bar3 [300ms]
+  wipe-in bar4 [300ms]
+  wipe-in bar5 [300ms]
 }
+
+#3.8s
+stagger [70ms] {
+  fade-in v1 [250ms]
+  fade-in v2 [250ms]
+  fade-in v3 [250ms]
+  fade-in v4 [250ms]
+  fade-in v5 [250ms]
+}
+
+#4.4s
+draw-in link1 [500ms, ease: ease-out]
+
+#4.8s
+draw-in link3 [400ms, ease: ease-out]
+draw-in link4 [400ms, ease: ease-out]
+
+#5.2s
+draw-in link2 [650ms, ease: ease-out]
+
+#5.9s
+fade-in weights_label [450ms]
+fade-in caption [450ms, delay: 200ms]

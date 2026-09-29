@@ -7,120 +7,254 @@
   <meta name="description" content="Six animated explanations of the transformer block, each one a tiny .amx scene file embedded with a single custom element.">
   <style>
     :root {
-      --bg: #0d1016; --raised: #131820; --border: #232b38;
+      --bg: #0d1016; --raised: #131820; --border: #232b38; --border-soft: #1c2431;
       --text: #dbe2ec; --dim: #8b96a7; --faint: #5b6575; --accent: #f5b942;
+      --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Consolas, monospace;
     }
     * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
     body {
       margin: 0; background: var(--bg); color: var(--text);
-      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 17px/1.7 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 96px; }
-    header.hero { padding: 40px 0 8px; }
-    .kicker { color: var(--accent); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
-    h1 { font-size: 40px; line-height: 1.15; margin: 10px 0 12px; font-weight: 650; }
-    .lede { color: var(--dim); font-size: 18px; max-width: 640px; }
-    section { margin-top: 72px; }
-    h2 { font-size: 24px; font-weight: 600; margin: 0 0 6px; }
-    h2 .n { color: var(--accent); margin-right: 8px; }
-    p { color: var(--dim); max-width: 680px; margin: 8px 0 22px; }
-    amx-player { border: 1px solid var(--border); border-radius: 10px; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 56px 24px 72px; }
+
+    /* ── hero ─────────────────────────────────────────────── */
+    .kicker { color: var(--accent); font-size: 13px; letter-spacing: .14em;
+              text-transform: uppercase; }
+    h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1.12; margin: 12px 0 14px;
+         font-weight: 680; letter-spacing: -0.01em; }
+    .lede { color: var(--dim); font-size: 19px; max-width: 660px; margin: 0 0 10px; }
+    .meta { color: var(--faint); font-size: 14px; margin-top: 18px;
+            display: flex; gap: 18px; flex-wrap: wrap; }
+    .meta span::before { content: "·"; margin-right: 8px; color: var(--border); }
+    .meta span:first-child::before { content: none; }
+
+    /* ── contents ─────────────────────────────────────────── */
+    nav.toc { margin: 40px 0 8px; padding: 18px 22px; background: var(--raised);
+              border: 1px solid var(--border); border-radius: 12px; }
+    nav.toc .toc-title { font-size: 12px; letter-spacing: .12em;
+              text-transform: uppercase; color: var(--faint); }
+    nav.toc ol { list-style: none; margin: 12px 0 0; padding: 0;
+                 display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; }
+    nav.toc a { color: var(--dim); text-decoration: none; font-size: 15px; }
+    nav.toc a:hover { color: var(--accent); }
+    nav.toc .n { font-family: var(--mono); color: var(--accent);
+                 font-size: 12px; margin-right: 8px; }
+
+    /* ── sections ─────────────────────────────────────────── */
+    section { margin-top: 92px; scroll-margin-top: 24px; }
+    .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+    .sec-num { font-family: var(--mono); color: var(--accent); font-size: 15px;
+               border: 1px solid var(--border); border-radius: 8px;
+               padding: 2px 9px; background: var(--raised); }
+    h2 { font-size: 26px; font-weight: 640; margin: 0; letter-spacing: -0.01em; }
+    section p { color: var(--dim); max-width: 680px; margin: 12px 0 24px; }
+    section p strong { color: var(--text); font-weight: 560; }
+
+    /* ── figures ──────────────────────────────────────────── */
+    figure { margin: 0; }
+    figure amx-player { border: 1px solid var(--border); border-radius: 12px;
+                        display: block; overflow: hidden; }
+    figcaption { display: flex; align-items: baseline; gap: 16px;
+                 margin-top: 12px; font-size: 14px; color: var(--faint); }
+    figcaption .cap { flex: 1; min-width: 0; }
+    figcaption .cap b { color: var(--dim); font-weight: 560; }
+    figcaption a.src { color: var(--faint); text-decoration: none;
+                       white-space: nowrap; font-family: var(--mono); font-size: 12.5px; }
+    figcaption a.src:hover { color: var(--accent); }
+
     .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .pair amx-player { min-width: 0; }
+    .pair figure amx-player { min-width: 0; }
     @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
-    footer {
-      margin-top: 96px; padding-top: 24px; border-top: 1px solid var(--border);
-      color: var(--faint); font-size: 13px;
-    }
-    footer code { color: var(--dim); }
-    code.inline { background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+
+    /* ── closing / footer ─────────────────────────────────── */
+    .howto { margin-top: 92px; padding: 26px 28px; background: var(--raised);
+             border: 1px solid var(--border); border-radius: 14px; }
+    .howto h2 { font-size: 22px; }
+    .howto p { margin: 10px 0 18px; }
+    pre { background: #0a0d13; border: 1px solid var(--border-soft);
+          border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+          font-family: var(--mono); font-size: 13.5px; line-height: 1.6;
+          color: #c8d3e0; margin: 0; }
+    code.inline { background: var(--raised); border: 1px solid var(--border);
+                  border-radius: 5px; padding: 1px 6px; font-size: 13.5px;
+                  font-family: var(--mono); }
+    footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--border);
+             color: var(--faint); font-size: 14px; display: flex; gap: 20px;
+             flex-wrap: wrap; justify-content: space-between; }
+    footer a { color: var(--dim); text-decoration: none; }
+    footer a:hover { color: var(--accent); }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header class="hero">
+    <header>
       <div class="kicker">Animatix demo · every figure is a .amx file</div>
       <h1>The Transformer Architecture, Animated</h1>
       <p class="lede">
         Six short animations that build the transformer up piece by piece —
-        tokens, positional encoding, attention, multi-head attention, the
-        feed-forward block, and the full stack. Each one is a declarative
-        scene file embedded below with a single
-        <code class="inline">&lt;amx-player&nbsp;src="…"&gt;</code> element.
-        View source to see how little it takes.
+        tokens, positions, attention, multi-head attention, the feed-forward
+        block, and the full stack. Each figure below is a declarative scene
+        file embedded with a single custom element.
       </p>
+      <div class="meta">
+        <span>6 scenes</span>
+        <span>~510 lines of .amx</span>
+        <span>1.1 MB engine (brotli), shared by all six</span>
+      </div>
     </header>
 
-    <section>
-      <h2><span class="n">1</span>From text to tokens</h2>
+    <nav class="toc" aria-label="Contents">
+      <div class="toc-title">Contents</div>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>From text to tokens</a></li>
+        <li><a href="#s2"><span class="n">02</span>Positional encoding</a></li>
+        <li><a href="#s3"><span class="n">03</span>Self-attention</a></li>
+        <li><a href="#s4"><span class="n">04</span>Multi-head attention</a></li>
+        <li><a href="#s5"><span class="n">05</span>Feed-forward &amp; residuals</a></li>
+        <li><a href="#s6"><span class="n">06</span>Stacking the blocks</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>From text to tokens</h2></div>
       <p>
         A transformer never sees words. Text is split into tokens, and each
-        token is replaced by a learned vector — an embedding — that encodes
-        what it means. Everything downstream operates on these vectors.
+        token is replaced by a <strong>learned vector</strong> — its embedding.
+        Everything downstream operates on those numbers, never on the words.
       </p>
-      <amx-player src="scenes/tokens.amx" autoplay loop aspect="16:9" title="Tokens and embeddings"></amx-player>
+      <figure>
+        <amx-player src="scenes/tokens.amx" autoplay loop aspect="16:9"
+                    title="Tokens and embeddings"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> each chip gets its own column of values —
+            same shape for every token, different numbers.</span>
+          <a class="src" href="scenes/tokens.amx">scenes/tokens.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
 
-    <section>
-      <h2><span class="n">2</span>Positional encoding</h2>
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Positional encoding</h2></div>
       <p>
         Attention has no built-in sense of order, so each position is stamped
-        with a fingerprint built from sine waves of growing wavelength. The
-        same word at a different position gets a different vector.
+        with a fingerprint built from <strong>sine waves of growing
+        wavelength</strong>. Move a word and its vector changes, even though
+        its embedding doesn't.
       </p>
-      <amx-player src="scenes/positional.amx" autoplay loop aspect="16:9" title="Positional encoding waves"></amx-player>
+      <figure>
+        <amx-player src="scenes/positional.amx" autoplay loop aspect="16:9"
+                    title="Positional encoding waves"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the curves are drawn channel by channel —
+            long wavelengths change slowly with position, short ones quickly.</span>
+          <a class="src" href="scenes/positional.amx">scenes/positional.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
 
-    <section>
-      <h2><span class="n">3</span>Self-attention</h2>
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Self-attention</h2></div>
       <p>
-        The core idea. Every token asks a question (the query), advertises
-        what it contains (the key), and offers its content (the value). Softmax
-        over the query–key scores decides how much each token pulls from every
-        other token.
+        The core idea. The token <em>“it”</em> asks a question (its
+        <strong>query</strong>); every token answers with a <strong>key</strong>
+        and offers its content (a <strong>value</strong>). A softmax over the
+        query–key scores decides how much of each answer it keeps.
       </p>
-      <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9" title="Scaled dot-product attention"></amx-player>
+      <figure>
+        <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9"
+                    title="Scaled dot-product attention"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the weight bars fill in, then the links
+            land on them — line thickness is the attention weight.</span>
+          <a class="src" href="scenes/attention.amx">scenes/attention.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
 
-    <section>
-      <h2><span class="n">4</span>Multi-head attention</h2>
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Multi-head attention</h2></div>
       <p>
         One attention pattern is rarely enough, so the model runs several in
-        parallel. Each head is free to specialize — grammar, references,
-        neighborhoods — and their outputs are concatenated and mixed.
+        parallel. Each <strong>head</strong> is free to specialize — grammar,
+        references, neighborhoods — and the outputs are concatenated and mixed
+        back into a single vector per token.
       </p>
-      <div class="pair">
-        <amx-player src="scenes/multihead.amx" autoplay loop aspect="16:9" title="Multiple heads"></amx-player>
-        <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9" title="Single head, again — one engine, two embeds"></amx-player>
-      </div>
+      <figure>
+        <amx-player src="scenes/multihead.amx" autoplay loop aspect="16:9"
+                    title="Multiple attention heads"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> three heads read the same sentence three
+            different ways, then their colors merge in the output mix.</span>
+          <a class="src" href="scenes/multihead.amx">scenes/multihead.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
 
-    <section>
-      <h2><span class="n">5</span>Feed-forward &amp; residuals</h2>
+    <section id="s5">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Feed-forward &amp; residuals</h2></div>
       <p>
         Attention moves information <em>between</em> tokens; the feed-forward
-        network then transforms each token on its own, widening 4× and
-        projecting back. Skip connections keep the original signal one hop
-        away, so depth adds refinement instead of forgetting.
+        network then transforms each token <em>on its own</em>, widening 4× and
+        projecting back. <strong>Skip connections</strong> keep the original
+        signal one hop away, so depth refines instead of erasing.
       </p>
-      <amx-player src="scenes/feedforward.amx" autoplay loop aspect="16:9" title="Feed-forward block with residuals"></amx-player>
+      <figure>
+        <amx-player src="scenes/feedforward.amx" autoplay loop aspect="16:9"
+                    title="Feed-forward block with residuals"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the residual stream runs straight
+            through; the blocks and the arcs above them are what the token adds.</span>
+          <a class="src" href="scenes/feedforward.amx">scenes/feedforward.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
 
-    <section>
-      <h2><span class="n">6</span>Stacking the blocks</h2>
+    <section id="s6">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Stacking the blocks</h2></div>
       <p>
-        One attention-plus-FFN block is a layer. Stack N of them, share the
-        weights within each layer, and tokens flow up the tower — arriving at
-        the top contextualized and ready for a language-modeling or task head.
+        One attention-plus-FFN block is a layer. Stack N of them and tokens
+        flow up the tower, arriving at the top <strong>contextualized</strong>
+        and ready for a language-modeling or task head.
       </p>
-      <amx-player src="scenes/pipeline.amx" autoplay loop aspect="16:9" title="The full transformer stack"></amx-player>
+      <figure>
+        <amx-player src="scenes/pipeline.amx" autoplay loop aspect="16:9"
+                    title="The full transformer stack"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> tokens climb the stack — same weights in
+            every block, new meaning at every level.</span>
+          <a class="src" href="scenes/pipeline.amx">scenes/pipeline.amx ↗</a>
+        </figcaption>
+      </figure>
     </section>
+
+    <div class="howto">
+      <h2>How this page works</h2>
+      <p>
+        There is no video here and no backend. Each figure above loads a
+        <code class="inline">.amx</code> text file at runtime, compiles it in
+        the browser, and renders it with WebGPU — all six share one engine
+        download and one GPU device, and offscreen figures pause themselves.
+      </p>
+      <pre>&lt;script type="module" src="/embed/amx-player.js"&gt;&lt;/script&gt;
+
+&lt;amx-player src="scenes/attention.amx" autoplay loop&gt;&lt;/amx-player&gt;</pre>
+      <p style="margin-bottom:0">
+        The scene sources are plain text — click any
+        <span class="src" style="font-family:var(--mono);font-size:13px">.amx ↗</span>
+        link above to read one, or open the
+        <a href="../multi-probe.html" style="color:var(--accent)">QA page</a>.
+      </p>
+    </div>
 
     <footer>
-      Built with <strong>Animatix</strong> — a layout-first animation DSL.
-      Each figure above is a self-contained <code>.amx</code> text file; this
-      whole page is static. Source and docs:
-      <code>web/demos/transformer/</code> in the animatix repository.
+      <span>Built with <strong style="color:var(--dim)">Animatix</strong> — a layout-first animation DSL.</span>
+      <span>
+        <a href="../../index.html">Player home</a> ·
+        <a href="../../README.md">web/README</a> ·
+        <a href="scenes/">all scenes</a>
+      </span>
     </footer>
   </div>
 

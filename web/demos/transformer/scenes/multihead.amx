@@ -1,7 +1,7 @@
 // Multi-Head Attention — several heads in parallel, each free to look
 // somewhere different; their views are concatenated and mixed.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.2 }
 
 title: Text, text: "4 · Multi-Head Attention", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 55)

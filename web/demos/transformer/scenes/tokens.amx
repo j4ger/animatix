@@ -1,7 +1,7 @@
 // Tokens & Embeddings — how text becomes numbers.
-// A sentence is split into tokens; each token picks up a learned vector.
+// A sentence is split into tokens; each token picks up a learned column vector.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.0 }
 
 title: Text, text: "1 · From Text to Tokens", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 55)
@@ -9,42 +9,52 @@ title: Text, text: "1 · From Text to Tokens", font_size: 40,
 sub: Text, text: "A transformer never sees words — it sees vectors",
   font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
 
-// The sentence, as token chips
-the: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (240, 230)
-the_t: Text, text: "the", font_size: 24, color: text.primary, at: (240, 230)
+// The sentence, as token chips (centered composition)
+the: Rect, size: (140, 52), corner_radius: 12, color: surface.primary, at: (480, 235)
+the_t: Text, text: "the", font_size: 24, color: text.primary, at: (480, 235)
 
-cat: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (395, 230)
-cat_t: Text, text: "cat", font_size: 24, color: text.primary, at: (395, 230)
+cat: Rect, size: (140, 52), corner_radius: 12, color: surface.primary, at: (640, 235)
+cat_t: Text, text: "cat", font_size: 24, color: text.primary, at: (640, 235)
 
-sat: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (550, 230)
-sat_t: Text, text: "sat", font_size: 24, color: text.primary, at: (550, 230)
+sat: Rect, size: (140, 52), corner_radius: 12, color: surface.primary, at: (800, 235)
+sat_t: Text, text: "sat", font_size: 24, color: text.primary, at: (800, 235)
 
-// Embedding vectors: a stack of colored value cells under each token
-the_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.9, at: (240, 330)
-the_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.55, at: (240, 356)
-the_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.75, at: (240, 382)
-the_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.4, at: (240, 408)
+// One column vector per token: four visible entries of d_model values
+the_v0: Rect, size: (110, 34), corner_radius: 6, color: accent.primary, opacity: 0.9, at: (480, 315)
+the_v1: Rect, size: (110, 34), corner_radius: 6, color: accent.success, opacity: 0.55, at: (480, 355)
+the_v2: Rect, size: (110, 34), corner_radius: 6, color: accent.warning, opacity: 0.75, at: (480, 395)
+the_v3: Rect, size: (110, 34), corner_radius: 6, color: accent.danger, opacity: 0.4, at: (480, 435)
 
-cat_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.5, at: (395, 330)
-cat_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.85, at: (395, 356)
-cat_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.35, at: (395, 382)
-cat_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.6, at: (395, 408)
+cat_v0: Rect, size: (110, 34), corner_radius: 6, color: accent.primary, opacity: 0.5, at: (640, 315)
+cat_v1: Rect, size: (110, 34), corner_radius: 6, color: accent.success, opacity: 0.85, at: (640, 355)
+cat_v2: Rect, size: (110, 34), corner_radius: 6, color: accent.warning, opacity: 0.35, at: (640, 395)
+cat_v3: Rect, size: (110, 34), corner_radius: 6, color: accent.danger, opacity: 0.6, at: (640, 435)
 
-sat_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.7, at: (550, 330)
-sat_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.3, at: (550, 356)
-sat_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.8, at: (550, 382)
-sat_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.5, at: (550, 408)
+sat_v0: Rect, size: (110, 34), corner_radius: 6, color: accent.primary, opacity: 0.7, at: (800, 315)
+sat_v1: Rect, size: (110, 34), corner_radius: 6, color: accent.success, opacity: 0.3, at: (800, 355)
+sat_v2: Rect, size: (110, 34), corner_radius: 6, color: accent.warning, opacity: 0.8, at: (800, 395)
+sat_v3: Rect, size: (110, 34), corner_radius: 6, color: accent.danger, opacity: 0.5, at: (800, 435)
 
-// Ellipsis dots toward the rest of the vocabulary
-dots: Text, text: "…", font_size: 30, color: text.muted, at: (720, 395)
+// "…512 entries" continuation under each column
+the_vx: Text, text: "⋮", font_size: 26, color: text.muted, at: (480, 480)
+cat_vx: Text, text: "⋮", font_size: 26, color: text.muted, at: (640, 480)
+sat_vx: Text, text: "⋮", font_size: 26, color: text.muted, at: (800, 480)
 
-caption: Text, text: "each column = one embedding vector (d_model entries per token)",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+// Bracket (three strokes) + annotation explaining the vector
+brace_top: Line, from: (1012, 275), to: (988, 275), stroke_width: 2.5, color: accent.primary, opacity: 0.9
+brace_mid: Line, from: (988, 275), to: (988, 475), stroke_width: 2.5, color: accent.primary, opacity: 0.9
+brace_bot: Line, from: (988, 475), to: (1012, 475), stroke_width: 2.5, color: accent.primary, opacity: 0.9
 
-// Sentence arrow
-arrow: Path, commands: {
-  move_to(60, 165), line_to(700, 165)
-}, color: text.muted, stroke_width: 1.5
+note_dim: Text, text: "d_model = 512", font_size: 22, color: accent.primary, at: (1130, 350)
+note_body: Text, text: "one learned number per entry,", font_size: 15, color: text.secondary, at: (1140, 385)
+note_body2: Text, text: "shared across all positions", font_size: 15, color: text.secondary, at: (1140, 407)
+
+// Ellipsis toward the rest of the vocabulary
+dots: Text, text: "…", font_size: 30, color: text.muted, at: (887, 375)
+dots_t: Text, text: "vocab", font_size: 14, color: text.muted, at: (887, 407)
+
+caption: Text, text: "each column = one embedding vector · each cell = one learned value",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -55)
 
 #0.4s
 fade-in title [600ms, ease: ease-out]
@@ -57,15 +67,14 @@ stagger [140ms] {
   wipe-in sat [400ms]
 }
 
-#1.8s
-fade-in the_t [300ms]
-fade-in cat_t [300ms, delay: 120ms]
-fade-in sat_t [300ms, delay: 240ms]
+#1.7s
+stagger [120ms] {
+  fade-in the_t [300ms]
+  fade-in cat_t [300ms]
+  fade-in sat_t [300ms]
+}
 
 #2.4s
-draw-in arrow [500ms, ease: ease-out]
-
-#3.0s
 stagger [90ms] {
   wipe-in the_v0 [350ms]
   wipe-in the_v1 [350ms]
@@ -81,6 +90,26 @@ stagger [90ms] {
   wipe-in sat_v3 [350ms]
 }
 
-#4.4s
+#3.8s
+stagger [100ms] {
+  fade-in the_vx [300ms]
+  fade-in cat_vx [300ms]
+  fade-in sat_vx [300ms]
+}
+
+#4.3s
+draw-in brace_top [300ms, ease: ease-out]
+draw-in brace_mid [300ms, ease: ease-out, delay: 200ms]
+draw-in brace_bot [300ms, ease: ease-out, delay: 400ms]
+
+#4.5s
+fade-in note_dim [400ms]
+fade-in note_body [400ms, delay: 150ms]
+fade-in note_body2 [400ms, delay: 300ms]
+
+#4.7s
 fade-in dots [400ms]
+fade-in dots_t [400ms, delay: 120ms]
+
+#5.0s
 fade-in caption [500ms]
