@@ -92,24 +92,41 @@ build-up fades back in. Set `hold="0"` for an unadorned loop.
 
 ### Authoring notes that bit these scenes
 
-- **`fade-in` drives opacity to 1.0, discarding an authored `opacity`.** Measured
-  on a one-rect scene at `opacity: 0.25`: no animation and `fade-in` both read
-  back an average of (48, 96, 126); `wipe-in` reads back (19, 35, 48). Use
-  `wipe-in`/`draw-in` for any actor whose opacity *is* its value — the old
-  `halo` (0.22), `expand`/`project` (0.75/0.4) and `layerN` (0.6) were all
-  flattened to 1.0 without a diagnostic.
-- **Paint order is by actor kind, not declaration order.** `Line`, `Arrow` and
-  `Path` paint above `Rect` whichever order they are declared in, so an arrow
-  cannot be hidden behind a shape. Route links around shapes instead.
+- **`fade-in` forces `opacity` to 1.0, and the other entrance actions do not.**
+  Measured on a one-rect scene: at an authored `opacity: 0.25`, `wipe-in`,
+  `draw-in`, `reveal-in` and no entrance at all all leave the rect at 0.25
+  (frame average R 19) while `fade-in` takes it to 1.0 (R 48); at an authored
+  `opacity: 0.0` the result inverts — `fade-in` makes the rect visible and the
+  other three leave it invisible for good. So `opacity` is treated
+  inconsistently across actions, and only one of the two readings of `opacity: 0`
+  ("start hidden" vs "rest invisible") can be satisfied by any single action.
+  The demo scenes sidestep it: where opacity *is* the value they use
+  `wipe-in`/`draw-in`, and where they want `fade-in` they author `opacity: 0.0`
+  as a seed. The old `halo` (0.22), `expand`/`project` (0.75/0.4) and `layerN`
+  (0.6) were all `fade-in`-ed and so silently flattened to 1.0; `docs/roadmap.md`
+  carries the fix decision.
+- **Paint order is declaration order** — a later actor paints over an earlier
+  one, matching `root_nodes`, which is built in declaration order. Verified
+  numerically rather than by eye: the same panel and crossing arrow, with the
+  arrow declared first versus last, differ by 6/255 in the frame average, and the
+  animation used (`draw-in`/`fade-in`/none) makes no difference.
+  *How this was first got wrong:* the first probe declared its actors without an
+  explicit `opacity`, which makes them hidden-by-default, so the crossing actor
+  never rendered and every ordering measured identically — see the next note.
+- **An actor declared before the first keyframe is hidden until an entrance
+  action reveals it** (there is a `never-revealed` warning for this, and an
+  explicit `opacity` opts out of the seed). This is worth stating twice: it
+  invalidates any probe that forgets it, because a hidden actor silently
+  contributes nothing to the frame.
 - **A `Path` fills with `color` by default** and only strokes when given a
   `stroke` plus `fill_opacity: 0.0`. Without that an open arc renders as a
-  filled lens with a white outline.
-- **An actor declared before the first keyframe is hidden until an entrance
-  action reveals it** (there is a `never-revealed` warning for this), and
-  `Text` uses one face — `font_weight: "bold"` is inert on the plain path.
-- The fast-path face has no glyph for `⋮` (U+22EE), `ᵀ` (U+1D40) or `ₖ`
-  (U+2096); they render as tofu with no diagnostic. Draw dots instead, and write
-  formulas in ASCII.
+  filled lens with a white outline — SVG's fill rule, and the white outline is
+  because an unset `stroke` on a shape falls back to the colorscheme's
+  `stroke.default`.
+- `Text` uses one face, so `font_weight: "bold"` is inert on the plain path, and
+  the fast-path face has no glyph for `⋮` (U+22EE), `ᵀ` (U+1D40) or `ₖ`
+  (U+2096). They render as tofu with no diagnostic on any path. Draw dots
+  instead, and write formulas in ASCII.
 
 Hosting requirements for the runtime host: serve `.wasm` as
 `application/wasm`, and prefer precompressed `.br` twins (the build script
