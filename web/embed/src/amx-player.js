@@ -123,6 +123,9 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   attributeChangedCallback(name) {
+    if (name === "aspect" && this._initialized) {
+      this.style.aspectRatio = String(this._aspectRatio());
+    }
     if (name === "src" && this._initialized) {
       this._state = "idle";
       this._player = null;
@@ -143,6 +146,9 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   _renderSkeleton() {
+    // Reserve the figure's box up front so lazy loading never reflows the
+    // page: the host carries the aspect ratio until the scene reports its own.
+    this.style.aspectRatio = String(this._aspectRatio());
     const title = this.getAttribute("title") || "";
     const style = document.createElement("style");
     style.textContent = `
@@ -151,12 +157,10 @@ class AmxPlayerElement extends HTMLElement {
       .skeleton {
         position: absolute; inset: 0;
         display: flex; align-items: center; justify-content: center;
-        aspect-ratio: ${this._aspectRatio()};
         background: linear-gradient(120deg, #10141b 40%, #1a2130 50%, #10141b 60%);
         background-size: 300% 100%;
         animation: shimmer 2.2s linear infinite;
         color: #5b6575; font: 13px/1.4 system-ui, sans-serif;
-        max-height: 100%;
       }
       @keyframes shimmer { to { background-position: -300% 0; } }
       canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
@@ -277,6 +281,7 @@ class AmxPlayerElement extends HTMLElement {
       this._duration = Math.max(result.duration_s, 0.05);
       this._canvas.width = Math.round(result.width || 1280);
       this._canvas.height = Math.round(result.height || 720);
+      this.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
       this._renderScene();
 
       // swap skeleton for canvas + interactions
