@@ -1,0 +1,44 @@
+const m=(()=>{for(const n of document.querySelectorAll("script[type=module]")){const t=n.src||"";if(t.endsWith("/amx-player.js")||t.includes("/amx-player.js?")){const e=t.lastIndexOf("/amx-player.js");return t.slice(0,e)}}return new URL(".",import.meta.url).href.replace(/\/$/,"")})(),b=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches??!1,f=navigator.connection?.saveData===!0;let l=null;function y(){return l||(l=(async()=>{const n=await import(`${m}/../pkg/animatix_web.js`);return await n.default(),await n.init_engine?.(),n})()),l}const o=new Set;let h=!1,c=0;function d(n){const t=Math.min((n-c)/1e3,.1);c=n;let e=!1;for(const i of o)i.advance(t)&&(e=!0);e?requestAnimationFrame(d):h=!1}function g(){h||(h=!0,c=performance.now(),requestAnimationFrame(d))}const u={"16:9":16/9,"4:3":4/3,"1:1":1,"9:16":9/16};class p extends HTMLElement{static observedAttributes=["src","autoplay","loop","controls","title","aspect"];constructor(){super(),this.attachShadow({mode:"open"}),this._state="idle",this._player=null,this._playing=!1,this._loop=!1,this._time=0,this._duration=0,this._visible=!1,this._observer=null,this._initialized=!1}connectedCallback(){this._initialized||(this._initialized=!0,this._renderSkeleton(),this._setupObserver())}disconnectedCallback(){this._observer?.disconnect(),o.delete(this),this._playing=!1}attributeChangedCallback(t){t==="src"&&this._initialized&&(this._state="idle",this._player=null,this._time=0,this._renderSkeleton(),this._maybeStartLoading())}_aspectRatio(){const t=this.getAttribute("aspect");if(t&&u[t])return u[t];const[e,i]=(t||"").split(":").map(Number);return e>0&&i>0?e/i:16/9}_renderSkeleton(){const t=this.getAttribute("title")||"",e=document.createElement("style");e.textContent=`
+      :host { display: block; position: relative; overflow: hidden;
+              border-radius: 8px; background: #10141b; }
+      .skeleton {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        aspect-ratio: ${this._aspectRatio()};
+        background: linear-gradient(120deg, #10141b 40%, #1a2130 50%, #10141b 60%);
+        background-size: 300% 100%;
+        animation: shimmer 2.2s linear infinite;
+        color: #5b6575; font: 13px/1.4 system-ui, sans-serif;
+        max-height: 100%;
+      }
+      @keyframes shimmer { to { background-position: -300% 0; } }
+      canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+      .veil {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 10px;
+        color: #8b96a7; font: 13px/1.4 system-ui, sans-serif;
+        background: rgba(13,16,22,0.55); opacity: 0; transition: opacity .3s;
+        pointer-events: none; text-align: center; padding: 12px;
+      }
+      .veil.show { opacity: 1; pointer-events: auto; }
+      .veil.error { color: #ef6a6a; }
+      .playbtn {
+        width: 52px; height: 52px; border-radius: 50%;
+        border: 1px solid rgba(245,185,66,.5); background: rgba(245,185,66,.14);
+        color: #f5b942; font-size: 20px; cursor: pointer; display: none;
+        align-items: center; justify-content: center; padding-left: 4px;
+      }
+      .playbtn.show { display: flex; }
+      .controls {
+        position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+        display: none; align-items: center; gap: 10px; width: min(70%, 420px);
+        background: rgba(13,16,22,.66); border: 1px solid rgba(255,255,255,.12);
+        border-radius: 10px; padding: 6px 12px; backdrop-filter: blur(6px);
+        transition: opacity .25s; opacity: 0;
+      }
+      :host(:hover) .controls.show { opacity: 1; }
+      .controls input { flex: 1; accent-color: #f5b942; height: 3px; cursor: pointer; }
+      .controls button { background: none; border: none; color: #f5b942;
+                         cursor: pointer; font-size: 14px; width: 20px; }
+      .time { color: #8b96a7; font: 11px ui-monospace, monospace; white-space: nowrap; }
+    `,this.shadowRoot.replaceChildren(e),this._skeleton=document.createElement("div"),this._skeleton.className="skeleton",this._skeleton.textContent=t?`${t}`:"animatix scene",this.shadowRoot.appendChild(this._skeleton),this._canvas=document.createElement("canvas"),this._canvas.width=1280,this._canvas.height=720,this._canvas.hidden=!0,this._veil=document.createElement("div"),this._veil.className="veil",this._playbtn=document.createElement("button"),this._playbtn.className="playbtn",this._playbtn.setAttribute("aria-label","Play"),this._playbtn.textContent="\u25B6",this._playbtn.addEventListener("click",()=>this.play()),this._controls=null}_showVeil(t,e){this._veil.className=`veil show${e?" error":""}`,this._veil.textContent=t,this._veil.isConnected||this.shadowRoot.appendChild(this._veil)}_hideVeil(){this._veil.className="veil"}_setupObserver(){this._observer=new IntersectionObserver(t=>{for(const e of t)this._visible=e.isIntersecting,this._visible&&this._state==="idle"&&this._maybeStartLoading(),!this._visible&&this._playing&&this.pause()},{rootMargin:"200px"}),this._observer.observe(this)}_shouldAutoplay(){return this.hasAttribute("autoplay")&&!b&&!f}async _maybeStartLoading(){const t=this.getAttribute("src");if(!(!t||this._state!=="idle")){if(this._state="loading",!("gpu"in navigator)){this._state="error",this._showVeil("This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).",!0);return}try{const[e,i]=await Promise.all([y(),fetch(t).then(a=>{if(!a.ok)throw new Error(`HTTP ${a.status}`);return a.text()})]);if(this.getAttribute("src")!==t||(this._player=await e.create_player(this._canvas),this.getAttribute("src")!==t))return;const s=this._player.load_source(i),r=s.diagnostics??[],_=r.filter(a=>a.severity==="error");if(!s.ok){this._state="error";const a=_[0]??r[0];this._showVeil(`Scene error${a?.line?` (line ${a.line})`:""}: ${a?.message??"build failed"}`,!0);return}this._duration=Math.max(s.duration_s,.05),this._canvas.width=Math.round(s.width||1280),this._canvas.height=Math.round(s.height||720),this._renderScene(),this._skeleton.remove(),this._canvas.hidden=!1,this.shadowRoot.appendChild(this._canvas),this.shadowRoot.appendChild(this._playbtn),this.shadowRoot.appendChild(this._veil),this.hasAttribute("controls")&&this._buildControls(),r.length>0&&console.warn(`amx-player: ${t} built with ${r.length} diagnostic(s)`,r[0]),this._state="ready",this._shouldAutoplay()?(this._loop=this.hasAttribute("loop"),this.play()):this._playbtn.classList.add("show")}catch(e){this._state="error",this._showVeil(`Failed to load scene: ${e?.message??e}`,!0)}}}_buildControls(){const t=document.createElement("div");t.className="controls show";const e=document.createElement("button");e.textContent="\u25B6";const i=document.createElement("input");i.type="range",i.min=0,i.max=1e3,i.value=0;const s=document.createElement("span");s.className="time",e.addEventListener("click",()=>this._playing?this.pause():this.play()),i.addEventListener("input",()=>{this._time=Number(i.value)/1e3*this._duration,this._renderScene(),this._updateTime(s)}),t.append(e,i,s),this.shadowRoot.appendChild(t),this._controls={btn:e,scrub:i,time:s}}_updateTime(t){t&&(t.textContent=`${this._time.toFixed(1)}s`)}play(){this._state==="ready"&&this._player?.has_document()&&(this._time>=this._duration&&(this._time=0),this._playing=!0,this._playbtn.classList.remove("show"),this._controls&&(this._controls.btn.textContent="\u23F8"),o.add(this),g())}pause(){this._playing=!1,o.delete(this),this._state==="ready"&&((this.hasAttribute("controls")||!this.hasAttribute("autoplay"))&&this._playbtn.classList.add("show"),this._controls&&(this._controls.btn.textContent="\u25B6"))}advance(t){if(!this._playing||!this._visible)return!1;if(this._time+=t,this._time>=this._duration)if(this.hasAttribute("loop")||this._loop)this._time%=this._duration;else return this._time=this._duration,this.pause(),this._renderScene(),!1;return this._renderScene(),this._controls&&(this._controls.scrub.value=Math.round(this._time/this._duration*1e3),this._updateTime(this._controls.time)),!0}_renderScene(){if(this._player)try{this._player.render_frame(this._time)}catch(t){console.warn("amx-player: render failed",t)}}}customElements.get("amx-player")||customElements.define("amx-player",p);export{p as AmxPlayerElement};
