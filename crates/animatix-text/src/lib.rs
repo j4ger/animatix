@@ -1792,6 +1792,98 @@ pub fn is_latin_text(content: &str) -> bool {
     })
 }
 
+/// Characters in `content` that the render path has no glyph for and will
+/// draw as tofu. Which face set governs follows [`compile_text_cached`]'s
+/// selection, cfg included: fast-path text (plain, Latin, `allow_fast_path`)
+/// is checked against the family's face plus the bundled fallback set, and
+/// everything else goes through the Typst engine, whose fallback chain draws
+/// from the whole registered database — a character no registered face covers
+/// is tofu there too.
+///
+/// Whitespace is never reported. Empty when the fast-path family cannot be
+/// loaded at all, because [`compile_text_fast`] then fails with a proper
+/// error of its own.
+pub fn missing_text_glyphs(
+    kind: TextKind,
+    content: &str,
+    family: &str,
+    weight: f32,
+    style: &str,
+    allow_fast_path: bool,
+    font_ctx: &FontContext,
+) -> Vec<char> {
+    #[cfg(feature = "rich-text")]
+    let takes_fast_path = allow_fast_path
+        && kind == TextKind::Text
+        && is_plain_text(content)
+        && is_latin_text(content);
+    #[cfg(not(feature = "rich-text"))]
+    let takes_fast_path = true;
+    let _ = (kind, allow_fast_path);
+
+    let chars: Vec<char> = content.chars().filter(|c| !c.is_whitespace()).collect();
+    let mut missing: Vec<char> = Vec::new();
+
+    if takes_fast_path {
+        // Same face resolution as `compile_text_fast`: the family's bundled
+        // face if bundled, else the registered database, then every other
+        // bundled face as the per-char fallback set.
+        let resolved_family = resolve_font_family(family, font_ctx);
+        let mut faces: Vec<ttf_parser::Face<'static>> = Vec::new();
+        if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
+            if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
+                faces.push(face);
+            }
+        }
+        if faces.is_empty() {
+            match font_ctx.load_face(&resolved_family, weight, style) {
+                Some(face) => faces.push(face),
+                // `compile_text_fast` fails with a clear error of its own in
+                // this case; the probe stays quiet rather than double-reporting.
+                None => return Vec::new(),
+            }
+        }
+        faces.extend(
+            BUNDLED_FONTS
+                .iter()
+                .filter(|bf| bf.family != resolved_family)
+                .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
+        );
+
+        for c in chars {
+            if !missing.contains(&c) && faces.iter().all(|face| face.glyph_index(c).is_none()) {
+                missing.push(c);
+            }
+        }
+    } else {
+        // Typst-path text: its fallback chain can draw from any registered
+        // face, so the honest coverage predicate is the whole database.
+        #[cfg(feature = "rich-text")]
+        {
+            let mut covered = vec![false; chars.len()];
+            for face_info in font_ctx.db.faces() {
+                font_ctx.db.with_face_data(face_info.id, |data, face_index| {
+                    let Ok(face) = ttf_parser::Face::parse(data, face_index) else {
+                        return;
+                    };
+                    for (index, c) in chars.iter().enumerate() {
+                        if !covered[index] && face.glyph_index(*c).is_some() {
+                            covered[index] = true;
+                        }
+                    }
+                });
+            }
+            for (index, c) in chars.iter().enumerate() {
+                if !covered[index] && !missing.contains(c) {
+                    missing.push(*c);
+                }
+            }
+        }
+    }
+
+    missing
+}
+
 /// Compile plain text into glyph paths using `ttf_parser` directly,
 /// bypassing Typst entirely. This is the fast path.
 ///
@@ -2201,10 +2293,7 @@ pub fn compile_text_fast_wrapped(
             // Render each glyph in the word using pre-computed offsets that include kerning
             for (face_slot, gid, glyph_scale, glyph_x_offset) in &wi.glyphs {
                 let mut builder = PathBuilder(BezPath::new());
-                if faces[*face_slot]
-                    .outline_glyph(*gid, &mut builder)
-                    .is_some()
-                {
+                if faces[*face_slot].outline_glyph(*gid, &mut builder).is_some() {
                     let path = builder.0;
                     let scale_affine =
                         Affine::scale_non_uniform(*glyph_scale as f64, -*glyph_scale as f64);
@@ -2947,17 +3036,10 @@ mod tests {
             &font_ctx,
         )
         .unwrap();
-        assert_eq!(
-            compiled.glyphs.len(),
-            4,
-            "every CJK character must shape to a glyph"
-        );
+        assert_eq!(compiled.glyphs.len(), 4, "every CJK character must shape to a glyph");
         for glyph in &compiled.glyphs {
             let bbox = glyph.path.bounding_box();
-            assert!(
-                bbox.width() > 0.0 && bbox.height() > 0.0,
-                "CJK glyphs must have outlines"
-            );
+            assert!(bbox.width() > 0.0 && bbox.height() > 0.0, "CJK glyphs must have outlines");
         }
     }
 
@@ -3911,6 +3993,97 @@ mod tests {
         );
     }
 
+    /// The probe reports tofu for whichever path will shape the text: the
+    /// bundled face set on the fast path, the whole registered database on
+    /// the Typst path.
+    #[test]
+    fn missing_glyph_probe_reports_uncovered_chars() {
+        let font_ctx = test_font_ctx();
+
+        // Covered Latin text: no findings.
+        assert!(
+            missing_text_glyphs(
+                TextKind::Text,
+                "softmax(QK / sqrt(d))",
+                "Open Sans",
+                400.0,
+                "normal",
+                true,
+                &font_ctx,
+            )
+            .is_empty()
+        );
+
+        // Fast-path text with an in-gate character no bundled face covers:
+        // U+02B0 (modifier letter small h) sits inside the Latin gate's
+        // modifier-letter range, so the fast path will shape it — and skip it.
+        let missing = missing_text_glyphs(
+            TextKind::Text,
+            "1st\u{02B0} order",
+            "Open Sans",
+            400.0,
+            "normal",
+            true,
+            &font_ctx,
+        );
+        assert_eq!(missing, ['\u{02B0}'], "in-gate uncovered char should be reported");
+
+        // Non-Latin content compiles through the Typst engine: the probe
+        // checks the whole registered database. Against the real system db
+        // this machine usually covers everything, so run the branch against
+        // a controlled context holding only one Open Sans face.
+        let mut bare_db = fontdb::Database::new();
+        bare_db.load_font_data(BUNDLED_FONTS[0].data.to_vec());
+        let bare_ctx = FontContext {
+            db: std::sync::Arc::new(bare_db),
+            text_fast_path: true,
+            epoch: font_env_epoch(),
+        };
+        let missing = missing_text_glyphs(
+            TextKind::Text,
+            "你好 \u{1F600}",
+            "Open Sans",
+            400.0,
+            "normal",
+            true,
+            &bare_ctx,
+        );
+        assert!(
+            missing.contains(&'你') && missing.contains(&'好'),
+            "CJK should be reported without a CJK face: {missing:?}"
+        );
+        assert!(missing.contains(&'\u{1F600}'), "emoji should be reported: {missing:?}");
+        assert!(!missing.contains(&'g'), "covered Latin must stay silent: {missing:?}");
+
+        // Multi-line content is never plain; the Typst branch governs.
+        assert!(
+            missing_text_glyphs(
+                TextKind::Text,
+                "multi\nline",
+                "Open Sans",
+                400.0,
+                "normal",
+                true,
+                &font_ctx,
+            )
+            .is_empty()
+        );
+        // The fast-path switch off: the Typst path governs, fast-path faces
+        // are not consulted.
+        assert!(
+            missing_text_glyphs(
+                TextKind::Text,
+                "1st\u{02B0}",
+                "Open Sans",
+                400.0,
+                "normal",
+                false,
+                &font_ctx,
+            )
+            .is_empty()
+        );
+    }
+
     #[test]
     fn wrapped_fast_path_centered_alignment() {
         let font_ctx = test_font_ctx();
@@ -3987,9 +4160,6 @@ mod tests {
             bbox_center[0]
         );
     }
-
-
-
 
     #[test]
     fn no_max_width_is_identical() {

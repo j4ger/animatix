@@ -4102,7 +4102,7 @@ mod tests {
         ctx.register_primitive(Arc::new(adapter), adapter_info)
             .expect("register primitive");
 
-        let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse, glow: 0.25");
+        let (ast, errors) = animatix_syntax::parser::parse_source("p: Pulse, opacity: 0.25");
         assert!(errors.is_empty(), "parse errors: {errors:?}");
         let ast = ast.expect("parsed AST");
         let report = crate::timeline::Timeline::build_with_context(

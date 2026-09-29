@@ -178,6 +178,9 @@ pub enum DiagnosticCode {
     UnknownProperty,
     /// An actor type name is not recognized.
     UnknownType,
+    /// Text content contains characters the shaping path has no glyph for; they
+    /// will render blank or as tofu boxes.
+    MissingGlyph,
 }
 
 impl fmt::Display for DiagnosticCode {
@@ -265,6 +268,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnusedLabel => write!(f, "unused-label"),
             DiagnosticCode::UndefinedLabel => write!(f, "undefined-label"),
             DiagnosticCode::UnknownProperty => write!(f, "unknown-property"),
+            DiagnosticCode::MissingGlyph => write!(f, "missing-glyph"),
             DiagnosticCode::UnknownType => write!(f, "unknown-type"),
         }
     }

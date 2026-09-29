@@ -17,7 +17,13 @@ fn test_reactive_binding_desugars_to_modifier() {
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
-                        name: "radius".to_string(),
+                        name: "radius_x".to_string(),
+                        value: Expr::Num(10.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "radius_y".to_string(),
                         value: Expr::Num(10.0),
                         value_span: None,
                         trailing_comment: None,

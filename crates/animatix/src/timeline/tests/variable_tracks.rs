@@ -75,7 +75,13 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
                 ty: "Ellipse".to_string(),
                 props: vec![
                     Property {
-                        name: "radius".to_string(),
+                        name: "radius_x".to_string(),
+                        value: Expr::Num(10.0),
+                        value_span: None,
+                        trailing_comment: None,
+                    },
+                    Property {
+                        name: "radius_y".to_string(),
                         value: Expr::Num(10.0),
                         value_span: None,
                         trailing_comment: None,

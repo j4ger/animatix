@@ -255,3 +255,52 @@ fn conflicting_at_and_anchor_warning() {
         report.diagnostics
     );
 }
+
+/// A Text whose content has a character the shaping path cannot cover warns
+/// `missing-glyph` at build time instead of drawing tofu in silence. U+2065
+/// is permanently unassigned and sits inside the fast path's Latin gate
+/// (0x2000–0x206F), so no font can ever map it and the warning is
+/// machine-independent.
+#[test]
+fn missing_glyph_warning_fires_for_unassignable_codepoints() {
+    let source = format!(
+        r#"
+config {{ resolution: (320, 180) }}
+t: Text, text: "a{}b", at: (160, 90)
+"#,
+        '\u{2065}'
+    );
+    let (ast, errors) = animatix_syntax::parser::parse_source(&source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::MissingGlyph),
+        "expected a missing-glyph warning, got: {:?}",
+        report.diagnostics
+    );
+}
+
+/// A declaration property no build path consumes (the classic `colour:` typo)
+/// warns at build time instead of dropping in silence. Registry-named
+/// properties stay silent — the corpus has none of these warnings.
+#[test]
+fn unknown_declaration_property_warns() {
+    let source = r#"
+config { resolution: (320, 180) }
+r: Rect, size: (100, 80), colour: (1, 0, 0, 1), at: (160, 90)
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let warned = report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == crate::diagnostics::DiagnosticCode::UnknownProperty)
+        .expect("expected an unknown-property warning for 'colour'");
+    assert!(warned.message.contains("colour"), "warning names the property: {warned:?}");
+}

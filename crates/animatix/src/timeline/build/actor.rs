@@ -204,6 +204,53 @@ impl Timeline {
         );
     }
 
+    /// Warn about declaration properties no build path consumes.
+    ///
+    /// A name is known when the property registry binds it, the actor type's
+    /// primitive declares it, or an extension registry declares it for the
+    /// type; everything else is dropped silently by every consumer, which is
+    /// how a typo'd property (`colour:`) ships as a scene that "works" without
+    /// the value. The known sets are the single-source tables, so this warning
+    /// cannot drift from what the build actually reads.
+    pub(crate) fn warn_unknown_declaration_properties(
+        &self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let declared = self
+            .primitive_registry
+            .find(ty)
+            .map(|primitive| primitive.declared_property_names());
+        for prop in props {
+            if crate::timeline::property_registry::lookup_property(&prop.name).is_some()
+                || declared
+                    .as_ref()
+                    .is_some_and(|names| names.iter().any(|name| *name == prop.name))
+                || self
+                    .extensions
+                    .as_ref()
+                    .is_some_and(|registry| registry.property_spec(ty, &prop.name).is_some())
+            {
+                continue;
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::UnknownProperty,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Actor '{label}' ({ty}) declares '{}' which no build path consumes; \
+                         the property is dropped. Check the spelling against the property \
+                         registry or the primitive's declared properties.",
+                        prop.name
+                    ),
+                )
+                .with_subject(format!("{label}.{}", prop.name)),
+            );
+        }
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn process_actor_decl(
         &mut self,
@@ -284,6 +331,7 @@ impl Timeline {
                     time_ms,
                     diagnostics,
                 );
+                self.warn_unknown_declaration_properties(label, ty, props, diagnostics);
                 let mut ctx = crate::primitives::BuildCtx {
                     timeline: self,
                     time_ms,
@@ -575,6 +623,8 @@ impl Timeline {
                 _ => {},
             }
         }
+
+        self.warn_unknown_declaration_properties(label, ty, props, diagnostics);
 
         let legend_color = if has_explicit_color {
             Some(color)

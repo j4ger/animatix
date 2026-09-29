@@ -101,6 +101,7 @@ impl Timeline {
             label.map(str::to_string).unwrap_or_else(|| kind.unnamed_label().to_string());
         let eval_env = self.build_eval_env(time_ms as u64);
         self.add_node(label_str.clone(), parent_label);
+        self.warn_unknown_declaration_properties(&label_str, kind.type_name(), props, diagnostics);
         let had_text_paths = self
             .tracks
             .get(&label_str)
@@ -495,6 +496,42 @@ impl Timeline {
             false,
             self.font_context.as_ref(),
         )?;
+
+        // Glyph-coverage probe: the render path, not this precompile, decides
+        // whether the fast path shapes the text (hence the compiler's
+        // `text_fast_path` flag here, not the declaration's `false` above).
+        // Warn when its face set cannot cover the content so tofu is
+        // diagnosed at build time instead of drawn in silence.
+        let missing_glyphs = crate::renderer::text::missing_text_glyphs(
+            text_kind,
+            &text_content,
+            &font_family,
+            font_weight,
+            &font_style,
+            self.text_compiler.borrow().text_fast_path,
+            self.font_context.as_ref(),
+        );
+        if !missing_glyphs.is_empty() {
+            let listed = missing_glyphs
+                .iter()
+                .map(|c| format!("{c} (U+{:04X})", *c as u32))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let subject = label.unwrap_or(kind.unnamed_label());
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::MissingGlyph,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Text '{subject}' has no glyph for {listed} in the fast-path face set; \
+                         they will be skipped or drawn as boxes. Use characters the font \
+                         covers, or register a font that has them."
+                    ),
+                )
+                .with_subject(subject),
+            );
+        }
+
         let new_paths = compiled.paths.to_vec();
         let new_half_size = compiled.half_size;
 

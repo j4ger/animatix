@@ -134,6 +134,10 @@ impl Timeline {
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.tracks.contains_key(label);
 
+        // Before the track borrow: purely a name-level check, so placement
+        // ahead of the mutation below is purely for the borrow checker.
+        self.warn_unknown_declaration_properties(label, actor_type, props, diagnostics);
+
         let track = self
             .tracks
             .entry(label.to_string())
@@ -374,6 +378,7 @@ impl Timeline {
         };
 
         std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&source, label);
+        self.warn_unknown_declaration_properties(label, "Audio", props, diagnostics);
         self.audio_segments.push(AudioSegment {
             source,
             start_time_s,
