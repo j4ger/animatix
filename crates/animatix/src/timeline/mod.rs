@@ -1321,10 +1321,8 @@ impl Timeline {
                 match stmt {
                     Stmt::Assignment {
                         target, property, ..
-                    } => {
-                        if target.is_empty() {
-                            out.insert(property.clone());
-                        }
+                    } if target.is_empty() => {
+                        out.insert(property.clone());
                     },
                     Stmt::LetDecl { name, .. } => {
                         out.insert(name.clone());
