@@ -40,7 +40,13 @@ pub struct OffscreenRenderer {
     view_b: Option<wgpu::TextureView>,
     compositor: Option<TransitionCompositor>,
     /// Cached GPU filter backend — recreated only when dimensions change.
+    /// Serves the single-scene path and a transition's outgoing scene; the
+    /// incoming scene gets [`Self::filter_backend_b`] so the two evaluations
+    /// cannot stomp each other's pass state.
     filter_backend: Option<GpuFilterBackend>,
+    /// Second backend for a transition's incoming scene. Lazily created like
+    /// [`Self::filter_backend`]; both reset together on a dimension change.
+    filter_backend_b: Option<GpuFilterBackend>,
     filter_backend_dimensions: Option<SceneDimensions>,
     dimensions: SceneDimensions,
     bytes_per_row: u32,
@@ -113,6 +119,7 @@ impl OffscreenRenderer {
             view_b: None,
             compositor: None,
             filter_backend: None,
+            filter_backend_b: None,
             filter_backend_dimensions: None,
             dimensions: SceneDimensions {
                 width: 0,
@@ -275,8 +282,12 @@ impl OffscreenRenderer {
         self.ensure_targets(dimensions);
 
         // Evaluate timeline with filter backend support.
-        // Reuse cached backend if dimensions match, otherwise recreate.
+        // Reuse cached backend if dimensions match, otherwise recreate. The
+        // transition path's second backend shares this dimension key, so a
+        // resize drops both and each is lazily rebuilt where it is used.
         if self.filter_backend_dimensions != Some(dimensions) {
+            self.filter_backend = None;
+            self.filter_backend_b = None;
             self.filter_backend =
                 Some(GpuFilterBackend::new(self.device.clone(), self.queue.clone(), dimensions)?);
             self.filter_backend_dimensions = Some(dimensions);
@@ -364,20 +375,27 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        let mut fb = None;
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
-        let view_a = self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
-
-        self.core
-            .render_vello_scene(
-                &self.device,
-                &self.queue,
+        {
+            let Self {
+                core,
+                device,
+                queue,
+                filter_backend,
                 view_a,
-                dimensions.width,
-                dimensions.height,
-                &scene,
-            )
-            .map_err(|e| e.to_string())?;
+                ..
+            } = self;
+            render_timeline_into_view(
+                core,
+                device,
+                queue,
+                timeline,
+                time_s,
+                dimensions,
+                debug_options,
+                filter_backend,
+                view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
+            )?;
+        }
 
         self.texture_a.as_ref().ok_or_else(|| "Missing offscreen texture_a".to_string())
     }
@@ -397,20 +415,27 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
-        let mut fb = None;
-        let scene = timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
-        let view_b = self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
-
-        self.core
-            .render_vello_scene(
-                &self.device,
-                &self.queue,
+        {
+            let Self {
+                core,
+                device,
+                queue,
+                filter_backend_b,
                 view_b,
-                dimensions.width,
-                dimensions.height,
-                &scene,
-            )
-            .map_err(|e| e.to_string())?;
+                ..
+            } = self;
+            render_timeline_into_view(
+                core,
+                device,
+                queue,
+                timeline,
+                time_s,
+                dimensions,
+                debug_options,
+                filter_backend_b,
+                view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
+            )?;
+        }
 
         self.texture_b.as_ref().ok_or_else(|| "Missing offscreen texture_b".to_string())
     }
@@ -465,6 +490,14 @@ impl OffscreenRenderer {
 
         self.ensure_targets(dimensions);
 
+        // The two scenes share one dimension key: a resize drops both backends
+        // and each is lazily rebuilt in `render_timeline_into_view`.
+        if self.filter_backend_dimensions != Some(dimensions) {
+            self.filter_backend = None;
+            self.filter_backend_b = None;
+            self.filter_backend_dimensions = Some(dimensions);
+        }
+
         // Lazy-init compositor
         if self.compositor.is_none() {
             self.compositor =
@@ -473,43 +506,55 @@ impl OffscreenRenderer {
         let compositor =
             self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
 
-        // Render from scene to texture_a, then drop scene_a before creating scene_b
-        // to avoid holding both large vello::Scene objects simultaneously.
+        // Render the outgoing scene to texture_a, then drop scene_a before
+        // creating scene_b to avoid holding both large vello::Scene objects
+        // simultaneously. Each scene keeps its own filter backend, so a
+        // `Filter` scope shows up in the transition frame exactly as it does
+        // in the single-scene path (its pending composites are blitted onto
+        // the scene's own texture before the blend reads it).
         {
-            let mut fb = None;
-            let scene_a =
-                from_timeline.evaluate_with_debug(from_time, dimensions, debug_options, &mut fb);
-            let view_a =
-                self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
-            self.core
-                .render_vello_scene(
-                    &self.device,
-                    &self.queue,
-                    view_a,
-                    dimensions.width,
-                    dimensions.height,
-                    &scene_a,
-                )
-                .map_err(|e| e.to_string())?;
+            let Self {
+                core,
+                device,
+                queue,
+                filter_backend,
+                view_a,
+                ..
+            } = self;
+            render_timeline_into_view(
+                core,
+                device,
+                queue,
+                from_timeline,
+                from_time,
+                dimensions,
+                debug_options,
+                filter_backend,
+                view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
+            )?;
         }
 
         // Render to scene to texture_b
         {
-            let mut fb = None;
-            let scene_b =
-                to_timeline.evaluate_with_debug(to_time, dimensions, debug_options, &mut fb);
-            let view_b =
-                self.view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?;
-            self.core
-                .render_vello_scene(
-                    &self.device,
-                    &self.queue,
-                    view_b,
-                    dimensions.width,
-                    dimensions.height,
-                    &scene_b,
-                )
-                .map_err(|e| e.to_string())?;
+            let Self {
+                core,
+                device,
+                queue,
+                filter_backend_b,
+                view_b,
+                ..
+            } = self;
+            render_timeline_into_view(
+                core,
+                device,
+                queue,
+                to_timeline,
+                to_time,
+                dimensions,
+                debug_options,
+                filter_backend_b,
+                view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
+            )?;
         }
 
         // Composite to output_texture
@@ -760,6 +805,54 @@ impl OffscreenRenderer {
         self.texture_b = Some(texture_b);
         self.view_b = Some(view_b);
     }
+}
+
+/// Evaluate one frame of `timeline` with `backend` (lazily created) and draw
+/// the result — the encoded scene *plus* the scope's pending filter
+/// composites — into `view`.
+///
+/// This is the per-target tail of the single-scene path
+/// (`render_to_output_texture_inner`), shared with the transition path so
+/// both scenes of a blend keep their `Filter` scopes. Free-standing so a
+/// call site can borrow the core and one backend slot off `self` disjointly.
+#[allow(clippy::too_many_arguments)]
+fn render_timeline_into_view(
+    core: &mut RendererCore,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    timeline: &Timeline,
+    time_s: f64,
+    dimensions: SceneDimensions,
+    debug_options: DebugRenderOptions,
+    backend: &mut Option<GpuFilterBackend>,
+    view: &wgpu::TextureView,
+) -> Result<(), String> {
+    if backend.is_none() {
+        *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
+    }
+    let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
+        backend.as_mut().map(|b| b as _);
+    let scene = timeline
+        .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
+        .scene;
+
+    core.render_vello_scene(device, queue, view, dimensions.width, dimensions.height, &scene)
+        .map_err(|e| e.to_string())?;
+
+    let pending = backend.as_mut().map(|fb| fb.take_pending_composites()).unwrap_or_default();
+    for composite in pending {
+        let size = composite.texture.size();
+        core.blit_texture_rect(
+            device,
+            queue,
+            &composite.view,
+            view,
+            composite.origin,
+            [size.width, size.height],
+            composite.alpha,
+        );
+    }
+    Ok(())
 }
 
 #[cfg(test)]

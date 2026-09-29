@@ -325,3 +325,96 @@ fn transition_midframe_blends_both_scenes() {
         );
     }
 }
+
+/// A transition frame at progress 0 must equal the single-scene render of the
+/// outgoing scene *including its GPU filter scopes*. The transition path used
+/// to evaluate both scenes with `filter_backend = None`, so a scene whose
+/// content sat inside a `Filter` scope lost its effects in every exported
+/// transition frame while the preview kept them.
+#[test]
+fn transition_frames_keep_gpu_filter_scopes() {
+    use animatix::easing::Easing;
+
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+
+    // Outgoing scene: a bright rect inside a Blur scope over a dark backdrop —
+    // the blur visibly softens and spreads the rect, so its absence moves the
+    // frame average well beyond rounding noise.
+    let build = |source: &str| {
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let report =
+            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        report.output
+    };
+    let filtered = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (64, 64) }
+#0s
+backdrop: Rect, at: (32, 32), size: (200, 200), color: (0.06, 0.07, 0.1, 1)
+panel: Filter {
+  soft: Blur, radius: 6
+  box: Rect, size: (36, 36), color: (0.95, 0.3, 0.25, 1)
+}
+fade-in panel [100ms]
+"#,
+    );
+    let plain = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (64, 64) }
+#0s
+backdrop: Rect, at: (32, 32), size: (200, 200), color: (0.2, 0.3, 0.5, 1)
+"#,
+    );
+
+    let average = |frame: &animatix_render::offscreen::RenderedFrame| -> [f32; 3] {
+        let pixels = frame.rgba.len() / 4;
+        let mut sum = [0f64; 3];
+        for px in frame.rgba.chunks_exact(4) {
+            sum[0] += px[0] as f64;
+            sum[1] += px[1] as f64;
+            sum[2] += px[2] as f64;
+        }
+        [
+            (sum[0] / pixels as f64) as f32,
+            (sum[1] / pixels as f64) as f32,
+            (sum[2] / pixels as f64) as f32,
+        ]
+    };
+
+    let debug = DebugRenderOptions::default();
+    // Sample after the fixture's own fade-in so the scope is fully applied.
+    let direct = renderer
+        .render_timeline_with_debug(&filtered, 0.5, dims, debug)
+        .expect("single-scene frame");
+    let progress0 = renderer
+        .render_transition(
+            &filtered,
+            0.5,
+            &plain,
+            0.5,
+            0.0,
+            "fade".to_string(),
+            Easing::Linear,
+            dims,
+            debug,
+        )
+        .expect("progress 0 frame");
+
+    let direct_avg = average(&direct);
+    let progress0_avg = average(&progress0);
+    for channel in 0..3 {
+        assert!(
+            (direct_avg[channel] - progress0_avg[channel]).abs() < 1.0,
+            "channel {channel}: the progress-0 transition frame {progress0_avg:?} must match the \
+             single-scene render {direct_avg:?} (filter scopes dropped on the transition path?)"
+        );
+    }
+}

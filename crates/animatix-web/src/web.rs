@@ -866,7 +866,25 @@ fn render_timeline(
     let mut fb: Option<&mut dyn FilterBackend> = filter_backend.as_mut().map(|b| b as _);
     let scene = timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
     core.render_vello_scene(device, queue, view, dims.width, dims.height, &scene)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let pending = filter_backend
+        .as_mut()
+        .map(|fb| fb.take_pending_composites())
+        .unwrap_or_default();
+    for composite in pending {
+        let size = composite.texture.size();
+        core.blit_texture_rect(
+            device,
+            queue,
+            &composite.view,
+            view,
+            composite.origin,
+            [size.width, size.height],
+            composite.alpha,
+        );
+    }
+    Ok(())
 }
 
 /// Per-pixel-sample statistics over a mapped readback buffer, as JSON.
