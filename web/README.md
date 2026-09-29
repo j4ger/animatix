@@ -134,11 +134,15 @@ The default build carries the full feature set (Typst rich text, raster
 decoding, SVG). A playback-only profile compiles those out — Text falls back
 to the plain fast path (no markup/Code highlighting/Math, non-Latin scripts
 need a system font), image/SVG assets report diagnostics, and the wasm drops
-from **29.8 MB to 5.5 MB raw / 7.8 MB to 1.3 MB brotli**:
+from **29.8 MB to 4.7 MB raw / 7.8 MB to 1.1 MB brotli**:
 
 ```bash
 scripts/build-web.sh --slim     # emits web/pkg-slim/
 ```
+
+(The bundled bold/italic faces and Fira Math are rich-text-only — the plain
+fast path always uses a family's first face — so slim carries Open Sans
+Regular alone.)
 
 This is the profile for motion-graphics embeds that use plain text only;
 explainers with equations or styled text need the full build. Feature flags

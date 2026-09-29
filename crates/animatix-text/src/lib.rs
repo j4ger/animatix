@@ -558,18 +558,34 @@ static BUNDLED_FONTS: &[BundledFont] = &[
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
     },
+    // Only reachable through the Typst world (markup emphasis / math): the
+    // plain fast path always picks the first face of a family, so slim builds
+    // carry Regular alone.
+    #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Bold.ttf"),
     },
+    // Only reachable through the Typst world (markup emphasis / math): the
+    // plain fast path always picks the first face of a family, so slim builds
+    // carry Regular alone.
+    #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Italic.ttf"),
     },
+    // Only reachable through the Typst world (markup emphasis / math): the
+    // plain fast path always picks the first face of a family, so slim builds
+    // carry Regular alone.
+    #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-BoldItalic.ttf"),
     },
+    // Only reachable through the Typst world (markup emphasis / math): the
+    // plain fast path always picks the first face of a family, so slim builds
+    // carry Regular alone.
+    #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Fira Math",
         data: include_bytes!("../assets/fonts/FiraMath-Regular.otf"),
