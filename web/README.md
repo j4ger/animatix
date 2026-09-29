@@ -12,7 +12,8 @@ the web side only plays back and embeds.
 ```
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
 web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
-web/index.html               player landing page (three embeds)
+web/demo.css                 shared stylesheet for both pages
+web/index.html               player gallery — all six scenes as embeds
 web/demos/transformer/       "The Transformer Architecture, Animated" — six scenes + article page
 web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
 web/pkg/, web/pkg-slim/      build output (gitignored)
@@ -22,12 +23,21 @@ scripts/serve-web.py         local static server with brotli negotiation
 
 ## Run it
 
+The demo pages serve the playback-only profile, so build **both** or just slim:
+
 ```bash
-scripts/build-web.sh                 # full profile  (~29.8 MB raw / 7.8 MB brotli)
 scripts/build-web.sh --slim          # playback-only (~4.7 MB raw / 1.1 MB brotli)
+scripts/build-web.sh                 # full profile  (~29.8 MB raw / 7.8 MB brotli)
 python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
+
+The six demo scenes use plain text only, so `web/index.html` and the transformer
+walkthrough point `data-runtime-base` at `pkg-slim` — 1.1 MB over the wire
+instead of 7.8 MB. The full profile is for scenes that need Typst markup,
+equations or image/SVG assets. If the configured profile is missing the
+component falls back to `pkg` beside itself rather than showing an empty figure,
+so a full-only build still works.
 
 Deploying is the same story: run the build script, copy `web/` (plus the
 `pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
@@ -36,10 +46,11 @@ Deploying is the same story: run the build script, copy `web/` (plus the
 ## Embedding scenes in any page (`<amx-player>`)
 
 ```html
-<script type="module" src="https://your-host/amx-player.js"></script>
+<script type="module" src="https://your-host/amx-player.js"
+        data-runtime-base="./pkg-slim"></script>
 
 <amx-player src="./figures/attention.amx" autoplay loop controls
-            title="Scaled dot-product attention" aspect="16:9"></amx-player>
+            title="Scaled dot-product attention" aspect="16:9" hold="1.5"></amx-player>
 ```
 
 Behavior:
@@ -48,22 +59,65 @@ Behavior:
   (IntersectionObserver, 200px margin); the whole page shares one engine
   download and one WebGPU device, no matter how many embeds.
 - **No build-time poster** — the skeleton (aspect-ratio placeholder with a
-  shimmer) is replaced by the scene's own first frame; from there the embed
-  looks like an animated figure.
+  shimmer) is replaced by the scene's *finished* frame, not its first one.
+  These scenes build up from an empty stage, so frame 0 is a blank box: a
+  reader who never presses play, or who asked for reduced motion, would have
+  nothing to look at.
 - **Autoplay** — plays on visibility unless `prefers-reduced-motion` or
   `navigator.connection.saveData` says otherwise; offscreen instances pause
   automatically; without `autoplay` (or in those quiet modes) the embed stops
-  on its first frame with a play button.
+  on that finished frame with a play button.
 - **Attributes**: `src` (required), `autoplay`, `loop`, `controls` (hover
-  play/scrub bar), `title` (a11y label, shown while loading), `aspect`
-  (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene afterwards),
-  `data-runtime-base` (where the engine bundle lives; defaults to next to the
-  script — same-host deployment needs no configuration).
+  play/scrub bar), `hold` (seconds, default 0.7), `title` (a11y label, shown
+  while loading), `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the
+  scene afterwards).
+- **`data-runtime-base`** goes on the `<script>` tag, not the element: it names
+  the directory holding `animatix_web.js` (+ its wasm), absolute or relative to
+  the page. The engine is a page-level singleton, so it is a per-page choice.
+  Default: the `pkg` directory beside this component's parent.
+
+### Looping
+
+A scene's timeline ends at its **last keyframe** — `Timeline::duration_seconds`
+takes the maximum keyframe time, and `config { duration: N }` is only read on
+the multi-scene composition path, so it does not extend a single-scene file.
+Every scene in this repo therefore ends with its composition at full density,
+and a naive wrap would cut from the finished diagram straight back to an empty
+stage. Measured on the old demos, the wrap dropped the frame from 89 to 13
+distinct colours (positional: 159 to 1).
+
+So a looping embed plays `duration + hold`: the finished frame rests at full
+opacity for `hold` seconds, then dissolves out over the last ~0.28 s and the
+build-up fades back in. Set `hold="0"` for an unadorned loop.
+
+### Authoring notes that bit these scenes
+
+- **`fade-in` drives opacity to 1.0, discarding an authored `opacity`.** Measured
+  on a one-rect scene at `opacity: 0.25`: no animation and `fade-in` both read
+  back an average of (48, 96, 126); `wipe-in` reads back (19, 35, 48). Use
+  `wipe-in`/`draw-in` for any actor whose opacity *is* its value — the old
+  `halo` (0.22), `expand`/`project` (0.75/0.4) and `layerN` (0.6) were all
+  flattened to 1.0 without a diagnostic.
+- **Paint order is by actor kind, not declaration order.** `Line`, `Arrow` and
+  `Path` paint above `Rect` whichever order they are declared in, so an arrow
+  cannot be hidden behind a shape. Route links around shapes instead.
+- **A `Path` fills with `color` by default** and only strokes when given a
+  `stroke` plus `fill_opacity: 0.0`. Without that an open arc renders as a
+  filled lens with a white outline.
+- **An actor declared before the first keyframe is hidden until an entrance
+  action reveals it** (there is a `never-revealed` warning for this), and
+  `Text` uses one face — `font_weight: "bold"` is inert on the plain path.
+- The fast-path face has no glyph for `⋮` (U+22EE), `ᵀ` (U+1D40) or `ₖ`
+  (U+2096); they render as tofu with no diagnostic. Draw dots instead, and write
+  formulas in ASCII.
 
 Hosting requirements for the runtime host: serve `.wasm` as
 `application/wasm`, and prefer precompressed `.br` twins (the build script
 emits them; any CDN negotiates brotli transparently). The `.amx` files may
-live anywhere CORS permits. Rebuild the component after edits:
+live anywhere CORS permits. `serve-web.py` sends `no-cache` for pages,
+stylesheets and `.amx` sources (so editing a scene and reloading actually shows
+the edit) and a short `max-age` for the generated engine artifacts. Rebuild the
+component after edits:
 
 ```bash
 cd web/tools && npm install && npm run build:embed
