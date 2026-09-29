@@ -14,6 +14,7 @@
 | [`unified_extension_design.md`](unified_extension_design.md) | Contributors | Single descriptor/registry target and phased migration |
 | [`extension_authoring.md`](extension_authoring.md) | Contributors | How to register primitives, actions, functions, services, and plugins |
 | [`ai_agent_animation_quality.md`](ai_agent_animation_quality.md) | Contributors | AI agent review/evaluation architecture and bring-up plan |
+| [`../web/README.md`](../web/README.md) | Users | Browser demo: editor/player shell, `<amx-player>` embed component, slim playback build |
 | [`../dogfood/README.md`](../dogfood/README.md) | Both | In-progress real-content projects and grammar probes |
 | [`gui_design_language.md`](gui_design_language.md) | Contributors | GUI visual design language, token system, component taxonomy, interaction model |
 
