@@ -37,3 +37,26 @@ pub fn load_image(path: &str) -> Result<SceneImage, String> {
 pub fn load_image_file(path: &str) -> Result<SceneImage, String> {
     load_image(path)
 }
+
+/// Decode an image from in-memory bytes into a `SceneImage` (the web player
+/// fetches the encoded bytes and hands them over).
+#[cfg(feature = "image-decode")]
+pub fn load_image_from_bytes(bytes: &[u8]) -> Result<SceneImage, String> {
+    let image = image::load_from_memory(bytes).map_err(|error| error.to_string())?;
+    let (width, height) = image.dimensions();
+    let rgba = image.to_rgba8();
+    let raw = rgba.into_raw();
+
+    let data = vello::peniko::ImageData {
+        data: raw.into(),
+        format: vello::peniko::ImageFormat::Rgba8,
+        alpha_type: vello::peniko::ImageAlphaType::Alpha,
+        width,
+        height,
+    };
+
+    Ok(SceneImage {
+        data,
+        natural_size: [width as f32, height as f32],
+    })
+}

@@ -127,6 +127,27 @@ impl AssetCache {
         }
     }
 
+    /// Pre-register an SVG source for `url` so a later `load_svg_for(url)` hits
+    /// the cache instead of the filesystem. An embedder that already holds the
+    /// bytes (the web player fetches them) hands them over here and the build
+    /// stays synchronous.
+    #[cfg(feature = "svg")]
+    pub fn insert_svg_source(&mut self, url: &str, source: &str) -> Result<(), String> {
+        let key = self.normalize_asset_url(url);
+        let paths = crate::timeline::svg::parse_svg(source)?;
+        self.svg_paths.insert(key, paths);
+        Ok(())
+    }
+
+    /// Pre-register decoded image bytes for `url`.
+    #[cfg(feature = "image-decode")]
+    pub fn insert_image_bytes(&mut self, url: &str, bytes: &[u8]) -> Result<(), String> {
+        let key = self.normalize_asset_url(url);
+        let image = crate::timeline::image::load_image_from_bytes(bytes)?;
+        self.images.insert(key, image);
+        Ok(())
+    }
+
     /// Record that an actor uses an asset without caching its decoded payload.
     ///
     /// Audio is kept out of the visual cache because the GUI decodes it through
@@ -172,10 +193,16 @@ impl AssetCache {
     ///
     /// Usage entries are dropped with the payload, so a later `load_*_for` call
     /// reloads the file and re-records the actor reference.
+    ///
+    /// Entries without a metadata record were supplied programmatically
+    /// (`insert_svg_source` / `insert_image_bytes`), not read from a file —
+    /// there is no file to go stale, so they are kept. Treating a missing
+    /// record as "changed" would drop them on every build, making a
+    /// pre-seeded cache useless.
     pub fn invalidate_changed_assets(&mut self) {
         let mut changed: Vec<String> = Vec::new();
         for path in self.svg_paths.keys().chain(self.images.keys()) {
-            if !self.file_metadata_matches(path) {
+            if self.metadata.contains_key(path) && !self.file_metadata_matches(path) {
                 changed.push(path.clone());
             }
         }

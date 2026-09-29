@@ -348,6 +348,21 @@ impl FontContext {
 
     /// Load a `ttf_parser::Face` for the given family, weight and style.
     /// Returns `None` if the font cannot be found or is not a TrueType/OpenType font.
+    /// Register an in-memory font so `font_family` can name it.
+    ///
+    /// The shared database is immutable after init, so this builds a private
+    /// copy containing `bytes`, swaps it in, and bumps the font epoch to
+    /// invalidate memoized text compiles. The family comes from the font's own
+    /// name table — write `font_family` to match it. Both text paths pick the
+    /// face up automatically: the fast path resolves it through fontdb, and the
+    /// Typst path loads its emphasis faces and uses it for glyph fallback.
+    pub fn load_font_bytes(&mut self, bytes: Vec<u8>) {
+        let mut db = (*self.db).clone();
+        db.load_font_data(bytes);
+        self.db = std::sync::Arc::new(db);
+        self.epoch = advance_font_env_epoch();
+    }
+
     pub fn load_face(
         &self,
         family: &str,
@@ -2818,6 +2833,27 @@ impl TextCompiler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `load_font_bytes` must grow the database: the embed's `add_font` path
+    /// depends on it (the web sandbox has no system fonts, so a runtime font is
+    /// the only way to extend coverage). Both text paths resolve families
+    /// through this database.
+    #[test]
+    fn load_font_bytes_grows_the_database() {
+        let mut ctx = FontContext::new();
+        let before = ctx.db.faces().count();
+
+        ctx.load_font_bytes(BUNDLED_FONTS[0].data.to_vec());
+        assert_eq!(
+            ctx.db.faces().count(),
+            before + 1,
+            "the registered face must land in the database"
+        );
+        assert!(
+            ctx.load_face("Open Sans", 400.0, "normal").is_some(),
+            "the re-registered bundled family must stay resolvable"
+        );
+    }
 
     /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
     fn test_font_ctx() -> FontContext {
