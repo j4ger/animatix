@@ -209,6 +209,12 @@ impl AssetCache {
         }
     }
 
+    // Only the `svg` and `image-decode` loaders record freshness metadata, so a
+    // build with neither reaches for it never. The reader (`file_metadata_matches`)
+    // stays compiled either way on purpose: with no records it conservatively
+    // invalidates every asset, which is the right answer for a profile that never
+    // records them rather than silently trusting stale copies.
+    #[cfg_attr(not(any(feature = "svg", feature = "image-decode")), allow(dead_code))]
     fn record_file_metadata(&mut self, path: &str) {
         if let Ok(metadata) = std::fs::metadata(path) {
             self.metadata.insert(

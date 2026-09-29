@@ -8,6 +8,9 @@
 
 use kurbo::{Affine, BezPath, Point, Shape};
 use std::collections::HashMap;
+// Only the rich-text fallback-font path shares face data as `Arc<[u8]>`; the
+// plain fast path qualifies `std::sync::Arc` at its (always-compiled) uses.
+#[cfg(feature = "rich-text")]
 use std::sync::Arc;
 
 use animatix_core::error::RenderError;
@@ -375,6 +378,7 @@ impl FontContext {
 /// Scan order mirrors [`FontContext::font_for_glyphs`]: normal weight and
 /// style, non-monospaced faces first. `None` caches a known-uncovered char so
 /// repeated compiles skip the scan.
+#[cfg(feature = "rich-text")]
 fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::ID>>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<char, Option<fontdb::ID>>>> =
         std::sync::OnceLock::new();
@@ -382,8 +386,10 @@ fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::I
 }
 
 /// Shared face data keyed by fontdb face id.
+#[cfg(feature = "rich-text")]
 type FaceData = Option<Arc<[u8]>>;
 /// Process-wide cache: fontdb face id → shared face data.
+#[cfg(feature = "rich-text")]
 fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, FaceData>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, FaceData>>> =
         std::sync::OnceLock::new();
@@ -418,6 +424,7 @@ fn leaked_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<&'static [
 }
 
 /// Shared copy of a system face's bytes (loaded once per process).
+#[cfg(feature = "rich-text")]
 fn cached_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<Arc<[u8]>> {
     let mut cache = face_data_cache().lock().unwrap();
     if let Some(data) = cache.get(&id) {
@@ -429,6 +436,7 @@ fn cached_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<Arc<[u8]>>
 }
 
 /// Whether a parsed face can render `ch`.
+#[cfg(feature = "rich-text")]
 fn face_covers_char(data: &[u8], index: u32, ch: char) -> bool {
     ttf_parser::Face::parse(data, index)
         .map(|face| face.glyph_index(ch).is_some())
@@ -437,6 +445,7 @@ fn face_covers_char(data: &[u8], index: u32, ch: char) -> bool {
 
 /// Find the first installed face covering `ch`, preferring normal weight and
 /// style, non-monospaced faces. Result is cached per character.
+#[cfg(feature = "rich-text")]
 fn probe_char_face(font_ctx: &FontContext, ch: char) -> Option<fontdb::ID> {
     if let Some(cached) = char_face_cache().lock().unwrap().get(&ch) {
         return *cached;
@@ -869,6 +878,7 @@ fn typst_page_preamble(
 }
 
 /// Build a Typst wrapping preamble string for max_width, text_align, and overflow.
+#[cfg(feature = "rich-text")]
 fn typst_wrapping_preamble(
     max_width: f32,
     text_align: &str,
@@ -1102,6 +1112,7 @@ pub fn compile_text(
 /// Typst's `raw` show rule renders code at `0.8em` of the surrounding text
 /// size. The span-based highlight path reproduces that scale so a `Code` actor
 /// is the same size whether or not `language` is set.
+#[cfg(feature = "rich-text")]
 const RAW_TEXT_EM_SCALE: f32 = 0.8;
 #[cfg(feature = "rich-text")]
 /// A plain (un-highlighted) Typst raw block: four backticks so the code body is
@@ -2415,13 +2426,16 @@ pub fn compile_text_cached(
         return Ok(std::sync::Arc::clone(hit));
     }
 
+    // Slim playback profile: the Typst stack is compiled out, so every kind
+    // degrades to the plain fast path (Code loses syntax highlighting, Math
+    // renders its source literally, non-Latin scripts need a system font). The
+    // per-kind probes below only exist in the rich-text build, so the slim build
+    // binds the constant instead of computing it and discarding the result.
+    #[cfg(feature = "rich-text")]
     let use_fast_path = allow_fast_path
         && kind == TextKind::Text
         && is_plain_text(content)
         && is_latin_text(content);
-    // Slim playback profile: the Typst stack is compiled out, so every kind
-    // degrades to the plain fast path (Code loses syntax highlighting, Math
-    // renders its source literally, non-Latin scripts need a system font).
     #[cfg(not(feature = "rich-text"))]
     let use_fast_path = true;
     let compiled: CompiledText = if use_fast_path {
