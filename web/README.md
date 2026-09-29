@@ -69,6 +69,50 @@ Layering mirrors the desktop app:
 - Native plugins don't exist on this platform; `libloading`-based extensions
   are desktop-only.
 
+## Embedding scenes in any page (`<amx-player>`)
+
+The editor/player demo above is one consumer of `web/embed/amx-player.js`, a
+dependency-free web component. Any page — a blog post, docs site, whatever —
+can embed a `.amx` file like an image:
+
+```html
+<script type="module" src="https://your-host/amx-player.js"></script>
+
+<amx-player src="./figures/attention.amx" autoplay loop controls
+            title="Scaled dot-product attention" aspect="16:9"></amx-player>
+```
+
+Behavior:
+
+- **Lazy** — nothing is fetched until the element nears the viewport
+  (IntersectionObserver, 200px margin); the whole page shares one engine
+  download and one WebGPU device, no matter how many embeds.
+- **No build-time poster** — the skeleton (aspect-ratio placeholder with a
+  shimmer) is replaced by the scene's own first frame; from there the embed
+  looks like an animated figure.
+- **Autoplay** — plays on visibility unless `prefers-reduced-motion` or
+  `navigator.connection.saveData` says otherwise; offscreen instances pause
+  automatically; without `autoplay` (or in those quiet modes) the embed stops
+  on its first frame with a play button.
+- **Attributes**: `src` (required), `autoplay`, `loop`, `controls` (hover
+  play/scrub bar), `title` (a11y label, shown while loading), `aspect`
+  (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene afterwards),
+  `data-runtime-base` (where the engine bundle lives; defaults to next to the
+  script — same-host deployment needs no configuration).
+
+Hosting requirements for the runtime host: serve `.wasm` as
+`application/wasm`, and prefer precompressed `.br` twins (the build script
+emits them; any CDN negotiates brotli transparently). The `.amx` files may
+live anywhere CORS permits. Rebuild the component after edits:
+
+```bash
+cd web/tools && npm run build:embed
+```
+
+A working example lives at `web/demos/transformer/` — "The Transformer
+Architecture, Animated", six self-contained scenes embedded in a static
+article page.
+
 ## Diagnostics & probes
 
 The shell and the wasm driver expose a few switches used during development
