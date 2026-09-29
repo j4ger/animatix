@@ -1,0 +1,85 @@
+// Feed-Forward & Residual — after attention mixes information across tokens,
+// each token thinks on its own; the residual stream carries context forward.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "5 · Feed-Forward & Residuals", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sub: Text, text: "attention mixes between tokens — the FFN transforms each token alone",
+  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+
+// The residual stream, a horizontal rail
+stream: Rect, size: (980, 8), color: text.muted, opacity: 0.5, at: (640, 300)
+stream_l: Text, text: "residual stream", font_size: 15, color: text.muted, at: (160, 335)
+
+// Attention block sits on the rail
+attn: Rect, size: (220, 90), corner_radius: 12, color: surface.primary, stroke: (0.35, 0.62, 0.95, 1.0), stroke_width: 2, at: (400, 300)
+attn_t: Text, text: "Attention", font_size: 20, color: text.primary, at: (400, 300)
+
+// FFN block: expand 4×, nonlinearity, project back
+ffn: Rect, size: (220, 90), corner_radius: 12, color: surface.primary, stroke: (0.42, 0.79, 0.55, 1.0), stroke_width: 2, at: (880, 300)
+ffn_t: Text, text: "FFN", font_size: 20, color: text.primary, at: (880, 300)
+
+// Inside the FFN: wide hidden layer visual
+expand: Rect, size: (150, 16), corner_radius: 6, color: accent.success, opacity: 0.75, at: (880, 240)
+expand_t: Text, text: "d → 4d", font_size: 13, color: text.secondary, at: (1020, 240)
+project: Rect, size: (150, 16), corner_radius: 6, color: accent.success, opacity: 0.4, at: (880, 360)
+project_t: Text, text: "4d → d", font_size: 13, color: text.secondary, at: (1020, 360)
+
+// LayerNorm gates before each block
+ln1: Rect, size: (56, 56), corner_radius: 28, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (275, 300)
+ln1_t: Text, text: "LN", font_size: 16, color: text.primary, at: (275, 300)
+ln2: Rect, size: (56, 56), corner_radius: 28, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (755, 300)
+ln2_t: Text, text: "LN", font_size: 16, color: text.primary, at: (755, 300)
+
+// Skip connections arcing over both blocks
+skip1: Path, commands: {
+  move_to(275, 255), quad_to(400, 205, 525, 255)
+}, color: text.muted, stroke_width: 2, opacity: 0.7
+skip2: Path, commands: {
+  move_to(755, 255), quad_to(880, 205, 1005, 255)
+}, color: text.muted, stroke_width: 2, opacity: 0.7
+skip_t: Text, text: "skip connections keep the original signal one hop away",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -55)
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [500ms, delay: 150ms]
+
+#1.0s
+draw-in stream [800ms, ease: ease-out]
+fade-in stream_l [400ms, delay: 300ms]
+
+#1.8s
+fade-in ln1 [400ms]
+fade-in ln1_t [300ms, delay: 120ms]
+
+#2.3s
+fade-in attn [450ms, ease: ease-out]
+fade-in attn_t [300ms, delay: 150ms]
+
+#3.0s
+draw-in skip1 [500ms, ease: ease-out]
+
+#3.6s
+fade-in ln2 [400ms]
+fade-in ln2_t [300ms, delay: 120ms]
+
+#4.1s
+fade-in ffn [450ms, ease: ease-out]
+fade-in ffn_t [300ms, delay: 150ms]
+
+#4.6s
+stagger [120ms] {
+  fade-in expand [300ms]
+  fade-in expand_t [300ms]
+  fade-in project [300ms]
+  fade-in project_t [300ms]
+}
+
+#5.3s
+draw-in skip2 [500ms, ease: ease-out]
+
+#6.0s
+fade-in skip_t [450ms]

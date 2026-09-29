@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Transformer Architecture, Animated — an .amx walkthrough</title>
+  <meta name="description" content="Six animated explanations of the transformer block, each one a tiny .amx scene file embedded with a single custom element.">
+  <style>
+    :root {
+      --bg: #0d1016; --raised: #131820; --border: #232b38;
+      --text: #dbe2ec; --dim: #8b96a7; --faint: #5b6575; --accent: #f5b942;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 96px; }
+    header.hero { padding: 40px 0 8px; }
+    .kicker { color: var(--accent); font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { font-size: 40px; line-height: 1.15; margin: 10px 0 12px; font-weight: 650; }
+    .lede { color: var(--dim); font-size: 18px; max-width: 640px; }
+    section { margin-top: 72px; }
+    h2 { font-size: 24px; font-weight: 600; margin: 0 0 6px; }
+    h2 .n { color: var(--accent); margin-right: 8px; }
+    p { color: var(--dim); max-width: 680px; margin: 8px 0 22px; }
+    amx-player { border: 1px solid var(--border); border-radius: 10px; }
+    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .pair amx-player { min-width: 0; }
+    @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+    footer {
+      margin-top: 96px; padding-top: 24px; border-top: 1px solid var(--border);
+      color: var(--faint); font-size: 13px;
+    }
+    footer code { color: var(--dim); }
+    code.inline { background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="kicker">Animatix demo · every figure is a .amx file</div>
+      <h1>The Transformer Architecture, Animated</h1>
+      <p class="lede">
+        Six short animations that build the transformer up piece by piece —
+        tokens, positional encoding, attention, multi-head attention, the
+        feed-forward block, and the full stack. Each one is a declarative
+        scene file embedded below with a single
+        <code class="inline">&lt;amx-player&nbsp;src="…"&gt;</code> element.
+        View source to see how little it takes.
+      </p>
+    </header>
+
+    <section>
+      <h2><span class="n">1</span>From text to tokens</h2>
+      <p>
+        A transformer never sees words. Text is split into tokens, and each
+        token is replaced by a learned vector — an embedding — that encodes
+        what it means. Everything downstream operates on these vectors.
+      </p>
+      <amx-player src="scenes/tokens.amx" autoplay loop aspect="16:9" title="Tokens and embeddings"></amx-player>
+    </section>
+
+    <section>
+      <h2><span class="n">2</span>Positional encoding</h2>
+      <p>
+        Attention has no built-in sense of order, so each position is stamped
+        with a fingerprint built from sine waves of growing wavelength. The
+        same word at a different position gets a different vector.
+      </p>
+      <amx-player src="scenes/positional.amx" autoplay loop aspect="16:9" title="Positional encoding waves"></amx-player>
+    </section>
+
+    <section>
+      <h2><span class="n">3</span>Self-attention</h2>
+      <p>
+        The core idea. Every token asks a question (the query), advertises
+        what it contains (the key), and offers its content (the value). Softmax
+        over the query–key scores decides how much each token pulls from every
+        other token.
+      </p>
+      <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9" title="Scaled dot-product attention"></amx-player>
+    </section>
+
+    <section>
+      <h2><span class="n">4</span>Multi-head attention</h2>
+      <p>
+        One attention pattern is rarely enough, so the model runs several in
+        parallel. Each head is free to specialize — grammar, references,
+        neighborhoods — and their outputs are concatenated and mixed.
+      </p>
+      <div class="pair">
+        <amx-player src="scenes/multihead.amx" autoplay loop aspect="16:9" title="Multiple heads"></amx-player>
+        <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9" title="Single head, again — one engine, two embeds"></amx-player>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="n">5</span>Feed-forward &amp; residuals</h2>
+      <p>
+        Attention moves information <em>between</em> tokens; the feed-forward
+        network then transforms each token on its own, widening 4× and
+        projecting back. Skip connections keep the original signal one hop
+        away, so depth adds refinement instead of forgetting.
+      </p>
+      <amx-player src="scenes/feedforward.amx" autoplay loop aspect="16:9" title="Feed-forward block with residuals"></amx-player>
+    </section>
+
+    <section>
+      <h2><span class="n">6</span>Stacking the blocks</h2>
+      <p>
+        One attention-plus-FFN block is a layer. Stack N of them, share the
+        weights within each layer, and tokens flow up the tower — arriving at
+        the top contextualized and ready for a language-modeling or task head.
+      </p>
+      <amx-player src="scenes/pipeline.amx" autoplay loop aspect="16:9" title="The full transformer stack"></amx-player>
+    </section>
+
+    <footer>
+      Built with <strong>Animatix</strong> — a layout-first animation DSL.
+      Each figure above is a self-contained <code>.amx</code> text file; this
+      whole page is static. Source and docs:
+      <code>web/demos/transformer/</code> in the animatix repository.
+    </footer>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+</body>
+</html>

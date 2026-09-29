@@ -1,0 +1,92 @@
+// Multi-Head Attention — several heads in parallel, each free to look
+// somewhere different; their views are concatenated and mixed.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "4 · Multi-Head Attention", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sub: Text, text: "h parallel views of the same sentence — one per relation",
+  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+
+// Head A: tracks the grammatical subject
+label_a: Text, text: "head 1 · who did what", font_size: 17, color: accent.primary, at: (240, 215)
+a_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (240, 280)
+a_tok_t: Text, text: "animal", font_size: 17, color: text.primary, at: (240, 280)
+a_link: Line, from: (240, 302), to: (240, 448), stroke_width: 4, color: accent.primary, opacity: 0.9
+a_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (240, 470)
+a_verb_t: Text, text: "cross", font_size: 17, color: text.primary, at: (240, 470)
+
+// Head B: tracks the object
+label_b: Text, text: "head 2 · did what to whom", font_size: 17, color: accent.success, at: (640, 215)
+b_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (640, 280)
+b_tok_t: Text, text: "cross", font_size: 17, color: text.primary, at: (640, 280)
+b_link: Line, from: (640, 302), to: (640, 448), stroke_width: 4, color: accent.success, opacity: 0.9
+b_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (640, 470)
+b_verb_t: Text, text: "street", font_size: 17, color: text.primary, at: (640, 470)
+
+// Head C: tracks position
+label_c: Text, text: "head 3 · neighbor", font_size: 17, color: accent.warning, at: (1040, 215)
+c_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (1040, 280)
+c_tok_t: Text, text: "it", font_size: 17, color: text.primary, at: (1040, 280)
+c_link: Line, from: (1040, 302), to: (1040, 448), stroke_width: 4, color: accent.warning, opacity: 0.9
+c_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (1040, 470)
+c_verb_t: Text, text: "cross", font_size: 17, color: text.primary, at: (1040, 470)
+
+// Concatenation arrow into a mixed vector
+concat_t: Text, text: "concat", font_size: 16, color: text.muted, at: (640, 545)
+mix: Rect, size: (520, 40), corner_radius: 10, color: surface.primary, at: (640, 600)
+mix_grad: Rect, size: (124, 40), color: accent.primary, opacity: 0.55, at: (390, 600)
+mix_grad2: Rect, size: (124, 40), color: accent.success, opacity: 0.55, at: (516, 600)
+mix_grad3: Rect, size: (124, 40), color: accent.warning, opacity: 0.55, at: (642, 600)
+mix_grad4: Rect, size: (124, 40), color: accent.danger, opacity: 0.55, at: (768, 600)
+mix_t: Text, text: "W_O mixes the heads back into one vector", font_size: 15, color: text.secondary, at: (640, 662)
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [500ms, delay: 150ms]
+
+#1.0s
+stagger [90ms] {
+  fade-in label_a [350ms]
+  fade-in a_tok [350ms]
+  fade-in a_tok_t [350ms]
+  fade-in a_verb [350ms]
+  fade-in a_verb_t [350ms]
+}
+draw-in a_link [500ms, delay: 300ms]
+
+#1.8s
+stagger [90ms] {
+  fade-in label_b [350ms]
+  fade-in b_tok [350ms]
+  fade-in b_tok_t [350ms]
+  fade-in b_verb [350ms]
+  fade-in b_verb_t [350ms]
+}
+draw-in b_link [500ms, delay: 300ms]
+
+#2.6s
+stagger [90ms] {
+  fade-in label_c [350ms]
+  fade-in c_tok [350ms]
+  fade-in c_tok_t [350ms]
+  fade-in c_verb [350ms]
+  fade-in c_verb_t [350ms]
+}
+draw-in c_link [500ms, delay: 300ms]
+
+#3.5s
+fade-in concat_t [350ms]
+draw-in mix [450ms, ease: ease-out]
+
+#4.2s
+stagger [110ms] {
+  wipe-in mix_grad [300ms]
+  wipe-in mix_grad2 [300ms]
+  wipe-in mix_grad3 [300ms]
+  wipe-in mix_grad4 [300ms]
+}
+
+#4.9s
+fade-in mix_t [400ms]

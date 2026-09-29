@@ -1,0 +1,92 @@
+// The Full Block — stacking. Attention + FFN with residuals, repeated N times;
+// every token flows up through the tower and comes out contextualized.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "6 · Stacking the Blocks", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sub: Text, text: "repeat the block N times — each layer refines every token's meaning",
+  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+
+// Token inputs at the bottom
+in1: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (400, 620)
+in1_t: Text, text: "The", font_size: 16, color: text.primary, at: (400, 620)
+in2: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (560, 620)
+in2_t: Text, text: "animal", font_size: 16, color: text.primary, at: (560, 620)
+in3: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (720, 620)
+in3_t: Text, text: "didn't", font_size: 16, color: text.primary, at: (720, 620)
+in4: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (880, 620)
+in4_t: Text, text: "cross", font_size: 16, color: text.primary, at: (880, 620)
+
+// Layer 1 (bottom)
+layer1: Rect, size: (700, 90), corner_radius: 14, color: surface.primary, opacity: 0.92, at: (640, 505)
+layer1_t: Text, text: "block ×1 — attention + FFN", font_size: 17, color: text.primary, at: (640, 505)
+
+// Layer 2 (middle)
+layer2: Rect, size: (700, 90), corner_radius: 14, color: surface.primary, opacity: 0.92, at: (640, 360)
+layer2_t: Text, text: "block ×2", font_size: 17, color: text.primary, at: (640, 360)
+
+// Layer N (top, cut off to suggest continuation)
+layerN: Rect, size: (700, 70), corner_radius: 14, color: surface.primary, opacity: 0.6, at: (640, 262)
+layerN2_t: Text, text: "block ×N  ·  ·  ·", font_size: 17, color: text.muted, at: (640, 262)
+
+// Output heads
+out_lm: Rect, size: (180, 44), corner_radius: 10, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (455, 165)
+out_lm_t: Text, text: "LM head", font_size: 16, color: text.primary, at: (455, 165)
+out_cls: Rect, size: (180, 44), corner_radius: 10, color: surface.primary, stroke: (0.42, 0.79, 0.55, 1.0), stroke_width: 2, at: (825, 165)
+out_cls_t: Text, text: "task head", font_size: 16, color: text.primary, at: (825, 165)
+
+// Flow arrows up the tower
+flow1: Path, commands: { move_to(640, 598), line_to(640, 562) }, color: text.muted, stroke_width: 2
+flow2: Path, commands: { move_to(640, 448), line_to(640, 412) }, color: text.muted, stroke_width: 2
+flow3: Path, commands: { move_to(640, 300), line_to(640, 305) }, color: text.muted, stroke_width: 2
+
+side_note: Text, text: "same weights in every block — depth is what makes it a transformer",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -50)
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [500ms, delay: 150ms]
+
+#1.0s
+stagger [110ms] {
+  wipe-in in1 [300ms]
+  wipe-in in2 [300ms]
+  wipe-in in3 [300ms]
+  wipe-in in4 [300ms]
+}
+
+#1.3s
+stagger [90ms] {
+  fade-in in1_t [250ms]
+  fade-in in2_t [250ms]
+  fade-in in3_t [250ms]
+  fade-in in4_t [250ms]
+}
+
+#1.9s
+fade-in layer1 [450ms, ease: ease-out]
+fade-in layer1_t [300ms, delay: 200ms]
+fade-in flow1 [300ms, delay: 350ms]
+
+#2.8s
+fade-in layer2 [450ms, ease: ease-out]
+fade-in layer2_t [300ms, delay: 200ms]
+fade-in flow2 [300ms, delay: 350ms]
+
+#3.7s
+fade-in layerN [450ms, ease: ease-out]
+fade-in layerN2_t [300ms, delay: 200ms]
+fade-in flow3 [300ms, delay: 350ms]
+
+#4.7s
+stagger [150ms] {
+  wipe-in out_lm [350ms]
+  fade-in out_lm_t [300ms]
+  wipe-in out_cls [350ms]
+  fade-in out_cls_t [300ms]
+}
+
+#5.7s
+fade-in side_note [450ms]

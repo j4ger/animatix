@@ -1,0 +1,86 @@
+// Tokens & Embeddings — how text becomes numbers.
+// A sentence is split into tokens; each token picks up a learned vector.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+title: Text, text: "1 · From Text to Tokens", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 55)
+
+sub: Text, text: "A transformer never sees words — it sees vectors",
+  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+
+// The sentence, as token chips
+the: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (240, 230)
+the_t: Text, text: "the", font_size: 24, color: text.primary, at: (240, 230)
+
+cat: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (395, 230)
+cat_t: Text, text: "cat", font_size: 24, color: text.primary, at: (395, 230)
+
+sat: Rect, size: (130, 54), corner_radius: 12, color: surface.primary, at: (550, 230)
+sat_t: Text, text: "sat", font_size: 24, color: text.primary, at: (550, 230)
+
+// Embedding vectors: a stack of colored value cells under each token
+the_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.9, at: (240, 330)
+the_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.55, at: (240, 356)
+the_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.75, at: (240, 382)
+the_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.4, at: (240, 408)
+
+cat_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.5, at: (395, 330)
+cat_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.85, at: (395, 356)
+cat_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.35, at: (395, 382)
+cat_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.6, at: (395, 408)
+
+sat_v0: Rect, size: (130, 22), color: accent.primary, opacity: 0.7, at: (550, 330)
+sat_v1: Rect, size: (130, 22), color: accent.success, opacity: 0.3, at: (550, 356)
+sat_v2: Rect, size: (130, 22), color: accent.warning, opacity: 0.8, at: (550, 382)
+sat_v3: Rect, size: (130, 22), color: accent.danger, opacity: 0.5, at: (550, 408)
+
+// Ellipsis dots toward the rest of the vocabulary
+dots: Text, text: "…", font_size: 30, color: text.muted, at: (720, 395)
+
+caption: Text, text: "each column = one embedding vector (d_model entries per token)",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
+
+// Sentence arrow
+arrow: Path, commands: {
+  move_to(60, 165), line_to(700, 165)
+}, color: text.muted, stroke_width: 1.5
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+fade-in sub [500ms, delay: 150ms]
+
+#1.0s
+stagger [140ms] {
+  wipe-in the [400ms]
+  wipe-in cat [400ms]
+  wipe-in sat [400ms]
+}
+
+#1.8s
+fade-in the_t [300ms]
+fade-in cat_t [300ms, delay: 120ms]
+fade-in sat_t [300ms, delay: 240ms]
+
+#2.4s
+draw-in arrow [500ms, ease: ease-out]
+
+#3.0s
+stagger [90ms] {
+  wipe-in the_v0 [350ms]
+  wipe-in the_v1 [350ms]
+  wipe-in the_v2 [350ms]
+  wipe-in the_v3 [350ms]
+  wipe-in cat_v0 [350ms]
+  wipe-in cat_v1 [350ms]
+  wipe-in cat_v2 [350ms]
+  wipe-in cat_v3 [350ms]
+  wipe-in sat_v0 [350ms]
+  wipe-in sat_v1 [350ms]
+  wipe-in sat_v2 [350ms]
+  wipe-in sat_v3 [350ms]
+}
+
+#4.4s
+fade-in dots [400ms]
+fade-in caption [500ms]

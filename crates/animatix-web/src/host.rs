@@ -243,6 +243,34 @@ mod tests {
         assert!(doc.result.diagnostics.iter().any(|d| d.severity == "error"));
     }
 
+    // The transformer demo scenes (web/demos/transformer/scenes) must always
+    // build cleanly — they are embedded in the shipped demo page.
+    #[test]
+    fn transformer_demo_scenes_build_cleanly() {
+        const SCENES: &[(&str, &str)] = &[
+            ("tokens", include_str!("../../../web/demos/transformer/scenes/tokens.amx")),
+            ("positional", include_str!("../../../web/demos/transformer/scenes/positional.amx")),
+            ("attention", include_str!("../../../web/demos/transformer/scenes/attention.amx")),
+            ("multihead", include_str!("../../../web/demos/transformer/scenes/multihead.amx")),
+            ("feedforward", include_str!("../../../web/demos/transformer/scenes/feedforward.amx")),
+            ("pipeline", include_str!("../../../web/demos/transformer/scenes/pipeline.amx")),
+        ];
+        for (name, source) in SCENES {
+            let doc = build_document(source, Arc::new(FontContext::new()), BuildQuality::Draft);
+            assert!(
+                doc.result.ok,
+                "demo scene '{name}' failed to build: {:?}",
+                doc.result.diagnostics
+            );
+            assert!(
+                doc.result.diagnostics.is_empty(),
+                "demo scene '{name}' has diagnostics: {:?}",
+                doc.result.diagnostics
+            );
+            assert!(doc.result.duration_s > MIN_DURATION_S, "scene '{name}' has no duration");
+        }
+    }
+
     #[test]
     fn missing_import_is_reported_not_read_from_disk() {
         let doc = build_document(
