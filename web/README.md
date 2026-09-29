@@ -128,6 +128,25 @@ The shell and the wasm driver expose a few switches used during development
   methods behind the modes above.
 - `m.build_id()` on the engine module — identifies the running wasm build.
 
+## Slim playback profile
+
+The default build carries the full feature set (Typst rich text, raster
+decoding, SVG). A playback-only profile compiles those out — Text falls back
+to the plain fast path (no markup/Code highlighting/Math, non-Latin scripts
+need a system font), image/SVG assets report diagnostics, and the wasm drops
+from **29.8 MB to 5.5 MB raw / 7.8 MB to 1.3 MB brotli**:
+
+```bash
+scripts/build-web.sh --slim     # emits web/pkg-slim/
+```
+
+This is the profile for motion-graphics embeds that use plain text only;
+explainers with equations or styled text need the full build. Feature flags
+behind it: `animatix-text/rich-text`, `animatix/image-decode`,
+`animatix/svg`, `animatix-render/raster-encode` (all default-on; `animatix-web`
+exposes them as its own default features so `--no-default-features` selects
+the slim set).
+
 ## Rebuilding the editor bundle
 
 The CodeMirror bundle is committed (`web/vendor/cm.js`). To regenerate after

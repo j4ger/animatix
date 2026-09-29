@@ -103,7 +103,9 @@ pub use legend::{LegendMode, LegendTracks};
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.
+#[cfg(feature = "svg")]
 pub mod svg;
+#[cfg(feature = "svg")]
 pub mod svg_import;
 mod timing;
 pub use timing::parse_easing_name;
@@ -123,6 +125,7 @@ pub(crate) use assignments::recompile_text_at_assignment;
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};
 pub use env::{CapturedEnv, Environment, EvalError, Value};
+#[cfg(feature = "image-decode")]
 pub use image::load_image;
 pub use index::TimelineIndex;
 pub use kurbo_shapes::{KurboShape, morph_kurbo_shapes, morph_kurbo_shapes_default};
@@ -154,7 +157,9 @@ pub use shapes::{
     default_stroke_width, extract_shape_state_values, finalize_vector_shape_state,
     parse_path_commands_expr, shape_type_for_actor, vector_shape_uses_custom_path,
 };
+#[cfg(feature = "svg")]
 pub use svg::parse_svg;
+#[cfg(feature = "svg")]
 pub use svg_import::{SvgImportError, import_svg};
 pub(crate) use timing::{
     ModifierHost, ParsedTimingModifiers, config_string_value, parse_duration_literal,

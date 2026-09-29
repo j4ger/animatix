@@ -760,14 +760,14 @@ pub fn interpolate_text_paths(
         for path in source {
             result.push(TextPath {
                 path: path.path.clone(),
-                color: path.color.clone(),
+                color: path.color,
                 opacity: path.opacity * source_alpha,
             });
         }
         for path in target {
             result.push(TextPath {
                 path: path.path.clone(),
-                color: path.color.clone(),
+                color: path.color,
                 opacity: path.opacity * target_alpha,
             });
         }
@@ -784,16 +784,12 @@ pub fn interpolate_text_paths(
         .map(|(index, (source_path, target_path))| TextPath {
             path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
             color: if t < 0.5 {
-                source.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
-                    target.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
-                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                    })
+                source.get(index).map(|path| path.color).unwrap_or_else(|| {
+                    target.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
                 })
             } else {
-                target.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
-                    source.get(index).map(|path| path.color.clone()).unwrap_or_else(|| {
-                        typst::visualize::Paint::Solid(typst::visualize::Color::BLACK)
-                    })
+                target.get(index).map(|path| path.color).unwrap_or_else(|| {
+                    source.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
                 })
             },
             opacity: 1.0,
@@ -1328,12 +1324,12 @@ mod tests {
     fn fade_text_paths_at_midpoint_returns_both_halved() {
         let source = vec![TextPath {
             path: BezPath::new(),
-            color: typst::visualize::Paint::Solid(typst::visualize::Color::BLACK),
+            color: [0, 0, 0, 255],
             opacity: 1.0,
         }];
         let target = vec![TextPath {
             path: BezPath::new(),
-            color: typst::visualize::Paint::Solid(typst::visualize::Color::WHITE),
+            color: [255, 255, 255, 255],
             opacity: 0.8,
         }];
         let result = interpolate_text_paths(

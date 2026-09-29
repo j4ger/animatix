@@ -500,7 +500,9 @@ mod math;
 pub use math::MATH;
 mod image;
 pub use image::IMAGE;
+#[cfg(feature = "svg")]
 mod svg;
+#[cfg(feature = "svg")]
 pub use svg::SVG;
 mod bar_chart;
 pub use bar_chart::BAR_CHART;
@@ -956,18 +958,13 @@ impl RenderCommand {
             },
             RenderCommand::Text { paths } => {
                 for text_path in paths.iter() {
-                    let color = match &text_path.color {
-                        ::typst::visualize::Paint::Solid(color) => {
-                            let rgba = color.to_vec4_u8();
-                            vello::peniko::Color::from_rgba8(
-                                rgba[0],
-                                rgba[1],
-                                rgba[2],
-                                (rgba[3] as f32 * opacity * text_path.opacity) as u8,
-                            )
-                        },
-                        _ => vello::peniko::Color::WHITE,
-                    };
+                    let [r, g, b, a] = text_path.color;
+                    let color = vello::peniko::Color::from_rgba8(
+                        r,
+                        g,
+                        b,
+                        (a as f32 * opacity * text_path.opacity) as u8,
+                    );
                     scene.fill(
                         vello::peniko::Fill::NonZero,
                         *transform,
@@ -1370,6 +1367,7 @@ pub static BUILT_INS: &[BuiltIn] = &[
     BuiltIn::new(&animatix_std::catalog::TYPST, &TYPST),
     // Media
     BuiltIn::new(&animatix_std::catalog::IMAGE, &IMAGE),
+    #[cfg(feature = "svg")]
     BuiltIn::new(&animatix_std::catalog::SVG, &SVG),
     BuiltIn::new(&animatix_std::catalog::AUDIO, &AUDIO),
     // Plots

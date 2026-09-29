@@ -6,6 +6,7 @@ use crate::easing::Easing;
 use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
+#[cfg(feature = "svg")]
 use crate::timeline::svg::measure_svg_paths;
 use crate::timeline::{
     AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, Value,

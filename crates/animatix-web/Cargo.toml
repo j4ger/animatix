@@ -7,6 +7,17 @@ rust-version = "1.85"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[features]
+default = ["rich-text", "image-decode", "svg", "raster-encode"]
+# Slim playback-only profile: build with --no-default-features. All engine
+# features are opt-in (deps below are default-features = false), so disabling
+# the defaults drops the Typst stack, raster decoding, and SVG loading from
+# the wasm module.
+rich-text = ["animatix/rich-text"]
+image-decode = ["animatix/image-decode"]
+svg = ["animatix/svg"]
+raster-encode = ["animatix-render/raster-encode"]
+
 [dependencies]
 animatix = { path = "../animatix", default-features = false }
 animatix-core = { path = "../animatix-core" }
@@ -19,7 +30,7 @@ tracing = { workspace = true }
 # compile the pure host-side modules (parse/build pipeline + DTOs) for the
 # workspace test gates and skip everything below.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-animatix-render = { path = "../animatix-render" }
+animatix-render = { path = "../animatix-render", default-features = false }
 console_error_panic_hook = "0.1"
 js-sys = "0.3"
 kurbo = { workspace = true }

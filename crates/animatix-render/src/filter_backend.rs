@@ -165,7 +165,10 @@ impl GpuFilterBackend {
         static SEQ: AtomicU32 = AtomicU32::new(0);
         let seq = SEQ.fetch_add(1, Ordering::SeqCst);
         let path = format!("/tmp/stages/{seq:03}_{label}.png");
+        #[cfg(feature = "raster-encode")]
         let _ = image::save_buffer(&path, data, dims.width, dims.height, image::ColorType::Rgba8);
+        #[cfg(not(feature = "raster-encode"))]
+        let _ = (&path, data);
         eprintln!(
             "[stages] {seq:03} {label}: opaque={opaque}/{total} avg_rgb=({},{},{})",
             if opaque > 0 { sum_r / opaque as u64 } else { 0 },

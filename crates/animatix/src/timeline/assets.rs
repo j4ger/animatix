@@ -76,34 +76,55 @@ impl AssetCache {
         path: &str,
         actor_label: &str,
     ) -> Result<Vec<VelloPath>, String> {
-        let key = self.normalize_asset_url(path);
-        let paths = if let Some(paths) = self.svg_paths.get(&key) {
-            paths.clone()
-        } else {
-            let parsed = crate::timeline::svg::parse_svg_file(&key)?;
-            self.record_file_metadata(&key);
-            self.svg_paths.insert(key.clone(), parsed.clone());
-            parsed
-        };
-        self.record_usage(&key, actor_label);
-        Ok(paths)
+        #[cfg(not(feature = "svg"))]
+        {
+            let _ = (path, actor_label);
+            return Err("SVG assets require the 'svg' feature (disabled in this build)".to_string());
+        }
+
+        #[cfg(feature = "svg")]
+        {
+            let key = self.normalize_asset_url(path);
+            let paths = if let Some(paths) = self.svg_paths.get(&key) {
+                paths.clone()
+            } else {
+                let parsed = crate::timeline::svg::parse_svg_file(&key)?;
+                self.record_file_metadata(&key);
+                self.svg_paths.insert(key.clone(), parsed.clone());
+                parsed
+            };
+            self.record_usage(&key, actor_label);
+            Ok(paths)
+        }
     }
 
     /// Load an image file and record that `actor_label` references it.
     ///
     /// Returns cached image data when the same file was loaded before.
     pub fn load_image_for(&mut self, path: &str, actor_label: &str) -> Result<SceneImage, String> {
-        let key = self.normalize_asset_url(path);
-        let image = if let Some(image) = self.images.get(&key) {
-            image.clone()
-        } else {
-            let loaded = crate::timeline::image::load_image_file(&key)?;
-            self.record_file_metadata(&key);
-            self.images.insert(key.clone(), loaded.clone());
-            loaded
-        };
-        self.record_usage(&key, actor_label);
-        Ok(image)
+        #[cfg(not(feature = "image-decode"))]
+        {
+            let _ = (path, actor_label);
+            return Err(
+                "raster image assets require the 'image-decode' feature (disabled in this build)"
+                    .to_string(),
+            );
+        }
+
+        #[cfg(feature = "image-decode")]
+        {
+            let key = self.normalize_asset_url(path);
+            let image = if let Some(image) = self.images.get(&key) {
+                image.clone()
+            } else {
+                let loaded = crate::timeline::image::load_image_file(&key)?;
+                self.record_file_metadata(&key);
+                self.images.insert(key.clone(), loaded.clone());
+                loaded
+            };
+            self.record_usage(&key, actor_label);
+            Ok(image)
+        }
     }
 
     /// Record that an actor uses an asset without caching its decoded payload.

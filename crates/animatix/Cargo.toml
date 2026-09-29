@@ -11,7 +11,14 @@ rust-version = "1.85"
 # (the GPU *presentation* stack lives in `animatix-render`). Modelling them as
 # features produced `#[cfg(not(feature = ...))]` branches that no supported
 # build could ever compile, so they were removed.
-default = ["perf-tracing"]
+default = ["perf-tracing", "rich-text", "image-decode", "svg"]
+# Rich text (Typst markup / Code highlighting / Math). Off in the slim
+# playback-only web profile; Text falls back to the plain fast path.
+rich-text = ["animatix-text/rich-text"]
+# Raster image decoding (PNG/JPEG/WebP/GIF files referenced by scenes).
+image-decode = ["dep:image"]
+# SVG asset loading and the SVG->AST import path.
+svg = ["dep:usvg"]
 # Shared stage tracing (`crate::perf`, PF-8). Default-on so benches and the GUI
 # HUD measure the same stages; compile out with --no-default-features to
 # eliminate the (already tiny) hot-path cost.
@@ -21,19 +28,21 @@ plugin-loading = ["dep:animatix-plugin-api", "dep:libloading"]
 
 [dependencies]
 animatix-core = { path = "../animatix-core" }
-animatix-text = { path = "../animatix-text" }
+# default-features = false: rich text is opt-in via the engine's own
+# `rich-text` feature (slim playback builds compile without the Typst stack).
+animatix-text = { path = "../animatix-text", default-features = false }
 animatix-std = { path = "../animatix-std" }
 animatix-plugin-api = { path = "../animatix-plugin-api", optional = true }
 animatix-syntax = { path = "../animatix-syntax" }
 libloading = { version = "0.8", optional = true }
 serde = { workspace = true, optional = true }
 fastrand = "2.4"
-image = { workspace = true, features = ["png", "gif", "jpeg", "webp"] }
+image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 kurbo = { workspace = true }
 roxmltree = { version = "0.20.0" }
 
 typst = { version = "0.15.1" }
-usvg = { version = "0.47.0" }
+usvg = { version = "0.47.0", optional = true }
 # Pinned pre-#1558 (atlas residency): that change makes image draws vanish
 # when a non-image vello render runs between two image renders — fatal for
 # our multi-scope filter pipeline (see tests/vello_img_probe.rs). Revisit on

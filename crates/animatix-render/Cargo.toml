@@ -5,8 +5,11 @@ edition = "2024"
 rust-version = "1.85"
 
 [features]
-default = []
+default = ["raster-encode"]
 video = ["dep:rsmpeg"]
+# Single-frame PNG/WebP raster export. Off in the slim web profile (no
+# export path is reachable there).
+raster-encode = ["dep:image"]
 
 [dependencies]
 # default-features = false so a wasm build of this crate does not force
@@ -18,7 +21,7 @@ animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 kurbo = { workspace = true }
 bytemuck = { workspace = true }
-image = { workspace = true, features = ["png", "gif", "jpeg", "webp"] }
+image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 pollster = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }

@@ -9,6 +9,7 @@
 
 #[cfg(feature = "video")]
 pub mod gif;
+#[cfg(feature = "raster-encode")]
 pub mod image;
 #[cfg(feature = "video")]
 pub mod video;
@@ -19,6 +20,7 @@ pub use gif::{
     render_gif_composition_with_settings, render_gif_timeline, render_gif_timeline_with_debug,
     render_gif_timeline_with_progress, render_gif_timeline_with_settings,
 };
+#[cfg(feature = "raster-encode")]
 pub use image::{
     render_image, render_image_composition, render_image_timeline,
     render_image_timeline_with_debug, render_image_timeline_with_progress,

@@ -17,10 +17,34 @@ use animatix_core::error::RenderError;
 pub struct TextPath {
     /// The glyph path.
     pub path: BezPath,
-    /// The fill color of the glyph.
-    pub color: typst::visualize::Paint,
+    /// The solid glyph fill as RGBA bytes. (Rich-text paints degrade to
+    /// their solid RGBA; gradients already fell back to white.)
+    pub color: [u8; 4],
     /// The opacity of the glyph (0.0–1.0).
     pub opacity: f32,
+}
+
+/// Convert an f32 RGBA color (0.0–1.0 components) to RGBA bytes.
+pub fn f32_color_to_rgba8(color: &[f32; 4]) -> [u8; 4] {
+    [
+        (color[0] * 255.0) as u8,
+        (color[1] * 255.0) as u8,
+        (color[2] * 255.0) as u8,
+        (color[3] * 255.0) as u8,
+    ]
+}
+
+/// Degrade a rich-text paint to solid RGBA bytes (gradients fall back to
+/// white — matching the engine's previous behaviour for non-solid paints).
+#[cfg(feature = "rich-text")]
+pub fn paint_to_rgba(paint: &typst::visualize::Paint) -> [u8; 4] {
+    match paint {
+        typst::visualize::Paint::Solid(c) => {
+            let v = c.to_vec4_u8();
+            [v[0], v[1], v[2], v[3]]
+        },
+        _ => [255, 255, 255, 255],
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -58,11 +82,17 @@ pub struct CompiledText {
     pub baseline_offset: f32,
 }
 
+#[cfg(feature = "rich-text")]
 use typst::foundations::{Bytes, Datetime};
+#[cfg(feature = "rich-text")]
 use typst::layout::{Frame, FrameItem, Transform};
+#[cfg(feature = "rich-text")]
 use typst::syntax::{FileId, RootedPath, Source, VirtualPath, VirtualRoot};
+#[cfg(feature = "rich-text")]
 use typst::text::{Font, FontBook};
+#[cfg(feature = "rich-text")]
 use typst::utils::LazyHash;
+#[cfg(feature = "rich-text")]
 use typst::{Library, LibraryExt, World};
 
 // ─────────────────────────────────────────────────────────────
@@ -160,7 +190,7 @@ impl FontContext {
             epoch: font_env_epoch(),
         }
     }
-
+    #[cfg(feature = "rich-text")]
     /// Load the bold/italic emphasis faces of a family into the Typst world.
     ///
     /// `with_fonts_and_fallback` loads only the default regular face per family,
@@ -359,7 +389,7 @@ fn face_data_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, FaceData>>
         std::sync::OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()))
 }
-
+#[cfg(feature = "rich-text")]
 /// Process-wide cache: fontdb face id → constructed Typst font.
 fn typst_font_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Font>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, Font>>> =
@@ -437,7 +467,7 @@ fn probe_char_face(font_ctx: &FontContext, ch: char) -> Option<fontdb::ID> {
     char_face_cache().lock().unwrap().insert(ch, found);
     found
 }
-
+#[cfg(feature = "rich-text")]
 /// Construct (or fetch from cache) a Typst font for a system face.
 fn cached_typst_font(font_ctx: &FontContext, id: fontdb::ID) -> Option<Font> {
     let mut cache = typst_font_cache().lock().unwrap();
@@ -450,7 +480,7 @@ fn cached_typst_font(font_ctx: &FontContext, id: fontdb::ID) -> Option<Font> {
     cache.insert(id, font.clone());
     Some(font)
 }
-
+#[cfg(feature = "rich-text")]
 /// Collect Typst fonts covering every character of `content` that the primary
 /// family cannot render.
 ///
@@ -550,7 +580,7 @@ static BUNDLED_FONTS: &[BundledFont] = &[
 pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 /// Default math font family used for math rendering.
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
-
+#[cfg(feature = "rich-text")]
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
 fn build_world(
     source: Source,
@@ -666,7 +696,7 @@ impl ttf_parser::OutlineBuilder for PathBuilder {
         self.0.close_path();
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// A shape extracted from a Typst frame, containing the curve and its transform.
 #[derive(Clone)]
 pub struct ExtractedShape {
@@ -675,7 +705,7 @@ pub struct ExtractedShape {
     /// The transform applied to the shape.
     pub transform: Transform,
 }
-
+#[cfg(feature = "rich-text")]
 /// A Typst world implementation for compiling text and math.
 pub struct TypstWorld {
     /// The source document.
@@ -687,7 +717,7 @@ pub struct TypstWorld {
     /// Typst standard library.
     library: LazyHash<Library>,
 }
-
+#[cfg(feature = "rich-text")]
 impl TypstWorld {
     /// Create a new Typst world with the given source and font context.
     pub fn new(source: Source, font_ctx: &FontContext) -> Result<Self, RenderError> {
@@ -714,7 +744,7 @@ impl TypstWorld {
         build_world(source, fonts, fallback_fonts, font_ctx)
     }
 }
-
+#[cfg(feature = "rich-text")]
 impl World for TypstWorld {
     fn library(&self) -> &LazyHash<Library> {
         &self.library
@@ -748,7 +778,7 @@ impl World for TypstWorld {
         None
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Compile Typst math markup into a frame.
 ///
 /// Build a Typst `#set text(...)` rule string from the given typography parameters.
@@ -787,7 +817,7 @@ fn typst_text_set_rules(
         format!("#set text({}); ", parts.join(", "))
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Build a Typst `#set par(leading: ...)` rule for line height.
 fn typst_par_leading_rule(line_height: f32) -> String {
     if (line_height - 1.2).abs() < f32::EPSILON {
@@ -799,7 +829,7 @@ fn typst_par_leading_rule(line_height: f32) -> String {
     }
     format!("#set par(leading: {}em); ", leading_em)
 }
-
+#[cfg(feature = "rich-text")]
 /// Build a `#set page` rule sized to the content.
 ///
 /// Without an explicit page rule Typst lays text out on its default A4 page
@@ -853,7 +883,7 @@ fn typst_wrapping_preamble(
         inner
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Map a numeric font weight (100-900) to a Typst weight string.
 pub fn font_weight_to_typst(weight: f32) -> &'static str {
     let w = weight.round() as i32;
@@ -894,7 +924,7 @@ pub fn parse_font_weight(value: &str) -> f32 {
         },
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Compile a math expression string (Typst math syntax) into a rendered frame.
 ///
 /// Uses Typst's layout engine to parse and render the math expression, returning
@@ -941,7 +971,7 @@ pub fn compile_math(
 
     Ok(document.pages()[0].frame.clone())
 }
-
+#[cfg(feature = "rich-text")]
 /// Compile Typst markup into a frame.
 pub fn compile_typst(
     typst_markup: &str,
@@ -999,7 +1029,7 @@ pub fn compile_typst(
 
     Ok(document.pages()[0].frame.clone())
 }
-
+#[cfg(feature = "rich-text")]
 /// Compile plain text into a Typst frame.
 pub fn compile_text(
     text: &str,
@@ -1057,7 +1087,7 @@ pub fn compile_text(
 /// size. The span-based highlight path reproduces that scale so a `Code` actor
 /// is the same size whether or not `language` is set.
 const RAW_TEXT_EM_SCALE: f32 = 0.8;
-
+#[cfg(feature = "rich-text")]
 /// A plain (un-highlighted) Typst raw block: four backticks so the code body is
 /// taken verbatim (no markup interpretation, no escaping beyond backslashes).
 fn plain_code_fence(code: &str) -> String {
@@ -1095,6 +1125,7 @@ pub struct HighlightPalette {
 }
 
 impl HighlightPalette {
+    #[cfg(feature = "rich-text")]
     /// Map a syntect theme foreground colour to its palette colour. Colours not
     /// in Typst's fixed theme are returned unchanged (normalised to 0..1 RGBA),
     /// so an unexpected theme never drops a token.
@@ -1135,13 +1166,13 @@ impl HighlightPalette {
         .collect()
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Format a 0..1 RGBA colour as a Typst `rgb(...)` call (tokens are opaque).
 fn typst_rgb(color: [f32; 4]) -> String {
     let channel = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
     format!("rgb({}, {}, {})", channel(color[0]), channel(color[1]), channel(color[2]))
 }
-
+#[cfg(feature = "rich-text")]
 /// Build Typst markup that highlights `code` as `language`, using Typst's own
 /// `raw` syntax set (`RAW_SYNTAXES`) and theme (`RAW_THEME`) so the colours
 /// match what a `#set raw(theme: auto)` fence would produce.
@@ -1244,7 +1275,7 @@ fn highlighted_code_markup(
     }
     Some(out)
 }
-
+#[cfg(feature = "rich-text")]
 /// Compile code text into a Typst frame.
 ///
 /// A non-empty `language` that Typst recognizes turns on syntax highlighting
@@ -1323,7 +1354,7 @@ pub fn compile_code(
 
     Ok(document.pages()[0].frame.clone())
 }
-
+#[cfg(feature = "rich-text")]
 /// Extract font ascent and descent from a Typst frame (uses the first text item found).
 /// Returns (ascent, descent) in scene units (points).
 pub fn extract_frame_metrics(frame: &Frame) -> (f32, f32) {
@@ -1358,7 +1389,7 @@ pub fn extract_frame_metrics(frame: &Frame) -> (f32, f32) {
 
     result.unwrap_or((0.0, 0.0))
 }
-
+#[cfg(feature = "rich-text")]
 /// Extract glyph paths from a Typst frame.
 pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let mut glyphs = Vec::new();
@@ -1366,7 +1397,7 @@ pub fn extract_glyphs(frame: &Frame) -> Vec<TextPath> {
     let _ = center_text_paths(&mut glyphs);
     glyphs
 }
-
+#[cfg(feature = "rich-text")]
 /// Extract glyph paths and font metrics from a Typst frame.
 pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
     let mut glyphs = Vec::new();
@@ -1392,7 +1423,7 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
         baseline_offset,
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Extract glyphs from a Typst frame, grouped by top-level `FrameItem::Group`.
 ///
 /// Each `#box()[content]` wrapper in Typst produces a top-level `Group` in the
@@ -1435,7 +1466,7 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
     center_text_paths(&mut all_glyphs);
     (all_glyphs, ranges)
 }
-
+#[cfg(feature = "rich-text")]
 /// Helper: extract glyphs from a single `FrameItem::Text` (not recursing into groups).
 fn walk_frame_for_glyphs_text_item(
     item: &FrameItem,
@@ -1475,7 +1506,7 @@ fn walk_frame_for_glyphs_text_item(
                 final_path.apply_affine(final_affine);
                 glyphs.push(TextPath {
                     path: final_path,
-                    color: text.fill.clone(),
+                    color: paint_to_rgba(&text.fill),
                     opacity: 1.0,
                 });
             }
@@ -1545,7 +1576,7 @@ pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
         [0.0, 0.0]
     }
 }
-
+#[cfg(feature = "rich-text")]
 fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &mut Vec<TextPath>) {
     for (pos, item) in frame.items() {
         let transform = current_transform.pre_concat(Transform::translate(pos.x, pos.y));
@@ -1595,7 +1626,7 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
 
                         glyphs.push(TextPath {
                             path: final_path,
-                            color: text.fill.clone(),
+                            color: paint_to_rgba(&text.fill),
                             opacity: 1.0,
                         });
                     }
@@ -1607,14 +1638,14 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
         }
     }
 }
-
+#[cfg(feature = "rich-text")]
 /// Extract shapes from a Typst frame.
 pub fn extract_shapes(frame: &Frame) -> Vec<ExtractedShape> {
     let mut shapes = Vec::new();
     walk_frame_for_shapes(frame, Transform::identity(), &mut shapes);
     shapes
 }
-
+#[cfg(feature = "rich-text")]
 fn walk_frame_for_shapes(
     frame: &Frame,
     current_transform: Transform,
@@ -1749,13 +1780,8 @@ pub fn compile_text_fast(
     // Resolve kerning tables if available
     let kern_tables = face.tables().kern;
 
-    // Build the paint color from [f32; 4]
-    let paint = typst::visualize::Paint::Solid(typst::visualize::Color::from_u8(
-        (color[0] * 255.0) as u8,
-        (color[1] * 255.0) as u8,
-        (color[2] * 255.0) as u8,
-        (color[3] * 255.0) as u8,
-    ));
+    // Glyph fill as RGBA bytes
+    let rgba = f32_color_to_rgba8(&color);
 
     let mut glyphs: Vec<TextPath> = Vec::with_capacity(content.len());
     let mut x_curr: f64 = 0.0; // cumulative x offset in scene coordinates (points)
@@ -1808,7 +1834,7 @@ pub fn compile_text_fast(
 
             glyphs.push(TextPath {
                 path: final_path,
-                color: paint.clone(),
+                color: rgba,
                 opacity: 1.0,
             });
         }
@@ -1882,12 +1908,7 @@ pub fn compile_text_fast_wrapped(
 
     let kern_tables = face.tables().kern;
 
-    let paint = typst::visualize::Paint::Solid(typst::visualize::Color::from_u8(
-        (color[0] * 255.0) as u8,
-        (color[1] * 255.0) as u8,
-        (color[2] * 255.0) as u8,
-        (color[3] * 255.0) as u8,
-    ));
+    let rgba = f32_color_to_rgba8(&color);
 
     // Line height in absolute points
     let line_height_pts = (ascent - descent + line_gap) * font_scale * 1.2; // default 1.2 line height multiplier
@@ -2082,7 +2103,7 @@ pub fn compile_text_fast_wrapped(
 
                     glyphs.push(TextPath {
                         path: final_path,
-                        color: paint.clone(),
+                        color: rgba,
                         opacity: 1.0,
                     });
                 }
@@ -2115,7 +2136,7 @@ pub fn compile_text_fast_wrapped(
                         final_path.apply_affine(final_affine);
                         glyphs.push(TextPath {
                             path: final_path,
-                            color: paint.clone(),
+                            color: rgba,
                             opacity: 1.0,
                         });
                     }
@@ -2382,6 +2403,11 @@ pub fn compile_text_cached(
         && kind == TextKind::Text
         && is_plain_text(content)
         && is_latin_text(content);
+    // Slim playback profile: the Typst stack is compiled out, so every kind
+    // degrades to the plain fast path (Code loses syntax highlighting, Math
+    // renders its source literally, non-Latin scripts need a system font).
+    #[cfg(not(feature = "rich-text"))]
+    let use_fast_path = true;
     let compiled: CompiledText = if use_fast_path {
         tracing::debug!(
             "text cache miss (fast path): '{}' (family={}, size={}, max_width={})",
@@ -2419,78 +2445,118 @@ pub fn compile_text_cached(
             )?
         }
     } else {
-        tracing::debug!(
-            "text cache miss (typst): '{}' (kind={:?}, max_width={})",
-            content,
-            kind,
-            max_width
-        );
-        let typst_color = typst::visualize::Color::from_u8(
-            key.color[0],
-            key.color[1],
-            key.color[2],
-            key.color[3],
-        );
-        let frame = match kind {
-            TextKind::Text => compile_text(
+        #[cfg(feature = "rich-text")]
+        {
+            tracing::debug!(
+                "text cache miss (typst): '{}' (kind={:?}, max_width={})",
                 content,
-                font_size,
-                typst_color,
-                font_family,
-                font_ctx,
-                font_weight,
-                font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                max_width,
-                text_align,
-                overflow,
-            )?,
-            TextKind::Math => compile_math(
+                kind,
+                max_width
+            );
+            let typst_color = typst::visualize::Color::from_u8(
+                key.color[0],
+                key.color[1],
+                key.color[2],
+                key.color[3],
+            );
+            let frame = match kind {
+                TextKind::Text => compile_text(
+                    content,
+                    font_size,
+                    typst_color,
+                    font_family,
+                    font_ctx,
+                    font_weight,
+                    font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?,
+                TextKind::Math => compile_math(
+                    content,
+                    font_size,
+                    typst_color,
+                    font_family,
+                    font_ctx,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?,
+                TextKind::Code => compile_code(
+                    content,
+                    language,
+                    palette,
+                    font_size,
+                    typst_color,
+                    font_family,
+                    font_ctx,
+                    font_weight,
+                    font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?,
+                TextKind::Typst => compile_typst(
+                    content,
+                    font_size,
+                    typst_color,
+                    font_family,
+                    font_ctx,
+                    font_weight,
+                    font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?,
+            };
+            extract_glyphs_with_metrics(&frame)
+        }
+
+        #[cfg(not(feature = "rich-text"))]
+        {
+            tracing::debug!(
+                "text cache miss (fast fallback, rich-text disabled): '{}' (kind={:?})",
                 content,
-                font_size,
-                typst_color,
-                font_family,
-                font_ctx,
-                max_width,
-                text_align,
-                overflow,
-            )?,
-            TextKind::Code => compile_code(
-                content,
-                language,
-                palette,
-                font_size,
-                typst_color,
-                font_family,
-                font_ctx,
-                font_weight,
-                font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                max_width,
-                text_align,
-                overflow,
-            )?,
-            TextKind::Typst => compile_typst(
-                content,
-                font_size,
-                typst_color,
-                font_family,
-                font_ctx,
-                font_weight,
-                font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                max_width,
-                text_align,
-                overflow,
-            )?,
-        };
-        extract_glyphs_with_metrics(&frame)
+                kind
+            );
+            if max_width > 0.0 {
+                compile_text_fast_wrapped(
+                    content,
+                    font_family,
+                    font_weight,
+                    font_style,
+                    font_size,
+                    color,
+                    letter_spacing,
+                    word_spacing,
+                    font_ctx,
+                    max_width,
+                    text_align,
+                    overflow,
+                )?
+            } else {
+                compile_text_fast(
+                    content,
+                    font_family,
+                    font_weight,
+                    font_style,
+                    font_size,
+                    color,
+                    letter_spacing,
+                    word_spacing,
+                    font_ctx,
+                )?
+            }
+        }
     };
 
     let half_size = measure_text_paths(&compiled.glyphs);
@@ -2565,35 +2631,68 @@ pub fn compile_typst_grouped_cached(
         return Ok(std::sync::Arc::clone(hit));
     }
 
-    let typst_color =
-        typst::visualize::Color::from_u8(key.color[0], key.color[1], key.color[2], key.color[3]);
-    let frame = compile_typst(
-        typst_markup,
-        font_size,
-        typst_color,
-        font_family,
-        font_ctx,
-        font_weight,
-        font_style,
-        line_height,
-        letter_spacing,
-        word_spacing,
-        0.0,
-        "left",
-        "visible",
-    )?;
-    let (glyphs, ranges) = extract_glyphs_grouped(&frame);
-    let entry = std::sync::Arc::new(CachedGroupedText {
-        glyphs: glyphs.into(),
-        ranges: ranges.into(),
-    });
-
+    #[cfg(feature = "rich-text")]
     {
-        let mut cache = lock_grouped_cache();
-        cache.insert(key, std::sync::Arc::clone(&entry));
-        evict_text_compile_cache(&mut cache);
+        let typst_color = typst::visualize::Color::from_u8(
+            key.color[0],
+            key.color[1],
+            key.color[2],
+            key.color[3],
+        );
+        let frame = compile_typst(
+            typst_markup,
+            font_size,
+            typst_color,
+            font_family,
+            font_ctx,
+            font_weight,
+            font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            0.0,
+            "left",
+            "visible",
+        )?;
+        let (glyphs, ranges) = extract_glyphs_grouped(&frame);
+        let entry = std::sync::Arc::new(CachedGroupedText {
+            glyphs: glyphs.into(),
+            ranges: ranges.into(),
+        });
+
+        {
+            let mut cache = lock_grouped_cache();
+            cache.insert(key, std::sync::Arc::clone(&entry));
+            evict_text_compile_cache(&mut cache);
+        }
+        Ok(entry)
     }
-    Ok(entry)
+
+    #[cfg(not(feature = "rich-text"))]
+    {
+        // Slim playback profile: render the markup source as plain text in a
+        // single group (Equation/Fragment degrade; ranges collapse to one).
+        let compiled = compile_text_fast_wrapped(
+            typst_markup,
+            font_family,
+            font_weight,
+            "normal",
+            font_size,
+            color,
+            letter_spacing,
+            word_spacing,
+            font_ctx,
+            0.0,
+            "left",
+            "visible",
+        )?;
+        let ranges = vec![0..compiled.glyphs.len()];
+        let entry = std::sync::Arc::new(CachedGroupedText {
+            glyphs: compiled.glyphs.into(),
+            ranges: ranges.into(),
+        });
+        Ok(entry)
+    }
 }
 
 /// Runtime text compiler backed by the process-wide compile cache.
@@ -2938,9 +3037,9 @@ mod tests {
         cached
             .paths
             .iter()
-            .filter_map(|p| match &p.color {
-                typst::visualize::Paint::Solid(c) => Some(c.to_hex().to_string()),
-                _ => None,
+            .map(|p| {
+                let [r, g, b, _a] = p.color;
+                format!("#{r:02x}{g:02x}{b:02x}")
             })
             .collect()
     }

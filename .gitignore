@@ -35,3 +35,4 @@ dhat-export.json
 web/pkg/
 web/tools/node_modules/
 web/**/*.br
+web/pkg-slim/

@@ -43,7 +43,10 @@ fn seed_svg_track(
                     std::sync::Arc::make_mut(&mut path.path).apply_affine(affine);
                 }
             }
+            #[cfg(feature = "svg")]
             let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
+            #[cfg(not(feature = "svg"))]
+            let measured_half_size = DEFAULT_LAYOUT_HALF_SIZE;
             track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 time_ms,
                 measured_half_size,

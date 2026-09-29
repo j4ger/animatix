@@ -4,14 +4,23 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 
+[features]
+default = ["rich-text"]
+# Rich text: Typst-powered markup (*bold*), Code blocks (syntect highlighting),
+# and Math/Equation compilation. The plain-text fast path (direct shaping via
+# ttf-parser) is always available; disabling this feature removes the Typst
+# stack (and its transitive wasmi/hayagriva/hayro/regex payload) entirely —
+# used by the slim playback-only web profile.
+rich-text = ["dep:typst", "dep:typst-layout", "dep:syntect"]
+
 [dependencies]
 animatix-core = { path = "../animatix-core" }
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
 kurbo = { workspace = true }
 ttf-parser = "0.25.1"
-typst = "0.15.1"
 tracing = { workspace = true }
-typst-layout = "0.15.1"
+typst = { version = "0.15.1", optional = true }
+typst-layout = { version = "0.15.1", optional = true }
 # Reused (same version/features as typst-library) to tokenize Code bodies with
 # typst's own `raw` syntax set + theme, so highlighting matches typst exactly.
-syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "plist-load", "yaml-load"] }
+syntect = { version = "5.3", default-features = false, features = ["parsing", "regex-fancy", "plist-load", "yaml-load"], optional = true }
