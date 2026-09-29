@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Build the animatix-web wasm module, generate JS glue, optimize, precompress,
-# and copy demo examples into web/pkg.
+# Build the animatix-web wasm module, generate JS glue, optimize, and
+# precompress it into web/pkg (or web/pkg-slim).
 #
 # Usage: scripts/build-web.sh [--slim] [--dev]
-#   (default) full release build — editor + player feature set
+#   (default) full release build — complete engine feature set (rich text,
+#             raster/SVG assets) — what the demos use
 #   --slim    playback-only profile: drops the Typst rich-text stack, raster
 #             image decoding, and SVG loading (~smaller wasm; Text degrades to
 #             the plain fast path, Code/Math/Svg assets report diagnostics)
@@ -67,30 +68,12 @@ fi
 
 if [ "${brotli_avail:-false}" = true ]; then
   br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q 11 -f -k "$1"; else brotli -q 11 -f -k "$1"; fi; }
-  for f in "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web.js" \
-           web/vendor/cm.js web/css/main.css web/js/main.js web/index.html; do
+  for f in "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web.js"; do
     [ -f "$f" ] && br "$f"
   done
 else
   echo "warning: brotli unavailable — skipping precompression"
 fi
-
-# Demo scenes: copied from the repo's examples so the shown sources are
-# exactly the tracked ones (the examples' lib/ imports are embedded in the
-# wasm itself, see crates/animatix-web/src/host.rs).
-example_dir="$out_dir/examples"
-mkdir -p "$example_dir"
-copy_example() { cp "examples/$1" "$example_dir/$2"; }
-copy_example "basics/00_hello.amx"        "hello.amx"
-copy_example "animation/04_motion.amx"    "motion.amx"
-copy_example "basics/22_expressions.amx"  "expressions.amx"
-copy_example "layout/11_colors.amx"       "colors.amx"
-copy_example "basics/31_code.amx"         "code.amx"
-copy_example "data/07_plots.amx"          "plots.amx"
-copy_example "generation/15_for_loop.amx" "for_loop.amx"
-copy_example "composition/14_multiscene.amx" "multiscene.amx"
-copy_example "gallery/sorting_theatre.amx"   "sorting_theatre.amx"
-copy_example "gallery/epicycles.amx"         "epicycles.amx"
 
 wasm_bytes=$(wc -c < "$out_dir/animatix_web_bg.wasm")
 gz_bytes=$(gzip -9 -c "$out_dir/animatix_web_bg.wasm" | wc -c)

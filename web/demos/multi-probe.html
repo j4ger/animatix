@@ -14,13 +14,13 @@
 <body>
   <h1>Multi-instance probe</h1>
   <pre id="report">waiting…</pre>
-  <amx-player src="../pkg/examples/hello.amx" autoplay loop title="Hello"></amx-player>
+  <amx-player src="transformer/scenes/tokens.amx" autoplay loop title="Tokens"></amx-player>
   <div class="row">
-    <amx-player src="../pkg/examples/plots.amx" autoplay loop title="Plots"></amx-player>
-    <amx-player src="../pkg/examples/motion.amx" autoplay loop title="Motion"></amx-player>
+    <amx-player src="transformer/scenes/positional.amx" autoplay loop title="Positional"></amx-player>
+    <amx-player src="transformer/scenes/attention.amx" autoplay loop title="Attention"></amx-player>
   </div>
   <div style="height: 60vh"></div>
-  <amx-player src="../pkg/examples/epicycles.amx" autoplay loop title="Epicycles (below fold)"></amx-player>
+  <amx-player src="transformer/scenes/pipeline.amx" autoplay loop title="Pipeline (below fold)"></amx-player>
 
   <script type="module">
     await import("../embed/amx-player.js");
@@ -51,9 +51,26 @@
       requestAnimationFrame(tick);
     };
     tick();
+
+    // QA hook: ?readback=1 renders 30 frames, then reads the first player's
+    // frame back through a GPU buffer (compositor-independent pixel check).
+    let frames = 0;
+    const readback = new URLSearchParams(location.search).get("readback") === "1";
+    const probeTick = () => {
+      frames += 1;
+      const first = document.querySelector("amx-player");
+      if (readback && frames === 30 && first?._state === "ready") {
+        first._player.debug_readback(first._time, (stats) => {
+          report.readback = JSON.parse(stats);
+          window.__probe_state.phase = "done";
+        });
+        return;
+      }
+      if (!readback && frames === 30) { window.__probe_state.phase = "done"; return; }
+      requestAnimationFrame(probeTick);
+    };
     window.__probe_state = { phase: "running", get report() { return report; } };
-    // phase flip for the driver after enough time to render
-    setTimeout(() => { window.__probe_state.phase = "done"; }, 12000);
+    requestAnimationFrame(probeTick);
   </script>
 </body>
 </html>

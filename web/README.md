@@ -1,79 +1,39 @@
-# Animatix Web Demo
+# Animatix Web Player
 
-The Animatix animation engine running in the browser: a `.amx` editor with
-live diagnostics and a WebGPU player, served as a fully static site — no
-backend, no runtime dependencies beyond the browser.
+The Animatix engine, running in the browser: a WebGPU player for `.amx`
+scenes and a dependency-free `<amx-player>` embed component — served as a
+fully static site, no backend, no runtime dependencies beyond the browser.
 
-## Modes
+Scene **authoring** lives in the desktop app (`cargo run -p animatix-gui`);
+the web side only plays back and embeds.
 
-- **Edit** (`/?mode=edit`) — CodeMirror source editor with syntax
-  highlighting, diagnostics (errors/warnings from the real compiler
-  pipeline), a transport bar (play/pause, scrub, loop, fps), and an example
-  gallery. Edits rebuild the scene after a short debounce; the preview keeps
-  rendering the last working build while the current source has errors.
-- **Play** (`/?mode=play&example=epicycles`) — the embed-style player: full
-  viewport canvas, auto-hiding controls, autoplay + loop. This is what a
-  published `.amx` embed would look like.
+## What's here
+
+```
+crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
+web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
+web/index.html               player landing page (three embeds)
+web/demos/transformer/       "The Transformer Architecture, Animated" — six scenes + article page
+web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
+web/pkg/, web/pkg-slim/      build output (gitignored)
+scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
+scripts/serve-web.py         local static server with brotli negotiation
+```
 
 ## Run it
 
 ```bash
-scripts/build-web.sh          # cargo build (wasm) + wasm-bindgen + copy examples
-python3 -m http.server 8123 -d web   # or any static file server
-# open http://127.0.0.1:8123/
+scripts/build-web.sh                 # full profile  (~29.8 MB raw / 7.8 MB brotli)
+scripts/build-web.sh --slim          # playback-only (~4.7 MB raw / 1.1 MB brotli)
+python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
+# open http://127.0.0.1:8124/
 ```
 
-The site is plain static files; deploy `web/` to any static host after
-running the build script. First load downloads ~12 MB (gzip) of wasm — the
-whole engine, including the Typst text layout stack, is embedded.
-
-Requirements: a WebGPU browser (Chrome/Edge 113+, Firefox 141+, Safari 26+).
-The page feature-detects and shows guidance otherwise.
-
-## Architecture
-
-```
-crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (this demo's engine)
-web/index.html, css/, js/    static shell: editor UI, player UI, diagnostics panel
-web/vendor/cm.js             bundled CodeMirror 6 (built from web/tools, committed)
-web/pkg/                     build output (gitignored): wasm, glue, examples
-scripts/build-web.sh         build + glue generation + example copy
-```
-
-Layering mirrors the desktop app:
-
-- **Parse/typecheck/expand** — `animatix-syntax`'s module system in
-  `SourcesOnly` mode. The edited document and the shared `examples/lib/*.amx`
-  library (embedded at compile time) live in the in-memory source map; no
-  disk access exists on the platform.
-- **Build** — the engine's font-context-aware entry points build a `Timeline`
-  or multi-scene `Composition` exactly like the GUI does (`Draft` quality).
-  Text uses the bundled Open Sans/Fira Math faces; no system fonts exist on
-  the platform, so `font_family` names that the bundles don't cover fall back
-  to Open Sans.
-- **Render** — per frame: `timeline.evaluate_with_debug` produces a
-  [`vello::Scene`] (with the GPU `GpuFilterBackend`, same as the export
-  path). Vello renders through a compute pipeline that needs
-  `STORAGE_BINDING` on its target — browser canvas contexts don't reliably
-  expose that — so the scene is rendered into an offscreen texture at scene
-  resolution and `RendererCore::blit_texture` composites it onto the canvas
-  surface (the same shape as the GUI's `PreviewSurface`).
-
-### Deliberate v1 limitations
-
-- Multi-scene transitions **cut** instead of blending (the desktop
-  `TransitionCompositor` path is not wired yet).
-- Audio tracks are not played (no Web Audio wiring yet).
-- Assets (images/SVG) referenced by scenes are not fetched; scenes using them
-  report load warnings.
-- Native plugins don't exist on this platform; `libloading`-based extensions
-  are desktop-only.
+Deploying is the same story: run the build script, copy `web/` (plus the
+`pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
+113+, Firefox 141+, Safari 26+); embeds show guidance when it's missing.
 
 ## Embedding scenes in any page (`<amx-player>`)
-
-The editor/player demo above is one consumer of `web/embed/amx-player.js`, a
-dependency-free web component. Any page — a blog post, docs site, whatever —
-can embed a `.amx` file like an image:
 
 ```html
 <script type="module" src="https://your-host/amx-player.js"></script>
@@ -106,27 +66,35 @@ emits them; any CDN negotiates brotli transparently). The `.amx` files may
 live anywhere CORS permits. Rebuild the component after edits:
 
 ```bash
-cd web/tools && npm run build:embed
+cd web/tools && npm install && npm run build:embed
 ```
 
-A working example lives at `web/demos/transformer/` — "The Transformer
-Architecture, Animated", six self-contained scenes embedded in a static
-article page.
+## Engine layering
 
-## Diagnostics & probes
+- **Parse/typecheck/expand** — `animatix-syntax`'s module system in
+  `SourcesOnly` mode. The played document and the shared `examples/lib/*.amx`
+  library (embedded at compile time, so repo examples resolve their imports)
+  live in the in-memory source map; no disk access exists on the platform.
+- **Build** — the engine's font-context-aware entry points build a `Timeline`
+  or multi-scene `Composition` exactly like the GUI does (`Draft` quality).
+- **Render** — per frame: `timeline.evaluate_with_debug` produces a
+  [`vello::Scene`] (with the GPU `GpuFilterBackend`, same as the export
+  path). Vello renders through a compute pipeline that needs
+  `STORAGE_BINDING` on its target — browser canvas contexts don't reliably
+  expose that — so the scene is rendered into an offscreen texture at scene
+  resolution and `RendererCore::blit_texture` composites it onto the canvas
+  surface (the same shape as the GUI's `PreviewSurface`).
 
-The shell and the wasm driver expose a few switches used during development
-(and handy for bug reports):
+### Deliberate limitations
 
-- `?probe=1` — render 30 frames, then sample the canvas pixels and publish
-  stats on `window.__probe_state` (non-black pixel ratio, fps, diagnostics).
-- `?readback=1` (with `probe=1`) — render the current frame into an offscreen
-  texture and read it back through a GPU buffer; publishes the average color
-  and distinct-color count on `window.__probe_state`, independent of the
-  compositor.
-- `debug_fill(r,g,b)` / `debug_readback(t, cb)` on `AmxPlayer` — the wasm
-  methods behind the modes above.
-- `m.build_id()` on the engine module — identifies the running wasm build.
+- Multi-scene transitions **cut** instead of blending (the desktop
+  `TransitionCompositor` path is not wired yet).
+- Audio tracks are not played (no Web Audio wiring yet).
+- Assets (images/SVG) referenced by scenes are not fetched; scenes using them
+  report load warnings.
+- Native plugins don't exist on this platform; `libloading`-based extensions
+  are desktop-only.
+- No in-browser editing — that is the desktop app's job.
 
 ## Slim playback profile
 
@@ -151,19 +119,18 @@ behind it: `animatix-text/rich-text`, `animatix/image-decode`,
 exposes them as its own default features so `--no-default-features` selects
 the slim set).
 
-## Rebuilding the editor bundle
+## Diagnostics & probes
 
-The CodeMirror bundle is committed (`web/vendor/cm.js`). To regenerate after
-changing the dependency set:
-
-```bash
-cd web/tools && npm install && npm run build
-```
+- `web/demos/multi-probe.html` — four embeds on one page; publishes
+  `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with
+  `?readback=1`, a GPU-buffer readback (average color / distinct colors) of
+  the first player — a compositor-independent pixel check.
+- `debug_fill(r,g,b)` / `debug_readback(t, cb)` on `AmxPlayer` — the wasm
+  methods behind the hooks above.
+- `m.build_id()` on the engine module — identifies the running wasm build.
 
 ## Testing
 
-- `cargo test -p animatix-web` — the parse→build pipeline (including example
-  sources embedded via `include_str!`) runs natively in the normal test suite.
-- Manual smoke: `?probe=1` renders 30 frames, samples the canvas pixels, and
-  publishes stats on `window.__probe_state` (used by the headless-Chromium
-  check during development).
+- `cargo test -p animatix-web` — the parse→build pipeline (repo examples and
+  all six transformer scenes, embedded via `include_str!`) runs natively in
+  the normal test suite.

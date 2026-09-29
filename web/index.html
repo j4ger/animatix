@@ -1,121 +1,61 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Animatix Web — layout-first animation DSL</title>
-  <meta name="description" content="Write .amx animation scenes in the browser and play them on a WebGPU canvas. No backend, no install." />
-  <link rel="stylesheet" href="./css/main.css" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23151a22'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animatix Player — .amx scenes in the browser</title>
+  <meta name="description" content="A WebGPU player for Animatix .amx scenes, embeddable in any page with one custom element.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23151a22'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #0d1016; --raised: #131820; --border: #232b38;
+      --text: #dbe2ec; --dim: #8b96a7; --accent: #f5b942;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+           font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 96px; }
+    .kicker { color: var(--accent); font-size: 13px; letter-spacing: .12em;
+              text-transform: uppercase; }
+    h1 { font-size: 38px; line-height: 1.15; margin: 10px 0 12px; font-weight: 650; }
+    p.lede { color: var(--dim); max-width: 640px; margin: 0 0 28px; }
+    amx-player { border: 1px solid var(--border); border-radius: 10px; margin: 22px 0; }
+    a { color: var(--accent); }
+    code { background: var(--raised); border: 1px solid var(--border);
+           border-radius: 5px; padding: 1px 6px; font-size: 13px; }
+    footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--border);
+             color: #5b6575; font-size: 13px; }
+  </style>
 </head>
-<body class="mode-editor">
+<body>
+  <div class="wrap">
+    <div class="kicker">Animatix · WebGPU player</div>
+    <h1>Play <code>.amx</code> scenes in the browser</h1>
+    <p class="lede">
+      Every animation on this page is a tiny declarative scene file rendered by
+      the same engine as the desktop app. Embed one anywhere with a single
+      <code>&lt;amx-player src="…"&gt;</code> element — no editor required, no
+      backend, no build step. See
+      <a href="demos/transformer/index.html">the transformer walkthrough</a>
+      for a full article built from six embeds, and
+      <a href="README.md">web/README.md</a> for the hosting and embedding guide.
+    </p>
 
-  <!-- ── Top bar ─────────────────────────────────────────────── -->
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">Animatix</span>
-      <span class="brand-tag">web demo</span>
-    </div>
+    <amx-player src="./demos/transformer/scenes/pipeline.amx" autoplay loop controls
+                title="The transformer stack" aspect="16:9"></amx-player>
 
-    <label class="example-picker" title="Load an example scene">
-      <span class="picker-label">Example</span>
-      <select id="example-select"></select>
-    </label>
+    <amx-player src="./demos/transformer/scenes/attention.amx" autoplay loop controls
+                title="Scaled dot-product attention" aspect="16:9"></amx-player>
 
-    <div class="mode-switch" role="tablist" aria-label="View mode">
-      <button id="mode-editor" class="mode-btn active" role="tab" aria-selected="true">Edit</button>
-      <button id="mode-player" class="mode-btn" role="tab" aria-selected="false">Play</button>
-    </div>
+    <amx-player src="./demos/transformer/scenes/positional.amx" autoplay loop controls
+                title="Positional encoding" aspect="16:9"></amx-player>
 
-    <div class="topbar-meta">
-      <span id="engine-status" class="engine-status">starting…</span>
-    </div>
-  </header>
-
-  <!-- ── Editor mode workspace ───────────────────────────────── -->
-  <main class="workspace" id="workspace">
-    <section class="editor-pane" aria-label="Scene source">
-      <div id="editor" class="editor-host"></div>
-
-      <div class="diag-strip" id="diag-strip">
-        <button class="diag-toggle" id="diag-toggle" aria-expanded="true">
-          <span id="diag-summary">no issues</span>
-          <span class="diag-chevron" aria-hidden="true"></span>
-        </button>
-        <ul class="diag-list" id="diag-list" role="list"></ul>
-      </div>
-    </section>
-
-    <div class="divider" id="divider" role="separator" aria-orientation="vertical" title="Drag to resize"></div>
-
-    <section class="preview-pane" aria-label="Preview">
-      <div class="canvas-frame" id="canvas-frame">
-        <canvas id="stage" width="1280" height="720"></canvas>
-        <div class="stale-chip hidden" id="stale-chip">showing last working build</div>
-        <div class="canvas-hint hidden" id="canvas-hint">building…</div>
-      </div>
-
-      <div class="transport" id="transport">
-        <button class="tbtn primary" id="btn-play" title="Play/pause (space)">
-          <span class="icon icon-play" id="icon-play"></span>
-        </button>
-        <button class="tbtn" id="btn-restart" title="Restart">
-          <span class="icon icon-restart"></span>
-        </button>
-        <span class="time-readout" id="time-readout">0.00 / 0.00 s</span>
-        <input type="range" id="scrubber" class="scrubber" min="0" max="1000" value="0" step="1"
-               aria-label="Timeline position" />
-        <button class="tbtn toggled" id="btn-loop" title="Loop" aria-pressed="true">
-          <span class="icon icon-loop"></span>
-        </button>
-        <span class="meta-badge" id="fps-badge" title="Render frames per second">— fps</span>
-        <span class="meta-badge" id="dims-badge" title="Scene resolution">—</span>
-        <span class="meta-badge" id="build-badge" title="Last build time">—</span>
-      </div>
-    </section>
-  </main>
-
-  <!-- ── Player mode stage ───────────────────────────────────── -->
-  <!-- The single #stage canvas is moved here in play mode: moving a canvas
-       within the document preserves its GPU context, so one WebGPU device
-       serves both modes. -->
-  <main class="playerstage hidden" id="playerstage" aria-label="Player">
-    <div class="player-canvas-host" id="player-canvas-host"></div>
-    <a class="player-back" id="player-back" href="#" title="Back to editor (Esc)">&#8592; editor</a>
-    <div class="player-controls" id="player-controls">
-      <button class="tbtn primary big" id="pbtn-play" title="Play/pause (space)">
-        <span class="icon icon-play paused" id="picon-play"></span>
-      </button>
-      <input type="range" id="pscrubber" class="scrubber" min="0" max="1000" value="0" step="1"
-             aria-label="Timeline position" />
-      <span class="time-readout" id="ptime-readout">0.00 s</span>
-    </div>
-  </main>
-
-  <!-- ── Boot / failure overlays ─────────────────────────────── -->
-  <div class="overlay" id="boot-overlay">
-    <div class="overlay-card">
-      <div class="spinner" aria-hidden="true"></div>
-      <h1 id="boot-title">Loading Animatix</h1>
-      <p id="boot-detail">Fetching the engine module — first visit downloads ~12&nbsp;MB.</p>
-    </div>
+    <footer>
+      Edit scenes in the desktop app (<code>cargo run -p animatix-gui</code>);
+      publish them as embeds here.
+    </footer>
   </div>
 
-  <div class="overlay hidden" id="fail-overlay">
-    <div class="overlay-card">
-      <div class="fail-glyph" aria-hidden="true">&#9888;</div>
-      <h1 id="fail-title">WebGPU is required</h1>
-      <p id="fail-detail">
-        This demo renders through WebGPU. Try a recent
-        <strong>Chrome / Edge 113+</strong>, <strong>Firefox 141+</strong>,
-        or <strong>Safari 26+</strong>. Linux users may need a GPU with
-        Vulkan support.
-      </p>
-      <p class="fail-tech" id="fail-tech"></p>
-    </div>
-  </div>
-
-  <script type="module" src="./js/main.js?v=2"></script>
+  <script type="module" src="./embed/amx-player.js"></script>
 </body>
 </html>
