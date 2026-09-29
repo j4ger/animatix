@@ -564,6 +564,26 @@ pub(crate) fn collect_fallback_fonts(
 // Font bundle
 // ─────────────────────────────────────────────────────────────
 
+/// Resolve the face that shapes `c`: the primary face first, then the other
+/// bundled faces in bundle order.
+///
+/// The wasm sandbox has no system fonts, so a CJK scene only shapes if some
+/// bundled face covers it — before the bundled CJK face, every CJK character
+/// was silently skipped by the shaping loop (`None => continue`).
+fn pick_glyph(
+    faces: &[ttf_parser::Face<'static>],
+    c: char,
+    size: f32,
+) -> Option<(usize, ttf_parser::GlyphId, f32)> {
+    faces.iter().enumerate().find_map(|(idx, face)| {
+        face.glyph_index(c).map(|gid| {
+            // The scale follows the chosen face: their units_per_em differ.
+            let scale = size / face.units_per_em() as f32;
+            (idx, gid, scale)
+        })
+    })
+}
+
 /// A font entry in the bundled font set.
 struct BundledFont {
     family: &'static str,
@@ -581,6 +601,17 @@ static BUNDLED_FONTS: &[BundledFont] = &[
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
+    },
+    // Noto Sans SC subset (SIL OFL 1.1; see assets/fonts/README.md for
+    // provenance + SHA-256): the 3755 GB2312 level-1 common hanzi plus CJK
+    // punctuation, fullwidth forms and ASCII, instanced to weight 400. Gives
+    // the wasm sandbox (no system fonts) zero-config CJK coverage — before
+    // this, CJK text shaped to nothing, every glyph silently skipped.
+    // NOT gated on rich-text: in the slim build the fast path is the only
+    // shaper, and its per-character fallback (pick_glyph) needs this face.
+    BundledFont {
+        family: "Noto Sans SC",
+        data: include_bytes!("../assets/fonts/NotoSansSC-Common.ttf"),
     },
     // Only reachable through the Typst world (markup emphasis / math): the
     // plain fast path always picks the first face of a family, so slim builds
@@ -1828,16 +1859,31 @@ pub fn compile_text_fast(
     let mut glyphs: Vec<TextPath> = Vec::with_capacity(content.len());
     let mut x_curr: f64 = 0.0; // cumulative x offset in scene coordinates (points)
     let mut prev_glyph_id: Option<ttf_parser::GlyphId> = None;
+    let mut prev_face_idx: Option<usize> = None;
+
+    // Per-character glyph fallback across the bundled faces: the primary face
+    // shapes most scripts, and CJK on the wasm sandbox has no other glyph
+    // source than the bundle. faces[0] is the primary; kerning applies only
+    // within one face.
+    let mut faces = vec![face.clone()];
+    faces.extend(
+        BUNDLED_FONTS
+            .iter()
+            .filter(|bf| bf.family != resolved_family)
+            .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
+    );
 
     for c in content.chars() {
-        let glyph_id = match face.glyph_index(c) {
-            Some(id) => id,
-            None => continue,
+        // Primary face first; the bundled set covers what it misses. Kerning
+        // only applies when both glyphs come from the same face.
+        let Some((used_idx, glyph_id, glyph_scale)) = pick_glyph(&faces, c, size) else {
+            continue;
         };
+        let used = &faces[used_idx];
 
         // Get advance width in font units, then scale to scene units
-        let raw_advance = face.glyph_hor_advance(glyph_id).unwrap_or(0) as f32;
-        let mut advance = raw_advance * font_scale;
+        let raw_advance = used.glyph_hor_advance(glyph_id).unwrap_or(0) as f32;
+        let mut advance = raw_advance * glyph_scale;
 
         // Apply letter spacing
         advance += letter_spacing;
@@ -1847,27 +1893,32 @@ pub fn compile_text_fast(
             advance += word_spacing;
         }
 
-        // Apply kerning from previous glyph to current glyph
-        // Use only the first horizontal subtable to avoid double-applying kerning
-        if let Some(prev) = prev_glyph_id {
-            if let Some(table) = kern_tables {
-                if let Some(subtable) = table.subtables.into_iter().find(|st| st.horizontal) {
-                    if let Some(kern) = subtable.glyphs_kerning(prev, glyph_id) {
-                        x_curr += (kern as f64) * font_scale as f64;
+        // Kerning applies only when both glyphs come from the primary face: a
+        // kern pair across two faces is meaningless, and the table belongs to
+        // the primary anyway. Use only the first horizontal subtable to avoid
+        // double-applying kerning.
+        if prev_face_idx == Some(used_idx) {
+            if let Some(prev) = prev_glyph_id {
+                if let Some(table) = kern_tables {
+                    if let Some(subtable) = table.subtables.into_iter().find(|st| st.horizontal) {
+                        if let Some(kern) = subtable.glyphs_kerning(prev, glyph_id) {
+                            x_curr += (kern as f64) * font_scale as f64;
+                        }
                     }
                 }
             }
         }
+        prev_face_idx = Some(used_idx);
         prev_glyph_id = Some(glyph_id);
 
         // Build glyph outline path
         let mut builder = PathBuilder(BezPath::new());
-        if face.outline_glyph(glyph_id, &mut builder).is_some() {
+        if used.outline_glyph(glyph_id, &mut builder).is_some() {
             let path = builder.0;
 
             // Apply scale (flip Y) and translate to cumulative x position
             // Same coordinate convention as walk_frame_for_glyphs
-            let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+            let scale_affine = Affine::scale_non_uniform(glyph_scale as f64, -glyph_scale as f64);
             let translate = Affine::translate(kurbo::Vec2::new(x_curr, 0.0));
             let final_affine = translate * scale_affine;
 
@@ -1950,6 +2001,17 @@ pub fn compile_text_fast_wrapped(
 
     let kern_tables = face.tables().kern;
 
+    // Per-character glyph fallback across the bundled faces: faces[0] is the
+    // primary, the rest cover what it misses. CJK on the wasm sandbox has no
+    // other glyph source than the bundle.
+    let mut faces = vec![face.clone()];
+    faces.extend(
+        BUNDLED_FONTS
+            .iter()
+            .filter(|bf| bf.family != resolved_family)
+            .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
+    );
+
     let rgba = f32_color_to_rgba8(&color);
 
     // Line height in absolute points
@@ -1971,8 +2033,7 @@ pub fn compile_text_fast_wrapped(
         #[allow(dead_code)] // Reserved for debug/annotation use
         text: String,
         width: f64, // total advance in scene coords
-        glyphs: Vec<(ttf_parser::GlyphId, f64, f64)>, /* (glyph_id, advance, x_offset at build
-                     * time) */
+        glyphs: Vec<(usize, ttf_parser::GlyphId, f32, f64)>, /* (face slot, glyph_id, scale, x_offset) */
     }
 
     let mut word_infos: Vec<WordInfo> = Vec::with_capacity(words.len());
@@ -1987,30 +2048,40 @@ pub fn compile_text_fast_wrapped(
             continue;
         }
         let mut total_width = 0.0f64;
-        let mut glyph_data: Vec<(ttf_parser::GlyphId, f64, f64)> = Vec::with_capacity(w.len());
+        let mut glyph_data: Vec<(usize, ttf_parser::GlyphId, f32, f64)> =
+            Vec::with_capacity(w.len());
         let mut prev_gid: Option<ttf_parser::GlyphId> = None;
+        let mut prev_face_slot: Option<usize> = None;
 
         for c in w.chars() {
-            if let Some(gid) = face.glyph_index(c) {
-                let raw_adv = face.glyph_hor_advance(gid).unwrap_or(0) as f32;
-                let adv = raw_adv * font_scale + letter_spacing;
+            // Primary face first; the bundled set covers what it misses (CJK
+            // on the wasm sandbox has no other glyph source).
+            let Some((face_slot, glyph_id, glyph_scale)) = pick_glyph(&faces, c, size) else {
+                continue;
+            };
+            let raw_adv = faces[face_slot].glyph_hor_advance(glyph_id).unwrap_or(0) as f32;
+            let adv = raw_adv * glyph_scale + letter_spacing;
 
-                // Kerning — use only the first horizontal subtable to avoid double-kerning
+            // Kerning — only within one face: a kern pair across two faces is
+            // meaningless, and the table belongs to that face. Use only the
+            // first horizontal subtable to avoid double-applying kerning.
+            if prev_face_slot == Some(face_slot) {
                 if let Some(prev) = prev_gid {
-                    if let Some(table) = kern_tables {
+                    if let Some(table) = &kern_tables {
                         if let Some(subtable) = table.subtables.into_iter().find(|st| st.horizontal)
                         {
-                            if let Some(kern) = subtable.glyphs_kerning(prev, gid) {
+                            if let Some(kern) = subtable.glyphs_kerning(prev, glyph_id) {
                                 total_width += (kern as f64) * font_scale as f64;
                             }
                         }
                     }
                 }
-                prev_gid = Some(gid);
-
-                glyph_data.push((gid, adv as f64, total_width));
-                total_width += adv as f64;
             }
+            prev_face_slot = Some(face_slot);
+            prev_gid = Some(glyph_id);
+
+            glyph_data.push((face_slot, glyph_id, glyph_scale, total_width));
+            total_width += adv as f64;
         }
 
         word_infos.push(WordInfo {
@@ -2128,12 +2199,15 @@ pub fn compile_text_fast_wrapped(
             }
 
             // Render each glyph in the word using pre-computed offsets that include kerning
-            for (gid, _adv, glyph_x_offset) in &wi.glyphs {
+            for (face_slot, gid, glyph_scale, glyph_x_offset) in &wi.glyphs {
                 let mut builder = PathBuilder(BezPath::new());
-                if face.outline_glyph(*gid, &mut builder).is_some() {
+                if faces[*face_slot]
+                    .outline_glyph(*gid, &mut builder)
+                    .is_some()
+                {
                     let path = builder.0;
                     let scale_affine =
-                        Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+                        Affine::scale_non_uniform(*glyph_scale as f64, -*glyph_scale as f64);
                     let translate = Affine::translate(kurbo::Vec2::new(
                         x_curr + x_offset + glyph_x_offset,
                         y_curr,
@@ -2853,6 +2927,38 @@ mod tests {
             ctx.load_face("Open Sans", 400.0, "normal").is_some(),
             "the re-registered bundled family must stay resolvable"
         );
+    }
+
+    /// CJK text must shape through the bundled Noto Sans SC face: the wasm
+    /// sandbox has no system fonts, so without this face every CJK character
+    /// was silently skipped and the text rendered empty.
+    #[test]
+    fn cjk_text_shapes_through_the_bundled_cjk_face() {
+        let font_ctx = test_font_ctx();
+        let compiled = compile_text_fast(
+            "你好动画",
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+        )
+        .unwrap();
+        assert_eq!(
+            compiled.glyphs.len(),
+            4,
+            "every CJK character must shape to a glyph"
+        );
+        for glyph in &compiled.glyphs {
+            let bbox = glyph.path.bounding_box();
+            assert!(
+                bbox.width() > 0.0 && bbox.height() > 0.0,
+                "CJK glyphs must have outlines"
+            );
+        }
     }
 
     /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
@@ -3881,6 +3987,9 @@ mod tests {
             bbox_center[0]
         );
     }
+
+
+
 
     #[test]
     fn no_max_width_is_identical() {
