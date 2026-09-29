@@ -134,7 +134,15 @@ const ASPECTS = {
 };
 
 class AmxPlayerElement extends HTMLElement {
-  static observedAttributes = ["src", "autoplay", "loop", "hold", "controls", "title", "aspect"];
+  static observedAttributes = [
+    "src",
+    "autoplay",
+    "loop",
+    "hold",
+    "controls",
+    "title",
+    "aspect",
+  ];
 
   constructor() {
     super();
@@ -323,6 +331,65 @@ class AmxPlayerElement extends HTMLElement {
     return this.hasAttribute("autoplay") && !REDUCED_MOTION && !SAVE_DATA;
   }
 
+  /// `data-fonts` — space-separated TTF/OTF URLs, registered before the scene
+  /// compiles so `font_family` can name them. A failed font is skipped with a
+  /// console warning rather than blocking the figure.
+  async _loadFonts(module) {
+    const fonts = this.getAttribute("data-fonts");
+    if (!fonts || !this._player.add_font) return;
+    for (const url of fonts.split(/\s+/).filter(Boolean)) {
+      try {
+        const response = await fetch(new URL(url, document.baseURI));
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        this._player.add_font(new Uint8Array(await response.arrayBuffer()));
+      } catch (err) {
+        console.warn(`amx-player: font '${url}' skipped (${err.message})`);
+      }
+    }
+  }
+
+  /// Fetch the assets the scene references and build with them, so `Image` and
+  /// `Svg` actors resolve from memory instead of a filesystem the sandbox
+  /// does not have. Assets that fail to fetch are simply absent, which the
+  /// build reports as it would on the desktop.
+  async _loadScene(player, source, sceneSrc) {
+    let urls = [];
+    try {
+      urls = player.list_asset_urls(source) ?? [];
+    } catch (err) {
+      console.warn(`amx-player: could not list asset urls (${err.message})`);
+    }
+
+    const base = new URL(sceneSrc, document.baseURI).href;
+    const payloads = await Promise.all(
+      urls.map((url) =>
+        fetch(new URL(url, base))
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            // Images cross the boundary as Uint8Array (the Rust side decodes
+            // them); SVG as text.
+            return url.toLowerCase().endsWith(".svg")
+              ? r.text()
+              : r.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+          })
+          .catch((err) => {
+            console.warn(`amx-player: asset '${url}' skipped (${err.message})`);
+            return null;
+          }),
+      ),
+    );
+
+    const assetUrls = [];
+    const assetPayloads = [];
+    urls.forEach((url, index) => {
+      if (payloads[index] !== null) {
+        assetUrls.push(url);
+        assetPayloads.push(payloads[index]);
+      }
+    });
+    return this._player.load_source_with_assets(source, assetUrls, assetPayloads);
+  }
+
   async _maybeStartLoading() {
     const src = this.getAttribute("src");
     if (!src || this._state !== "idle") return;
@@ -345,7 +412,9 @@ class AmxPlayerElement extends HTMLElement {
       this._player = await module.create_player(this._canvas);
       if (this.getAttribute("src") !== src) return;
 
-      const result = this._player.load_source(source);
+      await this._loadFonts(module);
+      if (this.getAttribute("src") !== src) return;
+      const result = await this._loadScene(this._player, source, src);
       const diags = result.diagnostics ?? [];
       const errors = diags.filter((d) => d.severity === "error");
       if (!result.ok) {
