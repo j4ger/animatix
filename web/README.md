@@ -200,9 +200,21 @@ the slim set).
   `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with
   `?readback=1`, a GPU-buffer readback (average color / distinct colors) of
   the first player — a compositor-independent pixel check.
-- `debug_fill(r,g,b)` / `debug_readback(t, cb)` on `AmxPlayer` — the wasm
-  methods behind the hooks above.
+- `web/demos/svg-probe/` — `Svg`/`Image` media probes: one page per scenario
+  (`index.html` full scene, `variants.html` rect-vs-circle content bisection)
+  with the same `__probe_state` readback hook.
+- `debug_fill(r,g,b)` / `debug_readback(t, cb)` / `debug_svg_stats(t_ms)` on
+  `AmxPlayer` — the wasm methods behind the hooks above. `debug_svg_stats`
+  reports the SVG pipeline stage by stage (asset-cache path counts, per-track
+  static/evaluated path counts and opacity at `t_ms`, vello draw/path totals);
+  sample at or after the actor's entrance, since a hidden-by-default actor
+  reads as empty before its reveal.
 - `m.build_id()` on the engine module — identifies the running wasm build.
+
+> Two probe traps have burned this pipeline before (see `docs/history.md`,
+> "The wasm-SVG item that never was"): a scene screenshot catches whatever
+> loop moment is on screen, so pin frames with `debug_readback(t)`; and
+> always compute a backdrop-only baseline before calling an average "empty".
 
 ## Testing
 

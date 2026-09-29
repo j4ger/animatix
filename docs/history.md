@@ -1057,3 +1057,85 @@ path blits its view, the readback path copies its texture to a buffer.
 Roadmap impact: the unknown-config-key and slim-warning items are resolved
 (above); a new item records the missing-glyph silence (`⋮`, `ᵀ`, `ₖ` render as
 tofu with no diagnostic, and the same silence hides missing CJK faces).
+
+## The wasm-SVG item that never was (2026-09-29)
+
+The roadmap carried "`Svg` actors render empty on wasm" since the asset-fetch
+work: a fetched SVG built fine (no diagnostics) while the player drew nothing,
+and the same file rendered natively through the CLI. Closed as **not
+reproducible** — both probes that "confirmed" it were measuring their own
+scene, not the engine.
+
+The stage-by-stage bisection (now `AmxPlayer::debug_svg_stats(t_ms)`, plus the
+`web/demos/svg-probe/` pages) found every stage correct on wasm32: the asset
+cache held the parsed paths, the track held them, `svg_paths_at(t)` evaluated
+them at opacity 1, and the vello encoding at the probe time contained the
+draws — the GPU rasterized them, and both a plain-`<rect>` and a
+`<circle>+<rect>` SVG render correctly in the browser.
+
+Two probe traps produced the phantom. First, the probe scene declared its own
+backdrop before the first keyframe with no explicit `opacity`, so the
+hidden-by-default seed swallowed everything and the frame was the bare theme
+background. Second, after fixing that, the frame average was read against the
+wrong baseline: backdrop-only is (247, 249, 255) while backdrop+logo is
+(242, 234, 239) — the logo *was* in the average — and the confirmation
+screenshot happened to land at t=0.1 of the loop, before the logo's 0.2 s
+fade-in began. A screenshot of a looping embed pins whatever moment is on
+screen, not the moment you meant to sample; pin frames with
+`debug_readback(t)`, and compute the backdrop-only baseline before calling an
+average "empty".
+
+## Transition frames keep their filter scopes (2026-09-29)
+
+`OffscreenRenderer::render_transition_to_output` evaluated both scenes with
+`filter_backend = None`, so every exported transition frame silently dropped
+the `Filter` scopes the preview (and the single-scene export path) applied —
+a scene blurred in the preview exported sharp inside its own transition. The
+path now runs the same per-target tail as the single-scene path
+(`render_timeline_into_view`): each scene evaluates with its own lazily-built
+`GpuFilterBackend` (second slot `filter_backend_b`, sharing one dimension key
+so a resize drops both), renders, and blits its pending zero-readback
+composites onto its own texture before the compositor blends. A regression
+test pins it: at progress 0 the transition frame must match the single-scene
+render of the outgoing scene channel-for-channel (pre-fix the red channel sat
+~9 points apart on the blur fixture).
+
+The same audit found the web player's `render_timeline` passing a filter
+backend but never draining `take_pending_composites()` — the GUI preview's
+blit tail was missing there — so a last-root `Filter` scope that took the
+zero-readback path would have vanished from web playback too. Fixed in the
+same commit; the web transition targets (one backend per scene, already
+correct since the transition work) now run the identical tail.
+
+## Build-time warnings for tofu text and dropped properties (2026-09-29)
+
+Two silences closed in one pass — both were cases where the build succeeded,
+the scene "worked", and a value quietly never reached the screen.
+
+**Missing glyphs warn `missing-glyph` at build time.** `Text` rendered tofu
+for characters no face covers (`⋮` U+22EE, `ᵀ` U+1D40 and `ₖ` U+2096 garbled
+the demo's `softmax(QKᵀ / √dₖ)` formula with no diagnostic anywhere). The
+probe `animatix_text::missing_text_glyphs` mirrors `compile_text_cached`'s
+path selection exactly (rich-text cfg included): fast-path text is checked
+against the family face plus the bundled fallback set, and everything else
+goes through the Typst engine, whose fallback chain draws from the whole
+registered database — so the probe checks the db when the Typst path governs.
+Finding the gates exposed a wrong assumption in the original roadmap note:
+`ᵀ`/`ₖ` sit outside `is_latin_text`, so the demo formula was *Typst-path*
+tofu, not fast-path tofu. The declaration build pushes one warning naming the
+actor and each uncovered character with its codepoint. U+2065 (permanently
+unassigned, in-gate) makes the engine test machine-independent; the probe
+test runs the Typst branch against a controlled one-face database because the
+real context carries the system's fonts.
+
+**Unknown declaration properties warn `unknown-property` at build time.**
+A typo'd property (`colour:`, `opasity:`, `font_sise:`) was dropped by every
+consumer in silence — the scene built, rendered, and just lacked the value;
+only the analyzer's soft "not commonly used" info hinted at it. One helper
+(`warn_unknown_declaration_properties`) now guards every declaration surface
+(built-in shapes/containers, extension primitives, media, audio, text-like):
+a name is known when the property registry binds it, the primitive declares
+it, or an extension registry declares it for the type — all single-source
+tables, so the warning cannot drift from what the build reads. Run against
+the whole corpus (`examples/`, `dogfood/`, `web/demos/`) it produces zero
+warnings; the four hand-written typos above each produce exactly one.
