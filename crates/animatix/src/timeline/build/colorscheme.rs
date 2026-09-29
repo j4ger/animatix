@@ -221,6 +221,25 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "duration" {
+                self.declared_duration_s = match &setting.value {
+                    Expr::Num(seconds) if *seconds > 0.0 => Some(*seconds),
+                    _ => {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidConfigValue,
+                                DiagnosticPhase::Build,
+                                "Config key 'duration' expects a positive number of seconds."
+                                    .to_string(),
+                            )
+                            .with_subject("duration"),
+                        );
+                        None
+                    },
+                };
+                continue;
+            }
+
             if setting.name != "colorscheme" {
                 continue;
             }

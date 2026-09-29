@@ -621,6 +621,31 @@ impl Timeline {
             );
         }
 
+        // A declared duration overrides the keyframe-inferred length, so
+        // anything authored past it is never played. That truncation is the
+        // documented contract (`docs/spec.md`, "overrides keyframe-inferred
+        // duration") and the composition path has always done it per scene, but
+        // doing it silently would strand authored animation with no feedback —
+        // say so instead.
+        if let Some(declared_s) = timeline.declared_duration_s {
+            let content_s = timeline.duration_seconds();
+            if content_s > declared_s {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::DurationShorterThanContent,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "`config {{ duration: {declared_s}s }}` is shorter than this \
+                             timeline's last keyframe at {content_s:.2}s. A declared duration \
+                             overrides the inferred one, so everything after {declared_s}s is \
+                             never played — raise the duration or move the animation earlier."
+                        ),
+                    )
+                    .with_subject("duration"),
+                );
+            }
+        }
+
         // Every track's primitive identity must resolve. `actor_type` is
         // required at construction, so a miss means the declared primitive is
         // not registered (typically an extension whose plugin is not loaded).

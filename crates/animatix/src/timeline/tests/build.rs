@@ -2164,3 +2164,110 @@ r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 
         "and ends at the declared value"
     );
 }
+
+// `config { duration: N }` is documented as overriding the keyframe-inferred
+// duration (docs/spec.md, "Config key scopes"), and the per-scene composition
+// path has always honoured it. These pin the single-scene equivalent.
+
+fn build_source(source: &str) -> crate::timeline::BuildReport<Timeline> {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    Timeline::build_with_diagnostics(&ast.expect("parsed AST"), &std::collections::HashMap::new())
+}
+
+const SCENE_WITH_DURATION: &str = r#"
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 2.0 }
+r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
+#5s
+fade-in r [500ms]
+"#;
+
+#[test]
+fn declared_duration_overrides_the_inferred_length() {
+    let report = build_source(SCENE_WITH_DURATION);
+
+    assert_eq!(
+        report.output.duration_seconds(),
+        5.5,
+        "the inferred extent still reaches the last keyframe"
+    );
+    assert_eq!(
+        report.output.declared_duration_seconds(),
+        Some(2.0),
+        "the declared value is what config asked for"
+    );
+    assert_eq!(
+        report.output.playback_duration_seconds(),
+        2.0,
+        "playback ends at the declared duration even though keyframes run past it"
+    );
+}
+
+#[test]
+fn truncating_at_the_declared_duration_warns() {
+    let report = build_source(SCENE_WITH_DURATION);
+
+    assert!(
+        report.diagnostics.iter().any(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::DurationShorterThanContent
+                && d.location.subject.as_deref() == Some("duration")
+        }),
+        "content past the declared duration must not be dropped silently, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn declared_duration_longer_than_content_extends_playback_without_warning() {
+    let report = build_source(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.0 }
+r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
+#1s
+fade-in r [500ms]
+"#,
+    );
+
+    assert_eq!(report.output.playback_duration_seconds(), 8.0);
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::DurationShorterThanContent),
+        "a duration longer than the content truncates nothing, got: {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn duration_config_must_be_a_positive_number() {
+    for value in ["0.0", "-3.0", "\"long\""] {
+        let report = build_source(&format!(
+            r#"
+config {{ colorscheme: "editorial-dark", duration: {value} }}
+r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
+#1s
+fade-in r [500ms]
+"#
+        ));
+
+        assert_eq!(
+            report.output.declared_duration_seconds(),
+            None,
+            "`duration: {value}` is not a usable length"
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| {
+                d.code == crate::diagnostics::DiagnosticCode::InvalidConfigValue
+                    && d.location.subject.as_deref() == Some("duration")
+            }),
+            "`duration: {value}` must be reported, got: {:?}",
+            report.diagnostics
+        );
+        assert_eq!(
+            report.output.playback_duration_seconds(),
+            report.output.duration_seconds(),
+            "an unusable duration falls back to the inferred extent"
+        );
+    }
+}

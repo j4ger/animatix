@@ -543,6 +543,12 @@ pub struct Timeline {
     /// Scene resolution declared via top-level `config { resolution: (w, h) }`,
     /// so export tooling can default its canvas to the authored size.
     pub(crate) resolution: Option<(u32, u32)>,
+    /// Duration declared via `config { duration: N }`, in seconds. When present
+    /// it *overrides* the keyframe-inferred length rather than extending it, so
+    /// the timeline ends there even if keyframes continue past it — the
+    /// contract `docs/spec.md` documents and the composition path has always
+    /// honoured per scene. See [`Timeline::playback_duration_seconds`].
+    pub(crate) declared_duration_s: Option<f64>,
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
@@ -822,6 +828,7 @@ impl Timeline {
             external_colorschemes: std::collections::HashMap::new(),
             export_preset: None,
             resolution: None,
+            declared_duration_s: None,
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
@@ -924,6 +931,28 @@ impl Timeline {
                     .unwrap_or(0),
             );
         (max_ms as f64) / 1000.0
+    }
+
+    /// Duration declared by `config { duration: N }`, if any.
+    pub fn declared_duration_seconds(&self) -> Option<f64> {
+        self.declared_duration_s
+    }
+
+    /// How long this timeline *plays*: the declared duration when the file set
+    /// one, otherwise the keyframe-inferred length.
+    ///
+    /// A declared duration overrides rather than extends, so keyframes past it
+    /// are never reached — `docs/spec.md` ("sets explicit scene duration
+    /// (overrides keyframe-inferred duration)") and the per-scene composition
+    /// path both say so, and this is the single-scene equivalent. Build emits a
+    /// `duration-shorter-than-content` warning in that case so the truncation is
+    /// not silent.
+    ///
+    /// Editing surfaces that must reach every keyframe — the GUI timeline strip,
+    /// the keyframe table — keep using [`Timeline::duration_seconds`], which
+    /// stays the inferred extent.
+    pub fn playback_duration_seconds(&self) -> f64 {
+        self.declared_duration_s.unwrap_or_else(|| self.duration_seconds())
     }
 
     /// Returns all keyframe time positions across all tracks, in seconds.

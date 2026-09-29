@@ -378,9 +378,14 @@ impl BuildTarget {
     }
 
     /// Returns the total duration in seconds, regardless of target type.
+    ///
+    /// This is the length the document *plays* for, so a single scene honours
+    /// its declared `config { duration: N }` through
+    /// [`Timeline::playback_duration_seconds`] — the GUI preview range and every
+    /// export frame count come from here.
     pub fn duration_s(&self) -> f64 {
         match self {
-            BuildTarget::SingleScene(timeline) => timeline.duration_seconds(),
+            BuildTarget::SingleScene(timeline) => timeline.playback_duration_seconds(),
             BuildTarget::MultiScene(composition) => composition.global_duration_s,
         }
     }

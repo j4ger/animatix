@@ -151,7 +151,9 @@ fn document_extent(target: &BuildTarget) -> (f64, u32, u32) {
     match target {
         BuildTarget::SingleScene(timeline) => {
             let (w, h) = timeline.resolution().unwrap_or(default_dims);
-            (timeline.duration_seconds().max(MIN_DURATION_S), w, h)
+            // Playback length, not the inferred keyframe extent: a declared
+            // `config { duration: N }` overrides it, so the player stops there.
+            (timeline.playback_duration_seconds().max(MIN_DURATION_S), w, h)
         },
         BuildTarget::MultiScene(composition) => {
             let (w, h) = composition
