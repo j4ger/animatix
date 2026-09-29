@@ -1005,3 +1005,55 @@ animation duration to the largest keyframe time and overshot).
 Two things this left behind, both filed in `roadmap.md`: unknown `config` keys
 are still ignored without a warning, and the `--slim` profile builds with
 `dead_code` warnings from the rich-text helpers it compiles out.
+
+## Web player: transitions, assets, runtime fonts (2026-09-29)
+
+The three "not wired yet" items from the WASM port, plus the config-key catalog.
+
+**Multi-scene transitions blend in the browser.** `render_frame` used to cut to
+the incoming scene when `composition.evaluate` returned a blend. The player now
+renders both scenes into their own offscreen targets and runs the same
+`TransitionCompositor` the GUI preview and the export path use, presenting the
+composited output. Two new offscreen targets exist only while a multi-scene
+document is loaded, and the incoming scene gets its own filter backend so the
+two evaluations cannot stomp each other's pass state.
+
+**Assets fetch.** The engine's asset path was synchronous `std::fs` with no
+injection point, and the web player passed `None` for the asset cache — an
+`Image`/`Svg` actor was a hard `MediaLoadFailure` error. `AssetCache` gained
+`insert_svg_source`/`insert_image_bytes` (keys normalised like every load), the
+player exposes `list_asset_urls` (literal `url` properties on `Image`/`Svg`
+actors, walked from the parsed AST) and `load_source_with_assets`, and the
+embed fetches the URLs relative to the scene file before building. Build-time
+asset loading stays synchronous; the async boundary is the JS pre-pass.
+Missing assets keep the desktop semantics (a build error), and `--slim` builds
+still report the feature gate for image/SVG.
+
+**Fonts can be supplied at runtime.** The web sandbox has no system fonts, so
+the only faces were the bundled Open Sans set — measured: CJK text renders as
+a pure background frame with zero diagnostics while Latin and Cyrillic render
+(open-sans covers both). `FontContext::load_font_bytes` builds a private copy
+of the shared font database, registers the face, and bumps the font epoch so
+memoized text compiles invalidate; `AmxPlayer::add_font` plus the embed's
+`data-fonts` attribute (TTF/OTF URLs) feed it before the scene compiles. No CJK
+font is bundled by choice — a page supplies what it needs, and the payload
+stays small.
+
+**`config` keys are a single-source catalog.** The key list was hand-written in
+four places that had already drifted: the timeline build's unknown-key
+allow-list, the composition path's `SCENE_SCOPED_KEYS`, `docs/spec.md`'s scope
+table (which omitted `text_fast_path` and `export_preset` entirely), and the
+unknown-key warning's message. `animatix-syntax` gained `config_keys.rs`
+(`CONFIG_KEYS` with name/scope/value-kind/summary), and the engine consumers
+derive their sets from it; a test parses the spec table and fails on drift, in
+the pattern `catalog.rs` already used for the primitives checklist.
+
+Along the way the two paths through `web.rs` (`render_frame` for the canvas and
+`debug_readback` for diagnostics) were collapsed into one `render_document` —
+they were the same target/match logic twice, and a transition fix would have
+had to be made twice. `render_document` returns the frame target; the canvas
+path blits its view, the readback path copies its texture to a buffer.
+
+Roadmap impact: the unknown-config-key and slim-warning items are resolved
+(above); a new item records the missing-glyph silence (`⋮`, `ᵀ`, `ₖ` render as
+tofu with no diagnostic, and the same silence hides missing CJK faces).

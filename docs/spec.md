@@ -2032,6 +2032,8 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
+| `export_preset` | Composition | ❌ No | Preset name the CLI video/GIF paths pick up (e.g. `"1080p30"`); set once in the prelude. |
+| `text_fast_path` | Program | ❌ No | Routes plain Latin `Text` through the fast shaping path (default on). |
 
 **Merge rules:**
 - The shared prelude statements are prepended to every scene's body before timeline compilation.
