@@ -1,58 +1,185 @@
-// Positional Encoding — injecting word order with waves.
-// Each position gets a unique fingerprint from sinusoids of many frequencies.
+// 02 · Positional encoding.
+//
+// The figure is the encoding matrix rather than a plot: rows are dimensions,
+// columns are positions, and each row halves the frequency of the one above it.
+// It makes the same point as the classic wave plot while avoiding Graph, whose
+// tick labels sit on the y = 0 rule and get crossed by the curves.
+//
+// One hue, shade = value: dark is negative, mid is zero, bright is positive.
+// An earlier attempt encoded sign with a second hue and magnitude with opacity,
+// which failed — every sinusoid shares one amplitude, so all four rows came out
+// equally bright and the doubling of the period was invisible. Now the rows read
+// as stripes of width 1, 2, 4 and 8.
+//
+// Periods are 3, 6, 12, 24 columns — a schematic, not the real constants. In a
+// real 512-wide vector the earliest dimensions turn so slowly that over eight
+// positions they look identical, so reproducing them exactly would show
+// nothing. What is faithful is the mechanism: one sine per dimension, with the
+// wavelength growing geometrically. Every row carries the *same* amplitude —
+// the original figure scaled each curve by an arbitrary 1.0 / 0.72 / 0.45,
+// which muddled amplitude into a picture that is meant to be about period.
+//
+// Grid: 1280×720. 8 columns × 4 rows of 74px cells, pitch 84. Column x values
+// are 296 + 84i; row y values are 225 + 84r.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.8 }
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "2 · Positional Encoding", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 55)
+// ── period 3: a stripe every column ─────────────────────────────────
+c00: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 225)
+c01: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (380, 225)
+c02: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (464, 225)
+c03: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (548, 225)
+c04: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 225)
+c05: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (716, 225)
+c06: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 225)
+c07: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (884, 225)
 
-sub: Text, text: "sin/cos waves of growing wavelength stamp every position with a unique address",
-  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+// ── period 6: stripes two columns wide ──────────────────────────────
+c10: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 309)
+c11: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (380, 309)
+c12: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (464, 309)
+c13: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (548, 309)
+c14: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (632, 309)
+c15: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (716, 309)
+c16: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 309)
+c17: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (884, 309)
 
-// The classic multi-frequency picture: value vs position for a few channels
-main: Graph, x_domain: (0, 32), y_domain: (-1.15, 1.15), size: (860, 420), at: (560, 380) {
-  fast: PlotCurve, kind: "cartesian", func: (x) => sin(x / 1.0), color: accent.primary, stroke_width: 2.5
-  mid: PlotCurve, kind: "cartesian", func: (x) => sin(x / 2.5) * 0.72, color: accent.success, stroke_width: 2.5
-  slow: PlotCurve, kind: "cartesian", func: (x) => sin(x / 6.0) * 0.45, color: accent.warning, stroke_width: 2.5
+// ── period 12: one hump across the whole row ────────────────────────
+c20: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 393)
+c21: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (380, 393)
+c22: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (464, 393)
+c23: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 1.00, at: (548, 393)
+c24: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 393)
+c25: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (716, 393)
+c26: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 393)
+c27: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.42, at: (884, 393)
+
+// ── period 24: never turns over on this page ────────────────────────
+c30: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 477)
+c31: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.71, at: (380, 477)
+c32: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (464, 477)
+c33: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.89, at: (548, 477)
+c34: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 477)
+c35: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.99, at: (716, 477)
+c36: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 1.00, at: (800, 477)
+c37: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.99, at: (884, 477)
+
+// ── row labels: the period doubles each row ────────────────────────
+lab0: Text, text: "period 3", font_size: 15, color: text.secondary,
+  text_max_width: 150, text_align: "right", at: (171, 225)
+lab1: Text, text: "period 6", font_size: 15, color: text.secondary,
+  text_max_width: 150, text_align: "right", at: (171, 309)
+lab2: Text, text: "period 12", font_size: 15, color: text.secondary,
+  text_max_width: 150, text_align: "right", at: (171, 393)
+lab3: Text, text: "period 24", font_size: 15, color: text.secondary,
+  text_max_width: 150, text_align: "right", at: (171, 477)
+
+// ── column axis ─────────────────────────────────────────────────────
+p0: Text, text: "0", font_size: 14, color: text.muted, at: (296, 544)
+p1: Text, text: "1", font_size: 14, color: text.muted, at: (380, 544)
+p2: Text, text: "2", font_size: 14, color: text.muted, at: (464, 544)
+p3: Text, text: "3", font_size: 14, color: text.muted, at: (548, 544)
+p4: Text, text: "4", font_size: 14, color: text.muted, at: (632, 544)
+p5: Text, text: "5", font_size: 14, color: text.muted, at: (716, 544)
+p6: Text, text: "6", font_size: 14, color: text.muted, at: (800, 544)
+p7: Text, text: "7", font_size: 14, color: text.muted, at: (884, 544)
+axis: Text, text: "position", font_size: 15, color: text.muted, at: (590, 578)
+
+// ── the signed scale, stated once ──────────────────────────────────
+key_cap: Text, text: "shade = value", font_size: 15, color: text.muted,
+  text_max_width: 210, text_align: "left", at: (1080, 268)
+key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.22, at: (988, 304)
+key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.61, at: (1016, 304)
+key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 1.00, at: (1044, 304)
+key_lo_t: Text, text: "-1", font_size: 14, color: text.muted, at: (988, 332)
+key_hi_t: Text, text: "+1", font_size: 14, color: text.muted, at: (1044, 332)
+key_zero: Text, text: "0", font_size: 14, color: text.muted, at: (1016, 332)
+
+// Column cursor: reads one position's whole fingerprint at a time.
+cursor: Rect, size: (92, 344), corner_radius: 12, color: accent.warning,
+  fill_opacity: 0.0, stroke: accent.warning, stroke_width: 2.5, opacity: 0.0, at: (296, 351)
+
+// ── timeline ────────────────────────────────────────────────────────
+#0.10s
+stagger [30ms] {
+  wipe-in c00 [300ms]
+  wipe-in c01 [300ms]
+  wipe-in c02 [300ms]
+  wipe-in c03 [300ms]
+  wipe-in c04 [300ms]
+  wipe-in c05 [300ms]
+  wipe-in c06 [300ms]
+  wipe-in c07 [300ms]
+  wipe-in c10 [300ms]
+  wipe-in c11 [300ms]
+  wipe-in c12 [300ms]
+  wipe-in c13 [300ms]
+  wipe-in c14 [300ms]
+  wipe-in c15 [300ms]
+  wipe-in c16 [300ms]
+  wipe-in c17 [300ms]
+  wipe-in c20 [300ms]
+  wipe-in c21 [300ms]
+  wipe-in c22 [300ms]
+  wipe-in c23 [300ms]
+  wipe-in c24 [300ms]
+  wipe-in c25 [300ms]
+  wipe-in c26 [300ms]
+  wipe-in c27 [300ms]
+  wipe-in c30 [300ms]
+  wipe-in c31 [300ms]
+  wipe-in c32 [300ms]
+  wipe-in c33 [300ms]
+  wipe-in c34 [300ms]
+  wipe-in c35 [300ms]
+  wipe-in c36 [300ms]
+  wipe-in c37 [300ms]
 }
 
-pos_label: Text, text: "position →", font_size: 14, color: text.muted, at: (985, 640)
-
-legend_fast: Rect, size: (22, 5), color: accent.primary, at: (150, 636)
-legend_fast_t: Text, text: "wavelength 2π", font_size: 14, color: text.secondary, at: (250, 636)
-legend_mid: Rect, size: (22, 5), color: accent.success, at: (430, 636)
-legend_mid_t: Text, text: "sin(x/2.5)·0.7", font_size: 14, color: text.secondary, at: (545, 636)
-legend_slow: Rect, size: (22, 5), color: accent.warning, at: (735, 636)
-legend_slow_t: Text, text: "sin(x/6)", font_size: 14, color: text.secondary, at: (820, 636)
-
-// The takeaway: position 0 vs position 1 get different vectors
-note: Text, text: "same word at a different position ⇒ a different input vector",
-  font_size: 17, color: text.primary, anchor: scene.bottom, offset: (0, -55)
-
-#0.4s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [500ms, delay: 150ms]
-
-#0.7s
-fade-in main [350ms, ease: ease-out]
-draw-in fast [800ms, ease: ease-out]
-
-#1.2s
-draw-in mid [800ms, ease: ease-out]
-
-#1.7s
-draw-in slow [800ms, ease: ease-out]
-
-#3.6s
-stagger [110ms] {
-  fade-in legend_fast [250ms]
-  fade-in legend_fast_t [250ms]
-  fade-in legend_mid [250ms]
-  fade-in legend_mid_t [250ms]
-  fade-in legend_slow [250ms]
-  fade-in legend_slow_t [250ms]
-  fade-in pos_label [250ms]
+#1.35s
+stagger [70ms] {
+  fade-in lab0 [280ms]
+  fade-in lab1 [280ms]
+  fade-in lab2 [280ms]
+  fade-in lab3 [280ms]
 }
 
-#4.6s
-fade-in note [500ms]
+#1.70s
+stagger [40ms] {
+  fade-in p0 [240ms]
+  fade-in p1 [240ms]
+  fade-in p2 [240ms]
+  fade-in p3 [240ms]
+  fade-in p4 [240ms]
+  fade-in p5 [240ms]
+  fade-in p6 [240ms]
+  fade-in p7 [240ms]
+}
+fade-in axis [300ms, delay: 320ms]
+
+#2.30s
+fade-in key_cap [320ms]
+stagger [60ms] {
+  wipe-in key_lo [280ms]
+  wipe-in key_mid [280ms]
+  wipe-in key_hi [280ms]
+}
+stagger [60ms] {
+  fade-in key_lo_t [260ms]
+  fade-in key_zero [260ms]
+  fade-in key_hi_t [260ms]
+}
+
+// Walk the cursor across the columns: one position's fingerprint at a time.
+#3.00s
+fade-in cursor [220ms]
+sequence {
+  shift cursor [by: (84, 0), 150ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+  shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
+}
+fade-out cursor [300ms, delay: 2000ms]

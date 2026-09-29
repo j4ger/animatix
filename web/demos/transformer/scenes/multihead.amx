@@ -1,92 +1,145 @@
-// Multi-Head Attention — several heads in parallel, each free to look
-// somewhere different; their views are concatenated and mixed.
+// 04 · Multi-head attention.
+//
+// Each head gets its own 3×3 attention pattern — rows are queries, columns are
+// keys, intensity is the weight. The original showed two chips joined by a line
+// and left the actual claim ("each head specialises") to the caption. Three
+// patterns side by side let the reader *see* the specialisation.
+//
+// The output bar is three segments, one per head, each centred exactly under the
+// head that produced it and painted that head's colour. In the original the
+// segments were shifted 52px left of their bar, left a 70px hole at the right
+// end, and used a fourth colour that belonged to no head — so its caption
+// ("their colors merge in the output mix") was not actually visible.
+//
+// Grid: 1280×720. Head centres x = 290, 640, 990; panels 320 wide, cells 64 with
+// a 12px gap, rows at y = 239, 315, 391, output segments at y = 530.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.2 }
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "4 · Multi-Head Attention", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 55)
+// ── panels ──────────────────────────────────────────────────────────
+panel_a: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.55, at: (290, 290)
+panel_b: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.55, at: (640, 290)
+panel_c: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.55, at: (990, 290)
 
-sub: Text, text: "h parallel views of the same sentence — one per relation",
-  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+title_a: Text, text: "who did what", font_size: 16, color: accent.primary, at: (290, 172)
+title_b: Text, text: "did what to whom", font_size: 16, color: accent.success, at: (640, 172)
+title_c: Text, text: "next token only", font_size: 16, color: accent.warning, at: (990, 172)
 
-// Head A: tracks the grammatical subject
-label_a: Text, text: "head 1 · who did what", font_size: 17, color: accent.primary, at: (240, 215)
-a_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (240, 280)
-a_tok_t: Text, text: "animal", font_size: 17, color: text.primary, at: (240, 280)
-a_link: Line, from: (240, 302), to: (240, 448), stroke_width: 4, color: accent.primary, opacity: 0.9
-a_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (240, 470)
-a_verb_t: Text, text: "cross", font_size: 17, color: text.primary, at: (240, 470)
+// ── head 1: subject → verb ──────────────────────────────────────────
+h1_00: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.95, at: (214, 239)
+h1_01: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.45, at: (290, 239)
+h1_02: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.20, at: (366, 239)
+h1_10: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.85, at: (214, 315)
+h1_11: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.30, at: (290, 315)
+h1_12: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.25, at: (366, 315)
+h1_20: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.30, at: (214, 391)
+h1_21: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.90, at: (290, 391)
+h1_22: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.35, at: (366, 391)
 
-// Head B: tracks the object
-label_b: Text, text: "head 2 · did what to whom", font_size: 17, color: accent.success, at: (640, 215)
-b_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (640, 280)
-b_tok_t: Text, text: "cross", font_size: 17, color: text.primary, at: (640, 280)
-b_link: Line, from: (640, 302), to: (640, 448), stroke_width: 4, color: accent.success, opacity: 0.9
-b_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (640, 470)
-b_verb_t: Text, text: "street", font_size: 17, color: text.primary, at: (640, 470)
+// ── head 2: verb → object ───────────────────────────────────────────
+h2_00: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.25, at: (564, 239)
+h2_01: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.40, at: (640, 239)
+h2_02: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.30, at: (716, 239)
+h2_10: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.35, at: (564, 315)
+h2_11: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.25, at: (640, 315)
+h2_12: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.95, at: (716, 315)
+h2_20: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.20, at: (564, 391)
+h2_21: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.60, at: (640, 391)
+h2_22: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.45, at: (716, 391)
 
-// Head C: tracks position
-label_c: Text, text: "head 3 · neighbor", font_size: 17, color: accent.warning, at: (1040, 215)
-c_tok: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (1040, 280)
-c_tok_t: Text, text: "it", font_size: 17, color: text.primary, at: (1040, 280)
-c_link: Line, from: (1040, 302), to: (1040, 448), stroke_width: 4, color: accent.warning, opacity: 0.9
-c_verb: Rect, size: (110, 40), corner_radius: 9, color: surface.primary, at: (1040, 470)
-c_verb_t: Text, text: "cross", font_size: 17, color: text.primary, at: (1040, 470)
+// ── head 3: neighbours ──────────────────────────────────────────────
+h3_00: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.60, at: (914, 239)
+h3_01: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.90, at: (990, 239)
+h3_02: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.25, at: (1066, 239)
+h3_10: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.90, at: (914, 315)
+h3_11: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.55, at: (990, 315)
+h3_12: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.85, at: (1066, 315)
+h3_20: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.30, at: (914, 391)
+h3_21: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.95, at: (990, 391)
+h3_22: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.60, at: (1066, 391)
 
-// Concatenation arrow into a mixed vector
-concat_t: Text, text: "concat", font_size: 16, color: text.muted, at: (640, 545)
-mix: Rect, size: (520, 40), corner_radius: 10, color: surface.primary, at: (640, 600)
-mix_grad: Rect, size: (124, 40), color: accent.primary, opacity: 0.55, at: (390, 600)
-mix_grad2: Rect, size: (124, 40), color: accent.success, opacity: 0.55, at: (516, 600)
-mix_grad3: Rect, size: (124, 40), color: accent.warning, opacity: 0.55, at: (642, 600)
-mix_grad4: Rect, size: (124, 40), color: accent.danger, opacity: 0.55, at: (768, 600)
-mix_t: Text, text: "W_O mixes the heads back into one vector", font_size: 15, color: text.secondary, at: (640, 662)
+// ── each head's output drops into its own segment ───────────────────
+drop_a: Arrow, from: (290, 452), to: (290, 496), head_size: 12,
+  stroke_width: 2, color: accent.primary, opacity: 0.7
+drop_b: Arrow, from: (640, 452), to: (640, 496), head_size: 12,
+  stroke_width: 2, color: accent.success, opacity: 0.7
+drop_c: Arrow, from: (990, 452), to: (990, 496), head_size: 12,
+  stroke_width: 2, color: accent.warning, opacity: 0.7
 
-#0.4s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [500ms, delay: 150ms]
+seg_a: Rect, size: (346, 56), corner_radius: 10, color: accent.primary, opacity: 0.85, at: (290, 530)
+seg_b: Rect, size: (346, 56), corner_radius: 10, color: accent.success, opacity: 0.85, at: (640, 530)
+seg_c: Rect, size: (346, 56), corner_radius: 10, color: accent.warning, opacity: 0.85, at: (990, 530)
 
-#1.0s
-stagger [90ms] {
-  fade-in label_a [350ms]
-  fade-in a_tok [350ms]
-  fade-in a_tok_t [350ms]
-  fade-in a_verb [350ms]
-  fade-in a_verb_t [350ms]
-}
-draw-in a_link [500ms, delay: 300ms]
+mix_label: Text, text: "concat, then a linear mix", font_size: 16, color: text.muted, at: (640, 606)
 
-#1.8s
-stagger [90ms] {
-  fade-in label_b [350ms]
-  fade-in b_tok [350ms]
-  fade-in b_tok_t [350ms]
-  fade-in b_verb [350ms]
-  fade-in b_verb_t [350ms]
-}
-draw-in b_link [500ms, delay: 300ms]
-
-#2.6s
-stagger [90ms] {
-  fade-in label_c [350ms]
-  fade-in c_tok [350ms]
-  fade-in c_tok_t [350ms]
-  fade-in c_verb [350ms]
-  fade-in c_verb_t [350ms]
-}
-draw-in c_link [500ms, delay: 300ms]
-
-#3.5s
-fade-in concat_t [350ms]
-draw-in mix [450ms, ease: ease-out]
-
-#4.2s
-stagger [110ms] {
-  wipe-in mix_grad [300ms]
-  wipe-in mix_grad2 [300ms]
-  wipe-in mix_grad3 [300ms]
-  wipe-in mix_grad4 [300ms]
+// ── timeline ────────────────────────────────────────────────────────
+#0.15s
+stagger [130ms] {
+  wipe-in panel_a [400ms]
+  wipe-in panel_b [400ms]
+  wipe-in panel_c [400ms]
 }
 
-#4.9s
-fade-in mix_t [400ms]
+#0.50s
+stagger [130ms] {
+  fade-in title_a [300ms]
+  fade-in title_b [300ms]
+  fade-in title_c [300ms]
+}
+
+// Head by head, so each pattern can be compared with the one before it.
+#0.95s
+stagger [45ms] {
+  wipe-in h1_00 [300ms]
+  wipe-in h1_01 [300ms]
+  wipe-in h1_02 [300ms]
+  wipe-in h1_10 [300ms]
+  wipe-in h1_11 [300ms]
+  wipe-in h1_12 [300ms]
+  wipe-in h1_20 [300ms]
+  wipe-in h1_21 [300ms]
+  wipe-in h1_22 [300ms]
+}
+
+#1.85s
+stagger [45ms] {
+  wipe-in h2_00 [300ms]
+  wipe-in h2_01 [300ms]
+  wipe-in h2_02 [300ms]
+  wipe-in h2_10 [300ms]
+  wipe-in h2_11 [300ms]
+  wipe-in h2_12 [300ms]
+  wipe-in h2_20 [300ms]
+  wipe-in h2_21 [300ms]
+  wipe-in h2_22 [300ms]
+}
+
+#2.75s
+stagger [45ms] {
+  wipe-in h3_00 [300ms]
+  wipe-in h3_01 [300ms]
+  wipe-in h3_02 [300ms]
+  wipe-in h3_10 [300ms]
+  wipe-in h3_11 [300ms]
+  wipe-in h3_12 [300ms]
+  wipe-in h3_20 [300ms]
+  wipe-in h3_21 [300ms]
+  wipe-in h3_22 [300ms]
+}
+
+#3.70s
+stagger [130ms] {
+  draw-in drop_a [320ms, ease: ease-out]
+  draw-in drop_b [320ms, ease: ease-out]
+  draw-in drop_c [320ms, ease: ease-out]
+}
+
+#4.10s
+stagger [130ms] {
+  wipe-in seg_a [380ms]
+  wipe-in seg_b [380ms]
+  wipe-in seg_c [380ms]
+}
+
+#4.80s
+fade-in mix_label [400ms]

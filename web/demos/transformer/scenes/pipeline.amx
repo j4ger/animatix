@@ -1,92 +1,142 @@
-// The Full Block — stacking. Attention + FFN with residuals, repeated N times;
-// every token flows up through the tower and comes out contextualized.
+// 06 · Stacking the blocks.
+//
+// The blocks look identical — same size, same weights — and the only thing that
+// changes as the token climbs is the intensity strip inside each block. That is
+// the claim of the figure made visible instead of asserted.
+//
+// Geometry fixes over the original: flow3 was
+// `move_to(640, 300), line_to(640, 305)` — a 5px stub sitting in the wrong gap,
+// where the other two arrows are 36px; and there was no connector at all from
+// the top block up to the two output heads, which floated with a 40px gap.
+//
+// Grid: 1280×720. Blocks 560×80 at x = 640, y = 446 / 334 / 222; input chips at
+// y = 560; output heads at y = 118.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.0 }
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "6 · Stacking the Blocks", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 55)
+// ── input tokens ────────────────────────────────────────────────────
+in1: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (463, 560)
+in1_t: Text, text: "The", font_size: 17, color: text.primary, at: (463, 560)
+in2: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (581, 560)
+in2_t: Text, text: "animal", font_size: 17, color: text.primary, at: (581, 560)
+in3: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (699, 560)
+in3_t: Text, text: "didn't", font_size: 17, color: text.primary, at: (699, 560)
+in4: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (817, 560)
+in4_t: Text, text: "cross", font_size: 17, color: text.primary, at: (817, 560)
 
-sub: Text, text: "repeat the block N times — each layer refines every token's meaning",
-  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
+// ── the stack: identical boxes, evolving vector ─────────────────────
+b1: Rect, size: (560, 80), corner_radius: 16, color: surface.primary, at: (640, 446)
+b2: Rect, size: (560, 80), corner_radius: 16, color: surface.primary, at: (640, 334)
+b3: Rect, size: (560, 80), corner_radius: 16, color: surface.primary, at: (640, 222)
 
-// Token inputs at the bottom
-in1: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (400, 620)
-in1_t: Text, text: "The", font_size: 16, color: text.primary, at: (400, 620)
-in2: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (560, 620)
-in2_t: Text, text: "animal", font_size: 16, color: text.primary, at: (560, 620)
-in3: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (720, 620)
-in3_t: Text, text: "didn't", font_size: 16, color: text.primary, at: (720, 620)
-in4: Rect, size: (96, 40), corner_radius: 9, color: surface.primary, at: (880, 620)
-in4_t: Text, text: "cross", font_size: 16, color: text.primary, at: (880, 620)
+b1_t: Text, text: "block 1", font_size: 19, color: text.primary, at: (735, 446)
+b2_t: Text, text: "block 2", font_size: 19, color: text.primary, at: (735, 334)
+b3_t: Text, text: "block N", font_size: 19, color: text.primary, at: (735, 222)
 
-// Layer 1 (bottom)
-layer1: Rect, size: (700, 90), corner_radius: 14, color: surface.primary, opacity: 0.92, at: (640, 505)
-layer1_t: Text, text: "block ×1 — attention + FFN", font_size: 17, color: text.primary, at: (640, 505)
+// One intensity strip per block: same tokens in, different meaning out.
+s1_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.30, at: (413, 446)
+s1_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.85, at: (445, 446)
+s1_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.45, at: (477, 446)
+s1_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.70, at: (509, 446)
+s1_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.35, at: (541, 446)
 
-// Layer 2 (middle)
-layer2: Rect, size: (700, 90), corner_radius: 14, color: surface.primary, opacity: 0.92, at: (640, 360)
-layer2_t: Text, text: "block ×2", font_size: 17, color: text.primary, at: (640, 360)
+s2_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.60, at: (413, 334)
+s2_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.40, at: (445, 334)
+s2_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.90, at: (477, 334)
+s2_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.35, at: (509, 334)
+s2_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.75, at: (541, 334)
 
-// Layer N (top, cut off to suggest continuation)
-layerN: Rect, size: (700, 70), corner_radius: 14, color: surface.primary, opacity: 0.6, at: (640, 262)
-layerN2_t: Text, text: "block ×N  ·  ·  ·", font_size: 17, color: text.muted, at: (640, 262)
+s3_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.85, at: (413, 222)
+s3_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.55, at: (445, 222)
+s3_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.30, at: (477, 222)
+s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.95, at: (509, 222)
+s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.50, at: (541, 222)
 
-// Output heads
-out_lm: Rect, size: (180, 44), corner_radius: 10, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (455, 165)
-out_lm_t: Text, text: "LM head", font_size: 16, color: text.primary, at: (455, 165)
-out_cls: Rect, size: (180, 44), corner_radius: 10, color: surface.primary, stroke: (0.42, 0.79, 0.55, 1.0), stroke_width: 2, at: (825, 165)
-out_cls_t: Text, text: "task head", font_size: 16, color: text.primary, at: (825, 165)
+// ── flow up the tower ───────────────────────────────────────────────
+up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
+up2: Arrow, from: (640, 402), to: (640, 378), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
+up3: Arrow, from: (640, 290), to: (640, 266), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
 
-// Flow arrows up the tower
-flow1: Path, commands: { move_to(640, 598), line_to(640, 562) }, color: text.muted, stroke_width: 2
-flow2: Path, commands: { move_to(640, 448), line_to(640, 412) }, color: text.muted, stroke_width: 2
-flow3: Path, commands: { move_to(640, 300), line_to(640, 305) }, color: text.muted, stroke_width: 2
+// Branch out of the top block into the two heads.
+up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
+up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
 
-side_note: Text, text: "same weights in every block — depth is what makes it a transformer",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -50)
+// ── output heads ────────────────────────────────────────────────────
+out_lm: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
+  stroke: (0.98, 0.83, 0.44, 1.0), stroke_width: 2, at: (520, 118)
+out_lm_t: Text, text: "LM head", font_size: 17, color: text.primary, at: (520, 118)
+out_cls: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
+  stroke: (0.35, 0.86, 0.63, 1.0), stroke_width: 2, at: (760, 118)
+out_cls_t: Text, text: "task head", font_size: 17, color: text.primary, at: (760, 118)
 
-#0.4s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [500ms, delay: 150ms]
+// Closing beat: one token's vector climbing the whole stack.
+climb: Ellipse, size: (16, 16), color: accent.warning, opacity: 0.0, at: (640, 556)
 
-#1.0s
-stagger [110ms] {
-  wipe-in in1 [300ms]
-  wipe-in in2 [300ms]
-  wipe-in in3 [300ms]
-  wipe-in in4 [300ms]
+// ── timeline ────────────────────────────────────────────────────────
+#0.15s
+stagger [100ms] {
+  wipe-in in1 [340ms]
+  wipe-in in2 [340ms]
+  wipe-in in3 [340ms]
+  wipe-in in4 [340ms]
 }
 
-#1.3s
-stagger [90ms] {
-  fade-in in1_t [250ms]
-  fade-in in2_t [250ms]
-  fade-in in3_t [250ms]
-  fade-in in4_t [250ms]
+#0.60s
+stagger [100ms] {
+  fade-in in1_t [260ms]
+  fade-in in2_t [260ms]
+  fade-in in3_t [260ms]
+  fade-in in4_t [260ms]
 }
 
-#1.9s
-fade-in layer1 [450ms, ease: ease-out]
-fade-in layer1_t [300ms, delay: 200ms]
-fade-in flow1 [300ms, delay: 350ms]
+#1.05s
+draw-in up1 [300ms]
 
-#2.8s
-fade-in layer2 [450ms, ease: ease-out]
-fade-in layer2_t [300ms, delay: 200ms]
-fade-in flow2 [300ms, delay: 350ms]
+#1.25s
+fade-in b1 [420ms, ease: ease-out]
+fade-in b1_t [300ms, delay: 200ms]
+stagger [50ms] {
+  wipe-in s1_0 [280ms]
+  wipe-in s1_1 [280ms]
+  wipe-in s1_2 [280ms]
+  wipe-in s1_3 [280ms]
+  wipe-in s1_4 [280ms]
+}
+draw-in up2 [300ms, delay: 620ms]
 
-#3.7s
-fade-in layerN [450ms, ease: ease-out]
-fade-in layerN2_t [300ms, delay: 200ms]
-fade-in flow3 [300ms, delay: 350ms]
+#1.95s
+fade-in b2 [420ms, ease: ease-out]
+fade-in b2_t [300ms, delay: 200ms]
+stagger [50ms] {
+  wipe-in s2_0 [280ms]
+  wipe-in s2_1 [280ms]
+  wipe-in s2_2 [280ms]
+  wipe-in s2_3 [280ms]
+  wipe-in s2_4 [280ms]
+}
+draw-in up3 [300ms, delay: 620ms]
 
-#4.7s
-stagger [150ms] {
-  wipe-in out_lm [350ms]
-  fade-in out_lm_t [300ms]
-  wipe-in out_cls [350ms]
-  fade-in out_cls_t [300ms]
+#2.65s
+fade-in b3 [420ms, ease: ease-out]
+fade-in b3_t [300ms, delay: 200ms]
+stagger [50ms] {
+  wipe-in s3_0 [280ms]
+  wipe-in s3_1 [280ms]
+  wipe-in s3_2 [280ms]
+  wipe-in s3_3 [280ms]
+  wipe-in s3_4 [280ms]
 }
 
-#5.7s
-fade-in side_note [450ms]
+#3.40s
+draw-in up_lm [380ms, ease: ease-out]
+draw-in up_cls [380ms, ease: ease-out]
+fade-in out_lm [400ms, delay: 260ms]
+fade-in out_lm_t [300ms, delay: 420ms]
+fade-in out_cls [400ms, delay: 420ms]
+fade-in out_cls_t [300ms, delay: 580ms]
+
+// The token rides the whole stack.
+#4.35s
+fade-in climb [240ms]
+shift climb [by: (0, -406), 1700ms, ease: ease-in-out]
+fade-out climb [300ms, delay: 1560ms]

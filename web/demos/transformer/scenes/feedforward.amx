@@ -1,85 +1,103 @@
-// Feed-Forward & Residual — after attention mixes information across tokens,
-// each token thinks on its own; the residual stream carries context forward.
+// 05 · Feed-forward and residuals.
+//
+// Fixes over the original geometry, all of which were visible on screen:
+//   · the LayerNorm circles (x 247–303) overlapped the block they precede
+//     (x 290–510) by 13px, and were painted last, so each circle sat on top of
+//     the block's border. The rings now stand in the gaps either side of each
+//     block;
+//   · "d → 4d" / "4d → d" floated at x = 1020 while the bars they named ended
+//     at x = 955. The widening is drawn inside the FFN block instead;
+//   · the arcs were filled, not stroked. A Path fills with `color` by default
+//     and only strokes when it has a `stroke` and no fill, so the original — and
+//     a first pass at this scene — drew two grey lenses with white outlines
+//     rather than two skip connections. `fill_opacity: 0.0` fixes it.
+//
+// The residual rail is drawn first and the blocks sit on top of it, so the rail
+// reads as passing behind them rather than as three loose stubs.
+//
+// Three accents, one job each: primary = the attention half, success = the FFN
+// half, warning = normalisation.
+//
+// Grid: 1280×720. Rail on y = 390 from x = 120 to 1160, blocks 320×190 at
+// x = 460 / 980, LayerNorm rings at x = 210 / 740.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.4 }
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-title: Text, text: "5 · Feed-Forward & Residuals", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 55)
+// ── the residual stream ─────────────────────────────────────────────
+rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.40, at: (640, 390)
+rail_label: Text, text: "residual stream", font_size: 15, color: text.muted,
+  text_max_width: 130, text_align: "left", at: (205, 450)
 
-sub: Text, text: "attention mixes between tokens — the FFN transforms each token alone",
-  font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 105)
-
-// The residual stream, a horizontal rail
-stream: Rect, size: (980, 8), color: text.muted, opacity: 0.5, at: (640, 360)
-stream_l: Text, text: "residual stream", font_size: 15, color: text.muted, at: (160, 395)
-
-// Attention block sits on the rail
-attn: Rect, size: (220, 90), corner_radius: 12, color: surface.primary, stroke: (0.35, 0.62, 0.95, 1.0), stroke_width: 2, at: (400, 360)
-attn_t: Text, text: "Attention", font_size: 20, color: text.primary, at: (400, 360)
-
-// FFN block: expand 4×, nonlinearity, project back
-ffn: Rect, size: (220, 90), corner_radius: 12, color: surface.primary, stroke: (0.42, 0.79, 0.55, 1.0), stroke_width: 2, at: (880, 360)
-ffn_t: Text, text: "FFN", font_size: 20, color: text.primary, at: (880, 360)
-
-// Inside the FFN: wide hidden layer visual
-expand: Rect, size: (150, 16), corner_radius: 6, color: accent.success, opacity: 0.75, at: (880, 300)
-expand_t: Text, text: "d → 4d", font_size: 13, color: text.secondary, at: (1020, 300)
-project: Rect, size: (150, 16), corner_radius: 6, color: accent.success, opacity: 0.4, at: (880, 420)
-project_t: Text, text: "4d → d", font_size: 13, color: text.secondary, at: (1020, 420)
-
-// LayerNorm gates before each block
-ln1: Rect, size: (56, 56), corner_radius: 28, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (275, 360)
-ln1_t: Text, text: "LN", font_size: 16, color: text.primary, at: (275, 360)
-ln2: Rect, size: (56, 56), corner_radius: 28, color: surface.primary, stroke: (0.96, 0.72, 0.26, 1.0), stroke_width: 2, at: (755, 360)
-ln2_t: Text, text: "LN", font_size: 16, color: text.primary, at: (755, 360)
-
-// Skip connections arcing over both blocks
+// Skip connections leave the rail before the block and rejoin it after, arcing
+// clear of both the ring and the block.
 skip1: Path, commands: {
-  move_to(275, 315), quad_to(400, 262, 525, 315)
-}, color: text.muted, stroke_width: 2, opacity: 0.7
+  move_to(150, 390), quad_to(385, 10, 620, 390)
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.55, fill_opacity: 0.0
 skip2: Path, commands: {
-  move_to(755, 315), quad_to(880, 262, 1005, 315)
-}, color: text.muted, stroke_width: 2, opacity: 0.7
-skip_t: Text, text: "skip connections keep the original signal one hop away",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -55)
+  move_to(640, 390), quad_to(890, 10, 1140, 390)
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.55, fill_opacity: 0.0
 
-#0.4s
-fade-in title [600ms, ease: ease-out]
-fade-in sub [500ms, delay: 150ms]
+// ── LayerNorm: rings standing in the gaps, not on the borders ───────
+ln1: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3, at: (210, 390)
+ln1_t: Text, text: "LN", font_size: 17, color: text.primary, at: (210, 390)
+ln2: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3, at: (740, 390)
+ln2_t: Text, text: "LN", font_size: 17, color: text.primary, at: (740, 390)
 
-#1.0s
-draw-in stream [800ms, ease: ease-out]
-fade-in stream_l [400ms, delay: 300ms]
+// ── the two halves of a block ───────────────────────────────────────
+attn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
+  stroke: (0.38, 0.78, 1.0, 1.0), stroke_width: 2, at: (460, 390)
+attn_t: Text, text: "Attention", font_size: 24, color: text.primary, at: (460, 352)
+attn_s: Text, text: "across tokens", font_size: 15, color: text.muted, at: (460, 398)
 
-#1.8s
-fade-in ln1 [400ms]
-fade-in ln1_t [300ms, delay: 120ms]
+ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
+  stroke: (0.35, 0.86, 0.63, 1.0), stroke_width: 2, at: (980, 390)
+ffn_t: Text, text: "FFN", font_size: 24, color: text.primary, at: (980, 340)
 
-#2.3s
-fade-in attn [450ms, ease: ease-out]
-fade-in attn_t [300ms, delay: 150ms]
+// d → 4d → d, drawn where it happens rather than labelled from a distance
+wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.5, at: (861, 400)
+wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success, opacity: 1.0, at: (980, 400)
+wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.5, at: (1099, 400)
+ffn_s: Text, text: "d → 4d → d", font_size: 15, color: text.muted, at: (980, 442)
 
-#3.0s
-draw-in skip1 [500ms, ease: ease-out]
+// Closing beat: the signal carried straight through by the rail.
+dot: Ellipse, size: (16, 16), color: accent.warning, opacity: 0.0, at: (150, 390)
 
-#3.6s
-fade-in ln2 [400ms]
-fade-in ln2_t [300ms, delay: 120ms]
+// ── timeline ────────────────────────────────────────────────────────
+#0.15s
+draw-in rail [800ms, ease: ease-out]
+fade-in rail_label [420ms, delay: 400ms]
 
-#4.1s
-fade-in ffn [450ms, ease: ease-out]
-fade-in ffn_t [300ms, delay: 150ms]
+#0.90s
+wipe-in ln1 [400ms, ease: ease-out]
+fade-in ln1_t [300ms, delay: 140ms]
 
-#4.6s
-stagger [120ms] {
-  fade-in expand [300ms]
-  fade-in expand_t [300ms]
-  fade-in project [300ms]
-  fade-in project_t [300ms]
-}
+#1.35s
+wipe-in attn [450ms, ease: ease-out]
+fade-in attn_t [320ms, delay: 160ms]
+fade-in attn_s [320ms, delay: 300ms]
 
-#5.3s
-draw-in skip2 [500ms, ease: ease-out]
+#1.95s
+draw-in skip1 [600ms, ease: ease-out]
 
-#6.0s
-fade-in skip_t [450ms]
+#2.55s
+wipe-in ln2 [400ms, ease: ease-out]
+fade-in ln2_t [300ms, delay: 140ms]
+
+#3.00s
+wipe-in ffn [450ms, ease: ease-out]
+fade-in ffn_t [320ms, delay: 160ms]
+
+#3.45s
+wipe-in wide_a [320ms]
+wipe-in wide_b [320ms]
+wipe-in wide_c [320ms]
+fade-in ffn_s [320ms, delay: 300ms]
+
+#4.05s
+draw-in skip2 [600ms, ease: ease-out]
+
+// The residual carried the whole way, past both blocks.
+#4.85s
+fade-in dot [260ms]
+shift dot [by: (990, 0), 1500ms, ease: ease-in-out]
+fade-out dot [300ms, delay: 1380ms]
