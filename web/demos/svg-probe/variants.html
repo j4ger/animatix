@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>amx-player svg probe (variants)</title>
+  <style>
+    body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    amx-player { border: 1px solid #1e2733; }
+    pre { color: #9aa5b4; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>SVG variants probe</h1>
+  <pre id="report">waiting…</pre>
+  <div class="row">
+    <div><div>rect</div><amx-player src="scene_rect.amx" autoplay loop title="rect"></amx-player></div>
+    <div><div>circle</div><amx-player src="scene.amx" autoplay loop title="circle"></amx-player></div>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg"></script>
+
+  <script type="module">
+    const report = { errors: [] };
+    window.addEventListener("error", (e) => report.errors.push(String(e.message)));
+    const tick = () => {
+      const els = [...document.querySelectorAll("amx-player")];
+      report.states = els.map((el) => el._state);
+      document.getElementById("report").textContent = JSON.stringify(report);
+      requestAnimationFrame(tick);
+    };
+    tick();
+
+    // QA hook: kick lazy loads, wait until all ready, then read back each at t=1.5s.
+    window.__probe_state = { phase: "running", get report() { return report; } };
+    const kick = () => {
+      for (const el of document.querySelectorAll("amx-player")) {
+        if (el._state === "idle") { el._visible = true; el._maybeStartLoading(); }
+      }
+    };
+    setTimeout(kick, 200); setTimeout(kick, 800); setTimeout(kick, 1600);
+    const poll = () => {
+      kick();
+      const els = [...document.querySelectorAll("amx-player")];
+      if (!els.length || !els.every((el) => el._state === "ready")) { setTimeout(poll, 300); return; }
+      let i = 0;
+      const results = [];
+      const next = () => {
+        if (i >= els.length) {
+          report.readbacks = results;
+          window.__probe_state.phase = "done";
+          return;
+        }
+        els[i]._player.debug_readback(1.5, (stats) => { results.push(JSON.parse(stats)); i += 1; next(); });
+      };
+      next();
+    };
+    setTimeout(poll, 600);
+  </script>
+</body>
+</html>

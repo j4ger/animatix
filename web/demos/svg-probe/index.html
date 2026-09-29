@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>amx-player svg probe</title>
+  <style>
+    body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
+    amx-player { border: 1px solid #1e2733; }
+    pre { color: #9aa5b4; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>SVG probe (<span id="profile">?</span> profile)</h1>
+  <pre id="report">waiting…</pre>
+  <amx-player src="scene.amx" autoplay loop title="SVG probe"></amx-player>
+
+  <!-- ?profile=slim switches to the slim runtime; default is full -->
+  <script>
+    const slim = new URLSearchParams(location.search).get("profile") === "slim";
+    document.getElementById("profile").textContent = slim ? "slim" : "full";
+    const loader = document.createElement("script");
+    loader.type = "module";
+    loader.src = "../../embed/amx-player.js";
+    loader.setAttribute("data-runtime-base", slim ? "../../pkg-slim" : "../../pkg");
+    document.body.appendChild(loader);
+  </script>
+
+  <script type="module">
+    const report = { errors: [] };
+    window.addEventListener("error", (e) => report.errors.push(String(e.message)));
+    const tick = () => {
+      const el = document.querySelector("amx-player");
+      report.state = el?._state;
+      report.time = el?._time;
+      document.getElementById("report").textContent = JSON.stringify(report);
+      requestAnimationFrame(tick);
+    };
+    tick();
+
+    // QA hook: once ready, pin a frame at t=1.5s (logo fully faded in) and
+    // read it back through the GPU buffer.
+    window.__probe_state = { phase: "running", get report() { return report; } };
+    const waitReady = () => {
+      const el = document.querySelector("amx-player");
+      if (el?._state !== "ready") { setTimeout(waitReady, 200); return; }
+      el._player.debug_readback(1.5, (stats) => {
+        report.readback = JSON.parse(stats);
+        window.__probe_state.phase = "done";
+      });
+    };
+    setTimeout(waitReady, 400);
+  </script>
+</body>
+</html>

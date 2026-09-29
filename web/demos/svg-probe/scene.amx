@@ -1,0 +1,10 @@
+// SVG probe: one Svg actor over a light backdrop. `logo` is declared before the
+// first keyframe with no explicit opacity, so it is hidden by default and the
+// fade-in at 0.2s reveals it — sample at t >= 0.5s.
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3.0 }
+
+backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 180)
+logo: Svg, url: "mark.svg", at: (320, 180)
+
+#0.2s
+fade-in logo [300ms]
