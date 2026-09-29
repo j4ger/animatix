@@ -957,3 +957,51 @@ Each effect has a content-level GPU test in `animatix-render`
 `motion_blur_smears_horizontally`), and the std packing test was generalised to
 allow alignment gaps (Vignette's vec4 exposed that the old sequential-offset
 model contradicted the documented host rule).
+
+## Entrance opacity and declared duration (2026-09-29)
+
+Two silently-dropped values, found while rebuilding the web demo's scenes. Both
+were cases where the documented contract and the implementation disagreed, with
+no diagnostic either way.
+
+**Entrance actions disagreed about an authored `opacity`.** `FadeIn::execute`
+ended every non-hidden target at a hardcoded 1.0, so an authored
+`opacity: 0.25` was discarded; `wipe-in`, `draw-in` and `reveal-in` never wrote
+`opacity` at all, so an authored `opacity: 0` kept the target invisible for the
+whole timeline. Measured with GPU readback of a one-rect scene (frame average of
+the red channel: 10 = invisible, 19 = at 0.25, 48 = at 1.0): `opacity: 0.25`
+ended at 1.0 under `fade-in` and 0.25 under the other three; `opacity: 0.0`
+inverted — 1.0 under `fade-in`, invisible under the other three. The in-repo
+blast radius was measured before choosing: 15 actors author `opacity: 0.0` as a
+"start hidden" seed (a naive "animate to the authored value" fix would have made
+all 15 permanently invisible) and exactly 2 — `examples/animation/08_effects.amx`
+`bg_mark` (0.08) and `examples/projects/fft_explain.amx` `playhead` (0.7) — were
+being flattened to 1.0. The rule now: an entrance action settles on the authored
+opacity, except an authored 0, which all four actions treat as a seed and lift to
+1.0. Shared helpers `entrance_opacity_target` / `reveal_authored_zero_opacity`
+live in `timeline/actions/mod.rs` so the four actions cannot drift apart again.
+Zero in-repo cases hit the mirror-image bug (a reveal action on an
+`opacity: 0.0` actor), which is why it went unnoticed.
+
+**`config { duration: N }` was inert on single-scene files.**
+`Timeline::duration_seconds()` took the maximum keyframe time, and the only code
+that read the config key was the composition path's
+`extract_duration_from_config`; the scene-config validator allow-lists `duration`
+as scene-scoped, so it looked supported. The six transformer scenes declared
+6.0/6.8/7.2/6.2/7.4/7.0 s and ran 5.5/5.1/6.55/5.3/6.45/6.15 s. `spec.md` had
+documented the intended semantics all along ("overrides keyframe-inferred
+duration"), so this was the single-scene equivalent of a contract the
+composition path already honoured. The timeline now carries the declared value
+(`apply_config_settings`, beside `resolution`) and exposes
+`playback_duration_seconds()`; `BuildTarget::duration_s()` and the web host read
+that, while editing surfaces (the inspector timeline strip, the keyframe table)
+keep `duration_seconds()` so every keyframe stays reachable in the editor.
+Because overriding means content past the duration is unreachable, the build now
+warns `duration-shorter-than-content` rather than truncating in silence — checked
+against the whole corpus, no file in the repo triggers it (an earlier
+regex-based estimate suggesting otherwise was wrong: it added the largest
+animation duration to the largest keyframe time and overshot).
+
+Two things this left behind, both filed in `roadmap.md`: unknown `config` keys
+are still ignored without a warning, and the `--slim` profile builds with
+`dead_code` warnings from the rich-text helpers it compiles out.

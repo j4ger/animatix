@@ -78,33 +78,30 @@ Behavior:
 
 ### Looping
 
-A scene's timeline ends at its **last keyframe** — `Timeline::duration_seconds`
-takes the maximum keyframe time, and `config { duration: N }` is only read on
-the multi-scene composition path, so it does not extend a single-scene file.
-Every scene in this repo therefore ends with its composition at full density,
-and a naive wrap would cut from the finished diagram straight back to an empty
-stage. Measured on the old demos, the wrap dropped the frame from 89 to 13
-distinct colours (positional: 159 to 1).
+A scene's timeline ends at whichever comes first: its last keyframe, or a
+duration declared with `config { duration: N }`. A declared duration *overrides*
+the inferred length rather than extending it, so the scenes here declare one
+(`duration: 6.0` and friends) to buy themselves a trailing rest — without it the
+composition reaches full density on the final frame, and a naive wrap cuts
+straight back to an empty stage. Measured on the pre-redesign demos, the wrap
+dropped the frame from 89 to 13 distinct colours (positional: 159 to 1).
 
 So a looping embed plays `duration + hold`: the finished frame rests at full
 opacity for `hold` seconds, then dissolves out over the last ~0.28 s and the
-build-up fades back in. Set `hold="0"` for an unadorned loop.
+build-up fades back in. Set `hold="0"` for an unadorned loop. `hold` is the
+embed's own knob and applies to any scene, declared duration or not — useful for
+third-party scenes that cannot be edited.
 
 ### Authoring notes that bit these scenes
 
-- **`fade-in` forces `opacity` to 1.0, and the other entrance actions do not.**
-  Measured on a one-rect scene: at an authored `opacity: 0.25`, `wipe-in`,
-  `draw-in`, `reveal-in` and no entrance at all all leave the rect at 0.25
-  (frame average R 19) while `fade-in` takes it to 1.0 (R 48); at an authored
-  `opacity: 0.0` the result inverts — `fade-in` makes the rect visible and the
-  other three leave it invisible for good. So `opacity` is treated
-  inconsistently across actions, and only one of the two readings of `opacity: 0`
-  ("start hidden" vs "rest invisible") can be satisfied by any single action.
-  The demo scenes sidestep it: where opacity *is* the value they use
-  `wipe-in`/`draw-in`, and where they want `fade-in` they author `opacity: 0.0`
-  as a seed. The old `halo` (0.22), `expand`/`project` (0.75/0.4) and `layerN`
-  (0.6) were all `fade-in`-ed and so silently flattened to 1.0; `docs/roadmap.md`
-  carries the fix decision.
+- **An entrance action settles on the target's authored `opacity`**, except for
+  an authored `opacity: 0`, which every entrance action treats as a "start
+  hidden" seed and lifts to 1.0. This used to be inconsistent: `fade-in` forced
+  every target to 1.0 (so the old `halo` at 0.22, `expand`/`project` at
+  0.75/0.4 and `layerN` at 0.6 were silently flattened) while `wipe-in`,
+  `draw-in` and `reveal-in` never touched `opacity` at all, leaving an authored
+  `opacity: 0` invisible for the whole timeline. Both halves are fixed; the rule
+  is in `docs/spec.md`.
 - **Paint order is declaration order** — a later actor paints over an earlier
   one, matching `root_nodes`, which is built in declaration order. Verified
   numerically rather than by eye: the same panel and crossing arrow, with the

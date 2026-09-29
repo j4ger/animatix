@@ -135,6 +135,17 @@ actor: Rect, size: (100, 100), opacity: 0   // explicitly hidden
 fade-in actor [500ms]
 ```
 
+**Entrance actions and authored opacity.** An entrance action settles on the
+target's authored opacity: `opacity: 0.25` with `fade-in` leaves the actor at
+0.25, it does not force 1.0. An authored `opacity: 0` is the one exception —
+that reads as "start hidden", and all four entrance actions (`fade-in`,
+`wipe-in`, `draw-in`, `reveal-in`) reveal it to 1.0. `wipe-in`, `draw-in` and
+`reveal-in` leave a non-zero authored opacity untouched, since they reveal by
+stroke and fill progress rather than by fading.
+
+A single declaration is enough to express a resting translucency: write
+`actor.opacity = 0.4 [300ms]` if you want an explicit fade to a partial value.
+
 **Implicit Objects:**
 ```animatix
 #0s
@@ -2020,7 +2031,7 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `strict_types` | Program | ❌ No | Enables strict type checking for the entire file. Scene-level `strict_types` is ignored. |
 | `colorscheme` | Scene | ✅ Yes | Scene-level overrides prelude. Each scene can have a different colorscheme. |
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
-| `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). |
+| `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
 
 **Merge rules:**
 - The shared prelude statements are prepended to every scene's body before timeline compilation.
