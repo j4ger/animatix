@@ -762,10 +762,10 @@ impl Composition {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         // Keys that are valid at scene level.
-        const SCENE_SCOPED_KEYS: &[&str] = &["colorscheme", "dynamic_layout", "duration"];
+        let scene_scoped_keys = animatix_syntax::config_keys::scene_scoped_config_key_names();
 
         for prop in config {
-            if SCENE_SCOPED_KEYS.contains(&prop.name.as_str()) {
+            if scene_scoped_keys.contains(&prop.name.as_str()) {
                 continue;
             }
             diagnostics.push(

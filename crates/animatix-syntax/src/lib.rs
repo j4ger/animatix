@@ -5,6 +5,7 @@
 pub mod ast;
 /// Single registry of built-in names, types, and documentation.
 pub mod builtins;
+pub mod config_keys;
 /// Error and warning reporting types for the animation pipeline.
 pub mod diagnostics;
 /// Animation easing curves and interpolation functions.
