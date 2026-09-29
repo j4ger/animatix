@@ -1,0 +1,144 @@
+/* Shared stylesheet for the Animatix web pages.
+ *
+ * The palette deliberately matches the `editorial-dark` colorscheme the scenes
+ * render with (scene.background = 0.04/0.06/0.09 = #0a0f17), so a figure's
+ * canvas blends into the page instead of sitting in a slightly different shade
+ * of dark.
+ *
+ * Contrast, measured against #0a0f17 with the WCAG relative-luminance formula:
+ *   --text    #e2e7ee  15.45:1
+ *   --dim     #9aa5b4   7.69:1
+ *   --faint   #79838f   4.99:1   (AA for body text; the old #5b6575 was 3.26:1)
+ *   --accent  #f5b942  10.88:1
+ * --faint carries the figure captions, which are the load-bearing explanatory
+ * text on the article, so it is the one colour that must clear 4.5:1.
+ */
+
+:root {
+  --bg: #0a0f17;
+  --raised: #10161f;
+  --sunken: #070b11;
+  --border: #1e2733;
+  --border-soft: #18202b;
+  --text: #e2e7ee;
+  --dim: #9aa5b4;
+  --faint: #79838f;
+  --accent: #f5b942;
+  --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Consolas, monospace;
+  /* Wide enough that a 1280px scene is only scaled to ~78%, keeping its 15px
+   * in-canvas labels near 12px on screen. Prose stays narrow via `p`. */
+  --measure: 1040px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.7 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: var(--measure); margin: 0 auto; padding: 56px 24px 72px; }
+
+/* ── headings ──────────────────────────────────────────────────────── */
+.kicker {
+  color: var(--accent); font-size: 13px; letter-spacing: .14em;
+  text-transform: uppercase; margin: 0;
+}
+h1 {
+  font-size: clamp(30px, 4.6vw, 44px); line-height: 1.14; margin: 12px 0 14px;
+  font-weight: 680; letter-spacing: -0.015em; text-wrap: balance;
+}
+h2 { font-size: 26px; font-weight: 640; margin: 0; letter-spacing: -0.01em; }
+.lede { color: var(--dim); font-size: 19px; max-width: 44em; margin: 0 0 10px; }
+p { color: var(--dim); max-width: 42em; }
+p strong { color: var(--text); font-weight: 560; }
+a { color: var(--accent); }
+
+.meta {
+  color: var(--faint); font-size: 14px; margin: 18px 0 0; padding: 0;
+  display: flex; gap: 18px; flex-wrap: wrap; list-style: none;
+}
+.meta li::before { content: "·"; margin-right: 8px; color: var(--border); }
+.meta li:first-child::before { content: none; margin: 0; }
+
+/* ── contents ──────────────────────────────────────────────────────── */
+nav.toc {
+  margin: 40px 0 8px; padding: 18px 22px; background: var(--raised);
+  border: 1px solid var(--border); border-radius: 12px;
+}
+nav.toc .toc-title {
+  font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint);
+}
+nav.toc ol {
+  list-style: none; margin: 12px 0 0; padding: 0;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px;
+}
+nav.toc a { color: var(--dim); text-decoration: none; font-size: 15px; }
+nav.toc a:hover { color: var(--accent); }
+nav.toc .n { font-family: var(--mono); color: var(--accent); font-size: 12px; margin-right: 8px; }
+
+/* ── sections & figures ────────────────────────────────────────────── */
+section { margin-top: 88px; scroll-margin-top: 24px; }
+.sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+.sec-num {
+  font-family: var(--mono); color: var(--accent); font-size: 15px;
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 2px 9px; background: var(--raised);
+}
+section > p { margin: 12px 0 24px; }
+
+figure { margin: 0; }
+figure amx-player {
+  display: block; border: 1px solid var(--border); border-radius: 12px;
+  overflow: hidden;
+}
+figcaption {
+  display: flex; align-items: baseline; gap: 16px; margin-top: 12px;
+  font-size: 14px; color: var(--faint);
+}
+figcaption .cap { flex: 1; min-width: 0; }
+figcaption .cap b { color: var(--dim); font-weight: 560; }
+figcaption a.src {
+  color: var(--faint); text-decoration: none; white-space: nowrap;
+  font-family: var(--mono); font-size: 12.5px;
+}
+figcaption a.src:hover { color: var(--accent); }
+
+/* Gallery: one figure per row. Two 16:9 scenes side by side would be ~400px
+ * wide each, which scales a 1280px scene to 31% and turns its 15px labels into
+ * illegible smudges — the figures are dense enough that width is not optional. */
+.gallery figure { margin-top: 40px; }
+.gallery h3 {
+  font-size: 18px; font-weight: 600; margin: 0 0 10px; letter-spacing: -0.005em;
+}
+@media (max-width: 760px) {
+  nav.toc ol { grid-template-columns: 1fr; }
+}
+
+/* ── closing block ─────────────────────────────────────────────────── */
+.howto {
+  margin-top: 88px; padding: 26px 28px; background: var(--raised);
+  border: 1px solid var(--border); border-radius: 14px;
+}
+.howto h2 { font-size: 22px; }
+.howto p { margin: 10px 0 18px; }
+pre {
+  background: var(--sunken); border: 1px solid var(--border-soft);
+  border-radius: 10px; padding: 16px 18px; overflow-x: auto;
+  font-family: var(--mono); font-size: 13.5px; line-height: 1.6;
+  color: #c8d3e0; margin: 0;
+}
+code.inline {
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: 5px; padding: 1px 6px; font-size: 13.5px;
+  font-family: var(--mono);
+}
+
+footer {
+  margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--border);
+  color: var(--faint); font-size: 14px; display: flex; gap: 20px;
+  flex-wrap: wrap; justify-content: space-between;
+}
+footer a { color: var(--dim); text-decoration: none; }
+footer a:hover { color: var(--accent); }

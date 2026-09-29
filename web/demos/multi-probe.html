@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <title>amx-player multi-instance probe</title>
   <style>
-    body { background: #0d1016; color: #dbe2ec; font: 14px system-ui; margin: 0; padding: 40px; }
+    body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
     h1 { font-size: 18px; }
     .row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
-    amx-player { border: 1px solid #232b38; }
-    pre { color: #8b96a7; font-size: 12px; }
+    amx-player { border: 1px solid #1e2733; }
+    pre { color: #9aa5b4; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -22,12 +22,12 @@
   <div style="height: 60vh"></div>
   <amx-player src="transformer/scenes/pipeline.amx" autoplay loop title="Pipeline (below fold)"></amx-player>
 
-  <script type="module">
-    await import("../embed/amx-player.js");
+  <!-- probes the same profile the demo pages serve, with a fallback to pkg -->
+  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
 
+  <script type="module">
     // report engine device count + per-instance health for the CDP driver
     const report = { engines: 0, errors: [], players: 0, t0: performance.now() };
-    const origCreate = Object.getOwnPropertyDescriptor;
     // count wasm engine loads by watching performance entries for the wasm
     const seen = new Set();
     const obs = new PerformanceObserver((list) => {

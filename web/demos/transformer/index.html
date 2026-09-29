@@ -4,109 +4,29 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>The Transformer Architecture, Animated — an .amx walkthrough</title>
-  <meta name="description" content="Six animated explanations of the transformer block, each one a tiny .amx scene file embedded with a single custom element.">
-  <style>
-    :root {
-      --bg: #0d1016; --raised: #131820; --border: #232b38; --border-soft: #1c2431;
-      --text: #dbe2ec; --dim: #8b96a7; --faint: #5b6575; --accent: #f5b942;
-      --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Consolas, monospace;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0; background: var(--bg); color: var(--text);
-      font: 17px/1.7 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    }
-    .wrap { max-width: 880px; margin: 0 auto; padding: 56px 24px 72px; }
-
-    /* ── hero ─────────────────────────────────────────────── */
-    .kicker { color: var(--accent); font-size: 13px; letter-spacing: .14em;
-              text-transform: uppercase; }
-    h1 { font-size: clamp(32px, 5vw, 46px); line-height: 1.12; margin: 12px 0 14px;
-         font-weight: 680; letter-spacing: -0.01em; }
-    .lede { color: var(--dim); font-size: 19px; max-width: 660px; margin: 0 0 10px; }
-    .meta { color: var(--faint); font-size: 14px; margin-top: 18px;
-            display: flex; gap: 18px; flex-wrap: wrap; }
-    .meta span::before { content: "·"; margin-right: 8px; color: var(--border); }
-    .meta span:first-child::before { content: none; }
-
-    /* ── contents ─────────────────────────────────────────── */
-    nav.toc { margin: 40px 0 8px; padding: 18px 22px; background: var(--raised);
-              border: 1px solid var(--border); border-radius: 12px; }
-    nav.toc .toc-title { font-size: 12px; letter-spacing: .12em;
-              text-transform: uppercase; color: var(--faint); }
-    nav.toc ol { list-style: none; margin: 12px 0 0; padding: 0;
-                 display: grid; grid-template-columns: 1fr 1fr; gap: 6px 28px; }
-    nav.toc a { color: var(--dim); text-decoration: none; font-size: 15px; }
-    nav.toc a:hover { color: var(--accent); }
-    nav.toc .n { font-family: var(--mono); color: var(--accent);
-                 font-size: 12px; margin-right: 8px; }
-
-    /* ── sections ─────────────────────────────────────────── */
-    section { margin-top: 92px; scroll-margin-top: 24px; }
-    .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
-    .sec-num { font-family: var(--mono); color: var(--accent); font-size: 15px;
-               border: 1px solid var(--border); border-radius: 8px;
-               padding: 2px 9px; background: var(--raised); }
-    h2 { font-size: 26px; font-weight: 640; margin: 0; letter-spacing: -0.01em; }
-    section p { color: var(--dim); max-width: 680px; margin: 12px 0 24px; }
-    section p strong { color: var(--text); font-weight: 560; }
-
-    /* ── figures ──────────────────────────────────────────── */
-    figure { margin: 0; }
-    figure amx-player { border: 1px solid var(--border); border-radius: 12px;
-                        display: block; overflow: hidden; }
-    figcaption { display: flex; align-items: baseline; gap: 16px;
-                 margin-top: 12px; font-size: 14px; color: var(--faint); }
-    figcaption .cap { flex: 1; min-width: 0; }
-    figcaption .cap b { color: var(--dim); font-weight: 560; }
-    figcaption a.src { color: var(--faint); text-decoration: none;
-                       white-space: nowrap; font-family: var(--mono); font-size: 12.5px; }
-    figcaption a.src:hover { color: var(--accent); }
-
-    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .pair figure amx-player { min-width: 0; }
-    @media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
-
-    /* ── closing / footer ─────────────────────────────────── */
-    .howto { margin-top: 92px; padding: 26px 28px; background: var(--raised);
-             border: 1px solid var(--border); border-radius: 14px; }
-    .howto h2 { font-size: 22px; }
-    .howto p { margin: 10px 0 18px; }
-    pre { background: #0a0d13; border: 1px solid var(--border-soft);
-          border-radius: 10px; padding: 16px 18px; overflow-x: auto;
-          font-family: var(--mono); font-size: 13.5px; line-height: 1.6;
-          color: #c8d3e0; margin: 0; }
-    code.inline { background: var(--raised); border: 1px solid var(--border);
-                  border-radius: 5px; padding: 1px 6px; font-size: 13.5px;
-                  font-family: var(--mono); }
-    footer { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--border);
-             color: var(--faint); font-size: 14px; display: flex; gap: 20px;
-             flex-wrap: wrap; justify-content: space-between; }
-    footer a { color: var(--dim); text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-  </style>
+  <meta name="description" content="Six animated explanations of the transformer block, each one a small .amx scene file embedded with a single custom element.">
+  <link rel="stylesheet" href="../../demo.css">
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div class="kicker">Animatix demo · every figure is a .amx file</div>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
       <h1>The Transformer Architecture, Animated</h1>
       <p class="lede">
         Six short animations that build the transformer up piece by piece —
         tokens, positions, attention, multi-head attention, the feed-forward
-        block, and the full stack. Each figure below is a declarative scene
-        file embedded with a single custom element.
+        block, and the full stack. Each figure is a declarative scene file,
+        compiled in your browser and drawn with WebGPU.
       </p>
-      <div class="meta">
-        <span>6 scenes</span>
-        <span>~510 lines of .amx</span>
-        <span>1.1 MB engine (brotli), shared by all six</span>
-      </div>
+      <ul class="meta">
+        <li>6 scenes</li>
+        <li>one 1.1 MB engine (brotli) shared by all six</li>
+        <li>hover a figure to pause or scrub it</li>
+      </ul>
     </header>
 
     <nav class="toc" aria-label="Contents">
-      <div class="toc-title">Contents</div>
+      <p class="toc-title">Contents</p>
       <ol>
         <li><a href="#s1"><span class="n">01</span>From text to tokens</a></li>
         <li><a href="#s2"><span class="n">02</span>Positional encoding</a></li>
@@ -125,11 +45,12 @@
         Everything downstream operates on those numbers, never on the words.
       </p>
       <figure>
-        <amx-player src="scenes/tokens.amx" autoplay loop aspect="16:9"
-                    title="Tokens and embeddings"></amx-player>
+        <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Tokens and embeddings"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> each chip gets its own column of values —
-            same shape for every token, different numbers.</span>
+          <span class="cap"><b>Watch:</b> each chip grows a column of numbers
+            beneath it. A brighter cell is a larger number, and the column keeps
+            going past the fifth entry.</span>
           <a class="src" href="scenes/tokens.amx">scenes/tokens.amx ↗</a>
         </figcaption>
       </figure>
@@ -140,15 +61,18 @@
       <p>
         Attention has no built-in sense of order, so each position is stamped
         with a fingerprint built from <strong>sine waves of growing
-        wavelength</strong>. Move a word and its vector changes, even though
-        its embedding doesn't.
+        wavelength</strong>. Move a word and its vector changes, even though its
+        embedding doesn't.
       </p>
       <figure>
-        <amx-player src="scenes/positional.amx" autoplay loop aspect="16:9"
-                    title="Positional encoding waves"></amx-player>
+        <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Positional encoding"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the curves are drawn channel by channel —
-            long wavelengths change slowly with position, short ones quickly.</span>
+          <span class="cap"><b>Watch:</b> read down the rows. Each one is a sine
+            of twice the period above it, so the stripes widen from one column to
+            eight. Periods are 3/6/12/24 as a schematic — the real constants span
+            thousands, and the earliest dimensions barely move across eight
+            positions.</span>
           <a class="src" href="scenes/positional.amx">scenes/positional.amx ↗</a>
         </figcaption>
       </figure>
@@ -163,11 +87,12 @@
         query–key scores decides how much of each answer it keeps.
       </p>
       <figure>
-        <amx-player src="scenes/attention.amx" autoplay loop aspect="16:9"
-                    title="Scaled dot-product attention"></amx-player>
+        <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Scaled dot-product attention"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the weight bars fill in, then the links
-            land on them — line thickness is the attention weight.</span>
+          <span class="cap"><b>Watch:</b> the ring marks the query. One weight
+            dominates — 0.62 of “it” comes from <em>animal</em> — and the other
+            four bars are almost flat.</span>
           <a class="src" href="scenes/attention.amx">scenes/attention.amx ↗</a>
         </figcaption>
       </figure>
@@ -178,15 +103,17 @@
       <p>
         One attention pattern is rarely enough, so the model runs several in
         parallel. Each <strong>head</strong> is free to specialize — grammar,
-        references, neighborhoods — and the outputs are concatenated and mixed
-        back into a single vector per token.
+        references, neighbours — and the outputs are concatenated and mixed back
+        into a single vector per token.
       </p>
       <figure>
-        <amx-player src="scenes/multihead.amx" autoplay loop aspect="16:9"
-                    title="Multiple attention heads"></amx-player>
+        <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Multiple attention heads"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> three heads read the same sentence three
-            different ways, then their colors merge in the output mix.</span>
+          <span class="cap"><b>Watch:</b> each panel is one head's attention
+            pattern over the same three tokens, rows asking and columns
+            answering. Different bright cells, different specialisations — and
+            the three outputs stack side by side in the bar underneath.</span>
           <a class="src" href="scenes/multihead.amx">scenes/multihead.amx ↗</a>
         </figcaption>
       </figure>
@@ -201,11 +128,13 @@
         signal one hop away, so depth refines instead of erasing.
       </p>
       <figure>
-        <amx-player src="scenes/feedforward.amx" autoplay loop aspect="16:9"
-                    title="Feed-forward block with residuals"></amx-player>
+        <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Feed-forward block with residuals"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the residual stream runs straight
-            through; the blocks and the arcs above them are what the token adds.</span>
+          <span class="cap"><b>Watch:</b> the rail runs straight through both
+            blocks — that is the residual stream. The arcs leaving the rail
+            before each block and rejoining it after are what the token adds on
+            top.</span>
           <a class="src" href="scenes/feedforward.amx">scenes/feedforward.amx ↗</a>
         </figcaption>
       </figure>
@@ -214,16 +143,17 @@
     <section id="s6">
       <div class="sec-head"><span class="sec-num">06</span><h2>Stacking the blocks</h2></div>
       <p>
-        One attention-plus-FFN block is a layer. Stack N of them and tokens
-        flow up the tower, arriving at the top <strong>contextualized</strong>
-        and ready for a language-modeling or task head.
+        One attention-plus-FFN block is a layer. Stack N of them and tokens flow
+        up the tower, arriving at the top <strong>contextualized</strong> and
+        ready for a language-modeling or task head.
       </p>
       <figure>
-        <amx-player src="scenes/pipeline.amx" autoplay loop aspect="16:9"
-                    title="The full transformer stack"></amx-player>
+        <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The full transformer stack"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> tokens climb the stack — same weights in
-            every block, new meaning at every level.</span>
+          <span class="cap"><b>Watch:</b> the blocks are identical — same weights
+            in every one. The only thing that changes as the token climbs is the
+            little vector drawn inside each block.</span>
           <a class="src" href="scenes/pipeline.amx">scenes/pipeline.amx ↗</a>
         </figcaption>
       </figure>
@@ -232,19 +162,33 @@
     <div class="howto">
       <h2>How this page works</h2>
       <p>
-        There is no video here and no backend. Each figure above loads a
-        <code class="inline">.amx</code> text file at runtime, compiles it in
-        the browser, and renders it with WebGPU — all six share one engine
-        download and one GPU device, and offscreen figures pause themselves.
+        There is no video here and no backend. Each figure loads a
+        <code class="inline">.amx</code> text file at runtime, compiles it in the
+        browser, and renders it with WebGPU. All six share one engine download
+        and one GPU device, and a figure that scrolls out of view pauses itself.
       </p>
-      <pre>&lt;script type="module" src="/embed/amx-player.js"&gt;&lt;/script&gt;
+      <pre>&lt;script type="module" src="../../embed/amx-player.js"
+        data-runtime-base="../../pkg-slim"&gt;&lt;/script&gt;
 
-&lt;amx-player src="scenes/attention.amx" autoplay loop&gt;&lt;/amx-player&gt;</pre>
+&lt;amx-player src="scenes/attention.amx" autoplay loop controls
+            hold="1.5"&gt;&lt;/amx-player&gt;</pre>
+      <p>
+        The scenes use plain text only, so the page serves the playback-only
+        <code class="inline">pkg-slim</code> profile instead of the full engine —
+        1.1 MB against 7.8 MB over the wire. The full profile is only needed for
+        Typst markup, equations and image or SVG assets.
+      </p>
+      <p>
+        <code class="inline">hold</code> is the pause before a looping figure
+        restarts. A scene's timeline ends at its last keyframe, so without a hold
+        the finished diagram would cut straight back to an empty stage; the
+        player rests the finished frame, then dissolves it out and back in.
+      </p>
       <p style="margin-bottom:0">
         The scene sources are plain text — click any
-        <span class="src" style="font-family:var(--mono);font-size:13px">.amx ↗</span>
+        <span style="font-family:var(--mono);font-size:13px">.amx ↗</span>
         link above to read one, or open the
-        <a href="../multi-probe.html" style="color:var(--accent)">QA page</a>.
+        <a href="../multi-probe.html">QA page</a>.
       </p>
     </div>
 
@@ -258,6 +202,6 @@
     </footer>
   </div>
 
-  <script type="module" src="../../embed/amx-player.js"></script>
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
 </body>
 </html>
