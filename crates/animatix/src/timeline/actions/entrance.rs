@@ -65,7 +65,14 @@ impl BuiltinAction for WipeIn {
             // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
             // animates stroke_progress/fill_opacity, so lift the seeded
             // opacity 0 alongside the wipe.
+            let was_hidden = track.hidden_by_default;
             super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            if !was_hidden {
+                // An explicitly authored `opacity: 0` needs the same lift: the
+                // wipe itself never writes opacity, so the target would stay
+                // invisible for the whole timeline.
+                super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+            }
 
             // Reveal the fill to its authored value, not blindly to 1.0: a
             // stroke-only Path (fill_opacity seeded 0) must stay unfilled
@@ -152,9 +159,13 @@ impl BuiltinAction for FadeIn {
                     Some(t) => t,
                     None => continue,
                 };
+                // Settle on the authored opacity. Only an authored 0 is a seed
+                // the entrance has to lift past; a hardcoded 1.0 here used to
+                // discard an authored `opacity: 0.25` without a diagnostic.
+                let end_opacity = super::entrance_opacity_target(track, t_start_ms);
                 track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
-                track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, end_opacity, easing);
             }
         }
     }
@@ -323,6 +334,94 @@ mod tests {
         assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
         assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
+    }
+
+    /// A rect carrying an explicit opacity, declared *inside* a keyframe so it
+    /// is not hidden-by-default: the authored value is the one the entrance
+    /// action must respect.
+    fn rect_decl_with_opacity(label: &str, opacity: f64) -> Stmt {
+        let mut decl = rect_decl(label);
+        if let Stmt::ActorDecl { props, .. } = &mut decl {
+            props.push(Property {
+                name: "opacity".to_string(),
+                value: Expr::Num(opacity),
+                value_span: None,
+                trailing_comment: None,
+            });
+        }
+        decl
+    }
+
+    // The four entrance actions must agree on what an authored `opacity` means:
+    // a resting value the action settles on, except for an explicit 0, which is
+    // a "start hidden" seed the action has to reveal. Before this, `fade-in`
+    // forced every target to 1.0 (discarding an authored 0.25 with no
+    // diagnostic) while the reveal actions left an authored 0 in place, keeping
+    // the target invisible for the whole timeline.
+
+    #[test]
+    fn fade_in_settles_on_the_authored_opacity() {
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                rect_decl_with_opacity("panel", 0.25),
+                action_stmt("fade-in", "panel", 1.0),
+            ],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("panel").expect("panel track");
+
+        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
+        assert_eq!(
+            track.style.opacity.get(1000, 1.0),
+            0.25,
+            "fade-in must settle on the authored opacity, not 1.0"
+        );
+        assert!(report.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn entrance_actions_treat_an_authored_zero_as_a_seed() {
+        for verb in ["fade-in", "wipe-in", "draw-in", "reveal-in"] {
+            let ast = vec![Stmt::Keyframe {
+                time: Time::Seconds(0.0),
+                body: vec![
+                    rect_decl_with_opacity("panel", 0.0),
+                    action_stmt(verb, "panel", 1.0),
+                ],
+                span: None,
+            }];
+
+            let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+            let track = report.output.tracks.get("panel").expect("panel track");
+
+            assert_eq!(
+                track.style.opacity.get(1000, 1.0),
+                1.0,
+                "`{verb}` must reveal an explicitly authored `opacity: 0`, not leave it invisible"
+            );
+        }
+    }
+
+    #[test]
+    fn reveal_actions_leave_a_partial_authored_opacity_alone() {
+        // Only 0 is a seed: a wipe must not fade a target that was authored at
+        // 0.25, it should wipe it in at 0.25.
+        let ast = vec![Stmt::Keyframe {
+            time: Time::Seconds(0.0),
+            body: vec![
+                rect_decl_with_opacity("panel", 0.25),
+                action_stmt("wipe-in", "panel", 1.0),
+            ],
+            span: None,
+        }];
+
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        let track = report.output.tracks.get("panel").expect("panel track");
+
+        assert_eq!(track.style.opacity.get(1000, 1.0), 0.25);
     }
 
     #[test]
