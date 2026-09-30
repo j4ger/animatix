@@ -1,0 +1,25 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# Overture
+config { colorscheme: "gallery", dynamic_layout: true, duration: 6 }
+
+title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
+  color: text.primary, anchor: scene.center, offset: (0, -70)
+
+subtitle: Text, text: "insertion sort · eight bars · one timeline function",
+  font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 10)
+
+hint: Text, text: "every comparison and swap below is emitted at build time",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.center, offset: (0, 70)
+
+#0s
+fade-in title [700ms, ease: ease-out]
+fade-in subtitle [600ms, delay: 250ms]
+fade-in hint [500ms, delay: 450ms]
+
+#5.4s
+
+// ── Scene 2: The Sort ───────────────────────────────────────────────────────
+

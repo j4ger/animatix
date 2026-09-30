@@ -1,0 +1,40 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
+  row: Row, at: at, gap: gap, align: "end" {
+    for v, i in values {
+      bar[i]: Rect, size: (bar_w, v * scale), color: color
+    }
+  }
+}
+
+# Finale
+config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+
+finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 64)
+
+finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.success
+
+footnote: Text, text: "insertion sort: O(n^2) comparisons, O(1) extra memory",
+  font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
+
+endnote: Text, text: "one timeline function emitted every beat you just watched",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+
+#0s
+fade-in finale_title [500ms]
+fade-in finale_bars [600ms, ease: ease-out]
+
+// No celebration beat here on purpose: a color-wave over these bars (via
+// nested component-child assignments) does not survive composition
+// evaluation, and `pulse` overshoots (docs/roadmap.md). The sorted row and
+// the footnote close the scene.
+
+#2.2s
+fade-in footnote [700ms, ease: ease-out]
+
+#3.2s
+fade-in endnote [600ms]

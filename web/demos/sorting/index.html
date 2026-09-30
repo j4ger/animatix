@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sorting, Staged — an .amx walkthrough</title>
+  <meta name="description" content="Insertion sort performed by eight bars — directed entirely by one build-time timeline function. Every comparison and swap is emitted, not hand-animated.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
+      <h1>Sorting, Staged</h1>
+      <p class="lede">
+        Eight bars, out of order. An insertion sort walks the fourth bar left
+        past its larger neighbours, then the fifth, then the sixth — twenty-one
+        seconds of theatre in which every comparison lights a tick and every
+        swap moves two bars. Nothing on this page is hand-animated: one
+        build-time function emitted the entire timeline.
+      </p>
+      <ul class="meta">
+        <li>3 scenes · one file</li>
+        <li>1 timeline function · 0 hand-written swaps</li>
+        <li>one slim engine for the whole page</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="The full sorting theatre, three scenes"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The whole performance.</b> Overture, the sort
+          itself, the finale — three scenes in one file, joined by fades. The
+          counters under the bars count comparisons and swaps exactly as the
+          algorithm spends them.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>The overture</a></li>
+        <li><a href="#s2"><span class="n">02</span>The function behind the play</a></li>
+        <li><a href="#s3"><span class="n">03</span>The performance</a></li>
+        <li><a href="#s4"><span class="n">04</span>The finale, and the bill</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>The overture</h2></div>
+      <p>
+        A title card, one promise: <em>every comparison and swap below is
+        emitted at build time</em>. That is the difference between this demo
+        and a sorted-bar screensaver — the choreography you are about to watch
+        falls out of running the algorithm, the same way a compiler's output
+        falls out of source.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="overture.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The overture"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> three lines of scene-setting. The
+            actual machinery is one <code class="inline">fn</code> declared
+            before any scene — see §02.</span>
+          <a class="src" href="overture.amx">overture.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>The function behind the play</h2></div>
+      <p>
+        Animatix timeline functions run <strong>at build time</strong>: they
+        execute while the scene compiles, and every action they emit becomes
+        an ordinary keyframe beat. This one carries the algorithm's own state
+        — <code class="inline">order[k]</code> tracks which original bar
+        occupies slot k, so each <code class="inline">swap</code> targets the
+        bars currently in the two slots being exchanged — and the
+        <code class="inline">[step:]</code> modifier advances a build-time
+        clock, so the nested loops pace themselves.
+      </p>
+      <pre><span class="kw">fn</span> <span class="fn">insertion_sort</span>(bars, values: <span class="prop">List&lt;Num&gt;</span>, comp_ticks, swap_ticks) {
+  <span class="kw">let</span> order = {<span class="num">0</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>, <span class="num">7</span>}
+  <span class="kw">for</span> key <span class="kw">in</span> {<span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>, <span class="num">7</span>} [<span class="prop">step</span>: <span class="num">2400ms</span>] {
+    key_note.target = bars.bar[order[key]] [<span class="num">300ms</span>]
+    <span class="kw">for</span> j <span class="kw">in</span> {<span class="num">0</span>, <span class="num">1</span>, <span class="num">2</span>, <span class="num">3</span>, <span class="num">4</span>, <span class="num">5</span>, <span class="num">6</span>} [<span class="prop">step</span>: <span class="num">300ms</span>] {
+      <span class="kw">if</span> j &lt; key {
+        <span class="kw">fade-in</span> comp_ticks.t[ci] [<span class="num">120ms</span>]
+        <span class="kw">if</span> values[order[key - j]] &lt; values[order[key - j - <span class="num">1</span>]] {
+          <span class="kw">swap</span> bars.bar[order[key - j]], bars.bar[order[key - j - <span class="num">1</span>]] [<span class="num">260ms</span>]
+          <span class="cmt">// …advance the counters, update `order`…</span>
+        }
+      }
+    }
+  }
+}</pre>
+      <p>
+        The bars and the tick strips are <strong>components</strong>
+        (<code class="inline">Bars</code>, <code class="inline">Ticks</code>)
+        whose children are generated by <code class="inline">for</code> over
+        the input list — so the whole page is data-directed: change the
+        values array and the function stages a different performance.
+      </p>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>The performance</h2></div>
+      <p>
+        And this is that function, played. The amber callout is the
+        <strong>key</strong> — the bar being inserted; it slides left past
+        every larger neighbour while the blue comparison ticks and the gold
+        swap ticks tally the work. Watch the fourth bar (value 5) travel from
+        the right half to the front: the cheapest possible insertion, seven
+        comparisons, no swaps — while 93 pays for its height all the way to
+        the end.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="sort.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Insertion sort, performed"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> each key takes its turn; the two
+            counter strips below fill in the algorithm's exact cost — 28
+            comparisons, 16 swaps for this input.</span>
+          <a class="src" href="sort.amx">sort.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>The finale, and the bill</h2></div>
+      <p>
+        The same eight bars, re-staged sorted — the component instantiated
+        again with the values in order, green for the curtain call. And the
+        bill, stated honestly: insertion sort spends
+        <strong>O(n²) comparisons</strong> for O(1) extra memory. Beautiful
+        as theatre, impractical at scale — which is the other thing a good
+        explainer should say out loud.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="finale.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The sorted finale"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the sorted cast, and the price tag.
+            The finale is the same <code class="inline">Bars</code> component
+            with ordered values — the sort did the arranging, the component
+            just shows up.</span>
+          <a class="src" href="finale.amx">finale.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <div class="howto">
+        <h2>Try changing the cast</h2>
+        <p>
+          Every figure on this page is editable — flip one open with
+          <span style="font-family:var(--mono);font-size:13px">edit this figure</span>
+          and change the values array in the
+          <code class="inline">Bars</code> instantiation. The function
+          re-stages the whole performance around your data, because the
+          timeline was never written for these eight bars; it was written for
+          <em>any</em> eight bars.
+        </p>
+        <p style="margin-bottom:0">
+          Sources are plain text —
+          <a href="../../tour/">the language tour</a> has the syntax, and the
+          <a href="../">demo shelf</a> has more like this.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>
