@@ -190,7 +190,20 @@
       }
 
       const rows = [];
+      // The embed owns its render scale and re-asserts it asynchronously (its
+      // ResizeObserver fires after the canvas backing changes), which would
+      // override an explicit sweep — the first sample of a run measured the
+      // display-matched scale while reporting 1.0. Suspend that ownership for
+      // the duration; `_applyRenderScale` hands it back below.
+      for (const el of elements) {
+        el._renderScaleObserver?.disconnect();
+        clearTimeout(el._renderScaleRetry);
+      }
       for (const scale of scales) rows.push(await sample(scale));
+      for (const el of elements) {
+        el._renderScaleObserver?.observe(el._stage);
+        el._applyRenderScale();
+      }
 
       // Restore what the page itself asked for, and let the embeds pick their
       // display-matched scale back up.
