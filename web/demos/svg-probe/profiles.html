@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>amx-player profile &amp; quality probe</title>
+  <style>
+    body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+    amx-player { border: 1px solid #1e2733; }
+    pre { color: #9aa5b4; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Profile &amp; quality probe</h1>
+  <pre id="report">waiting…</pre>
+  <div class="row">
+    <!-- no profile attr: defaults to slim; plain-text scene fits -->
+    <div><div>default (slim)</div><amx-player src="../transformer/scenes/tokens.amx" autoplay loop title="slim default"></amx-player></div>
+    <!-- profile="full": the Svg actor only renders there -->
+    <div><div>profile="full"</div><amx-player src="scene.amx" profile="full" autoplay loop title="full profile"></amx-player></div>
+  </div>
+  <div class="row">
+    <!-- quality: same plot scene at the two ends of the build-quality range -->
+    <div><div>quality="draft"</div><amx-player src="scene-quality.amx" quality="draft" autoplay loop title="draft"></amx-player></div>
+    <div><div>quality="production"</div><amx-player src="scene-quality.amx" quality="production" autoplay loop title="production"></amx-player></div>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <!-- no data-runtime-base: default parent dir → pkg-slim for slim, pkg for full -->
+
+  <script type="module">
+    const report = { errors: [], wasmFetches: null };
+    const seen = new Set();
+    const obs = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.name?.includes("animatix_web_bg.wasm")) seen.add(e.name.split("?")[0]);
+      }
+      report.wasmFetches = seen.size;
+    });
+    obs.observe({ type: "resource", buffered: true });
+    window.addEventListener("error", (e) => report.errors.push(String(e.message)));
+
+    const tick = () => {
+      const els = [...document.querySelectorAll("amx-player")];
+      report.states = els.map((el) => el._state);
+      document.getElementById("report").textContent = JSON.stringify(report);
+      requestAnimationFrame(tick);
+    };
+    tick();
+
+    // QA hook: kick lazy loads; once all ready, read back the two quality
+    // embeds at t=2.5s (curves fully drawn) for the pixel comparison.
+    window.__probe_state = { phase: "running", get report() { return report; } };
+    const kick = () => {
+      for (const el of document.querySelectorAll("amx-player")) {
+        if (el._state === "idle") { el._visible = true; el._maybeStartLoading(); }
+      }
+    };
+    setTimeout(kick, 200); setTimeout(kick, 800); setTimeout(kick, 1600);
+    const poll = () => {
+      kick();
+      const els = [...document.querySelectorAll("amx-player")];
+      if (!els.length || !els.every((el) => el._state === "ready")) { setTimeout(poll, 300); return; }
+      const results = [];
+      let i = 2; // the quality pair
+      const next = () => {
+        if (i >= els.length) {
+          report.readbacks = results;
+          window.__probe_state.phase = "done";
+          return;
+        }
+        els[i]._player.debug_readback(2.5, (stats) => { results.push(JSON.parse(stats)); i += 1; next(); });
+      };
+      next();
+    };
+    setTimeout(poll, 600);
+  </script>
+</body>
+</html>

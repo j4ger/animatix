@@ -32,12 +32,14 @@ python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
 
-The six demo scenes use plain text only, so `web/index.html` and the transformer
-walkthrough point `data-runtime-base` at `pkg-slim` — 1.1 MB over the wire
-instead of 7.8 MB. The full profile is for scenes that need Typst markup,
-equations or image/SVG assets. If the configured profile is missing the
-component falls back to `pkg` beside itself rather than showing an empty figure,
-so a full-only build still works.
+The six demo scenes use plain text only, so they run on the slim engine —
+1.1 MB over the wire instead of 7.8 MB. Their pages still point
+`data-runtime-base` at `pkg-slim` (the legacy exact-directory form); new pages
+don't need the attribute at all — an embed without `profile` uses slim. The
+full profile is for scenes that need Typst markup, equations or image/SVG
+assets: set `profile="full"` on those elements. If the configured profile is
+missing the component falls back to the other one rather than showing an empty
+figure, so a single-profile build still works.
 
 Deploying is the same story: run the build script, copy `web/` (plus the
 `pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
@@ -46,11 +48,15 @@ Deploying is the same story: run the build script, copy `web/` (plus the
 ## Embedding scenes in any page (`<amx-player>`)
 
 ```html
-<script type="module" src="https://your-host/amx-player.js"
-        data-runtime-base="./pkg-slim"></script>
+<script type="module" src="https://your-host/amx-player.js"></script>
 
-<amx-player src="./figures/attention.amx" autoplay loop controls
-            title="Scaled dot-product attention" aspect="16:9" hold="1.5"></amx-player>
+<!-- plain scene: the default slim engine serves it -->
+<amx-player src="./figures/tokens.amx" autoplay loop controls
+            title="From text to tokens" aspect="16:9" hold="1.5"></amx-player>
+
+<!-- a figure needing rich text / image assets: full engine, export fidelity -->
+<amx-player src="./figures/equation.amx" profile="full" quality="production"
+            title="Attention as soft maximum"></amx-player>
 ```
 
 Behavior:
@@ -70,11 +76,28 @@ Behavior:
 - **Attributes**: `src` (required), `autoplay`, `loop`, `controls` (hover
   play/scrub bar), `hold` (seconds, default 0.7), `title` (a11y label, shown
   while loading), `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the
-  scene afterwards).
-- **`data-runtime-base`** goes on the `<script>` tag, not the element: it names
-  the directory holding `animatix_web.js` (+ its wasm), absolute or relative to
-  the page. The engine is a page-level singleton, so it is a per-page choice.
-  Default: the `pkg` directory beside this component's parent.
+  scene afterwards), `profile` (below), `quality` (below).
+- **`profile`** — per element, `"slim"` (default) or `"full"`: which engine
+  build backs the figure. Omitted means slim, so a page of plain-text scenes
+  needs nothing; a figure with Typst markup, `Math`/`Code` highlighting or
+  `Image`/`Svg` assets sets `profile="full"`. Embeds sharing a profile share
+  one engine download and one WebGPU device; a page mixing both profiles
+  downloads each once (each wasm instance owns its context). The engine
+  directories come from the loader script's `data-runtime-base` (below), and
+  a profile whose directory the host did not build falls back to the other
+  one instead of showing a blank figure.
+- **`quality`** — per element, `"draft"` (default) / `"preview"` /
+  `"production"`: the build fidelity, i.e. what `BuildQuality` bakes into the
+  document at build time. Draft matches the desktop GUI's editing preview;
+  production matches what a desktop export renders — the visible difference
+  is plot-family sampling (a draft build samples plot curves with 4× the
+  tolerance). Changing the attribute rebuilds the scene.
+- **`data-runtime-base`** goes on the `<script>` tag, not the element: it
+  names the directory tree holding the engine builds — absolute or relative
+  to the page. A value ending in `pkg`/`pkg-slim` is the legacy exact-directory
+  form (its ±`-slim` sibling completes the pair); anything else is a parent
+  directory expected to contain `pkg/` and `pkg-slim/`. Default: the parent of
+  the directory this component lives in.
 
 ### Looping
 
@@ -200,13 +223,14 @@ multi-scene blends. What differs is the platform around it:
 | Extensions (`plugin-loading`) | ✓ | ✗ | ✗ |
 | Audio | muxed at export | not played | not played |
 | Export (video / PNG / WebP) | ✓ | ✗ | ✗ |
-| Build quality | `Production` (export), `Draft` (GUI editing) | `Draft`, always | `Draft`, always |
+| Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in | same |
 
-The meaningful pixel-level consequence of that last row: plot-family actors
-(`Graph`, `PlotCurve`, `VectorField`, …) sample with 4× the tolerance, so
-dense curves can be slightly coarser than a desktop export renders them. The
-GUI preview is the same `Draft`, so what a page shows is what an author saw
-while editing, not what the exporter produces. Two smaller gaps: a
+The pixel-level consequence of that last row: plot-family actors (`Graph`,
+`PlotCurve`, `VectorField`, …) sample with 4× the tolerance under the default
+`draft`, so dense curves can be slightly coarser than a desktop export renders
+them — `quality="production"` closes that gap at rebuild cost. The GUI preview
+is the same `Draft`, so the default shows what an author saw while editing.
+Two smaller gaps: a
 single-scene document using `persist` with no successor scene skips the
 `PersistTargetNotCarried` warning the desktop build emits (behaviour
 degrades to state resetting between loops), and `perf-tracing` is compiled

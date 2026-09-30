@@ -115,7 +115,7 @@ async fn ensure_engine() -> Result<(), String> {
 /// Identifies the running build from the JS side (stale-artifact checks).
 #[wasm_bindgen]
 pub fn build_id() -> u32 {
-    49
+    50
 }
 
 /// Initialize the shared WebGPU context (adapter, device, vello renderer).
@@ -185,6 +185,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             compositor: None,
             fonts: Vec::new(),
             modules: Vec::new(),
+            quality: BuildQuality::Draft,
             offscreen: None,
             offscreen_to: None,
             composite: None,
@@ -222,6 +223,11 @@ pub struct AmxPlayer {
     /// joined into the build's source map (keyed by resolved import path, the
     /// keys [`crate::dto::LoadResultDto::missing_imports`] reports).
     modules: Vec<(String, String)>,
+    /// Build quality for the next [`AmxPlayer::load_source`] (the embed's
+    /// `quality` attribute). Draft matches the GUI's editing preview;
+    /// Production matches what a desktop export renders. Quality is baked in
+    /// at build time (plot sampling tolerance), so a change means a rebuild.
+    quality: BuildQuality,
     /// Lazily-built GPU transition blender (compiles the WGSL blend
     /// pipeline). Per player rather than per context so the lazy init has a
     /// `&mut` to write into next to the targets it serves.
@@ -320,6 +326,25 @@ impl AmxPlayer {
         }
     }
 
+    /// Set the build quality for later `load_source` calls: "draft" (the
+    /// default; the GUI's editing preview), "preview" (scrubbing fidelity), or
+    /// "production" (what a desktop export renders). Quality is a build-time
+    /// knob — plot-family actors sample with different tolerance — so the
+    /// embed re-loads the scene after changing it.
+    pub fn set_quality(&mut self, quality: &str) -> Result<(), JsError> {
+        self.quality = match quality.to_ascii_lowercase().as_str() {
+            "draft" => BuildQuality::Draft,
+            "preview" => BuildQuality::Preview,
+            "production" => BuildQuality::Production,
+            other => {
+                return Err(JsError::new(&format!(
+                    "unknown quality '{other}': expected draft, preview, or production"
+                )));
+            },
+        };
+        Ok(())
+    }
+
     /// Asset URLs referenced by `Image`/`Svg` actors through a literal `url`
     /// property, in declaration order and deduplicated. Dynamic assignments
     /// (`icon.url = expr`) are not listed.
@@ -391,7 +416,7 @@ impl AmxPlayer {
             source,
             &modules,
             Arc::new(font_context),
-            BuildQuality::Draft,
+            self.quality,
             assets,
         );
         let BuiltDocument { target, result } = built;

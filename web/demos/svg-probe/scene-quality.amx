@@ -1,0 +1,15 @@
+// Quality probe: a sampling-heavy polar curve (rose) plus an implicit circle.
+// Draft builds plot families with 4× the sampling tolerance of Production, so
+// the two `quality` settings render measurably different geometry — the probe
+// page readbacks both and compares.
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3.0 }
+
+backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 180)
+
+kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (330, 330), at: (320, 180) {
+  rose: PlotCurve, kind: "polar", func: (t) => 1.6 * sin(4 * t), color: accent.primary, stroke_width: 2
+  circle: PlotCurve, kind: "implicit", func: (x, y) => x^2 + y^2 - 3.0, color: accent.danger, stroke_width: 2
+}
+
+#0.2s
+fade-in kinds [300ms]

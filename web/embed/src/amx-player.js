@@ -48,18 +48,37 @@ const RUNTIME_BASE = (() => {
   return new URL(".", import.meta.url).href.replace(/\/$/, "");
 })();
 
-// Directories that may hold the wasm module + its JS glue. The loader script's
-// `data-runtime-base` picks the first one — a page of plain-text scenes can
-// serve the slim build instead of the full one. The default directory beside
-// this component is always the last resort, so a page that points at a profile
-// the host did not build degrades to the other one instead of a blank figure.
-const ENGINE_BASES = (() => {
-  const fallback = `${RUNTIME_BASE}/../pkg`;
+// Engine directories per profile. Each embed picks its profile through the
+// element's `profile` attribute — "slim" (the default) or "full" — and the
+// two directories are derived from the loader script's `data-runtime-base`:
+// a value whose last segment is `pkg`/`pkg-slim` is the legacy exact-directory
+// form (its ±slim sibling completes the pair); anything else is a parent
+// directory containing both. The default parent is beside this component, so
+// an omitted attribute resolves to pkg-slim with pkg as the fallback when the
+// host did not build that profile.
+function engineBases(profile) {
+  const wantSlim = profile !== "full";
   const override = LOADER_SCRIPT?.getAttribute("data-runtime-base");
-  if (!override) return [fallback];
-  const configured = new URL(override, document.baseURI).href.replace(/\/$/, "");
-  return configured === fallback ? [fallback] : [configured, fallback];
-})();
+  const base = override
+    ? new URL(override, document.baseURI).href.replace(/\/$/, "")
+    : `${RUNTIME_BASE}/..`;
+  const last = base.split("/").pop();
+  let slimDir;
+  let fullDir;
+  if (last === "pkg-slim") {
+    slimDir = base;
+    fullDir = base.slice(0, -"-slim".length);
+  } else if (last === "pkg") {
+    fullDir = base;
+    slimDir = `${base}-slim`;
+  } else {
+    slimDir = `${base}/pkg-slim`;
+    fullDir = `${base}/pkg`;
+  }
+  const primary = wantSlim ? slimDir : fullDir;
+  const fallback = wantSlim ? fullDir : slimDir;
+  return primary === fallback ? [primary] : [primary, fallback];
+}
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 const SAVE_DATA = navigator.connection?.saveData === true;
@@ -71,29 +90,41 @@ const FADE_EACH = 0.28;
 
 // ── shared engine loading ───────────────────────────────────────────
 
-let enginePromise = null;
+// Resolved engine directory → the module instance loading for it. Keyed by
+// directory (not profile string) so the legacy exact-directory and the new
+// parent-directory forms that resolve to the same place share one instance.
+const enginePromises = new Map();
 
-function loadEngine() {
-  if (!enginePromise) {
-    enginePromise = (async () => {
-      let lastError;
-      for (const [i, base] of ENGINE_BASES.entries()) {
-        try {
-          const module = await import(`${base}/animatix_web.js`);
-          await module.default();
-          await module.init_engine?.();
-          return module;
-        } catch (err) {
-          lastError = err;
-          if (i + 1 < ENGINE_BASES.length) {
-            console.info(`amx-player: no engine at ${base}, trying ${ENGINE_BASES[i + 1]}`);
+function loadEngine(profile) {
+  // One wasm instance per resolved directory: embeds sharing a profile share
+  // the download, the device and the renderer; a page mixing profiles pays
+  // for both (each ES module instantiation owns its engine context).
+  const [primary] = engineBases(profile);
+  if (!enginePromises.has(primary)) {
+    enginePromises.set(
+      primary,
+      (async () => {
+        const bases = engineBases(profile);
+        let lastError;
+        for (const [i, base] of bases.entries()) {
+          try {
+            const module = await import(`${base}/animatix_web.js`);
+            await module.default();
+            await module.init_engine?.();
+            return module;
+          } catch (err) {
+            lastError = err;
+            enginePromises.delete(primary);
+            if (i + 1 < bases.length) {
+              console.info(`amx-player: no engine at ${base}, trying ${bases[i + 1]}`);
+            }
           }
         }
-      }
-      throw lastError;
-    })();
+        throw lastError;
+      })(),
+    );
   }
-  return enginePromise;
+  return enginePromises.get(primary);
 }
 
 // ── shared render loop ──────────────────────────────────────────────
@@ -142,6 +173,8 @@ class AmxPlayerElement extends HTMLElement {
     "controls",
     "title",
     "aspect",
+    "profile",
+    "quality",
   ];
 
   constructor() {
@@ -183,13 +216,51 @@ class AmxPlayerElement extends HTMLElement {
     if (name === "hold" && this._initialized && this._duration > 0) {
       this._configureCycle();
     }
-    if (name === "src" && this._initialized) {
-      this._state = "idle";
-      this._player = null;
-      this._time = 0;
-      this._renderSkeleton();
-      this._maybeStartLoading();
+    if (name === "quality" && this._initialized && this._player?.set_quality) {
+      // Quality is baked in at build time (plot sampling tolerance): push it
+      // to the player and rebuild. A reload refetches the scene text, which
+      // is cheap and keeps the flow identical to a fresh load.
+      try {
+        this._player.set_quality(this._quality());
+      } catch (err) {
+        console.warn(`amx-player: ${err.message}`);
+      }
+      this._resetForReload();
     }
+    if ((name === "src" || name === "profile") && this._initialized) {
+      // profile selects which wasm instance backs this element; switching it
+      // is a full reload (and, for a first switch on the page, a second
+      // engine download — that is the page author's tradeoff).
+      this._resetForReload();
+    }
+  }
+
+  _resetForReload() {
+    this._state = "idle";
+    this._player = null;
+    this._time = 0;
+    this._renderSkeleton();
+    this._maybeStartLoading();
+  }
+
+  /// `profile` — which engine build backs this element: "slim" (default) or
+  /// "full". A slim engine cannot render `Svg` actors (warned and skipped)
+  /// and falls back to the plain text path; see web/README.md's differences
+  /// table. Directories come from the loader's `data-runtime-base`.
+  _profile() {
+    return this.getAttribute("profile") === "full" ? "full" : "slim";
+  }
+
+  /// `quality` — build fidelity: "draft" (default, the GUI editing preview),
+  /// "preview", or "production" (what a desktop export renders). Unknown
+  /// values fall back to draft with a warning; the wasm side re-validates.
+  _quality() {
+    const value = this.getAttribute("quality") ?? "draft";
+    if (!["draft", "preview", "production"].includes(value)) {
+      console.warn(`amx-player: unknown quality '${value}', using draft`);
+      return "draft";
+    }
+    return value;
   }
 
   // ── skeleton / surfaces ─────────────────────────────────────────
@@ -451,8 +522,9 @@ class AmxPlayerElement extends HTMLElement {
       return;
     }
     try {
+      const profile = this._profile();
       const [module, source] = await Promise.all([
-        loadEngine(),
+        loadEngine(profile),
         fetch(src).then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.text();
@@ -462,6 +534,9 @@ class AmxPlayerElement extends HTMLElement {
 
       this._player = await module.create_player(this._canvas);
       if (this.getAttribute("src") !== src) return;
+      if (typeof this._player.set_quality === "function") {
+        this._player.set_quality(this._quality());
+      }
 
       await this._loadFonts(module);
       if (this.getAttribute("src") !== src) return;
