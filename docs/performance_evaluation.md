@@ -823,6 +823,42 @@ Two measurement notes from that run, both now handled:
 > frames by hand — but it did not inflate the throughput numbers: the focused
 > run landed inside the same range.
 
+### Where the gap is not
+
+A WebGPU microbenchmark driven from JS (2026-09-30, same machine) measures what
+the browser's GPU path charges for the operations a frame contains, independent
+of vello — at 1052×592:
+
+| operation | per pass |
+|---|---|
+| render pass, `loadOp: "clear"`, no draws | 0.014 ms |
+| fullscreen triangle, constant colour | 0.058 ms |
+| fullscreen draw sampling a texture (what the present blit is) | 0.003 ms |
+| `queue.writeBuffer` of 256 KB | 0.057 ms |
+
+A vello frame at that size costs 3.42 ms, so the gap is none of the things those
+numbers could explain: not fill rate or memory bandwidth (a full-target colour
+write is 1.7% of the frame), not the present blit (0.003 ms), not background
+throttling (confirmed in a focused window). The pinned vello records its stages
+inside **two** compute passes — `wgpu_engine.rs` contains exactly two
+`begin_compute_pass` calls and dispatches the stage list inside them — so a
+many-passes × per-pass-overhead story does not survive either. What is left is
+the execution of those passes in the browser: Dawn's dispatch/barrier handling,
+and the per-frame encoding upload, which alone is bounded at ~0.22 ms per MB.
+
+One microbenchmark in that series is **not** evidence, and is recorded so it is
+not re-run as if it were: a chained storage-texture compute pass reported the
+same ~2 µs for a full-target `textureStore` as for a one-thread dispatch, which
+is physically impossible (2.5 MB of writes cannot take 2 µs). It measured CPU
+submission cost, not GPU execution — `onSubmittedWorkDone` resolved as fast as
+the CPU could submit. JS-side compute timing is unusable until anchored to an
+operation of known cost; the render-pass numbers above are bandwidth-plausible
+and are the ones to trust.
+
+The next step therefore needs tooling rather than code: a GPU capture of the
+browser (RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing through
+`--enable-dawn-features`) to see what those two passes cost and where it goes.
+
 ### Still open (web)
 
 - **Canvas backing store** — now sized to `display px × dpr` (capped at the
