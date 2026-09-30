@@ -1,0 +1,62 @@
+config { resolution: (1280, 720) }
+
+# GradientDirection
+config { colorscheme: "editorial-dark", duration: 4.6 }
+
+step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Dimmed backdrop of the same contour map and field
+contours_bg: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.4
+
+field_bg: VectorField, func: (x, y) => (x, y), density: 8,
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  color: text.muted, opacity: 0.4
+
+// Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70)
+ball: Ellipse, size: (16, 16), color: accent.warning, at: (610, 212)
+
+// Arrow pointing uphill along +∇f
+up_arrow: Arrow, from: (610, 212), to: (715, 128),
+  color: accent.danger, stroke_width: 3
+
+// Arrow pointing downhill along −∇f
+down_arrow: Arrow, from: (610, 212), to: (505, 296),
+  color: accent.success, stroke_width: 3
+
+// Labels near arrow tips
+up_label: Text, text: "grad f (uphill)", font_size: 16,
+  color: accent.danger, at: (730, 110)
+
+down_label: Text, text: "-grad f (descend)", font_size: 16,
+  color: accent.success, at: (480, 300)
+
+// Gradient equation
+gradient_eq: Text,
+  text: "grad f = (dL/dx, dL/dy)",
+  font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
+
+#0.5s
+fade-in step2_title [500ms, ease: ease-out]
+fade-in ball [400ms]
+
+#1.5s
+fade-in up_arrow [800ms]
+fade-in up_label [800ms]
+
+#2.0s
+fade-in gradient_eq [600ms]
+
+#3.2s
+fade-in down_arrow [800ms]
+fade-in down_label [800ms]
+
+#3.5s
+highlight ball [600ms]
+
+
+// =============================================================================
+// Scene 4: Roll the ball to the minimum along the descent trail
+// =============================================================================

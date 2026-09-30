@@ -1,0 +1,67 @@
+config { resolution: (1280, 720) }
+
+# Descent
+config { colorscheme: "editorial-dark", duration: 8.0 }
+
+step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
+  color: text.primary, anchor: scene.top, offset: (0, 60)
+
+// Dimmed contour backdrop
+contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
+
+// Graph with the parametric descent trail. For f(x, y) = x² + y² the
+// gradient is radial, so steepest descent stays on a constant-angle ray.
+descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
+  size: (560, 560), at: (400, 380) {
+  trail: PlotCurve, kind: "parametric",
+    func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
+                  3.84 * exp(-0.55 * s) * sin(0.676)),
+    t_domain: (0, 4.5), color: accent.warning, stroke_width: 3,
+    stroke_progress: 0
+}
+
+// Ball driven by the always block (math coords → screen coords)
+ball: Ellipse, size: (16, 16), color: accent.warning, at: (610, 212)
+
+// Live loss readout
+live_loss: Text, text: "loss = 14.75", font_size: 18,
+  color: accent.warning, at: (650, 130)
+
+// Takeaway text
+takeaway: Text, text: "Step against the gradient, reach the minimum", font_size: 22,
+  color: text.secondary, anchor: scene.center, offset: (0, 260)
+
+always {
+  let s = clamp(t - 1.0, 0.0, 4.5)
+  let r = 3.84 * exp(-0.55 * s)
+  let th = 0.676 + 2.6 * s
+  let mx = r * cos(th)
+  let my = r * sin(th)
+  ball.at = descent_graph.map(mx, my)
+  let loss = r * r
+  live_loss.text = format("loss = {:.2}", loss)
+}
+
+#0.5s
+fade-in step3_title [500ms, ease: ease-out]
+fade-in contours_dim [600ms]
+fade-in descent_graph [600ms]
+
+#1.0s
+fade-in ball [400ms]
+fade-in live_loss [400ms]
+fade-in trail [400ms]
+trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
+
+#5.7s
+highlight ball [600ms]
+
+#6.5s
+fade-in takeaway [600ms]
+
+
+// =============================================================================
+// Scene 5: Compare three step sizes — too small, just right, too big
+// =============================================================================

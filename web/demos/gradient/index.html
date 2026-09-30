@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rolling Downhill — an .amx walkthrough of gradient descent</title>
+  <meta name="description" content="How machines learn, one picture at a time: contours, gradient fields, a ball that rolls against the slope, and why the step size decides everything.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
+      <h1>Rolling Downhill</h1>
+      <p class="lede">
+        Training a neural network is often described as "the model learns".
+        Mechanically, it is a ball rolling downhill on a loss surface — and
+        the only question is which way is down. This walkthrough builds that
+        intuition in four figures: the surface, the direction, the roll, and
+        the step that decides whether the ball ever arrives.
+      </p>
+      <ul class="meta">
+        <li>4 scenes · one file</li>
+        <li>contours · vector field · an always-driven ball</li>
+        <li>one slim engine for the whole page</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="The full gradient descent walkthrough"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The whole story.</b> Six beats in one file —
+          title, surface, direction, the roll, the step size, the goal —
+          compiled from <a href="scene.amx">a single text file</a>.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>The loss surface</a></li>
+        <li><a href="#s2"><span class="n">02</span>Go against the gradient</a></li>
+        <li><a href="#s3"><span class="n">03</span>Roll to the minimum</a></li>
+        <li><a href="#s4"><span class="n">04</span>Step size matters</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>The loss surface</h2></div>
+      <p>
+        A model has <strong>parameters</strong> (the knobs), and a
+        <strong>loss function</strong> that scores how wrong it is for every
+        setting of those knobs. Two parameters give a two-dimensional surface
+        you can draw: here <code class="inline">f(x, y) = x² + y²</code>, a
+        bowl. The rings are <strong>contours</strong> — everywhere the loss
+        is equal — and the grey arrows are the <strong>gradient</strong>,
+        pointing uphill at every point. The green dot at the center is where
+        the model would be perfect.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="losssurface.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The loss surface: contours and gradient field"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> a <code class="inline">ContourSet</code>
+            and a <code class="inline">VectorField</code> drawn from plain
+            functions — <code class="inline">(x, y) =&gt; x^2 + y^2</code> and
+            <code class="inline">(x, y) =&gt; (x, y)</code> — no data files,
+            no meshes.</span>
+          <a class="src" href="losssurface.amx">losssurface.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Go against the gradient</h2></div>
+      <p>
+        The gradient points <strong>uphill</strong> — the direction of
+        steepest increase. Training wants the opposite: from wherever the
+        ball sits, <strong>step against the gradient</strong> and the loss
+        strictly decreases. On this bowl the gradient is radial, so "downhill"
+        is always a straight line toward the green minimum. Real loss surfaces
+        are not bowls — they have ridges, valleys and flat plateaus where the
+        gradient lies about the way out — but the rule never changes.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="gradientdirection.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Uphill versus downhill at the ball"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the red arrow is
+            <code class="inline">grad f</code>, uphill; the green one is
+            minus the gradient — the only direction training ever steps.</span>
+          <a class="src" href="gradientdirection.amx">gradientdirection.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Roll to the minimum</h2></div>
+      <p>
+        Put the two together and train: step against the gradient, re-read
+        it, step again. The ball's trail is a
+        <code class="inline">PlotCurve</code> tracing a parametric spiral;
+        its position and the live loss readout are driven by an
+        <code class="inline">always</code> block — the same expression
+        evaluated every frame, with
+        <code class="inline">descent_graph.map(x, y)</code> converting data
+        coordinates to screen coordinates. Loss 14.75 → 0.10 is the whole of
+        training, miniature.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="descent.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The ball rolls to the minimum"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the trail sweeps in as the ball
+            rolls; the readout counts the loss down to 0.10. The ball ends
+            exactly on the green minimum.</span>
+          <a class="src" href="descent.amx">descent.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Step size matters</h2></div>
+      <p>
+        One knob remains, and it is the one practitioners actually tune: the
+        <strong>learning rate</strong> — how far each step travels. Too
+        small, and training crawls (grey). Too large, and every step
+        overshoots the valley and climbs the far wall — the loss
+        <em>diverges</em> (red). Just right, and the ball settles (green).
+        Everything else in modern optimisation — momentum, Adam, schedules —
+        is engineering around this one dial.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="learningrate.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Three step sizes: too small, just right, too big"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> three trajectories on the same ray —
+            exponential decay toward the minimum at three rates, the red one
+            escaping the bowl entirely.</span>
+          <a class="src" href="learningrate.amx">learningrate.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <div class="howto">
+        <h2>How this page works</h2>
+        <p>
+          The surface, field and trails are all drawn from functions —
+          <code class="inline">ContourSet</code>,
+          <code class="inline">VectorField</code> and
+          <code class="inline">PlotCurve</code> take closures, not data. The
+          rolling ball is an <code class="inline">always</code> block with
+          <code class="inline">graph.map()</code> doing the data-to-screen
+          conversion, and the loss readout is
+          <code class="inline">format("loss = {:.2}", …)</code> updating a
+          text actor every frame.
+        </p>
+        <p style="margin-bottom:0">
+          Sources are plain text —
+          <a href="../../tour/">the language tour</a> has the syntax, and the
+          <a href="../">demo shelf</a> has more like this.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>
