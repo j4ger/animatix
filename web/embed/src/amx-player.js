@@ -133,18 +133,31 @@ function loadEngine(profile) {
         const bases = engineBases(profile);
         let lastError;
         for (const [i, base] of bases.entries()) {
+          let module;
           try {
-            const module = await import(`${base}/animatix_web.js`);
-            await module.default();
-            await module.init_engine?.();
-            return module;
+            module = await import(`${base}/animatix_web.js`);
           } catch (err) {
+            // The profile is not deployed at this base — worth retrying
+            // with the other one (a single-profile host).
             lastError = err;
             enginePromises.delete(primary);
             if (i + 1 < bases.length) {
               console.info(`amx-player: no engine at ${base}, trying ${bases[i + 1]}`);
             }
+            continue;
           }
+          try {
+            await module.default();
+            await module.init_engine?.();
+          } catch (err) {
+            // The engine is present but cannot run here (typically no
+            // WebGPU adapter). That is not profile-specific: falling back
+            // to the other build would repeat the failure and mask this
+            // error behind a 404 — surface it instead.
+            enginePromises.delete(primary);
+            throw err;
+          }
+          return module;
         }
         throw lastError;
       })(),
@@ -363,7 +376,7 @@ class AmxPlayerElement extends HTMLElement {
     const title = this.getAttribute("title") || "";
     const style = document.createElement("style");
     style.textContent = `
-      :host { display: block; overflow: hidden;
+      :host { display: block; position: relative; overflow: hidden;
               border-radius: 8px; background: #0a0f17; }
       .stage { position: relative; overflow: hidden; }
       .skeleton {
