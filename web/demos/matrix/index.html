@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A Matrix Is a Machine — an .amx walkthrough</title>
+  <meta name="description" content="Linear algebra you can watch: a 2×2 matrix bends the grid, its columns tell you where the basis vectors land, and the determinant collapses — then flips the plane.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
+      <h1>A Matrix Is a Machine</h1>
+      <p class="lede">
+        Most people meet a matrix as a box of numbers with arbitrary rules for
+        multiplying them. It is much better thought of as a
+        <strong>function on space itself</strong>: feed it every point in the
+        plane and it moves all of them at once. Three figures — a shear, a
+        rotation, and a collapse through zero — and the box of numbers never
+        looks the same again.
+      </p>
+      <ul class="meta">
+        <li>3 scenes · one file</li>
+        <li>grid, basis vectors, matrix chips — all driven by <code class="inline">always</code></li>
+        <li>one slim engine for the whole page</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="Shear, rotation, and the determinant flip"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The whole story.</b> Three transformations in one
+          file. Nothing here is keyframed — one <code class="inline">always</code>
+          block per scene recomputes the entire grid, both basis vectors and
+          the four matrix numbers every frame.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>A shear: every point moves</a></li>
+        <li><a href="#s2"><span class="n">02</span>Rotation: read the columns</a></li>
+        <li><a href="#s3"><span class="n">03</span>When det crosses zero</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>A shear: every point moves</h2></div>
+      <p>
+        The matrix is shown live, top-left — four numbers, one of them
+        breathing. As <code class="inline">k</code> grows, every point
+        <code class="inline">(x, y)</code> slides to
+        <code class="inline">(x + k·y, y)</code>: horizontal lines stay put,
+        vertical lines lean, and the unit square leans into a parallelogram.
+        Yet the determinant readout never leaves 1 — <strong>a shear changes
+        no area</strong>. That is the kind of statement a static textbook
+        asserts; here you can watch it be true.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="shear.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="A shear, driven live"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the amber entry is the one animating.
+            The red and green arrows are the basis vectors — where they land
+            <em>is</em> the first and second column of the matrix.</span>
+          <a class="src" href="shear.amx">shear.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Rotation: read the columns</h2></div>
+      <p>
+        Reset, and turn the plane a quarter circle. The trick to reading any
+        transformation: <strong>the columns tell you where the basis vectors
+        land</strong>. Watch the red <code class="inline">i</code> arrow — its
+        tip writes column one into the numbers; the green
+        <code class="inline">j</code> arrow writes column two. By the end the
+        columns read (0, 1) and (−1, 0): i has become "up", j has become
+        "left". The determinant stays 1 — rotations preserve area and
+        orientation.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="rotation.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="A quarter rotation, tracked by the numbers"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the arrows lead, the grid follows,
+            and the four numbers keep score. Pause anywhere — the chips
+            describe the exact frame you paused on.</span>
+          <a class="src" href="rotation.amx">rotation.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>When det crosses zero</h2></div>
+      <p>
+        Now the dramatic one. The entry <code class="inline">d</code> shrinks
+        toward zero: the horizontal grid lines crowd together, the space
+        <strong>collapses onto a line</strong> — at
+        <code class="inline">det = 0</code> the whole plane has lost a
+        dimension, and information is destroyed (the transformation can no
+        longer be undone). Keep going and <code class="inline">d</code> comes
+        out negative: the grid re-inflates, but
+        <strong>mirror-flipped</strong> — the readout turns red because the
+        orientation of space itself has reversed.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="collapse.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The determinant collapses through zero"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the readout hits
+            <code class="inline">det = 0.0</code> exactly when the grid
+            flattens, and turns red the moment the plane flips through.
+            Squashing a photo to zero width and reopening it is this
+            matrix.</span>
+          <a class="src" href="collapse.amx">collapse.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <div class="howto">
+        <h2>How this page works</h2>
+        <p>
+          There is not a single keyframed position in the whole demo. Each
+          scene's <code class="inline">always</code> block builds the matrix
+          from one clock (a smoothstep shear, a quarter turn, a shrinking
+          <code class="inline">d</code>), applies it to twelve grid lines and
+          two basis vectors, and formats the four entries with
+          <code class="inline">format("{:.1}", …)</code> — the numbers you
+          read are the numbers driving the geometry.
+        </p>
+        <p style="margin-bottom:0">
+          Sources are plain text —
+          <a href="../../tour/">the language tour</a> has the syntax, and the
+          <a href="../">demo shelf</a> has more like this.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>

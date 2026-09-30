@@ -1,0 +1,96 @@
+config { resolution: (1280, 720) }
+
+# Rotation
+config { colorscheme: "editorial-dark", duration: 8 }
+
+rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+rot_sub: Text, text: "column 1 is where i lands; column 2 is where j lands",
+  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+a2_t: Text, text: "1.0", font_size: 26, color: accent.danger, at: (196, 170)
+b2_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
+c2_t: Text, text: "0.0", font_size: 26, color: accent.danger, at: (196, 226)
+d2_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
+m2_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
+det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+
+for x, i in {-2, -1, 0, 1, 2} {
+  rv[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+  rh[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+}
+ri_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
+rj_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
+
+rot_cap: Text, text: "a quarter turn, tracked the whole way by the numbers", opacity: 1.0,
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+
+#0.3s
+fade-in rv__0 [260ms]
+fade-in rv__1 [260ms]
+fade-in rv__2 [260ms]
+fade-in rv__3 [260ms]
+fade-in rv__4 [260ms]
+fade-in rh__0 [260ms]
+fade-in rh__1 [260ms]
+fade-in rh__2 [260ms]
+fade-in rh__3 [260ms]
+fade-in rh__4 [260ms]
+fade-in ri_hat [300ms]
+fade-in m2_brace [260ms]
+fade-in rj_hat [300ms]
+fade-in a2_t [240ms]
+fade-in b2_t [240ms]
+fade-in c2_t [240ms]
+fade-in d2_t [240ms]
+fade-in det2_t [240ms]
+fade-in rot_title [500ms, ease: ease-out]
+fade-in rot_sub [400ms, delay: 150ms]
+
+always {
+  // A quarter turn between t = 2.5 and t = 6.5.
+  let v = clamp((t - 2.5) / 4.0, 0, 1)
+  let th = v * v * (3 - 2 * v) * (pi / 2)
+  let a = cos(th)
+  let b = -sin(th)
+  let c = sin(th)
+  let d = cos(th)
+  let cx = 760
+  let cy = 400
+  let s = 110
+
+  ri_hat.to = (cx + s * a, cy + s * c)
+  rj_hat.to = (cx + s * b, cy + s * d)
+
+  rv__0.from = (cx + s * (a * -2 + b * -2.4), cy + s * (c * -2 + d * -2.4))
+  rv__0.to = (cx + s * (a * -2 + b * 2.4), cy + s * (c * -2 + d * 2.4))
+  rv__1.from = (cx + s * (a * -1 + b * -2.4), cy + s * (c * -1 + d * -2.4))
+  rv__1.to = (cx + s * (a * -1 + b * 2.4), cy + s * (c * -1 + d * 2.4))
+  rv__2.from = (cx, cy + s * (c * 0 + d * -2.4))
+  rv__2.to = (cx, cy + s * (c * 0 + d * 2.4))
+  rv__3.from = (cx + s * (a * 1 + b * -2.4), cy + s * (c * 1 + d * -2.4))
+  rv__3.to = (cx + s * (a * 1 + b * 2.4), cy + s * (c * 1 + d * 2.4))
+  rv__4.from = (cx + s * (a * 2 + b * -2.4), cy + s * (c * 2 + d * -2.4))
+  rv__4.to = (cx + s * (a * 2 + b * 2.4), cy + s * (c * 2 + d * 2.4))
+
+  rh__0.from = (cx + s * (a * -2.4 + b * -2), cy + s * (c * -2.4 + d * -2))
+  rh__0.to = (cx + s * (a * 2.4 + b * -2), cy + s * (c * 2.4 + d * -2))
+  rh__1.from = (cx + s * (a * -2.4 + b * -1), cy + s * (c * -2.4 + d * -1))
+  rh__1.to = (cx + s * (a * 2.4 + b * -1), cy + s * (c * 2.4 + d * -1))
+  rh__2.from = (cx + s * (a * -2.4 + b * 0), cy + s * (c * -2.4 + d * 0))
+  rh__2.to = (cx + s * (a * 2.4 + b * 0), cy + s * (c * 2.4 + d * 0))
+  rh__3.from = (cx + s * (a * -2.4 + b * 1), cy + s * (c * -2.4 + d * 1))
+  rh__3.to = (cx + s * (a * 2.4 + b * 1), cy + s * (c * 2.4 + d * 1))
+  rh__4.from = (cx + s * (a * -2.4 + b * 2), cy + s * (c * -2.4 + d * 2))
+  rh__4.to = (cx + s * (a * 2.4 + b * 2), cy + s * (c * 2.4 + d * 2))
+
+  a2_t.text = format("{:.1}", a)
+  b2_t.text = format("{:.1}", b)
+  c2_t.text = format("{:.1}", c)
+  d2_t.text = format("{:.1}", d)
+  det2_t.text = format("det = {:.1}", a * d - b * c)
+}
+
+
+// ── Scene 3: Collapse and flip — the determinant crosses zero ───────────────
+

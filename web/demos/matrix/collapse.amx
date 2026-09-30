@@ -1,0 +1,97 @@
+config { resolution: (1280, 720) }
+
+# Collapse
+config { colorscheme: "editorial-dark", duration: 10 }
+
+col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+col_sub: Text, text: "d shrinks through 0 — the grid flattens onto a line, then comes out flipped",
+  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+a3_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
+b3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
+c3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (196, 226)
+d3_t: Text, text: "1.0", font_size: 26, color: accent.warning, at: (276, 226)
+m3_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
+det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+
+for x, i in {-2, -1, 0, 1, 2} {
+  cv[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+  ch[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+}
+ci_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
+cj_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
+
+col_cap: Text, text: "negative determinant = the plane came out mirror-flipped", opacity: 1.0,
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+
+#0.3s
+fade-in cv__0 [260ms]
+fade-in cv__1 [260ms]
+fade-in cv__2 [260ms]
+fade-in cv__3 [260ms]
+fade-in cv__4 [260ms]
+fade-in ch__0 [260ms]
+fade-in ch__1 [260ms]
+fade-in ch__2 [260ms]
+fade-in ch__3 [260ms]
+fade-in ch__4 [260ms]
+fade-in ci_hat [300ms]
+fade-in m3_brace [260ms]
+fade-in cj_hat [300ms]
+fade-in a3_t [240ms]
+fade-in b3_t [240ms]
+fade-in c3_t [240ms]
+fade-in d3_t [240ms]
+fade-in col_title [500ms, ease: ease-out]
+fade-in col_sub [400ms, delay: 150ms]
+fade-in det3_t [240ms, delay: 300ms]
+
+// det crosses zero exactly here — the readout turns red with the flip.
+#5.0s
+det3_t.color = accent.danger [300ms]
+
+always {
+  // d sweeps 1 → -1 between t = 2.5 and t = 7.5, crossing zero at t = 5.
+  let w = clamp((t - 2.5) / 5.0, 0, 1)
+  let dd = 1.0 - 2.0 * w
+  let a = 1.0
+  let b = 0.0
+  let c = 0.0
+  let d = dd
+  let cx = 760
+  let cy = 400
+  let s = 110
+
+  ci_hat.to = (cx + s * a, cy + s * c)
+  cj_hat.to = (cx + s * b, cy + s * d)
+
+  cv__0.from = (cx + s * (a * -2 + b * -2.4), cy + s * (c * -2 + d * -2.4))
+  cv__0.to = (cx + s * (a * -2 + b * 2.4), cy + s * (c * -2 + d * 2.4))
+  cv__1.from = (cx + s * (a * -1 + b * -2.4), cy + s * (c * -1 + d * -2.4))
+  cv__1.to = (cx + s * (a * -1 + b * 2.4), cy + s * (c * -1 + d * 2.4))
+  cv__2.from = (cx, cy + s * (c * 0 + d * -2.4))
+  cv__2.to = (cx, cy + s * (c * 0 + d * 2.4))
+  cv__3.from = (cx + s * (a * 1 + b * -2.4), cy + s * (c * 1 + d * -2.4))
+  cv__3.to = (cx + s * (a * 1 + b * 2.4), cy + s * (c * 1 + d * 2.4))
+  cv__4.from = (cx + s * (a * 2 + b * -2.4), cy + s * (c * 2 + d * -2.4))
+  cv__4.to = (cx + s * (a * 2 + b * 2.4), cy + s * (c * 2 + d * 2.4))
+
+  ch__0.from = (cx + s * (a * -2.4 + b * -2), cy + s * (c * -2.4 + d * -2))
+  ch__0.to = (cx + s * (a * 2.4 + b * -2), cy + s * (c * 2.4 + d * -2))
+  ch__1.from = (cx + s * (a * -2.4 + b * -1), cy + s * (c * -2.4 + d * -1))
+  ch__1.to = (cx + s * (a * 2.4 + b * -1), cy + s * (c * 2.4 + d * -1))
+  ch__2.from = (cx + s * (a * -2.4 + b * 0), cy + s * (c * -2.4 + d * 0))
+  ch__2.to = (cx + s * (a * 2.4 + b * 0), cy + s * (c * 2.4 + d * 0))
+  ch__3.from = (cx + s * (a * -2.4 + b * 1), cy + s * (c * -2.4 + d * 1))
+  ch__3.to = (cx + s * (a * 2.4 + b * 1), cy + s * (c * 2.4 + d * 1))
+  ch__4.from = (cx + s * (a * -2.4 + b * 2), cy + s * (c * -2.4 + d * 2))
+  ch__4.to = (cx + s * (a * 2.4 + b * 2), cy + s * (c * 2.4 + d * 2))
+
+  a3_t.text = format("{:.1}", a)
+  b3_t.text = format("{:.1}", b)
+  c3_t.text = format("{:.1}", c)
+  d3_t.text = format("{:.1}", d)
+  det3_t.text = format("det = {:.1}", a * d - b * c)
+  // the color flips via a keyframed assignment at t = 5.0, when det crosses zero
+}

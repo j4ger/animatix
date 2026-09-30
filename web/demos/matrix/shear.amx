@@ -1,0 +1,110 @@
+config { resolution: (1280, 720) }
+
+# Shear
+config { colorscheme: "editorial-dark", duration: 8 }
+
+shear_title: Text, text: "A matrix is a machine", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+shear_sub: Text, text: "M = [[1, k], [0, 1]] — a shear. Every point slides; no area changes.",
+  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+// The four matrix entries, live.
+a_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
+b_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
+c_t: Text, text: "0.0", font_size: 26, color: accent.warning, at: (196, 226)
+d_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (276, 226)
+m_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
+det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+
+// The grid: five vertical and five horizontal lines, both ends driven.
+for x, i in {-2, -1, 0, 1, 2} {
+  vl[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+  hl[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+}
+
+i_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
+j_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
+i_t: Text, text: "i", font_size: 19, color: accent.danger, at: (886, 386)
+j_t: Text, text: "j", font_size: 19, color: accent.success, at: (748, 524)
+
+shear_cap: Text, text: "the unit square leans into a parallelogram — same base, same height", opacity: 1.0,
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+
+#0.3s
+stagger [60ms] {
+  fade-in vl__0 [300ms]
+  fade-in vl__1 [300ms]
+  fade-in vl__2 [300ms]
+  fade-in vl__3 [300ms]
+  fade-in vl__4 [300ms]
+  fade-in hl__0 [300ms]
+  fade-in hl__1 [300ms]
+  fade-in hl__2 [300ms]
+  fade-in hl__3 [300ms]
+  fade-in hl__4 [300ms]
+}
+fade-in i_hat [300ms, delay: 350ms]
+fade-in i_t [300ms, delay: 400ms]
+fade-in j_t [300ms, delay: 450ms]
+fade-in m_brace [260ms, delay: 100ms]
+fade-in j_hat [300ms, delay: 450ms]
+stagger [90ms] {
+  fade-in a_t [260ms]
+  fade-in b_t [260ms]
+  fade-in c_t [260ms]
+  fade-in d_t [260ms]
+  fade-in det_t [260ms]
+}
+fade-in shear_title [500ms, ease: ease-out]
+fade-in shear_sub [400ms, delay: 150ms]
+
+always {
+  // Smoothstep shear: k rises 0 → 1 between t = 2.5 and t = 6.
+  let u = clamp((t - 2.5) / 3.5, 0, 1)
+  let k = u * u * (3 - 2 * u)
+  let a = 1.0
+  let b = 0.0
+  let c = k
+  let d = 1.0
+  let cx = 760
+  let cy = 400
+  let s = 110
+
+  // The machine applied to the basis vectors.
+  i_hat.to = (cx + s * a, cy + s * c)
+  j_hat.to = (cx + s * b, cy + s * d)
+
+  // Vertical grid lines: x = -2 … 2, y sweeps -2.4 … 2.4.
+  vl__0.from = (cx + s * (a * -2 + b * -2.4), cy + s * (c * -2 + d * -2.4))
+  vl__0.to = (cx + s * (a * -2 + b * 2.4), cy + s * (c * -2 + d * 2.4))
+  vl__1.from = (cx + s * (a * -1 + b * -2.4), cy + s * (c * -1 + d * -2.4))
+  vl__1.to = (cx + s * (a * -1 + b * 2.4), cy + s * (c * -1 + d * 2.4))
+  vl__2.from = (cx, cy + s * (c * 0 + d * -2.4))
+  vl__2.to = (cx, cy + s * (c * 0 + d * 2.4))
+  vl__3.from = (cx + s * (a * 1 + b * -2.4), cy + s * (c * 1 + d * -2.4))
+  vl__3.to = (cx + s * (a * 1 + b * 2.4), cy + s * (c * 1 + d * 2.4))
+  vl__4.from = (cx + s * (a * 2 + b * -2.4), cy + s * (c * 2 + d * -2.4))
+  vl__4.to = (cx + s * (a * 2 + b * 2.4), cy + s * (c * 2 + d * 2.4))
+
+  // Horizontal grid lines: y = -2 … 2, x sweeps -2.4 … 2.4.
+  hl__0.from = (cx + s * (a * -2.4 + b * -2), cy + s * (c * -2.4 + d * -2))
+  hl__0.to = (cx + s * (a * 2.4 + b * -2), cy + s * (c * 2.4 + d * -2))
+  hl__1.from = (cx + s * (a * -2.4 + b * -1), cy + s * (c * -2.4 + d * -1))
+  hl__1.to = (cx + s * (a * 2.4 + b * -1), cy + s * (c * 2.4 + d * -1))
+  hl__2.from = (cx + s * (a * -2.4 + b * 0), cy + s * (c * -2.4 + d * 0))
+  hl__2.to = (cx + s * (a * 2.4 + b * 0), cy + s * (c * 2.4 + d * 0))
+  hl__3.from = (cx + s * (a * -2.4 + b * 1), cy + s * (c * -2.4 + d * 1))
+  hl__3.to = (cx + s * (a * 2.4 + b * 1), cy + s * (c * 2.4 + d * 1))
+  hl__4.from = (cx + s * (a * -2.4 + b * 2), cy + s * (c * -2.4 + d * 2))
+  hl__4.to = (cx + s * (a * 2.4 + b * 2), cy + s * (c * 2.4 + d * 2))
+
+  a_t.text = format("{:.1}", a)
+  b_t.text = format("{:.1}", b)
+  c_t.text = format("{:.1}", c)
+  d_t.text = format("{:.1}", d)
+  det_t.text = format("det = {:.1}", a * d - b * c)
+}
+
+
+// ── Scene 2: Rotation — columns are where the hats land ─────────────────────
+
