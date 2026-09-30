@@ -1,0 +1,90 @@
+# Deploy the web site (homepage, language tour, demos) to GitHub Pages.
+#
+# The deploy artifact is web/ plus the two engine builds (web/pkg-slim,
+# web/pkg) that scripts/build-web.sh produces — they are gitignored, so CI
+# rebuilds them on every run. GitHub Pages does not negotiate brotli
+# precompression, so the .br twins are dropped from the artifact (the raw
+# .wasm files are what gets served).
+#
+# NOTE for maintainers: Pages must be enabled once in the repo settings
+# (Settings → Pages → Source: "GitHub Actions"); after that this workflow
+# owns deployments.
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "crates/animatix-web/**"
+      - "scripts/build-web.sh"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      # wasm-bindgen-cli must match the version pinned in
+      # crates/animatix-web/Cargo.toml exactly — a mismatch fails glue
+      # generation — so the version is read from that file, not duplicated here.
+      - name: Install wasm-bindgen-cli (version from crates/animatix-web/Cargo.toml)
+        run: |
+          WBG="$(grep -oP 'wasm-bindgen = "=\\K[0-9.]+' crates/animatix-web/Cargo.toml)"
+          echo "wasm-bindgen-cli version: $WBG"
+          curl -sL "https://github.com/rustwasm/wasm-bindgen/releases/download/${WBG}/wasm-bindgen-${WBG}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz
+          install -m 0755 "wasm-bindgen-${WBG}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          wasm-bindgen --version
+
+      - name: Install wasm-opt and brotli
+        run: sudo apt-get update && sudo apt-get install -y binaryen brotli
+
+      - name: Build engines (slim + full)
+        run: |
+          scripts/build-web.sh --slim
+          scripts/build-web.sh
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r web/. _site/
+          find _site -name '*.br' -delete
+          # the transformer lib symlink points outside web/; ship a real copy
+          rm _site/demos/transformer/lib/components.amx
+          cp examples/lib/components.amx _site/demos/transformer/lib/components.amx
+          touch _site/.nojekyll
+          du -sh _site
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
