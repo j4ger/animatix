@@ -120,10 +120,13 @@ third-party scenes that cannot be edited.
   filled lens with a white outline — SVG's fill rule, and the white outline is
   because an unset `stroke` on a shape falls back to the colorscheme's
   `stroke.default`.
-- `Text` uses one face, so `font_weight: "bold"` is inert on the plain path, and
-  the fast-path face has no glyph for `⋮` (U+22EE), `ᵀ` (U+1D40) or `ₖ`
-  (U+2096). They render as tofu with no diagnostic on any path. Draw dots
-  instead, and write formulas in ASCII.
+- `Text` uses one face, so `font_weight: "bold"` is inert on the plain path.
+  Characters no registered face covers — `⋮` (U+22EE), `ᵀ` (U+1D40), `ₖ`
+  (U+2096) among them — render as tofu, but no longer silently: the build now
+  warns `missing-glyph` naming each uncovered character with its codepoint
+  (the probe mirrors which path shapes the text, so it also covers the Typst
+  path these three take — they sit outside the fast path's Latin gate). Draw
+  dots instead, and write formulas in ASCII.
 
 Hosting requirements for the runtime host: serve `.wasm` as
 `application/wasm`, and prefer precompressed `.br` twins (the build script
@@ -140,9 +143,10 @@ cd web/tools && npm install && npm run build:embed
 ## Engine layering
 
 - **Parse/typecheck/expand** — `animatix-syntax`'s module system in
-  `SourcesOnly` mode. The played document and the shared `examples/lib/*.amx`
-  library (embedded at compile time, so repo examples resolve their imports)
-  live in the in-memory source map; no disk access exists on the platform.
+  `SourcesOnly` mode. The played document, the shared `examples/lib/*.amx`
+  library (embedded at compile time, so repo examples resolve their imports),
+  and any fetched import modules live in the in-memory source map; no disk
+  access exists on the platform.
 - **Build** — the engine's font-context-aware entry points build a `Timeline`
   or multi-scene `Composition` exactly like the GUI does (`Draft` quality).
 - **Render** — per frame: `timeline.evaluate_with_debug` produces a
@@ -157,19 +161,61 @@ cd web/tools && npm install && npm run build:embed
 
 - **Multi-scene transitions blend** — the GPU compositor the desktop uses runs
   in the player, so `play` edges render their transition instead of cutting.
+- **Imports fetch** — a scene may `import` `.amx` files beyond the bundled
+  library. The build stops on an unsupplied import and reports the resolved
+  path in `missing_imports`; the embed fetches it relative to the scene
+  (transitive imports close over repeated rounds) and retries. Shells driving
+  the player directly do the same with `add_module(path, text)`.
 - **Assets fetch** — `Image`/`Svg` actors with a literal `url` resolve relative
-  to the scene file (fetched alongside it; absolute URLs work too). Dynamic
+  to the scene file (fetched alongside it; absolute URLs work too, including
+  inside imported modules — their urls resolve against the module's own
+  location, but the engine keys the cache by the literal url string, so asset
+  names share one flat namespace across the scene and its imports). Dynamic
   `url = expr` assignments are not listed.
 - **Runtime fonts** — set `data-fonts` on the embed to a space-separated list
   of TTF/OTF URLs; they are registered before the scene compiles, so
   `font_family` can name them. WOFF2 is not decodable. Without a font covering
   the script, non-Latin text renders empty (the sandbox cannot see system
-  fonts, and only Open Sans + Fira Math are bundled).
+  fonts, and only Open Sans + Fira Math + a Noto Sans SC subset are bundled) —
+  though the build now warns which characters are uncovered.
 - **Audio tracks are not played** (no Web Audio wiring yet).
 - **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
 - Native plugins don't exist on this platform; `libloading`-based extensions
   are desktop-only.
 - No in-browser editing — that is the desktop app's job.
+
+### Differences from the desktop renderer
+
+The render stack is the desktop's — same engine crates, same vello/wgpu
+`RendererCore`, same `GpuFilterBackend` per filter target (including the
+zero-readback pending-composite blit), same `TransitionCompositor` for
+multi-scene blends. What differs is the platform around it:
+
+| | Desktop (CLI / GUI) | Web full | Web slim |
+|---|---|---|---|
+| Rich text (Typst markup, Code highlighting, Math) | ✓ | ✓ | falls back to the plain fast path |
+| `Image` assets | ✓ | ✓ | hard feature-gate error |
+| `Svg` actors | ✓ | ✓ | primitive unregistered: `unknown-actor-type` warning, actor skipped |
+| System fonts | scanned | none (bundle + `data-fonts` only) | same |
+| Extensions (`plugin-loading`) | ✓ | ✗ | ✗ |
+| Audio | muxed at export | not played | not played |
+| Export (video / PNG / WebP) | ✓ | ✗ | ✗ |
+| Build quality | `Production` (export), `Draft` (GUI editing) | `Draft`, always | `Draft`, always |
+
+The meaningful pixel-level consequence of that last row: plot-family actors
+(`Graph`, `PlotCurve`, `VectorField`, …) sample with 4× the tolerance, so
+dense curves can be slightly coarser than a desktop export renders them. The
+GUI preview is the same `Draft`, so what a page shows is what an author saw
+while editing, not what the exporter produces. Two smaller gaps: a
+single-scene document using `persist` with no successor scene skips the
+`PersistTargetNotCarried` warning the desktop build emits (behaviour
+degrades to state resetting between loops), and `perf-tracing` is compiled
+out, so stage traces exist only on native. What the web side adds and the
+desktop has no equivalent of: the shared per-page `EngineContext` (one
+adapter/device/vello renderer for every embed), the offscreen-target + blit
+presentation (the `STORAGE_BINDING` workaround), and the `debug_fill` /
+`debug_readback(t)` / `debug_svg_stats(t_ms)` / `build_id()` diagnostic
+surface.
 
 ## Slim playback profile
 
