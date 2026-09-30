@@ -10,18 +10,6 @@
 </head>
 <body>
 
-  <nav class="site">
-    <div class="site-inner">
-      <a class="wordmark" href="../index.html">Animatix<i>.</i></a>
-      <div class="site-links">
-        <a href="../index.html">Home</a>
-        <a href="../gallery.html">Gallery</a>
-        <a href="../demos/transformer/">Transformer</a>
-        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
-      </div>
-    </div>
-  </nav>
-
   <div class="wrap">
     <header>
       <p class="kicker">Animatix · the language</p>
@@ -29,12 +17,14 @@
       <p class="lede">
         Every capability of <code class="inline">.amx</code>, one short section
         at a time. Each figure is a live scene compiling in your browser as you
-        read (WebGPU), with the code that drives it beside it; where a figure
-        needs the full engine's typesetting, it is a rendered still with its
-        scene source linked.
+        read (WebGPU), with the code that drives it beside it. And every live
+        figure is <strong>editable</strong>: flip one open, change the code,
+        and the engine rebuilds the scene in place — the diagnostics it reports
+        are the same ones the LSP shows.
       </p>
       <ul class="meta">
         <li>9 live scenes + 1 still</li>
+        <li>every live figure is editable</li>
         <li>one slim engine download for the whole page</li>
         <li>hover a figure to pause or scrub it</li>
       </ul>
@@ -73,7 +63,7 @@ box.at = (<span class="num">640</span>, <span class="num">440</span>) [<span cla
 
 <span class="at">#2.9s</span>
 box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/syntax.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Actors and keyframes"></amx-player>
         <figcaption>
@@ -90,18 +80,26 @@ box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span cl
         Choreography blocks compose actions: <code class="inline">stagger</code>
         overlaps a group on a delay curve, <code class="inline">sequence</code>
         runs it back to back. Every animated assignment takes a named ease —
-        or an easing <em>function</em> when you outgrow the names.
+        or an easing <em>function</em> when you outgrow the names. And the
+        cast itself is generated: one <code class="inline">Row</code>
+        container plus a compile-time <code class="inline">for</code> over an
+        array of colors, instead of five copied lines.
       </p>
-      <pre><span class="at">#0.5s</span>
+      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">44</span>, align: <span class="str">"center"</span> {
+  <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">accent.success</span>, <span class="cmt">…</span>} {
+    square[i]: <span class="prop">Rect</span>, size: (<span class="num">70</span>, <span class="num">70</span>), color: color
+  }
+}
+
+<span class="at">#0.5s</span>
 <span class="kw">stagger</span> [<span class="num">120ms</span>] {
-  <span class="kw">fade-in</span> a [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
-  <span class="kw">fade-in</span> b [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
-  <span class="cmt">// …</span>
+  <span class="kw">fade-in</span> square[<span class="num">0</span>] [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
+  <span class="cmt">… four more …</span>
 }
 
 <span class="at">#5s</span>
-e.color = <span class="prop">accent.danger</span> [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
-      <figure class="tour-embed">
+square[<span class="num">4</span>].color = <span class="prop">accent.danger</span> [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Sequence, stagger and easing"></amx-player>
         <figcaption>
@@ -132,7 +130,7 @@ e.color = <span class="prop">accent.danger</span> [<span class="num">600ms</span
 
 <span class="at">#3.5s</span>
 <span class="kw">scale</span> actor [by: <span class="num">1.4</span>, <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/actions.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Motion actions and an always-driven satellite"></amx-player>
         <figcaption>
@@ -159,7 +157,7 @@ circle: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <sp
 
 <span class="at">#5s</span>
 poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">80</span>), (<span class="num">20</span>, -<span class="num">25</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/morph.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Shape morphing strategies"></amx-player>
         <figcaption>
@@ -190,7 +188,7 @@ poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -
 
 <span class="at">#1.8s</span>
 panel.soft.radius = <span class="num">14</span> [<span class="num">1.2s</span>, ease: <span class="str">ease-out</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/effects.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Animated GPU filters"></amx-player>
         <figcaption>
@@ -217,7 +215,7 @@ panel.soft.radius = <span class="num">14</span> [<span class="num">1.2s</span>, 
   font_size: <span class="num">30</span>, color: <span class="prop">text.primary</span>, anchor: scene.center
 
 code1: <span class="prop">Code</span>, code: <span class="str">"def attention(q, k):"</span>, language: <span class="str">"python"</span>, font_size: <span class="num">26</span></pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <img class="plate" src="stills/textmath.png" width="1280" height="720"
              alt="Typst-rendered equations and syntax-highlighted code on a dark plate">
         <figcaption>
@@ -249,7 +247,7 @@ code1: <span class="prop">Code</span>, code: <span class="str">"def attention(q,
 
 <span class="at">#1.8s</span>
 sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</span>, ease: <span class="str">ease-in-out</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/plots.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Plots are actors"></amx-player>
         <figcaption>
@@ -285,7 +283,7 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
     status.text = <span class="str">"TRACKING — keyframe active"</span>
   }
 }</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/reactive.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="A reactive focus reticle"></amx-player>
         <figcaption>
@@ -315,7 +313,7 @@ row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num"
   c2: <span class="prop">LabeledBox</span>, label: <span class="str">"Key"</span>, width: <span class="num">150</span>
   c3: <span class="prop">LabeledBox</span>, label: <span class="str">"Value"</span>, width: <span class="num">170</span>
 }</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/components.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Imported components"></amx-player>
         <figcaption>
@@ -340,7 +338,7 @@ row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num"
       <pre><span class="kw">play</span> Diagram [fade, <span class="num">450ms</span>]
 <span class="cmt">// …later…</span>
 <span class="kw">play</span> Outro [wipe-left, <span class="num">450ms</span>]</pre>
-      <figure class="tour-embed">
+      <figure class="tour-embed" data-editable>
         <amx-player src="scenes/scenes.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Scenes and GPU transitions"></amx-player>
         <figcaption>
@@ -371,16 +369,10 @@ animatix video scene.amx --preset <span class="str">1080p60</span> -o film.mp4</
       </div>
     </section>
 
-    <footer>
-      <span>Built with <strong style="color:var(--dim)">Animatix</strong> — every figure above is a scene file.</span>
-      <span>
-        <a href="../index.html">Home</a> ·
-        <a href="../gallery.html">Gallery</a> ·
-        <a href="../demos/transformer/">Transformer walkthrough</a>
-      </span>
-    </footer>
   </div>
 
   <script type="module" src="../embed/amx-player.js"></script>
+  <script src="editor.js"></script>
+  <script src="../site-chrome.js" data-root="../" data-section="tour"></script>
 </body>
 </html>

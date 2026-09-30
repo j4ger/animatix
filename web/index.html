@@ -13,18 +13,6 @@
 </head>
 <body>
 
-  <nav class="site">
-    <div class="site-inner">
-      <a class="wordmark" href="./index.html">Animatix<i>.</i></a>
-      <div class="site-links">
-        <a href="./tour/">Language</a>
-        <a href="./gallery.html">Gallery</a>
-        <a href="./demos/transformer/">Transformer</a>
-        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
-      </div>
-    </div>
-  </nav>
-
   <div class="wrap">
 
     <div class="hero-band">
@@ -81,7 +69,9 @@ box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <sp
         <strong>components</strong> with parameters and slots, <strong>modules</strong>
         with imports and namespaces, closures and <code class="inline">always</code>
         blocks for per-frame expressions, and a multi-scene format whose cuts
-        are GPU transitions. <a href="./tour/">The language tour walks all of it</a>.
+        are GPU transitions. <a href="./tour/">The language tour walks all of
+        it</a> — and every figure there is editable, so you can change the
+        code and watch the scene take it.
       </p>
     </section>
 
@@ -132,25 +122,43 @@ box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <sp
     </section>
 
     <section id="demos">
-      <div class="sec-head"><span class="sec-num">03</span><h2>See it move</h2></div>
-      <div class="cards demos">
-        <a class="demo-card" href="./demos/transformer/">
-          <p class="demo-kicker">Flagship walkthrough</p>
-          <h3>The Transformer Architecture, Animated</h3>
-          <p>Seven live figures that build the transformer block piece by piece — tokens, positions, attention, heads, FFN, the stack — each one a declarative scene compiling as you read.</p>
-          <span class="open">Read the walkthrough →</span>
+      <div class="sec-head"><span class="sec-num">03</span><h2>Watch it explain</h2></div>
+      <div class="cards hub">
+        <a class="hub-card featured" href="./demos/">
+          <span class="hub-poster"><img class="plate" src="./demos/posters/transformer.png"
+               alt="The transformer block, drawn as an Animatix scene" loading="lazy"></span>
+          <span class="hub-body">
+            <span class="demo-kicker">The demo collection</span>
+            <span class="hub-title">Animated explainers, built from scenes</span>
+            <span class="hub-blurb">
+              Walkthroughs where every figure is a declarative scene compiling
+              as you read — starting with the machine behind every language
+              model. Nothing on that shelf is a video.
+            </span>
+            <span class="open">Browse the demos →</span>
+          </span>
         </a>
-        <a class="demo-card" href="./gallery.html">
-          <p class="demo-kicker">Scene gallery</p>
-          <h3>Seven scenes, one engine</h3>
-          <p>Short scenes showing entrances, morphs, attention bars and plots — playable right on the page, with every scene's source one click away.</p>
-          <span class="open">Open the gallery →</span>
+        <a class="hub-card" href="./tour/">
+          <span class="hub-body">
+            <span class="demo-kicker">Hands-on</span>
+            <span class="hub-title">The language tour</span>
+            <span class="hub-blurb">
+              Ten short sections from actors to components — every figure
+              editable, so you can change the code and watch the scene take it.
+            </span>
+            <span class="open">Take the tour →</span>
+          </span>
         </a>
-        <a class="demo-card" href="./tour/">
-          <p class="demo-kicker">Language tour</p>
-          <h3>What the language can do</h3>
-          <p>Ten short sections from actors and keyframes to effects, plots, reactive expressions, components and the toolchain — code beside every demo.</p>
-          <span class="open">Take the tour →</span>
+        <a class="hub-card" href="./gallery.html">
+          <span class="hub-body">
+            <span class="demo-kicker">Quick look</span>
+            <span class="hub-title">The scene gallery</span>
+            <span class="hub-blurb">
+              Seven playable scenes with their sources one click away — the
+              fastest way to feel what the engine draws.
+            </span>
+            <span class="open">Open the gallery →</span>
+          </span>
         </a>
       </div>
     </section>
@@ -160,7 +168,8 @@ box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <sp
       <div class="cols">
         <pre><span class="cmt"># render a frame / a film</span>
 cargo run -p animatix-cli -- image examples/basics/00_hello.amx -o hello.png
-cargo run -p animatix-cli --features video -- video examples/gallery/epicycles.amx
+cargo run -p animatix-cli --features video -- \
+  video examples/gallery/epicycles.amx -o epicycles.mp4
 
 <span class="cmt"># or open the desktop studio</span>
 cargo run -p animatix-gui</pre>
@@ -176,17 +185,9 @@ cargo run -p animatix-gui</pre>
       </div>
     </section>
 
-    <footer>
-      <span>Animatix — a layout-first animation DSL. MIT licensed.</span>
-      <span>
-        <a href="./tour/">Language</a> ·
-        <a href="./gallery.html">Gallery</a> ·
-        <a href="./demos/transformer/">Transformer</a> ·
-        <a href="https://github.com/j4ger/animatix">GitHub</a>
-      </span>
-    </footer>
   </div>
 
   <script type="module" src="./embed/amx-player.js"></script>
+  <script src="./site-chrome.js" data-root="./" data-section="home"></script>
 </body>
 </html>

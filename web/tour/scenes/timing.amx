@@ -1,36 +1,39 @@
 // timing.amx — tour §02: sequence, stagger and the easing vocabulary.
-// Adapted from examples/basics/03_timing.amx.
+// The five squares are one Row container; the cast is generated at build
+// time by a `for` over an array of colors — layout and generation instead
+// of five hand-copied lines. (For-expansion covers declarations, not the
+// inside of stagger/sequence blocks: choreography stays explicit.)
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.4 }
 
-a: Rect, size: (70, 70), color: accent.primary, at: (250, 360)
-b: Rect, size: (70, 70), color: accent.success, at: (450, 360)
-c: Rect, size: (70, 70), color: accent.warning, at: (650, 360)
-d: Rect, size: (70, 70), color: accent.danger, at: (850, 360)
-e: Rect, size: (70, 70), color: text.primary, at: (1050, 360)
+row: Row, anchor: scene.center, gap: 44, align: "center" {
+  for color, i in {accent.primary, accent.success, accent.warning, accent.danger, text.primary} {
+    square[i]: Rect, size: (70, 70), color: color
+  }
+}
 
 #0.5s
 stagger [120ms] {
-  fade-in a [500ms, ease: ease-out]
-  fade-in b [500ms, ease: ease-out]
-  fade-in c [500ms, ease: ease-out]
-  fade-in d [500ms, ease: ease-out]
-  fade-in e [500ms, ease: ease-out]
+  fade-in square[0] [500ms, ease: ease-out]
+  fade-in square[1] [500ms, ease: ease-out]
+  fade-in square[2] [500ms, ease: ease-out]
+  fade-in square[3] [500ms, ease: ease-out]
+  fade-in square[4] [500ms, ease: ease-out]
 }
 
 #2.5s
 sequence {
-  a.size = (100, 100) [400ms, ease: ease-out]
-  b.size = (100, 100) [400ms, ease: ease-out]
-  c.size = (100, 100) [400ms, ease: ease-out]
-  d.size = (100, 100) [400ms, ease: ease-out]
-  e.size = (100, 100) [400ms, ease: ease-out]
+  square[0].size = (100, 100) [400ms, ease: ease-out]
+  square[1].size = (100, 100) [400ms, ease: ease-out]
+  square[2].size = (100, 100) [400ms, ease: ease-out]
+  square[3].size = (100, 100) [400ms, ease: ease-out]
+  square[4].size = (100, 100) [400ms, ease: ease-out]
 }
 
 // five named eases, one per square
 #5s
-a.color = accent.danger [600ms, ease: linear]
-b.color = accent.warning [600ms, ease: ease-in]
-c.color = accent.primary [600ms, ease: ease-out]
-d.color = accent.success [600ms, ease: ease-in-out]
-e.color = accent.danger [600ms, ease: bounce]
+square[0].color = accent.danger [600ms, ease: linear]
+square[1].color = accent.warning [600ms, ease: ease-in]
+square[2].color = accent.primary [600ms, ease: ease-out]
+square[3].color = accent.success [600ms, ease: ease-in-out]
+square[4].color = accent.danger [600ms, ease: bounce]

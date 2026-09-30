@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demos — Animatix</title>
+  <meta name="description" content="Animated explainers built with Animatix — every figure is a declarative .amx scene compiling in your browser, not a video file.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix · demos</p>
+      <h1>Watch it explain.</h1>
+      <p class="lede">
+        Each demo below is a self-contained explainer whose every figure is a
+        declarative scene file — nothing here is a video. Pick one; the engine
+        compiles it in your browser as you read.
+      </p>
+    </header>
+
+    <div class="cards hub">
+      <a class="hub-card featured" href="./transformer/">
+        <span class="hub-poster"><img class="plate" src="posters/transformer.png"
+             alt="The transformer block, drawn as an Animatix scene" loading="lazy"></span>
+        <span class="hub-body">
+          <span class="demo-kicker">Walkthrough · 7 scenes · one engine</span>
+          <span class="hub-title">The Transformer Architecture, Animated</span>
+          <span class="hub-blurb">
+            The machine behind every language model, built up piece by piece —
+            tokens, positions, attention, heads, the feed-forward block, the
+            stack. Picture-first prose; every figure compiles live as you
+            scroll, and hovering a figure pauses it for study.
+          </span>
+          <span class="open">Start reading →</span>
+        </span>
+      </a>
+
+      <a class="hub-card" href="../gallery.html">
+        <span class="hub-poster"><img class="plate" src="posters/attention.png"
+             alt="Attention weights as drawn by an Animatix scene" loading="lazy"></span>
+        <span class="hub-body">
+          <span class="demo-kicker">Scene collection</span>
+          <span class="hub-title">Seven scenes, one engine</span>
+          <span class="hub-blurb">
+            The walkthrough's figures on their own — entrances, morphs,
+            attention bars, plots — each playable right on the page, each with
+            its <code class="inline">.amx</code> source one click away.
+          </span>
+          <span class="open">Open the gallery →</span>
+        </span>
+      </a>
+
+      <div class="hub-card soon" aria-disabled="true">
+        <span class="hub-poster soon-slot">Fourier epicycles</span>
+        <span class="hub-body">
+          <span class="demo-kicker">In the works</span>
+          <span class="hub-title">Circles that draw a square wave</span>
+          <span class="hub-blurb">
+            A Fourier series as spinning dials — the epicycles story already
+            lives in <code class="inline">examples/gallery/epicycles.amx</code>;
+            its illustrated walkthrough is next.
+          </span>
+        </span>
+      </div>
+
+      <div class="hub-card soon" aria-disabled="true">
+        <span class="hub-poster soon-slot">Sorting, staged</span>
+        <span class="hub-body">
+          <span class="demo-kicker">In the works</span>
+          <span class="hub-title">Insertion sort as theatre</span>
+          <span class="hub-blurb">
+            <code class="inline">for</code> loops and conditionals directing a
+            cast of bars — the sorting scenes exist; the prose around them is
+            being written.
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <script src="../site-chrome.js" data-root="../" data-section="demos"></script>
+</body>
+</html>

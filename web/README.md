@@ -13,9 +13,12 @@ the web side only plays back and embeds.
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
 web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
 web/site.css                 shared light-editorial stylesheet for the whole site
+web/site-chrome.js           shared nav + footer, injected per page (data-root/data-section)
 web/index.html               project homepage — hero scene, features, demo entry points
-web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still
+web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still,
+                             every live figure editable in place (tour/editor.js)
 web/gallery.html             scene gallery — the seven transformer scenes as embeds
+web/demos/                   demo hub (course-style cards + posters) and the demos themselves
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
 web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
@@ -24,6 +27,19 @@ scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
 scripts/serve-web.py         local static server with brotli negotiation
 .github/workflows/pages.yml  deploys web/ + both engine builds to GitHub Pages
 ```
+
+### Live figure editors
+
+The tour's figures carry `data-editable`; `tour/editor.js` swaps each into a
+two-column view — animation beside a textarea — where **Apply** (or
+Ctrl/Cmd+Enter) rebuilds the scene in place. The element-level
+`applySource(text)` on the embed component loads the new source through the
+already-running engine (fonts, fetched imports and assets stay registered),
+resets the clock and landmarks, and returns the build's diagnostics — the
+same set the LSP surfaces — for the editor panel. A failed build throws with
+`.diagnostics` attached and the previous scene keeps playing, so a typo never
+blanks the figure. Reset restores the original source; edits live only on
+the page.
 
 ## Run it
 

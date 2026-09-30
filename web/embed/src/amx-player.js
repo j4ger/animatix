@@ -288,10 +288,23 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this._initialized) return;
-    this._initialized = true;
-    this._renderSkeleton();
-    this._setupObserver();
+    if (!this._initialized) {
+      this._initialized = true;
+      this._renderSkeleton();
+      this._setupObserver();
+      return;
+    }
+    // Re-attached after a DOM move — a live editor re-parents figures, and
+    // the detach above disconnected the visibility observer and evicted the
+    // element from the shared rAF loop. Re-arm both; an embed that was mid
+    // load resumes through the observer, a paused one keeps its frame.
+    if (this._state !== "error") {
+      this._setupObserver();
+      if (this._player && this._playing) {
+        instances.add(this);
+        ensureLoop();
+      }
+    }
   }
 
   disconnectedCallback() {
@@ -671,6 +684,48 @@ class AmxPlayerElement extends HTMLElement {
       return player.load_source_with_assets(source, assetUrls, assetPayloads);
     }
     return player.load_source(source);
+  }
+
+  /// Rebuild the scene from edited text — the live-editor entry point. The
+  /// player and everything it has registered (fonts, fetched imports, assets)
+  /// stays; only the document changes. Returns the build's diagnostics array
+  /// on success. Throws on a failed build (with `.diagnostics` attached) and
+  /// the previous scene keeps playing, so a typo never blanks the figure.
+  applySource(text) {
+    if (this._state !== "ready" || !this._player) {
+      throw new Error("the player has not finished loading yet");
+    }
+    const result = this._player.load_source(text);
+    const diags = result?.diagnostics ?? [];
+    if (!result?.ok) {
+      const err = new Error(
+        diags.find((d) => d.severity === "error")?.message ?? "build failed",
+      );
+      err.diagnostics = diags;
+      throw err;
+    }
+    this._duration = Math.max(result.duration_s, 0.05);
+    if (result.width && result.height) {
+      this._canvas.width = Math.round(result.width);
+      this._canvas.height = Math.round(result.height);
+      this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+    }
+    this._markers = Array.isArray(result.markers) ? result.markers : [];
+    this._configureCycle();
+    const strip = this.shadowRoot?.querySelector(".strip");
+    if (strip) strip.setAttribute("aria-valuemax", String(this._duration));
+    if (this._playing) {
+      this._time = 0;
+      this._restTime = 0;
+    } else {
+      // Park on the finished frame — frame 0 of these scenes is an empty
+      // stage, and an editor who hit Apply on a paused figure should see
+      // what they built, not nothing.
+      this._restTime = this._duration;
+      this._time = this._duration;
+    }
+    this._renderScene();
+    return diags;
   }
 
   async _maybeStartLoading() {
