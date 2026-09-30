@@ -744,20 +744,76 @@ On the gallery page every embed now resolves to scale 0.773 (990/1280) with no
 visible difference at the size these figures are read at, and the adaptive loop
 only goes below that if the machine cannot hold the frame.
 
+### Is the web player at parity with native?
+
+*(2026-09-30, same machine, same scene, same GPU — Intel Gen-12LP. Native is
+Vulkan through wgpu, the browser is WebGPU; both run the same vello shaders,
+since native wgpu also generates SPIR-V with naga. Native arm verified to be the
+real iGPU, not lavapipe: forcing `VK_ICD_FILENAMES` to `lvp` changes the result
+(185 fps / 5.4 ms per frame) while the default matches the forced `intel` ICD to
+within 0.5%.)*
+
+| `attention.amx` @1280×720 | native (`export_perf_driver`) | web (`perf-probe`) |
+|---|---|---|
+| per frame | **1.63 ms** | **2.7–4.1 ms** |
+| CPU — evaluate + encode + submit | 0.47 ms | 0.2–0.8 ms |
+| GPU + presentation | 1.13 ms, **incl. a 3.7 MB CPU readback** | the remainder, **no readback** |
+
+Native's 1.63 ms is stable across runs (1.620 / 1.628 / 1.628) because that
+driver pipelines them (submit N+1, then wait on N). The web number swings ~30%
+between sessions here, so only a paired measurement resolves anything.
+
+Two explanations were **ruled out by measurement** rather than assumed:
+
+- **Not the wasm CPU path.** An alternating A/B — three page loads per arm, each
+  reporting the fastest of five repetitions — of the previous build against one
+  with fat LTO, a single codegen unit, `panic = "abort"` and `+simd128` measured
+  **2.67–2.86 ms vs 2.68–2.74 ms: indistinguishable.** A first, single-shot pass
+  had suggested −20%; it was session noise. The profile is kept for what it does
+  move — the module is 11% smaller raw and 4.8% smaller brotli, which is *load*
+  time, not frame time.
+- **Not the canvas blit.** Measured inside one run by shrinking only the blit
+  target while the offscreen stays at scene resolution: a 1280×720 canvas costs
+  0.43 ms/frame more than a 320×180 one. So matching the canvas backing store to
+  the displayed size is worth ~0.14 ms when the element displays smaller than the
+  scene — and nothing when `CSS px × dpr` already exceeds the scene resolution,
+  because a HiDPI pane asks for more device pixels than a 1280×720 scene has
+  detail to give.
+
+What remains is GPU-side and **unattributed**: the same shaders on the same GPU
+cost ~2.8 ns per raster pixel in the browser, against a native figure well under
+1 ns/px once the readback is discounted. The environment below cannot settle it.
+
+> **Environment caveat — read the gap as an upper bound.** Every web number here
+> comes from a tab that is not composited: `document.visibilityState` reports
+> `visible` but `document.hasFocus()` is false and `requestAnimationFrame`
+> delivers **zero** callbacks in 1.2 s. Showing the pane through the browser
+> capability and re-activating the tab both failed to change that. A page in that
+> state is a candidate for GPU-clock and submission throttling, which would
+> inflate precisely the GPU-bound term this gap consists of. The decisive
+> experiment is a single run in a foregrounded, focused window; until it exists,
+> 2.7–4.1 ms is a ceiling, not a floor.
+
 ### Still open (web)
 
-- **The 0.9 ms floor is the canvas-resolution blit + present.** Matching the
-  canvas backing store to the displayed size instead of the scene resolution
-  would shrink it too; today the canvas size is the scene's by design (layout and
-  aspect ratio hang off it).
+- **Canvas backing store** — now sized to `display px × dpr` (capped at the
+  scene's resolution) by the embed, which makes the final blit 1:1 and worth
+  ~0.14 ms where it applies. The remainder of the measured 0.43 ms canvas-side
+  cost stays.
+- **Rendering vello straight into the canvas surface** would delete the offscreen
+  target and the whole blit pass. The repo's assumption has been that browser
+  canvas contexts do not expose `STORAGE_BINDING`, but Chromium **accepts**
+  `RENDER_ATTACHMENT | STORAGE_BINDING` in `GPUCanvasContext.configure` (probed
+  2026-09-30; `getPreferredCanvasFormat()` is `rgba8unorm` there). Unverified on
+  Firefox/Safari, and a swapchain whose format is `Bgra8Unorm` may not be a legal
+  vello target at all — this needs a capability probe plus a fallback path, and
+  multi-browser testing, before it is worth the ~0.2 ms.
 - **No rAF-cadence sampling in automation.** The adaptation logic is only
   exercised by hand in a foreground tab. The automated harness measures
   throughput (ms per tick), not smoothness.
-- **Build profile.** The wasm release build uses the workspace default
-  (`lto = false`, 16 codegen units, `panic = "unwind"`) and is then optimised by
-  `wasm-opt -Oz`, which targets size; `+simd128` is not enabled. None of it shows
-  in the numbers above (they are GPU-bound), but it is the next lever for the
-  0.3–0.8 ms CPU slice and for scene build time.
+- **`wasm-opt -Oz` still targets size** over speed. Untested as an A/B; the
+  build-profile A/B above says the whole CPU slice is worth ~0.2 ms, so this is
+  unlikely to be the gap.
 - **The frame cache never hits on the web path**: `restore_frame_cache` bails
   whenever a filter backend is present, and the web player always passes one.
 - **Filter scopes do not scale.** `GpuFilterBackend` allocates at scene

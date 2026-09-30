@@ -26,11 +26,18 @@ scripts/serve-web.py         local static server with brotli negotiation
 The demo pages serve the playback-only profile, so build **both** or just slim:
 
 ```bash
-scripts/build-web.sh --slim          # playback-only (~4.7 MB raw / 1.1 MB brotli)
-scripts/build-web.sh                 # full profile  (~29.8 MB raw / 7.8 MB brotli)
+scripts/build-web.sh --slim          # playback-only (~5.0 MB raw / 1.6 MB brotli)
+scripts/build-web.sh                 # full profile  (~29.0 MB raw / 8.2 MB brotli)
 python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
+
+Release builds go through the `wasm-release` profile (root `Cargo.toml`: fat
+LTO, one codegen unit, `panic = "abort"`) with `+simd128` enabled, kept separate
+from the `release` profile so tuning it cannot move a native benchmark baseline.
+Measured effect: the module is ~11% smaller raw and ~5% smaller brotli; frame
+time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
+could not separate them).
 
 The six demo scenes use plain text only, so they run on the slim engine —
 1.1 MB over the wire instead of 7.8 MB. Their pages still point
@@ -112,14 +119,17 @@ Behavior:
   *raster* scale, which the element also chooses for itself (below).
 - **Raster scale** — internal, no attribute. A browser frame costs a full-target
   vello pass (measured: an empty 1280×720 scene costs what a full one does), so
-  the player rasterizes at `displayed CSS px × devicePixelRatio`, capped at the
-  scene's own resolution: a 1280×720 scene shown at 990 px wide renders at 990
-  and the canvas blit scales it up. Layout is unaffected — the timeline still
+  the element sizes both ends of its frame to what it actually shows: the canvas
+  backing store becomes `displayed CSS px × devicePixelRatio` (capped at the
+  scene's own resolution, past which there is no more detail to render) and the
+  offscreen raster follows it, which makes the final blit 1:1 and leaves the
+  compositor no reason to resample. Layout is unaffected — the timeline still
   evaluates against the scene's `SceneDimensions`. When the page cannot hold the
   frame anyway, the shared rAF loop steps every playing embed down one quality
   notch (×0.85 → ×0.5) on a measured slow-tick signal and steps back up after a
   comfortable stretch. `player.set_render_scale(s)` / `render_scale()` set and
-  read it directly; `docs/performance_evaluation.md` §3.7 has the numbers.
+  read the raster scale directly; `docs/performance_evaluation.md` §3.7 has the
+  numbers, including how this compares with the native renderer.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it
   names the directory tree holding the engine builds — absolute or relative
   to the page. A value ending in `pkg`/`pkg-slim` is the legacy exact-directory
@@ -275,7 +285,9 @@ The default build carries the full feature set (Typst rich text, raster
 decoding, SVG). A playback-only profile compiles those out — Text falls back
 to the plain fast path (no markup/Code highlighting/Math, non-Latin scripts
 need a system font), image/SVG assets report diagnostics, and the wasm drops
-from **29.8 MB to 4.7 MB raw / 7.8 MB to 1.1 MB brotli**:
+from **29.0 MB to 5.0 MB raw / 8.2 MB to 1.6 MB brotli** (the build script
+prints the sizes it actually produced; the numbers here move whenever the
+player gains features):
 
 ```bash
 scripts/build-web.sh --slim     # emits web/pkg-slim/
@@ -295,12 +307,17 @@ the slim set).
 ## Diagnostics & probes
 
 - `web/demos/perf-probe.html` — the frame-cost harness
-  (`?scene=&players=&frames=&scales=`): loads a scene, sweeps render scales,
-  prints a table and publishes `window.__perf`. It drives frames by hand and
-  drains the GPU queue (`debug_gpu_drain`) rather than timing the page's rAF
+  (`?scene=&players=&frames=&scales=&reps=&base=`): loads a scene, sweeps render
+  scales, prints a table and publishes `window.__perf`. It drives frames by hand
+  and drains the GPU queue (`debug_gpu_drain`) rather than timing the page's rAF
   loop, because a backgrounded/headless tab delivers no rAF callbacks at all and
   `queue.submit` returns several milliseconds before the GPU has drawn anything.
-  The findings and the method are in `docs/performance_evaluation.md` §3.7.
+  `reps` repeats each sample and keeps the fastest (a browser frame timed from a
+  script is hostage to whatever else the machine is doing); `base` points the page
+  at a second engine build directory so two builds can be A/B'd — that is how the
+  wasm build profile was measured, and it is why the engine build lives in its own
+  directory rather than being swapped in place. The findings and the method are in
+  `docs/performance_evaluation.md` §3.7.
 - `web/demos/multi-probe.html` — four embeds on one page; publishes
   `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with
   `?readback=1`, a GPU-buffer readback (average color / distinct colors) of

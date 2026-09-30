@@ -81,19 +81,34 @@ Remaining:
 
 Method and measurements: `docs/performance_evaluation.md` §3.7. Shipped
 2026-09-30: a browser frame-cost harness (`debug_bench_frames` /
-`debug_gpu_drain` / `web/demos/perf-probe.html`), display-matched raster
-(`set_render_scale`), and a page-wide quality step driven by the shared rAF
-tick interval — six embeds on one page went 21.7 → 9.4 ms per tick.
+`debug_gpu_drain` / `web/demos/perf-probe.html`, `?base=` for A/B of two engine
+builds), display-matched raster (`set_render_scale`), the canvas backing store
+sized to the displayed pixels, and a page-wide quality step driven by the shared
+rAF tick interval — six embeds on one page went 21.7 → 9.4 ms per tick.
+
+Native parity, measured on the same GPU/scene/resolution: web 2.7–4.1 ms/frame
+against native 1.63 ms (which additionally copies 3.7 MB back to the CPU). The
+wasm CPU path and the canvas blit were both **ruled out by A/B** as the cause;
+the residual is GPU-side and unattributed, and the measurement environment
+(a tab that is never composited — rAF delivers zero callbacks) cannot settle it.
 
 Remaining:
 
 | Item | Scope | Status |
 |---|---|---|
-| Match the canvas backing store to the displayed size | The ~0.9 ms floor per frame is the blit + present at *canvas* resolution (1280×720), which does not shrink with the raster scale. Canvas size is currently the scene's resolution because layout and the CSS aspect ratio read it. Measured, not yet implemented. | Not started |
-| Build profile for wasm | The wasm release build uses the workspace default (`lto = false`, 16 codegen units, `panic = "unwind"`) plus `wasm-opt -Oz` (size), and never enables `+simd128`. GPU-bound frames are unaffected, but this is the lever for the 0.3–0.8 ms CPU slice, scene build, and load time. Needs an A/B against the current profile. | Not started |
-| Frame cache on the web path | `restore_frame_cache` bails whenever a filter backend is present, and the web player always passes one — so every browser frame is a full re-evaluation. Not today's bottleneck (CPU is 0.3–0.8 ms), but it is pure waste. | Not started |
+| Foreground-window measurement | Every web number so far comes from an uncomposited tab (`visibilityState` is `visible`, `hasFocus()` false, 0 rAF callbacks in 1.2 s). GPU-clock/submission throttling for such a page would inflate exactly the GPU-bound term the native gap consists of, so the gap is currently an *upper bound*. One run in a foregrounded, focused window decides it — and it is a prerequisite for judging any further GPU-side work. | Not started |
+| Render vello directly into the canvas surface | Would delete the offscreen target and the entire blit pass (~0.2 ms). Chromium accepts `RENDER_ATTACHMENT \| STORAGE_BINDING` in `GPUCanvasContext.configure` (probed 2026-09-30), contradicting the assumption the offscreen+blit workaround was built on — but a `Bgra8Unorm` swapchain may not be a legal vello target, and Firefox/Safari are unverified. Needs a capability probe plus a fallback. | Not started |
+| `wasm-opt` speed pass | Release builds are size-optimised (`-Oz`). The build-profile A/B says the whole wasm CPU slice is worth ~0.2 ms, so this is unlikely to be where the gap is — but it is untested. | Not started |
+| Frame cache on the web path | `restore_frame_cache` bails whenever a filter backend is present, and the web player always passes one — so every browser frame is a full re-evaluation. Small (CPU is ~0.2 ms) but pure waste. | Not started |
 | Scale animated `Filter` scopes | `GpuFilterBackend` allocates at scene resolution, so a filtered scene keeps its full-resolution cost under a reduced raster scale (correct output, no saving). | Not started |
 | rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
+
+Done (recorded so they are not re-litigated):
+
+| Item | Outcome |
+|---|---|
+| wasm build profile (`wasm-release`: fat LTO, 1 codegen unit, `panic = "abort"`, `+simd128`) | **No measurable frame-time effect** in an alternating A/B (2.67–2.86 ms vs 2.68–2.74 ms, 3 loads per arm). Kept for the artifact size: raw −11%, brotli −4.8%. |
+| Canvas backing store at the displayed size | Done (embed `_applyRenderScale`). Worth ~0.14 ms where `display px × dpr` is below the scene resolution, and a no-op above it. |
 
 ## Planned Features
 
