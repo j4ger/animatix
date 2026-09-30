@@ -77,6 +77,24 @@ Remaining:
 | Item | Scope | Status |
 |---|---|---|
 
+### Web playback performance (active)
+
+Method and measurements: `docs/performance_evaluation.md` §3.7. Shipped
+2026-09-30: a browser frame-cost harness (`debug_bench_frames` /
+`debug_gpu_drain` / `web/demos/perf-probe.html`), display-matched raster
+(`set_render_scale`), and a page-wide quality step driven by the shared rAF
+tick interval — six embeds on one page went 21.7 → 9.4 ms per tick.
+
+Remaining:
+
+| Item | Scope | Status |
+|---|---|---|
+| Match the canvas backing store to the displayed size | The ~0.9 ms floor per frame is the blit + present at *canvas* resolution (1280×720), which does not shrink with the raster scale. Canvas size is currently the scene's resolution because layout and the CSS aspect ratio read it. Measured, not yet implemented. | Not started |
+| Build profile for wasm | The wasm release build uses the workspace default (`lto = false`, 16 codegen units, `panic = "unwind"`) plus `wasm-opt -Oz` (size), and never enables `+simd128`. GPU-bound frames are unaffected, but this is the lever for the 0.3–0.8 ms CPU slice, scene build, and load time. Needs an A/B against the current profile. | Not started |
+| Frame cache on the web path | `restore_frame_cache` bails whenever a filter backend is present, and the web player always passes one — so every browser frame is a full re-evaluation. Not today's bottleneck (CPU is 0.3–0.8 ms), but it is pure waste. | Not started |
+| Scale animated `Filter` scopes | `GpuFilterBackend` allocates at scene resolution, so a filtered scene keeps its full-resolution cost under a reduced raster scale (correct output, no saving). | Not started |
+| rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
+
 ## Planned Features
 
 | Feature | Notes | Status |

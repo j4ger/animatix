@@ -106,9 +106,20 @@ Behavior:
 - **`quality`** — per element, `"draft"` (default) / `"preview"` /
   `"production"`: the build fidelity, i.e. what `BuildQuality` bakes into the
   document at build time. Draft matches the desktop GUI's editing preview;
-  production matches what a desktop export renders — the visible difference
-  is plot-family sampling (a draft build samples plot curves with 4× the
-  tolerance). Changing the attribute rebuilds the scene.
+  production matches what a desktop export renders — the visible difference is
+  plot-family sampling (a draft build samples plot curves with 4× the
+  tolerance). Changing the attribute rebuilds the scene. Not to be confused with
+  *raster* scale, which the element also chooses for itself (below).
+- **Raster scale** — internal, no attribute. A browser frame costs a full-target
+  vello pass (measured: an empty 1280×720 scene costs what a full one does), so
+  the player rasterizes at `displayed CSS px × devicePixelRatio`, capped at the
+  scene's own resolution: a 1280×720 scene shown at 990 px wide renders at 990
+  and the canvas blit scales it up. Layout is unaffected — the timeline still
+  evaluates against the scene's `SceneDimensions`. When the page cannot hold the
+  frame anyway, the shared rAF loop steps every playing embed down one quality
+  notch (×0.85 → ×0.5) on a measured slow-tick signal and steps back up after a
+  comfortable stretch. `player.set_render_scale(s)` / `render_scale()` set and
+  read it directly; `docs/performance_evaluation.md` §3.7 has the numbers.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it
   names the directory tree holding the engine builds — absolute or relative
   to the page. A value ending in `pkg`/`pkg-slim` is the legacy exact-directory
@@ -283,6 +294,13 @@ the slim set).
 
 ## Diagnostics & probes
 
+- `web/demos/perf-probe.html` — the frame-cost harness
+  (`?scene=&players=&frames=&scales=`): loads a scene, sweeps render scales,
+  prints a table and publishes `window.__perf`. It drives frames by hand and
+  drains the GPU queue (`debug_gpu_drain`) rather than timing the page's rAF
+  loop, because a backgrounded/headless tab delivers no rAF callbacks at all and
+  `queue.submit` returns several milliseconds before the GPU has drawn anything.
+  The findings and the method are in `docs/performance_evaluation.md` §3.7.
 - `web/demos/multi-probe.html` — four embeds on one page; publishes
   `{players, ready, playing, wasmFetches}` on `window.__probe_state` and, with
   `?readback=1`, a GPU-buffer readback (average color / distinct colors) of
@@ -297,6 +315,13 @@ the slim set).
   sample at or after the actor's entrance, since a hidden-by-default actor
   reads as empty before its reveal.
 - `m.build_id()` on the engine module — identifies the running wasm build.
+- `debug_bench_frames(n, dt)` / `debug_bench_warmup(n)` on `AmxPlayer` and the
+  free `debug_gpu_drain()` — the frame-cost API: n timed `render_frame` calls,
+  then one GPU drain, then wall time ÷ n. `debug_gpu_drain` resolves through
+  `Queue::on_submitted_work_done`, so it waits for submitted work without
+  copying pixels the way `debug_readback` does. `set_render_scale(s)` /
+  `render_scale()` / `raster_width()` / `raster_height()` are the raster scale
+  the numbers are taken at.
 
 > Two probe traps have burned this pipeline before (see `docs/history.md`,
 > "The wasm-SVG item that never was"): a scene screenshot catches whatever
