@@ -14,11 +14,20 @@
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
+//   profile    "slim" (default) | "full" — which engine build backs this
+//              element. Slim plays plain-text scenes; full adds Typst markup,
+//              Code/Math highlighting and Image/Svg assets. Embeds sharing a
+//              profile share one engine download and device; a page mixing
+//              both downloads each once.
+//   quality    "draft" (default) | "preview" | "production" — build fidelity.
+//              Production matches a desktop export; changing it rebuilds.
 //
-// The engine bundle directory is a `data-runtime-base` attribute on the
-// <script> tag that loads this component (absolute, or relative to the page) —
-// e.g. `data-runtime-base="/pkg-slim"`. Default: the `pkg` directory beside
-// this component's parent.
+// The engine directories come from the loader <script>'s `data-runtime-base`
+// (absolute, or relative to the page). A value ending in `pkg`/`pkg-slim` is
+// the legacy exact-directory form (its ±slim sibling completes the pair);
+// anything else is a parent directory containing both. Default: the parent of
+// the directory holding this component — so an omitted attribute resolves to
+// `pkg-slim`, falling back to `pkg` when that profile was not built.
 //
 // Loading UX (no build-time poster required):
 //   1. skeleton with shimmer + title, correct aspect ratio
@@ -34,8 +43,9 @@
 // timeline ends at its last keyframe (`Timeline::duration_seconds`).
 //
 // Performance: all visible playing instances are driven by ONE shared
-// requestAnimationFrame loop; offscreen instances pause automatically. All
-// players share one WebGPU engine context inside the wasm module.
+// requestAnimationFrame loop; offscreen instances pause automatically. Embeds
+// using the same engine directory share one WebGPU context inside that wasm
+// instance; a page mixing `profile` values holds one context per profile.
 
 const LOADER_SCRIPT = [...document.querySelectorAll("script[type=module]")].find((s) =>
   (s.src || "").includes("amx-player.js"),

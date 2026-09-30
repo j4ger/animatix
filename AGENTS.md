@@ -16,10 +16,12 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-web`: wasm32 driver for browser playback (no in-browser
   editor — that is the desktop app). Parse/build reuses the module system in
   `SourcesOnly` mode; frames render into an offscreen vello target that is
-  blitted to the WebGPU canvas surface. All players on a page share one
-  WebGPU context. The `<amx-player>` embed component (`web/embed/`) and the
-  demo pages (`web/demos/`, including the transformer walkthrough) build on
-  it. Build/serve instructions in `web/README.md`.
+  blitted to the WebGPU canvas surface. Embeds resolve their engine profile
+  (`slim` default / `full`) per element and share one WebGPU context per
+  loaded engine directory. The `<amx-player>` embed component (`web/embed/`)
+  and the demo pages (`web/demos/`, including the transformer walkthrough)
+  build on it. Build/serve instructions and the attribute reference in
+  `web/README.md`.
 - `crates/eparts`: themed egui widget framework used by the GUI.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
 - `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.

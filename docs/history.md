@@ -1169,3 +1169,35 @@ gets an `unknown-actor-type` *warning* and the scene renders without it,
 while an `Image` actor (primitive registered, decoder gated) still fails the
 build with `MediaLoadFailure`. `web/README.md`'s new differences table says
 which.
+
+## Per-embed engine profile and build quality (2026-09-30)
+
+The engine choice (slim vs full wasm) and the build fidelity (Draft vs
+Production) used to be page-level or hardcoded: `data-runtime-base` on the
+loader script picked one engine directory for the whole page, and the player
+built every scene at `BuildQuality::Draft`.
+
+Both are now per-element `<amx-player>` attributes. `profile="slim"` (default)
+| `"full"` selects the engine build — engine module promises are cached per
+resolved directory, so embeds sharing a profile share one download and device
+while a mixed page holds one context per profile (each wasm-bindgen instance
+owns its thread-local engine context, which is what makes per-element selection
+possible at all). `quality="draft"` (default) | `"preview"` | `"production"`
+flows through the new `AmxPlayer::set_quality` into the build; quality is a
+build-time knob, so changing the attribute rebuilds the scene.
+
+`data-runtime-base` is reinterpreted as a directory *pair*: the legacy
+exact-directory form (ending in `pkg`/`pkg-slim`) derives its ±slim sibling,
+anything else is a parent containing both — existing pages are unaffected, and
+omitting everything resolves to slim with the other profile as fallback.
+
+Verification: `web/demos/svg-probe/profiles.html` (four embeds — slim default,
+profile=full, quality draft, quality production) runs in the browser with both
+wasm instances fetched and each scene correct; runtime attribute flips
+(quality → rebuild, profile → second engine download) both return to ready.
+The quality knob's invariant is pinned at the geometry level in
+`animatix-render`'s offscreen tests (rose curve: draft 65 vs production 129
+path elements) — its first draft asserted a *pixel* difference and failed with
+exact equality, which is the honest finding that a smooth curve can rasterize
+identically at both tolerances; the pixel gap is content-dependent and the
+docs say so.
