@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Where Keys Live — an .amx walkthrough of hash tables</title>
+  <meta name="description" content="Hash tables staged as theatre: a hash you can follow by eye, a collision that chains, and lookups that hit and miss — every figure a live .amx scene.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
+      <h1>Where Keys Live</h1>
+      <p class="lede">
+        A hash table is the data structure every language reaches for first —
+        and its whole mystery is one sentence: <strong>the hash decides where
+        a key lives, so finding it later needs no search</strong>. Eight
+        buckets, a hash you can compute in your head, one collision, and two
+        lookups — every figure below is a declarative scene compiling in your
+        browser.
+      </p>
+      <ul class="meta">
+        <li>3 scenes · one file</li>
+        <li>hash rule: add letter positions, mod 8</li>
+        <li>one slim engine for the whole page</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="The full hash table walkthrough"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The whole story.</b> Three scenes — keys move in,
+          a collision chains, lookups hit and miss — compiled from
+          <a href="scene.amx">a single text file</a>.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>Where keys live</a></li>
+        <li><a href="#s2"><span class="n">02</span>Two keys, one bucket</a></li>
+        <li><a href="#s3"><span class="n">03</span>Lookup: hit and miss</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Where keys live</h2></div>
+      <p>
+        The rule is small enough to do in your head: add the letters'
+        positions (a=1, b=2, …), then take mod 8 — one slot per bucket.
+        <code class="inline">cat</code> is 3+1+20 = 24, and 24 mod 8 is 0, so
+        cat lives in bucket 0. Nobody chose bucket 0; the
+        <strong>hash picked it</strong>. That is the entire contract: store by
+        hash, and retrieval later becomes arithmetic instead of search.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="buckets.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Three keys hash into their buckets"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the formula narrates each key before
+            it drops — cat to 0, dog to 2, sun to 6. Each drop is a keyframed
+            shift; the arithmetic is a timed text swap.</span>
+          <a class="src" href="buckets.amx">buckets.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Two keys, one bucket</h2></div>
+      <p>
+        Eight buckets and unbounded keys means collisions are inevitable —
+        <strong>two keys will eventually share a slot</strong>.
+        <code class="inline">owl</code> is 15+23+12 = 50, and 50 mod 8 is 2:
+        dog's bucket. The table doesn't panic; it <strong>chains</strong> —
+        owl links below dog, and the bucket quietly becomes a list. Chaining
+        is why hash tables degrade gracefully: a crowded bucket is a slightly
+        longer list, not a broken table.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="collision.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="owl collides with dog and chains"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> owl drops toward bucket 2, finds dog
+            in residence, and chains beneath it — the amber link is the
+            chain.</span>
+          <a class="src" href="collision.amx">collision.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Lookup: hash first, compare after</h2></div>
+      <p>
+        Retrieval runs the same film backwards. Hash the query
+        <code class="inline">sun</code> → bucket 6 → one comparison →
+        <strong>found</strong>. Query <code class="inline">owl</code> → bucket
+        2 → compare against dog: not equal, so follow the chain — found
+        <em>after one compare</em>. Query <code class="inline">cow</code> →
+        bucket 1 → <strong>empty</strong> — not found without touching a
+        single key. Three queries, zero searches: the hash did the walking.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="lookup.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Three lookups: a hit, a chained hit, a miss"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> sun found outright; owl found after
+            one compare down the chain; cow answered
+            <strong>not found</strong> by an empty bucket — the cheapest
+            answer in the whole structure.</span>
+          <a class="src" href="lookup.amx">lookup.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <div class="howto">
+        <h2>How this page works</h2>
+        <p>
+          The buckets are one <code class="inline">LabeledBox</code> component
+          instantiated eight times; the keys are instances with their own
+          fills; every drop-in is a keyframed shift and every formula a timed
+          text swap. The arithmetic is honest — each formula on screen is the
+          actual hash of the key above it.
+        </p>
+        <p style="margin-bottom:0">
+          Sources are plain text —
+          <a href="../../tour/">the language tour</a> has the syntax, and the
+          <a href="../">demo shelf</a> has more like this.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>

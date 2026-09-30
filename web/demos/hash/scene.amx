@@ -1,0 +1,238 @@
+// hash.amx — "Where keys live" — a tiny hash table staged as theatre.
+//
+// The hash rule is chosen to be followable by eye: add the letter positions
+// (a=1, b=2, …), then take mod 8.
+//   cat = 3+1+20 = 24 → bucket 0      dog = 4+15+7 = 26 → bucket 2
+//   sun = 19+21+14 = 54 → bucket 6    owl = 15+23+12 = 50 → bucket 2 (collision)
+//   cow = 3+15+23 = 41 → bucket 1 (empty: a miss)
+//
+// Every drop-in is a keyframed shift; the formula line narrates each beat.
+
+import "../lib/components.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// ── Scene 1: Where keys live ─────────────────────────────────────────────────
+
+# Buckets
+config { colorscheme: "editorial-dark", duration: 12 }
+
+bk_title: Text, text: "Where keys live", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+bk_sub: Text, text: "hash(key) = add the letter positions, then mod 8",
+  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+
+f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+
+chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (164, 250)
+chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (300, 250)
+chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
+
+#0.3s
+fade-in bk_title [500ms, ease: ease-out]
+fade-in bk_sub [400ms, delay: 150ms]
+stagger [60ms] {
+  fade-in b0 [300ms]
+  fade-in b1 [300ms]
+  fade-in b2 [300ms]
+  fade-in b3 [300ms]
+  fade-in b4 [300ms]
+  fade-in b5 [300ms]
+  fade-in b6 [300ms]
+  fade-in b7 [300ms]
+}
+
+// cat → bucket 0
+#1.6s
+fade-in chip_cat [300ms]
+fade-in f_cat [260ms]
+#2.1s
+shift chip_cat [by: (0, 250), 520ms, ease: ease-in]
+#2.7s
+fade-out f_cat [220ms]
+
+// dog → bucket 2
+#3.4s
+fade-in chip_dog [300ms]
+fade-in f_dog [260ms]
+#3.9s
+shift chip_dog [by: (0, 250), 520ms, ease: ease-in]
+#4.5s
+fade-out f_dog [220ms]
+
+// sun → bucket 6
+#5.2s
+fade-in chip_sun [300ms]
+fade-in f_sun [260ms]
+#5.7s
+shift chip_sun [by: (0, 250), 520ms, ease: ease-in]
+#6.3s
+fade-out f_sun [220ms]
+
+bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
+  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 1.0
+
+play Collision [wipe-left, 500ms]
+
+// ── Scene 2: Collision — two keys, one bucket ────────────────────────────────
+
+# Collision
+config { colorscheme: "editorial-dark", duration: 10 }
+
+col_title: Text, text: "Two keys, one bucket", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+
+// dog already lives in bucket 2.
+resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
+
+col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+
+chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+
+chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2, opacity: 0.0
+col_note: Text, text: "collision: owl chains below dog", font_size: 16,
+  color: accent.warning, anchor: scene.bottom, offset: (0, -120), opacity: 0.0
+
+#0.3s
+fade-in col_title [500ms, ease: ease-out]
+stagger [60ms] {
+  fade-in b0c [300ms]
+  fade-in b1c [300ms]
+  fade-in b2c [300ms]
+  fade-in b3c [300ms]
+  fade-in b4c [300ms]
+  fade-in b5c [300ms]
+  fade-in b6c [300ms]
+  fade-in b7c [300ms]
+}
+fade-in resident [300ms, delay: 400ms]
+
+#1.4s
+fade-in chip_owl [300ms]
+fade-in col_f [260ms]
+#2.0s
+shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
+#2.7s
+shift chip_owl [by: (0, 84), 320ms, ease: ease-out]
+fade-in chain [240ms]
+fade-out col_f [200ms]
+fade-in col_note [300ms]
+
+play Lookup [wipe-left, 500ms]
+
+// ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
+
+# Lookup
+config { colorscheme: "editorial-dark", duration: 11.5 }
+
+lk_title: Text, text: "Lookup: hash first, compare after", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+b0l: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1l: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2l: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3l: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4l: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5l: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6l: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7l: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+
+// residents: sun in 6; dog + owl chained in 2.
+r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 500)
+r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
+r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 585)
+r_chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2
+
+q_formula: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (980, 250)
+
+verdict_hit: Text, text: "found", font_size: 18, color: accent.success,
+  anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
+
+#0.3s
+fade-in lk_title [500ms, ease: ease-out]
+stagger [60ms] {
+  fade-in b0l [300ms]
+  fade-in b1l [300ms]
+  fade-in b2l [300ms]
+  fade-in b3l [300ms]
+  fade-in b4l [300ms]
+  fade-in b5l [300ms]
+  fade-in b6l [300ms]
+  fade-in b7l [300ms]
+}
+fade-in r_sun [300ms, delay: 400ms]
+fade-in r_dog [300ms, delay: 500ms]
+fade-in r_owl [300ms, delay: 600ms]
+fade-in r_chain [240ms, delay: 700ms]
+
+// query 1: sun → bucket 6 → found
+#2.0s
+fade-in q_chip [300ms]
+fade-in q_formula [260ms]
+#2.6s
+shift q_chip [by: (0, 250), 520ms, ease: ease-in]
+#3.3s
+fade-out q_formula [200ms]
+fade-in verdict_hit [260ms]
+#4.4s
+fade-out q_chip [300ms]
+fade-out verdict_hit [240ms]
+
+// query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
+q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+#5.2s
+fade-in q2 [300ms]
+q_formula.text = "owl: 50 mod 8 = 2"
+fade-in q_formula [260ms]
+#5.9s
+shift q2 [by: (0, 250), 520ms, ease: ease-in]
+#6.6s
+fade-out q_formula [200ms]
+#7.2s
+shift q2 [by: (0, 85), 300ms, ease: ease-out]
+#8.3s
+fade-out q2 [260ms]
+verdict_hit.text = "found — after one compare"
+fade-in verdict_hit [260ms]
+#9.2s
+fade-out verdict_hit [240ms]
+
+// query 3: cow → bucket 1 → empty → not found
+q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
+verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
+  anchor: scene.bottom, offset: (-530, -160), opacity: 0.0
+#9.9s
+fade-in q3 [300ms]
+q_formula.text = "cow: 41 mod 8 = 1"
+fade-in q_formula [260ms]
+#10.5s
+shift q3 [by: (0, 250), 520ms, ease: ease-in]
+#11.2s
+fade-out q_formula [200ms]
+fade-in verdict_miss [260ms]

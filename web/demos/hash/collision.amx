@@ -1,0 +1,58 @@
+import "../lib/components.amx"
+config { resolution: (1280, 720) }
+
+# Collision
+config { colorscheme: "editorial-dark", duration: 10 }
+
+col_title: Text, text: "Two keys, one bucket", font_size: 38,
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+
+// dog already lives in bucket 2.
+resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
+
+col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+
+chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+
+chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2, opacity: 0.0
+col_note: Text, text: "collision: owl chains below dog", font_size: 16,
+  color: accent.warning, anchor: scene.bottom, offset: (0, -120), opacity: 0.0
+
+#0.3s
+fade-in col_title [500ms, ease: ease-out]
+stagger [60ms] {
+  fade-in b0c [300ms]
+  fade-in b1c [300ms]
+  fade-in b2c [300ms]
+  fade-in b3c [300ms]
+  fade-in b4c [300ms]
+  fade-in b5c [300ms]
+  fade-in b6c [300ms]
+  fade-in b7c [300ms]
+}
+fade-in resident [300ms, delay: 400ms]
+
+#1.4s
+fade-in chip_owl [300ms]
+fade-in col_f [260ms]
+#2.0s
+shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
+#2.7s
+shift chip_owl [by: (0, 84), 320ms, ease: ease-out]
+fade-in chain [240ms]
+fade-out col_f [200ms]
+fade-in col_note [300ms]
+
+
+// ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
+
