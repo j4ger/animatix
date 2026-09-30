@@ -78,20 +78,22 @@ Behavior:
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
   afterwards), `profile` (below), `quality` (below).
-- **Controls UX** — the bar lives *below* the canvas, in flow: it never
-  covers the picture, stays visible permanently, and a canvas tap maps
-  straight to play/pause (same rule for mouse and touch). The scrubber is
-  landmark-aware: the engine reports the author's `#2s` keyframe
-  declarations (and, in compositions, scene starts and transition windows),
-  the rail draws them — ticks for keyframes, diamonds for scene starts,
-  hatched spans for transitions — and dragging snaps to them within 0.2 s.
-  Arrow keys step between landmarks; Home restarts; Space/K toggles. A
-  looping embed's `hold` rest appears as a dimmed trailing segment, so the
-  bar explains why the figure sits on its finished frame before restarting.
-  While a drag is in progress the clock is frozen — the dragged frame is
-  what shows, and playback resumes from there on release. The speed button
-  cycles 1× → 1.5× → 2× → 0.5× (dt scaling keeps holds and dissolves
-  proportional). Touch targets are ≥40 px (`44` under `pointer: coarse`).
+- **Controls UX** — the strip lives *below* the canvas, full-height and
+  always visible: it never covers the picture, and it doubles as the
+  timeline inspector. The engine reports the author's `#2s` keyframe
+  declarations (and, in compositions, scene starts and transition windows);
+  the strip draws them — ticks for keyframes, diamonds for scene starts,
+  hatched spans for transitions — so the bar *is* the scene's structure.
+  Mouse: hovering the strip freezes the clock and peeks the frame under the
+  pointer (snapping to landmarks within 0.2 s); leaving resumes, unless a
+  click latched the pause. Clicking the strip sets the position and toggles
+  the latch; clicking the *canvas* pauses latched — resume only via a strip
+  click (the inspection model the user asked for). Touch: tap toggles,
+  drag scrubs. While pressed (or peeking) the clock is frozen — the
+  inspected frame is what shows, and playback continues from there on
+  release. Arrow keys step between landmarks, Home restarts, Space/K
+  toggles. The speed chip cycles 1× → 1.5× → 2× → 0.5× (dt scaling keeps
+  holds and dissolves proportional).
 - **`profile`** — per element, `"slim"` (default) or `"full"`: which engine
   build backs the figure. Omitted means slim, so a page of plain-text scenes
   needs nothing; a figure with Typst markup, `Math`/`Code` highlighting or

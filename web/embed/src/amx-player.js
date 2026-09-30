@@ -10,15 +10,16 @@
 //   loop       restart from the beginning at the end of the timeline
 //   hold       seconds to keep the finished timeline on screen before a looping
 //              restart (default 0.7; 0 loops with no rest at all)
-//   controls   control bar BELOW the picture (never covers it): play/pause,
-//              a landmark-aware scrubber (the engine's `#` keyframe marks are
-//              drawn as ticks and snapping targets; compositions also get
-//              scene diamonds and hatched transition spans), a time readout,
-//              and a speed cycle (1x -> 1.5x -> 2x -> 0.5x). A loop's hold
-//              rest shows as a dimmed trailing segment. Canvas tap toggles
-//              playback (mouse and touch alike); dragging freezes the clock
-//              until release; the scrubber is a keyboard slider (arrows step
-//              between landmarks, Home restarts, Space/K toggles).
+//   controls   a full-height timeline strip BELOW the picture (never covers
+//              it): the engine's `#` keyframe marks are drawn as ticks and
+//              snapping targets (compositions add scene diamonds and hatched
+//              transition spans), plus a time chip and a speed cycle
+//              (1x -> 1.5x -> 2x -> 0.5x). Mouse: hovering freezes the clock
+//              and peeks the frame under the pointer; leaving resumes unless
+//              a click latched the pause; canvas click pauses latched, strip
+//              click resumes. Touch: tap toggles, drag scrubs. Keyboard:
+//              arrows step between landmarks, Home restarts, Space/K
+//              toggles.
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
@@ -109,10 +110,6 @@ const FADE_EACH = 0.28;
 // Control-bar glyphs (inline SVG, no deps). Shared by the bar's play/pause
 // button and the no-controls center affordance.
 const ICONS = {
-  play:
-    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
-  pause:
-    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4 2h3.6v14H4zM10.4 2H14v14h-3.6z"/></svg>',
   playBig:
     '<svg width="26" height="26" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
 };
@@ -224,6 +221,11 @@ class AmxPlayerElement extends HTMLElement {
     this._observer = null;
     this._initialized = false;
     this._scrubbing = false;
+    this._peeking = false;
+    this._latched = false;
+    this._resumeOnLeave = false;
+    this._suppressHoverPeek = false;
+    this._downX = 0;
     this._rate = 1;
     this._markers = [];
   }
@@ -348,78 +350,73 @@ class AmxPlayerElement extends HTMLElement {
       }
       .playbtn.show { display: flex; }
       .playbtn svg { display: block; }
-      /* The bar lives below the stage, in flow: it never covers the picture,
-         so it stays visible permanently and the canvas tap maps straight to
-         play/pause. */
-      .bar {
-        display: flex; align-items: center; gap: 8px;
-        padding: 6px 12px 8px;
+      /* The strip lives below the stage, in flow, and spans the full width
+         and height of the bar: it never covers the picture. Hovering it
+         freezes the clock and peeks the frame under the pointer; the clock
+         resumes on leave unless the pause was latched by a click. */
+      .strip {
+        position: relative; height: 44px;
+        display: flex; align-items: center;
         border-top: 1px solid rgba(255,255,255,.07);
+        cursor: pointer; touch-action: none;
       }
-      .bar button {
-        width: 40px; height: 40px; flex: none;
-        border: none; border-radius: 8px; background: none;
-        color: #e8edf4; cursor: pointer; padding: 0;
-        display: flex; align-items: center; justify-content: center;
-        font: 12px ui-monospace, monospace;
-      }
-      .bar button:hover { background: rgba(255,255,255,.14); }
-      .bar button:focus-visible { outline: 2px solid #f5b942; }
-      .bar svg { display: block; }
-      .track {
-        flex: 1; height: 32px; display: flex; align-items: stretch;
-        cursor: pointer; touch-action: none; border-radius: 6px;
-      }
-      .track:focus-visible { outline: 2px solid #f5b942; }
-      .track .zone, .track .rest { position: relative; display: flex; align-items: center; }
-      .track .rail {
-        position: relative; height: 4px; width: 100%;
-        border-radius: 2px; background: rgba(255,255,255,.24);
-        transition: height .12s;
-      }
-      .track:hover .rail, .track.scrubbing .rail { height: 7px; }
-      .track .rest .rail { background: rgba(255,255,255,.11); }
-      .track .fill {
+      .strip:focus-visible { outline: 2px solid #f5b942; outline-offset: -2px; }
+      .strip .fill {
         position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
-        border-radius: 2px; background: #f5b942;
+        background: rgba(245,185,66,.16);
+        border-right: 2px solid #f5b942;
         transform-origin: left; transform: scaleX(0);
-      }
-      .track .thumb {
-        position: absolute; top: 50%; width: 13px; height: 13px;
-        border-radius: 50%; background: #f5b942;
-        transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s;
-      }
-      .track:hover .thumb, .track.scrubbing .thumb, .track:focus-visible .thumb {
-        opacity: 1;
-      }
-      /* Timeline landmarks. Keyframes are small ticks; scene starts are
-         taller diamonds; a transition is a hatched span on the rail. */
-      .track .tick {
-        position: absolute; top: 50%; width: 2px; height: 8px;
-        transform: translate(-50%, -50%);
-        background: rgba(255,255,255,.45); border-radius: 1px;
         pointer-events: none;
       }
-      .track .diamond {
-        position: absolute; top: 50%; width: 7px; height: 7px;
+      /* Timeline landmarks. Keyframes are thin ticks; scene starts are
+         diamonds; a transition is a hatched span — all full height. */
+      .strip .tick {
+        position: absolute; top: 0; bottom: 0; width: 2px;
+        transform: translateX(-50%);
+        background: rgba(255,255,255,.28);
+        pointer-events: none;
+      }
+      .strip .diamond {
+        position: absolute; top: 50%; width: 9px; height: 9px;
         transform: translate(-50%, -50%) rotate(45deg);
-        background: #8ab4f8; border-radius: 1px;
+        background: #8ab4f8; border-radius: 2px;
         pointer-events: none;
       }
-      .track .span {
+      .strip .span {
         position: absolute; top: 0; bottom: 0;
         background: repeating-linear-gradient(135deg,
-          rgba(138,180,248,.4) 0 3px, transparent 3px 6px);
-        border-radius: 2px; pointer-events: none;
+          rgba(138,180,248,.35) 0 4px, transparent 4px 8px);
+        pointer-events: none;
       }
-      .time {
+      .strip .cursor {
+        position: absolute; top: 0; bottom: 0; width: 2px;
+        transform: translateX(-50%);
+        background: rgba(245,185,66,.9);
+        opacity: 0; pointer-events: none;
+      }
+      .strip.peeking .cursor { opacity: 1; }
+      .chip {
+        position: absolute; right: 56px; top: 50%;
+        transform: translateY(-50%);
         color: #c7cfd9; font: 12px ui-monospace, monospace; white-space: nowrap;
-        font-variant-numeric: tabular-nums; flex: none;
+        font-variant-numeric: tabular-nums;
+        background: rgba(5,8,12,.55); border-radius: 6px; padding: 3px 8px;
+        pointer-events: none;
       }
-      .speed { min-width: 44px; justify-content: center; color: #c7cfd9; }
+      .speed {
+        position: absolute; right: 4px; top: 50%;
+        transform: translateY(-50%);
+        width: 48px; height: 36px; flex: none;
+        border: none; border-radius: 8px; background: none;
+        color: #c7cfd9; cursor: pointer; padding: 0;
+        font: 12px ui-monospace, monospace;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .speed:hover { background: rgba(255,255,255,.14); color: #e8edf4; }
+      .speed:focus-visible { outline: 2px solid #f5b942; }
       @media (pointer: coarse) {
-        .track { height: 40px; }
-        .bar button { width: 44px; height: 44px; }
+        .strip { height: 52px; }
+        .speed { width: 52px; height: 44px; }
       }
     `;
     this.shadowRoot.replaceChildren(style, this._stage);
@@ -660,6 +657,7 @@ class AmxPlayerElement extends HTMLElement {
       // from nothing, so frame 0 is an empty stage: a reader who never presses
       // play (or who asked for reduced motion) would see a blank box.
       this._restTime = this._duration;
+      this._time = this._duration;
       this._renderScene();
 
       // Timeline landmarks for the scrubber (keyframes, scene starts,
@@ -695,50 +693,22 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   _buildControls() {
-    const bar = document.createElement("div");
-    bar.className = "bar";
+    const strip = document.createElement("div");
+    strip.className = "strip";
+    strip.tabIndex = 0;
+    strip.setAttribute("role", "slider");
+    strip.setAttribute("aria-label", "Timeline");
+    strip.setAttribute("aria-valuemin", "0");
+    strip.setAttribute("aria-valuemax", String(this._duration));
 
-    const btn = document.createElement("button");
-    btn.setAttribute("aria-label", "Play");
-    btn.innerHTML = ICONS.play;
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this._playing ? this.pause() : this.play();
-    });
-
-    // The scrubber covers the timeline only; the loop's hold rest is a dimmed
-    // trailing segment sized proportionally, so the bar explains why a looping
-    // embed sits on its finished frame before restarting.
-    const track = document.createElement("div");
-    track.className = "track";
-    track.tabIndex = 0;
-    track.setAttribute("role", "slider");
-    track.setAttribute("aria-label", "Seek");
-    track.setAttribute("aria-valuemin", "0");
-    track.setAttribute("aria-valuemax", String(this._duration));
-    const zone = document.createElement("div");
-    zone.className = "zone";
-    zone.style.flexGrow = String(this._duration);
-    const rail = document.createElement("div");
-    rail.className = "rail";
     const fill = document.createElement("div");
     fill.className = "fill";
-    const thumb = document.createElement("div");
-    thumb.className = "thumb";
-    rail.append(fill, thumb);
-    zone.append(rail);
-    const rest = document.createElement("div");
-    rest.className = "rest";
-    rest.style.flexGrow = String(this._holdSeconds);
-    const restRail = document.createElement("div");
-    restRail.className = "rail";
-    rest.append(restRail);
-    if (!(this._holdSeconds > 0)) rest.style.display = "none";
+    const cursor = document.createElement("div");
+    cursor.className = "cursor";
 
-    // Landmarks drawn onto the rail: keyframe ticks, scene-start diamonds,
-    // and hatched transition spans. Positions are percentages of the timeline
-    // so they hold at any width.
-    const railWidth = zone.querySelector(".rail");
+    // Landmarks at percentage positions of the pure timeline: keyframe ticks,
+    // scene-start diamonds, hatched transition spans.
+    const marks = document.createDocumentFragment();
     for (const m of this._markers) {
       const frac = this._duration > 0 ? Math.min(m.t / this._duration, 1) : 0;
       if (m.kind === "transition" && m.dur > 0) {
@@ -746,43 +716,40 @@ class AmxPlayerElement extends HTMLElement {
         span.className = "span";
         span.style.left = `${frac * 100}%`;
         span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
-        railWidth.appendChild(span);
+        marks.appendChild(span);
       } else {
         const mark = document.createElement("div");
         mark.className = m.kind === "scene" ? "diamond" : "tick";
         mark.style.left = `${frac * 100}%`;
-        railWidth.appendChild(mark);
+        marks.appendChild(mark);
       }
     }
 
-    const time = document.createElement("span");
-    time.className = "time";
-
-    // Playback speed: one button cycling the useful range. dt scales, so the
-    // loop's hold and dissolves stay proportionally correct at any rate.
-    const RATES = [1, 1.5, 2, 0.5];
-    this._rate = 1;
+    const chip = document.createElement("span");
+    chip.className = "chip";
     const speed = document.createElement("button");
     speed.className = "speed";
     speed.textContent = "1\u00d7";
     speed.setAttribute("aria-label", "Playback speed 1\u00d7");
+    speed.addEventListener("pointerdown", (e) => e.stopPropagation());
     speed.addEventListener("click", (e) => {
       e.stopPropagation();
-      const next = RATES[(RATES.indexOf(this._rate) + 1) % RATES.length];
-      this._rate = next;
-      speed.textContent = `${next}\u00d7`;
-      speed.setAttribute("aria-label", `Playback speed ${next}\u00d7`);
+      const RATES = [1, 1.5, 2, 0.5];
+      this._rate = RATES[(RATES.indexOf(this._rate) + 1) % RATES.length];
+      speed.textContent = `${this._rate}\u00d7`;
+      speed.setAttribute("aria-label", `Playback speed ${this._rate}\u00d7`);
     });
 
-    track.append(zone, rest);
-    bar.append(btn, track, time, speed);
-    this.shadowRoot.append(bar);
+    strip.append(fill, marks, cursor, chip, speed);
+    this.shadowRoot.append(strip);
 
-    // ── scrubbing: pointer capture, works for mouse and touch alike ──
-    // The engine's landmarks make the scrubber magnetic: within 0.2 s of a
-    // keyframe or a transition edge the seek snaps to it.
-    const SNAP_S = 0.2;
+    // ── strip interaction ──
+    // Mouse: entering freezes the clock and peeks the frame under the
+    // pointer; leaving resumes *unless* a click latched the pause. A click
+    // (press+release without dragging) sets the position and toggles the
+    // latched state. Touch has no hover: a tap toggles, a drag scrubs.
     const snapTarget = (t) => {
+      const SNAP_S = 0.2;
       for (const m of this._markers) {
         if (Math.abs(t - m.t) <= SNAP_S) return m.t;
         if (m.kind === "transition" && m.dur > 0 && Math.abs(t - (m.t + m.dur)) <= SNAP_S) {
@@ -791,40 +758,97 @@ class AmxPlayerElement extends HTMLElement {
       }
       return null;
     };
-    const seekFromPointer = (e) => {
-      const rect = zone.getBoundingClientRect();
-      if (rect.width <= 0) return;
+    const timeAt = (e) => {
+      const rect = strip.getBoundingClientRect();
+      if (rect.width <= 0 || !Number.isFinite(e.clientX)) return this._time;
       const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
       const raw = frac * this._duration;
-      this._time = snapTarget(raw) ?? raw;
+      return snapTarget(raw) ?? raw;
+    };
+    const peek = (e) => {
+      this._time = timeAt(e);
       this._restTime = this._time;
       this._renderScene();
       this._syncControls();
     };
-    track.addEventListener("pointerdown", (e) => {
+
+    strip.addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "mouse" || this._suppressHoverPeek) return;
+      this._peeking = true;
+      this._resumeOnLeave = this._playing;
+      strip.classList.add("peeking");
+      peek(e);
+    });
+    strip.addEventListener("pointermove", (e) => {
+      if (e.pointerType !== "mouse") return;
+      if (this._peeking || this._scrubbing) peek(e);
+      else cursor.style.left = `${((e.clientX - strip.getBoundingClientRect().left) / strip.getBoundingClientRect().width) * 100}%`;
+    });
+    strip.addEventListener("pointerdown", (e) => {
       try {
-        track.setPointerCapture(e.pointerId);
+        strip.setPointerCapture(e.pointerId);
       } catch {
-        // A detached/invalid pointer id (automation, edge teardown) must not
-        // abort the seek.
+        // An invalid pointer id (automation, edge teardown) must not abort.
       }
-      track.classList.add("scrubbing");
+      this._downX = e.clientX;
+      // Any press on the strip is a scrub until proven a tap at release —
+      // even while a previous resume suppressed hover peeking.
       this._scrubbing = true;
-      seekFromPointer(e);
+      if (e.pointerType === "mouse" && !this._peeking && !this._suppressHoverPeek) {
+        this._peeking = true;
+        this._resumeOnLeave = this._playing;
+        strip.classList.add("peeking");
+      }
+      peek(e);
       e.stopPropagation();
     });
-    track.addEventListener("pointermove", (e) => {
-      if (this._scrubbing) seekFromPointer(e);
+    strip.addEventListener("pointermove", (e) => {
+      if (!this._scrubbing && !this._peeking) return;
+      peek(e);
     });
-    const endScrub = (e) => {
-      if (!this._scrubbing) return;
+    const release = (e) => {
+      const wasScrub = this._scrubbing;
       this._scrubbing = false;
-      track.classList.remove("scrubbing");
-      seekFromPointer(e);
+      const wasTap = wasScrub && Math.abs(e.clientX - this._downX) <= 4;
+      if (!wasTap) return; // a drag just leaves the peeked position
+      if (e.pointerType === "mouse") {
+        if (this._playing) {
+          this._latched = true;
+          this.pause();
+        } else {
+          this._latched = false;
+          this.play();
+          // Keep playback observable while still hovering: no re-peek
+          // until the pointer leaves the strip.
+          this._suppressHoverPeek = true;
+          this._peeking = false;
+          strip.classList.remove("peeking");
+        }
+      } else if (this._playing) {
+        this._latched = true;
+        this.pause();
+      } else {
+        this._latched = false;
+        this.play();
+      }
     };
-    track.addEventListener("pointerup", endScrub);
-    track.addEventListener("pointercancel", endScrub);
-    track.addEventListener("keydown", (e) => {
+    strip.addEventListener("pointerup", release);
+    strip.addEventListener("pointercancel", release);
+    strip.addEventListener("pointerleave", (e) => {
+      if (e.pointerType !== "mouse") return;
+      strip.classList.remove("peeking");
+      const resume = this._peeking && this._resumeOnLeave && !this._latched;
+      this._peeking = false;
+      this._resumeOnLeave = false;
+      this._suppressHoverPeek = false;
+      if (resume) {
+        this.play();
+      } else {
+        this._renderScene();
+      }
+      this._syncControls();
+    });
+    strip.addEventListener("keydown", (e) => {
       const dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
       if (dir !== 0) {
         e.preventDefault();
@@ -836,11 +860,17 @@ class AmxPlayerElement extends HTMLElement {
       } else if (e.key === " " || e.key === "k") {
         e.preventDefault();
         e.stopPropagation();
-        this._playing ? this.pause() : this.play();
+        if (this._playing) {
+          this._latched = true;
+          this.pause();
+        } else {
+          this._latched = false;
+          this.play();
+        }
       }
     });
 
-    this._controls = { bar, btn, track, zone, fill, thumb, time, speed, icons: ICONS };
+    this._controls = { strip, fill, cursor, chip, speed };
     this._syncControls();
   }
 
@@ -869,32 +899,41 @@ class AmxPlayerElement extends HTMLElement {
   _syncControls() {
     const c = this._controls;
     if (!c) return;
-    const shown = Math.min(this._time, this._duration);
-    const frac = this._duration > 0 ? shown / this._duration : 0;
-    c.fill.style.transform = `scaleX(${frac})`;
-    c.thumb.style.left = `${frac * 100}%`;
-    c.time.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
-    c.track.setAttribute("aria-valuenow", shown.toFixed(1));
-    const want = this._playing ? c.icons.pause : c.icons.play;
-    if (c.btn.dataset.icon !== want) {
-      c.btn.dataset.icon = want;
-      c.btn.innerHTML = want;
-      c.btn.setAttribute("aria-label", this._playing ? "Pause" : "Play");
-    }
+    // The fill covers exactly the played fraction of the timeline — the same
+    // number the time chip shows, over the same width.
+    const frac = this._duration > 0 ? this._time / this._duration : 0;
+    c.fill.style.transform = `scaleX(${Math.min(frac, 1)})`;
+    c.chip.textContent = `${this._time.toFixed(1)} / ${this._duration.toFixed(1)}`;
+    c.strip.setAttribute("aria-valuenow", this._time.toFixed(1));
   }
 
-  /// Canvas gesture: the bar lives below the picture, so a tap maps straight
-  /// to play/pause — the same rule for mouse and touch, no reveal state.
+  /// Canvas gesture. A click pauses *latched*: leaving the strip afterwards
+  /// does not resume — only a click on the strip does (the inspection model).
+  /// An already-latched canvas click does nothing (that is the point of the
+  /// latch); a plain paused figure (no autoplay) resumes on click. Touch
+  /// behaves the same minus the hover machinery.
   _setupGestures() {
-    this._canvas.addEventListener("pointerdown", () => {
+    this._canvas.addEventListener("pointerdown", (e) => {
       if (!this._controls) return;
-      this._playing ? this.pause() : this.play();
+      if (this._playing) {
+        this._latched = true;
+        this.pause();
+      } else if (!this._latched) {
+        this.play();
+      }
+      e.preventDefault();
     });
     this._canvas.addEventListener("keydown", (e) => {
       if (!this._controls) return;
       if (e.key === " " || e.key === "k") {
         e.preventDefault();
-        this._playing ? this.pause() : this.play();
+        if (this._playing) {
+          this._latched = true;
+          this.pause();
+        } else {
+          this._latched = false;
+          this.play();
+        }
       }
     });
   }
@@ -937,9 +976,9 @@ class AmxPlayerElement extends HTMLElement {
   /// Called by the shared loop each frame. Returns whether it played.
   advance(dt) {
     if (!this._playing || !this._visible) return false;
-    // Scrubbing owns the playhead until release: the clock freezes and the
-    // dragged frame is what renders (seekFromPointer renders directly).
-    if (this._scrubbing) return false;
+    // Scrubbing or peeking owns the playhead: the clock freezes and the
+    // inspected frame is what renders (the strip's seek renders directly).
+    if (this._scrubbing || this._peeking) return false;
     const looping = this._looping();
     const limit = looping ? this._cycle : this._duration;
     this._time += dt * (this._rate ?? 1);

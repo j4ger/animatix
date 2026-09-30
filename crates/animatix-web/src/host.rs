@@ -534,7 +534,7 @@ fade-in pic [300ms]
             doc.result.markers
         );
         // Sorted, and all markers inside the document's duration.
-        let mut ts: Vec<f64> = doc.result.markers.iter().map(|m| m.t).collect();
+        let ts: Vec<f64> = doc.result.markers.iter().map(|m| m.t).collect();
         let mut sorted = ts.clone();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
         assert_eq!(ts, sorted);
