@@ -10,7 +10,12 @@
 //   loop       restart from the beginning at the end of the timeline
 //   hold       seconds to keep the finished timeline on screen before a looping
 //              restart (default 0.7; 0 loops with no rest at all)
-//   controls   show a minimal play/pause + scrub bar on hover
+//   controls   bottom control bar: play/pause, a seek scrubber (the loop's
+//              hold rest shown as a dimmed trailing segment), and a time read
+//              out. Auto-hides while playing; the canvas follows the media-
+//              player tap convention (first tap reveals, next toggles), with
+//              hover as a mouse bonus and keyboard on the scrubber
+//              (arrows seek, Space/K toggles, Home restarts).
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
@@ -97,6 +102,17 @@ const SAVE_DATA = navigator.connection?.saveData === true;
 // restart; it never exceeds a third of the cycle so the finished frame always
 // gets real rest time.
 const FADE_EACH = 0.28;
+
+// Control-bar glyphs (inline SVG, no deps). Shared by the bar's play/pause
+// button and the no-controls center affordance.
+const ICONS = {
+  play:
+    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
+  pause:
+    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4 2h3.6v14H4zM10.4 2H14v14h-3.6z"/></svg>',
+  playBig:
+    '<svg width="26" height="26" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
+};
 
 // ── shared engine loading ───────────────────────────────────────────
 
@@ -204,6 +220,9 @@ class AmxPlayerElement extends HTMLElement {
     this._visible = false;
     this._observer = null;
     this._initialized = false;
+    this._controlsVisible = false;
+    this._scrubbing = false;
+    this._hideTimer = null;
   }
 
   connectedCallback() {
@@ -217,6 +236,7 @@ class AmxPlayerElement extends HTMLElement {
     this._observer?.disconnect();
     instances.delete(this);
     this._playing = false;
+    if (this._hideTimer) clearTimeout(this._hideTimer);
   }
 
   attributeChangedCallback(name) {
@@ -314,22 +334,67 @@ class AmxPlayerElement extends HTMLElement {
       .playbtn {
         width: 52px; height: 52px; border-radius: 50%;
         border: 1px solid rgba(245,185,66,.5); background: rgba(245,185,66,.14);
-        color: #f5b942; font-size: 20px; cursor: pointer; display: none;
-        align-items: center; justify-content: center; padding-left: 4px;
+        color: #f5b942; cursor: pointer; display: none;
+        align-items: center; justify-content: center; padding: 0;
       }
       .playbtn.show { display: flex; }
-      .controls {
-        position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
-        display: none; align-items: center; gap: 10px; width: min(70%, 420px);
-        background: rgba(13,16,22,.66); border: 1px solid rgba(255,255,255,.12);
-        border-radius: 10px; padding: 6px 12px; backdrop-filter: blur(6px);
-        transition: opacity .25s; opacity: 0;
+      .playbtn svg { display: block; }
+      .scrim {
+        position: absolute; left: 0; right: 0; bottom: 0; height: 84px;
+        background: linear-gradient(transparent, rgba(5,8,12,.74));
+        opacity: 0; transition: opacity .25s; pointer-events: none;
       }
-      :host(:hover) .controls.show { opacity: 1; }
-      .controls input { flex: 1; accent-color: #f5b942; height: 3px; cursor: pointer; }
-      .controls button { background: none; border: none; color: #f5b942;
-                         cursor: pointer; font-size: 14px; width: 20px; }
-      .time { color: #8b96a7; font: 11px ui-monospace, monospace; white-space: nowrap; }
+      .scrim.show { opacity: 1; }
+      .bar {
+        position: absolute; left: 0; right: 0; bottom: 0;
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 12px 8px;
+        opacity: 0; pointer-events: none; transition: opacity .25s;
+      }
+      .bar.show { opacity: 1; pointer-events: auto; }
+      .bar button {
+        width: 40px; height: 40px; flex: none;
+        border: none; border-radius: 8px; background: none;
+        color: #e8edf4; cursor: pointer; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .bar button:hover { background: rgba(255,255,255,.14); }
+      .bar button:focus-visible { outline: 2px solid #f5b942; }
+      .bar svg { display: block; }
+      .track {
+        flex: 1; height: 32px; display: flex; align-items: stretch;
+        cursor: pointer; touch-action: none; border-radius: 6px;
+      }
+      .track:focus-visible { outline: 2px solid #f5b942; }
+      .track .zone, .track .rest { position: relative; display: flex; align-items: center; }
+      .track .rail {
+        position: relative; height: 4px; width: 100%;
+        border-radius: 2px; background: rgba(255,255,255,.24);
+        transition: height .12s;
+      }
+      .track:hover .rail, .track.scrubbing .rail { height: 7px; }
+      .track .rest .rail { background: rgba(255,255,255,.11); }
+      .track .fill {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
+        border-radius: 2px; background: #f5b942;
+        transform-origin: left; transform: scaleX(0);
+      }
+      .track .thumb {
+        position: absolute; top: 50%; width: 13px; height: 13px;
+        border-radius: 50%; background: #f5b942;
+        transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s;
+      }
+      .track:hover .thumb, .track.scrubbing .thumb, .track:focus-visible .thumb {
+        opacity: 1;
+      }
+      .time {
+        color: #c7cfd9; font: 12px ui-monospace, monospace; white-space: nowrap;
+        font-variant-numeric: tabular-nums; flex: none;
+      }
+      @media (pointer: coarse) {
+        .track { height: 40px; }
+        .bar button { width: 44px; height: 44px; }
+      }
     `;
     this.shadowRoot.replaceChildren(style);
     this._skeleton = document.createElement("div");
@@ -348,7 +413,7 @@ class AmxPlayerElement extends HTMLElement {
     this._playbtn = document.createElement("button");
     this._playbtn.className = "playbtn";
     this._playbtn.setAttribute("aria-label", "Play");
-    this._playbtn.textContent = "▶";
+    this._playbtn.innerHTML = ICONS.playBig;
     this._playbtn.addEventListener("click", () => this.play());
 
     this._controls = null;
@@ -575,9 +640,13 @@ class AmxPlayerElement extends HTMLElement {
       this._skeleton.remove();
       this._canvas.hidden = false;
       this.shadowRoot.appendChild(this._canvas);
-      this.shadowRoot.appendChild(this._playbtn);
+      if (this.hasAttribute("controls")) {
+        this._buildControls();
+        this._setupGestures();
+      } else {
+        this.shadowRoot.appendChild(this._playbtn);
+      }
       this.shadowRoot.appendChild(this._veil);
-      if (this.hasAttribute("controls")) this._buildControls();
       if (diags.length > 0) {
         console.warn(`amx-player: ${src} built with ${diags.length} diagnostic(s)`, diags[0]);
       }
@@ -586,6 +655,11 @@ class AmxPlayerElement extends HTMLElement {
       if (this._shouldAutoplay()) {
         this._loop = this.hasAttribute("loop");
         this.play();
+      } else if (this.hasAttribute("controls")) {
+        // Paused with a control bar: keep it up so the figure is operable.
+        this._controls.bar.classList.add("show");
+        this._controls.scrim.classList.add("show");
+        this._controlsVisible = true;
       } else {
         this._playbtn.classList.add("show");
       }
@@ -596,31 +670,178 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   _buildControls() {
-    const controls = document.createElement("div");
-    controls.className = "controls show";
+    const scrim = document.createElement("div");
+    scrim.className = "scrim";
+    const bar = document.createElement("div");
+    bar.className = "bar";
+
     const btn = document.createElement("button");
-    btn.textContent = "▶";
-    const scrub = document.createElement("input");
-    scrub.type = "range";
-    scrub.min = 0;
-    scrub.max = 1000;
-    scrub.value = 0;
+    btn.setAttribute("aria-label", "Play");
+    btn.innerHTML = ICONS.play;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this._playing ? this.pause() : this.play();
+    });
+
+    // The scrubber covers the timeline only; the loop's hold rest is a dimmed
+    // trailing segment sized proportionally, so the bar explains why a looping
+    // embed sits on its finished frame before restarting.
+    const track = document.createElement("div");
+    track.className = "track";
+    track.tabIndex = 0;
+    track.setAttribute("role", "slider");
+    track.setAttribute("aria-label", "Seek");
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", String(this._duration));
+    const zone = document.createElement("div");
+    zone.className = "zone";
+    zone.style.flexGrow = String(this._duration);
+    const rail = document.createElement("div");
+    rail.className = "rail";
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    const thumb = document.createElement("div");
+    thumb.className = "thumb";
+    rail.append(fill, thumb);
+    zone.append(rail);
+    const rest = document.createElement("div");
+    rest.className = "rest";
+    rest.style.flexGrow = String(this._holdSeconds);
+    const restRail = document.createElement("div");
+    restRail.className = "rail";
+    rest.append(restRail);
+    if (!(this._holdSeconds > 0)) rest.style.display = "none";
+
     const time = document.createElement("span");
     time.className = "time";
-    btn.addEventListener("click", () => (this._playing ? this.pause() : this.play()));
-    scrub.addEventListener("input", () => {
-      this._time = (Number(scrub.value) / 1000) * this._duration;
+
+    track.append(zone, rest);
+    bar.append(btn, track, time);
+    this.shadowRoot.append(scrim, bar);
+
+    // ── scrubbing: pointer capture, works for mouse and touch alike ──
+    const seekFromPointer = (e) => {
+      const rect = zone.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
+      this._time = frac * this._duration;
       this._restTime = this._time;
       this._renderScene();
-      this._updateTime(time);
+      this._syncControls();
+    };
+    track.addEventListener("pointerdown", (e) => {
+      try {
+        track.setPointerCapture(e.pointerId);
+      } catch {
+        // A detached/invalid pointer id (automation, edge teardown) must not
+        // abort the seek.
+      }
+      track.classList.add("scrubbing");
+      this._scrubbing = true;
+      seekFromPointer(e);
+      e.stopPropagation();
     });
-    controls.append(btn, scrub, time);
-    this.shadowRoot.appendChild(controls);
-    this._controls = { btn, scrub, time };
+    track.addEventListener("pointermove", (e) => {
+      if (this._scrubbing) seekFromPointer(e);
+    });
+    const endScrub = (e) => {
+      if (!this._scrubbing) return;
+      this._scrubbing = false;
+      track.classList.remove("scrubbing");
+      seekFromPointer(e);
+      this._scheduleHide();
+    };
+    track.addEventListener("pointerup", endScrub);
+    track.addEventListener("pointercancel", endScrub);
+    track.addEventListener("keydown", (e) => {
+      const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      if (step !== 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.seek(Math.min(Math.max(this._time + step, 0), this._duration));
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        this.seek(0);
+      } else if (e.key === " " || e.key === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        this._playing ? this.pause() : this.play();
+      }
+    });
+
+    this._controls = { scrim, bar, btn, track, zone, fill, thumb, time, icons: ICONS };
+    this._controlsVisible = false;
+    this._syncControls();
   }
 
-  _updateTime(el) {
-    if (el) el.textContent = `${this._time.toFixed(1)}s`;
+  /// Push the current time/state into the control bar. Called from the shared
+  /// rAF (`advance`) and from scrub/keyboard seeks; DOM writes are transform
+  /// and text only, so per-frame updates are cheap.
+  _syncControls() {
+    const c = this._controls;
+    if (!c) return;
+    const shown = Math.min(this._time, this._duration);
+    const frac = this._duration > 0 ? shown / this._duration : 0;
+    c.fill.style.transform = `scaleX(${frac})`;
+    c.thumb.style.left = `${frac * 100}%`;
+    c.time.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
+    c.track.setAttribute("aria-valuenow", shown.toFixed(1));
+    const want = this._playing ? c.icons.pause : c.icons.play;
+    if (c.btn.dataset.icon !== want) {
+      c.btn.dataset.icon = want;
+      c.btn.innerHTML = want;
+      c.btn.setAttribute("aria-label", this._playing ? "Pause" : "Play");
+    }
+  }
+
+  // ── control-bar visibility (YouTube-style, one model for mouse & touch) ──
+
+  _showControls() {
+    if (!this._controls) return;
+    this._controlsVisible = true;
+    this._controls.bar.classList.add("show");
+    this._controls.scrim.classList.add("show");
+    this._scheduleHide();
+  }
+
+  _hideControls() {
+    if (!this._controls) return;
+    // Paused figures keep their controls up — there is nothing else to do.
+    if (!this._playing || this._scrubbing) return;
+    this._controlsVisible = false;
+    this._controls.bar.classList.remove("show");
+    this._controls.scrim.classList.remove("show");
+  }
+
+  _scheduleHide() {
+    if (this._hideTimer) clearTimeout(this._hideTimer);
+    if (!this._playing || this._scrubbing) return;
+    this._hideTimer = setTimeout(() => this._hideControls(), 2500);
+  }
+
+  /// Canvas gesture: first tap reveals the bar, the next one toggles playback.
+  /// The same rule covers mouse and touch; on PC, moving the pointer also
+  /// reveals (hover is a bonus, not the mechanism).
+  _setupGestures() {
+    this._canvas.addEventListener("pointerdown", () => {
+      if (!this._controls) return;
+      if (!this._controlsVisible) {
+        this._showControls();
+        return;
+      }
+      this._playing ? this.pause() : this.play();
+    });
+    this._canvas.addEventListener("pointermove", (e) => {
+      if (this._controls && e.pointerType === "mouse" && this._playing) this._scheduleHide();
+      if (this._controls && !this._controlsVisible) this._showControls();
+    });
+    this._canvas.addEventListener("keydown", (e) => {
+      if (!this._controls) return;
+      if (e.key === " " || e.key === "k") {
+        e.preventDefault();
+        this._playing ? this.pause() : this.play();
+      }
+    });
   }
 
   // ── public API ──────────────────────────────────────────────────
@@ -631,20 +852,33 @@ class AmxPlayerElement extends HTMLElement {
     if (!this._looping() && this._time >= this._duration) this._time = 0;
     this._playing = true;
     this._playbtn.classList.remove("show");
-    if (this._controls) this._controls.btn.textContent = "⏸";
+    this._syncControls();
     instances.add(this);
     ensureLoop();
+    this._scheduleHide();
   }
 
   pause() {
     this._playing = false;
     instances.delete(this);
     if (this._state === "ready") {
-      if (this.hasAttribute("controls") || !this.hasAttribute("autoplay")) {
+      if (!this._controls || !this.hasAttribute("autoplay")) {
         this._playbtn.classList.add("show");
       }
-      if (this._controls) this._controls.btn.textContent = "▶";
+      this._syncControls();
+      if (this._controls) this._showControls();
     }
+  }
+
+  /// Jump to `time` (seconds within the timeline) and show the frame. Keeps
+  /// the playing state; the shared loop resumes from here.
+  seek(time) {
+    if (this._state !== "ready") return;
+    this._time = Math.min(Math.max(time, 0), this._duration);
+    this._restTime = this._time;
+    this._renderScene();
+    this._syncControls();
+    if (this._controls) this._showControls();
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
@@ -665,12 +899,7 @@ class AmxPlayerElement extends HTMLElement {
       }
     }
     this._renderScene();
-    if (this._controls) {
-      this._controls.scrub.value = Math.round(
-        (Math.min(this._time, this._duration) / this._duration) * 1000,
-      );
-      this._updateTime(this._controls.time);
-    }
+    if (this._controls) this._syncControls();
     return true;
   }
 
