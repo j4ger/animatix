@@ -5,9 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>The Transformer Architecture, Animated — an .amx walkthrough</title>
   <meta name="description" content="A picture-first walkthrough of the transformer block: seven animated .amx figures with the prose to read alongside them — tokens, positions, attention, heads, the feed-forward block, and the stack.">
-  <link rel="stylesheet" href="../../demo.css">
+  <link rel="stylesheet" href="../../site.css">
 </head>
 <body>
+  <nav class="site">
+    <div class="site-inner">
+      <a class="wordmark" href="../../index.html">Animatix<i>.</i></a>
+      <div class="site-links">
+        <a href="../../index.html">Home</a>
+        <a href="../../tour/">Language</a>
+        <a href="../../gallery.html">Gallery</a>
+        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="wrap">
     <header>
       <p class="kicker">Animatix demo · every figure is a .amx file</p>
@@ -40,7 +52,7 @@
       </p>
       <ul class="meta">
         <li>7 scenes</li>
-        <li>one 1.1 MB engine (brotli) shared by all seven</li>
+        <li>one slim engine shared by all seven (~1.1 MB brotli, ~5 MB raw)</li>
         <li>hover a figure to pause or scrub it</li>
       </ul>
     </header>
@@ -520,7 +532,8 @@
       <p>
         The scenes use plain text only, so the page serves the playback-only
         <code class="inline">pkg-slim</code> profile instead of the full engine —
-        1.1 MB against 7.8 MB over the wire. The full profile is only needed for
+        about 1.1 MB brotli (5 MB raw on hosts without brotli, like GitHub
+        Pages) against 29 MB. The full profile is only needed for
         Typst markup, equations and image or SVG assets.
       </p>
       <p>
@@ -549,7 +562,8 @@
     <footer>
       <span>Built with <strong style="color:var(--dim)">Animatix</strong> — a layout-first animation DSL.</span>
       <span>
-        <a href="../../index.html">Player home</a> ·
+        <a href="../../">Site home</a> ·
+        <a href="../../gallery.html">Scene gallery</a> ·
         <a href="../../README.md">web/README</a> ·
         <a href="scenes/">all scenes</a>
       </span>

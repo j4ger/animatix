@@ -1,0 +1,41 @@
+// morph.amx — tour §04: re-declaration morphing with strategies.
+// Adapted from examples/animation/05_morph.amx.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 9.2 }
+
+circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)
+rect: Rect, size: (140, 140), color: accent.success, at: (640, 360)
+poly: Polygon, points: {(0, -70), (70, 0), (0, 70), (-70, 0)}, color: accent.warning, at: (960, 360)
+
+#0.5s
+stagger [100ms] {
+  fade-in circle [500ms, ease: ease-out]
+  fade-in rect [500ms, ease: ease-out]
+  fade-in poly [500ms, ease: ease-out]
+}
+
+// Circle → Rect with auto strategy
+#2s
+circle: Rect, size: (140, 140), color: accent.danger, at: (320, 360) [1s, strategy: auto]
+
+// Rect → Ellipse with match strategy
+#3.5s
+rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+
+// Diamond → star with a path-arc hint
+#5s
+poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
+
+// Rect (now) → diamond with fade strategy
+#6.5s
+circle: Polygon, points: {(0, -75), (75, 0), (0, 75), (-75, 0)}, color: accent.primary, at: (320, 360) [1s, strategy: fade]
+
+// Ellipse (now) → trapezoid with stretch normalization
+#6.8s
+rect: Path, commands: {move_to(-80, -45), line_to(80, -45), line_to(55, 45), line_to(-55, 45), close()}, color: accent.danger, at: (640, 360) [1s, stretch: true]
+
+// Unify colors as a finale
+#8s
+circle.color = accent.warning [800ms]
+rect.color = accent.warning [800ms]
+poly.color = accent.warning [800ms]

@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scene Gallery — .amx scenes in the browser</title>
+  <meta name="description" content="Seven declarative .amx scenes playing in the browser through the Animatix WebGPU engine — one custom element embeds any of them.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./site.css">
+</head>
+<body>
+
+  <nav class="site">
+    <div class="site-inner">
+      <a class="wordmark" href="./index.html">Animatix<i>.</i></a>
+      <div class="site-links">
+        <a href="./tour/">Language</a>
+        <a href="./index.html">Home</a>
+        <a href="./demos/transformer/">Transformer</a>
+        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix · scene gallery</p>
+      <h1>Seven scenes, one engine</h1>
+      <p class="lede">
+        Every figure below is a small declarative scene file rendered by the
+        same engine as the desktop app. Embed one anywhere with a single
+        <code class="inline">&lt;amx-player src="…"&gt;</code> element — no
+        editor, no backend, no build step.
+      </p>
+      <ul class="meta">
+        <li>7 scenes</li>
+        <li>one engine download for the whole page</li>
+        <li>plain text scenes only</li>
+      </ul>
+    </header>
+
+    <div class="gallery">
+      <figure>
+        <h3>The whole architecture</h3>
+        <amx-player src="./demos/transformer/scenes/overview.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="The full transformer, one map"></amx-player>
+        <figcaption>
+          <span class="cap">Tokens climb one block (repeated × N) to the LM
+            head; the chosen word loops back into the input.</span>
+          <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Tokens &amp; embeddings</h3>
+        <amx-player src="./demos/transformer/scenes/tokens.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Tokens and embeddings"></amx-player>
+        <figcaption>
+          <span class="cap">Text becomes tokens; each token becomes a column of
+            learned numbers.</span>
+          <a class="src" href="./demos/transformer/scenes/tokens.amx">tokens.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Positional encoding</h3>
+        <amx-player src="./demos/transformer/scenes/positional.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Positional encoding"></amx-player>
+        <figcaption>
+          <span class="cap">Each row is a sine of twice the period above it.</span>
+          <a class="src" href="./demos/transformer/scenes/positional.amx">positional.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Self-attention</h3>
+        <amx-player src="./demos/transformer/scenes/attention.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Scaled dot-product attention"></amx-player>
+        <figcaption>
+          <span class="cap">One weight carries almost all of the answer.</span>
+          <a class="src" href="./demos/transformer/scenes/attention.amx">attention.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Multi-head attention</h3>
+        <amx-player src="./demos/transformer/scenes/multihead.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Multiple attention heads"></amx-player>
+        <figcaption>
+          <span class="cap">Three heads, three attention patterns, one output vector.</span>
+          <a class="src" href="./demos/transformer/scenes/multihead.amx">multihead.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Feed-forward &amp; residuals</h3>
+        <amx-player src="./demos/transformer/scenes/feedforward.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Feed-forward block with residuals"></amx-player>
+        <figcaption>
+          <span class="cap">The rail runs straight through; the arcs are what gets added.</span>
+          <a class="src" href="./demos/transformer/scenes/feedforward.amx">feedforward.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Stacking the blocks</h3>
+        <amx-player src="./demos/transformer/scenes/pipeline.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="The full transformer stack"></amx-player>
+        <figcaption>
+          <span class="cap">Same weights in every block, new meaning at every level.</span>
+          <a class="src" href="./demos/transformer/scenes/pipeline.amx">pipeline.amx ↗</a>
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="howto">
+      <h2>Embedding a scene</h2>
+      <p>
+        The seven figures above come from
+        <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>,
+        which explains them one at a time. Each scene source is a plain text file.
+      </p>
+      <pre>&lt;script type="module" src="./embed/amx-player.js"
+        data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
+
+&lt;amx-player src="./scenes/attention.amx" autoplay loop
+            hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
+      <p style="margin-bottom:0">
+        <code class="inline">data-runtime-base</code> on the loader script picks
+        which engine profile to serve. These scenes use plain text only, so the
+        page serves <code class="inline">pkg-slim</code> — the full profile is
+        only needed for Typst markup, equations and image/SVG assets.
+        <a href="./README.md">web/README.md</a> has the hosting notes.
+      </p>
+    </div>
+
+    <footer>
+      <span>Built with <strong style="color:var(--dim)">Animatix</strong> — a layout-first animation DSL.</span>
+      <span>
+        <a href="./tour/">Language tour</a> ·
+        <a href="./demos/transformer/index.html">Transformer walkthrough</a> ·
+        <a href="./README.md">web/README</a>
+      </span>
+    </footer>
+  </div>
+
+  <script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"></script>
+</body>
+</html>

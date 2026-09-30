@@ -3,141 +3,190 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Animatix Player — .amx scenes in the browser</title>
-  <meta name="description" content="A WebGPU player for Animatix .amx scenes, embeddable in any page with one custom element.">
+  <title>Animatix — a declarative animation language</title>
+  <meta name="description" content="Animatix is a declarative animation language and Rust rendering engine for explanatory animation — math, diagrams, and vector motion — on the desktop and in the browser over WebGPU.">
+  <meta property="og:title" content="Animatix — a declarative animation language">
+  <meta property="og:description" content="Write explanatory animation as text. A layout-first timeline engine and a GPU renderer do the rest — CLI, desktop studio, video export, and a 5 MB WebGPU wasm for the browser.">
+  <meta property="og:image" content="https://j4ger.github.io/animatix/assets/og.png">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="./demo.css">
+  <link rel="stylesheet" href="./site.css">
 </head>
 <body>
+
+  <nav class="site">
+    <div class="site-inner">
+      <a class="wordmark" href="./index.html">Animatix<i>.</i></a>
+      <div class="site-links">
+        <a href="./tour/">Language</a>
+        <a href="./gallery.html">Gallery</a>
+        <a href="./demos/transformer/">Transformer</a>
+        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
   <div class="wrap">
-    <header>
-      <p class="kicker">Animatix · WebGPU player</p>
-      <h1>Play <code class="inline">.amx</code> scenes in the browser</h1>
+
+    <div class="hero-band">
+      <p class="kicker">Animatix · a declarative animation language</p>
+      <h1>Explanatory animation,<br>written as text.</h1>
       <p class="lede">
-        Every animation below is a small declarative scene file rendered by the
-        same engine as the desktop app. Embed one anywhere with a single
-        <code class="inline">&lt;amx-player src="…"&gt;</code> element — no
-        editor, no backend, no build step.
+        Animatix is a small language and a Rust rendering engine for
+        explanatory animation — math, diagrams, vector motion. You describe
+        scenes in a <code class="inline">.amx</code> file; a layout-first
+        timeline and a GPU renderer do the rest, on the desktop and in the
+        browser.
       </p>
       <ul class="meta">
-        <li>7 scenes</li>
-        <li>one engine download for the whole page</li>
-        <li>plain text scenes only</li>
+        <li>Rust · Vello / WebGPU</li>
+        <li>31 primitives · 13 GPU effects · 19 actions</li>
+        <li>MIT licensed</li>
       </ul>
-    </header>
-
-    <div class="gallery">
-      <figure>
-        <h3>The whole architecture</h3>
-        <amx-player src="./demos/transformer/scenes/overview.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="The full transformer, one map"></amx-player>
-        <figcaption>
-          <span class="cap">Tokens climb one block (repeated × N) to the LM
-            head; the chosen word loops back into the input.</span>
-          <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
-        </figcaption>
-      </figure>
 
       <figure>
-        <h3>Tokens &amp; embeddings</h3>
-        <amx-player src="./demos/transformer/scenes/tokens.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Tokens and embeddings"></amx-player>
+        <amx-player src="./scenes/hero.amx" autoplay loop controls hold="2"
+                    aspect="16:9" title="Animatix — a declarative animation language"></amx-player>
         <figcaption>
-          <span class="cap">Text becomes tokens; each token becomes a column of
-            learned numbers.</span>
-          <a class="src" href="./demos/transformer/scenes/tokens.amx">tokens.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <h3>Positional encoding</h3>
-        <amx-player src="./demos/transformer/scenes/positional.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Positional encoding"></amx-player>
-        <figcaption>
-          <span class="cap">Each row is a sine of twice the period above it.</span>
-          <a class="src" href="./demos/transformer/scenes/positional.amx">positional.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <h3>Self-attention</h3>
-        <amx-player src="./demos/transformer/scenes/attention.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Scaled dot-product attention"></amx-player>
-        <figcaption>
-          <span class="cap">One weight carries almost all of the answer.</span>
-          <a class="src" href="./demos/transformer/scenes/attention.amx">attention.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <h3>Multi-head attention</h3>
-        <amx-player src="./demos/transformer/scenes/multihead.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Multiple attention heads"></amx-player>
-        <figcaption>
-          <span class="cap">Three heads, three attention patterns, one output vector.</span>
-          <a class="src" href="./demos/transformer/scenes/multihead.amx">multihead.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <h3>Feed-forward &amp; residuals</h3>
-        <amx-player src="./demos/transformer/scenes/feedforward.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Feed-forward block with residuals"></amx-player>
-        <figcaption>
-          <span class="cap">The rail runs straight through; the arcs are what gets added.</span>
-          <a class="src" href="./demos/transformer/scenes/feedforward.amx">feedforward.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <h3>Stacking the blocks</h3>
-        <amx-player src="./demos/transformer/scenes/pipeline.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="The full transformer stack"></amx-player>
-        <figcaption>
-          <span class="cap">Same weights in every block, new meaning at every level.</span>
-          <a class="src" href="./demos/transformer/scenes/pipeline.amx">pipeline.amx ↗</a>
+          <span class="cap"><b>This plate is not a video.</b> It is
+            <a href="./scenes/hero.amx">a .amx scene file</a> the engine compiles
+            in your browser (WebGPU) as you read — title type, a drawn
+            underline, three shapes morphing, one ball riding
+            <code class="inline">ease: bounce</code>.</span>
+          <a class="src" href="./scenes/hero.amx">scenes/hero.amx ↗</a>
         </figcaption>
       </figure>
     </div>
 
-    <div class="howto">
-      <h2>Embedding a scene</h2>
+    <section id="language">
+      <div class="sec-head"><span class="sec-num">01</span><h2>One small language</h2></div>
       <p>
-        The seven figures above come from
-        <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>,
-        which explains them one at a time. Each scene source is a plain text file.
+        An actor is one line. A keyframe is one line. Choreography reads the
+        way you would describe it out loud — entrance, transform, move — with
+        durations and eases attached inline. The whole sample below plays as a
+        scene:
       </p>
-      <pre>&lt;script type="module" src="./embed/amx-player.js"
-        data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
+      <pre><span class="cmt">// one actor, three lines of choreography</span>
+box: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">640</span>, <span class="num">360</span>)
 
-&lt;amx-player src="./scenes/attention.amx" autoplay loop
-            hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
-      <p style="margin-bottom:0">
-        <code class="inline">data-runtime-base</code> on the loader script picks
-        which engine profile to serve. These scenes use plain text only, so the
-        page serves <code class="inline">pkg-slim</code> — the full profile is
-        only needed for Typst markup, equations and image/SVG assets.
-        <a href="./README.md">web/README.md</a> has the hosting notes.
+<span class="at">#0.5s</span>
+<span class="kw">fade-in</span> box [<span class="num">600ms</span>, ease: <span class="str">ease-out</span>]
+
+<span class="at">#1.5s</span>
+box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <span class="num">90</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]
+
+<span class="at">#3.0s</span>
+<span class="kw">shift</span> box [by: (<span class="num">200</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</pre>
+      <p>
+        Underneath sits a real language: <strong>typed actors</strong>,
+        <strong>components</strong> with parameters and slots, <strong>modules</strong>
+        with imports and namespaces, closures and <code class="inline">always</code>
+        blocks for per-frame expressions, and a multi-scene format whose cuts
+        are GPU transitions. <a href="./tour/">The language tour walks all of it</a>.
       </p>
-    </div>
+    </section>
+
+    <section id="inside">
+      <div class="sec-head"><span class="sec-num">02</span><h2>What's inside</h2></div>
+      <div class="grid features">
+        <div class="feature">
+          <p class="stat">31</p>
+          <h3>Primitives</h3>
+          <p>Shapes, text, plots, containers — from <code class="inline">Rect</code> and bezier <code class="inline">Path</code> to <code class="inline">PlotCurve</code>, <code class="inline">NumberPlane</code> and <code class="inline">Heatmap</code>, all with layout anchors.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">13</p>
+          <h3>GPU effects</h3>
+          <p><code class="inline">Blur</code>, <code class="inline">MotionBlur</code>, <code class="inline">Vignette</code>, <code class="inline">ColorGrade</code>… declared as labelled chains in a <code class="inline">Filter</code> scope — keyframeable, nestable.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">19</p>
+          <h3>Built-in actions</h3>
+          <p><code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">wipe-in</code>, <code class="inline">shake</code>, <code class="inline">highlight</code>, <code class="inline">swap</code> — the verbs of explanation, plus morph re-declarations.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">Typst</p>
+          <h3>Text &amp; math</h3>
+          <p>Equations, syntax-highlighted code and styled text typeset through a Typst-powered text compiler; SVG and raster images drop in as actors.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">IR</p>
+          <h3>Expressions, reactive</h3>
+          <p>Closures, <code class="inline">match</code>, lists, compile-time <code class="inline">for</code> — and <code class="inline">always</code> blocks that re-evaluate per frame for orbits, probing and generative motion.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">N</p>
+          <h3>Scenes &amp; transitions</h3>
+          <p>Multi-scene documents where the cuts are GPU blends — fade, four wipes, cut — with actors that persist across scenes.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">LSP</p>
+          <h3>Real tooling</h3>
+          <p>Formatter, checker with named diagnostics, analyzer, LSP server, and a native plugin ABI. It is a language, not a config file.</p>
+        </div>
+        <div class="feature">
+          <p class="stat">wasm</p>
+          <h3>In the browser</h3>
+          <p>The same engine compiles to a WebGPU wasm module; one <code class="inline">&lt;amx-player&gt;</code> tag embeds a scene in any page — like every figure on this site.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="demos">
+      <div class="sec-head"><span class="sec-num">03</span><h2>See it move</h2></div>
+      <div class="cards demos">
+        <a class="demo-card" href="./demos/transformer/">
+          <p class="demo-kicker">Flagship walkthrough</p>
+          <h3>The Transformer Architecture, Animated</h3>
+          <p>Seven live figures that build the transformer block piece by piece — tokens, positions, attention, heads, FFN, the stack — each one a declarative scene compiling as you read.</p>
+          <span class="open">Read the walkthrough →</span>
+        </a>
+        <a class="demo-card" href="./gallery.html">
+          <p class="demo-kicker">Scene gallery</p>
+          <h3>Seven scenes, one engine</h3>
+          <p>Short scenes showing entrances, morphs, attention bars and plots — playable right on the page, with every scene's source one click away.</p>
+          <span class="open">Open the gallery →</span>
+        </a>
+        <a class="demo-card" href="./tour/">
+          <p class="demo-kicker">Language tour</p>
+          <h3>What the language can do</h3>
+          <p>Ten short sections from actors and keyframes to effects, plots, reactive expressions, components and the toolchain — code beside every demo.</p>
+          <span class="open">Take the tour →</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="quickstart" id="start">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Try it</h2></div>
+      <div class="cols">
+        <pre><span class="cmt"># render a frame / a film</span>
+cargo run -p animatix-cli -- image examples/basics/00_hello.amx -o hello.png
+cargo run -p animatix-cli --features video -- video examples/gallery/epicycles.amx
+
+<span class="cmt"># or open the desktop studio</span>
+cargo run -p animatix-gui</pre>
+        <div class="note">
+          <p><strong>Read the language:</strong>
+            <a href="https://github.com/j4ger/animatix/blob/main/docs/spec.md">docs/spec.md</a> — the full specification,
+            <a href="https://github.com/j4ger/animatix/blob/main/docs/primitives.md">docs/primitives.md</a> — the actor catalog.</p>
+          <p><strong>Learn by example:</strong>
+            <a href="https://github.com/j4ger/animatix/tree/main/examples">62 runnable .amx files</a>, from a hello card to a Fourier-epicycles story.</p>
+          <p><strong>Embed on the web:</strong>
+            <a href="./README.md">web/README.md</a> — the <code class="inline">&lt;amx-player&gt;</code> attribute reference and hosting notes.</p>
+        </div>
+      </div>
+    </section>
 
     <footer>
-      <span>Built with <strong style="color:var(--dim)">Animatix</strong> — a layout-first animation DSL.</span>
+      <span>Animatix — a layout-first animation DSL. MIT licensed.</span>
       <span>
-        <a href="./demos/transformer/index.html">Transformer walkthrough</a> ·
-        <a href="./demos/multi-probe.html">QA page</a> ·
-        <a href="./README.md">web/README</a>
+        <a href="./tour/">Language</a> ·
+        <a href="./gallery.html">Gallery</a> ·
+        <a href="./demos/transformer/">Transformer</a> ·
+        <a href="https://github.com/j4ger/animatix">GitHub</a>
       </span>
     </footer>
   </div>
 
-  <script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"></script>
+  <script type="module" src="./embed/amx-player.js"></script>
 </body>
 </html>

@@ -1,0 +1,38 @@
+// plots.amx — tour §07: plots are actors; a curve traces itself with
+// stroke_progress, a vector field fades in beside it.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.5 }
+
+title: Text, text: "Plots are actors too", font_size: 32, color: text.primary,
+  anchor: scene.top, offset: (0, 56)
+
+main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (640, 420), at: (450, 400) {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x),
+    color: accent.primary, stroke_width: 3, stroke_progress: 0
+}
+
+field: VectorField, func: (x, y) => (cos(x) * cos(y), -sin(x) * sin(y)),
+  density: 9, color: accent.success, x_domain: (-2, 2), y_domain: (-2, 2),
+  at: (1070, 400), size: (230, 230)
+
+cap1: Text, text: "stroke_progress traces the curve", font_size: 16,
+  color: text.muted, anchor: scene.bottom, offset: (-270, -40)
+cap2: Text, text: "the gradient field of sin(x)cos(y)", font_size: 16,
+  color: text.muted, at: (1070, 555)
+
+#0.4s
+fade-in title [600ms, ease: ease-out]
+
+#1.0s
+fade-in main [600ms, ease: ease-out]
+
+#1.8s
+fade-in sine [300ms]
+sine.stroke_progress = 1.0 [2.4s, ease: ease-in-out]
+
+#4.6s
+fade-in field [600ms, ease: ease-out]
+fade-in cap2 [400ms]
+
+#2.6s
+fade-in cap1 [400ms]

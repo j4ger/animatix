@@ -1,0 +1,63 @@
+// hero.amx — the homepage plate.
+//
+// One loop that touches the vocabulary the site sells: a title set in type,
+// an underline that draws itself, a staggered row of shapes that morph into
+// each other, and a ball that crosses on `bounce`. Plain text and vector
+// shapes only, so the slim engine plays it.
+//
+// Layout rule observed: every actor below is declared before the first
+// keyframe with no explicit opacity, so each one is revealed by its own
+// entrance action (see docs/spec.md — hidden-by-default seeding).
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 9.0 }
+
+wordmark: Text, text: "Animatix", font_size: 104, color: text.primary,
+  anchor: scene.center, offset: (0, -50)
+
+underline: Path,
+  commands: {move_to(-180, 0), line_to(180, 0)},
+  stroke: accent.primary, stroke_width: 5, fill_opacity: 0.0,
+  anchor: scene.center, offset: (0, 16)
+
+tagline: Text, text: "a declarative animation language", font_size: 26,
+  color: text.secondary, anchor: scene.center, offset: (0, 84)
+
+s1: Rect, size: (54, 54), color: accent.primary, at: (500, 570)
+s2: Ellipse, size: (54, 54), color: accent.success, at: (640, 570)
+s3: Polygon, points: {(0, -31), (31, 0), (0, 31), (-31, 0)}, color: accent.warning, at: (780, 570)
+
+ease_note: Text, text: "ease: bounce", font_size: 16, color: text.muted,
+  anchor: scene.center, offset: (-420, 250)
+
+ball: Ellipse, size: (18, 18), color: accent.danger, at: (200, 645)
+
+#0.2s
+draw-in underline [900ms, ease: ease-out]
+
+#0.6s
+fade-in wordmark [800ms, ease: ease-out]
+
+#1.2s
+fade-in tagline [700ms, ease: ease-out]
+
+#1.8s
+stagger [140ms] {
+  fade-in s1 [500ms, ease: ease-out]
+  fade-in s2 [500ms, ease: ease-out]
+  fade-in s3 [500ms, ease: ease-out]
+}
+
+// One round of shape-shifting: diamond into circle, circle into diamond.
+#3.4s
+s1: Polygon, points: {(0, -31), (31, 0), (0, 31), (-31, 0)}, color: accent.warning [900ms, path_arc: 0.3]
+s2: Rect, size: (54, 54), color: accent.primary [900ms, strategy: auto]
+
+#5.0s
+s3: Ellipse, size: (54, 54), color: accent.success [900ms, strategy: match]
+
+#6.4s
+fade-in ease_note [400ms]
+fade-in ball [300ms]
+
+#6.9s
+ball.at = (1080, 645) [1.7s, ease: bounce]

@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Language — an Animatix tour</title>
+  <meta name="description" content="A ten-section tour of the .amx language: actors and keyframes, timing and easing, motion actions, morphing, GPU filters, text and math, plots, reactive expressions, components and modules, scenes and tooling.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+  <nav class="site">
+    <div class="site-inner">
+      <a class="wordmark" href="../index.html">Animatix<i>.</i></a>
+      <div class="site-links">
+        <a href="../index.html">Home</a>
+        <a href="../gallery.html">Gallery</a>
+        <a href="../demos/transformer/">Transformer</a>
+        <a href="https://github.com/j4ger/animatix">GitHub ↗</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix · the language</p>
+      <h1>Ten scenes, start to finish</h1>
+      <p class="lede">
+        Every capability of <code class="inline">.amx</code>, one short section
+        at a time. Each figure is a live scene compiling in your browser as you
+        read (WebGPU), with the code that drives it beside it; where a figure
+        needs the full engine's typesetting, it is a rendered still with its
+        scene source linked.
+      </p>
+      <ul class="meta">
+        <li>9 live scenes + 1 still</li>
+        <li>one slim engine download for the whole page</li>
+        <li>hover a figure to pause or scrub it</li>
+      </ul>
+    </header>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>Actors &amp; keyframes</a></li>
+        <li><a href="#s2"><span class="n">02</span>Timing: sequence, stagger, easing</a></li>
+        <li><a href="#s3"><span class="n">03</span>Motion actions</a></li>
+        <li><a href="#s4"><span class="n">04</span>Morphing</a></li>
+        <li><a href="#s5"><span class="n">05</span>GPU filters &amp; effects</a></li>
+        <li><a href="#s6"><span class="n">06</span>Text &amp; math</a></li>
+        <li><a href="#s7"><span class="n">07</span>Plots &amp; data</a></li>
+        <li><a href="#s8"><span class="n">08</span>Reactive expressions</a></li>
+        <li><a href="#s9"><span class="n">09</span>Components &amp; modules</a></li>
+        <li><a href="#s10"><span class="n">10</span>Scenes, transitions, tooling</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Actors &amp; keyframes</h2></div>
+      <p>
+        A scene is a list of <strong>actors</strong> — one per line, a type and
+        properties — and a list of <strong>keyframes</strong>. A keyframe stamp
+        (<code class="inline">#1.6s</code>) starts a beat; assignments animated
+        with a <code class="inline">[duration]</code> interpolate from the
+        previous beat. Relative stamps (<code class="inline">#+1s</code>)
+        chain off the last beat.
+      </p>
+      <pre><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">400</span>, <span class="num">440</span>)
+
+<span class="at">#1.6s</span>
+box.at = (<span class="num">640</span>, <span class="num">440</span>) [<span class="num">900ms</span>, ease: <span class="str">ease-in-out</span>]
+
+<span class="at">#2.9s</span>
+box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/syntax.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Actors and keyframes"></amx-player>
+        <figcaption>
+          <span class="cap">One rect: fades in, eases across, resizes and
+            recolors; a dot lands on it with <code class="inline">ease: bounce</code>.</span>
+          <a class="src" href="scenes/syntax.amx">scenes/syntax.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Timing: sequence, stagger, easing</h2></div>
+      <p>
+        Choreography blocks compose actions: <code class="inline">stagger</code>
+        overlaps a group on a delay curve, <code class="inline">sequence</code>
+        runs it back to back. Every animated assignment takes a named ease —
+        or an easing <em>function</em> when you outgrow the names.
+      </p>
+      <pre><span class="at">#0.5s</span>
+<span class="kw">stagger</span> [<span class="num">120ms</span>] {
+  <span class="kw">fade-in</span> a [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
+  <span class="kw">fade-in</span> b [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
+  <span class="cmt">// …</span>
+}
+
+<span class="at">#5s</span>
+e.color = <span class="prop">accent.danger</span> [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Sequence, stagger and easing"></amx-player>
+        <figcaption>
+          <span class="cap">Five squares stagger in, grow in sequence, then the
+            same recolor plays five named eases — linear through bounce.</span>
+          <a class="src" href="scenes/timing.amx">scenes/timing.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Motion actions</h2></div>
+      <p>
+        Common verbs are built in — <code class="inline">shift</code>,
+        <code class="inline">rotate</code>, <code class="inline">scale</code>,
+        <code class="inline">shake</code>, <code class="inline">pulse</code> —
+        so the choreography of an explanation is one line per move. Entrances
+        and exits (<code class="inline">fade-in</code>,
+        <code class="inline">draw-in</code>, <code class="inline">wipe-in</code>,
+        <code class="inline">reveal-in</code> and their <code class="inline">-out</code>
+        twins) gate opacity, strokes and fills.
+      </p>
+      <pre><span class="at">#1.5s</span>
+<span class="kw">shift</span> actor [by: (<span class="num">180</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]
+
+<span class="at">#2.5s</span>
+<span class="kw">rotate</span> actor [by: <span class="fn">deg</span>(<span class="num">90</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]
+
+<span class="at">#3.5s</span>
+<span class="kw">scale</span> actor [by: <span class="num">1.4</span>, <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/actions.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Motion actions and an always-driven satellite"></amx-player>
+        <figcaption>
+          <span class="cap">A square runs shift → rotate → scale → recolor while
+            a satellite rides an <code class="inline">always</code> orbit — see
+            §08.</span>
+          <a class="src" href="scenes/actions.amx">scenes/actions.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Morphing</h2></div>
+      <p>
+        Re-declaring an actor at a later keyframe morphs it — shape to shape,
+        with <strong>strategies</strong>: <code class="inline">auto</code>,
+        <code class="inline">match</code> (match by vertex),
+        <code class="inline">fade</code>, or a <code class="inline">path_arc</code>
+        hint for the travel, plus <code class="inline">stretch</code> for
+        normalization. Paths morph through their control points.
+      </p>
+      <pre><span class="at">#2s</span>
+circle: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.danger</span> [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
+
+<span class="at">#5s</span>
+poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">80</span>), (<span class="num">20</span>, -<span class="num">25</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/morph.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Shape morphing strategies"></amx-player>
+        <figcaption>
+          <span class="cap">Circle to rect to star to diamond to trapezoid — a
+            different morph strategy each beat, then the colors unify.</span>
+          <a class="src" href="scenes/morph.amx">scenes/morph.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s5">
+      <div class="sec-head"><span class="sec-num">05</span><h2>GPU filters &amp; effects</h2></div>
+      <p>
+        Effects are declared as labelled children of a
+        <code class="inline">Filter</code> scope and run in application order;
+        their parameters are ordinary properties, so they <strong>keyframe
+        like everything else</strong>. Thirteen ship built in —
+        <code class="inline">Blur</code>, <code class="inline">ColorGrade</code>,
+        <code class="inline">Vignette</code>, <code class="inline">MotionBlur</code>,
+        <code class="inline">DropShadow</code>… — each a small WGSL program.
+      </p>
+      <pre>panel: <span class="prop">Filter</span>, anchor: scene.center {
+  soft: <span class="prop">Blur</span>, radius: <span class="num">0</span>
+  grade: <span class="prop">ColorGrade</span>, brightness: <span class="num">0.6</span>
+  vig: <span class="prop">Vignette</span>, amount: <span class="num">0</span>, radius: <span class="num">0.55</span>, softness: <span class="num">0.7</span>
+  art: <span class="prop">Group</span>, anchor: scene.center { <span class="cmt">…the framed content…</span> }
+}
+
+<span class="at">#1.8s</span>
+panel.soft.radius = <span class="num">14</span> [<span class="num">1.2s</span>, ease: <span class="str">ease-out</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/effects.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Animated GPU filters"></amx-player>
+        <figcaption>
+          <span class="cap">Blur swells and resolves, a vignette breathes in,
+            brightness dips — all keyframed parameters, plus
+            <code class="inline">shake</code>/<code class="inline">pulse</code> on the chip.</span>
+          <a class="src" href="scenes/effects.amx">scenes/effects.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s6">
+      <div class="sec-head"><span class="sec-num">06</span><h2>Text &amp; math</h2></div>
+      <p>
+        A Typst-powered text compiler handles the typography:
+        <code class="inline">Typst</code> renders markup and math,
+        <code class="inline">Code</code> highlights source in several languages
+        with colorscheme-following token colors, <code class="inline">Equation</code>/
+        <code class="inline">Fragment</code> expose per-fragment reveals, and
+        <code class="inline">Svg</code>/<code class="inline">Image</code> drop
+        vector and raster assets straight into the scene.
+      </p>
+      <pre>eq1: <span class="prop">Typst</span>, text: <span class="str">"$ x(t) = sum_(k) A_k dot sin(2 pi f_k t) $"</span>,
+  font_size: <span class="num">30</span>, color: <span class="prop">text.primary</span>, anchor: scene.center
+
+code1: <span class="prop">Code</span>, code: <span class="str">"def attention(q, k):"</span>, language: <span class="str">"python"</span>, font_size: <span class="num">26</span></pre>
+      <figure class="tour-embed">
+        <img class="plate" src="stills/textmath.png" width="1280" height="720"
+             alt="Typst-rendered equations and syntax-highlighted code on a dark plate">
+        <figcaption>
+          <span class="cap">A still, not a live figure: Typst math and
+            highlighted code need the full engine profile, so this plate was
+            rendered by the CLI's <code class="inline">image</code> command —
+            the same scene plays live on a desktop.</span>
+          <a class="src" href="scenes/textmath.amx">scenes/textmath.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s7">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Plots &amp; data</h2></div>
+      <p>
+        The plot family is native:
+        <code class="inline">Graph</code> hosts curves in data coordinates,
+        <code class="inline">PlotCurve</code> is cartesian, polar, parametric
+        or implicit, and <code class="inline">VectorField</code>,
+        <code class="inline">Heatmap</code>, <code class="inline">ContourSet</code>,
+        <code class="inline">BarChart</code> and <code class="inline">NumberPlane</code>
+        cover the rest. A <code class="inline">graph.map(x, y)</code> call
+        converts data space to screen space at frame time.
+      </p>
+      <pre>main: <span class="prop">Graph</span>, x_domain: (-<span class="num">6</span>, <span class="num">6</span>), y_domain: (-<span class="num">3</span>, <span class="num">3</span>), size: (<span class="num">640</span>, <span class="num">420</span>) {
+  sine: <span class="prop">PlotCurve</span>, kind: <span class="str">"cartesian"</span>, func: (x) =&gt; <span class="fn">sin</span>(x),
+    color: <span class="prop">accent.primary</span>, stroke_width: <span class="num">3</span>, stroke_progress: <span class="num">0</span>
+}
+
+<span class="at">#1.8s</span>
+sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</span>, ease: <span class="str">ease-in-out</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/plots.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Plots are actors"></amx-player>
+        <figcaption>
+          <span class="cap">A curve traces itself via
+            <code class="inline">stroke_progress</code>; a gradient field fades
+            in beside it.</span>
+          <a class="src" href="scenes/plots.amx">scenes/plots.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s8">
+      <div class="sec-head"><span class="sec-num">08</span><h2>Reactive expressions</h2></div>
+      <p>
+        Beyond keyframes, an <code class="inline">always</code> block
+        re-evaluates every frame — orbits, generators, simulations — with the
+        full expression language: closures, <code class="inline">match</code>,
+        lists, string and math builtins. Queries like
+        <code class="inline">is_animating(&amp;prop)</code> let actors react to
+        the keyframe clock itself.
+      </p>
+      <pre><span class="kw">always</span> {
+  cross_h.at = ring.at
+  dot.at = ring.at
+
+  <span class="kw">if</span> !<span class="fn">is_animating</span>(&amp;ring.at) {
+    <span class="kw">let</span> p = <span class="num">0.5</span> + <span class="num">0.5</span> * <span class="fn">sin</span>(t * <span class="num">3</span>)
+    ring.color = <span class="prop">accent.success</span>
+    ring.size = (<span class="num">50</span> - p * <span class="num">10</span>, <span class="num">50</span> - p * <span class="num">10</span>)
+    status.text = <span class="str">"IDLE — at rest"</span>
+  } <span class="kw">else</span> {
+    ring.color = <span class="prop">accent.primary</span>
+    status.text = <span class="str">"TRACKING — keyframe active"</span>
+  }
+}</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/reactive.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="A reactive focus reticle"></amx-player>
+        <figcaption>
+          <span class="cap">The reticle follows the ring by expression; while a
+            keyframe drives it the status reads TRACKING, at rest it breathes
+            green.</span>
+          <a class="src" href="scenes/reactive.amx">scenes/reactive.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s9">
+      <div class="sec-head"><span class="sec-num">09</span><h2>Components &amp; modules</h2></div>
+      <p>
+        <code class="inline">pub component</code> declares a reusable actor
+        with typed parameters and <code class="inline">@slot</code> markers;
+        <code class="inline">import</code> brings modules in, with
+        <code class="inline">as</code> namespaces and <code class="inline">pub let</code>
+        exports. The figure's chips are instances of one
+        <code class="inline">LabeledBox</code> component from the shared
+        example library.
+      </p>
+      <pre><span class="kw">import</span> <span class="str">"../lib/components.amx"</span>
+
+row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">28</span>, align: <span class="str">"center"</span> {
+  c1: <span class="prop">LabeledBox</span>, label: <span class="str">"Query"</span>, width: <span class="num">180</span>
+  c2: <span class="prop">LabeledBox</span>, label: <span class="str">"Key"</span>, width: <span class="num">150</span>
+  c3: <span class="prop">LabeledBox</span>, label: <span class="str">"Value"</span>, width: <span class="num">170</span>
+}</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/components.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Imported components"></amx-player>
+        <figcaption>
+          <span class="cap">Three instances of one imported chip component —
+            instance-level entrances, one container
+            <code class="inline">shift</code>.</span>
+          <a class="src" href="scenes/components.amx">scenes/components.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s10">
+      <div class="sec-head"><span class="sec-num">10</span><h2>Scenes, transitions &amp; tooling</h2></div>
+      <p>
+        One file can hold several <code class="inline"># Scene</code>s joined
+        by <code class="inline">play</code> — and the cut is a GPU transition
+        (fade, four wipes, cut), with actors able to persist across scenes.
+        Around the language sits real tooling: a formatter, a checker with
+        named diagnostics, an analyzer and LSP server, and exports from PNG to
+        4K MP4.
+      </p>
+      <pre><span class="kw">play</span> Diagram [fade, <span class="num">450ms</span>]
+<span class="cmt">// …later…</span>
+<span class="kw">play</span> Outro [wipe-left, <span class="num">450ms</span>]</pre>
+      <figure class="tour-embed">
+        <amx-player src="scenes/scenes.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Scenes and GPU transitions"></amx-player>
+        <figcaption>
+          <span class="cap">Three scenes in one file: the intro dissolves into
+            a graph, the graph wipes into the outro.</span>
+          <a class="src" href="scenes/scenes.amx">scenes/scenes.amx ↗</a>
+        </figcaption>
+      </figure>
+      <div class="howto">
+        <h2>The toolchain</h2>
+        <pre><span class="cmt"># check a scene for named diagnostics (never-revealed, duplicate-label, …)</span>
+animatix check scene.amx
+
+<span class="cmt"># format, lint, and inspect the timeline the compiler built</span>
+animatix fmt scene.amx
+animatix lint scene.amx
+animatix timeline scene.amx
+
+<span class="cmt"># export a frame — or a film with the video feature</span>
+animatix image scene.amx --time <span class="num">2.0</span> -o frame.png
+animatix video scene.amx --preset <span class="str">1080p60</span> -o film.mp4</pre>
+        <p style="margin-bottom:0">
+          The <a href="https://github.com/j4ger/animatix/blob/main/docs/spec.md">full
+          language specification</a> covers everything this tour sketches —
+          types and strict mode, colorschemes, plugin ABI, and the formatter's
+          rules.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <span>Built with <strong style="color:var(--dim)">Animatix</strong> — every figure above is a scene file.</span>
+      <span>
+        <a href="../index.html">Home</a> ·
+        <a href="../gallery.html">Gallery</a> ·
+        <a href="../demos/transformer/">Transformer walkthrough</a>
+      </span>
+    </footer>
+  </div>
+
+  <script type="module" src="../embed/amx-player.js"></script>
+</body>
+</html>

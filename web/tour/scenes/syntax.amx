@@ -1,0 +1,29 @@
+// syntax.amx — tour §01: actors and keyframes.
+// One actor per line, one beat per keyframe stamp.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.5 }
+
+title: Text, text: "Actors & keyframes", font_size: 34, color: text.primary,
+  anchor: scene.top, offset: (0, 56)
+
+box: Rect, size: (140, 140), color: accent.primary, at: (400, 440)
+dot: Ellipse, size: (22, 22), color: accent.danger, at: (880, 440)
+
+#0.3s
+fade-in title [600ms, ease: ease-out]
+
+#0.8s
+fade-in box [500ms, ease: ease-out]
+
+#1.6s
+box.at = (640, 440) [900ms, ease: ease-in-out]
+
+#2.9s
+box.size = (210, 90) [700ms, ease: ease-out]
+box.color = accent.success [700ms, ease: ease-out]
+
+#4.1s
+fade-in dot [350ms]
+
+#4.5s
+dot.at = (640, 440) [700ms, ease: bounce]

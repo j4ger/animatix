@@ -1,0 +1,48 @@
+// effects.amx — tour §05: a Filter scope with animated effect parameters,
+// plus the emphasis actions. Plain shapes only (slim engine plays this).
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
+
+panel: Filter, anchor: scene.center {
+  soft: Blur, radius: 0
+  grade: ColorGrade, brightness: 0.6
+  vig: Vignette, amount: 0, radius: 0.55, softness: 0.7
+  art: Group, anchor: scene.center {
+    plate: Rect, size: (560, 320), color: surface.secondary
+    ring: Ellipse, size: (180, 180), color: accent.primary
+    bar: Rect, size: (340, 24), color: accent.warning, at: (0, 120)
+    label: Text, text: "filters are declared as children", font_size: 24,
+      color: text.primary, at: (0, -90)
+  }
+}
+
+chip: Rect, size: (150, 44), color: accent.danger, anchor: scene.center, offset: (0, 220)
+
+
+#0.5s
+stagger [90ms] {
+  fade-in plate [500ms, ease: ease-out]
+  fade-in ring [500ms, ease: ease-out]
+  fade-in bar [500ms, ease: ease-out]
+  fade-in label [500ms, ease: ease-out]
+}
+
+#1.8s
+panel.soft.radius = 14 [1.2s, ease: ease-out]
+
+#2.6s
+panel.vig.amount = 0.75 [1s, ease: ease-in-out]
+
+#3.2s
+panel.soft.radius = 0 [1s, ease: ease-out]
+panel.grade.brightness = 0.25 [1.2s, ease: ease-in-out]
+
+#4.6s
+panel.grade.brightness = 0.6 [1s, ease: ease-out]
+
+#4.9s
+fade-in chip [400ms, ease: ease-out]
+
+#5.4s
+shake chip [500ms]
+pulse chip [400ms]

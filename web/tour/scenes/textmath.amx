@@ -1,0 +1,34 @@
+// textmath.amx — tour §06 still source: Typst equations and syntax-
+// highlighted code need the full engine profile, so this scene is rendered
+// to a PNG by the CLI (`animatix image`) instead of being embedded live.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+
+title: Text, text: "Text & math, typeset", font_size: 32, color: text.primary,
+  anchor: scene.top, offset: (0, 56)
+
+eq1: Typst, text: "$ x(t) = sum_(k) A_k dot sin(2 pi f_k t) $",
+  font_size: 30, color: text.primary, anchor: scene.center, offset: (0, -120)
+eq2: Typst, text: "$ hat(x)(t) = sum_(k=0)^(N-1) X_k e^((2 pi i k t) / N) $",
+  font_size: 30, color: text.primary, anchor: scene.center, offset: (0, -30)
+eq3: Typst, text: "$ integral_0^1 x^2 dif x = 1/3 $",
+  font_size: 30, color: accent.primary, anchor: scene.center, offset: (0, 60)
+
+code1: Code, code: "def attention(q, k):", language: "python",
+  font_size: 26, color: text.secondary, anchor: scene.center, offset: (-233, 170)
+code2: Code, code: "    return softmax(q @ k / sqrt(64))", language: "python",
+  font_size: 26, color: text.secondary, anchor: scene.center, offset: (-160, 220)
+
+#0.4s
+fade-in title [500ms]
+#0.9s
+stagger [180ms] {
+  fade-in eq1 [500ms]
+  fade-in eq2 [500ms]
+  fade-in eq3 [500ms]
+}
+#2.2s
+stagger [150ms] {
+  fade-in code1 [450ms]
+  fade-in code2 [450ms]
+}

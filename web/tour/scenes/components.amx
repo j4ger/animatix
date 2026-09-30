@@ -1,0 +1,29 @@
+// components.amx — tour §09: import a module, instantiate its components.
+// `lib/components.amx` is a copy of examples/lib/components.amx; the browser
+// fetches it relative to the scene, the CLI resolves it from disk.
+
+import "../lib/components.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.0 }
+
+heading: Text, text: "import once, instantiate many", font_size: 32,
+  color: text.primary, anchor: scene.top, offset: (0, 56)
+
+row: Row, anchor: scene.center, gap: 28, align: "center" {
+  c1: LabeledBox, label: "Query", width: 180
+  c2: LabeledBox, label: "Key", width: 150
+  c3: LabeledBox, label: "Value", width: 170
+}
+
+#0.4s
+fade-in heading [600ms, ease: ease-out]
+
+#1.0s
+stagger [150ms] {
+  fade-in c1 [450ms, ease: ease-out]
+  fade-in c2 [450ms, ease: ease-out]
+  fade-in c3 [450ms, ease: ease-out]
+}
+
+#3.2s
+shift row [by: (0, -16), 500ms, ease: ease-out]

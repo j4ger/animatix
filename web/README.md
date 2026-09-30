@@ -12,13 +12,17 @@ the web side only plays back and embeds.
 ```
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
 web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
-web/demo.css                 shared stylesheet for both pages
-web/index.html               player gallery — all six scenes as embeds
-web/demos/transformer/       "The Transformer Architecture, Animated" — six scenes + article page
+web/site.css                 shared light-editorial stylesheet for the whole site
+web/index.html               project homepage — hero scene, features, demo entry points
+web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still
+web/gallery.html             scene gallery — the seven transformer scenes as embeds
+web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
+web/scenes/hero.amx          the homepage hero scene
 web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
 web/pkg/, web/pkg-slim/      build output (gitignored)
 scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
 scripts/serve-web.py         local static server with brotli negotiation
+.github/workflows/pages.yml  deploys web/ + both engine builds to GitHub Pages
 ```
 
 ## Run it
@@ -51,6 +55,20 @@ figure, so a single-profile build still works.
 Deploying is the same story: run the build script, copy `web/` (plus the
 `pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
 113+, Firefox 141+, Safari 26+); embeds show guidance when it's missing.
+
+### GitHub Pages
+
+`.github/workflows/pages.yml` deploys the site on every push to `main` that
+touches `web/`, the wasm crate, or the build script: it builds **both** engine
+profiles, assembles `web/` + `pkg-slim/` + `pkg/` into the artifact (dropping
+the `.br` twins — Pages does not negotiate brotli, so the raw wasm is what
+gets served; slim is ~5 MB, which is why the site's live figures all play on
+the slim profile), and deploys via `actions/deploy-pages`. The wasm-bindgen-cli
+version CI installs is read from the pin in `crates/animatix-web/Cargo.toml`,
+so bumping that pin is the only version bump needed. Pages itself must be
+enabled once in the repo settings (Source: "GitHub Actions"); the site lives
+at `https://<owner>.github.io/animatix/` and every page uses relative paths,
+so the subpath just works.
 
 ## Embedding scenes in any page (`<amx-player>`)
 

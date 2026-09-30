@@ -1,0 +1,56 @@
+// scenes.amx — tour §10: one file, several scenes; the cuts are GPU
+// transitions (fade, then wipe-left). Trimmed from
+// examples/composition/14_multiscene.amx.
+
+config { resolution: (1280, 720) }
+
+# Intro
+config { colorscheme: "editorial-dark" }
+title: Text, text: "Scenes & transitions", font_size: 64, color: text.primary,
+  anchor: scene.center, offset: (0, -30)
+sub: Text, text: "play Diagram [fade, 450ms]", font_size: 22, color: text.secondary,
+  anchor: scene.center, offset: (0, 34)
+
+#0.5s
+fade-in title [700ms, ease: ease-out]
+fade-in sub [500ms, delay: 150ms]
+
+#2.2s
+fade-out title [350ms]
+fade-out sub [350ms]
+
+play Diagram [fade, 450ms]
+
+# Diagram
+config { colorscheme: "editorial-dark" }
+graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (520, 520), anchor: scene.center {
+  sine: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 2, color: accent.primary, stroke_width: 3
+  cosine: PlotCurve, kind: "cartesian", func: (x) => cos(x) * 2, color: accent.success, stroke_width: 2
+}
+label: Text, text: "sin(x), cos(x)", font_size: 18, color: text.secondary,
+  anchor: scene.bottom, offset: (0, -56)
+
+#0.5s
+fade-in graph [700ms, ease: ease-out]
+stagger [120ms] {
+  fade-in sine [400ms]
+  fade-in cosine [400ms]
+}
+fade-in label [400ms, delay: 250ms]
+
+#2.8s
+fade-out graph [350ms]
+fade-out label [350ms]
+
+play Outro [wipe-left, 450ms]
+
+# Outro
+config { colorscheme: "editorial-dark" }
+thanks: Text, text: "one file, many scenes", font_size: 52, color: text.primary,
+  anchor: scene.center
+tag: Text, text: "the cut is a GPU transition", font_size: 20, color: accent.primary,
+  anchor: scene.center, offset: (0, 52)
+
+#0.5s
+fade-in thanks [600ms, ease: ease-out]
+fade-in tag [450ms, delay: 150ms]
