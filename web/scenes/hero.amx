@@ -47,13 +47,17 @@ stagger [140ms] {
   fade-in s3 [500ms, ease: ease-out]
 }
 
-// One round of shape-shifting: diamond into circle, circle into diamond.
+// The trio trades corners: square spins into a diamond, circle squashes,
+// diamond squares up — pure rotations, resizes and recolors.
 #3.4s
-s1: Polygon, points: {(0, -31), (31, 0), (0, 31), (-31, 0)}, color: accent.warning [900ms, path_arc: 0.3]
-s2: Rect, size: (54, 54), color: accent.primary [900ms, strategy: auto]
+rotate s1 [by: deg(45), 900ms, ease: ease-in-out]
+s1.color = accent.warning [900ms, ease: ease-in-out]
+s2.size = (72, 36) [900ms, ease: ease-in-out]
+rotate s3 [by: deg(45), 900ms, ease: ease-in-out]
+s3.color = accent.primary [900ms, ease: ease-in-out]
 
-#5.0s
-s3: Ellipse, size: (54, 54), color: accent.success [900ms, strategy: match]
+#5.2s
+s2.size = (54, 54) [700ms, ease: ease-in-out]
 
 #6.4s
 fade-in ease_note [400ms]
