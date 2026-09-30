@@ -18,7 +18,14 @@ web/index.html               project homepage — hero scene, features, demo ent
 web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still,
                              every live figure editable in place (tour/editor.js)
 web/gallery.html             scene gallery — the seven transformer scenes as embeds
-web/demos/                   demo hub (course-style cards + posters) and the demos themselves
+web/demos/                   demo hub (course-style cards + posters) and the demos themselves:
+                             demos/transformer/  the transformer walkthrough (7 scenes)
+                             demos/epicycles/    Fourier epicycles walkthrough (5 scenes)
+                             demos/sorting/      insertion-sort theatre (3 scenes)
+                             demos/gradient/     gradient descent walkthrough (4 scenes)
+                             demos/matrix/       linear-transformations walkthrough (3 scenes)
+                             demos/hash/         hash-table walkthrough (3 scenes)
+                             demos/lib/          shared .amx library the demo scenes import
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
 web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
