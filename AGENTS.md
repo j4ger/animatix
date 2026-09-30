@@ -18,9 +18,13 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   `SourcesOnly` mode; frames render into an offscreen vello target that is
   blitted to the WebGPU canvas surface. Embeds resolve their engine profile
   (`slim` default / `full`) per element and share one WebGPU context per
-  loaded engine directory. The `<amx-player>` embed component (`web/embed/`)
-  and the demo pages (`web/demos/`, including the transformer walkthrough)
-  build on it. Build/serve instructions and the attribute reference in
+  loaded engine directory. `web/` is the static site: a light-editorial
+  homepage (`web/index.html`, hero scene in `web/scenes/`), the language tour
+  (`web/tour/`, its scenes in `web/tour/scenes/`), the scene gallery
+  (`web/gallery.html`) and the demo pages (`web/demos/`, including the
+  transformer walkthrough), all skinned by `web/site.css`. The `<amx-player>`
+  embed component lives in `web/embed/`; build/serve instructions, the
+  attribute reference, and the GitHub Pages deployment notes are in
   `web/README.md`.
 - `crates/eparts`: themed egui widget framework used by the GUI.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
