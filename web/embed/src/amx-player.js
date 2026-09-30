@@ -408,7 +408,6 @@ class AmxPlayerElement extends HTMLElement {
       .strip .fill {
         position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
         background: rgba(245,185,66,.16);
-        border-right: 2px solid #f5b942;
         transform-origin: left; transform: scaleX(0);
         pointer-events: none;
       }
@@ -432,13 +431,18 @@ class AmxPlayerElement extends HTMLElement {
           rgba(138,180,248,.35) 0 4px, transparent 4px 8px);
         pointer-events: none;
       }
+      /* The playhead: one line, constant width, positioned from the timeline
+         position by _syncControls — the single writer. It is deliberately not
+         the fill's border-right (scaleX squashes that toward nothing as the
+         playhead nears the start) and deliberately not something a pointermove
+         positions as a side effect: that made it visible while unpositioned,
+         parked at the strip's start edge. */
       .strip .cursor {
-        position: absolute; top: 0; bottom: 0; width: 2px;
+        position: absolute; top: 0; bottom: 0; width: 2px; left: 0;
         transform: translateX(-50%);
-        background: rgba(245,185,66,.9);
-        opacity: 0; pointer-events: none;
+        background: #f5b942;
+        pointer-events: none;
       }
-      .strip.peeking .cursor { opacity: 1; }
       .chip {
         position: absolute; right: 56px; top: 50%;
         transform: translateY(-50%);
@@ -827,11 +831,6 @@ class AmxPlayerElement extends HTMLElement {
       strip.classList.add("peeking");
       peek(e);
     });
-    strip.addEventListener("pointermove", (e) => {
-      if (e.pointerType !== "mouse") return;
-      if (this._peeking || this._scrubbing) peek(e);
-      else cursor.style.left = `${((e.clientX - strip.getBoundingClientRect().left) / strip.getBoundingClientRect().width) * 100}%`;
-    });
     strip.addEventListener("pointerdown", (e) => {
       try {
         strip.setPointerCapture(e.pointerId);
@@ -850,6 +849,8 @@ class AmxPlayerElement extends HTMLElement {
       peek(e);
       e.stopPropagation();
     });
+    // Exactly one move handler: `peek` re-renders the frame, so a second
+    // listener with the same condition renders every move twice.
     strip.addEventListener("pointermove", (e) => {
       if (!this._scrubbing && !this._peeking) return;
       peek(e);
@@ -953,6 +954,7 @@ class AmxPlayerElement extends HTMLElement {
     const shown = Math.min(this._time, this._duration);
     const frac = this._duration > 0 ? shown / this._duration : 0;
     c.fill.style.transform = `scaleX(${frac})`;
+    c.cursor.style.left = `${frac * 100}%`;
     c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
     c.strip.setAttribute("aria-valuenow", shown.toFixed(1));
   }
