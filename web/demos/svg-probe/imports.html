@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>amx-player import probe</title>
+  <style>
+    body { background: #0a0f17; color: #e2e7ee; font: 14px system-ui; margin: 0; padding: 40px; }
+    amx-player { border: 1px solid #1e2733; }
+    pre { color: #9aa5b4; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Import probe (transitive .amx fetch)</h1>
+  <pre id="report">waiting…</pre>
+  <amx-player src="scene-import.amx" autoplay loop title="imports"></amx-player>
+
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg"></script>
+
+  <script type="module">
+    const report = { errors: [] };
+    window.addEventListener("error", (e) => report.errors.push(String(e.message)));
+    const tick = () => {
+      const el = document.querySelector("amx-player");
+      report.state = el?._state;
+      document.getElementById("report").textContent = JSON.stringify(report);
+      requestAnimationFrame(tick);
+    };
+    tick();
+
+    window.__probe_state = { phase: "running", get report() { return report; } };
+    const kick = () => {
+      const el = document.querySelector("amx-player");
+      if (el && el._state === "idle") { el._visible = true; el._maybeStartLoading(); }
+    };
+    setTimeout(kick, 200); setTimeout(kick, 800); setTimeout(kick, 1600);
+    const poll = () => {
+      kick();
+      const el = document.querySelector("amx-player");
+      if (!el || el._state !== "ready") { setTimeout(poll, 300); return; }
+      el._player.debug_readback(1.5, (stats) => {
+        report.readback = JSON.parse(stats);
+        window.__probe_state.phase = "done";
+      });
+    };
+    setTimeout(poll, 600);
+  </script>
+</body>
+</html>

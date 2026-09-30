@@ -53,4 +53,10 @@ pub struct LoadResultDto {
     pub width: u32,
     pub height: u32,
     pub diagnostics: Vec<DiagnosticDto>,
+    /// Resolved import paths the module graph could not find, when the load
+    /// stopped on a missing file. The shell fetches each (relative to the
+    /// scene URL), registers it via `add_module`, and calls `load_source`
+    /// again — the closure loop that lets a page play scenes importing
+    /// `.amx` files beyond the bundled library. Empty on every other outcome.
+    pub missing_imports: Vec<String>,
 }

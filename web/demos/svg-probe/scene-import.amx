@@ -1,0 +1,12 @@
+// Import probe: fetches ./extra.amx (which imports ./deeper.amx) through the
+// embed's missing-import retry loop — neither file is part of the bundled
+// examples/lib. Sample at t >= 0.5s (the badge fades in from 0.2s).
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3.0 }
+
+import "./extra.amx"
+
+backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 180)
+b1: Badge, label: "imported", at: (320, 180)
+
+#0.2s
+fade-in b1 [300ms]

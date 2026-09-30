@@ -348,46 +348,97 @@ class AmxPlayerElement extends HTMLElement {
     }
   }
 
-  /// Fetch the assets the scene references and build with them, so `Image` and
-  /// `Svg` actors resolve from memory instead of a filesystem the sandbox
-  /// does not have. Assets that fail to fetch are simply absent, which the
-  /// build reports as it would on the desktop.
+  /// Fetch the scene's imports and assets, then build. Imports beyond the
+  /// bundled library close through the engine's retry protocol: a build that
+  /// stops on an unsupplied import reports the resolved path in
+  /// `missing_imports`, we fetch it relative to the scene and retry (bounded,
+  /// so a failed fetch or an engine without the API cannot spin). Assets keep
+  /// the desktop semantics — a missing one is a build error — and share one
+  /// flat namespace relative to the scene file, because the sandboxed build
+  /// resolves asset urls lexically with no per-module root.
   async _loadScene(player, source, sceneSrc) {
-    let urls = [];
-    try {
-      urls = player.list_asset_urls(source) ?? [];
-    } catch (err) {
-      console.warn(`amx-player: could not list asset urls (${err.message})`);
-    }
-
     const base = new URL(sceneSrc, document.baseURI).href;
-    const payloads = await Promise.all(
-      urls.map((url) =>
-        fetch(new URL(url, base))
-          .then((r) => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            // Images cross the boundary as Uint8Array (the Rust side decodes
-            // them); SVG as text.
-            return url.toLowerCase().endsWith(".svg")
-              ? r.text()
-              : r.arrayBuffer().then((buffer) => new Uint8Array(buffer));
-          })
-          .catch((err) => {
-            console.warn(`amx-player: asset '${url}' skipped (${err.message})`);
-            return null;
-          }),
-      ),
-    );
+    const supportsImports = typeof player.add_module === "function";
+    const modules = new Map(); // resolved import path -> file text
+    const failed = new Set(); // paths whose fetch failed; never retried
+    const assets = new Map(); // resolved asset URL -> { key, payload }
 
+    let result = null;
+    for (let round = 0; round < 24; round += 1) {
+      for (const [path, text] of modules) player.add_module(path, text);
+      await this._fetchAssets(player, source, modules, base, assets);
+      result = this._buildWithAssets(player, source, assets);
+
+      const missing = supportsImports ? (result?.missing_imports ?? []) : [];
+      const todo = missing.filter((path) => !modules.has(path) && !failed.has(path));
+      if (!missing.length || !todo.length) break;
+      await Promise.all(
+        todo.map(async (path) => {
+          try {
+            const response = await fetch(new URL(path, base));
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            modules.set(path, await response.text());
+          } catch (err) {
+            failed.add(path);
+            console.warn(`amx-player: import '${path}' skipped (${err.message})`);
+          }
+        }),
+      );
+    }
+    return result;
+  }
+
+  /// Fetch every asset referenced by the scene or any fetched module, once.
+  /// Each source's urls resolve against that source's own URL; the engine
+  /// receives the literal url string as the cache key.
+  async _fetchAssets(player, source, modules, base, assets) {
+    const wanted = [];
+    const collect = (text, sourceUrl) => {
+      let urls = [];
+      try {
+        urls = player.list_asset_urls(text) ?? [];
+      } catch (err) {
+        console.warn(`amx-player: could not list asset urls (${err.message})`);
+      }
+      for (const key of urls) {
+        const resolved = new URL(key, sourceUrl).href;
+        if (!assets.has(resolved) && !wanted.some(([seen]) => seen === resolved)) {
+          wanted.push([resolved, key]);
+        }
+      }
+    };
+    collect(source, base);
+    for (const [path, text] of modules) collect(text, new URL(path, base).href);
+
+    await Promise.all(
+      wanted.map(async ([resolved, key]) => {
+        try {
+          const response = await fetch(resolved);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          // Images cross the boundary as Uint8Array (the Rust side decodes
+          // them); SVG as text.
+          const payload = key.toLowerCase().endsWith(".svg")
+            ? await response.text()
+            : new Uint8Array(await response.arrayBuffer());
+          assets.set(resolved, { key, payload });
+        } catch (err) {
+          console.warn(`amx-player: asset '${key}' skipped (${err.message})`);
+        }
+      }),
+    );
+  }
+
+  _buildWithAssets(player, source, assets) {
     const assetUrls = [];
     const assetPayloads = [];
-    urls.forEach((url, index) => {
-      if (payloads[index] !== null) {
-        assetUrls.push(url);
-        assetPayloads.push(payloads[index]);
-      }
-    });
-    return this._player.load_source_with_assets(source, assetUrls, assetPayloads);
+    for (const { key, payload } of assets.values()) {
+      assetUrls.push(key);
+      assetPayloads.push(payload);
+    }
+    if (typeof player.load_source_with_assets === "function") {
+      return player.load_source_with_assets(source, assetUrls, assetPayloads);
+    }
+    return player.load_source(source);
   }
 
   async _maybeStartLoading() {

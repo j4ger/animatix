@@ -1,0 +1,9 @@
+// Import probe, depth 1: pulls ./deeper.amx transitively. A plain import
+// merges names, so the component is reachable by its bare name — dotted
+// component types inside a component body are not part of the grammar.
+import "./deeper.amx"
+
+pub component Badge(label: "imported") {
+  plate: Rect, size: (180, 52), corner_radius: 10, color: accent.primary
+  mark: Chip, label: label, anchor: scene.center
+}

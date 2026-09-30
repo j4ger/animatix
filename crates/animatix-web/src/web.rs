@@ -184,6 +184,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             filter_backend_to: None,
             compositor: None,
             fonts: Vec::new(),
+            modules: Vec::new(),
             offscreen: None,
             offscreen_to: None,
             composite: None,
@@ -217,6 +218,10 @@ pub struct AmxPlayer {
     /// Fonts registered through [`AmxPlayer::add_font`], applied to the text
     /// compiler the next time [`AmxPlayer::load_source`] builds the scene.
     fonts: Vec<Vec<u8>>,
+    /// Imported `.amx` modules registered through [`AmxPlayer::add_module`],
+    /// joined into the build's source map (keyed by resolved import path, the
+    /// keys [`crate::dto::LoadResultDto::missing_imports`] reports).
+    modules: Vec<(String, String)>,
     /// Lazily-built GPU transition blender (compiles the WGSL blend
     /// pipeline). Per player rather than per context so the lazy init has a
     /// `&mut` to write into next to the targets it serves.
@@ -299,6 +304,22 @@ impl AmxPlayer {
         self.fonts.push(bytes.to_vec());
     }
 
+    /// Register an imported `.amx` module (the file's text) so later
+    /// `load_source` calls can resolve the import. `path` is the *resolved*
+    /// import path — exactly what `missing_imports` on a failed load reports
+    /// (the import string joined onto the importing file's directory and
+    /// normalized). Re-registering a path replaces its text.
+    ///
+    /// Like fonts, modules persist across loads; a scene that imports nothing
+    /// outside the bundled library needs none.
+    pub fn add_module(&mut self, path: String, source: String) {
+        if let Some(existing) = self.modules.iter_mut().find(|(p, _)| *p == path) {
+            existing.1 = source;
+        } else {
+            self.modules.push((path, source));
+        }
+    }
+
     /// Asset URLs referenced by `Image`/`Svg` actors through a literal `url`
     /// property, in declaration order and deduplicated. Dynamic assignments
     /// (`icon.url = expr`) are not listed.
@@ -361,8 +382,14 @@ impl AmxPlayer {
         for bytes in &self.fonts {
             font_context.load_font_bytes(bytes.clone());
         }
-        let built = host::build_document_with_assets(
+        let modules: Vec<(std::path::PathBuf, String)> = self
+            .modules
+            .iter()
+            .map(|(path, text)| (std::path::PathBuf::from(path), text.clone()))
+            .collect();
+        let built = host::build_document_with_modules(
             source,
+            &modules,
             Arc::new(font_context),
             BuildQuality::Draft,
             assets,

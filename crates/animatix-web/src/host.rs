@@ -22,9 +22,10 @@ use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess}
 use crate::dto::{DiagnosticDto, LoadResultDto};
 
 /// Virtual path the single edited document is registered under. Imports of
-/// other files resolve relative to it inside the in-memory source map; the
-/// editor only edits this one file, so imports outside the bundled library
-/// surface as `FileNotFound` diagnostics instead of disk reads.
+/// other files resolve relative to it inside the in-memory source map: the
+/// bundled library covers `../lib/*`, the shell supplies everything else via
+/// `add_module` (learning the keys from `LoadResultDto::missing_imports`),
+/// and anything still absent surfaces as a `FileNotFound` module error.
 pub const ENTRY_PATH: &str = "main.amx";
 
 /// The repo's shared example library (`examples/lib/*.amx`), embedded at
@@ -83,6 +84,25 @@ pub fn build_document_with_assets(
     quality: BuildQuality,
     assets: Option<Arc<AssetCache>>,
 ) -> BuiltDocument {
+    build_document_with_modules(source, &[], font_context, quality, assets)
+}
+
+/// Parse, typecheck, expand, and build `source` with `modules` pre-registered
+/// in the source map.
+///
+/// `modules` are the `.amx` files the shell fetched for this scene beyond the
+/// bundled library, keyed by the *resolved* import path (what the module
+/// system would join + normalize — the shell learns the keys from
+/// `LoadResultDto::missing_imports`). When the load stops on a file that was
+/// never supplied, the result reports that key in `missing_imports` instead of
+/// surfacing only a generic not-found error: the shell fetches it and retries.
+pub fn build_document_with_modules(
+    source: &str,
+    modules: &[(PathBuf, String)],
+    font_context: Arc<FontContext>,
+    quality: BuildQuality,
+    assets: Option<Arc<AssetCache>>,
+) -> BuiltDocument {
     let path = PathBuf::from(ENTRY_PATH);
     let mut diagnostics: Vec<DiagnosticDto> = Vec::new();
 
@@ -91,9 +111,40 @@ pub fn build_document_with_assets(
     for (lib_path, lib_source) in bundled_library() {
         graph.add_source(PathBuf::from(lib_path), *lib_source);
     }
+    for (module_path, module_source) in modules {
+        graph.add_source(module_path.clone(), module_source.clone());
+    }
 
     let mut program = match graph.load_program_with_source(&path, Some(source)) {
         Ok(program) => program,
+        // A missing file is not a diagnostic to render — it is the shell's
+        // cue to fetch one more module and retry. Report the resolved key so
+        // the fetch target is unambiguous.
+        Err(ModuleError::FileNotFound(missing)) => {
+            return BuiltDocument {
+                target: None,
+                result: LoadResultDto {
+                    ok: false,
+                    duration_s: MIN_DURATION_S,
+                    width: SceneDimensions::default().width,
+                    height: SceneDimensions::default().height,
+                    diagnostics: vec![DiagnosticDto {
+                        severity: "error".to_string(),
+                        code: "module-error".to_string(),
+                        message: format!(
+                            "Imported module '{}' is not loaded yet; fetch it relative to the \
+                             scene, register it with add_module, and call load_source again.",
+                            missing.display()
+                        ),
+                        subject: None,
+                        line: None,
+                        column: None,
+                        span: None,
+                    }],
+                    missing_imports: vec![missing.display().to_string()],
+                },
+            };
+        },
         Err(err) => return built_failure(module_error_diagnostics(&err, &path)),
     };
 
@@ -153,6 +204,7 @@ pub fn build_document_with_assets(
             width,
             height,
             diagnostics,
+            missing_imports: Vec::new(),
         },
     }
 }
@@ -189,6 +241,7 @@ fn built_failure(diagnostics: Vec<DiagnosticDto>) -> BuiltDocument {
             width: SceneDimensions::default().width,
             height: SceneDimensions::default().height,
             diagnostics,
+            missing_imports: Vec::new(),
         },
     }
 }
@@ -355,20 +408,61 @@ fade-in pic [300ms]
     }
 
     #[test]
-    fn missing_import_is_reported_not_read_from_disk() {
+    fn missing_import_is_reported_as_a_fetch_key_not_read_from_disk() {
         let doc = build_document(
             "import \"../lib/nonexistent.amx\" as ghost\n",
             Arc::new(FontContext::new()),
             BuildQuality::Draft,
         );
         assert!(!doc.result.ok);
+        assert!(doc.target.is_none(), "an unsupplied import builds no document");
         assert!(
-            doc.result
-                .diagnostics
-                .iter()
-                .any(|d| d.message.to_lowercase().contains("not found")),
-            "expected a not-found diagnostic, got: {:?}",
+            doc.result.diagnostics.iter().any(|d| d.message.contains("nonexistent.amx")),
+            "the diagnostic names the missing module: {:?}",
             doc.result.diagnostics
         );
+    }
+
+    /// The shell-side import protocol: a load that stops on an unsupplied
+    /// import reports the resolved key in `missing_imports`; registering the
+    /// fetched text under that key and retrying eventually closes the graph —
+    /// including transitively (a supplied module importing another module).
+    #[test]
+    fn missing_imports_close_the_graph_through_the_retry_protocol() {
+        let entry = "import \"./mods/greet.amx\" as greet\n";
+        let greet = "import \"./word.amx\" as word\n\nexport component Hello { }\n";
+        let word = "export component Word { }\n";
+
+        // Round 1: nothing supplied — the entry's own import is missing.
+        let doc = build_document(entry, Arc::new(FontContext::new()), BuildQuality::Draft);
+        assert!(!doc.result.ok);
+        assert_eq!(doc.result.missing_imports, ["mods/greet.amx".to_string()]);
+
+        // Round 2: greet.amx supplied — its own import surfaces next.
+        let modules = vec![(PathBuf::from("mods/greet.amx"), greet.to_string())];
+        let doc = build_document_with_modules(
+            entry,
+            &modules,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            None,
+        );
+        assert!(!doc.result.ok);
+        assert_eq!(doc.result.missing_imports, ["mods/word.amx".to_string()]);
+
+        // Round 3: closure — the graph loads.
+        let modules = vec![
+            (PathBuf::from("mods/greet.amx"), greet.to_string()),
+            (PathBuf::from("mods/word.amx"), word.to_string()),
+        ];
+        let doc = build_document_with_modules(
+            entry,
+            &modules,
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            None,
+        );
+        assert!(doc.result.ok, "the closed graph must build: {:?}", doc.result.diagnostics);
+        assert!(doc.result.missing_imports.is_empty());
     }
 }
