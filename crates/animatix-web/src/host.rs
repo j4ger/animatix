@@ -19,7 +19,7 @@ use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess};
 
-use crate::dto::{DiagnosticDto, LoadResultDto};
+use crate::dto::{DiagnosticDto, LoadResultDto, MarkerDto};
 
 /// Virtual path the single edited document is registered under. Imports of
 /// other files resolve relative to it inside the in-memory source map: the
@@ -142,6 +142,7 @@ pub fn build_document_with_modules(
                         span: None,
                     }],
                     missing_imports: vec![missing.display().to_string()],
+                    markers: Vec::new(),
                 },
             };
         },
@@ -195,6 +196,7 @@ pub fn build_document_with_modules(
     diagnostics.extend(build_diagnostics.iter().map(DiagnosticDto::from_diagnostic));
 
     let (duration_s, width, height) = document_extent(&target);
+    let markers = timeline_markers(&expanded, &target);
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
     BuiltDocument {
         target: Some(target),
@@ -205,7 +207,94 @@ pub fn build_document_with_modules(
             height,
             diagnostics,
             missing_imports: Vec::new(),
+            markers,
         },
+    }
+}
+
+/// Timeline landmarks for the embed's scrubber: the `#2s` keyframe
+/// declarations the author wrote (per scene, offset by the scene's global
+/// start in compositions), plus scene starts and transition windows. Sorted
+/// by time, deduplicated — deliberately *not* every property-track time,
+/// which stagger/assignments would explode into noise.
+fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<MarkerDto> {
+    let mut markers: Vec<MarkerDto> = Vec::new();
+    match target {
+        BuildTarget::SingleScene(_) => {
+            let mut times = Vec::new();
+            collect_keyframe_stmt_times(stmts, 0.0, &mut times);
+            for t in times {
+                markers.push(MarkerDto {
+                    t,
+                    kind: "keyframe".to_string(),
+                    dur: 0.0,
+                });
+            }
+        },
+        BuildTarget::MultiScene(composition) => {
+            for (name, start) in &composition.scene_start_times {
+                if *start > 0.0 {
+                    markers.push(MarkerDto {
+                        t: *start,
+                        kind: "scene".to_string(),
+                        dur: 0.0,
+                    });
+                }
+                // A `play` edge into this scene carries its transition; the
+                // blend window is `[to_scene_start, +duration]` (the from
+                // scene's tail overlaps it — composition/time.rs).
+                if let Some(edge) = composition.edges.get(name)
+                    && edge.transition.duration_ms > 0
+                {
+                    markers.push(MarkerDto {
+                        t: *start,
+                        kind: "transition".to_string(),
+                        dur: edge.transition.duration_ms as f64 / 1000.0,
+                    });
+                }
+            }
+            for stmt in stmts {
+                let Stmt::Scene { name, body, .. } = stmt else {
+                    continue;
+                };
+                let Some(start) = composition.scene_start_times.get(name) else {
+                    continue;
+                };
+                let mut times = Vec::new();
+                collect_keyframe_stmt_times(body, *start, &mut times);
+                for t in times {
+                    markers.push(MarkerDto {
+                        t,
+                        kind: "keyframe".to_string(),
+                        dur: 0.0,
+                    });
+                }
+            }
+        },
+    }
+    markers.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap_or(std::cmp::Ordering::Equal));
+    markers.dedup_by(|a, b| a.kind == b.kind && (a.t - b.t).abs() < 1e-6);
+    markers
+}
+
+/// Collect absolute `#Ns` keyframe-statement times, offset by `base` (the
+/// owning scene's global start). Relative (`#+Ns`) keyframes are skipped:
+/// their absolute time depends on playback order, and the author's beats are
+/// the absolute marks.
+fn collect_keyframe_stmt_times(stmts: &[Stmt], base: f64, out: &mut Vec<f64>) {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Keyframe { time, body, .. } => {
+                let t = match time {
+                    animatix_syntax::ast::Time::Seconds(s) => *s,
+                    animatix_syntax::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                };
+                out.push(base + t);
+                collect_keyframe_stmt_times(body, base, out);
+            },
+            Stmt::Scene { body, .. } => collect_keyframe_stmt_times(body, base, out),
+            _ => {},
+        }
     }
 }
 
@@ -242,6 +331,7 @@ fn built_failure(diagnostics: Vec<DiagnosticDto>) -> BuiltDocument {
             height: SceneDimensions::default().height,
             diagnostics,
             missing_imports: Vec::new(),
+            markers: Vec::new(),
         },
     }
 }
@@ -405,6 +495,51 @@ fade-in pic [300ms]
             );
             assert!(doc.result.duration_s > MIN_DURATION_S, "scene '{name}' has no duration");
         }
+    }
+
+    /// The scrubber's landmarks: single-scene documents report their
+    /// scene-level keyframe times, compositions report scene starts and
+    /// transition windows.
+    #[test]
+    fn load_result_markers_expose_timeline_landmarks() {
+        const TOKENS: &str = include_str!("../../../web/demos/transformer/scenes/tokens.amx");
+        let doc = build_document(TOKENS, Arc::new(FontContext::new()), BuildQuality::Draft);
+        assert!(doc.result.ok);
+        let ts: Vec<f64> = doc
+            .result
+            .markers
+            .iter()
+            .filter(|m| m.kind == "keyframe")
+            .map(|m| m.t)
+            .collect();
+        for expected in [0.15, 0.55, 1.25, 2.55, 2.95, 3.25, 4.05] {
+            assert!(
+                ts.iter().any(|t| (t - expected).abs() < 1e-3),
+                "tokens keyframes must include {expected}s: {ts:?}"
+            );
+        }
+        assert!(
+            doc.result.markers.iter().all(|m| m.dur == 0.0),
+            "single-scene markers are points: {:?}",
+            doc.result.markers
+        );
+
+        const MULTISCENE: &str = include_str!("../../../examples/composition/14_multiscene.amx");
+        let doc = build_document(MULTISCENE, Arc::new(FontContext::new()), BuildQuality::Draft);
+        assert!(doc.result.ok);
+        let kinds: Vec<&str> = doc.result.markers.iter().map(|m| m.kind.as_str()).collect();
+        assert!(
+            kinds.contains(&"scene"),
+            "a composition must mark scene starts: {:?}",
+            doc.result.markers
+        );
+        // Sorted, and all markers inside the document's duration.
+        let mut ts: Vec<f64> = doc.result.markers.iter().map(|m| m.t).collect();
+        let mut sorted = ts.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        assert_eq!(ts, sorted);
+        assert!(ts.iter().all(|t| *t >= 0.0 && *t <= doc.result.duration_s + 1e-6));
+        let _ = kinds;
     }
 
     #[test]

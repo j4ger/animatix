@@ -115,7 +115,7 @@ async fn ensure_engine() -> Result<(), String> {
 /// Identifies the running build from the JS side (stale-artifact checks).
 #[wasm_bindgen]
 pub fn build_id() -> u32 {
-    51
+    52
 }
 
 /// Initialize the shared WebGPU context (adapter, device, vello renderer).

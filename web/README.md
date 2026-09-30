@@ -73,20 +73,25 @@ Behavior:
   `navigator.connection.saveData` says otherwise; offscreen instances pause
   automatically; without `autoplay` (or in those quiet modes) the embed stops
   on that finished frame with a play button.
-- **Attributes**: `src` (required), `autoplay`, `loop`, `controls` (bottom
-  control bar — play/pause, seek scrubber, time readout), `hold` (seconds,
-  default 0.7), `title` (a11y label, shown while loading), `aspect`
-  (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene afterwards),
-  `profile` (below), `quality` (below).
-- **Controls UX** — one model for mouse and touch, following media-player
-  conventions: the canvas's first tap reveals the bar, the next toggles
-  playback, and the bar auto-hides after 2.5 s while playing (paused figures
-  keep it up; on PC, pointer movement also reveals it). The scrubber covers
-  the timeline only — a looping embed's `hold` rest appears as a dimmed
-  trailing segment, so the bar explains why the figure sits on its finished
-  frame before restarting. Keyboard: the scrubber is focusable (`role`
-  slider), arrow keys seek ±1 s, Home restarts, Space/K toggles. Touch
-  targets are ≥40 px (`44` under `pointer: coarse`).
+- **Attributes**: `src` (required), `autoplay`, `loop`, `controls` (control
+  bar below the picture — play/pause, landmark scrubber, time, speed),
+  `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
+  `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
+  afterwards), `profile` (below), `quality` (below).
+- **Controls UX** — the bar lives *below* the canvas, in flow: it never
+  covers the picture, stays visible permanently, and a canvas tap maps
+  straight to play/pause (same rule for mouse and touch). The scrubber is
+  landmark-aware: the engine reports the author's `#2s` keyframe
+  declarations (and, in compositions, scene starts and transition windows),
+  the rail draws them — ticks for keyframes, diamonds for scene starts,
+  hatched spans for transitions — and dragging snaps to them within 0.2 s.
+  Arrow keys step between landmarks; Home restarts; Space/K toggles. A
+  looping embed's `hold` rest appears as a dimmed trailing segment, so the
+  bar explains why the figure sits on its finished frame before restarting.
+  While a drag is in progress the clock is frozen — the dragged frame is
+  what shows, and playback resumes from there on release. The speed button
+  cycles 1× → 1.5× → 2× → 0.5× (dt scaling keeps holds and dissolves
+  proportional). Touch targets are ≥40 px (`44` under `pointer: coarse`).
 - **`profile`** — per element, `"slim"` (default) or `"full"`: which engine
   build backs the figure. Omitted means slim, so a page of plain-text scenes
   needs nothing; a figure with Typst markup, `Math`/`Code` highlighting or

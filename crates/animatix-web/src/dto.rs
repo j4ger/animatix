@@ -42,6 +42,19 @@ impl DiagnosticDto {
     }
 }
 
+/// One structural landmark on the document's timeline, for the embed's
+/// scrubber. Points (`keyframe`, `scene`) carry `dur == 0`; `transition`
+/// markers span `[t, t + dur]`.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct MarkerDto {
+    /// Global time in seconds.
+    pub t: f64,
+    /// "keyframe" | "scene" | "transition".
+    pub kind: String,
+    /// Span length in seconds (transitions only, else 0).
+    pub dur: f64,
+}
+
 /// Result payload returned to JS from `load_source`.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct LoadResultDto {
@@ -59,4 +72,7 @@ pub struct LoadResultDto {
     /// again — the closure loop that lets a page play scenes importing
     /// `.amx` files beyond the bundled library. Empty on every other outcome.
     pub missing_imports: Vec<String>,
+    /// Timeline landmarks (keyframes, scene starts, transition windows),
+    /// sorted by time — the scrubber draws them and snaps to them.
+    pub markers: Vec<MarkerDto>,
 }

@@ -10,12 +10,15 @@
 //   loop       restart from the beginning at the end of the timeline
 //   hold       seconds to keep the finished timeline on screen before a looping
 //              restart (default 0.7; 0 loops with no rest at all)
-//   controls   bottom control bar: play/pause, a seek scrubber (the loop's
-//              hold rest shown as a dimmed trailing segment), and a time read
-//              out. Auto-hides while playing; the canvas follows the media-
-//              player tap convention (first tap reveals, next toggles), with
-//              hover as a mouse bonus and keyboard on the scrubber
-//              (arrows seek, Space/K toggles, Home restarts).
+//   controls   control bar BELOW the picture (never covers it): play/pause,
+//              a landmark-aware scrubber (the engine's `#` keyframe marks are
+//              drawn as ticks and snapping targets; compositions also get
+//              scene diamonds and hatched transition spans), a time readout,
+//              and a speed cycle (1x -> 1.5x -> 2x -> 0.5x). A loop's hold
+//              rest shows as a dimmed trailing segment. Canvas tap toggles
+//              playback (mouse and touch alike); dragging freezes the clock
+//              until release; the scrubber is a keyboard slider (arrows step
+//              between landmarks, Home restarts, Space/K toggles).
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
@@ -220,9 +223,9 @@ class AmxPlayerElement extends HTMLElement {
     this._visible = false;
     this._observer = null;
     this._initialized = false;
-    this._controlsVisible = false;
     this._scrubbing = false;
-    this._hideTimer = null;
+    this._rate = 1;
+    this._markers = [];
   }
 
   connectedCallback() {
@@ -236,12 +239,11 @@ class AmxPlayerElement extends HTMLElement {
     this._observer?.disconnect();
     instances.delete(this);
     this._playing = false;
-    if (this._hideTimer) clearTimeout(this._hideTimer);
   }
 
   attributeChangedCallback(name) {
     if (name === "aspect" && this._initialized) {
-      this.style.aspectRatio = String(this._aspectRatio());
+      this._stage.style.aspectRatio = String(this._aspectRatio());
     }
     if (name === "hold" && this._initialized && this._duration > 0) {
       this._configureCycle();
@@ -305,13 +307,17 @@ class AmxPlayerElement extends HTMLElement {
 
   _renderSkeleton() {
     // Reserve the figure's box up front so lazy loading never reflows the
-    // page: the host carries the aspect ratio until the scene reports its own.
-    this.style.aspectRatio = String(this._aspectRatio());
+    // page: the stage carries the aspect ratio until the scene reports its
+    // own, and the control bar (when present) sits below it in flow.
+    this._stage = document.createElement("div");
+    this._stage.className = "stage";
+    this._stage.style.aspectRatio = String(this._aspectRatio());
     const title = this.getAttribute("title") || "";
     const style = document.createElement("style");
     style.textContent = `
-      :host { display: block; position: relative; overflow: hidden;
+      :host { display: block; overflow: hidden;
               border-radius: 8px; background: #0a0f17; }
+      .stage { position: relative; overflow: hidden; }
       .skeleton {
         position: absolute; inset: 0;
         display: flex; align-items: center; justify-content: center;
@@ -321,7 +327,8 @@ class AmxPlayerElement extends HTMLElement {
         color: #808fa6; font: 13px/1.4 system-ui, sans-serif;
       }
       @keyframes shimmer { to { background-position: -300% 0; } }
-      canvas { width: 100%; height: 100%; display: block; object-fit: contain; }
+      canvas { position: absolute; inset: 0; width: 100%; height: 100%;
+               display: block; object-fit: contain; }
       .veil {
         position: absolute; inset: 0; display: flex; flex-direction: column;
         align-items: center; justify-content: center; gap: 10px;
@@ -332,6 +339,8 @@ class AmxPlayerElement extends HTMLElement {
       .veil.show { opacity: 1; pointer-events: auto; }
       .veil.error { color: #ef6a6a; }
       .playbtn {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%);
         width: 52px; height: 52px; border-radius: 50%;
         border: 1px solid rgba(245,185,66,.5); background: rgba(245,185,66,.14);
         color: #f5b942; cursor: pointer; display: none;
@@ -339,24 +348,20 @@ class AmxPlayerElement extends HTMLElement {
       }
       .playbtn.show { display: flex; }
       .playbtn svg { display: block; }
-      .scrim {
-        position: absolute; left: 0; right: 0; bottom: 0; height: 84px;
-        background: linear-gradient(transparent, rgba(5,8,12,.74));
-        opacity: 0; transition: opacity .25s; pointer-events: none;
-      }
-      .scrim.show { opacity: 1; }
+      /* The bar lives below the stage, in flow: it never covers the picture,
+         so it stays visible permanently and the canvas tap maps straight to
+         play/pause. */
       .bar {
-        position: absolute; left: 0; right: 0; bottom: 0;
         display: flex; align-items: center; gap: 8px;
         padding: 6px 12px 8px;
-        opacity: 0; pointer-events: none; transition: opacity .25s;
+        border-top: 1px solid rgba(255,255,255,.07);
       }
-      .bar.show { opacity: 1; pointer-events: auto; }
       .bar button {
         width: 40px; height: 40px; flex: none;
         border: none; border-radius: 8px; background: none;
         color: #e8edf4; cursor: pointer; padding: 0;
         display: flex; align-items: center; justify-content: center;
+        font: 12px ui-monospace, monospace;
       }
       .bar button:hover { background: rgba(255,255,255,.14); }
       .bar button:focus-visible { outline: 2px solid #f5b942; }
@@ -387,20 +392,41 @@ class AmxPlayerElement extends HTMLElement {
       .track:hover .thumb, .track.scrubbing .thumb, .track:focus-visible .thumb {
         opacity: 1;
       }
+      /* Timeline landmarks. Keyframes are small ticks; scene starts are
+         taller diamonds; a transition is a hatched span on the rail. */
+      .track .tick {
+        position: absolute; top: 50%; width: 2px; height: 8px;
+        transform: translate(-50%, -50%);
+        background: rgba(255,255,255,.45); border-radius: 1px;
+        pointer-events: none;
+      }
+      .track .diamond {
+        position: absolute; top: 50%; width: 7px; height: 7px;
+        transform: translate(-50%, -50%) rotate(45deg);
+        background: #8ab4f8; border-radius: 1px;
+        pointer-events: none;
+      }
+      .track .span {
+        position: absolute; top: 0; bottom: 0;
+        background: repeating-linear-gradient(135deg,
+          rgba(138,180,248,.4) 0 3px, transparent 3px 6px);
+        border-radius: 2px; pointer-events: none;
+      }
       .time {
         color: #c7cfd9; font: 12px ui-monospace, monospace; white-space: nowrap;
         font-variant-numeric: tabular-nums; flex: none;
       }
+      .speed { min-width: 44px; justify-content: center; color: #c7cfd9; }
       @media (pointer: coarse) {
         .track { height: 40px; }
         .bar button { width: 44px; height: 44px; }
       }
     `;
-    this.shadowRoot.replaceChildren(style);
+    this.shadowRoot.replaceChildren(style, this._stage);
     this._skeleton = document.createElement("div");
     this._skeleton.className = "skeleton";
     this._skeleton.textContent = title ? `${title}` : "animatix scene";
-    this.shadowRoot.appendChild(this._skeleton);
+    this._stage.appendChild(this._skeleton);
 
     this._canvas = document.createElement("canvas");
     this._canvas.width = 1280;
@@ -628,7 +654,7 @@ class AmxPlayerElement extends HTMLElement {
       this._duration = Math.max(result.duration_s, 0.05);
       this._canvas.width = Math.round(result.width || 1280);
       this._canvas.height = Math.round(result.height || 720);
-      this.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
       this._configureCycle();
       // Poster = the finished composition, not frame 0. These scenes build up
       // from nothing, so frame 0 is an empty stage: a reader who never presses
@@ -636,17 +662,21 @@ class AmxPlayerElement extends HTMLElement {
       this._restTime = this._duration;
       this._renderScene();
 
+      // Timeline landmarks for the scrubber (keyframes, scene starts,
+      // transition windows) — the engine knows them, so the bar can show them.
+      this._markers = Array.isArray(result.markers) ? result.markers : [];
+
       // swap skeleton for canvas + interactions
       this._skeleton.remove();
       this._canvas.hidden = false;
-      this.shadowRoot.appendChild(this._canvas);
+      this._stage.appendChild(this._canvas);
       if (this.hasAttribute("controls")) {
         this._buildControls();
         this._setupGestures();
       } else {
-        this.shadowRoot.appendChild(this._playbtn);
+        this._stage.appendChild(this._playbtn);
       }
-      this.shadowRoot.appendChild(this._veil);
+      this._stage.appendChild(this._veil);
       if (diags.length > 0) {
         console.warn(`amx-player: ${src} built with ${diags.length} diagnostic(s)`, diags[0]);
       }
@@ -655,12 +685,7 @@ class AmxPlayerElement extends HTMLElement {
       if (this._shouldAutoplay()) {
         this._loop = this.hasAttribute("loop");
         this.play();
-      } else if (this.hasAttribute("controls")) {
-        // Paused with a control bar: keep it up so the figure is operable.
-        this._controls.bar.classList.add("show");
-        this._controls.scrim.classList.add("show");
-        this._controlsVisible = true;
-      } else {
+      } else if (!this.hasAttribute("controls")) {
         this._playbtn.classList.add("show");
       }
     } catch (err) {
@@ -670,8 +695,6 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   _buildControls() {
-    const scrim = document.createElement("div");
-    scrim.className = "scrim";
     const bar = document.createElement("div");
     bar.className = "bar";
 
@@ -712,19 +735,68 @@ class AmxPlayerElement extends HTMLElement {
     rest.append(restRail);
     if (!(this._holdSeconds > 0)) rest.style.display = "none";
 
+    // Landmarks drawn onto the rail: keyframe ticks, scene-start diamonds,
+    // and hatched transition spans. Positions are percentages of the timeline
+    // so they hold at any width.
+    const railWidth = zone.querySelector(".rail");
+    for (const m of this._markers) {
+      const frac = this._duration > 0 ? Math.min(m.t / this._duration, 1) : 0;
+      if (m.kind === "transition" && m.dur > 0) {
+        const span = document.createElement("div");
+        span.className = "span";
+        span.style.left = `${frac * 100}%`;
+        span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
+        railWidth.appendChild(span);
+      } else {
+        const mark = document.createElement("div");
+        mark.className = m.kind === "scene" ? "diamond" : "tick";
+        mark.style.left = `${frac * 100}%`;
+        railWidth.appendChild(mark);
+      }
+    }
+
     const time = document.createElement("span");
     time.className = "time";
 
+    // Playback speed: one button cycling the useful range. dt scales, so the
+    // loop's hold and dissolves stay proportionally correct at any rate.
+    const RATES = [1, 1.5, 2, 0.5];
+    this._rate = 1;
+    const speed = document.createElement("button");
+    speed.className = "speed";
+    speed.textContent = "1\u00d7";
+    speed.setAttribute("aria-label", "Playback speed 1\u00d7");
+    speed.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const next = RATES[(RATES.indexOf(this._rate) + 1) % RATES.length];
+      this._rate = next;
+      speed.textContent = `${next}\u00d7`;
+      speed.setAttribute("aria-label", `Playback speed ${next}\u00d7`);
+    });
+
     track.append(zone, rest);
-    bar.append(btn, track, time);
-    this.shadowRoot.append(scrim, bar);
+    bar.append(btn, track, time, speed);
+    this.shadowRoot.append(bar);
 
     // ── scrubbing: pointer capture, works for mouse and touch alike ──
+    // The engine's landmarks make the scrubber magnetic: within 0.2 s of a
+    // keyframe or a transition edge the seek snaps to it.
+    const SNAP_S = 0.2;
+    const snapTarget = (t) => {
+      for (const m of this._markers) {
+        if (Math.abs(t - m.t) <= SNAP_S) return m.t;
+        if (m.kind === "transition" && m.dur > 0 && Math.abs(t - (m.t + m.dur)) <= SNAP_S) {
+          return m.t + m.dur;
+        }
+      }
+      return null;
+    };
     const seekFromPointer = (e) => {
       const rect = zone.getBoundingClientRect();
       if (rect.width <= 0) return;
       const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-      this._time = frac * this._duration;
+      const raw = frac * this._duration;
+      this._time = snapTarget(raw) ?? raw;
       this._restTime = this._time;
       this._renderScene();
       this._syncControls();
@@ -749,16 +821,15 @@ class AmxPlayerElement extends HTMLElement {
       this._scrubbing = false;
       track.classList.remove("scrubbing");
       seekFromPointer(e);
-      this._scheduleHide();
     };
     track.addEventListener("pointerup", endScrub);
     track.addEventListener("pointercancel", endScrub);
     track.addEventListener("keydown", (e) => {
-      const step = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-      if (step !== 0) {
+      const dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+      if (dir !== 0) {
         e.preventDefault();
         e.stopPropagation();
-        this.seek(Math.min(Math.max(this._time + step, 0), this._duration));
+        this.seek(this._nextLandmark(dir));
       } else if (e.key === "Home") {
         e.preventDefault();
         this.seek(0);
@@ -769,9 +840,27 @@ class AmxPlayerElement extends HTMLElement {
       }
     });
 
-    this._controls = { scrim, bar, btn, track, zone, fill, thumb, time, icons: ICONS };
-    this._controlsVisible = false;
+    this._controls = { bar, btn, track, zone, fill, thumb, time, speed, icons: ICONS };
     this._syncControls();
+  }
+
+  /// The next (dir=1) or previous (dir=-1) landmark at or after the playhead:
+  /// keyframes, scene starts, and transition edges. Falls back to a 1 s step
+  /// when the document has no landmarks.
+  _nextLandmark(dir) {
+    const pts = [];
+    for (const m of this._markers) {
+      pts.push(m.t);
+      if (m.kind === "transition" && m.dur > 0) pts.push(m.t + m.dur);
+    }
+    pts.sort((a, b) => a - b);
+    const eps = 1e-3;
+    if (dir > 0) {
+      const next = pts.find((t) => t > this._time + eps);
+      return next ?? Math.min(this._time + 1, this._duration);
+    }
+    const prev = [...pts].reverse().find((t) => t < this._time - eps);
+    return prev ?? Math.max(this._time - 1, 0);
   }
 
   /// Push the current time/state into the control bar. Called from the shared
@@ -794,46 +883,12 @@ class AmxPlayerElement extends HTMLElement {
     }
   }
 
-  // ── control-bar visibility (YouTube-style, one model for mouse & touch) ──
-
-  _showControls() {
-    if (!this._controls) return;
-    this._controlsVisible = true;
-    this._controls.bar.classList.add("show");
-    this._controls.scrim.classList.add("show");
-    this._scheduleHide();
-  }
-
-  _hideControls() {
-    if (!this._controls) return;
-    // Paused figures keep their controls up — there is nothing else to do.
-    if (!this._playing || this._scrubbing) return;
-    this._controlsVisible = false;
-    this._controls.bar.classList.remove("show");
-    this._controls.scrim.classList.remove("show");
-  }
-
-  _scheduleHide() {
-    if (this._hideTimer) clearTimeout(this._hideTimer);
-    if (!this._playing || this._scrubbing) return;
-    this._hideTimer = setTimeout(() => this._hideControls(), 2500);
-  }
-
-  /// Canvas gesture: first tap reveals the bar, the next one toggles playback.
-  /// The same rule covers mouse and touch; on PC, moving the pointer also
-  /// reveals (hover is a bonus, not the mechanism).
+  /// Canvas gesture: the bar lives below the picture, so a tap maps straight
+  /// to play/pause — the same rule for mouse and touch, no reveal state.
   _setupGestures() {
     this._canvas.addEventListener("pointerdown", () => {
       if (!this._controls) return;
-      if (!this._controlsVisible) {
-        this._showControls();
-        return;
-      }
       this._playing ? this.pause() : this.play();
-    });
-    this._canvas.addEventListener("pointermove", (e) => {
-      if (this._controls && e.pointerType === "mouse" && this._playing) this._scheduleHide();
-      if (this._controls && !this._controlsVisible) this._showControls();
     });
     this._canvas.addEventListener("keydown", (e) => {
       if (!this._controls) return;
@@ -855,18 +910,17 @@ class AmxPlayerElement extends HTMLElement {
     this._syncControls();
     instances.add(this);
     ensureLoop();
-    this._scheduleHide();
   }
 
   pause() {
     this._playing = false;
     instances.delete(this);
     if (this._state === "ready") {
+      // Without the control bar the center affordance is the only way back.
       if (!this._controls || !this.hasAttribute("autoplay")) {
         this._playbtn.classList.add("show");
       }
       this._syncControls();
-      if (this._controls) this._showControls();
     }
   }
 
@@ -878,15 +932,17 @@ class AmxPlayerElement extends HTMLElement {
     this._restTime = this._time;
     this._renderScene();
     this._syncControls();
-    if (this._controls) this._showControls();
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
   advance(dt) {
     if (!this._playing || !this._visible) return false;
+    // Scrubbing owns the playhead until release: the clock freezes and the
+    // dragged frame is what renders (seekFromPointer renders directly).
+    if (this._scrubbing) return false;
     const looping = this._looping();
     const limit = looping ? this._cycle : this._duration;
-    this._time += dt;
+    this._time += dt * (this._rate ?? 1);
     if (this._time >= limit) {
       if (looping) {
         this._time %= limit;
