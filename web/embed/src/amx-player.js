@@ -995,6 +995,9 @@ class AmxPlayerElement extends HTMLElement {
     if (!this._player?.has_document()) return;
     if (!this._looping() && this._time >= this._duration) this._time = 0;
     this._playing = true;
+    // A paused embed is not in `instances`, so it misses both the quality-step
+    // notifications and its own layout changes; re-align on the way in.
+    this._applyRenderScale();
     this._playbtn.classList.remove("show");
     this._syncControls();
     instances.add(this);
