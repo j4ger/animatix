@@ -510,10 +510,19 @@ pub fn format_diagnostic_with_source(diagnostic: &Diagnostic, source: &str) -> S
 
 /// Extract the source line containing `span` and the caret position within it.
 fn extract_source_snippet(source: &str, span: &Range<usize>) -> Option<(String, usize, usize)> {
-    let start = span.start;
-    let end = span.end;
-    if start > source.len() || end > source.len() {
+    // Spans are raw byte offsets and can end inside a multi-byte character
+    // (an em-dash in a comment is enough); snap both ends to char boundaries
+    // so the slicing below cannot panic.
+    if span.start > source.len() || span.end > source.len() {
         return None;
+    }
+    let mut start = span.start;
+    while start > 0 && !source.is_char_boundary(start) {
+        start -= 1;
+    }
+    let mut end = span.end.max(start);
+    while end < source.len() && !source.is_char_boundary(end) {
+        end += 1;
     }
 
     // Find the start of the line containing `start`
@@ -605,6 +614,19 @@ fn severity_summary(warnings: usize, errors: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_snippet_snaps_spans_onto_char_boundaries() {
+        // A span that ends inside the em-dash (raw byte offset) used to panic
+        // the snippet extractor; it must render instead.
+        let source = "// probe — comment with a dash\nr: Rect\n";
+        let dash_start = source.find('—').unwrap();
+        let mut diagnostic =
+            Diagnostic::error(DiagnosticCode::ParseError, DiagnosticPhase::Parse, "bad");
+        diagnostic.location.span = Some(dash_start + 1..dash_start + 3);
+        let formatted = format_diagnostic_with_source(&diagnostic, source);
+        assert!(formatted.contains("// probe — comment with a dash"));
+    }
 
     #[test]
     fn source_load_failure_code_formats_honestly() {
