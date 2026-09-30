@@ -899,12 +899,14 @@ class AmxPlayerElement extends HTMLElement {
   _syncControls() {
     const c = this._controls;
     if (!c) return;
-    // The fill covers exactly the played fraction of the timeline — the same
-    // number the time chip shows, over the same width.
-    const frac = this._duration > 0 ? this._time / this._duration : 0;
-    c.fill.style.transform = `scaleX(${Math.min(frac, 1)})`;
-    c.chip.textContent = `${this._time.toFixed(1)} / ${this._duration.toFixed(1)}`;
-    c.strip.setAttribute("aria-valuenow", this._time.toFixed(1));
+    // The playhead can legally sit past the timeline (a loop's hold rest),
+    // but every control reads in timeline units: clamp so the chip, the fill
+    // and the slider value can never report more than `duration`.
+    const shown = Math.min(this._time, this._duration);
+    const frac = this._duration > 0 ? shown / this._duration : 0;
+    c.fill.style.transform = `scaleX(${frac})`;
+    c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
+    c.strip.setAttribute("aria-valuenow", shown.toFixed(1));
   }
 
   /// Canvas gesture. A click pauses *latched*: leaving the strip afterwards
