@@ -5,9 +5,12 @@
     nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url  = "github:numtide/flake-utils";
+    # Browser-automation CLI used to exercise the web/ demos against a real
+    # Chromium; kept out of the default shell (start it with `nix develop .#web`).
+    llm-agents.url  = "git+https://github.com/numtide/llm-agents.nix";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, llm-agents, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -52,6 +55,13 @@
 		export LD_LIBRARY_PATH="${builtins.toString (pkgs.lib.makeLibraryPath buildInputs)}";
 		export ALSA_PLUGIN_DIR="${pkgs.pipewire}/lib/alsa-lib";
           '';
+        };
+
+        # Chromium + the agent-browser CLI for driving the web/ demo pages
+        # against a real browser. Deliberately not part of .#default —
+        # enter with `nix develop .#web`; WebGPU needs AGENT_BROWSER_WEBGPU=1.
+        devShells.web = pkgs.mkShell {
+          packages = [ llm-agents.packages.${system}.agent-browser ];
         };
       }
     );
