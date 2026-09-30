@@ -15,19 +15,24 @@
 // Grid: 1280×720. Chips 150×56 at pitch 180, centres x = 280 + 180i. Bars sit
 // on one baseline at y = 560.
 
+import "../lib/components.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
 
-// ── the tokens ──────────────────────────────────────────────────────
-tok1: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (280, 180)
-tok1_t: Text, text: "The", font_size: 22, color: text.primary, at: (280, 180)
-tok2: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (460, 180)
-tok2_t: Text, text: "animal", font_size: 22, color: text.primary, at: (460, 180)
-tok3: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (640, 180)
-tok3_t: Text, text: "didn't", font_size: 22, color: text.primary, at: (640, 180)
-tok4: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (820, 180)
-tok4_t: Text, text: "cross", font_size: 22, color: text.primary, at: (820, 180)
-tok5: Rect, size: (150, 56), corner_radius: 14, color: surface.primary, at: (1000, 180)
-tok5_t: Text, text: "it", font_size: 22, color: text.primary, at: (1000, 180)
+// ── phase narration (top-left; one label per beat) ──────────────────
+phase1: Text, text: "1 · \"it\" looks back", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
+phase2: Text, text: "2 · score every token", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
+phase3: Text, text: "3 · softmax normalizes", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
+
+// ── the tokens — the shared LabeledBox component ────────────────────
+tok1: LabeledBox, label: "The", width: 150, height: 56, text_size: 22, at: (280, 180)
+tok2: LabeledBox, label: "animal", width: 150, height: 56, text_size: 22, at: (460, 180)
+tok3: LabeledBox, label: "didn't", width: 150, height: 56, text_size: 22, at: (640, 180)
+tok4: LabeledBox, label: "cross", width: 150, height: 56, text_size: 22, at: (820, 180)
+tok5: LabeledBox, label: "it", width: 150, height: 56, text_size: 22, at: (1000, 180)
 
 // Query ring: outer radius = chip radius + band, so the band is even all round.
 halo: Rect, size: (172, 78), corner_radius: 25, color: accent.warning,
@@ -41,14 +46,19 @@ query_tag: Text, text: "query", font_size: 14, color: accent.warning, at: (1000,
 // probe scene: with the arrow declared first and again declared last, it painted
 // over the rect both times. The winning weight is the one arm worth drawing;
 // the thin rule carries the direction of reading for the rest.
+// Both accents are authored `opacity: 0.0` — an authored non-zero opacity is
+// visible from frame 0 whatever entrance follows — and settle via assignment.
 a_animal: Arrow, from: (965, 224), to: (460, 312), head_size: 16,
-  stroke_width: 7, color: accent.primary, opacity: 0.95
+  stroke_width: 7, color: accent.primary, opacity: 0.0
 scan: Arrow, from: (975, 296), to: (250, 296), head_size: 12,
-  stroke_width: 2, color: accent.primary, opacity: 0.55
+  stroke_width: 2, color: accent.primary, opacity: 0.0
 scan_label: Text, text: "attends to", font_size: 15, color: text.muted,
   text_max_width: 160, text_align: "left", at: (330, 326)
 
-// ── weights: one baseline, bars grow from it ────────────────────────
+// ── weights: one baseline at y = 560; every bar bottom is center_y + h/2
+// on that line. (A bottom-aligned Row was tried and reverted: align "end"
+// plants children on the CONTAINER bottom edge — center plus half the
+// tallest child — which is the same constant, one step removed.) ──────
 base: Line, from: (205, 560), to: (1075, 560), stroke_width: 2, color: text.muted, opacity: 0.35
 
 bar_the: Rect, size: (56, 19), corner_radius: 5, color: accent.primary, at: (280, 550)
@@ -70,21 +80,13 @@ formula: Text, text: "softmax(Q K^T / sqrt(d_k))", font_size: 16, color: text.mu
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
+fade-in phase1 [300ms]
 stagger [100ms] {
-  wipe-in tok1 [360ms]
-  wipe-in tok2 [360ms]
-  wipe-in tok3 [360ms]
-  wipe-in tok4 [360ms]
-  wipe-in tok5 [360ms]
-}
-
-#0.65s
-stagger [100ms] {
-  fade-in tok1_t [280ms]
-  fade-in tok2_t [280ms]
-  fade-in tok3_t [280ms]
-  fade-in tok4_t [280ms]
-  fade-in tok5_t [280ms]
+  fade-in tok1 [360ms]
+  fade-in tok2 [360ms]
+  fade-in tok3 [360ms]
+  fade-in tok4 [360ms]
+  fade-in tok5 [360ms]
 }
 
 #1.00s
@@ -95,6 +97,8 @@ fade-in query_tag [320ms, delay: 220ms]
 draw-in base [420ms, ease: ease-out]
 
 #1.70s
+fade-out phase1 [260ms]
+fade-in phase2 [280ms]
 stagger [90ms] {
   wipe-in bar_the [380ms]
   wipe-in bar_animal [380ms]
@@ -104,6 +108,8 @@ stagger [90ms] {
 }
 
 #2.45s
+fade-out phase2 [260ms]
+fade-in phase3 [280ms]
 stagger [70ms] {
   fade-in w_the [240ms]
   fade-in w_animal [240ms]
@@ -115,14 +121,17 @@ stagger [70ms] {
 // The direction of reading first, then the one weight that matters.
 #3.05s
 draw-in scan [520ms, ease: ease-out]
+scan.opacity = 0.55 [420ms]
 fade-in scan_label [320ms, delay: 260ms]
 
 #3.55s
 draw-in a_animal [700ms, ease: ease-out]
+a_animal.opacity = 0.95 [560ms]
 
 #4.40s
 fade-in scale_label [380ms]
 fade-in formula [380ms, delay: 140ms]
 
 #5.00s
-pulse bar_animal [700ms, intensity: 1.08]
+pulse bar_animal [700ms, intensity: 1.04]
+pulse w_animal [700ms, intensity: 1.04]

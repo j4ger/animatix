@@ -468,6 +468,7 @@ fade-in pic [300ms]
     #[test]
     fn transformer_demo_scenes_build_cleanly() {
         const SCENES: &[(&str, &str)] = &[
+            ("overview", include_str!("../../../web/demos/transformer/scenes/overview.amx")),
             ("tokens", include_str!("../../../web/demos/transformer/scenes/tokens.amx")),
             (
                 "positional",
@@ -512,7 +513,9 @@ fade-in pic [300ms]
             .filter(|m| m.kind == "keyframe")
             .map(|m| m.t)
             .collect();
-        for expected in [0.15, 0.55, 1.25, 2.55, 2.95, 3.25, 4.05] {
+        for expected in [
+            0.15, 0.4, 0.75, 1.3, 1.65, 2.45, 2.85, 4.15, 4.55, 4.85, 5.35,
+        ] {
             assert!(
                 ts.iter().any(|t| (t - expected).abs() < 1e-3),
                 "tokens keyframes must include {expected}s: {ts:?}"

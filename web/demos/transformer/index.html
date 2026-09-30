@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>The Transformer Architecture, Animated — an .amx walkthrough</title>
-  <meta name="description" content="Six animated explanations of the transformer block, each one a small .amx scene file embedded with a single custom element.">
+  <meta name="description" content="A picture-first walkthrough of the transformer block: seven animated .amx figures with the prose to read alongside them — tokens, positions, attention, heads, the feed-forward block, and the stack.">
   <link rel="stylesheet" href="../../demo.css">
 </head>
 <body>
@@ -13,17 +13,51 @@
       <p class="kicker">Animatix demo · every figure is a .amx file</p>
       <h1>The Transformer Architecture, Animated</h1>
       <p class="lede">
-        Six short animations that build the transformer up piece by piece —
-        tokens, positions, attention, multi-head attention, the feed-forward
-        block, and the full stack. Each figure is a declarative scene file,
-        compiled in your browser and drawn with WebGPU.
+        Every language model you have used — GPT, Claude, Llama — is built from
+        one machine, repeated: the transformer block. This walkthrough builds it
+        up piece by piece, and every figure is not a video but a declarative
+        scene file, compiled in your browser and drawn with WebGPU as you read.
+      </p>
+      <p>
+        Start with the map below. The gold numbers on it (01–06) are the sections
+        of this article; each section zooms into one tagged part of the diagram.
+        If you only remember one thing: <strong>tokens flow up</strong>. Text goes
+        in at the bottom as symbols, climbs through a stack of identical blocks —
+        each one mixing information <em>between</em> tokens and then transforming
+        each token <em>on its own</em> — and arrives at the top as a vector
+        rich enough to score every word in the vocabulary.
+      </p>
+      <p>
+        A note on scope before we start. Everything below describes the
+        <em>shape</em> of the machine — what each piece is for and how data moves
+        through it — with the real numbers from GPT-2-size models as ballast.
+        It will not tell you how the weights were learned, and it skips the
+        variants (encoder–decoders, MoE, linear attention) entirely; the recap
+        in §07 lists exactly what was left out. With that said, the shape has
+        been remarkably stable since 2017: scale the widths, swap a few
+        normalizations, and the block in the figure is the block that answers
+        your questions.
       </p>
       <ul class="meta">
-        <li>6 scenes</li>
-        <li>one 1.1 MB engine (brotli) shared by all six</li>
+        <li>7 scenes</li>
+        <li>one 1.1 MB engine (brotli) shared by all seven</li>
         <li>hover a figure to pause or scrub it</li>
       </ul>
     </header>
+
+    <figure class="hero">
+      <amx-player src="scenes/overview.amx" autoplay loop controls hold="1.5"
+                  aspect="16:9" title="The full transformer, one map"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The map.</b> Tokens enter at the bottom, climb one
+          block (drawn with its internals visible, marked <b>× N</b> because it
+          repeats), and reach the LM head, which turns the final vector into a
+          probability for every word. The chosen word — <em>street</em> — is
+          appended to the input and the whole thing runs again: that loop
+          <em>is</em> text generation.</span>
+        <a class="src" href="scenes/overview.amx">scenes/overview.amx ↗</a>
+      </figcaption>
+    </figure>
 
     <nav class="toc" aria-label="Contents">
       <p class="toc-title">Contents</p>
@@ -34,129 +68,440 @@
         <li><a href="#s4"><span class="n">04</span>Multi-head attention</a></li>
         <li><a href="#s5"><span class="n">05</span>Feed-forward &amp; residuals</a></li>
         <li><a href="#s6"><span class="n">06</span>Stacking the blocks</a></li>
+        <li><a href="#s7"><span class="n">07</span>Recap, glossary &amp; reading</a></li>
       </ol>
     </nav>
 
     <section id="s1">
       <div class="sec-head"><span class="sec-num">01</span><h2>From text to tokens</h2></div>
       <p>
-        A transformer never sees words. Text is split into tokens, and each
-        token is replaced by a <strong>learned vector</strong> — its embedding.
-        Everything downstream operates on those numbers, never on the words.
+        A transformer never sees words. The first thing that happens to your
+        text is <strong>tokenization</strong>: a fixed, learned vocabulary of
+        sub-word pieces splits the string into <em>tokens</em> — whole short
+        words, syllables of longer ones, punctuation, spaces. <em>unbelievable</em>
+        might come out as <em>un · believ · able</em>; a rare name as three or
+        four fragments. Byte-level schemes like GPT-2's go further and make the
+        vocabulary total: <strong>any</strong> string, in any language or no
+        language at all, can be split — there is no “unknown word”.
       </p>
+      <p>
+        The vocabulary is <em>learned</em>, not designed: byte-pair encoding
+        starts from single characters and repeatedly merges the most frequent
+        pair until the budget — 50,257 entries for GPT-2 — is spent. The merges
+        follow the training corpus, which is why English prose tends to cost
+        fewer tokens per word than code or German: common spellings got merged
+        first. It is also why models are oddly bad at counting letters or doing
+        character-level puns — by the time the model sees your question, the
+        individual letters may not exist anywhere in its input.
+      </p>
+      <p>
+        Each token id then buys one thing: a row in a giant learned table called
+        the <strong>embedding matrix</strong>. Row 4132 of the table is just
+        <code class="inline">d_model</code> numbers — for GPT-2, 768 of them —
+        and those numbers <em>are</em> the token as far as the rest of the
+        network is concerned. Similar words end up with similar vectors, because
+        that is what training rewards, but nothing about a vector is readable:
+        the figure below shows five of 512 entries, where brighter simply means
+        a larger number. From here on, every operation in this article is
+        arithmetic on these lists. The words never come back until the very end.
+      </p>
+      <ul class="facts">
+        <li>GPT-2 vocabulary <b>50,257</b> tokens</li>
+        <li>d_model <b>768</b> (paper: 512)</li>
+        <li>embedding table alone <b>38.6 M</b> parameters</li>
+      </ul>
       <figure>
         <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Tokens and embeddings"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> each chip grows a column of numbers
-            beneath it. A brighter cell is a larger number, and the column keeps
-            going past the fifth entry.</span>
+          <span class="cap"><b>Watch:</b> the sentence bar splits into token
+            chips (the tokenizer), then each chip grows a column of numbers from
+            the learned table. A brighter cell is a larger number; the dots mean
+            the column keeps going to d_model entries.</span>
           <a class="src" href="scenes/tokens.amx">scenes/tokens.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>The text, as one string — all the model will ever get.</li>
+          <li><span class="step">2</span>The tokenizer cuts it into chips. The cut points are learned statistics, not dictionary words.</li>
+          <li><span class="step">3</span>Each chip looks up its row in the embedding table and from here on <em>is</em> that column of numbers. The bracket names its length: d_model.</li>
+        </ol>
+      </div>
     </section>
 
     <section id="s2">
       <div class="sec-head"><span class="sec-num">02</span><h2>Positional encoding</h2></div>
       <p>
-        Attention has no built-in sense of order, so each position is stamped
-        with a fingerprint built from <strong>sine waves of growing
-        wavelength</strong>. Move a word and its vector changes, even though its
-        embedding doesn't.
+        Here is an uncomfortable property of the machine so far: it has no sense
+        of order. Attention — the operation coming next — treats its input as an
+        unordered bag of vectors: shuffle <em>dog bites man</em> into
+        <em>man bites dog</em> and every intermediate computation shuffles with
+        it, producing exactly the correspondingly-shuffled result. Word order is
+        most of the meaning of a sentence, so it has to be put back
+        <strong>by hand</strong>: before anything else, each position is stamped
+        with a fingerprint vector, and the token's embedding is replaced by
+        <code class="inline">embedding + position</code>.
       </p>
+      <p>
+        The original transformer builds each fingerprint out of
+        <strong>sines of geometrically growing wavelength</strong>, in sin/cos
+        pairs. Dimension 0 oscillates fast; each later pair is a slower sine; by
+        the last dimensions the wave barely turns over thousands of positions.
+        Read across, every position gets a unique code; read down, the pattern
+        is smooth, so <em>“position 5 relative to position 4”</em> looks the
+        same everywhere in the text — a shift in position is a shift of the
+        wave, and the model can learn to detect offsets rather than absolute
+        spots. Move a word and its whole input vector changes, even though its
+        embedding did not.
+      </p>
+      <p>
+        The field has since tried three answers to the same problem, and it is
+        worth naming them because they keep trading places: <strong>learned
+        absolute</strong> vectors (GPT-2 — one free parameter per position,
+        simple but capped at the trained length), <strong>sinusoids</strong>
+        (the paper — free parameters saved, extrapolates further), and
+        <strong>rotary embeddings (RoPE)</strong> — the current default in
+        Llama-class models — which abandons the stamp-adding picture and instead
+        <em>rotates</em> the query and key vectors by an angle proportional to
+        position inside attention, so a dot product between two tokens depends
+        only on their <em>distance</em>. Whatever the scheme, the figure's point
+        stands: order must be injected, explicitly, at the bottom of the stack.
+      </p>
+      <ul class="facts">
+        <li>sine wavelengths <b>2π → 10000·2π</b></li>
+        <li>GPT-2: <b>learned</b> position vectors instead</li>
+        <li>modern Llama-style models: <b>RoPE</b>, applied inside attention</li>
+      </ul>
       <figure>
         <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Positional encoding"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> read down the rows. Each one is a sine
-            of twice the period above it, so the stripes widen from one column to
-            eight. Periods are 3/6/12/24 as a schematic — the real constants span
-            thousands, and the earliest dimensions barely move across eight
-            positions.</span>
+          <span class="cap"><b>Watch:</b> rows are dimensions, columns are
+            positions 0–7, brightness is the value. Each row is a sine of twice
+            the period of the one above, so the stripes widen from one column to
+            eight. The cursor reads one column: position 3's fingerprint.</span>
           <a class="src" href="scenes/positional.amx">scenes/positional.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>The matrix sweeps in: one fingerprint per position, four dimensions shown of d_model.</li>
+          <li><span class="step">2</span>The row labels tell the mechanism: period 3, 6, 12, 24 — every row oscillates half as fast. (Schematic: the real constants span thousands of positions.)</li>
+          <li><span class="step">3</span>The cursor walks the columns. One column, read top to bottom, is the complete stamp added to one token — dark is −1, bright is +1.</li>
+        </ol>
+      </div>
     </section>
 
     <section id="s3">
       <div class="sec-head"><span class="sec-num">03</span><h2>Self-attention</h2></div>
       <p>
-        The core idea. The token <em>“it”</em> asks a question (its
-        <strong>query</strong>); every token answers with a <strong>key</strong>
-        and offers its content (a <strong>value</strong>). A softmax over the
-        query–key scores decides how much of each answer it keeps.
+        This is the engine of the whole architecture. Each token's vector is
+        projected three ways, through three learned matrices, into three roles.
+        Its <strong>query</strong> is the question it is asking — “I'm a
+        pronoun; who do I refer to?”. Its <strong>key</strong> is what it
+        advertises — “I'm a noun, an animal, singular”. Its <strong>value</strong>
+        is the content it hands over if someone attends to it. Every token's
+        query is scored against every token's key with a dot product; the
+        scores go through a <strong>softmax</strong>, which turns them into
+        positive weights that sum to exactly 1; and the token's new vector is
+        the weighted average of everyone's values.
       </p>
+      <p>
+        The softmax is worth feeling concretely, because so much of attention's
+        behaviour hides in it. Suppose <em>it</em>'s dot products come out as
+        14.0 against <em>animal</em>, 11.5 against itself, and 9.0-ish against
+        everything else. Dividing by <code class="inline">√d_k</code> (with
+        d_k = 64, divide by 8) brings them to roughly 1.75, 1.44, 1.1; the
+        exponential makes 5.75, 4.22, 3.0; normalizing lands on 0.43, 0.32,
+        0.22. Two properties fall out for free: the gaps dominate (small score
+        differences grow after the exponential), and the weights always sum to
+        exactly 1 no matter how long the sentence gets — a longer context
+        <em>dilutes</em> every weight rather than growing the total. When a
+        model “loses track” over very long inputs, it is often this
+        normalization you are watching: one token's fixed attention budget
+        spread across too many candidates.
+      </p>
+      <p>
+        In the sentence below, <em>it</em> puts most of its weight — 0.62 — on
+        <em>animal</em>: that is coreference being resolved by arithmetic. One
+        ingredient is deliberately not drawn: a decoder also applies a
+        <strong>causal mask</strong>, forbidding every query from scoring keys
+        at later positions (the future must stay unseen while generating).
+        Attention is the only step in the whole block where tokens exchange
+        information; everything else happens to each position independently.
+      </p>
+      <ul class="facts">
+        <li>scores = <b>q·k / √d_k</b>, then softmax</li>
+        <li>d_k = 64 → divisor <b>8</b></li>
+        <li>weights sum to <b>1</b>; output = Σ w·value</li>
+        <li>decoders: a causal mask hides the future</li>
+      </ul>
       <figure>
         <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Scaled dot-product attention"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the ring marks the query. One weight
-            dominates — 0.62 of “it” comes from <em>animal</em> — and the other
-            four bars are almost flat.</span>
+          <span class="cap"><b>Watch:</b> the ring marks the query. The bars are
+            the softmax weights — one dominates (0.62 to <em>animal</em>), the
+            rest are nearly flat — and the final pulse is the token's new
+            vector being assembled from that mixture.</span>
           <a class="src" href="scenes/attention.amx">scenes/attention.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>The ring marks the query: <em>it</em> looks back over everything so far.</li>
+          <li><span class="step">2</span>Every token is scored — the bars are those compatibilities, one per token, on one baseline.</li>
+          <li><span class="step">3</span>Softmax turns scores into weights that sum to 1; the printed numbers show how lopsided it usually is. The arrow is the mixture actually taken.</li>
+        </ol>
+      </div>
     </section>
 
     <section id="s4">
       <div class="sec-head"><span class="sec-num">04</span><h2>Multi-head attention</h2></div>
       <p>
-        One attention pattern is rarely enough, so the model runs several in
-        parallel. Each <strong>head</strong> is free to specialize — grammar,
-        references, neighbours — and the outputs are concatenated and mixed back
-        into a single vector per token.
+        One attention pattern is one story per token, and language needs
+        several at once — who did what to whom, which pronoun binds where, what
+        sits next to what. So the model doesn't run attention once over
+        d_model-dimensional vectors; it runs <strong>h heads in parallel</strong>,
+        each working in a small slice of the space and each with its own
+        Q/K/V projections. Nothing forces the heads to specialize, but trained
+        heads reliably do: this head tracks subjects and verbs, that one
+        references, another just keeps neighbouring tokens together. The most
+        famous of them, <em>induction heads</em>, implement an abstract
+        “find where this pattern occurred before, copy what came next” — the
+        circuit that powers in-context learning.
       </p>
+      <p>
+        The budget is fixed: h heads × d_k dimensions per head = d_model, so
+        more heads means narrower heads. Twelve heads of 64 (GPT-2 small) and
+        four heads of 192 do the same amount of arithmetic — the choice is
+        <em>how many relations to track at once</em> versus <em>how much detail
+        each relation gets</em>. The figure shows three heads' patterns over
+        the same three tokens — rows asking, columns answering, brightness the
+        weight. Different bright cells: different learned relations over
+        identical input.
+      </p>
+      <p>
+        Afterwards the head outputs — each short, d_model/h dimensional — are
+        <strong>concatenated</strong> back to full width and pushed through one
+        final learned matrix, the output projection W<sub>O</sub>, which lets
+        heads combine: the grammar head's finding gets mixed with the reference
+        head's. The three-coloured bar at the bottom of the figure is the
+        concatenation; the “linear mix” caption is W<sub>O</sub> doing the fusing.
+      </p>
+      <ul class="facts">
+        <li>GPT-2 small: <b>12 heads × 64 dims</b></li>
+        <li>h × d_k = d_model: the budget is fixed</li>
+        <li>concat → one output matrix <b>W<sub>O</sub></b> mixes them</li>
+      </ul>
       <figure>
         <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Multiple attention heads"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> each panel is one head's attention
-            pattern over the same three tokens, rows asking and columns
-            answering. Different bright cells, different specialisations — and
-            the three outputs stack side by side in the bar underneath.</span>
+          <span class="cap"><b>Watch:</b> the three panels build one at a time,
+            each cell pulsing on its head's strongest link. Then each head's
+            output drops into its own segment of the bar underneath —
+            concatenation — before a final linear mix fuses them.</span>
           <a class="src" href="scenes/multihead.amx">scenes/multihead.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>Three empty panels: the same tokens, about to be read three ways.</li>
+          <li><span class="step">2</span>The heads fill in one after another, each a 3×3 pattern — rows are queries, columns keys. The pulses point at each head's specialty: subject↔verb, verb→object, next-token.</li>
+          <li><span class="step">3</span>Outputs drop into the bar below, one coloured segment per head: concatenated. The caption's “linear mix” is the projection that lets the heads' findings combine.</li>
+        </ol>
+      </div>
     </section>
 
     <section id="s5">
       <div class="sec-head"><span class="sec-num">05</span><h2>Feed-forward &amp; residuals</h2></div>
       <p>
-        Attention moves information <em>between</em> tokens; the feed-forward
-        network then transforms each token <em>on its own</em>, widening 4× and
-        projecting back. <strong>Skip connections</strong> keep the original
-        signal one hop away, so depth refines instead of erasing.
+        Attention moves information <em>between</em> positions; the feed-forward
+        network (FFN) then works on each position <em>alone</em>, applying the
+        same two-layer MLP everywhere: widen the vector to 4×d_model, pass
+        through a nonlinearity (GELU), project back down. The widening is the
+        point — in that inflated space the model keeps what is essentially a
+        huge associative memory. One way researchers read it: the widened
+        layer's neurons are pattern detectors (keys), and the projection back
+        writes the matching entries' contributions (values) into the vector —
+        “running” + sports context activates sprint-ish features and
+        deactivates desk-ish ones. Facts live here, per token.
       </p>
+      <p>
+        The other protagonist in this figure is the line underneath:
+        the <strong>residual stream</strong>. Every sublayer — attention, FFN —
+        does not <em>replace</em> the flowing vector but <em>adds</em> to it:
+        <code class="inline">x ← x + F(LN(x))</code>, with the arcs in the figure
+        showing exactly what is being added on top of the rail. The additions
+        are what let a hundred layers train stably: the original signal is
+        always one skip away, so each block only has to learn a small
+        refinement, and gradients have a highway to the input. The small
+        <b>LN</b> rings are layer normalization — a per-vector rescale that
+        keeps the stream's magnitude steady — read from the stream just before
+        each block.
+      </p>
+      <p>
+        Count parameters and the FFN stops looking like a detail. One block
+        holds four d_model×d_model attention matrices (4d²) plus two FFN
+        matrices of d_model×4d_model (8d²) — the FFN is
+        <strong>two thirds of every block</strong>, and about that share of a
+        whole model. It is also where most of the interesting recent swaps
+        happen: GELU → SwiGLU (a gated variant that trades the neat 4× for a
+        better parameter/quality curve), dense → mixture-of-experts (many FFNs,
+        a router picks one or two per token — the architecture doubles but the
+        compute per token stays flat). When people say a model “has 70B
+        parameters”, most of that number lives in the boxes on the right.
+      </p>
+      <ul class="facts">
+        <li>d_model → <b>4×d_model</b> → d_model</li>
+        <li>per block: attention <b>4d²</b> + FFN <b>8d²</b> params</li>
+        <li>every sublayer: <b>x + F(LN(x))</b></li>
+        <li>modern swaps: <b>SwiGLU</b>, <b>MoE</b></li>
+      </ul>
       <figure>
         <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Feed-forward block with residuals"></amx-player>
         <figcaption>
           <span class="cap"><b>Watch:</b> the rail runs straight through both
-            blocks — that is the residual stream. The arcs leaving the rail
-            before each block and rejoining it after are what the token adds on
-            top.</span>
+            blocks — that is the residual stream. Arcs leave the rail before
+            each block and rejoin after; each <b>+</b> flashes where the
+            block's output is added back. Inside the FFN, the bar widens and
+            narrows: d -> 4d -> d.</span>
           <a class="src" href="scenes/feedforward.amx">scenes/feedforward.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>The rail draws in: the stream the token's vector travels in, passing under everything that follows.</li>
+          <li><span class="step">2</span>The first half-block appears — normalize, attend — then the second: LN, FFN. The bars inside FFN show the widening to 4× and the projection back.</li>
+          <li><span class="step">3</span>The skip arcs complete and the <b>+</b> marks flash: nothing was overwritten, only added. The dot then rides the rail past both blocks — the original signal, still intact.</li>
+        </ol>
+      </div>
     </section>
 
     <section id="s6">
       <div class="sec-head"><span class="sec-num">06</span><h2>Stacking the blocks</h2></div>
       <p>
-        One attention-plus-FFN block is a layer. Stack N of them and tokens flow
-        up the tower, arriving at the top <strong>contextualized</strong> and
-        ready for a language-modeling or task head.
+        One attention-plus-FFN block is a <em>layer</em>. The full model is N of
+        them in series — 12 in GPT-2 small, 96 in GPT-3 — each with
+        <strong>its own weights</strong>: the blocks are structurally identical,
+        but block 7 is not block 3 reused. The input to the stack is a row of
+        position-stamped embedding vectors; the output is the same row, same
+        length, but every vector has been rewritten N times — mixed with its
+        neighbours N times, refined through N memories. The figure's little
+        intensity strip inside each block is that state: same tokens in,
+        different meaning out.
       </p>
+      <p>
+        What do deeper layers actually do? Probing work suggests a rough
+        gradient: early layers handle local, surface patterns; middle layers
+        pick up syntax and facts; late layers sharpen into
+        prediction-shaped features. Nothing enforces that division — it falls
+        out of training. The residual-stream view makes depth easier to reason
+        about: the stream is shared workspace, and each of the 2N sublayers
+        just reads from it and adds a contribution. From that angle, “how deep”
+        is “how many sequential refinement steps the model can afford” — and
+        the answer has mostly been set by compute budgets, not by theory.
+      </p>
+      <p>
+        At the top sits the <strong>LM head</strong>: one final projection from
+        d_model up to the vocabulary size, one logit per token, and a softmax
+        over all of them. Pick a token from that distribution — greedily, or
+        with the temperature/top-p sampling you have seen in every chat UI —
+        append it to the input, run the whole stack again: the loop in the
+        opening figure. Because each new token attends to everything before it,
+        the model re-reads the whole context every single token; the
+        <strong>KV cache</strong> (remembering each token's keys and values so
+        they are not recomputed) is the engineering that makes that affordable.
+        Training is this same forward pass over trillions of words, with the
+        loss simply measuring how often the picked token was the true next one.
+      </p>
+      <ul class="facts">
+        <li>GPT-2 small: <b>12</b> layers · GPT-3: <b>96</b></li>
+        <li>each layer has <b>its own</b> weights</li>
+        <li>output row = input row, <b>contextualized</b></li>
+        <li>LM head: d_model → <b>50,257</b> logits</li>
+      </ul>
       <figure>
         <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="The full transformer stack"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the blocks are identical — same weights
-            in every one. The only thing that changes as the token climbs is the
-            little vector drawn inside each block.</span>
+          <span class="cap"><b>Watch:</b> tokens enter at the bottom; blocks
+            build upward; a token's vector (the dot) climbs the whole stack,
+            each block pulsing as it passes. The blocks are identical in shape
+            but not in weights — only the strip inside changes. At the top, the
+            LM head and a task head branch off.</span>
           <a class="src" href="scenes/pipeline.amx">scenes/pipeline.amx ↗</a>
         </figcaption>
       </figure>
+      <div class="walk">
+        <p class="walk-title">How the figure unfolds</p>
+        <ol>
+          <li><span class="step">1</span>A sentence becomes chips; its vectors enter the stack at the bottom.</li>
+          <li><span class="step">2</span>The blocks stack up one by one, each stamped with a state strip. Identical boxes — but each layer owns its own weights.</li>
+          <li><span class="step">3</span>At the top the final vector fans out to heads: <em>LM head</em> scores every token in the vocabulary; a task head would read the same vector for classification. The climbing dot is one token's whole journey.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section id="s7">
+      <div class="sec-head"><span class="sec-num">07</span><h2>Recap, glossary &amp; reading</h2></div>
+      <p>
+        That is the whole machine. One pass through a transformer, in order:
+      </p>
+      <ol class="flow">
+        <li><b>Tokenize</b> — text becomes a list of vocabulary ids.</li>
+        <li><b>Embed</b> — each id looks up a d_model vector.</li>
+        <li><b>Add position</b> — fingerprints restore word order.</li>
+        <li><b>Repeat N times</b> — each block: attention (tokens mix), then FFN (each token transforms), both wrapped in <code class="inline">x + F(LN(x))</code>.</li>
+        <li><b>LM head</b> — the final vectors become vocabulary logits.</li>
+        <li><b>Softmax &amp; sample</b> — pick the next token, append it, go again.</li>
+      </ol>
+
+      <h3 class="sub">Glossary</h3>
+      <table class="glossary">
+        <tr><th>term</th><th>meaning</th></tr>
+        <tr><td>token</td><td>one piece of text from the learned vocabulary — a word fragment, symbol, or space</td></tr>
+        <tr><td>embedding</td><td>the d_model-number vector a token's row in the lookup table holds</td></tr>
+        <tr><td>d_model</td><td>the width of the main highway; 512 in the paper, 768 in GPT-2 small</td></tr>
+        <tr><td>positional encoding</td><td>the fingerprint added to each embedding so order is visible</td></tr>
+        <tr><td>query / key / value</td><td>the three projections each token wears in attention: what it seeks, what it advertises, what it gives</td></tr>
+        <tr><td>attention weight</td><td>a softmaxed score — how much of one token's value another token takes (all weights sum to 1)</td></tr>
+        <tr><td>head</td><td>one attention operation in a narrow slice of d_model; many run in parallel</td></tr>
+        <tr><td>FFN / MLP</td><td>the per-token two-layer network: d_model → 4·d_model → d_model with GELU</td></tr>
+        <tr><td>residual stream</td><td>the vector that flows up the stack; every sublayer adds its contribution rather than replacing it</td></tr>
+        <tr><td>LayerNorm (LN)</td><td>a per-vector rescale that keeps the stream's magnitude steady</td></tr>
+        <tr><td>LM head</td><td>the final projection to one logit per vocabulary entry</td></tr>
+        <tr><td>softmax</td><td>turns any list of scores into positive weights summing to 1</td></tr>
+        <tr><td>autoregressive</td><td>generating by repeatedly appending your own predicted next token</td></tr>
+      </table>
+
+      <h3 class="sub">What this article left out</h3>
+      <p class="outro">
+        Training and backpropagation; the encoder–decoder variant and
+        cross-attention (machine translation's original shape); sampling knobs
+        like temperature and top-p, beyond a mention; the KV cache's actual
+        bookkeeping; long-context tricks (RoPE scaling, sliding windows,
+        attention sinks); grouped-query attention and its relatives;
+        mixture-of-experts routing, beyond a mention; multimodal encoders; and
+        scaling laws. None of them change the picture above; they change its
+        parts.
+      </p>
+
+      <h3 class="sub">Further reading</h3>
+      <ul class="reading">
+        <li>Vaswani et al., <a href="https://arxiv.org/abs/1706.03762">“Attention Is All You Need”</a> — the original paper (2017).</li>
+        <li>Jay Alammar, <a href="https://jalammar.github.io/illustrated-transformer/">“The Illustrated Transformer”</a> — the classic illustrated companion.</li>
+        <li>Andrej Karpathy, <a href="https://www.youtube.com/watch?v=kCc8FmEb1nY">“Let's build GPT from scratch”</a> — the same architecture, coded line by line.</li>
+        <li>Elhage et al., <a href="https://transformer-circuits.pub/2021/framework/index.html">“A Mathematical Framework for Transformer Circuits”</a> — the residual-stream view taken seriously, including induction heads.</li>
+      </ul>
     </section>
 
     <div class="howto">
@@ -164,7 +509,7 @@
       <p>
         There is no video here and no backend. Each figure loads a
         <code class="inline">.amx</code> text file at runtime, compiles it in the
-        browser, and renders it with WebGPU. All six share one engine download
+        browser, and renders it with WebGPU. All seven share one engine download
         and one GPU device, and a figure that scrolls out of view pauses itself.
       </p>
       <pre>&lt;script type="module" src="../../embed/amx-player.js"
@@ -177,6 +522,15 @@
         <code class="inline">pkg-slim</code> profile instead of the full engine —
         1.1 MB against 7.8 MB over the wire. The full profile is only needed for
         Typst markup, equations and image or SVG assets.
+      </p>
+      <p>
+        The scenes also share a small component library: the token chips on
+        this page are all instances of one <code class="inline">LabeledBox</code>
+        component from <code class="inline">examples/lib/components.amx</code>,
+        imported by every scene that needs a box-with-a-label. The scenes
+        themselves are written against layout containers (Row/Col/Grid) and
+        keyframe assignments rather than hand-computed positions — see the
+        <code class="inline">.amx ↗</code> sources.
       </p>
       <p>
         <code class="inline">hold</code> is the pause before a looping figure

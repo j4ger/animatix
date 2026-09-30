@@ -135,6 +135,81 @@ code.inline {
   font-family: var(--mono);
 }
 
+/* ── transformer article ───────────────────────────────────────────── *
+ * Styles used only by demos/transformer/index.html. The classes above are
+ * shared with the gallery page and must not change meaning. */
+
+/* The opening map sits right under the header, before the contents box. */
+figure.hero { margin: 34px 0 0; }
+figure.hero figcaption { max-width: 62em; }
+
+/* "In a real model" facts — one strip of chips under each section's prose. */
+ul.facts {
+  display: flex; flex-wrap: wrap; gap: 8px 10px;
+  margin: 0 0 24px; padding: 0; list-style: none;
+}
+ul.facts li {
+  font-family: var(--mono); font-size: 12.5px; color: var(--dim);
+  background: var(--raised); border: 1px solid var(--border);
+  border-radius: 7px; padding: 3px 10px;
+}
+ul.facts li b { color: var(--accent); font-weight: 560; }
+
+/* The numbered walkthrough under each figure; the step chips match the
+ * numbered phase labels the scenes draw in their own top-left corner. */
+.walk {
+  margin-top: 14px; padding: 16px 20px 14px;
+  background: var(--sunken); border: 1px solid var(--border-soft);
+  border-radius: 10px;
+}
+.walk .walk-title {
+  margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint);
+}
+.walk ol { margin: 10px 0 0; padding: 0; list-style: none; }
+.walk li {
+  position: relative; padding-left: 34px; margin-top: 7px;
+  color: var(--dim); font-size: 14.5px; line-height: 1.6;
+}
+.walk li .step {
+  position: absolute; left: 0; top: 2px;
+  font-family: var(--mono); font-size: 12px; color: var(--accent);
+  border: 1px solid var(--border); background: var(--raised);
+  border-radius: 6px; padding: 1px 7px;
+}
+
+/* Recap section */
+section .sub {
+  font-size: 19px; font-weight: 620; color: var(--text);
+  margin: 34px 0 12px; letter-spacing: -0.005em;
+}
+ol.flow { max-width: 46em; color: var(--dim); margin: 14px 0 0; padding-left: 22px; }
+ol.flow li { margin-top: 6px; }
+ol.flow b { color: var(--text); font-weight: 560; }
+
+table.glossary {
+  width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 14.5px;
+}
+table.glossary th, table.glossary td {
+  text-align: left; vertical-align: top;
+  padding: 8px 14px 8px 0; border-bottom: 1px solid var(--border-soft);
+}
+table.glossary th {
+  color: var(--faint); font-size: 12px; letter-spacing: .1em;
+  text-transform: uppercase; font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+table.glossary td:first-child {
+  font-family: var(--mono); font-size: 13px; color: var(--accent);
+  white-space: nowrap; padding-right: 22px;
+}
+table.glossary td:last-child { color: var(--dim); }
+table.glossary tr:last-child td { border-bottom: none; }
+
+p.outro { max-width: 46em; margin-top: 0; }
+ul.reading { max-width: 46em; color: var(--dim); margin: 8px 0 0; padding-left: 20px; }
+ul.reading li { margin-top: 6px; }
+
 footer {
   margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--border);
   color: var(--faint); font-size: 14px; display: flex; gap: 20px;
@@ -142,3 +217,4 @@ footer {
 }
 footer a { color: var(--dim); text-decoration: none; }
 footer a:hover { color: var(--accent); }
+

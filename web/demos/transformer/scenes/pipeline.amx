@@ -12,17 +12,23 @@
 // Grid: 1280×720. Blocks 560×80 at x = 640, y = 446 / 334 / 222; input chips at
 // y = 560; output heads at y = 118.
 
+import "../lib/components.amx"
+
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.0 }
 
-// ── input tokens ────────────────────────────────────────────────────
-in1: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (463, 560)
-in1_t: Text, text: "The", font_size: 17, color: text.primary, at: (463, 560)
-in2: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (581, 560)
-in2_t: Text, text: "animal", font_size: 17, color: text.primary, at: (581, 560)
-in3: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (699, 560)
-in3_t: Text, text: "didn't", font_size: 17, color: text.primary, at: (699, 560)
-in4: Rect, size: (110, 56), corner_radius: 12, color: surface.primary, at: (817, 560)
-in4_t: Text, text: "cross", font_size: 17, color: text.primary, at: (817, 560)
+// ── phase narration (top-left; one label per beat) ──────────────────
+phase1: Text, text: "1 · a token's vector enters the stack", font_size: 15, color: text.muted,
+  text_max_width: 380, text_align: "left", at: (150, 96)
+phase2: Text, text: "2 · layer by layer, it refines", font_size: 15, color: text.muted,
+  text_max_width: 320, text_align: "left", at: (150, 96)
+phase3: Text, text: "3 · score the vocabulary", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
+
+// ── input tokens — the shared LabeledBox component ──────────────────
+in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 17, corner: 12, at: (463, 560)
+in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 17, corner: 12, at: (581, 560)
+in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 17, corner: 12, at: (699, 560)
+in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 17, corner: 12, at: (817, 560)
 
 // ── the stack: identical boxes, evolving vector ─────────────────────
 b1: Rect, size: (560, 80), corner_radius: 16, color: surface.primary, at: (640, 446)
@@ -34,32 +40,32 @@ b2_t: Text, text: "block 2", font_size: 19, color: text.primary, at: (735, 334)
 b3_t: Text, text: "block N", font_size: 19, color: text.primary, at: (735, 222)
 
 // One intensity strip per block: same tokens in, different meaning out.
-s1_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.30, at: (413, 446)
-s1_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.85, at: (445, 446)
-s1_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.45, at: (477, 446)
-s1_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.70, at: (509, 446)
-s1_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.35, at: (541, 446)
+s1_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 446)
+s1_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 446)
+s1_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 446)
+s1_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 446)
+s1_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 446)
 
-s2_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.60, at: (413, 334)
-s2_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.40, at: (445, 334)
-s2_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.90, at: (477, 334)
-s2_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.35, at: (509, 334)
-s2_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.75, at: (541, 334)
+s2_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 334)
+s2_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 334)
+s2_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 334)
+s2_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 334)
+s2_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 334)
 
-s3_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.85, at: (413, 222)
-s3_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.55, at: (445, 222)
-s3_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.30, at: (477, 222)
-s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.95, at: (509, 222)
-s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.50, at: (541, 222)
+s3_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 222)
+s3_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 222)
+s3_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 222)
+s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 222)
+s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 222)
 
 // ── flow up the tower ───────────────────────────────────────────────
-up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
-up2: Arrow, from: (640, 402), to: (640, 378), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
-up3: Arrow, from: (640, 290), to: (640, 266), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
+up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
+up2: Arrow, from: (640, 402), to: (640, 378), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
+up3: Arrow, from: (640, 290), to: (640, 266), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
 
 // Branch out of the top block into the two heads.
-up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
-up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.6
+up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
+up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
 
 // ── output heads ────────────────────────────────────────────────────
 out_lm: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
@@ -74,69 +80,80 @@ climb: Ellipse, size: (16, 16), color: accent.warning, opacity: 0.0, at: (640, 5
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
+fade-in phase1 [300ms]
 stagger [100ms] {
-  wipe-in in1 [340ms]
-  wipe-in in2 [340ms]
-  wipe-in in3 [340ms]
-  wipe-in in4 [340ms]
-}
-
-#0.60s
-stagger [100ms] {
-  fade-in in1_t [260ms]
-  fade-in in2_t [260ms]
-  fade-in in3_t [260ms]
-  fade-in in4_t [260ms]
+  fade-in in1 [340ms]
+  fade-in in2 [340ms]
+  fade-in in3 [340ms]
+  fade-in in4 [340ms]
 }
 
 #1.05s
 draw-in up1 [300ms]
+up1.opacity = 0.6 [280ms]
 
 #1.25s
+fade-out phase1 [260ms]
+fade-in phase2 [280ms]
 fade-in b1 [420ms, ease: ease-out]
 fade-in b1_t [300ms, delay: 200ms]
 stagger [50ms] {
-  wipe-in s1_0 [280ms]
-  wipe-in s1_1 [280ms]
-  wipe-in s1_2 [280ms]
-  wipe-in s1_3 [280ms]
-  wipe-in s1_4 [280ms]
+  s1_0.opacity = 0.30 [280ms]
+  s1_1.opacity = 0.85 [280ms]
+  s1_2.opacity = 0.45 [280ms]
+  s1_3.opacity = 0.70 [280ms]
+  s1_4.opacity = 0.35 [280ms]
 }
 draw-in up2 [300ms, delay: 620ms]
+up2.opacity = 0.6 [280ms, delay: 620ms]
 
 #1.95s
 fade-in b2 [420ms, ease: ease-out]
 fade-in b2_t [300ms, delay: 200ms]
 stagger [50ms] {
-  wipe-in s2_0 [280ms]
-  wipe-in s2_1 [280ms]
-  wipe-in s2_2 [280ms]
-  wipe-in s2_3 [280ms]
-  wipe-in s2_4 [280ms]
+  s2_0.opacity = 0.60 [280ms]
+  s2_1.opacity = 0.40 [280ms]
+  s2_2.opacity = 0.90 [280ms]
+  s2_3.opacity = 0.35 [280ms]
+  s2_4.opacity = 0.75 [280ms]
 }
 draw-in up3 [300ms, delay: 620ms]
+up3.opacity = 0.6 [280ms, delay: 620ms]
 
 #2.65s
 fade-in b3 [420ms, ease: ease-out]
 fade-in b3_t [300ms, delay: 200ms]
 stagger [50ms] {
-  wipe-in s3_0 [280ms]
-  wipe-in s3_1 [280ms]
-  wipe-in s3_2 [280ms]
-  wipe-in s3_3 [280ms]
-  wipe-in s3_4 [280ms]
+  s3_0.opacity = 0.85 [280ms]
+  s3_1.opacity = 0.55 [280ms]
+  s3_2.opacity = 0.30 [280ms]
+  s3_3.opacity = 0.95 [280ms]
+  s3_4.opacity = 0.50 [280ms]
 }
 
 #3.40s
+fade-out phase2 [260ms]
+fade-in phase3 [300ms]
 draw-in up_lm [380ms, ease: ease-out]
 draw-in up_cls [380ms, ease: ease-out]
+up_lm.opacity = 0.6 [340ms]
+up_cls.opacity = 0.6 [340ms]
 fade-in out_lm [400ms, delay: 260ms]
 fade-in out_lm_t [300ms, delay: 420ms]
 fade-in out_cls [400ms, delay: 420ms]
 fade-in out_cls_t [300ms, delay: 580ms]
 
-// The token rides the whole stack.
+// The token rides the whole stack; the block it is passing through pulses.
 #4.35s
 fade-in climb [240ms]
 shift climb [by: (0, -406), 1700ms, ease: ease-in-out]
 fade-out climb [300ms, delay: 1560ms]
+
+#4.90s
+pulse b1 [420ms, intensity: 1.03]
+
+#5.20s
+pulse b2 [420ms, intensity: 1.03]
+
+#5.50s
+pulse b3 [420ms, intensity: 1.03]

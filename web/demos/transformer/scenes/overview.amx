@@ -1,0 +1,226 @@
+// 00 · The whole architecture, one map.
+//
+// The article opens with this figure and every section zooms into one tagged
+// part of it (the accent numbers 01–06 are the section numbers). It reads
+// bottom-up, the direction the data flows: a token row, the embedding +
+// position plate, one transformer block blown up with its internals, the LM
+// head, and the predicted token appended back onto the input — the
+// autoregressive loop that makes generation a loop rather than a single pass.
+//
+// Geometry is derived top-down from the safe area: probability rows at
+// y = 100/128/156 (bars from x = 1000, scale 400 per unit probability), LM-head
+// plate 420×48 at (640, 128), block 680×280 at (640, 330) with rail y = 330,
+// rings at x = 380/700, sub-boxes 200×120 at x = 545/855, embedding plate
+// 700×48 at (640, 516), chips 110×56 at pitch 130 centred on 640, and the
+// appended chip at x = 1030. Skip arcs use control y = 140 (apex 240) so they
+// clear both ring tops (y = 300) and box tops (y = 270) — verified against the
+// quad parametric, not by eye.
+
+import "../lib/components.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.4 }
+
+// ── phase narration (top-left; one label per beat) ──────────────────
+phase1: Text, text: "1 · text becomes tokens", font_size: 15, color: text.muted,
+  text_max_width: 400, text_align: "left", at: (150, 96)
+phase2: Text, text: "2 · embed + add position", font_size: 15, color: text.muted,
+  text_max_width: 400, text_align: "left", at: (150, 96)
+phase3: Text, text: "3 · attend, then transform", font_size: 15, color: text.muted,
+  text_max_width: 400, text_align: "left", at: (150, 96)
+phase4: Text, text: "4 · score every word", font_size: 15, color: text.muted,
+  text_max_width: 460, text_align: "left", at: (150, 96)
+phase5: Text, text: "5 · append it, go again", font_size: 15, color: text.muted,
+  text_max_width: 460, text_align: "left", at: (150, 96)
+
+// ── the input row ───────────────────────────────────────────────────
+// ── the input row: the shared LabeledBox component ──────────────────
+in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 15, corner: 12, at: (380, 592)
+in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 15, corner: 12, at: (510, 592)
+in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 15, corner: 12, at: (640, 592)
+in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 15, corner: 12, at: (770, 592)
+in5: LabeledBox, label: "the", width: 110, height: 56, text_size: 15, corner: 12, at: (900, 592)
+
+// The prediction, appended at the end of the row in the closing beat.
+// No authored opacity: a component instance with an authored zero takes the
+// fade-in branch that sets only the instance track and never lifts the
+// hidden seed on the component's children — the chip stays invisible. The
+// seed path (no authored opacity) cascades the reveal into the subtree.
+street: LabeledBox, label: "street", width: 116, height: 56, text_size: 15, corner: 12,
+  stroke: accent.primary, at: (1030, 592)
+
+// ── connectors on the vertical spine ────────────────────────────────
+// up3 stands at x = 470: at 640 it would draw straight through the block title.
+up1: Arrow, from: (640, 556), to: (640, 544), head_size: 8, stroke_width: 2, color: text.muted, opacity: 0.0
+up2: Arrow, from: (640, 490), to: (640, 476), head_size: 8, stroke_width: 2, color: text.muted, opacity: 0.0
+up3: Arrow, from: (470, 186), to: (470, 158), head_size: 10, stroke_width: 2, color: text.muted, opacity: 0.0
+
+// The autoregressive loop: from the probabilities back down to the input row.
+// Authored non-zero opacity + draw-in (the a_animal pattern): draw-in never
+// writes opacity, so an authored 0 would stay invisible after the reveal.
+loopback: Arrow, from: (1060, 180), to: (1040, 556), head_size: 13, stroke_width: 2,
+  color: accent.primary, opacity: 0.0
+
+// ── embedding + position plate ──────────────────────────────────────
+plate: Rect, size: (700, 48), corner_radius: 12, color: surface.primary, at: (640, 516)
+plate_t: Text, text: "token embeddings + positional encodings", font_size: 16,
+  color: text.primary, at: (640, 516)
+tag_e: Text, text: "01 · 02", font_size: 14, color: accent.primary, at: (972, 516)
+
+// ── the block, with its internals ───────────────────────────────────
+blk: Rect, size: (680, 280), corner_radius: 18, color: surface.primary,
+  stroke: text.muted, stroke_width: 1.5, opacity: 0.0, at: (640, 330)
+blk_title: Text, text: "transformer block × N", font_size: 18, color: text.primary, at: (640, 174)
+tag_blk: Text, text: "06", font_size: 14, color: accent.primary, at: (782, 174)
+
+rail: Rect, size: (620, 6), corner_radius: 3, color: text.muted, opacity: 0.0, at: (640, 330)
+rail_lab: Text, text: "residual stream", font_size: 12, color: text.muted,
+  text_max_width: 120, text_align: "left", at: (348, 386)
+
+skip1: Path, commands: {
+  move_to(340, 330), quad_to(500, 140, 655, 330)
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
+skip2: Path, commands: {
+  move_to(665, 330), quad_to(805, 140, 950, 330)
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
+
+ln1: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5, at: (380, 330)
+ln1_t: Text, text: "LN", font_size: 14, color: text.primary, at: (380, 330)
+ln2: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5, at: (700, 330)
+ln2_t: Text, text: "LN", font_size: 14, color: text.primary, at: (700, 330)
+
+attn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
+  stroke: (0.38, 0.78, 1.0, 1.0), stroke_width: 2, at: (545, 330)
+attn_t: Text, text: "self-attention", font_size: 17, color: text.primary, at: (545, 312)
+attn_s: Text, text: "tokens mix", font_size: 12, color: text.muted, at: (545, 344)
+tag_attn: Text, text: "03 · 04", font_size: 14, color: accent.primary, at: (545, 256)
+
+ffn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
+  stroke: (0.35, 0.86, 0.63, 1.0), stroke_width: 2, at: (855, 330)
+ffn_t: Text, text: "FFN", font_size: 17, color: text.primary, at: (855, 312)
+ffn_s: Text, text: "each token alone", font_size: 12, color: text.muted, at: (855, 344)
+tag_ffn: Text, text: "05", font_size: 14, color: accent.primary, at: (855, 256)
+
+// ── LM head + probabilities ─────────────────────────────────────────
+lmh: Rect, size: (420, 48), corner_radius: 12, color: surface.primary,
+  stroke: (0.98, 0.83, 0.44, 1.0), stroke_width: 2, at: (640, 128)
+lmh_t: Text, text: "LM head: linear + softmax", font_size: 16, color: text.primary, at: (640, 128)
+
+prob_cap: Text, text: "next-token probabilities", font_size: 13, color: text.muted,
+  text_max_width: 240, at: (1090, 74)
+
+pw0: Text, text: "street", font_size: 14, color: text.primary,
+  text_max_width: 80, text_align: "right", at: (985, 100)
+pw1: Text, text: "road", font_size: 14, color: text.secondary,
+  text_max_width: 80, text_align: "right", at: (985, 128)
+pw2: Text, text: "grass", font_size: 14, color: text.secondary,
+  text_max_width: 80, text_align: "right", at: (985, 156)
+
+pb0: Rect, size: (164, 16), corner_radius: 4, color: accent.primary, at: (1082, 100)
+pb1: Rect, size: (88, 16), corner_radius: 4, color: accent.primary, opacity: 0.0, at: (1044, 128)
+pb2: Rect, size: (20, 16), corner_radius: 4, color: accent.primary, opacity: 0.0, at: (1010, 156)
+
+pv0: Text, text: "0.41", font_size: 12, color: text.secondary,
+  text_max_width: 50, text_align: "left", at: (1176, 100)
+pv1: Text, text: "0.22", font_size: 12, color: text.secondary,
+  text_max_width: 50, text_align: "left", at: (1100, 128)
+pv2: Text, text: "0.05", font_size: 12, color: text.secondary,
+  text_max_width: 50, text_align: "left", at: (1032, 156)
+
+// ── timeline ────────────────────────────────────────────────────────
+#0.15s
+fade-in phase1 [300ms]
+stagger [110ms] {
+  fade-in in1 [360ms]
+  fade-in in2 [360ms]
+  fade-in in3 [360ms]
+  fade-in in4 [360ms]
+  fade-in in5 [360ms]
+}
+
+#1.30s
+fade-out phase1 [260ms]
+fade-in phase2 [280ms]
+draw-in up1 [260ms, ease: ease-out]
+up1.opacity = 0.6 [240ms]
+wipe-in plate [420ms, ease: ease-out]
+fade-in plate_t [320ms, delay: 200ms]
+fade-in tag_e [300ms, delay: 380ms]
+
+#2.30s
+fade-out phase2 [260ms]
+fade-in phase3 [280ms]
+draw-in up2 [280ms, ease: ease-out]
+up2.opacity = 0.6 [260ms]
+wipe-in blk [480ms, ease: ease-out]
+blk.opacity = 0.9 [440ms]
+fade-in blk_title [340ms, delay: 220ms]
+fade-in tag_blk [300ms, delay: 420ms]
+
+// The block's internals, in the order the data meets them.
+#3.00s
+draw-in rail [600ms, ease: ease-out]
+rail.opacity = 0.40 [560ms]
+fade-in rail_lab [360ms, delay: 420ms]
+wipe-in ln1 [360ms, ease: ease-out]
+fade-in ln1_t [240ms, delay: 180ms]
+
+#3.40s
+wipe-in attn [420ms, ease: ease-out]
+fade-in attn_t [280ms, delay: 200ms]
+fade-in attn_s [240ms, delay: 340ms]
+fade-in tag_attn [280ms, delay: 320ms]
+
+#3.95s
+draw-in skip1 [520ms, ease: ease-out]
+skip1.opacity = 0.55 [480ms]
+
+#4.35s
+wipe-in ln2 [360ms, ease: ease-out]
+fade-in ln2_t [240ms, delay: 180ms]
+
+#4.70s
+wipe-in ffn [420ms, ease: ease-out]
+fade-in ffn_t [280ms, delay: 200ms]
+fade-in ffn_s [240ms, delay: 340ms]
+fade-in tag_ffn [280ms, delay: 320ms]
+
+#5.25s
+draw-in skip2 [520ms, ease: ease-out]
+skip2.opacity = 0.55 [480ms]
+
+#5.70s
+fade-out phase3 [260ms]
+fade-in phase4 [280ms]
+draw-in up3 [280ms, ease: ease-out]
+up3.opacity = 0.6 [260ms]
+wipe-in lmh [420ms, ease: ease-out]
+fade-in lmh_t [320ms, delay: 200ms]
+
+#6.30s
+fade-in prob_cap [280ms]
+stagger [130ms] {
+  wipe-in pb0 [320ms]
+  pb1.opacity = 0.35 [320ms]
+  pb2.opacity = 0.35 [320ms]
+}
+stagger [130ms] {
+  fade-in pw0 [260ms]
+  fade-in pw1 [260ms]
+  fade-in pw2 [260ms]
+}
+stagger [130ms] {
+  fade-in pv0 [240ms]
+  fade-in pv1 [240ms]
+  fade-in pv2 [240ms]
+}
+
+// The closing beat: pick, append, loop.
+#7.05s
+fade-out phase4 [260ms]
+fade-in phase5 [300ms]
+draw-in loopback [600ms, ease: ease-out]
+loopback.opacity = 0.9 [560ms]
+fade-in street [360ms]
+
+#7.55s
+pulse street [600ms, intensity: 1.04]

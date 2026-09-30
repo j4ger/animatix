@@ -20,13 +20,25 @@
         editor, no backend, no build step.
       </p>
       <ul class="meta">
-        <li>6 scenes</li>
+        <li>7 scenes</li>
         <li>one engine download for the whole page</li>
         <li>plain text scenes only</li>
       </ul>
     </header>
 
     <div class="gallery">
+      <figure>
+        <h3>The whole architecture</h3>
+        <amx-player src="./demos/transformer/scenes/overview.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="The full transformer, one map"></amx-player>
+        <figcaption>
+          <span class="cap">Tokens climb one block (repeated × N) to the LM
+            head; the chosen word loops back into the input.</span>
+          <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
+        </figcaption>
+      </figure>
+
       <figure>
         <h3>Tokens &amp; embeddings</h3>
         <amx-player src="./demos/transformer/scenes/tokens.amx"
@@ -98,7 +110,7 @@
     <div class="howto">
       <h2>Embedding a scene</h2>
       <p>
-        The six figures above come from
+        The seven figures above come from
         <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>,
         which explains them one at a time. Each scene source is a plain text file.
       </p>

@@ -1222,3 +1222,48 @@ supports it (configuring the canvas to our format instead of adopting the
 backend's), so the common path never needs a variant. Regression test
 `blits_into_bgra8_targets` renders through a `Bgra8Unorm` target with
 `on_uncaptured_error` → panic and asserts the swizzled pixels land.
+
+## The authored-opacity gate, and the demo lib that ships inside the wasm (2026-09-30)
+
+The transformer walkthrough grew a seventh scene (a bottom-up architecture map
+with section tags), in-scene phase labels, and a shared `LabeledBox` component.
+Three engine behaviours shaped (and had been silently shaping) the scenes:
+
+**An authored non-zero `opacity` is visible from frame 0, whatever entrance
+follows.** `wipe-in`/`draw-in` gate only the fill and stroke channels; the
+hidden-by-default seed exists solely when no `opacity` is authored, and
+`fade-in`'s `(start, 0)` keyframe only backfills the first keyframe — before it,
+tracks read their default (1.0). A probe scene settled it: authored 0.9 +
+`wipe-in`, authored 0.6 + `draw-in`, and authored 0.35 + `fade-in` are all fully
+visible at t=0 (and a later fade pops down before rising). Every dimmed actor in
+the demo scenes is therefore authored `opacity: 0.0` — the seed — and settles on
+its value through a keyframe assignment (`rail.opacity = 0.40 [560ms]`) at its
+beat; assignments do NOT lift the hidden-by-default seed (only entrance actions
+do), so full-opacity actors still need a real entrance. The old demo had been
+living with this: attention's query arrow and scan rule were on screen from
+frame 0 of every loop, and the `d → 4d → d` label dropped both arrows in the
+slim build (U+2192 has no glyph in the bundled face — ASCII `->` now).
+
+**A component instance with an authored `opacity: 0` goes invisible.**
+`fade-in`'s authored-zero path sets only the instance's own opacity track and
+never lifts the hidden seed on the component's children, so a `LabeledBox` with
+authored 0 fades in as nothing. The seed path (no authored opacity) cascades the
+reveal into the subtree. Rule: never author opacity on a component instance you
+intend to reveal.
+
+**`examples/lib/*.amx` is embedded at wasm build time.** The web player
+resolves `import "../lib/…" ` from the copy baked into `animatix_web_bg.wasm`
+(`bundled_library()`), not from the server: adding `LabeledBox` to
+`components.amx` made every chip render `Unknown actor type 'LabeledBox'` until
+`scripts/build-web.sh --slim` was rerun. The scene sources themselves are served
+live (no-cache), so the failure shows up only in the browser, hours after the
+edit, with a veil message as the only clue. The demo scenes reach the lib
+through a symlink (`web/demos/transformer/lib/components.amx`) so the CLI's
+disk-based import resolution and the wasm's bundled keys agree.
+
+The scenes were also converted to layout containers (`Grid` for the positional
+matrix and the head panels, `Col` for the embedding columns, `Row` for the
+concat segments) — one bottom-aligned `Row` attempt was reverted: `align: "end"`
+plants children on the *container's* bottom edge (centre plus half the tallest
+child), which is the hand-computed constant it was meant to remove, one step
+removed.

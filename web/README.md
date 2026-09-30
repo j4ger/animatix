@@ -39,7 +39,7 @@ Measured effect: the module is ~11% smaller raw and ~5% smaller brotli; frame
 time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
-The six demo scenes use plain text only, so they run on the slim engine —
+The seven demo scenes use plain text only, so they run on the slim engine —
 1.1 MB over the wire instead of 7.8 MB. Their pages still point
 `data-runtime-base` at `pkg-slim` (the legacy exact-directory form); new pages
 don't need the attribute at all — an embed without `profile` uses slim. The
@@ -183,11 +183,20 @@ third-party scenes that cannot be edited.
   `stroke.default`.
 - `Text` uses one face, so `font_weight: "bold"` is inert on the plain path.
   Characters no registered face covers — `⋮` (U+22EE), `ᵀ` (U+1D40), `ₖ`
-  (U+2096) among them — render as tofu, but no longer silently: the build now
-  warns `missing-glyph` naming each uncovered character with its codepoint
-  (the probe mirrors which path shapes the text, so it also covers the Typst
-  path these three take — they sit outside the fast path's Latin gate). Draw
-  dots instead, and write formulas in ASCII.
+  (U+2096), `→` (U+2192 in the slim wasm bundle) among them — render as tofu,
+  but no longer silently: the build now warns `missing-glyph` naming each
+  uncovered character with its codepoint. Draw dots instead, and write
+  formulas in ASCII (`d -> 4d -> d`).
+- **Authored opacity defeats entrance gating.** An actor with an explicit
+  non-zero `opacity` is visible from frame 0 no matter which entrance follows —
+  wipe/draw gate only the fill/stroke channels, and before a track's first
+  keyframe it reads its default (1.0). A dimmed actor that appears late is
+  authored `opacity: 0.0` and settles via a keyframe assignment
+  (`rail.opacity = 0.40 [560ms]`); a full-opacity actor takes a plain entrance
+  (assignments never lift the hidden-by-default seed). Never author `opacity:
+  0` on a component instance either — fade-in's authored-zero branch sets only
+  the instance track and never lifts the child seeds, so the component fades
+  in as nothing.
 
 Hosting requirements for the runtime host: serve `.wasm` as
 `application/wasm`, and prefer precompressed `.br` twins (the build script
@@ -348,5 +357,11 @@ the slim set).
 ## Testing
 
 - `cargo test -p animatix-web` — the parse→build pipeline (repo examples and
-  all six transformer scenes, embedded via `include_str!`) runs natively in
-  the normal test suite.
+  all seven transformer scenes, embedded via `include_str!`) runs natively in
+  the normal test suite. The scenes import the shared
+  `examples/lib/components.amx` (a `LabeledBox` chip component); like every
+  `examples/lib/*.amx`, it is **embedded into the wasm at build time** —
+  editing it requires a `scripts/build-web.sh` rerun, and until then the
+  browser shows `Unknown actor type …` while every native test stays green.
+  The CLI resolves the same import through the
+  `web/demos/transformer/lib` symlink.

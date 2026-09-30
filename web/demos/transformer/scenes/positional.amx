@@ -15,54 +15,67 @@
 // real 512-wide vector the earliest dimensions turn so slowly that over eight
 // positions they look identical, so reproducing them exactly would show
 // nothing. What is faithful is the mechanism: one sine per dimension, with the
-// wavelength growing geometrically. Every row carries the *same* amplitude —
-// the original figure scaled each curve by an arbitrary 1.0 / 0.72 / 0.45,
-// which muddled amplitude into a picture that is meant to be about period.
+// wavelength growing geometrically.
+//
+// Gating rule (probe-verified): an authored non-zero `opacity` is visible from
+// frame 0 no matter which entrance follows. Every value-carrying cell is
+// therefore authored `opacity: 0.0` (the seed) and settles on its value via a
+// keyframe assignment at its beat — the cells fade in as a sweep, one per 30ms.
 //
 // Grid: 1280×720. 8 columns × 4 rows of 74px cells, pitch 84. Column x values
 // are 296 + 84i; row y values are 225 + 84r.
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.8 }
 
-// ── period 3: a stripe every column ─────────────────────────────────
-c00: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 225)
-c01: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (380, 225)
-c02: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (464, 225)
-c03: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (548, 225)
-c04: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 225)
-c05: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (716, 225)
-c06: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 225)
-c07: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (884, 225)
+// ── phase narration (top-left; one label per beat) ──────────────────
+phase1: Text, text: "1 · every position gets a fingerprint", font_size: 15, color: text.muted,
+  text_max_width: 360, text_align: "left", at: (150, 96)
+phase2: Text, text: "2 · the wavelength doubles every row", font_size: 15, color: text.muted,
+  text_max_width: 360, text_align: "left", at: (150, 96)
+phase3: Text, text: "3 · one column = one position", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
 
-// ── period 6: stripes two columns wide ──────────────────────────────
-c10: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 309)
-c11: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (380, 309)
-c12: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (464, 309)
-c13: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (548, 309)
-c14: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (632, 309)
-c15: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.27, at: (716, 309)
-c16: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 309)
-c17: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (884, 309)
+matrix: Grid, cols: 8, gap: 10, at: (590, 351) {
+  // ── period 3: a stripe every column ─────────────────────────────────
+  c00: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c01: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c02: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c03: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c04: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c05: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c06: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c07: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
 
-// ── period 12: one hump across the whole row ────────────────────────
-c20: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 393)
-c21: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (380, 393)
-c22: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (464, 393)
-c23: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 1.00, at: (548, 393)
-c24: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 393)
-c25: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (716, 393)
-c26: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (800, 393)
-c27: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.42, at: (884, 393)
+  // ── period 6: stripes two columns wide ──────────────────────────────
+  c10: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c11: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c12: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c13: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c14: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c15: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c16: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c17: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
 
-// ── period 24: never turns over on this page ────────────────────────
-c30: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.61, at: (296, 477)
-c31: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.71, at: (380, 477)
-c32: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.81, at: (464, 477)
-c33: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.89, at: (548, 477)
-c34: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.95, at: (632, 477)
-c35: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.99, at: (716, 477)
-c36: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 1.00, at: (800, 477)
-c37: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.99, at: (884, 477)
+  // ── period 12: one hump across the whole row ────────────────────────
+  c20: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c21: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c22: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c23: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c24: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c25: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c26: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c27: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+
+  // ── period 24: never turns over on this page ────────────────────────
+  c30: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c31: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c32: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c33: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c34: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c35: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c36: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+  c37: Rect, size: (74, 74), corner_radius: 10, color: accent.primary, opacity: 0.0
+}
 
 // ── row labels: the period doubles each row ────────────────────────
 lab0: Text, text: "period 3", font_size: 15, color: text.secondary,
@@ -88,9 +101,9 @@ axis: Text, text: "position", font_size: 15, color: text.muted, at: (590, 578)
 // ── the signed scale, stated once ──────────────────────────────────
 key_cap: Text, text: "shade = value", font_size: 15, color: text.muted,
   text_max_width: 210, text_align: "left", at: (1080, 268)
-key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.22, at: (988, 304)
-key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.61, at: (1016, 304)
-key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 1.00, at: (1044, 304)
+key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (988, 304)
+key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1016, 304)
+key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1044, 304)
 key_lo_t: Text, text: "-1", font_size: 14, color: text.muted, at: (988, 332)
 key_hi_t: Text, text: "+1", font_size: 14, color: text.muted, at: (1044, 332)
 key_zero: Text, text: "0", font_size: 14, color: text.muted, at: (1016, 332)
@@ -101,42 +114,45 @@ cursor: Rect, size: (92, 344), corner_radius: 12, color: accent.warning,
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.10s
+fade-in phase1 [300ms]
 stagger [30ms] {
-  wipe-in c00 [300ms]
-  wipe-in c01 [300ms]
-  wipe-in c02 [300ms]
-  wipe-in c03 [300ms]
-  wipe-in c04 [300ms]
-  wipe-in c05 [300ms]
-  wipe-in c06 [300ms]
-  wipe-in c07 [300ms]
-  wipe-in c10 [300ms]
-  wipe-in c11 [300ms]
-  wipe-in c12 [300ms]
-  wipe-in c13 [300ms]
-  wipe-in c14 [300ms]
-  wipe-in c15 [300ms]
-  wipe-in c16 [300ms]
-  wipe-in c17 [300ms]
-  wipe-in c20 [300ms]
-  wipe-in c21 [300ms]
-  wipe-in c22 [300ms]
-  wipe-in c23 [300ms]
-  wipe-in c24 [300ms]
-  wipe-in c25 [300ms]
-  wipe-in c26 [300ms]
-  wipe-in c27 [300ms]
-  wipe-in c30 [300ms]
-  wipe-in c31 [300ms]
-  wipe-in c32 [300ms]
-  wipe-in c33 [300ms]
-  wipe-in c34 [300ms]
-  wipe-in c35 [300ms]
-  wipe-in c36 [300ms]
-  wipe-in c37 [300ms]
+  c00.opacity = 0.61 [280ms]
+  c01.opacity = 0.95 [280ms]
+  c02.opacity = 0.27 [280ms]
+  c03.opacity = 0.61 [280ms]
+  c04.opacity = 0.95 [280ms]
+  c05.opacity = 0.27 [280ms]
+  c06.opacity = 0.61 [280ms]
+  c07.opacity = 0.95 [280ms]
+  c10.opacity = 0.61 [280ms]
+  c11.opacity = 0.95 [280ms]
+  c12.opacity = 0.95 [280ms]
+  c13.opacity = 0.61 [280ms]
+  c14.opacity = 0.27 [280ms]
+  c15.opacity = 0.27 [280ms]
+  c16.opacity = 0.61 [280ms]
+  c17.opacity = 0.95 [280ms]
+  c20.opacity = 0.61 [280ms]
+  c21.opacity = 0.81 [280ms]
+  c22.opacity = 0.95 [280ms]
+  c23.opacity = 1.00 [280ms]
+  c24.opacity = 0.95 [280ms]
+  c25.opacity = 0.81 [280ms]
+  c26.opacity = 0.61 [280ms]
+  c27.opacity = 0.42 [280ms]
+  c30.opacity = 0.61 [280ms]
+  c31.opacity = 0.71 [280ms]
+  c32.opacity = 0.81 [280ms]
+  c33.opacity = 0.89 [280ms]
+  c34.opacity = 0.95 [280ms]
+  c35.opacity = 0.99 [280ms]
+  c36.opacity = 1.00 [280ms]
+  c37.opacity = 0.99 [280ms]
 }
 
 #1.35s
+fade-out phase1 [260ms]
+fade-in phase2 [280ms]
 stagger [70ms] {
   fade-in lab0 [280ms]
   fade-in lab1 [280ms]
@@ -160,9 +176,9 @@ fade-in axis [300ms, delay: 320ms]
 #2.30s
 fade-in key_cap [320ms]
 stagger [60ms] {
-  wipe-in key_lo [280ms]
-  wipe-in key_mid [280ms]
-  wipe-in key_hi [280ms]
+  key_lo.opacity = 0.22 [280ms]
+  key_mid.opacity = 0.61 [280ms]
+  key_hi.opacity = 1.00 [280ms]
 }
 stagger [60ms] {
   fade-in key_lo_t [260ms]
@@ -172,6 +188,8 @@ stagger [60ms] {
 
 // Walk the cursor across the columns: one position's fingerprint at a time.
 #3.00s
+fade-out phase2 [260ms]
+fade-in phase3 [280ms]
 fade-in cursor [220ms]
 sequence {
   shift cursor [by: (84, 0), 150ms, ease: ease-out]

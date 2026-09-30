@@ -23,8 +23,16 @@
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.4 }
 
+// ── phase narration (top-left; one label per beat) ──────────────────
+phase1: Text, text: "1 · the residual stream", font_size: 15, color: text.muted,
+  text_max_width: 300, text_align: "left", at: (150, 96)
+phase2: Text, text: "2 · widen, nonlinear, project back", font_size: 15, color: text.muted,
+  text_max_width: 380, text_align: "left", at: (150, 96)
+phase3: Text, text: "3 · add it back: x + F(x)", font_size: 15, color: text.muted,
+  text_max_width: 340, text_align: "left", at: (150, 96)
+
 // ── the residual stream ─────────────────────────────────────────────
-rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.40, at: (640, 390)
+rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.0, at: (640, 390)
 rail_label: Text, text: "residual stream", font_size: 15, color: text.muted,
   text_max_width: 130, text_align: "left", at: (205, 450)
 
@@ -32,10 +40,10 @@ rail_label: Text, text: "residual stream", font_size: 15, color: text.muted,
 // clear of both the ring and the block.
 skip1: Path, commands: {
   move_to(150, 390), quad_to(385, 10, 620, 390)
-}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.55, fill_opacity: 0.0
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 skip2: Path, commands: {
   move_to(640, 390), quad_to(890, 10, 1140, 390)
-}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.55, fill_opacity: 0.0
+}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 
 // ── LayerNorm: rings standing in the gaps, not on the borders ───────
 ln1: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3, at: (210, 390)
@@ -53,18 +61,25 @@ ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
   stroke: (0.35, 0.86, 0.63, 1.0), stroke_width: 2, at: (980, 390)
 ffn_t: Text, text: "FFN", font_size: 24, color: text.primary, at: (980, 340)
 
-// d → 4d → d, drawn where it happens rather than labelled from a distance
-wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.5, at: (861, 400)
-wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success, opacity: 1.0, at: (980, 400)
-wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.5, at: (1099, 400)
-ffn_s: Text, text: "d → 4d → d", font_size: 15, color: text.muted, at: (980, 442)
+// d -> 4d -> d, drawn where it happens rather than labelled from a distance.
+// ASCII arrows: U+2192 has no glyph in the bundled slim face and drops silently.
+wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0, at: (861, 400)
+wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success, at: (980, 400)
+wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0, at: (1099, 400)
+ffn_s: Text, text: "d -> 4d -> d", font_size: 15, color: text.muted, at: (980, 442)
 
 // Closing beat: the signal carried straight through by the rail.
 dot: Ellipse, size: (16, 16), color: accent.warning, opacity: 0.0, at: (150, 390)
 
+// The rejoin points: where each skip connection adds back into the stream.
+plus1: Text, text: "+", font_size: 24, color: accent.warning, opacity: 0.0, at: (620, 350)
+plus2: Text, text: "+", font_size: 24, color: accent.warning, opacity: 0.0, at: (1140, 350)
+
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
+fade-in phase1 [300ms]
 draw-in rail [800ms, ease: ease-out]
+rail.opacity = 0.40 [700ms]
 fade-in rail_label [420ms, delay: 400ms]
 
 #0.90s
@@ -78,6 +93,12 @@ fade-in attn_s [320ms, delay: 300ms]
 
 #1.95s
 draw-in skip1 [600ms, ease: ease-out]
+skip1.opacity = 0.55 [560ms]
+
+// Phase 2 opens as the first skip leaves the rail.
+#2.30s
+fade-out phase1 [260ms]
+fade-in phase2 [280ms]
 
 #2.55s
 wipe-in ln2 [400ms, ease: ease-out]
@@ -88,13 +109,23 @@ wipe-in ffn [450ms, ease: ease-out]
 fade-in ffn_t [320ms, delay: 160ms]
 
 #3.45s
-wipe-in wide_a [320ms]
-wipe-in wide_b [320ms]
-wipe-in wide_c [320ms]
+// wide_b carries no authored opacity, so it is a hidden-by-default seed:
+// only an entrance lifts the seed (assignments do not) — fade it in.
+wide_a.opacity = 0.5 [320ms]
+fade-in wide_b [320ms]
+wide_c.opacity = 0.5 [320ms]
 fade-in ffn_s [320ms, delay: 300ms]
 
 #4.05s
 draw-in skip2 [600ms, ease: ease-out]
+skip2.opacity = 0.55 [560ms]
+
+// Phase 3: the additions. Each "+" flashes where its arc rejoins the rail.
+#4.35s
+fade-out phase2 [260ms]
+fade-in phase3 [300ms]
+fade-in plus1 [300ms]
+fade-in plus2 [300ms, delay: 220ms]
 
 // The residual carried the whole way, past both blocks.
 #4.85s
