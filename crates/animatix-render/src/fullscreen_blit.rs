@@ -51,8 +51,15 @@ pub struct FullscreenBlitPipeline {
 }
 
 impl FullscreenBlitPipeline {
-    /// Create the blit pipeline on the given device.
-    pub fn new(device: &wgpu::Device) -> Self {
+    /// Create the blit pipeline on the given device, targeting `target_format`.
+    ///
+    /// WebGPU requires a render pipeline's color-target format to match the
+    /// render pass attachment exactly. Internal targets are ours (always
+    /// `Rgba8Unorm`), but a browser canvas surface reports whichever format
+    /// its backend prefers — Firefox's wgpu orders `Bgra8Unorm` first — so
+    /// callers presenting to a surface must compile for that format (see
+    /// [`RendererCore`](super::core::RendererCore)'s per-format variants).
+    pub fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Animatix Fullscreen Blit Sampler"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -119,7 +126,7 @@ impl FullscreenBlitPipeline {
                 module: &shader,
                 entry_point: Some("fs_main"),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    format: target_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -271,9 +278,11 @@ impl FullscreenBlitPipeline {
         queue.submit(std::iter::once(encoder.finish()));
     }
 
-    /// Blit `src_view` into `dst_view` with the given alpha. Both must be RGBA8Unorm.
-    /// Creates its own encoder and submits immediately; for batching use
-    /// [`Self::blit_with_encoder`].
+    /// Blit `src_view` into `dst_view` with the given alpha. Both formats must
+    /// match what this pipeline was compiled for (the source is sampled as a
+    /// texture — any float-sampleable format works; the *target* format is the
+    /// strict one). Creates its own encoder and submits immediately; for
+    /// batching use [`Self::blit_with_encoder`].
     pub fn blit(
         &self,
         device: &wgpu::Device,

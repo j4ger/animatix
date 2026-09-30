@@ -115,7 +115,7 @@ async fn ensure_engine() -> Result<(), String> {
 /// Identifies the running build from the JS side (stale-artifact checks).
 #[wasm_bindgen]
 pub fn build_id() -> u32 {
-    50
+    51
 }
 
 /// Initialize the shared WebGPU context (adapter, device, vello renderer).
@@ -146,9 +146,15 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             .map_err(|e| JsError::new(&format!("failed to create canvas surface: {e}")))?;
 
         let capabilities = surface.get_capabilities(&ctx._adapter);
+        // Prefer Rgba8Unorm — the format every internal target and the
+        // default blit pipeline already use — when the surface supports it;
+        // otherwise take the backend's first (and compile a matching blit
+        // variant on first present).
         let format = capabilities
             .formats
-            .first()
+            .iter()
+            .find(|f| **f == wgpu::TextureFormat::Rgba8Unorm)
+            .or_else(|| capabilities.formats.first())
             .copied()
             .ok_or_else(|| JsError::new("surface reports no supported formats"))?;
         let alpha_mode = capabilities
@@ -697,9 +703,11 @@ impl AmxPlayer {
         // Blit the rendered frame onto the swapchain view and present. The
         // blit scales from the offscreen resolution to canvas pixels; on a
         // render error the frame is dropped unpresented so the canvas keeps
-        // its last known-good content.
+        // its last known-good content. The surface's format is the browser's
+        // choice (Firefox orders Bgra8Unorm first), so the blit runs through
+        // the per-format pipeline rather than the internal Rgba8Unorm one.
         if let Ok(frame) = &frame_target {
-            core.blit_texture(
+            core.blit_texture_to_format(
                 &ctx.device,
                 &ctx.queue,
                 &frame.view,
@@ -707,6 +715,7 @@ impl AmxPlayer {
                 width,
                 height,
                 1.0,
+                self.config.format,
             );
         }
 

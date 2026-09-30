@@ -509,3 +509,175 @@ fade-in g [100ms]
         assert!(avg[0] > 10.0, "{name} render lost its curve: {avg:?}");
     }
 }
+
+/// A blit into a `Bgra8Unorm` target must work: browser canvas surfaces
+/// report their own format (Firefox's wgpu backend orders Bgra8Unorm first),
+/// and WebGPU requires the blit pipeline's color-target format to match the
+/// attachment exactly — the old fixed-Rgba8Unorm pipeline tripped Firefox's
+/// validation on every present. The per-format variant must validate cleanly
+/// and actually write the pixels (channel-swizzled on readback).
+#[test]
+fn blits_into_bgra8_targets() {
+    use animatix_render::core::RendererCore;
+
+    let Some((device, queue)) = pollster::block_on(headless_device()) else {
+        animatix_render::testing::skip_if_no_gpu();
+        return;
+    };
+    let core = RendererCore::new(&device, &queue).expect("core");
+    // Validation errors must fail the test, not just log.
+    device.on_uncaptured_error(std::sync::Arc::new(|error| {
+        panic!("uncaptured wgpu error during bgra blit: {error}");
+    }));
+
+    const SIZE: u32 = 64; // 4 B/px * 64 = 256, the COPY_BYTES_PER_ROW_ALIGNMENT
+    let texture = |format, usage, label| {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: Some(label),
+            size: wgpu::Extent3d {
+                width: SIZE,
+                height: SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage,
+            view_formats: &[],
+        })
+    };
+    let src = texture(
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST,
+        "bgra-blit src",
+    );
+    let dst = texture(
+        wgpu::TextureFormat::Bgra8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        "bgra-blit dst",
+    );
+
+    // Source: opaque red in the top half, transparent below — the blit must
+    // land both, alpha-blended over the cleared destination.
+    let mut pixels = vec![0u8; (SIZE * SIZE * 4) as usize];
+    for px in pixels.chunks_exact_mut(4).take((SIZE * SIZE / 2) as usize) {
+        px.copy_from_slice(&[220, 40, 40, 255]);
+    }
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &src,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &pixels,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(SIZE * 4),
+            rows_per_image: Some(SIZE),
+        },
+        wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    let bytes_per_row = SIZE * 4;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("bgra-blit readback"),
+        size: (bytes_per_row * SIZE) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    core.blit_texture_to_format(
+        &device,
+        &queue,
+        &src.create_view(&wgpu::TextureViewDescriptor::default()),
+        &dst.create_view(&wgpu::TextureViewDescriptor::default()),
+        SIZE,
+        SIZE,
+        1.0,
+        wgpu::TextureFormat::Bgra8Unorm,
+    );
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("bgra-blit copy"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &dst,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(SIZE),
+            },
+        },
+        wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(std::iter::once(encoder.finish()));
+
+    let slice = buffer.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r| {
+        tx.send(r).ok();
+    });
+    match device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    }) {
+        Ok(_) => {},
+        Err(e) => panic!("poll failed: {e:?}"),
+    }
+    rx.recv().unwrap().expect("map failed");
+
+    let data = slice.get_mapped_range();
+    // Top half: red, swizzled to BGra byte order. Bottom half: the clear
+    // color (black, opaque — an alpha-blended blit over LoadOp::Clear? the
+    // pass uses Load, and the texture starts zeroed, so transparent black).
+    let top = &data[((SIZE / 2) as usize - 1) * bytes_per_row as usize..][..4];
+    assert_eq!(
+        [top[0], top[1], top[2], top[3]],
+        [40, 40, 220, 255],
+        "bgra target must hold the swizzled red pixel"
+    );
+}
+
+/// Headless device for the core-level tests above (fallible — callers decide
+/// the skip policy via [`animatix_render::testing::skip_if_no_gpu`]).
+async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            compatible_surface: None,
+            force_fallback_adapter: true,
+        })
+        .await
+        .ok()?;
+    let limits = wgpu::Limits::default().using_resolution(adapter.limits());
+    adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("Animatix Bgra Blit Test Device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: limits,
+            memory_hints: Default::default(),
+            ..Default::default()
+        })
+        .await
+        .ok()
+}

@@ -1201,3 +1201,24 @@ path elements) — its first draft asserted a *pixel* difference and failed with
 exact equality, which is the honest finding that a smooth curve can rasterize
 identically at both tolerances; the pixel gap is content-dependent and the
 docs say so.
+
+## The blit pipeline vs the browser's canvas format (2026-09-30)
+
+Firefox (experimental WebGPU) failed on every present with
+`Incompatible color attachments: the RenderPass uses textures with formats
+[Bgra8Unorm] but the RenderPipeline 'Animatix Fullscreen Blit Pipeline' uses
+attachments with formats [Rgba8Unorm]`. Not a Firefox limitation — WebGPU
+requires a pipeline's color-target format to match the attachment exactly, and
+the blit pipeline had `Rgba8Unorm` hardcoded while the canvas surface format
+comes from `capabilities.formats.first()`: Chromium happens to order
+`Rgba8Unorm` first on this machine, Firefox's wgpu orders `Bgra8Unorm` first,
+so the same code was one format ordering away from failing everywhere.
+
+Two layers: `FullscreenBlitPipeline::new` now takes the target format, and
+`RendererCore::blit_texture_to_format` compiles (and caches) a pipeline per
+non-internal target format — internal targets stay on the `Rgba8Unorm`
+pipeline. The web player additionally *prefers* `Rgba8Unorm` when the surface
+supports it (configuring the canvas to our format instead of adopting the
+backend's), so the common path never needs a variant. Regression test
+`blits_into_bgra8_targets` renders through a `Bgra8Unorm` target with
+`on_uncaptured_error` → panic and asserts the swizzled pixels land.

@@ -28,8 +28,17 @@ use animatix_core::error::RenderError;
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,
-    /// Fullscreen blit pipeline for zero-readback texture compositing.
+    /// Fullscreen blit pipeline for zero-readback texture compositing, typed
+    /// for `Rgba8Unorm` — the format of every internal target (offscreen
+    /// frames, filter scratch, GUI preview).
     pub blit: Option<FullscreenBlitPipeline>,
+    /// Blit pipelines typed for other target formats, compiled on demand.
+    /// The one consumer is the web player presenting to a browser canvas
+    /// surface: the surface's format comes from the browser's backend
+    /// (Firefox's wgpu orders `Bgra8Unorm` first), and WebGPU requires the
+    /// pipeline's color-target format to match the attachment exactly.
+    blit_variants:
+        std::cell::RefCell<std::collections::HashMap<wgpu::TextureFormat, FullscreenBlitPipeline>>,
 }
 
 impl RendererCore {
@@ -46,11 +55,12 @@ impl RendererCore {
         )
         .map_err(|e| RenderError::VelloInit(format!("{e:?}")))?;
 
-        let blit = FullscreenBlitPipeline::new(device);
+        let blit = FullscreenBlitPipeline::new(device, wgpu::TextureFormat::Rgba8Unorm);
 
         Ok(Self {
             renderer,
             blit: Some(blit),
+            blit_variants: std::cell::RefCell::new(std::collections::HashMap::new()),
         })
     }
 
@@ -89,6 +99,30 @@ impl RendererCore {
         if let Some(ref blit) = self.blit {
             blit.blit_rect(device, queue, src_view, dst_view, dst_origin, dst_size, alpha);
         }
+    }
+
+    /// Blit into a target whose format is not the internal `Rgba8Unorm` —
+    /// a browser canvas surface. The pipeline matching `target_format` is
+    /// compiled on first use and reused afterwards.
+    pub fn blit_texture_to_format(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        alpha: f32,
+        target_format: wgpu::TextureFormat,
+    ) {
+        if target_format == wgpu::TextureFormat::Rgba8Unorm {
+            return self.blit_texture(device, queue, src_view, dst_view, width, height, alpha);
+        }
+        let mut variants = self.blit_variants.borrow_mut();
+        let blit = variants
+            .entry(target_format)
+            .or_insert_with(|| FullscreenBlitPipeline::new(device, target_format));
+        blit.blit(device, queue, src_view, dst_view, width, height, alpha);
     }
 
     /// Render a Vello `scene` into the provided `texture_view` at the given size.
