@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>animatix-web frame-cost probe</title>
-    <link rel="stylesheet" href="../site.css" />
+    <!-- Self-contained QA harness: dark inline styling like multi-probe /
+         svg-probe, deliberately not the site skin. -->
     <script>
       // Classic script, before any module runs. Two jobs:
       //
@@ -31,16 +32,22 @@
       document.head.appendChild(probeLoader);
     </script>
     <style>
-      body { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      body {
+        max-width: 1100px; margin: 0 auto; padding: 24px;
+        background: #0a0f17; color: #e2e7ee;
+        font: 14px/1.5 system-ui, -apple-system, sans-serif;
+      }
+      h1 { font-size: 18px; margin: 0 0 10px; }
       #players { display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr); gap: 12px; }
       #players amx-player { width: 100%; }
       table { border-collapse: collapse; margin-top: 18px; width: 100%; }
       th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid #333; font-variant-numeric: tabular-nums; }
+      th { color: #9aa5b4; font-weight: 500; }
       th:first-child, td:first-child { text-align: left; }
       .bad { color: #e2704a; }
       .good { color: #6fbf73; }
-      pre { white-space: pre-wrap; font-size: 12px; opacity: .85; }
-      #meta { font-size: 13px; opacity: .8; }
+      pre { white-space: pre-wrap; font-size: 12px; opacity: .85; color: #c8d3e0; }
+      #meta { font-size: 13px; opacity: .8; color: #9aa5b4; }
     </style>
   </head>
   <body>
