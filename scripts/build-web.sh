@@ -10,6 +10,10 @@
 #             the plain fast path, Code/Math/Svg assets report diagnostics)
 #   --dev     debug build    — faster iterate, larger wasm, no opt
 #
+# Release builds use the `wasm-release` profile (see the root Cargo.toml: fat
+# LTO, one codegen unit, panic=abort) and enable wasm SIMD128. Neither touches
+# the `release` profile the native benchmarks build through.
+#
 # Prereqs: rustup target wasm32-unknown-unknown, wasm-bindgen-cli matching the
 # `wasm-bindgen` version pinned in crates/animatix-web/Cargo.toml.
 # wasm-opt (binaryen) and brotli are fetched through `nix shell` when
@@ -19,8 +23,8 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
-profile_args=(--release)
-out_profile="release"
+profile_args=(--profile wasm-release)
+out_profile="wasm-release"
 feature_args=()
 out_dir="web/pkg"
 for arg in "$@"; do
@@ -30,7 +34,14 @@ for arg in "$@"; do
   esac
 done
 
-cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
+# wasm has no auto-vectorization without an explicit target feature, and every
+# browser that can run the player (WebGPU shipped long after SIMD128) has it.
+cargo_env=()
+if [ "$out_profile" != "debug" ]; then
+  cargo_env=(env RUSTFLAGS="-C target-feature=+simd128")
+fi
+
+"${cargo_env[@]}" cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
 
 mkdir -p "$out_dir"
 wasm-bindgen --target web --out-dir "$out_dir" \

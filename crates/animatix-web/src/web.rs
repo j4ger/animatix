@@ -115,7 +115,7 @@ async fn ensure_engine() -> Result<(), String> {
 /// Identifies the running build from the JS side (stale-artifact checks).
 #[wasm_bindgen]
 pub fn build_id() -> u32 {
-    53
+    54
 }
 
 /// Resolve once every command submitted so far has finished on the GPU.

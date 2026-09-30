@@ -49,3 +49,24 @@ debug = true
 [profile.profiling]
 inherits = "release"
 debug = true
+
+# The browser player's build (scripts/build-web.sh). Kept separate from
+# `release` so tuning it cannot move a native benchmark baseline: `perf-bench.sh`
+# and the Layer-3 drivers all build through `release`, and the web player is the
+# one target whose frame cost is dominated by GPU work and whose CPU share is
+# paid inside a wasm sandbox.
+#
+# `lto = "fat"` + one codegen unit is what buys cross-crate inlining for the
+# engine's evaluate/encode path. Measured effect is on artifact size, not frame
+# time: the browser frame is GPU-bound and an A/B of the two builds could not
+# separate them (docs/performance_evaluation.md §3.7).
+[profile.wasm-release]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+# Already the default for this target — `rustc --print cfg --target
+# wasm32-unknown-unknown` reports panic="abort" — so this is a declaration, not
+# a change. It is here so the profile does not silently acquire unwinding
+# tables if that default is ever revised.
+panic = "abort"

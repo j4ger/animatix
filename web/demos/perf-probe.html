@@ -6,15 +6,29 @@
     <title>animatix-web frame-cost probe</title>
     <link rel="stylesheet" href="../demo.css" />
     <script>
-      // Classic script, before any module runs: capture console.error so a wasm
-      // panic (which the panic hook logs and then aborts on) is readable by an
-      // automated driver instead of only appearing in a devtools console.
+      // Classic script, before any module runs. Two jobs:
+      //
+      // 1. Capture console.error, so a wasm panic (which the panic hook logs and
+      //    then aborts on) is readable by an automated driver instead of only
+      //    appearing in a devtools console.
+      // 2. `?base=<dir>` picks which engine build the page measures, so two
+      //    builds can be A/B'd from one harness. The alternative build needs its
+      //    own directory rather than a copy swapped in place: the loader only
+      //    treats `pkg` / `pkg-slim` as exact-directory names (anything else is
+      //    read as a parent holding both), and a same-URL swap risks serving the
+      //    cached bytes.
       window.__console_errors = [];
       const origError = console.error.bind(console);
       console.error = (...args) => {
         window.__console_errors.push(args.map(String).join(" "));
         origError(...args);
       };
+      window.__probeBase = new URLSearchParams(location.search).get("base") ?? "../pkg-slim";
+      const probeLoader = document.createElement("script");
+      probeLoader.type = "module";
+      probeLoader.src = "../embed/amx-player.js";
+      probeLoader.setAttribute("data-runtime-base", window.__probeBase);
+      document.head.appendChild(probeLoader);
     </script>
     <style>
       body { max-width: 1100px; margin: 0 auto; padding: 24px; }
@@ -36,7 +50,6 @@
     <table id="results"><tbody></tbody></table>
     <pre id="ledger"></pre>
 
-    <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
     <script type="module">
       // Web-playback performance harness. Companion to
       // scripts/perf-bench.sh (native CPU) and examples/export_perf_driver.rs
@@ -64,6 +77,11 @@
       const scene = params.get("scene") ?? "transformer/scenes/attention.amx";
       const count = Math.max(1, Math.min(8, Number(params.get("players") ?? 1) || 1));
       const frames = Math.max(10, Math.min(400, Number(params.get("frames") ?? 60) || 60));
+      // Repeat each sample and keep the fastest run. A browser frame measured
+      // from a script is hostage to whatever else the machine is doing — the
+      // minimum is the closest thing to "what this code costs" and is stable
+      // where the mean is not.
+      const reps = Math.max(1, Math.min(9, Number(params.get("reps") ?? 1) || 1));
       const scales = (params.get("scales") ?? "1,0.85,0.72,0.6,0.5")
         .split(",")
         .map(Number)
@@ -71,7 +89,7 @@
 
       // Same URL the <amx-player> loader imports, so the page shares one wasm
       // instance and these free functions reach the same device.
-      const engine = await import("../pkg-slim/animatix_web.js");
+      const engine = await import(new URL(`${window.__probeBase}/animatix_web.js`, document.baseURI).href);
       await engine.default();
       await engine.init_engine();
       // Exposed so a driver can reach the same instance without re-importing it.
@@ -135,18 +153,30 @@
         window.__perf_progress = `scale ${scale}: drain`;
         await drain();
         window.__perf_progress = `scale ${scale}: cpu`;
-        const cpu = players.map((p) => JSON.parse(p.debug_bench_frames(8, 1 / 60)));
+        let cpu = players.map((p) => JSON.parse(p.debug_bench_frames(8, 1 / 60)));
+        for (let rep = 1; rep < reps; rep += 1) {
+          const again = players.map((p) => JSON.parse(p.debug_bench_frames(8, 1 / 60)));
+          cpu = cpu.map((c, i) => (again[i].cpu_ms < c.cpu_ms ? again[i] : c));
+        }
         window.__perf_progress = `scale ${scale}: ticks`;
         await drain();
-        const t0 = performance.now();
-        const ticks = [];
-        for (let i = 0; i < frames; i += 1) {
-          const a = performance.now();
-          for (const p of players) p.render_frame(i / 60);
-          ticks.push(performance.now() - a);
+        let ticks = [];
+        let wallPerTick = Infinity;
+        for (let rep = 0; rep < reps; rep += 1) {
+          const t0 = performance.now();
+          const thisRep = [];
+          for (let i = 0; i < frames; i += 1) {
+            const a = performance.now();
+            for (const p of players) p.render_frame(i / 60);
+            thisRep.push(performance.now() - a);
+          }
+          await drain();
+          const perTick = (performance.now() - t0) / frames;
+          if (perTick < wallPerTick) {
+            wallPerTick = perTick;
+            ticks = thisRep;
+          }
         }
-        await drain();
-        const wallPerTick = (performance.now() - t0) / frames;
         const raster = players.map((p) => [p.raster_width(), p.raster_height()]);
         return {
           scale,
@@ -170,11 +200,14 @@
 
       const meta = {
         scene,
+        engine_base: window.__probeBase,
         scene_px: scenePx,
         canvas_css_px: canvasCss,
+        canvas_backing_px: [elements[0]._canvas.width, elements[0]._canvas.height],
         device_pixel_ratio: window.devicePixelRatio,
         players: count,
         frames_per_sample: frames,
+        reps,
         load_ms: round(loadMs, 1),
         build_id: engine.build_id(),
       };

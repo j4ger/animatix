@@ -262,6 +262,7 @@ class AmxPlayerElement extends HTMLElement {
     this._visible = false;
     this._observer = null;
     this._renderScaleObserver = null;
+    this._renderScaleRetry = null;
     this._initialized = false;
     this._scrubbing = false;
     this._peeking = false;
@@ -283,6 +284,7 @@ class AmxPlayerElement extends HTMLElement {
   disconnectedCallback() {
     this._observer?.disconnect();
     this._renderScaleObserver?.disconnect();
+    clearTimeout(this._renderScaleRetry);
     instances.delete(this);
     this._playing = false;
   }
@@ -720,6 +722,11 @@ class AmxPlayerElement extends HTMLElement {
       this._applyRenderScale();
       this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale());
       this._renderScaleObserver.observe(this._stage);
+      // A cold first load can still report a zero-sized box at this point, and
+      // an environment that never delivers ResizeObserver would then keep the
+      // full-resolution fallback for the life of the page. Re-apply once the
+      // task settles; the call is idempotent.
+      this._renderScaleRetry = setTimeout(() => this._applyRenderScale(), 0);
       if (this.hasAttribute("controls")) {
         this._buildControls();
         this._setupGestures();
@@ -1053,18 +1060,25 @@ class AmxPlayerElement extends HTMLElement {
     return true;
   }
 
-  /// Size the engine's offscreen raster to what the element actually shows.
+  /// Size the canvas backing store and the engine's offscreen raster to what
+  /// the element actually shows.
   ///
-  /// The canvas backing store stays at the scene's own resolution (the layout
-  /// and the CSS aspect ratio hang off it), but rasterizing at scene resolution
-  /// for a figure displayed at two thirds that width spends ~2.4x the pixels
-  /// for detail the compositor then throws away. Matching the raster to
-  /// `displayed CSS px x devicePixelRatio` is free sharpness-wise and is where
-  /// the frame time goes; the `qualityStep` multiplier on top is the page-wide
-  /// concession when even that will not hold a frame.
+  /// Both ends of the frame are sized here, because sizing only one is a
+  /// half-measure: the canvas backs the *scene's* resolution by default, so a
+  /// figure displayed at 990 px renders at 1280 and the compositor downsamples
+  /// it on the way to the screen, and the offscreen then rasters pixels nothing
+  /// displays. Taking the displayed pixel count (`CSS px × devicePixelRatio`)
+  /// as the target, capped at the scene's own resolution, gives one 1:1 blit
+  /// with no second resample and the fewest possible raster pixels — which is
+  /// where a browser frame's cost lives.
+  ///
+  /// The `qualityStep` multiplier on top is the page-wide concession when even
+  /// that will not hold a frame; it lowers the raster below the backing store,
+  /// so the blit upscales.
   _applyRenderScale() {
     const player = this._player;
     if (!player?.set_render_scale || !player.scene_width) return;
+    if (!this.isConnected) return;
     const sceneW = player.scene_width() || this._canvas.width;
     const sceneH = player.scene_height() || this._canvas.height;
     const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
@@ -1076,6 +1090,12 @@ class AmxPlayerElement extends HTMLElement {
       cssW > 0 && cssH > 0 && sceneW > 0 && sceneH > 0
         ? Math.min(1, (cssW * dpr) / sceneW, (cssH * dpr) / sceneH)
         : 1;
+    const backingW = Math.max(1, Math.round(sceneW * display));
+    const backingH = Math.max(1, Math.round(sceneH * display));
+    if (this._canvas.width !== backingW || this._canvas.height !== backingH) {
+      this._canvas.width = backingW;
+      this._canvas.height = backingH;
+    }
     const wanted = Math.min(1, Math.max(0.25, display * QUALITY_STEPS[qualityStep]));
     this._renderScale = player.set_render_scale(wanted);
   }
