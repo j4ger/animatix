@@ -1139,3 +1139,33 @@ it, or an extension registry declares it for the type — all single-source
 tables, so the warning cannot drift from what the build reads. Run against
 the whole corpus (`examples/`, `dogfood/`, `web/demos/`) it produces zero
 warnings; the four hand-written typos above each produce exactly one.
+
+## Web scenes can import fetched modules; a diagnostic-snippet panic (2026-09-30)
+
+**`import` now works beyond the bundled library.** The web build used to stop
+at the first `SourcesOnly` miss with a generic module error, so only the
+compile-time-embedded `examples/lib/*.amx` imports resolved. The load now
+reports the module graph's resolved key (the import string joined onto the
+importing file's directory and normalized) in `LoadResultDto::missing_imports`
+with an actionable diagnostic; the embed fetches that path relative to the
+scene, registers it via the new `AmxPlayer::add_module`, and retries —
+transitive imports close over repeated rounds (bounded at 24, failed fetches
+remembered). A host test walks a two-level import chain through the protocol
+round by round; `web/demos/svg-probe/imports.html` exercises it in the browser
+against `pkg`. Asset urls inside imported modules resolve against the module's
+own location but the engine keys the asset cache by the literal url string, so
+asset names share one flat namespace across the scene and its imports (by
+design, matching the single-document desktop model).
+
+**`animatix check` panicked on multi-byte sources.** `extract_source_snippet`
+sliced the source at the diagnostic span's raw byte offsets; a span ending
+inside a multi-byte character (an em-dash in a comment under a parse error was
+enough) panicked `byte index is not a char boundary`. Both ends now snap to
+the nearest boundary and a regression test holds it.
+
+**Slim-profile truth table, verified in the browser:** a slim build does not
+error on an `Svg` actor — the primitive itself is compiled out, so the actor
+gets an `unknown-actor-type` *warning* and the scene renders without it,
+while an `Image` actor (primitive registered, decoder gated) still fails the
+build with `MediaLoadFailure`. `web/README.md`'s new differences table says
+which.
