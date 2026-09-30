@@ -23,6 +23,11 @@ Animatix has three latency- and throughput-sensitive surfaces:
 3. **Export** — offline rendering of many frames (PNG/WebP/video/GIF). Here
    **throughput** (frames/sec) matters more than single-frame latency, and the
    GPU/FFmpeg path is the dominant cost.
+4. **Web playback** — the WebGPU player in a browser (`crates/animatix-web`,
+   the `<amx-player>` embed). Same engine, different platform: no `perf-tracing`
+   (compiled out of the wasm build), no Criterion, no GUI HUD, and a GPU cost
+   profile that turns out to have nothing to do with the CPU-side stages every
+   other layer measures. See §3.7.
 
 The goal of the framework is to make each of these **measurable, regression
 guardable, and comparable** across commits, so optimization work can be justified
@@ -606,6 +611,162 @@ export        showcase_1080p_fps            412 fps     (gpu, latest only)
 
 ---
 
+## 3.7 Layer W — Web playback (the browser)
+
+*(added 2026-09-30)*
+
+The layers above all measure native code. Browser playback is its own surface
+with its own failure mode — the one users actually report as "the playback is
+choppy" — and none of the existing layers can see it: `perf-tracing` is compiled
+out of the wasm build, `cargo bench` cannot load a browser, and the GUI's HUD
+does not exist there.
+
+### What a browser frame costs
+
+A browser frame is **a full-target vello pass, not the scene's content**. On an
+Intel Gen-12LP iGPU (1280×720):
+
+| scene | per frame |
+|---|---|
+| empty (`config { resolution: (1280, 720) }` and nothing else) | 3.71 ms |
+| two rects | 4.11 ms |
+| `attention.amx` (a transformer demo scene) | 3.59 ms |
+| `debug_fill` — raw surface clear + present, no vello, no blit | 0.07 ms |
+
+An empty scene costs what a full one does, so nothing about authoring practice,
+actor count, or effect chains moves this number. Sweeping the raster target
+gives the law directly:
+
+| raster target | pixels | per frame |
+|---|---|---|
+| 1280×720 | 921.6k | 3.50 ms |
+| 1088×612 | 666k | 2.95 ms |
+| 922×518 | 477k | 2.40 ms |
+| 768×432 | 332k | 1.78 ms |
+| 640×360 | 230k | 1.56 ms |
+
+`t ≈ 0.9 ms + 2.8 ns/pixel`. The 0.9 ms floor is the blit + present at *canvas*
+resolution — it does not shrink with the raster — and the per-pixel term is
+vello's fill rate. The CPU side (evaluate + scene encode + submit + blit encode)
+is 0.3–0.8 ms at every scale and is not the bottleneck.
+
+The page-level consequence: the demo gallery and the transformer article each
+carry **six** `<amx-player>` embeds, and every visible one rendered a full
+1280×720 frame per rAF tick with no coordination, at the scene's declared
+resolution regardless of how large the figure actually displays (990×557 CSS px
+on the gallery). Measured on that page: **21.7 ms per tick for six embeds ≈ a
+46 fps ceiling** before the browser does anything else. That is the choppiness.
+
+### Why the harness drives frames itself
+
+Two things make the obvious measurements lie, and both were hit before the
+numbers above were trusted:
+
+1. **`requestAnimationFrame` may not exist at all.** A backgrounded or headless
+   tab delivers *zero* rAF callbacks — a 5-second rAF sampler recorded 0 frames
+   in the environment this was measured in. Anything built on rAF cadence
+   silently measures nothing.
+2. **`queue.submit` returns before the GPU draws.** Timing `render_frame` alone
+   reports **0.49 ms** for a frame whose GPU work is 3.5 ms, because it measures
+   encoding only. An early "a single embed runs at 222 fps" reading was exactly
+   this artifact.
+
+So the web harness drives frames explicitly and synchronises explicitly — the
+same shape as the native `perf_driver` / `export_perf_driver` drivers: N timed
+`render_frame` calls, then one `debug_gpu_drain()` (wgpu's
+`Queue::on_submitted_work_done`, which copies no pixels, unlike `debug_readback`),
+and the wall time divided by N. `per_frame_ms − cpu_ms` is the GPU's share.
+
+### The harness
+
+| Piece | Where |
+|---|---|
+| Frame driver + CPU timer | `AmxPlayer::debug_bench_frames` / `debug_bench_warmup` |
+| GPU sync point | `debug_gpu_drain()` (free wasm export) |
+| Raster scale knob | `AmxPlayer::set_render_scale` / `render_scale` |
+| Scenario page | `web/demos/perf-probe.html` (`?scene=&players=&frames=&scales=`) |
+
+The probe page is self-driving: it loads the scene, sweeps render scales, prints
+a table, and publishes the same object on `window.__perf` for a browser driver
+or a human. Two properties are deliberate and should survive edits:
+
+- **Frames are driven by hand**, never by the page's rAF loop (reason 1 above).
+- **Failures are readable.** It wraps `console.error` and `window.onerror`
+  *before any module runs* and publishes `window.__perf_error`, because a wasm
+  panic otherwise reaches only the devtools console, which `playwright.evaluate`
+  cannot read. That capture is what located the first harness bug — see the traps
+  below.
+
+### Harness traps (paid for once, recorded so they are not re-learned)
+
+- **`std::time::Instant` traps on wasm32-unknown-unknown** ("time not implemented
+  on this platform"). Every wasm-side timer must read `performance.now()` through
+  `web-sys`.
+- **IntersectionObserver is not delivered in every automated environment.** It is
+  the embed's lazy-load trigger, so a probe that waits for it sees embeds stuck in
+  `idle`; drive the documented load entry point directly instead.
+- **`debug_readback` is a correctness probe, not a timing sync.** It costs ~10 ms
+  at 1280×720 for the texture copy + buffer map, which is the same order as the
+  frame being measured.
+- **Scene URLs resolve against the page**, so a probe under `web/demos/` needs a
+  path relative to *itself*; the failure mode is an ordinary 404 reported as
+  "scene failed to load" (the probe prints the resolved URL for this reason).
+
+### Result: display-matched raster + page-wide adaptation
+
+Two changes, both in the web player and its embed:
+
+1. **Display-matched raster** — `set_render_scale` sizes the offscreen target to
+   `displayed CSS px × devicePixelRatio`, capped at the scene's own resolution.
+   Vello renders 1:1 (`RenderParams` carries no transform in the pinned
+   revision), so the scaled path re-encodes the evaluated scene through
+   `Scene::append(.., Affine::scale(s))`. Layout is untouched: the timeline is
+   still evaluated against the scene's own `SceneDimensions`, because those
+   dimensions feed `resolve_bound_position`. The canvas blit already scaled the
+   offscreen up, so nothing downstream changed.
+2. **Page-wide adaptation** — the shared rAF loop watches its own tick interval:
+   eight consecutive ticks over 24 ms (a missed vsync at 60 Hz) step every playing
+   embed down one quality notch; ninety comfortable ticks step it back up. This is
+   the part that answers "six embeds on a slow iGPU" using a measured signal
+   instead of guessing from the embed count.
+
+Measured, six embeds of `attention.amx` on one page:
+
+| scale | raster | ms / tick | per embed | headroom |
+|---|---|---|---|---|
+| 1.0 (before) | 1280×720 | 21.66 | 3.61 | 46 fps ceiling |
+| 0.85 | 1088×612 | 18.21 | 3.03 | |
+| 0.72 | 922×518 | 14.01 | 2.33 | |
+| 0.6 | 768×432 | 10.88 | 1.81 | |
+| 0.5 | 640×360 | **9.39** | 1.56 | 106 fps |
+
+On the gallery page every embed now resolves to scale 0.773 (990/1280) with no
+visible difference at the size these figures are read at, and the adaptive loop
+only goes below that if the machine cannot hold the frame.
+
+### Still open (web)
+
+- **The 0.9 ms floor is the canvas-resolution blit + present.** Matching the
+  canvas backing store to the displayed size instead of the scene resolution
+  would shrink it too; today the canvas size is the scene's by design (layout and
+  aspect ratio hang off it).
+- **No rAF-cadence sampling in automation.** The adaptation logic is only
+  exercised by hand in a foreground tab. The automated harness measures
+  throughput (ms per tick), not smoothness.
+- **Build profile.** The wasm release build uses the workspace default
+  (`lto = false`, 16 codegen units, `panic = "unwind"`) and is then optimised by
+  `wasm-opt -Oz`, which targets size; `+simd128` is not enabled. None of it shows
+  in the numbers above (they are GPU-bound), but it is the next lever for the
+  0.3–0.8 ms CPU slice and for scene build time.
+- **The frame cache never hits on the web path**: `restore_frame_cache` bails
+  whenever a filter backend is present, and the web player always passes one.
+- **Filter scopes do not scale.** `GpuFilterBackend` allocates at scene
+  resolution, so an animated `Filter` re-renders at full size under a reduced
+  raster scale and then composites down. Correct, but it keeps the full cost for
+  scenes that use filters.
+
+---
+
 ## 4. How regressions are caught (gates)
 
 1. **Noise-adaptive relative gate** (`scripts/perf-bench.sh compare`): loads the
@@ -850,7 +1011,11 @@ it moves and the **gate** that protects it.
 | Export-path throughput driver (PF-7, stage breakdown) | `crates/animatix/examples/export_perf_driver.rs` | **added** (PF-7 baseline, 2026-09-05; §5 P4) |
 | GPU/export + memory capture | `animatix-cli perf` (or bench under `nix develop`) | add (PF-7) |
 | GUI JSONL perf sink | `animatix-gui` `--perf-log` | **added** (PF-9, 2026-08-31; `crates/animatix-gui/src/app/perf_log.rs`) |
-| Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9) |
+| Web frame driver + CPU timer | `AmxPlayer::debug_bench_frames` / `debug_bench_warmup` | **added** (Layer W, 2026-09-30) |
+| Web GPU sync point | `debug_gpu_drain()` | **added** (Layer W, 2026-09-30) |
+| Web raster-scale knob | `AmxPlayer::set_render_scale` / `render_scale` | **added** (Layer W, 2026-09-30) |
+| Web scenario/probe page | `web/demos/perf-probe.html` | **added** (Layer W, 2026-09-30) |
+| Roadmap backlog | `docs/roadmap.md` | **added** (PF-1…PF-9; web items under "Web playback") |
 
 ---
 

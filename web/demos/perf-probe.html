@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>animatix-web frame-cost probe</title>
+    <link rel="stylesheet" href="../demo.css" />
+    <script>
+      // Classic script, before any module runs: capture console.error so a wasm
+      // panic (which the panic hook logs and then aborts on) is readable by an
+      // automated driver instead of only appearing in a devtools console.
+      window.__console_errors = [];
+      const origError = console.error.bind(console);
+      console.error = (...args) => {
+        window.__console_errors.push(args.map(String).join(" "));
+        origError(...args);
+      };
+    </script>
+    <style>
+      body { max-width: 1100px; margin: 0 auto; padding: 24px; }
+      #players { display: grid; grid-template-columns: repeat(var(--cols, 2), 1fr); gap: 12px; }
+      #players amx-player { width: 100%; }
+      table { border-collapse: collapse; margin-top: 18px; width: 100%; }
+      th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid #333; font-variant-numeric: tabular-nums; }
+      th:first-child, td:first-child { text-align: left; }
+      .bad { color: #e2704a; }
+      .good { color: #6fbf73; }
+      pre { white-space: pre-wrap; font-size: 12px; opacity: .85; }
+      #meta { font-size: 13px; opacity: .8; }
+    </style>
+  </head>
+  <body>
+    <h1>animatix-web frame-cost probe</h1>
+    <p id="meta">measuring…</p>
+    <div id="players"></div>
+    <table id="results"><tbody></tbody></table>
+    <pre id="ledger"></pre>
+
+    <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+    <script type="module">
+      // Web-playback performance harness. Companion to
+      // scripts/perf-bench.sh (native CPU) and examples/export_perf_driver.rs
+      // (native GPU/export); the design note is the "Web playback" section of
+      // docs/performance_evaluation.md.
+      //
+      // Why it drives frames by hand instead of timing the page's own rAF loop:
+      // a headless or backgrounded tab delivers *no* rAF callbacks, and
+      // `queue.submit` returns as soon as the frame is encoded — several
+      // milliseconds before the GPU has drawn it. Timing `render_frame` alone
+      // therefore reports ~0.5 ms for a frame that actually costs ~4 ms. Every
+      // number here is "N frames followed by an explicit GPU drain", which is
+      // the browser-side equivalent of the native drivers' tight frame loop.
+      //
+      //   ?scene=<url>     scene to load        (default transformer/scenes/attention.amx)
+      //   ?players=<n>     embeds on the page   (default 1)
+      //   ?frames=<n>      frames per sample    (default 60)
+      //   ?scales=1,.7,.5  render scales to sweep (default 1,0.85,0.72,0.6,0.5)
+      const params = new URLSearchParams(location.search);
+      // A harness that fails silently is worse than no harness: a top-level
+      // await that rejects in a module script only reaches the console, which
+      // an automated driver cannot read.
+      window.addEventListener("error", (e) => { window.__perf_error = String(e.message ?? e.error); });
+      window.addEventListener("unhandledrejection", (e) => { window.__perf_error = String(e.reason?.stack ?? e.reason); });
+      const scene = params.get("scene") ?? "transformer/scenes/attention.amx";
+      const count = Math.max(1, Math.min(8, Number(params.get("players") ?? 1) || 1));
+      const frames = Math.max(10, Math.min(400, Number(params.get("frames") ?? 60) || 60));
+      const scales = (params.get("scales") ?? "1,0.85,0.72,0.6,0.5")
+        .split(",")
+        .map(Number)
+        .filter((s) => s > 0 && s <= 1);
+
+      // Same URL the <amx-player> loader imports, so the page shares one wasm
+      // instance and these free functions reach the same device.
+      const engine = await import("../pkg-slim/animatix_web.js");
+      await engine.default();
+      await engine.init_engine();
+      // Exposed so a driver can reach the same instance without re-importing it.
+      window.__engine = engine;
+      const drain = () => engine.debug_gpu_drain();
+
+      const host = document.getElementById("players");
+      host.style.setProperty("--cols", String(Math.min(3, count)));
+      const elements = [];
+      for (let i = 0; i < count; i += 1) {
+        const el = document.createElement("amx-player");
+        el.setAttribute("src", scene);
+        el.setAttribute("aspect", "16:9");
+        host.appendChild(el);
+        elements.push(el);
+      }
+
+      // IntersectionObserver is how the embed defers loading, and it is not
+      // delivered in every automated environment — drive the load entry point
+      // directly so the probe works with or without it.
+      const started = performance.now();
+      for (const el of elements) el._maybeStartLoading();
+      const ready = await new Promise((resolve, reject) => {
+        const t0 = performance.now();
+        const poll = () => {
+          if (elements.every((el) => el._state === "ready")) return resolve(true);
+          if (elements.some((el) => el._state === "error")) return reject(new Error("scene failed to load"));
+          if (performance.now() - t0 > 60000) return reject(new Error("timed out loading the scene"));
+          setTimeout(poll, 50);
+        };
+        poll();
+      }).catch((err) => err);
+      if (ready !== true) {
+        document.getElementById("meta").textContent = `load failed: ${ready.message}`;
+        throw ready;
+      }
+      const loadMs = performance.now() - started;
+      const players = elements.map((el) => el._player);
+      const scenePx = [players[0].scene_width(), players[0].scene_height()];
+      const canvasCss = [elements[0]._canvas.clientWidth, elements[0]._canvas.clientHeight];
+
+      const stats = (xs) => {
+        const s = [...xs].sort((a, b) => a - b);
+        const at = (p) => s[Math.min(s.length - 1, Math.floor(s.length * p))];
+        return {
+          mean: xs.reduce((a, b) => a + b, 0) / xs.length,
+          p50: at(0.5),
+          p90: at(0.9),
+          max: s[s.length - 1],
+        };
+      };
+      const round = (v, d = 2) => Number(v.toFixed(d));
+
+      // One sample: `frames` ticks, every player rendering one frame per tick,
+      // then one GPU drain. Reported per tick — that is the page's frame cost.
+      async function sample(scale) {
+        window.__perf_progress = `scale ${scale}: set`;
+        for (const p of players) p.set_render_scale(scale);
+        window.__perf_progress = `scale ${scale}: warmup`;
+        for (const p of players) p.debug_bench_warmup(3);
+        window.__perf_progress = `scale ${scale}: drain`;
+        await drain();
+        window.__perf_progress = `scale ${scale}: cpu`;
+        const cpu = players.map((p) => JSON.parse(p.debug_bench_frames(8, 1 / 60)));
+        window.__perf_progress = `scale ${scale}: ticks`;
+        await drain();
+        const t0 = performance.now();
+        const ticks = [];
+        for (let i = 0; i < frames; i += 1) {
+          const a = performance.now();
+          for (const p of players) p.render_frame(i / 60);
+          ticks.push(performance.now() - a);
+        }
+        await drain();
+        const wallPerTick = (performance.now() - t0) / frames;
+        const raster = players.map((p) => [p.raster_width(), p.raster_height()]);
+        return {
+          scale,
+          raster,
+          page_ms: round(wallPerTick),
+          per_embed_ms: round(wallPerTick / count),
+          cpu_ms: round(cpu.reduce((a, c) => a + c.cpu_ms, 0) / count),
+          cpu_p90_ms: round(Math.max(...cpu.map((c) => c.cpu_p90_ms))),
+          jitter: stats(ticks),
+        };
+      }
+
+      const rows = [];
+      for (const scale of scales) rows.push(await sample(scale));
+
+      // Restore what the page itself asked for, and let the embeds pick their
+      // display-matched scale back up.
+      for (const el of elements) el._applyRenderScale();
+      for (const p of players) p.debug_bench_warmup(1);
+      await drain();
+
+      const meta = {
+        scene,
+        scene_px: scenePx,
+        canvas_css_px: canvasCss,
+        device_pixel_ratio: window.devicePixelRatio,
+        players: count,
+        frames_per_sample: frames,
+        load_ms: round(loadMs, 1),
+        build_id: engine.build_id(),
+      };
+      const report = { ...meta, samples: rows };
+      window.__perf = report;
+
+      document.getElementById("meta").textContent =
+        `${scene} — ${scenePx[0]}x${scenePx[1]} scene, displayed at ${canvasCss[0]}x${canvasCss[1]} CSS px ` +
+        `(dpr ${meta.device_pixel_ratio}), ${count} player${count > 1 ? "s" : ""}, build ${meta.build_id}`;
+      const tbody = document.querySelector("#results tbody");
+      const head = document.createElement("tr");
+      head.innerHTML = "<th>scale</th><th>raster px</th><th>page ms / tick</th><th>per embed ms</th><th>cpu ms</th><th>cpu p90</th><th>tick p50</th><th>tick max</th><th>16.7 ms</th>";
+      tbody.appendChild(head);
+      for (const r of rows) {
+        const budget = r.page_ms <= 16.7;
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td>${r.scale}</td>` +
+          `<td>${r.raster[0].join("x")}</td>` +
+          `<td class="${budget ? "good" : "bad"}">${r.page_ms}</td>` +
+          `<td>${r.per_embed_ms}</td>` +
+          `<td>${r.cpu_ms}</td>` +
+          `<td>${r.cpu_p90_ms}</td>` +
+          `<td>${round(r.jitter.p50)}</td>` +
+          `<td>${round(r.jitter.max)}</td>` +
+          `<td>${budget ? "ok" : "over"}</td>`;
+        tbody.appendChild(tr);
+      }
+      document.getElementById("ledger").textContent = JSON.stringify(report, null, 2);
+      document.title = `perf: ${rows.map((r) => `${r.scale}=${r.page_ms}ms`).join(" ")}`;
+    </script>
+  </body>
+</html>

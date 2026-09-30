@@ -43,7 +43,7 @@ vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default
 # the same wasm-bindgen version.
 wasm-bindgen = "=0.2.128"
 wasm-bindgen-futures = "0.4.78"
-web-sys = { version = "0.3", features = ["HtmlCanvasElement", "console"] }
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Performance", "Window", "console"] }
 # `webgpu` selects the browser backend (native builds select vulkan/metal/...),
 # `fragile-send-sync-non-atomic-wasm` is required because wgpu types are
 # !Send on non-atomic wasm32 and the engine stores them in single-threaded

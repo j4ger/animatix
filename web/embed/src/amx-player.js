@@ -159,14 +159,56 @@ const instances = new Set();
 let rafRunning = false;
 let lastT = 0;
 
+// Page-wide render-scale adaptation. A frame's GPU cost tracks the number of
+// pixels the offscreen target holds — an empty 1280x720 scene measures the same
+// as a full one, because the cost is vello's full-screen pass — so the lever for
+// "several figures on one page are choppy" is raster resolution, not content.
+// Every playing embed already renders at its own displayed size (see
+// `_applyRenderScale`); when the shared rAF still cannot hold a frame, the whole
+// page steps down a multiplier together, and steps back up only after a long
+// stretch of comfortable frames. Stepping one notch at a time and reading the
+// clock is deliberate: the alternative — sizing by how many embeds happen to be
+// playing — guesses at work it cannot measure.
+const QUALITY_STEPS = [1, 0.85, 0.72, 0.6, 0.5];
+const SLOW_TICK_MS = 24; // a 60 Hz tick that misses its vsync lands at ~33 ms
+const FAST_TICK_MS = 18.5;
+let qualityStep = 0;
+let slowTicks = 0;
+let fastTicks = 0;
+
+function setQualityStep(step) {
+  const next = Math.max(0, Math.min(QUALITY_STEPS.length - 1, step));
+  if (next === qualityStep) return;
+  qualityStep = next;
+  for (const inst of instances) inst._applyRenderScale();
+}
+
+/// Drive `advance` for every playing instance, then adapt the page's render
+/// scale to how long the tick actually took.
 function tick(t) {
-  const dt = Math.min((t - lastT) / 1000, 0.1);
+  const dtMs = t - lastT;
+  const dt = Math.min(dtMs / 1000, 0.1);
   lastT = t;
   let anyPlaying = false;
   for (const inst of instances) {
     if (inst.advance(dt)) anyPlaying = true;
   }
   if (anyPlaying) {
+    if (dtMs > SLOW_TICK_MS) {
+      slowTicks += 1;
+      fastTicks = 0;
+      if (slowTicks >= 8) {
+        setQualityStep(qualityStep + 1);
+        slowTicks = 0;
+      }
+    } else if (dtMs < FAST_TICK_MS) {
+      fastTicks += 1;
+      slowTicks = 0;
+      if (fastTicks >= 90) {
+        setQualityStep(qualityStep - 1);
+        fastTicks = 0;
+      }
+    }
     requestAnimationFrame(tick);
   } else {
     rafRunning = false;
@@ -219,6 +261,7 @@ class AmxPlayerElement extends HTMLElement {
     this._lastAlpha = 1;
     this._visible = false;
     this._observer = null;
+    this._renderScaleObserver = null;
     this._initialized = false;
     this._scrubbing = false;
     this._peeking = false;
@@ -239,6 +282,7 @@ class AmxPlayerElement extends HTMLElement {
 
   disconnectedCallback() {
     this._observer?.disconnect();
+    this._renderScaleObserver?.disconnect();
     instances.delete(this);
     this._playing = false;
   }
@@ -668,6 +712,10 @@ class AmxPlayerElement extends HTMLElement {
       this._skeleton.remove();
       this._canvas.hidden = false;
       this._stage.appendChild(this._canvas);
+      // Only now does the canvas have a laid-out size to match the raster to.
+      this._applyRenderScale();
+      this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale());
+      this._renderScaleObserver.observe(this._stage);
       if (this.hasAttribute("controls")) {
         this._buildControls();
         this._setupGestures();
@@ -998,6 +1046,33 @@ class AmxPlayerElement extends HTMLElement {
     this._renderScene();
     if (this._controls) this._syncControls();
     return true;
+  }
+
+  /// Size the engine's offscreen raster to what the element actually shows.
+  ///
+  /// The canvas backing store stays at the scene's own resolution (the layout
+  /// and the CSS aspect ratio hang off it), but rasterizing at scene resolution
+  /// for a figure displayed at two thirds that width spends ~2.4x the pixels
+  /// for detail the compositor then throws away. Matching the raster to
+  /// `displayed CSS px x devicePixelRatio` is free sharpness-wise and is where
+  /// the frame time goes; the `qualityStep` multiplier on top is the page-wide
+  /// concession when even that will not hold a frame.
+  _applyRenderScale() {
+    const player = this._player;
+    if (!player?.set_render_scale || !player.scene_width) return;
+    const sceneW = player.scene_width() || this._canvas.width;
+    const sceneH = player.scene_height() || this._canvas.height;
+    const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
+    const cssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
+    const dpr = window.devicePixelRatio || 1;
+    // Before layout (display:none, pre-append) the element reports 0; render
+    // at full detail rather than clamping to a blurry minimum.
+    const display =
+      cssW > 0 && cssH > 0 && sceneW > 0 && sceneH > 0
+        ? Math.min(1, (cssW * dpr) / sceneW, (cssH * dpr) / sceneH)
+        : 1;
+    const wanted = Math.min(1, Math.max(0.25, display * QUALITY_STEPS[qualityStep]));
+    this._renderScale = player.set_render_scale(wanted);
   }
 
   _renderScene() {
