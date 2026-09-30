@@ -780,19 +780,48 @@ Two explanations were **ruled out by measurement** rather than assumed:
   because a HiDPI pane asks for more device pixels than a 1280×720 scene has
   detail to give.
 
-What remains is GPU-side and **unattributed**: the same shaders on the same GPU
-cost ~2.8 ns per raster pixel in the browser, against a native figure well under
-1 ns/px once the readback is discounted. The environment below cannot settle it.
+What remains is GPU-side. The first foreground-window run (2026-09-30, focused
+window, `devicePixelRatio` 1, one player, canvas backing = displayed
+1052×592) settled the question the backgrounded numbers could not:
 
-> **Environment caveat — read the gap as an upper bound.** Every web number here
-> comes from a tab that is not composited: `document.visibilityState` reports
-> `visible` but `document.hasFocus()` is false and `requestAnimationFrame`
-> delivers **zero** callbacks in 1.2 s. Showing the pane through the browser
-> capability and re-activating the tab both failed to change that. A page in that
-> state is a candidate for GPU-clock and submission throttling, which would
-> inflate precisely the GPU-bound term this gap consists of. The decisive
-> experiment is a single run in a foregrounded, focused window; until it exists,
-> 2.7–4.1 ms is a ceiling, not a floor.
+| raster | per frame |
+|---|---|
+| 1052×592 (display size — the shipping configuration) | **3.42 ms** |
+| 1088×612 | 3.55 ms |
+| 922×518 | 3.33 ms |
+| 768×432 | 3.20 ms |
+| 640×360 | 1.60 ms |
+
+So the gap is **real, not background-tab throttling**: native renders *more*
+pixels (1280×720) in 1.63 ms than the web does at display size in 3.42 ms. Per
+raster pixel that is roughly 3–5× (the range reflects how much of each total is
+CPU/present overhead, which the web side cannot measure — see below), and
+matching native's *frame* cost takes rasterizing at about half the display size.
+One embed at its displayed size still has ~4.9× headroom on a 60 Hz budget, so
+the shipped configuration is comfortable; the gap is fidelity headroom, not a
+smoothness problem.
+
+Two measurement notes from that run, both now handled:
+
+- **`performance.now()` is quantized in that page.** The per-tick `jitter` and
+  `cpu_ms` fields read as 0/0.1/1 ms — `p50` of *zero* for a frame that costs
+  3.4 ms — so any single-frame CPU figure from this harness is unreliable. The
+  whole-loop `page_ms` (wall time for 60 frames ÷ 60) spans 200 ms and is the
+  number to trust; the earlier "web CPU is 0.2–0.8 ms" claims should be read as
+  "CPU is small", nothing more precise.
+- **The embed re-asserts its render scale asynchronously.** Its ResizeObserver
+  fires after the canvas backing changes and re-applies the display-matched
+  scale, which overrode the probe's explicit `set_render_scale(1.0)` — the first
+  row of that sweep reported scale 1.0 while rasterizing at 0.82. Correct embed
+  behaviour, wrong harness: the sweep now disconnects the observer and cancels
+  the re-apply timer for its duration and hands ownership back afterwards.
+
+> **Environment note (superseded as a caveat, kept as a limitation).** The
+> numbers before the foreground run came from a tab that is never composited
+> (`visibilityState` `visible`, `hasFocus()` false, zero rAF callbacks in 1.2 s).
+> That makes *frame cadence* unmeasurable there and is why the harness drives
+> frames by hand — but it did not inflate the throughput numbers: the focused
+> run landed inside the same range.
 
 ### Still open (web)
 
