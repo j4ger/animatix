@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Circles That Draw a Square Wave — an .amx walkthrough</title>
+  <meta name="description" content="A picture-first Fourier series walkthrough: spinning circles stack into a square wave, one odd harmonic at a time — every figure a live .amx scene.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix demo · every figure is a .amx file</p>
+      <h1>Circles That Draw a Square Wave</h1>
+      <p class="lede">
+        A square wave looks like the least circular shape there is — hard
+        edges, flat top, sharp corners. It is also, exactly, a sum of
+        circles. This walkthrough stacks them one odd harmonic at a time;
+        every figure below is a declarative scene compiling in your browser
+        as you read, not a video.
+      </p>
+      <ul class="meta">
+        <li>5 scenes · one file</li>
+        <li>one slim engine shared by all five</li>
+        <li>hover a figure to pause or scrub it</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="The full Fourier walkthrough, five scenes"></amx-player>
+      <figcaption>
+        <span class="cap"><b>The whole story.</b> Five scenes in one file —
+          goal, one circle, the stack, the spectrum, the complex plane —
+          joined by GPU transitions. The figure you are watching compiled
+          from <a href="scene.amx">a single text file</a>.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>The destination</a></li>
+        <li><a href="#s2"><span class="n">02</span>One circle, one sine</a></li>
+        <li><a href="#s3"><span class="n">03</span>Stack the odd harmonics</a></li>
+        <li><a href="#s4"><span class="n">04</span>Only odd, shrinking as 1/k</a></li>
+        <li><a href="#s5"><span class="n">05</span>Why circles at all?</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>The destination</h2></div>
+      <p>
+        Start from the end. The curve drawing itself below is
+        <strong>four sine waves added together</strong> — frequencies 1, 3, 5
+        and 7, with amplitudes shrinking as 1/k. Alone, each sine is a gentle
+        undulation; added with the right weights they cancel into flat tops,
+        sheer sides, and corners sharp enough to clip audio. That such a
+        jagged thing dissolves into a handful of smooth waves is the whole
+        of Fourier's idea, and the reason your phone can store a square-ish
+        waveform as a few numbers.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="goal.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The finished square wave draws itself"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the target curve traces itself once,
+            so the goal is on screen before any circle appears. It is authored
+            as one <code class="inline">PlotCurve</code> whose
+            <code class="inline">stroke_progress</code> sweeps 0 → 1.</span>
+          <a class="src" href="goal.amx">goal.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>One circle, one sine</h2></div>
+      <p>
+        A sine wave is what you get when you look at rotation from the side.
+        A pen rides the rim of a turning circle; its <strong>height over
+        time</strong> traces a sine. In the figure the pen is driven by an
+        <code class="inline">always</code> block — one cosine for x, one sine
+        for y, evaluated every frame — while a line ties it to the point
+        being traced on the graph. Nothing is precomputed: stop the circle
+        and the pen stops writing.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="onecircle.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="One circle, one sine"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the pen laps the circle once per
+            cycle; the traced height on the right is the sine it writes. The
+            dotted tail says the vector keeps going past five entries — and
+            past this figure.</span>
+          <a class="src" href="onecircle.amx">onecircle.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Stack the odd harmonics</h2></div>
+      <p>
+        Now put circles <em>on</em> the circle. The second circle — radius
+        ⅓, spinning <strong>three times as fast</strong> — rides the first's
+        rim; a third (⅕, five times) rides that; a fourth (⅐, seven times)
+        rides the third. The tip of the last one is what draws. Each added
+        circle flattens the tops a little more and steepens the sides, and
+        the equation underneath lights up the term responsible. Four circles
+        is already embarrassingly square; the residual ripple dies as 1/k.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="hero.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Stacking odd harmonics into a square wave"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> a new circle joins the chain exactly
+            when its term turns amber in the equation, and the wave on the
+            right re-forms through a live function transition —
+            <code class="inline">hero_wave.func = …</code> interpolating
+            between Fourier sums.</span>
+          <a class="src" href="hero.amx">hero.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s4">
+      <div class="sec-head"><span class="sec-num">04</span><h2>Only odd, shrinking as 1/k</h2></div>
+      <p>
+        Why those frequencies and weights? A square wave is
+        <strong>anti-symmetric</strong>: flip it upside down and shift half a
+        period and you get the same wave. That symmetry kills every even
+        harmonic, and the quiet halves of the odd ones are what sharpen the
+        corners. Their amplitudes fall as <strong>1/k</strong> — each term
+        contributes a third, a fifth, a seventh of the first. That slow decay
+        is why corners are expensive to store: sharp edges live in the
+        high-frequency terms a lossy codec throws away first.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="spectrum.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The harmonic spectrum as a bar chart"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> the four radii from the previous
+            figure, as a <code class="inline">BarChart</code> — the whole
+            spectrum of the scene, one bar per circle.</span>
+          <a class="src" href="spectrum.amx">spectrum.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s5">
+      <div class="sec-head"><span class="sec-num">05</span><h2>Why circles at all?</h2></div>
+      <p>
+        Because rotation is the atom of periodic motion. Writing a wave as
+        circles is the same as writing it as <strong>complex
+        exponentials</strong> — <code class="inline">e^(iθ)</code> is a point
+        on the unit circle, and each term in the series is one such point
+        spinning at k times the base rate with radius a_k. Fourier analysis,
+        the DFT in your audio codec, the JPEG in your image library: all of
+        them are this picture, dressed differently. Sum enough circles and
+        even a square wave is just rotation.
+      </p>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="complexplane.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="The unit circle on the complex plane"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> one vector turning on the unit
+            circle — the <code class="inline">NumberPlane</code> grid behind
+            it is the complex plane; the vector is
+            <code class="inline">e^(iθ)</code>, and its height is the sine
+            from §02.</span>
+          <a class="src" href="complexplane.amx">complexplane.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <div class="howto">
+        <h2>How this page works</h2>
+        <p>
+          There is no video and no backend. The hero figure plays one
+          <code class="inline">.amx</code> file containing all five scenes
+          joined by <code class="inline">play … [fade, 500ms]</code>
+          transitions; the five section figures are single-scene extracts of
+          the same source. The pen, the epicycle chain and the complex-plane
+          vector are not keyframed — an
+          <code class="inline">always</code> block evaluates their positions
+          every frame from one clock.
+        </p>
+        <p style="margin-bottom:0">
+          Every scene source is plain text — open any
+          <span style="font-family:var(--mono);font-size:13px">.amx ↗</span>
+          link above, or take the
+          <a href="../../tour/">language tour</a> to see how they are built.
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>

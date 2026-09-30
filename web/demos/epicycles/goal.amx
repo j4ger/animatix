@@ -1,0 +1,37 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# Goal
+config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+
+goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+
+goal_graph: Graph, at: (640, 400), size: (900, 380),
+  x_domain: (0, 12.566), y_domain: (-2, 2) {
+  goal_wave: PlotCurve, kind: "cartesian",
+    func: (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5 + sin(7 * x) / 7),
+    color: accent.primary, stroke_width: 3, stroke_progress: 0
+}
+
+goal_hint: Text, text: "the destination — a square wave built from circles",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+
+#0.5s
+fade-in goal_title [600ms, ease: ease-out]
+fade-in goal_graph [600ms, ease: ease-out]
+
+#1.2s
+fade-in goal_wave [400ms]
+
+#1.5s
+goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
+
+#5.2s
+fade-in goal_hint [500ms]
+
+#9.2s
+
+// ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
+

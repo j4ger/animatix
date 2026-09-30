@@ -1,0 +1,53 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# ComplexPlane
+config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
+
+cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+
+grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.2, 1.2),
+  size: (640, 480), at: (420, 400),
+  x_range: (-1, 1, 1), y_range: (-1, 1, 1),
+  color: surface.secondary, stroke_width: 1.0
+
+unit_circle: Ellipse, size: (400, 400), color: accent.info,
+  fill_opacity: 0, stroke_width: 2, at: (420, 400)
+
+vector: Line, from: (420, 400), to: (620, 400),
+  stroke: accent.warning, stroke_width: 3
+
+vec_tip: Ellipse, size: (14, 14), color: accent.warning, at: (620, 400)
+
+cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 26,
+  font_size: 26, color: accent.primary, anchor: scene.center, offset: (330, -60)
+
+cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
+  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (330, 20)
+
+endnote: Text, text: "sum enough circles and even a square wave is just rotation",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+
+always {
+  let th = 2 * pi * clamp(t - 0.8, 0.0, 10.0) / 10.0
+  vector.to = (420 + 200 * cos(th), 400 + 200 * sin(th))
+  vec_tip.at = (420 + 200 * cos(th), 400 + 200 * sin(th))
+}
+
+#0.4s
+fade-in cp_title [500ms]
+fade-in grid [600ms, ease: ease-out]
+fade-in unit_circle [600ms, ease: ease-out]
+
+#1s
+fade-in vector [400ms]
+fade-in vec_tip [400ms]
+
+#2s
+fade-in cp_eq [600ms, ease: ease-out]
+fade-in cp_note [500ms, delay: 300ms]
+
+#4s
+fade-in endnote [600ms]

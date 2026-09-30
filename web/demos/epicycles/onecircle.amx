@@ -1,0 +1,59 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# OneCircle
+config { colorscheme: "gallery", dynamic_layout: true, duration: 15 }
+
+one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+one_circle: Ellipse, size: (280, 280), color: accent.info,
+  fill_opacity: 0, stroke_width: 2, at: (280, 400)
+
+pen: Ellipse, size: (18, 18), color: accent.warning, at: (420, 400)
+
+one_graph: Graph, at: (830, 400), size: (760, 440),
+  x_domain: (0, 12.566), y_domain: (-2, 2) {
+  sine: PlotCurve, kind: "parametric",
+    func: (s) => (s, (4 / pi) * sin(s)),
+    t_domain: (0, 12.566),
+    color: accent.primary, stroke_width: 3, stroke_progress: 0
+}
+
+wave_dot: Ellipse, size: (14, 14), color: accent.warning, at: (830, 400)
+
+link: Line, from: pen.center, to: wave_dot.center,
+  stroke: accent.warning, stroke_width: 1.5, opacity: 0.6
+
+one_hint: Text, text: "the pen rides the rim — height over time is a sine",
+  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+
+#0.3s
+fade-in one_title [500ms]
+fade-in one_circle [500ms]
+fade-in pen [400ms, delay: 200ms]
+fade-in one_graph [500ms, delay: 300ms]
+fade-in sine [400ms, delay: 400ms]
+fade-in wave_dot [400ms, delay: 400ms]
+
+#1s
+sine.stroke_progress = 1.0 [12s, ease: linear]
+
+always {
+  let th = 2 * pi * clamp(t - 1.0, 0.0, 12.0) / 12.0
+  pen.at = (280 + 140 * cos(th), 400 + 140 * sin(th))
+  let px = clamp(t - 1.0, 0.0, 12.0)
+  let wy = (4 / pi) * sin(px)
+  // Graph maps x_domain (0, 12.566) / y_domain (-2, 2) onto the 760x440 box
+  // at (830, 400): screen = (450 + 60.5 x, 400 - 110 y).
+  wave_dot.at = (450 + 60.5 * px, 400 - 110 * wy)
+}
+
+#13.8s
+fade-in one_hint [400ms]
+
+#14.4s
+
+// ── Scene 3: Hero — circles stack up, the wave grows into a square ──────────
+

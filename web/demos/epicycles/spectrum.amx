@@ -1,0 +1,43 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# Spectrum
+config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+
+spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36,
+  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+
+spec_eq: Text, text: "a(k) = 4 / (pi k)   for odd k,   0   otherwise",
+  font_size: 24, color: accent.primary, anchor: scene.center, offset: (0, -215)
+
+spectrum: BarChart,
+  data: {("k=1", 140), ("k=3", 47), ("k=5", 28), ("k=7", 20)},
+  size: (760, 360),
+  bar_colors: {(0.38, 0.78, 1, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1), (1, 0.5, 0.55, 1)},
+  show_axis: true,
+  show_labels: true,
+  at: (640, 400)
+
+spec_note: Callout {
+  from: (880, 200),
+  target: spectrum,
+  place: left,
+  standoff: 12,
+  label: "1/k decay",
+  label_at: (0, -20),
+  color: accent.warning
+}
+
+#0.4s
+fade-in spec_title [500ms]
+fade-in spec_eq [500ms, delay: 200ms]
+
+#1.2s
+fade-in spectrum [800ms, ease: ease-out]
+fade-in spec_note [500ms, delay: 500ms]
+
+#9.8s
+
+// ── Scene 5: Complex Plane — e^{i theta} ────────────────────────────────────
+

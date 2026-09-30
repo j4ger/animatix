@@ -1,0 +1,107 @@
+import "../lib/theme.amx" as theme
+import "../lib/theme.amx"
+config { resolution: (1280, 720) }
+
+# Hero
+config { colorscheme: "gallery", dynamic_layout: true, duration: 24 }
+
+hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 52)
+
+c1: Ellipse, size: (280, 280), color: accent.info,
+  fill_opacity: 0, stroke_width: 2, at: (280, 400)
+c2: Ellipse, size: (94, 94), color: accent.success,
+  fill_opacity: 0, stroke_width: 2, at: (420, 400)
+c3: Ellipse, size: (56, 56), color: accent.warning,
+  fill_opacity: 0, stroke_width: 2, at: (466, 400), opacity: 0
+c4: Ellipse, size: (40, 40), color: accent.danger,
+  fill_opacity: 0, stroke_width: 2, at: (494, 400), opacity: 0
+
+tip: Ellipse, size: (14, 14), color: accent.warning, at: (420, 400)
+
+hero_graph: Graph, at: (830, 400), size: (760, 440),
+  x_domain: (0, 12.566), y_domain: (-2, 2) {
+  hero_wave: PlotCurve, kind: "cartesian",
+    func: (x) => (4 / pi) * sin(x),
+    color: accent.primary, stroke_width: 3, stroke_progress: 0
+}
+
+wave_tip: Ellipse, size: (12, 12), color: accent.warning, at: (830, 400)
+
+hero_link: Line, from: tip.center, to: wave_tip.center,
+  stroke: accent.warning, stroke_width: 1.5, opacity: 0.6
+
+// The harmonic terms are a Row of separate Text actors so each one can be
+// highlighted on its own beat. (Equation Fragments are dodged deliberately:
+// a leading "+" renders as "1." — docs/roadmap.md.)
+eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
+  eq_y: Text, text: "y(x) = sin x", font_size: 26, color: text.secondary
+  eq_3: Text, text: "+ sin 3x/3", font_size: 26, color: text.secondary
+  eq_5: Text, text: "+ sin 5x/5", font_size: 26, color: text.secondary
+  eq_7: Text, text: "+ sin 7x/7", font_size: 26, color: text.secondary
+}
+
+#0.3s
+fade-in hero_title [500ms]
+fade-in c1 [500ms]
+fade-in c2 [500ms]
+fade-in tip [400ms, delay: 200ms]
+fade-in hero_graph [500ms, delay: 300ms]
+fade-in hero_wave [400ms, delay: 400ms]
+fade-in wave_tip [400ms, delay: 500ms]
+fade-in eq_row [500ms, delay: 500ms]
+
+#1s
+hero_wave.stroke_progress = 1.0 [20s, ease: linear]
+
+// Epicycle chain: every center is an analytic function of t.
+always {
+  let th = 2 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let r1 = 140
+  let r3 = 140 / 3
+  let r5 = 140 / 5
+  let r7 = 140 / 7
+  let c2x = 280 + r1 * cos(th)
+  let c2y = 400 + r1 * sin(th)
+  c2.at = (c2x, c2y)
+  let c3x = c2x + r3 * cos(3 * th)
+  let c3y = c2y + r3 * sin(3 * th)
+  c3.at = (c3x, c3y)
+  let c4x = c3x + r5 * cos(5 * th)
+  let c4y = c3y + r5 * sin(5 * th)
+  c4.at = (c4x, c4y)
+  tip.at = (c4x + r7 * cos(7 * th), c4y + r7 * sin(7 * th))
+  let x_now = 12.566 * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let wy = (4 / pi) * (sin(x_now) + sin(3 * x_now) / 3 + sin(5 * x_now) / 5 + sin(7 * x_now) / 7)
+  // Same linear mapping as the OneCircle scene (hero_graph geometry).
+  wave_tip.at = (450 + 60.5 * x_now, 400 - 110 * wy)
+}
+
+// The wave grows: function transitions add harmonic after harmonic.
+#4s
+hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
+fade-in c3 [400ms]
+eq_3.color = accent.warning [400ms]
+
+#5.5s
+eq_3.color = text.secondary [400ms]
+
+#9s
+hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5) [1.5s]
+fade-in c4 [400ms]
+eq_5.color = accent.warning [400ms]
+
+#10.5s
+eq_5.color = text.secondary [400ms]
+
+#14s
+hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5 + sin(7 * x) / 7) [1.5s]
+eq_7.color = accent.warning [400ms]
+
+#15.5s
+eq_7.color = text.secondary [400ms]
+
+#21.5s
+
+// ── Scene 4: Spectrum — 1/k amplitude decay ─────────────────────────────────
+
