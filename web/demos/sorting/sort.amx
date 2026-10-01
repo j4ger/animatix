@@ -1,5 +1,4 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 fn insertion_sort(bars, values: List<Num>, comp_ticks, swap_ticks) {
@@ -40,7 +39,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 }
 
 # TheSort
-config { colorscheme: "gallery", dynamic_layout: true, duration: 21 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 21 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)

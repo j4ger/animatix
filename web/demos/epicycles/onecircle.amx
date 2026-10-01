@@ -1,9 +1,8 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # OneCircle
-config { colorscheme: "gallery", dynamic_layout: true, duration: 15 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 15 }
 
 one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)

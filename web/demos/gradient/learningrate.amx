@@ -1,7 +1,10 @@
+
 config { resolution: (1280, 720) }
 
 # LearningRate
-config { colorscheme: "editorial-dark", duration: 6.8 }
+import "../lib/theme.amx"
+
+config { colorscheme: "ink", duration: 6.8 }
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)

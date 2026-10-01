@@ -1,8 +1,7 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 
 config {
-  colorscheme: "gallery",
+  colorscheme: "ink",
   resolution: (1280, 720),
   dynamic_layout: true,
 }
@@ -18,7 +17,7 @@ config {
 // ── Scene 1: Goal — the finished square wave draws itself ───────────────────
 
 # Goal
-config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 
 goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -52,7 +51,7 @@ play OneCircle [fade, 500ms]
 // ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
 
 # OneCircle
-config { colorscheme: "gallery", dynamic_layout: true, duration: 15 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 15 }
 
 one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -108,7 +107,7 @@ play Hero [wipe-left, 500ms]
 // ── Scene 3: Hero — circles stack up, the wave grows into a square ──────────
 
 # Hero
-config { colorscheme: "gallery", dynamic_layout: true, duration: 24 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 24 }
 
 hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -212,7 +211,7 @@ play Spectrum [wipe-left, 500ms]
 // ── Scene 4: Spectrum — 1/k amplitude decay ─────────────────────────────────
 
 # Spectrum
-config { colorscheme: "gallery", dynamic_layout: true, duration: 11 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
 
 spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -252,7 +251,7 @@ play ComplexPlane [fade, 500ms]
 // ── Scene 5: Complex Plane — e^{i theta} ────────────────────────────────────
 
 # ComplexPlane
-config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
 
 cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)

@@ -16,9 +16,10 @@
 // clear both ring tops (y = 300) and box tops (y = 270) — verified against the
 // quad parametric, not by eye.
 
+import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.4 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.4 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · text becomes tokens", font_size: 15, color: text.muted,

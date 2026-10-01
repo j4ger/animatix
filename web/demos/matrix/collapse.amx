@@ -1,7 +1,10 @@
+
 config { resolution: (1280, 720) }
 
 # Collapse
-config { colorscheme: "editorial-dark", duration: 10 }
+import "../lib/theme.amx"
+
+config { colorscheme: "ink", duration: 10 }
 
 col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

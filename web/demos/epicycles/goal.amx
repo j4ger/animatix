@@ -1,9 +1,8 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # Goal
-config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 
 goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)

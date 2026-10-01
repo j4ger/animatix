@@ -15,9 +15,10 @@
 // Grid: 1280×720. Chips 150×56 at pitch 180, centres x = 280 + 180i. Bars sit
 // on one baseline at y = 560.
 
+import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · \"it\" looks back", font_size: 15, color: text.muted,

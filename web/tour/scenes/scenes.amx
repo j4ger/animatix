@@ -2,10 +2,12 @@
 // transitions (fade, then wipe-left). Trimmed from
 // examples/composition/14_multiscene.amx.
 
+
 config { resolution: (1280, 720) }
 
 # Intro
-config { colorscheme: "editorial-dark" }
+
+config { colorscheme: "ink" }
 title: Text, text: "Scenes & transitions", font_size: 64, color: text.primary,
   anchor: scene.center, offset: (0, -30)
 sub: Text, text: "play Diagram [fade, 450ms]", font_size: 22, color: text.secondary,
@@ -22,7 +24,8 @@ fade-out sub [350ms]
 play Diagram [fade, 450ms]
 
 # Diagram
-config { colorscheme: "editorial-dark" }
+
+config { colorscheme: "ink" }
 graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (520, 520), anchor: scene.center {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 2, color: accent.primary, stroke_width: 3
   cosine: PlotCurve, kind: "cartesian", func: (x) => cos(x) * 2, color: accent.success, stroke_width: 2
@@ -45,7 +48,9 @@ fade-out label [350ms]
 play Outro [wipe-left, 450ms]
 
 # Outro
-config { colorscheme: "editorial-dark" }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink" }
 thanks: Text, text: "one file, many scenes", font_size: 52, color: text.primary,
   anchor: scene.center
 tag: Text, text: "the cut is a GPU transition", font_size: 20, color: accent.primary,

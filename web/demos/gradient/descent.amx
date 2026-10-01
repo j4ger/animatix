@@ -1,7 +1,10 @@
+
 config { resolution: (1280, 720) }
 
 # Descent
-config { colorscheme: "editorial-dark", duration: 8.0 }
+import "../lib/theme.amx"
+
+config { colorscheme: "ink", duration: 8.0 }
 
 step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)

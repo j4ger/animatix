@@ -1,7 +1,8 @@
+import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # GradientDirection
-config { colorscheme: "editorial-dark", duration: 4.6 }
+config { colorscheme: "ink", duration: 4.6 }
 
 step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)

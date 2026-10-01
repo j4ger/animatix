@@ -1,8 +1,7 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 
 config {
-  colorscheme: "gallery",
+  colorscheme: "ink",
   resolution: (1280, 720),
   dynamic_layout: true,
 }
@@ -52,7 +51,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 // ── Scene 1: Overture ───────────────────────────────────────────────────────
 
 # Overture
-config { colorscheme: "gallery", dynamic_layout: true, duration: 6 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
 title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -70)
@@ -74,7 +73,7 @@ play TheSort [fade, 500ms]
 // ── Scene 2: The Sort ───────────────────────────────────────────────────────
 
 # TheSort
-config { colorscheme: "gallery", dynamic_layout: true, duration: 21 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 21 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -122,7 +121,7 @@ play Finale [fade, 500ms]
 // ── Scene 3: Finale ─────────────────────────────────────────────────────────
 
 # Finale
-config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 
 finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 64)

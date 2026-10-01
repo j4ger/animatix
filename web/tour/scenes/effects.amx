@@ -1,7 +1,9 @@
 // effects.amx — tour §05: a Filter scope with animated effect parameters,
 // plus the emphasis actions. Plain shapes only (slim engine plays this).
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 
 panel: Filter, anchor: scene.center {
   soft: Blur, radius: 0

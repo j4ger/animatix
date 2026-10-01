@@ -2,7 +2,9 @@
 // is_animating(&prop) lets actors react to the keyframe clock itself.
 // Adapted from examples/animation/06_reactive.amx.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.5 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.5 }
 
 title: Text, text: "Live focus reticle", font_size: 32, color: text.primary,
   anchor: scene.top, offset: (0, 60)

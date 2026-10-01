@@ -1,7 +1,9 @@
 // actions.amx — tour §03: motion actions plus an always-driven satellite.
 // Adapted from examples/animation/04_motion.amx.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 9.4 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 9.4 }
 
 actor: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
 // explicit opacity: the always block below owns `at`/`size` from frame 0,

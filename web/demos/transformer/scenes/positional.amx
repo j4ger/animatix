@@ -25,7 +25,9 @@
 // Grid: 1280×720. 8 columns × 4 rows of 74px cells, pitch 84. Column x values
 // are 296 + 84i; row y values are 225 + 84r.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.8 }
+import "../../lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.8 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · every position gets a fingerprint", font_size: 15, color: text.muted,

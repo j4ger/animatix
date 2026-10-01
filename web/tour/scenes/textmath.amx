@@ -2,7 +2,9 @@
 // highlighted code need the full engine profile, so this scene is rendered
 // to a PNG by the CLI (`animatix image`) instead of being embedded live.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 5 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 5 }
 
 title: Text, text: "Text & math, typeset", font_size: 32, color: text.primary,
   anchor: scene.top, offset: (0, 56)

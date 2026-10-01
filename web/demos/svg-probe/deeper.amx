@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 // Import probe, depth 2: nothing here is part of the bundled examples/lib.
 pub component Chip(label: "?") {
   chip: Rect, size: (72, 26), corner_radius: 7, color: accent.warning

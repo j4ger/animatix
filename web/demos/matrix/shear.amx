@@ -1,7 +1,8 @@
+import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # Shear
-config { colorscheme: "editorial-dark", duration: 8 }
+config { colorscheme: "ink", duration: 8 }
 
 shear_title: Text, text: "A matrix is a machine", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

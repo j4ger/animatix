@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 // matrix.amx — "A matrix is a machine" — a 2×2 matrix animated as three
 // transformations of the plane: shear, rotation, and the collapse/flip that
 // happens as the determinant crosses zero.
@@ -7,12 +8,12 @@
 // functions of t. No keyframed geometry anywhere — change the matrix
 // formulas and the whole figure follows.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720) }
 
 // ── Scene 1: Shear — area preserved, the grid leans ─────────────────────────
 
 # Shear
-config { colorscheme: "editorial-dark", duration: 8 }
+config { colorscheme: "ink", duration: 8 }
 
 shear_title: Text, text: "A matrix is a machine", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -121,7 +122,7 @@ play Rotation [wipe-left, 500ms]
 // ── Scene 2: Rotation — columns are where the hats land ─────────────────────
 
 # Rotation
-config { colorscheme: "editorial-dark", duration: 8 }
+config { colorscheme: "ink", duration: 8 }
 
 rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -216,7 +217,7 @@ play Collapse [wipe-left, 500ms]
 // ── Scene 3: Collapse and flip — the determinant crosses zero ───────────────
 
 # Collapse
-config { colorscheme: "editorial-dark", duration: 10 }
+config { colorscheme: "ink", duration: 10 }
 
 col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

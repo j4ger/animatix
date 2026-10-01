@@ -8,14 +8,15 @@
 //
 // Every drop-in is a keyframed shift; the formula line narrates each beat.
 
+import "../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720) }
 
 // ── Scene 1: Where keys live ─────────────────────────────────────────────────
 
 # Buckets
-config { colorscheme: "editorial-dark", duration: 12 }
+config { colorscheme: "ink", duration: 12 }
 
 bk_title: Text, text: "Where keys live", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -91,7 +92,7 @@ play Collision [wipe-left, 500ms]
 // ── Scene 2: Collision — two keys, one bucket ────────────────────────────────
 
 # Collision
-config { colorscheme: "editorial-dark", duration: 10 }
+config { colorscheme: "ink", duration: 10 }
 
 col_title: Text, text: "Two keys, one bucket", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -147,7 +148,7 @@ play Lookup [wipe-left, 500ms]
 // ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
 
 # Lookup
-config { colorscheme: "editorial-dark", duration: 11.5 }
+config { colorscheme: "ink", duration: 11.5 }
 
 lk_title: Text, text: "Lookup: hash first, compare after", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

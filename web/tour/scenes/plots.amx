@@ -1,7 +1,9 @@
 // plots.amx — tour §07: plots are actors; a curve traces itself with
 // stroke_progress, a vector field fades in beside it.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.5 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.5 }
 
 title: Text, text: "Plots are actors too", font_size: 32, color: text.primary,
   anchor: scene.top, offset: (0, 56)

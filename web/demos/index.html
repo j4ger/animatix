@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Demos — Animatix</title>
   <meta name="description" content="Animated explainers built with Animatix — every figure is a declarative .amx scene compiling in your browser, not a video file.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
 </head>
 <body>
@@ -16,120 +16,145 @@
       <h1>Watch it explain.</h1>
       <p class="lede">
         Each demo below is a self-contained explainer whose every figure is a
-        declarative scene file — nothing here is a video. Pick one; the engine
-        compiles it in your browser as you read.
+        declarative scene file — nothing here is a video. The posters are not
+        posters: they are the demos' own scenes, live in this page — hover a
+        card to play it. Pick one; the engine compiles it in your browser as
+        you read.
       </p>
     </header>
 
     <div class="cards hub">
       <a class="hub-card featured" href="./transformer/">
-        <span class="hub-poster"><img class="plate" src="posters/transformer.png"
-             alt="The transformer block, drawn as an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="transformer/scenes/overview.amx" sealed autoplay loop
+                      hold="1.5" aspect="16:9"
+                      title="The transformer block, drawn as an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 7 scenes · one engine</span>
+          <span class="demo-kicker">Walkthrough · 7 scenes · live poster</span>
           <span class="hub-title">The Transformer Architecture, Animated</span>
           <span class="hub-blurb">
             The machine behind every language model, built up piece by piece —
             tokens, positions, attention, heads, the feed-forward block, the
             stack. Picture-first prose; every figure compiles live as you
-            scroll, and hovering a figure pauses it for study.
+            scroll, and hovering a figure pauses it for study. The map playing
+            above is its opening figure.
           </span>
-          <span class="open">Start reading →</span>
+          <span class="open">Start reading</span>
         </span>
       </a>
 
       <a class="hub-card" href="./gradient/">
-        <span class="hub-poster"><img class="plate" src="posters/gradient.png"
-             alt="A ball rolling to the minimum of a contour bowl, as an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="gradient/losssurface.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="A loss surface drawn as an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 6 scenes · one file</span>
+          <span class="demo-kicker">Walkthrough · 6 scenes · hover to play</span>
           <span class="hub-title">Rolling Downhill</span>
           <span class="hub-blurb">
             How machines learn, one picture at a time: the loss surface, the
             direction against the gradient, a ball that rolls to the minimum,
             and the step size that decides whether it ever arrives.
           </span>
-          <span class="open">Start reading →</span>
+          <span class="open">Start reading</span>
         </span>
       </a>
 
       <a class="hub-card" href="./matrix/">
-        <span class="hub-poster"><img class="plate" src="posters/matrix.png"
-             alt="A sheared grid under a live 2×2 matrix, as an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="matrix/rotation.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="A sheared grid under a live 2×2 matrix, as an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · one file</span>
+          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
           <span class="hub-title">A Matrix Is a Machine</span>
           <span class="hub-blurb">
             Linear algebra you can watch: a shear with nothing keyframed, a
             rotation you read off the columns, and the determinant collapsing
             the plane through zero — then flipping it.
           </span>
-          <span class="open">Start reading →</span>
+          <span class="open">Start reading</span>
         </span>
       </a>
 
       <a class="hub-card" href="./hash/">
-        <span class="hub-poster"><img class="plate" src="posters/hash.png"
-             alt="A collision chaining below a bucket, as an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="hash/collision.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="A collision chaining below a bucket, as an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · one file</span>
+          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
           <span class="hub-title">Where Keys Live</span>
           <span class="hub-blurb">
             Hash tables staged as theatre: a hash you can follow in your
             head, a collision that chains, and three lookups — a hit, a
             chained hit, and a miss answered by an empty bucket.
           </span>
-          <span class="open">Start reading →</span>
-        </span>
-      </a>
-
-      <a class="hub-card" href="../gallery.html">
-        <span class="hub-poster"><img class="plate" src="posters/attention.png"
-             alt="Attention weights as drawn by an Animatix scene" loading="lazy"></span>
-        <span class="hub-body">
-          <span class="demo-kicker">Scene collection</span>
-          <span class="hub-title">Seven scenes, one engine</span>
-          <span class="hub-blurb">
-            The walkthrough's figures on their own — entrances, morphs,
-            attention bars, plots — each playable right on the page, each with
-            its <code class="inline">.amx</code> source one click away.
-          </span>
-          <span class="open">Open the gallery →</span>
+          <span class="open">Start reading</span>
         </span>
       </a>
 
       <a class="hub-card" href="./epicycles/">
-        <span class="hub-poster"><img class="plate" src="posters/epicycles.png"
-             alt="Spinning circles stacking into a square wave, as an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="epicycles/hero.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="Spinning circles stacking into a square wave, as an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 5 scenes · one file</span>
+          <span class="demo-kicker">Walkthrough · 5 scenes · hover to play</span>
           <span class="hub-title">Circles That Draw a Square Wave</span>
           <span class="hub-blurb">
             A Fourier series as spinning dials: one circle traces a sine, four
             build a square. The wave re-forms through live function
             transitions as each harmonic turns amber in the equation.
           </span>
-          <span class="open">Start reading →</span>
+          <span class="open">Start reading</span>
         </span>
       </a>
 
       <a class="hub-card" href="./sorting/">
-        <span class="hub-poster"><img class="plate" src="posters/sorting.png"
-             alt="Insertion sort staged as bars in an Animatix scene" loading="lazy"></span>
+        <span class="hub-poster">
+          <amx-player src="sorting/sort.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="Insertion sort staged as bars in an Animatix scene"></amx-player>
+        </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · one timeline function</span>
+          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
           <span class="hub-title">Sorting, Staged</span>
           <span class="hub-blurb">
             Insertion sort performed by eight bars, directed entirely by one
             build-time function — every comparison lights a tick, every swap
             moves two bars, and the bill is stated at the end.
           </span>
-          <span class="open">Start reading →</span>
+          <span class="open">Start reading</span>
+        </span>
+      </a>
+
+      <a class="hub-card" href="../gallery.html">
+        <span class="hub-poster">
+          <amx-player src="transformer/scenes/attention.amx" sealed data-hoverplay
+                      aspect="16:9"
+                      title="Attention weights as drawn by an Animatix scene"></amx-player>
+        </span>
+        <span class="hub-body">
+          <span class="demo-kicker">Scene collection · hover to play</span>
+          <span class="hub-title">Seven scenes, one engine</span>
+          <span class="hub-blurb">
+            The walkthrough's figures on their own — entrances, morphs,
+            attention bars, plots — each playable right on the page, each with
+            its <code class="inline">.amx</code> source one click away.
+          </span>
+          <span class="open">Open the gallery</span>
         </span>
       </a>
     </div>
   </div>
 
+  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
   <script src="../site-chrome.js" data-root="../" data-section="demos"></script>
 </body>
 </html>

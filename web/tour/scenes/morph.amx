@@ -1,7 +1,9 @@
 // morph.amx — tour §04: re-declaration morphing with strategies.
 // Adapted from examples/animation/05_morph.amx.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 9.2 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 9.2 }
 
 circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)
 rect: Rect, size: (140, 140), color: accent.success, at: (640, 360)

@@ -17,9 +17,10 @@
 // `opacity: 0.0` (the seed) and settles on its value through a keyframe
 // `X.opacity = v [dur]` assignment at its beat.
 
+import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · the text", font_size: 15, color: text.muted,

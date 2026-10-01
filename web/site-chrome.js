@@ -208,6 +208,27 @@
     }
   }
 
+  // ── theater mode (gallery) ────────────────────────────────────────
+  // Each gallery figure gets a `theater` button that fullscreens the whole
+  // figure — picture, caption and source link ride along; Esc leaves. The
+  // player keeps playing across the transition; the :fullscreen styles in
+  // site.css give the figure a stage of its own.
+
+  for (const figure of document.querySelectorAll(".gallery figure, figure.tour-embed")) {
+    const caption = figure.querySelector("figcaption");
+    if (!caption || !document.fullscreenEnabled) continue;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "theater-btn";
+    btn.textContent = "theater ⤢";
+    btn.setAttribute("aria-label", "Fullscreen this figure");
+    btn.addEventListener("click", () => {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else figure.requestFullscreen?.();
+    });
+    caption.appendChild(btn);
+  }
+
   // ── the duality: scroll-scrubbed code/stage figure ────────────────
   // Present only on the home page. Scrolling through the section scrubs the
   // stage across its whole timeline; the code line owning the current beat

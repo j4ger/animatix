@@ -14,7 +14,9 @@
 // Grid: 1280×720. Head centres x = 290, 640, 990; panels 320 wide, cells 64 with
 // a 12px gap, rows at y = 239, 315, 391, output segments at y = 530.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.2 }
+import "../../lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.2 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · several heads in parallel", font_size: 15, color: text.muted,

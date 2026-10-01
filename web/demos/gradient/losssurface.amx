@@ -1,7 +1,8 @@
+import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # LossSurface
-config { colorscheme: "editorial-dark", duration: 5.0 }
+config { colorscheme: "ink", duration: 5.0 }
 
 step_title: Text, text: "1. The Loss Surface", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)

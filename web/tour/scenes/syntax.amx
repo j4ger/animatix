@@ -1,7 +1,9 @@
 // syntax.amx — tour §01: actors and keyframes.
 // One actor per line, one beat per keyframe stamp.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.5 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.5 }
 
 title: Text, text: "Actors & keyframes", font_size: 34, color: text.primary,
   anchor: scene.top, offset: (0, 56)

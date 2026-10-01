@@ -1,5 +1,7 @@
 // SVG probe (rect variant): same actor shape, only the asset differs.
-config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3.0 }
+import "../lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 3.0 }
 
 backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 180)
 logo: Svg, url: "mark_rect.svg", at: (320, 180)

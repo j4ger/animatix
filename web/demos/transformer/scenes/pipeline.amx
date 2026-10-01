@@ -12,9 +12,10 @@
 // Grid: 1280×720. Blocks 560×80 at x = 640, y = 446 / 334 / 222; input chips at
 // y = 560; output heads at y = 118.
 
+import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 7.0 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.0 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · a token's vector enters the stack", font_size: 15, color: text.muted,

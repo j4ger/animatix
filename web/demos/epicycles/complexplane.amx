@@ -1,9 +1,8 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # ComplexPlane
-config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
 
 cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)

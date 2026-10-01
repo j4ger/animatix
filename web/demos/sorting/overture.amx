@@ -1,9 +1,8 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # Overture
-config { colorscheme: "gallery", dynamic_layout: true, duration: 6 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
 title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -70)

@@ -1,14 +1,15 @@
+import "../lib/theme.amx"
 // Gradient Descent Animation
 // A visual walkthrough of gradient descent on a 2D loss surface:
 // loss surface → against the gradient → roll to the minimum → step size matters.
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+config { colorscheme: "ink", resolution: (1280, 720) }
 
 // =============================================================================
 // Scene 1: Title card
 // =============================================================================
 # TitleCard
-config { colorscheme: "editorial-dark", duration: 2.6 }
+config { colorscheme: "ink", duration: 2.6 }
 
 title: Text, text: "Gradient Descent", font_size: 64,
   color: text.primary, anchor: scene.center, offset: (0, -40)
@@ -28,7 +29,7 @@ play LossSurface [fade, 400ms]
 // Scene 2: Show the loss surface contours with gradient vector field
 // =============================================================================
 # LossSurface
-config { colorscheme: "editorial-dark", duration: 5.0 }
+config { colorscheme: "ink", duration: 5.0 }
 
 step_title: Text, text: "1. The Loss Surface", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
@@ -69,7 +70,7 @@ play GradientDirection [wipe-left, 400ms]
 // Scene 3: Show which direction to step — against the gradient
 // =============================================================================
 # GradientDirection
-config { colorscheme: "editorial-dark", duration: 4.6 }
+config { colorscheme: "ink", duration: 4.6 }
 
 step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
@@ -130,7 +131,7 @@ play Descent [fade, 400ms]
 // Scene 4: Roll the ball to the minimum along the descent trail
 // =============================================================================
 # Descent
-config { colorscheme: "editorial-dark", duration: 8.0 }
+config { colorscheme: "ink", duration: 8.0 }
 
 step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
@@ -196,7 +197,7 @@ play LearningRate [fade, 400ms]
 // Scene 5: Compare three step sizes — too small, just right, too big
 // =============================================================================
 # LearningRate
-config { colorscheme: "editorial-dark", duration: 6.8 }
+config { colorscheme: "ink", duration: 6.8 }
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
@@ -264,7 +265,7 @@ play Outro [fade, 400ms]
 // Scene 6: Outro — the goal of gradient descent
 // =============================================================================
 # Outro
-config { colorscheme: "editorial-dark" }
+config { colorscheme: "ink" }
 
 thanks: Text, text: "theta* = argmin L(theta)",
   font_size: 40, color: text.primary, anchor: scene.center, offset: (0, -30)

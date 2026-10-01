@@ -1,5 +1,4 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
@@ -11,7 +10,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 }
 
 # Finale
-config { colorscheme: "gallery", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
 
 finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 64)

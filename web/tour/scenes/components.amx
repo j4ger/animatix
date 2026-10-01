@@ -2,9 +2,10 @@
 // `lib/components.amx` is a copy of examples/lib/components.amx; the browser
 // fetches it relative to the scene, the CLI resolves it from disk.
 
+import "../../demos/lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.0 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 
 heading: Text, text: "import once, instantiate many", font_size: 32,
   color: text.primary, anchor: scene.top, offset: (0, 56)

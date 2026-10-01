@@ -1,9 +1,8 @@
 import "../lib/theme.amx" as theme
-import "../lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # Hero
-config { colorscheme: "gallery", dynamic_layout: true, duration: 24 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 24 }
 
 hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)

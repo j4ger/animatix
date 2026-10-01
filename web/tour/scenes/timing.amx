@@ -4,7 +4,9 @@
 // of five hand-copied lines. (For-expansion covers declarations, not the
 // inside of stagger/sequence blocks: choreography stays explicit.)
 
-config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.4 }
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.4 }
 
 row: Row, anchor: scene.center, gap: 44, align: "center" {
   for color, i in {accent.primary, accent.success, accent.warning, accent.danger, text.primary} {

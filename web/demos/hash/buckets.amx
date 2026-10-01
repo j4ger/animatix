@@ -1,8 +1,9 @@
+import "../lib/theme.amx"
 import "../lib/components.amx"
 config { resolution: (1280, 720) }
 
 # Buckets
-config { colorscheme: "editorial-dark", duration: 12 }
+config { colorscheme: "ink", duration: 12 }
 
 bk_title: Text, text: "Where keys live", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

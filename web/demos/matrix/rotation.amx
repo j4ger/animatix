@@ -1,7 +1,10 @@
+
 config { resolution: (1280, 720) }
 
 # Rotation
-config { colorscheme: "editorial-dark", duration: 8 }
+import "../lib/theme.amx"
+
+config { colorscheme: "ink", duration: 8 }
 
 rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
