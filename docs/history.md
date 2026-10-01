@@ -1267,3 +1267,46 @@ concat segments) — one bottom-aligned `Row` attempt was reverted: `align: "end
 plants children on the *container's* bottom edge (centre plus half the tallest
 child), which is the hand-computed constant it was meant to remove, one step
 removed.
+
+## A failed build replaced the live scene (2026-10-01)
+
+The `<amx-player>` live editor advertises a specific safety property: a failed
+build throws with `.diagnostics` attached and **the previous scene keeps
+playing**, so a typo never blanks the figure. The JS half honoured it
+(`applySource` throws before touching the canvas or the clock), and the host
+API documented it (`BuiltDocument::target` is `None` when the source cannot be
+built; the caller keeps rendering the last known good document).
+
+The host did not. `build_document_with_modules` returned `target: Some(..)`
+whenever the source *parsed*, even when the build produced error diagnostics —
+and the wasm shell installs whatever target it is handed. Driven through the
+editor's own **Apply** button in a real headless Chromium (flake `.#web`,
+`agent-browser --webgpu`), a one-line typo (`DoesNotExist` as an actor type)
+turned a rendering figure into a black one: the GPU readback went from
+`1280x720, 53 distinct colours` to `1920x1080, 1 distinct colour` — the broken
+source's default resolution, with the element's canvas (990x557),
+`aspect-ratio` and scrubbed duration still describing the scene that was no
+longer loaded. A probe of the shipped dev bundle confirmed the mechanism
+(`scene_width()` flipped 1280 → 1920 while `has_document()` stayed true), which
+is what made the failure look like "the editor broke the figure" rather than
+"the build failed".
+
+The fix is one predicate in `crates/animatix-web/src/host.rs`: `ok == false`
+yields no target, so the shell's existing `if let Some(target)` keeps the
+previous document. Error diagnostics still carry the extent and markers the
+build saw, so the shell can still say where it stopped; warnings
+(`never-revealed`, `unused-label`) keep the document installable, which is what
+every shipped demo scene relies on. Two tests pin both halves
+(`build_failure_reports_diagnostics_without_target`,
+`warnings_still_yield_a_document`).
+
+Worth stating because the desktop behaves differently on purpose: the CLI logs
+an error diagnostic and still renders the partial document (`animatix image`
+writes a PNG for a scene with an unknown actor type). That tolerance is a
+desktop affordance; the web player has no way to present a half-built document,
+so for it "failed build" must mean "keep what is on screen".
+
+Note for anyone reproducing locally: `web/pkg-slim` is a build artifact. The
+JavaScript-side fixes in this pass take effect on reload, but this one needs
+`scripts/build-web.sh --slim` (and CI's Pages job rebuilds both profiles on any
+push touching `crates/animatix-web/**`).

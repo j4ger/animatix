@@ -198,8 +198,18 @@ pub fn build_document_with_modules(
     let (duration_s, width, height) = document_extent(&target);
     let markers = timeline_markers(&expanded, &target);
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
+    // A build that produced error diagnostics still parses, so a `BuildTarget`
+    // exists — but it is not a document the shell may install. Handing it over
+    // would replace the figure with the half-built scene (black, at whatever
+    // default resolution the broken source implied) even though the caller
+    // treats `ok == false` as "keep the last known good document": that is the
+    // live editor's "a typo never blanks the figure". `ok == false` therefore
+    // yields no target, matching this module's contract. The extent and
+    // markers still describe what the build saw, so a caller can report where
+    // it stopped.
+    let target = ok.then_some(target);
     BuiltDocument {
-        target: Some(target),
+        target,
         result: LoadResultDto {
             ok,
             duration_s,
@@ -461,6 +471,59 @@ fade-in pic [300ms]
         assert!(!doc.result.ok);
         assert!(doc.target.is_none());
         assert!(doc.result.diagnostics.iter().any(|d| d.severity == "error"));
+    }
+
+    // A *build* that produced error diagnostics still parses, so it used to
+    // hand the shell a half-built target. The embed installs whatever target
+    // it is given, so a typo in the live editor blanked the figure it was told
+    // to keep — `ok == false` must mean "no document to install".
+    #[test]
+    fn build_failure_reports_diagnostics_without_target() {
+        let doc = build_document(
+            "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
+             ghost: DoesNotExist, size: (10, 10)\n\
+             seen: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n\
+             #0.1s\nfade-in seen [100ms]\n",
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+        );
+        assert!(!doc.result.ok);
+        assert!(
+            doc.result
+                .diagnostics
+                .iter()
+                .any(|d| d.severity == "error" && d.code == "unknown-actor-type"),
+            "expected the unknown-actor-type error, got {:?}",
+            doc.result.diagnostics
+        );
+        assert!(
+            doc.target.is_none(),
+            "a failed build must not hand the shell a document to install"
+        );
+        // The reported extent still describes what the build saw, so the shell
+        // can say where it stopped.
+        assert!(doc.result.width > 0 && doc.result.height > 0);
+    }
+
+    // The gate is on errors only. Warnings are ordinary — every shipped demo
+    // scene has some — and must keep the document installable.
+    #[test]
+    fn warnings_still_yield_a_document() {
+        let doc = build_document(
+            "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
+             ghost: Rect, size: (10, 10), color: accent.primary, at: (20, 20)\n\
+             seen: Rect, size: (10, 10), color: accent.success, at: (60, 20)\n\
+             #0.1s\nfade-in seen [100ms]\n",
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+        );
+        assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
+        assert!(
+            doc.result.diagnostics.iter().any(|d| d.severity == "warning"),
+            "the fixture should exercise the warning path: {:?}",
+            doc.result.diagnostics
+        );
+        assert!(matches!(doc.target, Some(BuildTarget::SingleScene(_))));
     }
 
     // The transformer demo scenes (web/demos/transformer/scenes) must always
