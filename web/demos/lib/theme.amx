@@ -1,4 +1,41 @@
-pub let gallery = Colorscheme { extends: "editorial-dark", scene.background: (0.02, 0.04, 0.07, 1), text.primary: (0.96, 0.97, 0.99, 1), text.secondary: (0.72, 0.76, 0.82, 1), text.muted: (0.52, 0.56, 0.64, 1), accent.primary: (0.38, 0.78, 1, 1), accent.secondary: (0.5, 0.7, 0.98, 1), accent.success: (0.35, 0.86, 0.63, 1), accent.warning: (0.98, 0.83, 0.44, 1), accent.danger: (1, 0.5, 0.55, 1), accent.info: (0.5, 0.8, 0.95, 1), surface.primary: (0.1, 0.14, 0.2, 1), surface.secondary: (0.06, 0.1, 0.15, 1), stroke.default: (0.4, 0.46, 0.54, 1), auto: ((0.38, 0.78, 1, 1), (0.5, 0.7, 0.98, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1), (1, 0.5, 0.55, 1)) }
+// theme.amx — the site-wide scene identity: the "ink" colorscheme and the
+// shared design tokens.
+//
+// `ink` is the one palette every web scene draws in, so the plates melt into
+// the page: scene.background equals the site stylesheet's `--bg` exactly, the
+// bone-white text matches the page's `--ink`, and the lead accent is the site
+// wordmark's amber. Hues are rationed — amber leads, bone supports, coral is
+// the drama voice, sage and steel only appear where a diagram genuinely needs
+// a third/fourth semantic channel. Scenes opt in with
+// `import "../lib/theme.amx"` (path relative to the scene) and
+// `config { colorscheme: "ink" }`.
+//
+// The old "gallery" scheme (a blue/green variant of editorial-dark) was
+// replaced by `ink` in the redesign; all former references now say "ink".
+
+pub let ink = Colorscheme {
+  extends: "editorial-dark",
+  scene.background: (0.043, 0.055, 0.078, 1),
+  text.primary: (0.925, 0.906, 0.859, 1),
+  text.secondary: (0.722, 0.706, 0.667, 1),
+  text.muted: (0.541, 0.522, 0.471, 1),
+  surface.primary: (0.086, 0.106, 0.145, 1),
+  surface.secondary: (0.059, 0.075, 0.106, 1),
+  stroke.default: (0.243, 0.271, 0.325, 1),
+  accent.primary: (0.961, 0.725, 0.259, 1),
+  accent.secondary: (0.925, 0.906, 0.859, 1),
+  accent.success: (0.561, 0.780, 0.639, 1),
+  accent.warning: (1.0, 0.525, 0.400, 1),
+  accent.danger: (1.0, 0.36, 0.36, 1),
+  accent.info: (0.541, 0.706, 0.973, 1),
+  auto: (
+    (0.961, 0.725, 0.259, 1),
+    (0.925, 0.906, 0.859, 1),
+    (1.0, 0.525, 0.400, 1),
+    (0.561, 0.780, 0.639, 1),
+    (0.541, 0.706, 0.973, 1)
+  )
+}
 
 pub let gap_xs = 4
 

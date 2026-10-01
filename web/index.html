@@ -8,62 +8,59 @@
   <meta property="og:title" content="Animatix — a declarative animation language">
   <meta property="og:description" content="Write explanatory animation as text. A layout-first timeline engine and a GPU renderer do the rest — CLI, desktop studio, video export, and a 5 MB WebGPU wasm for the browser.">
   <meta property="og:image" content="https://j4ger.github.io/animatix/assets/og.png">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./site.css">
 </head>
 <body>
 
-  <div class="wrap">
-
-    <div class="hero-band">
-      <p class="kicker">Animatix · a declarative animation language</p>
-      <h1>Explanatory animation,<br>written as text.</h1>
-      <p class="lede">
-        Animatix is a small language and a Rust rendering engine for
-        explanatory animation — math, diagrams, vector motion. You describe
-        scenes in a <code class="inline">.amx</code> file; a layout-first
-        timeline and a GPU renderer do the rest, on the desktop and in the
-        browser.
-      </p>
-      <ul class="meta">
-        <li>Rust · Vello / WebGPU</li>
-        <li>31 primitives · 13 GPU effects · 19 actions</li>
-        <li>MIT licensed</li>
-      </ul>
-
-      <figure>
-        <amx-player src="./scenes/hero.amx" autoplay loop controls hold="2"
-                    aspect="16:9" title="Animatix — a declarative animation language"></amx-player>
-        <figcaption>
-          <span class="cap"><b>This plate is not a video.</b> It is
-            <a href="./scenes/hero.amx">a .amx scene file</a> the engine compiles
-            in your browser (WebGPU) as you read — title type, a drawn
-            underline, three shapes trading corners, one ball riding
-            <code class="inline">ease: bounce</code>.</span>
-          <a class="src" href="./scenes/hero.amx">scenes/hero.amx ↗</a>
-        </figcaption>
-      </figure>
+  <!-- The hero is the scene. Same ink as the page, fit=cover, no frame —
+       the title sequence simply happens on the page itself. -->
+  <div class="hero-full">
+    <amx-player src="./scenes/hero.amx" autoplay loop sealed fit="cover" hold="2"
+                title="Animatix — a declarative animation language"></amx-player>
+    <div class="scroll-cue" aria-hidden="true">scroll</div>
+    <div class="hero-strip">
+      <span class="cap"><b>This plate is not a video.</b> It is
+        <a href="./scenes/hero.amx">a .amx scene file</a> the engine compiles
+        in your browser (WebGPU) as you read — the grid, the type, the morph
+        and the bounce are all declared in it.</span>
+      <a href="./scenes/hero.amx">scenes/hero.amx ↗</a>
     </div>
+  </div>
+
+  <h1 class="sr-only">Animatix — a declarative animation language</h1>
+
+  <div class="wrap">
 
     <section id="language">
       <div class="sec-head"><span class="sec-num">01</span><h2>One small language</h2></div>
       <p>
         An actor is one line. A keyframe is one line. Choreography reads the
         way you would describe it out loud — entrance, transform, move — with
-        durations and eases attached inline. The whole sample below plays as a
-        scene:
+        durations and eases attached inline. The source below is the figure
+        beside it, beat for beat: <strong>scroll this section to scrub the
+        stage</strong>, and watch the code line own the playhead.
       </p>
-      <pre><span class="cmt">// one actor, three lines of choreography</span>
-box: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">640</span>, <span class="num">360</span>)
-
-<span class="at">#0.5s</span>
-<span class="kw">fade-in</span> box [<span class="num">600ms</span>, ease: <span class="str">ease-out</span>]
-
-<span class="at">#1.5s</span>
-box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <span class="num">90</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]
-
-<span class="at">#3.0s</span>
-<span class="kw">shift</span> box [by: (<span class="num">200</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</pre>
+      <div class="duality">
+        <pre><span class="line"><span class="cmt">// one actor, three beats of choreography</span></span>
+<span class="line">box: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">440</span>, <span class="num">360</span>)</span>
+<span class="line" data-t="0.5,1.5"><span class="at">#0.5s</span></span>
+<span class="line" data-t="0.5,1.5"><span class="kw">fade-in</span> box [<span class="num">600ms</span>, ease: <span class="str">ease-out</span>]</span>
+<span class="line" data-t="1.5,3.0"><span class="at">#1.5s</span></span>
+<span class="line" data-t="1.5,3.0">box: <span class="prop">Ellipse</span>, size: (<span class="num">140</span>, <span class="num">110</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]</span>
+<span class="line" data-t="3.0,4.2"><span class="at">#3.0s</span></span>
+<span class="line" data-t="3.0,4.2"><span class="kw">shift</span> box [by: (<span class="num">240</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</span></pre>
+        <div class="stage-col">
+          <figure>
+            <amx-player src="./scenes/sample.amx" sealed aspect="16:9"
+                        title="The sample scene, scrubbed by scrolling"></amx-player>
+          </figure>
+          <p class="stage-note">
+            <span>scroll to scrub · the lit line is the beat on stage</span>
+            <span class="beat">#0.0s</span>
+          </p>
+        </div>
+      </div>
       <p>
         Underneath sits a real language: <strong>typed actors</strong>,
         <strong>components</strong> with parameters and slots, <strong>modules</strong>
@@ -77,46 +74,62 @@ box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <sp
 
     <section id="inside">
       <div class="sec-head"><span class="sec-num">02</span><h2>What's inside</h2></div>
-      <div class="grid features">
-        <div class="feature">
+      <div class="ledger">
+        <div class="row">
           <p class="stat">31</p>
-          <h3>Primitives</h3>
-          <p>Shapes, text, plots, containers — from <code class="inline">Rect</code> and bezier <code class="inline">Path</code> to <code class="inline">PlotCurve</code>, <code class="inline">NumberPlane</code> and <code class="inline">Heatmap</code>, all with layout anchors.</p>
+          <div>
+            <h3>Primitives</h3>
+            <p>Shapes, text, plots, containers — from <code class="inline">Rect</code> and bezier <code class="inline">Path</code> to <code class="inline">PlotCurve</code>, <code class="inline">NumberPlane</code> and <code class="inline">Heatmap</code>, all with layout anchors.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">13</p>
-          <h3>GPU effects</h3>
-          <p><code class="inline">Blur</code>, <code class="inline">MotionBlur</code>, <code class="inline">Vignette</code>, <code class="inline">ColorGrade</code>… declared as labelled chains in a <code class="inline">Filter</code> scope — keyframeable, nestable.</p>
+          <div>
+            <h3>GPU effects</h3>
+            <p><code class="inline">Blur</code>, <code class="inline">MotionBlur</code>, <code class="inline">Vignette</code>, <code class="inline">ColorGrade</code>… declared as labelled chains in a <code class="inline">Filter</code> scope — keyframeable, nestable.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">19</p>
-          <h3>Built-in actions</h3>
-          <p><code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">wipe-in</code>, <code class="inline">shake</code>, <code class="inline">highlight</code>, <code class="inline">swap</code> — the verbs of explanation, plus morph re-declarations.</p>
+          <div>
+            <h3>Built-in actions</h3>
+            <p><code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">wipe-in</code>, <code class="inline">shake</code>, <code class="inline">highlight</code>, <code class="inline">swap</code> — the verbs of explanation, plus morph re-declarations.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">Typst</p>
-          <h3>Text &amp; math</h3>
-          <p>Equations, syntax-highlighted code and styled text typeset through a Typst-powered text compiler; SVG and raster images drop in as actors.</p>
+          <div>
+            <h3>Text &amp; math</h3>
+            <p>Equations, syntax-highlighted code and styled text typeset through a Typst-powered text compiler; SVG and raster images drop in as actors.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">IR</p>
-          <h3>Expressions, reactive</h3>
-          <p>Closures, <code class="inline">match</code>, lists, compile-time <code class="inline">for</code> — and <code class="inline">always</code> blocks that re-evaluate per frame for orbits, probing and generative motion.</p>
+          <div>
+            <h3>Expressions, reactive</h3>
+            <p>Closures, <code class="inline">match</code>, lists, compile-time <code class="inline">for</code> — and <code class="inline">always</code> blocks that re-evaluate per frame for orbits, probing and generative motion.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">N</p>
-          <h3>Scenes &amp; transitions</h3>
-          <p>Multi-scene documents where the cuts are GPU blends — fade, four wipes, cut — with actors that persist across scenes.</p>
+          <div>
+            <h3>Scenes &amp; transitions</h3>
+            <p>Multi-scene documents where the cuts are GPU blends — fade, four wipes, cut — with actors that persist across scenes.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">LSP</p>
-          <h3>Real tooling</h3>
-          <p>Formatter, checker with named diagnostics, analyzer, LSP server, and a native plugin ABI. It is a language, not a config file.</p>
+          <div>
+            <h3>Real tooling</h3>
+            <p>Formatter, checker with named diagnostics, analyzer, LSP server, and a native plugin ABI. It is a language, not a config file.</p>
+          </div>
         </div>
-        <div class="feature">
+        <div class="row">
           <p class="stat">wasm</p>
-          <h3>In the browser</h3>
-          <p>The same engine compiles to a WebGPU wasm module; one <code class="inline">&lt;amx-player&gt;</code> tag embeds a scene in any page — like every figure on this site.</p>
+          <div>
+            <h3>In the browser</h3>
+            <p>The same engine compiles to a WebGPU wasm module; one <code class="inline">&lt;amx-player&gt;</code> tag embeds a scene in any page — like every figure on this site.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -124,40 +137,67 @@ box: <span class="prop">Ellipse</span>, size: (<span class="num">120</span>, <sp
     <section id="demos">
       <div class="sec-head"><span class="sec-num">03</span><h2>Watch it explain</h2></div>
       <div class="cards hub">
-        <a class="hub-card featured" href="./demos/">
-          <span class="hub-poster"><img class="plate" src="./demos/posters/transformer.png"
-               alt="The transformer block, drawn as an Animatix scene" loading="lazy"></span>
+        <a class="hub-card featured" href="./demos/transformer/">
+          <span class="hub-poster">
+            <amx-player src="./demos/transformer/scenes/overview.amx" sealed autoplay loop
+                        hold="1.5" aspect="16:9"
+                        title="The transformer block, drawn as an Animatix scene"></amx-player>
+          </span>
           <span class="hub-body">
-            <span class="demo-kicker">The demo collection</span>
+            <span class="demo-kicker">The demo collection · live poster</span>
             <span class="hub-title">Animated explainers, built from scenes</span>
             <span class="hub-blurb">
               Walkthroughs where every figure is a declarative scene compiling
               as you read — starting with the machine behind every language
-              model. Nothing on that shelf is a video.
+              model. Nothing on that shelf is a video; the poster above is the
+              demo's opening map, playing.
             </span>
-            <span class="open">Browse the demos →</span>
+            <span class="open">Browse the demos</span>
           </span>
         </a>
         <a class="hub-card" href="./tour/">
+          <span class="hub-poster">
+            <amx-player src="./tour/scenes/components.amx" sealed data-hoverplay
+                        aspect="16:9" title="Imported components playing a stagger"></amx-player>
+          </span>
           <span class="hub-body">
-            <span class="demo-kicker">Hands-on</span>
+            <span class="demo-kicker">Hands-on · hover to play</span>
             <span class="hub-title">The language tour</span>
             <span class="hub-blurb">
               Ten short sections from actors to components — every figure
               editable, so you can change the code and watch the scene take it.
             </span>
-            <span class="open">Take the tour →</span>
+            <span class="open">Take the tour</span>
+          </span>
+        </a>
+        <a class="hub-card" href="./demos/epicycles/">
+          <span class="hub-poster">
+            <amx-player src="./demos/epicycles/onecircle.amx" sealed data-hoverplay
+                        aspect="16:9" title="One circle tracing a sine"></amx-player>
+          </span>
+          <span class="hub-body">
+            <span class="demo-kicker">Fourier · hover to play</span>
+            <span class="hub-title">Circles that draw a sine</span>
+            <span class="hub-blurb">
+              A spinning dial tracing a wave — the first beat of the
+              epicycles walkthrough, where four circles stack into a square.
+            </span>
+            <span class="open">Start reading</span>
           </span>
         </a>
         <a class="hub-card" href="./gallery.html">
+          <span class="hub-poster">
+            <amx-player src="./demos/transformer/scenes/attention.amx" sealed data-hoverplay
+                        aspect="16:9" title="Attention weights as bars"></amx-player>
+          </span>
           <span class="hub-body">
-            <span class="demo-kicker">Quick look</span>
+            <span class="demo-kicker">Quick look · hover to play</span>
             <span class="hub-title">The scene gallery</span>
             <span class="hub-blurb">
-              Seven playable scenes with their sources one click away — the
-              fastest way to feel what the engine draws.
+              Playable scenes with their sources one click away — the fastest
+              way to feel what the engine draws, now with a theater mode.
             </span>
-            <span class="open">Open the gallery →</span>
+            <span class="open">Open the gallery</span>
           </span>
         </a>
       </div>

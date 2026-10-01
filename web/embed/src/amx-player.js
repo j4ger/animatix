@@ -30,6 +30,17 @@
 //              both downloads each once.
 //   quality    "draft" (default) | "preview" | "production" — build fidelity.
 //              Production matches a desktop export; changing it rebuilds.
+//   sealed     page-driven mode: no center play affordance and no click
+//              gestures — playback belongs to the page's own JS (play/pause/
+//              seek below). With `autoplay`, the scene also resumes by itself
+//              whenever it re-enters the viewport (a sealed embed has no
+//              visible control to resume it with). Used for full-bleed hero
+//              plates, scroll-scrubbed figures and hover-play cards.
+//   fit        "contain" (default — the whole frame, letterboxed) | "cover"
+//              — the frame fills the element box, cropping overflow. Cover
+//              also unlocks the stage from its aspect-ratio box so the
+//              picture fills whatever box the page gives the element (the
+//              full-bleed hero). Design cover scenes with a safe center.
 //
 // The engine directories come from the loader <script>'s `data-runtime-base`
 // (absolute, or relative to the page). A value ending in `pkg`/`pkg-slim` is
@@ -253,6 +264,8 @@ class AmxPlayerElement extends HTMLElement {
     "loop",
     "hold",
     "controls",
+    "sealed",
+    "fit",
     "title",
     "aspect",
     "profile",
@@ -320,8 +333,8 @@ class AmxPlayerElement extends HTMLElement {
   }
 
   attributeChangedCallback(name) {
-    if (name === "aspect" && this._initialized) {
-      this._stage.style.aspectRatio = String(this._aspectRatio());
+    if ((name === "aspect" || name === "fit") && this._initialized) {
+      this._applyFit();
     }
     if (name === "hold" && this._initialized && this._duration > 0) {
       this._configureCycle();
@@ -361,6 +374,34 @@ class AmxPlayerElement extends HTMLElement {
     return this.getAttribute("profile") === "full" ? "full" : "slim";
   }
 
+  /// `sealed` — page-driven mode (see the attribute docs above). Re-read on
+  /// change so a page can seal or unseal an embed mid-flight.
+  _isSealed() {
+    return this.hasAttribute("sealed");
+  }
+
+  /// `fit` — "contain" (default) or "cover" (see the attribute docs above).
+  _fit() {
+    return this.getAttribute("fit") === "cover" ? "cover" : "contain";
+  }
+
+  /// Apply the current fit mode to the stage/canvas pair. Cover unlocks the
+  /// stage from the aspect-ratio box (the page's element box is the frame)
+  /// and lets the canvas crop; contain restores the aspect lock.
+  _applyFit() {
+    if (this._fit() === "cover") {
+      this._stage.style.aspectRatio = "";
+      this._stage.style.position = "absolute";
+      this._stage.style.inset = "0";
+      this._canvas.style.objectFit = "cover";
+    } else {
+      this._stage.style.position = "";
+      this._stage.style.inset = "";
+      this._canvas.style.objectFit = "contain";
+      this._stage.style.aspectRatio = String(this._aspectRatio());
+    }
+  }
+
   /// `quality` — build fidelity: "draft" (default, the GUI editing preview),
   /// "preview", or "production" (what a desktop export renders). Unknown
   /// values fall back to draft with a warning; the wasm side re-validates.
@@ -389,7 +430,6 @@ class AmxPlayerElement extends HTMLElement {
     // own, and the control bar (when present) sits below it in flow.
     this._stage = document.createElement("div");
     this._stage.className = "stage";
-    this._stage.style.aspectRatio = String(this._aspectRatio());
     const title = this.getAttribute("title") || "";
     const style = document.createElement("style");
     style.textContent = `
@@ -522,6 +562,7 @@ class AmxPlayerElement extends HTMLElement {
 
     this._controls = null;
     this._marks = null;
+    this._applyFit();
   }
 
   _showVeil(text, isError) {
@@ -571,11 +612,25 @@ class AmxPlayerElement extends HTMLElement {
           this._visible = entry.isIntersecting;
           if (this._visible && this._state === "idle") this._maybeStartLoading();
           if (!this._visible && this._playing) this.pause();
+          // A sealed embed with autoplay has no visible control to bring it
+          // back after the offscreen pause above — resuming on re-entry is
+          // the whole contract of the attribute pair.
+          if (this._visible && this._isSealed() && !this._playing) this._resumeSealed();
         }
       },
       { rootMargin: "200px" },
     );
     this._observer.observe(this);
+  }
+
+  /// Re-play a sealed embed that autoplayed once and was paused (offscreen,
+  /// or an earlier seek-pause from the driving page). Guarded by the same
+  /// conditions as the first autoplay, so reduced-motion and save-data pages
+  /// keep their static poster.
+  _resumeSealed() {
+    if (this._state !== "ready" || !this.hasAttribute("autoplay")) return;
+    if (REDUCED_MOTION || SAVE_DATA) return;
+    this.play();
   }
 
   _shouldAutoplay() {
@@ -714,7 +769,9 @@ class AmxPlayerElement extends HTMLElement {
     if (result.width && result.height) {
       this._canvas.width = Math.round(result.width);
       this._canvas.height = Math.round(result.height);
-      this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      if (this._fit() === "contain") {
+        this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      }
     }
     this._markers = Array.isArray(result.markers) ? result.markers : [];
     this._configureCycle();
@@ -782,7 +839,9 @@ class AmxPlayerElement extends HTMLElement {
       this._duration = Math.max(result.duration_s, 0.05);
       this._canvas.width = Math.round(result.width || 1280);
       this._canvas.height = Math.round(result.height || 720);
-      this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      if (this._fit() === "contain") {
+        this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
+      }
       this._configureCycle();
       // Poster = the finished composition, not frame 0. These scenes build up
       // from nothing, so frame 0 is an empty stage: a reader who never presses
@@ -823,9 +882,10 @@ class AmxPlayerElement extends HTMLElement {
       if (this._shouldAutoplay()) {
         this._loop = this.hasAttribute("loop");
         this.play();
-      } else if (!this.hasAttribute("controls")) {
+      } else if (!this.hasAttribute("controls") && !this._isSealed()) {
         this._playbtn.classList.add("show");
       }
+      this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
     } catch (err) {
       this._state = "error";
       this._showVeil(`Failed to load scene: ${err?.message ?? err}`, true);
@@ -1097,7 +1157,10 @@ class AmxPlayerElement extends HTMLElement {
   play() {
     if (this._state !== "ready") return;
     if (!this._player?.has_document()) return;
-    if (!this._looping() && this._time >= this._duration) this._time = 0;
+    // Starting from the finished frame (the poster position, or a play that
+    // ran to the end) restarts — a loop should begin its build-up, not its
+    // hold rest.
+    if (this._time >= this._duration) this._time = 0;
     this._playing = true;
     // A paused embed is not in `instances`, so it misses both the quality-step
     // notifications and its own layout changes; re-align on the way in.
@@ -1112,8 +1175,9 @@ class AmxPlayerElement extends HTMLElement {
     this._playing = false;
     instances.delete(this);
     if (this._state === "ready") {
-      // Without the control bar the center affordance is the only way back.
-      if (!this._controls || !this.hasAttribute("autoplay")) {
+      // Without the control bar the center affordance is the only way back —
+      // except for a sealed embed, where the page is the way back.
+      if (!this._controls && !this._isSealed() && !this.hasAttribute("autoplay")) {
         this._playbtn.classList.add("show");
       }
       this._syncControls();
@@ -1128,6 +1192,19 @@ class AmxPlayerElement extends HTMLElement {
     this._restTime = this._time;
     this._renderScene();
     this._syncControls();
+  }
+
+  /// Seconds in the compiled timeline (excludes a loop's hold rest). 0 until
+  /// the scene has built; pages driving a sealed embed can wait for the
+  /// `amxready` event before reading it.
+  get duration() {
+    return this._duration;
+  }
+
+  /// Current position within the playback cycle (may exceed `duration` during
+  /// a loop's hold rest; clamp for timeline math).
+  get time() {
+    return Math.min(this._time, this._duration);
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
