@@ -72,6 +72,8 @@ nav.site .site-links a[aria-current] {
   color: var(--ink); background: var(--sunken);
 }
 @media (max-width: 640px) {
+  /* Fit the wordmark plus nav on one row: drop Demos, the one destination
+   * that is also reachable from Home and from the footer. */
   nav.site .site-links a:nth-child(3) { display: none; }
 }
 
