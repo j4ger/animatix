@@ -107,6 +107,7 @@ Remaining:
 | Frame cache on the web path | `restore_frame_cache` bails whenever a filter backend is present, and the web player always passes one — so every browser frame is a full re-evaluation. Small, but pure waste. | Not started |
 | Scale animated `Filter` scopes | `GpuFilterBackend` allocates at scene resolution, so a filtered scene keeps its full-resolution cost under a reduced raster scale (correct output, no saving). | Not started |
 | rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
+| `debug_readback` can trap the wasm | The readback probe is not robust, and with `panic = "abort"` a trap takes the page's shared engine with it. Sweeping every shipped scene through it (2026-10-01, flake `.#web` Chromium + `--webgpu`) trapped once on a tour page (`RuntimeError: unreachable`, frames inside `animatix_web_bg.wasm`) and hung the renderer twice on `web/demos/hash/scene.amx` at `debug_readback(19.5)`, while 19.0/20.0/20.5 there and four times on `sort.amx`'s composition returned pixel stats, and `render_frame(19.5)` on the same document is fine — so the shipped demos render and only the probe path dies. Affects `web/demos/multi-probe.html?readback=1` and the `svg-probe/*` harnesses. Repro: open `/demos/hash/`, force-load the hero player, call `_player.debug_readback(19.5, cb)`. | Not started |
 
 Done (recorded so they are not re-litigated):
 
