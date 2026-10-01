@@ -76,6 +76,14 @@ nav.site .site-links a[aria-current] {
    * that is also reachable from Home and from the footer. */
   nav.site .site-links a:nth-child(3) { display: none; }
 }
+@media (max-width: 480px) {
+  /* 390px phones still overflowed the row with the widest link set (measured:
+   * page scrollWidth 427 vs viewport 390, all of it `div.site-links`), so the
+   * remaining links tighten instead of wrapping or scrolling sideways. */
+  nav.site .site-inner { padding: 0 12px; }
+  nav.site .site-links { gap: 0; }
+  nav.site .site-links a { padding: 5px 6px; font-size: 13px; }
+}
 
 /* ── headings ──────────────────────────────────────────────────────── */
 .kicker {
