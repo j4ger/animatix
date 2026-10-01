@@ -113,18 +113,18 @@
         And this is that function, played. The amber callout is the
         <strong>key</strong> — the bar being inserted; it slides left past
         every larger neighbour while the blue comparison ticks and the gold
-        swap ticks tally the work. Watch the fourth bar (value 5) travel from
-        the right half to the front: the cheapest possible insertion, seven
-        comparisons, no swaps — while 93 pays for its height all the way to
-        the end.
+        swap ticks tally the work. Watch the smallest bar (value 5) slide from
+        the middle to the front in three comparisons and three swaps — it is
+        the bar that travels furthest — while the tallest (93) is pushed right
+        by every later key and finishes at the far edge.
       </p>
       <figure class="tour-embed" data-editable>
         <amx-player src="sort.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Insertion sort, performed"></amx-player>
         <figcaption>
           <span class="cap"><b>Watch:</b> each key takes its turn; the two
-            counter strips below fill in the algorithm's exact cost — 28
-            comparisons, 16 swaps for this input.</span>
+            counter strips tally what the function emitted — 28 comparison
+            marks and 15 swaps for this input.</span>
           <a class="src" href="sort.amx">sort.amx ↗</a>
         </figcaption>
       </figure>
@@ -173,6 +173,7 @@
   </div>
 
   <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../tour/editor.js"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
 </body>
 </html>

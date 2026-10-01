@@ -16,19 +16,23 @@ web/site.css                 shared light-editorial stylesheet for the whole sit
 web/site-chrome.js           shared nav + footer, injected per page (data-root/data-section)
 web/index.html               project homepage — hero scene, features, demo entry points
 web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still,
-                             every live figure editable in place (tour/editor.js)
+                             every live figure editable in place (tour/editor.js);
+                             tour/lib/components.amx is the shared component library,
+                             tour/stills/textmath.png the one non-live plate
 web/gallery.html             scene gallery — the seven transformer scenes as embeds
 web/demos/                   demo hub (course-style cards + posters) and the demos themselves:
                              demos/transformer/  the transformer walkthrough (7 scenes)
                              demos/epicycles/    Fourier epicycles walkthrough (5 scenes)
                              demos/sorting/      insertion-sort theatre (3 scenes)
-                             demos/gradient/     gradient descent walkthrough (4 scenes)
+                             demos/gradient/     gradient descent walkthrough (6 scenes)
                              demos/matrix/       linear-transformations walkthrough (3 scenes)
                              demos/hash/         hash-table walkthrough (3 scenes)
                              demos/lib/          shared .amx library the demo scenes import
+                             demos/posters/      hub-card posters (1280x720 PNGs)
+                             demos/multi-probe.html, demos/perf-probe.html, demos/svg-probe/
+                                                 QA harnesses (multi-instance, frame cost, SVG/profile)
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
-web/demos/multi-probe.html   QA harness: four embeds on one page (shared engine, readback check)
 web/pkg/, web/pkg-slim/      build output (gitignored)
 scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
 scripts/serve-web.py         local static server with brotli negotiation
@@ -37,9 +41,10 @@ scripts/serve-web.py         local static server with brotli negotiation
 
 ### Live figure editors
 
-The tour's figures carry `data-editable`; `tour/editor.js` swaps each into a
-two-column view — animation beside a textarea — where **Apply** (or
-Ctrl/Cmd+Enter) rebuilds the scene in place. The element-level
+The tour's and the demo walkthroughs' figures carry `data-editable`;
+`tour/editor.js` swaps each into a two-column view — animation beside a
+textarea — where **Apply** (or Ctrl/Cmd+Enter) rebuilds the scene in place.
+The element-level
 `applySource(text)` on the embed component loads the new source through the
 already-running engine (fonts, fetched imports and assets stay registered),
 resets the clock and landmarks, and returns the build's diagnostics — the
@@ -73,9 +78,10 @@ time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
 The seven demo scenes use plain text only, so they run on the slim engine —
-1.1 MB over the wire instead of 7.8 MB. Their pages still point
-`data-runtime-base` at `pkg-slim` (the legacy exact-directory form); new pages
-don't need the attribute at all — an embed without `profile` uses slim. The
+1.6 MB over the wire instead of 8.2 MB. The transformer and gallery pages
+still point `data-runtime-base` at `pkg-slim` (the legacy exact-directory
+form) and the other demo pages rely on the default; new pages don't need the
+attribute at all — an embed without `profile` uses slim. The
 full profile is for scenes that need Typst markup, equations or image/SVG
 assets: set `profile="full"` on those elements. If the configured profile is
 missing the component falls back to the other one rather than showing an empty
@@ -299,7 +305,8 @@ cd web/tools && npm install && npm run build:embed
 - **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
 - Native plugins don't exist on this platform; `libloading`-based extensions
   are desktop-only.
-- No in-browser editing — that is the desktop app's job.
+- No general in-browser editor: `applySource` backs the tour's and the demos'
+  own figures (`tour/editor.js`), but authoring lives in the desktop app.
 
 ### Differences from the desktop renderer
 

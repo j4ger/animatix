@@ -179,9 +179,11 @@
         <p>
           There is no video and no backend. The hero figure plays one
           <code class="inline">.amx</code> file containing all five scenes
-          joined by <code class="inline">play … [fade, 500ms]</code>
-          transitions; the five section figures are single-scene extracts of
-          the same source. The pen, the epicycle chain and the complex-plane
+          joined by <code class="inline">play</code> transitions
+          (<code class="inline">fade</code> and
+          <code class="inline">wipe-left</code>, 500ms); the five section figures
+          are single-scene extracts of the same source. The pen, the epicycle
+          chain and the complex-plane
           vector are not keyframed — an
           <code class="inline">always</code> block evaluates their positions
           every frame from one clock.
@@ -197,6 +199,7 @@
   </div>
 
   <script type="module" src="../../embed/amx-player.js"></script>
+  <script src="../../tour/editor.js"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
 </body>
 </html>

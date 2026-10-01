@@ -40,7 +40,7 @@
       </p>
       <ul class="meta">
         <li>7 scenes</li>
-        <li>one slim engine shared by all seven (~1.1 MB brotli, ~5 MB raw)</li>
+        <li>one slim engine shared by all seven (~1.6 MB brotli, ~5 MB raw)</li>
         <li>hover a figure to pause or scrub it</li>
       </ul>
     </header>
@@ -520,14 +520,16 @@
       <p>
         The scenes use plain text only, so the page serves the playback-only
         <code class="inline">pkg-slim</code> profile instead of the full engine —
-        about 1.1 MB brotli (5 MB raw on hosts without brotli, like GitHub
+        about 1.6 MB brotli (5 MB raw on hosts without brotli, like GitHub
         Pages) against 29 MB. The full profile is only needed for
         Typst markup, equations and image or SVG assets.
       </p>
       <p>
         The scenes also share a small component library: the token chips on
         this page are all instances of one <code class="inline">LabeledBox</code>
-        component from <code class="inline">examples/lib/components.amx</code>,
+        component from the shared <code class="inline">components.amx</code>
+        library (<code class="inline">examples/lib/components.amx</code>, served
+        beside these scenes as <code class="inline">lib/components.amx</code>),
         imported by every scene that needs a box-with-a-label. The scenes
         themselves are written against layout containers (Row/Col/Grid) and
         keyframe assignments rather than hand-computed positions — see the

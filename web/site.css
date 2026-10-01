@@ -374,7 +374,14 @@ ul.reading li { margin-top: 6px; }
 .stage-col { min-width: 0; }
 .editor-col { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .editor-col[hidden] { display: none; }
-.editor-bar { display: flex; align-items: center; gap: 8px; }
+.editor-bar {
+  display: flex; align-items: center; gap: 8px;
+  /* `editor.js` scrolls an opened figure to `block: "center"`, which on a
+   * short viewport puts the toolbar under the 54px sticky site nav — and the
+   * toolbar holds Apply/Done. Pin it just below the nav instead. */
+  position: sticky; top: 60px; z-index: 5;
+  background: var(--paper); padding: 4px 0;
+}
 .editor-title {
   font-family: var(--mono); font-size: 12.5px; color: var(--faint);
   margin-right: auto;

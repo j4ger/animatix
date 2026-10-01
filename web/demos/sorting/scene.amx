@@ -97,7 +97,7 @@ comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
 
 swap_label: Text, text: "swaps", font_size: theme.text_sm,
   color: text.secondary, anchor: scene.center, offset: (-430, 285)
-swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, color: accent.warning, anchor: scene.center, offset: (-300, 293)
+swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, color: accent.warning, anchor: scene.center, offset: (-300, 293)
 
 sort_caption: Text, text: "the key slides left past every larger neighbor",
   font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
