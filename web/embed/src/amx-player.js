@@ -44,12 +44,13 @@
 //   3. first rendered frame becomes the poster; autoplay decision follows
 //   4. paused instances show a subtle play affordance
 //
-// Looping: a scene's timeline ends at its last keyframe, so a naive wrap cuts
-// from the finished composition straight to an empty first frame. Looping
-// embeds therefore run a cycle of `hold` + `duration`: the finished frame rests,
-// then dissolves out and back in. A scene author writes no hold of their own —
-// `config { duration: N }` does not extend a single-scene timeline; the
-// timeline ends at its last keyframe (`Timeline::duration_seconds`).
+// Looping: a scene's timeline ends at its last keyframe — or at a declared
+// `config { duration: N }`, which overrides the inferred extent — so a naive
+// wrap cuts from the finished composition straight to an empty first frame.
+// Looping embeds therefore run a cycle of `hold` + `duration`: the finished
+// frame rests, then dissolves out and back in. Playback length comes from the
+// engine's playback duration (`Timeline::playback_duration_seconds`), so a
+// scene can buy itself a trailing rest by declaring a longer duration.
 //
 // Performance: all visible playing instances are driven by ONE shared
 // requestAnimationFrame loop; offscreen instances pause automatically. Embeds
@@ -285,6 +286,7 @@ class AmxPlayerElement extends HTMLElement {
     this._downX = 0;
     this._rate = 1;
     this._markers = [];
+    this._marks = null;
   }
 
   connectedCallback() {
@@ -312,7 +314,9 @@ class AmxPlayerElement extends HTMLElement {
     this._renderScaleObserver?.disconnect();
     clearTimeout(this._renderScaleRetry);
     instances.delete(this);
-    this._playing = false;
+    // `_playing` is deliberately left as-is: connectedCallback re-adds a
+    // still-playing embed to the shared loop after a DOM move. Clearing it
+    // here would make that re-arm dead code and silently freeze the figure.
   }
 
   attributeChangedCallback(name) {
@@ -439,6 +443,7 @@ class AmxPlayerElement extends HTMLElement {
         transform-origin: left; transform: scaleX(0);
         pointer-events: none;
       }
+      .strip .marks { position: absolute; inset: 0; pointer-events: none; }
       /* Timeline landmarks. Keyframes are thin ticks; scene starts are
          diamonds; a transition is a hatched span — all full height. */
       .strip .tick {
@@ -516,6 +521,7 @@ class AmxPlayerElement extends HTMLElement {
     this._playbtn.addEventListener("click", () => this.play());
 
     this._controls = null;
+    this._marks = null;
   }
 
   _showVeil(text, isError) {
@@ -714,6 +720,13 @@ class AmxPlayerElement extends HTMLElement {
     this._configureCycle();
     const strip = this.shadowRoot?.querySelector(".strip");
     if (strip) strip.setAttribute("aria-valuemax", String(this._duration));
+    // The edit may have moved or added keyframes, so re-draw the landmark
+    // layer the strip's ticks come from; snapping already reads `_markers`,
+    // and leaving the drawn marks stale would point the playhead at nothing.
+    this._renderMarks();
+    // A resolution change above reset the backing store to the scene's own
+    // size; put the display-matched scale back.
+    this._applyRenderScale();
     if (this._playing) {
       this._time = 0;
       this._restTime = 0;
@@ -834,23 +847,12 @@ class AmxPlayerElement extends HTMLElement {
     cursor.className = "cursor";
 
     // Landmarks at percentage positions of the pure timeline: keyframe ticks,
-    // scene-start diamonds, hatched transition spans.
-    const marks = document.createDocumentFragment();
-    for (const m of this._markers) {
-      const frac = this._duration > 0 ? Math.min(m.t / this._duration, 1) : 0;
-      if (m.kind === "transition" && m.dur > 0) {
-        const span = document.createElement("div");
-        span.className = "span";
-        span.style.left = `${frac * 100}%`;
-        span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
-        marks.appendChild(span);
-      } else {
-        const mark = document.createElement("div");
-        mark.className = m.kind === "scene" ? "diamond" : "tick";
-        mark.style.left = `${frac * 100}%`;
-        marks.appendChild(mark);
-      }
-    }
+    // scene-start diamonds, hatched transition spans. They live in their own
+    // layer so `applySource` can rebuild them when an edit changes the marks
+    // or the timeline they are positioned against.
+    this._marks = document.createElement("div");
+    this._marks.className = "marks";
+    this._renderMarks();
 
     const chip = document.createElement("span");
     chip.className = "chip";
@@ -867,7 +869,7 @@ class AmxPlayerElement extends HTMLElement {
       speed.setAttribute("aria-label", `Playback speed ${this._rate}\u00d7`);
     });
 
-    strip.append(fill, marks, cursor, chip, speed);
+    strip.append(fill, this._marks, cursor, chip, speed);
     this.shadowRoot.append(strip);
 
     // ── strip interaction ──
@@ -996,6 +998,31 @@ class AmxPlayerElement extends HTMLElement {
 
     this._controls = { strip, fill, cursor, chip, speed };
     this._syncControls();
+  }
+
+  /// Draw the landmark layer from the current markers and duration. Runs when
+  /// the control bar is built and again after `applySource` rebuilds the
+  /// document: an edit can change both the marks and the timeline they are
+  /// positioned against, so the bar cannot be a one-time snapshot.
+  _renderMarks() {
+    if (!this._marks) return;
+    const marks = document.createDocumentFragment();
+    for (const m of this._markers) {
+      const frac = this._duration > 0 ? Math.min(m.t / this._duration, 1) : 0;
+      if (m.kind === "transition" && m.dur > 0) {
+        const span = document.createElement("div");
+        span.className = "span";
+        span.style.left = `${frac * 100}%`;
+        span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
+        marks.appendChild(span);
+      } else {
+        const mark = document.createElement("div");
+        mark.className = m.kind === "scene" ? "diamond" : "tick";
+        mark.style.left = `${frac * 100}%`;
+        marks.appendChild(mark);
+      }
+    }
+    this._marks.replaceChildren(marks);
   }
 
   /// The next (dir=1) or previous (dir=-1) landmark at or after the playhead:
