@@ -61,8 +61,28 @@
         # against a real browser. Deliberately not part of .#default —
         # enter with `nix develop .#web`; WebGPU needs AGENT_BROWSER_WEBGPU=1.
         devShells.web = pkgs.mkShell {
-          packages = [ llm-agents.packages.${system}.agent-browser ];
+          packages = [
+            llm-agents.packages.${system}.agent-browser
+            pkgs.static-web-server
+          ];
         };
+
+        # `nix run .#serve` — preview web/ at http://127.0.0.1:8124 with the
+        # three things the player needs: application/wasm MIME, brotli
+        # compression (dynamic — serves the same bytes as the prebuilt .br
+        # twins), and ETag revalidation so scene edits show on reload.
+        # Serves $PWD/web so edits are live; override with SERVE_ROOT and
+        # SERVE_PORT. Lighter than scripts/serve-web.py (no Python).
+        apps.serve =
+          let
+            script = pkgs.writeShellScript "serve-web" ''
+              exec ${pkgs.static-web-server}/bin/static-web-server \
+                --port "''${SERVE_PORT:-8124}" \
+                --root "''${SERVE_ROOT:-$PWD/web}" \
+                --compression true
+            '';
+          in
+          { type = "app"; program = toString script; };
       }
     );
 }

@@ -59,6 +59,12 @@ python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
 
+Nix users have a lighter option — a single static-web-server binary, no
+Python (`nix run .#serve`, port/root overridable via `SERVE_PORT` /
+`SERVE_ROOT`): it sends `application/wasm` for the engine, compresses
+text responses with brotli on demand (the same bytes the prebuilt `.br`
+twins hold), and answers with ETags so scene edits show on reload.
+
 Release builds go through the `wasm-release` profile (root `Cargo.toml`: fat
 LTO, one codegen unit, `panic = "abort"`) with `+simd128` enabled, kept separate
 from the `release` profile so tuning it cannot move a native benchmark baseline.
