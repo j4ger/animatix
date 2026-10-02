@@ -19,14 +19,14 @@ det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 
 
 // The grid: five vertical and five horizontal lines, both ends driven.
 for x, i in {-2, -1, 0, 1, 2} {
-  vl[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
-  hl[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+  vl[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
+  hl[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
 }
 
 i_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
-j_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
+j_hat: Line, from: (760, 400), to: (760, 290), stroke: accent.success, stroke_width: 3.5
 i_t: Text, text: "i", font_size: 19, color: accent.danger, at: (886, 386)
-j_t: Text, text: "j", font_size: 19, color: accent.success, at: (748, 524)
+j_t: Text, text: "j", font_size: 19, color: accent.success, at: (748, 276)
 
 shear_cap: Text, text: "the unit square leans into a parallelogram — same base, same height", opacity: 1.0,
   font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
@@ -72,32 +72,36 @@ always {
   let s = 110
 
   // The machine applied to the basis vectors.
-  i_hat.to = (cx + s * a, cy + s * c)
-  j_hat.to = (cx + s * b, cy + s * d)
+  i_hat.to = (cx + s * a, cy - s * c)
+  j_hat.to = (cx + s * b, cy - s * d)
+  // The basis labels track their own arrowheads — a glyph that stays where
+  // the vector started reads as a label for the empty space behind it.
+  i_t.at = (cx + s * a + 18, cy - s * c - 14)
+  j_t.at = (cx + s * b - 14, cy - s * d + 22)
 
   // Vertical grid lines: x = -2 … 2, y sweeps -2.4 … 2.4.
-  vl__0.from = (cx + s * (a * -2 + b * -2.4), cy + s * (c * -2 + d * -2.4))
-  vl__0.to = (cx + s * (a * -2 + b * 2.4), cy + s * (c * -2 + d * 2.4))
-  vl__1.from = (cx + s * (a * -1 + b * -2.4), cy + s * (c * -1 + d * -2.4))
-  vl__1.to = (cx + s * (a * -1 + b * 2.4), cy + s * (c * -1 + d * 2.4))
-  vl__2.from = (cx, cy + s * (c * 0 + d * -2.4))
-  vl__2.to = (cx, cy + s * (c * 0 + d * 2.4))
-  vl__3.from = (cx + s * (a * 1 + b * -2.4), cy + s * (c * 1 + d * -2.4))
-  vl__3.to = (cx + s * (a * 1 + b * 2.4), cy + s * (c * 1 + d * 2.4))
-  vl__4.from = (cx + s * (a * 2 + b * -2.4), cy + s * (c * 2 + d * -2.4))
-  vl__4.to = (cx + s * (a * 2 + b * 2.4), cy + s * (c * 2 + d * 2.4))
+  vl__0.from = (cx + s * (a * -2 + b * -2.4), cy - s * (c * -2 + d * -2.4))
+  vl__0.to = (cx + s * (a * -2 + b * 2.4), cy - s * (c * -2 + d * 2.4))
+  vl__1.from = (cx + s * (a * -1 + b * -2.4), cy - s * (c * -1 + d * -2.4))
+  vl__1.to = (cx + s * (a * -1 + b * 2.4), cy - s * (c * -1 + d * 2.4))
+  vl__2.from = (cx, cy - s * (c * 0 + d * -2.4))
+  vl__2.to = (cx, cy - s * (c * 0 + d * 2.4))
+  vl__3.from = (cx + s * (a * 1 + b * -2.4), cy - s * (c * 1 + d * -2.4))
+  vl__3.to = (cx + s * (a * 1 + b * 2.4), cy - s * (c * 1 + d * 2.4))
+  vl__4.from = (cx + s * (a * 2 + b * -2.4), cy - s * (c * 2 + d * -2.4))
+  vl__4.to = (cx + s * (a * 2 + b * 2.4), cy - s * (c * 2 + d * 2.4))
 
   // Horizontal grid lines: y = -2 … 2, x sweeps -2.4 … 2.4.
-  hl__0.from = (cx + s * (a * -2.4 + b * -2), cy + s * (c * -2.4 + d * -2))
-  hl__0.to = (cx + s * (a * 2.4 + b * -2), cy + s * (c * 2.4 + d * -2))
-  hl__1.from = (cx + s * (a * -2.4 + b * -1), cy + s * (c * -2.4 + d * -1))
-  hl__1.to = (cx + s * (a * 2.4 + b * -1), cy + s * (c * 2.4 + d * -1))
-  hl__2.from = (cx + s * (a * -2.4 + b * 0), cy + s * (c * -2.4 + d * 0))
-  hl__2.to = (cx + s * (a * 2.4 + b * 0), cy + s * (c * 2.4 + d * 0))
-  hl__3.from = (cx + s * (a * -2.4 + b * 1), cy + s * (c * -2.4 + d * 1))
-  hl__3.to = (cx + s * (a * 2.4 + b * 1), cy + s * (c * 2.4 + d * 1))
-  hl__4.from = (cx + s * (a * -2.4 + b * 2), cy + s * (c * -2.4 + d * 2))
-  hl__4.to = (cx + s * (a * 2.4 + b * 2), cy + s * (c * 2.4 + d * 2))
+  hl__0.from = (cx + s * (a * -2.4 + b * -2), cy - s * (c * -2.4 + d * -2))
+  hl__0.to = (cx + s * (a * 2.4 + b * -2), cy - s * (c * 2.4 + d * -2))
+  hl__1.from = (cx + s * (a * -2.4 + b * -1), cy - s * (c * -2.4 + d * -1))
+  hl__1.to = (cx + s * (a * 2.4 + b * -1), cy - s * (c * 2.4 + d * -1))
+  hl__2.from = (cx + s * (a * -2.4 + b * 0), cy - s * (c * -2.4 + d * 0))
+  hl__2.to = (cx + s * (a * 2.4 + b * 0), cy - s * (c * 2.4 + d * 0))
+  hl__3.from = (cx + s * (a * -2.4 + b * 1), cy - s * (c * -2.4 + d * 1))
+  hl__3.to = (cx + s * (a * 2.4 + b * 1), cy - s * (c * 2.4 + d * 1))
+  hl__4.from = (cx + s * (a * -2.4 + b * 2), cy - s * (c * -2.4 + d * 2))
+  hl__4.to = (cx + s * (a * 2.4 + b * 2), cy - s * (c * 2.4 + d * 2))
 
   a_t.text = format("{:.1}", a)
   b_t.text = format("{:.1}", b)

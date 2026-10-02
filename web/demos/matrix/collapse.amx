@@ -19,11 +19,11 @@ m3_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.m
 det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
 
 for x, i in {-2, -1, 0, 1, 2} {
-  cv[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
-  ch[i]: Line, from: (760, 400), to: (760, 400), stroke: surface.secondary, stroke_width: 1.5
+  cv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
+  ch[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
 }
 ci_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
-cj_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
+cj_hat: Line, from: (760, 400), to: (760, 290), stroke: accent.success, stroke_width: 3.5
 
 col_cap: Text, text: "negative determinant = the plane came out mirror-flipped", opacity: 1.0,
   font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
@@ -66,30 +66,30 @@ always {
   let cy = 400
   let s = 110
 
-  ci_hat.to = (cx + s * a, cy + s * c)
-  cj_hat.to = (cx + s * b, cy + s * d)
+  ci_hat.to = (cx + s * a, cy - s * c)
+  cj_hat.to = (cx + s * b, cy - s * d)
 
-  cv__0.from = (cx + s * (a * -2 + b * -2.4), cy + s * (c * -2 + d * -2.4))
-  cv__0.to = (cx + s * (a * -2 + b * 2.4), cy + s * (c * -2 + d * 2.4))
-  cv__1.from = (cx + s * (a * -1 + b * -2.4), cy + s * (c * -1 + d * -2.4))
-  cv__1.to = (cx + s * (a * -1 + b * 2.4), cy + s * (c * -1 + d * 2.4))
-  cv__2.from = (cx, cy + s * (c * 0 + d * -2.4))
-  cv__2.to = (cx, cy + s * (c * 0 + d * 2.4))
-  cv__3.from = (cx + s * (a * 1 + b * -2.4), cy + s * (c * 1 + d * -2.4))
-  cv__3.to = (cx + s * (a * 1 + b * 2.4), cy + s * (c * 1 + d * 2.4))
-  cv__4.from = (cx + s * (a * 2 + b * -2.4), cy + s * (c * 2 + d * -2.4))
-  cv__4.to = (cx + s * (a * 2 + b * 2.4), cy + s * (c * 2 + d * 2.4))
+  cv__0.from = (cx + s * (a * -2 + b * -2.4), cy - s * (c * -2 + d * -2.4))
+  cv__0.to = (cx + s * (a * -2 + b * 2.4), cy - s * (c * -2 + d * 2.4))
+  cv__1.from = (cx + s * (a * -1 + b * -2.4), cy - s * (c * -1 + d * -2.4))
+  cv__1.to = (cx + s * (a * -1 + b * 2.4), cy - s * (c * -1 + d * 2.4))
+  cv__2.from = (cx, cy - s * (c * 0 + d * -2.4))
+  cv__2.to = (cx, cy - s * (c * 0 + d * 2.4))
+  cv__3.from = (cx + s * (a * 1 + b * -2.4), cy - s * (c * 1 + d * -2.4))
+  cv__3.to = (cx + s * (a * 1 + b * 2.4), cy - s * (c * 1 + d * 2.4))
+  cv__4.from = (cx + s * (a * 2 + b * -2.4), cy - s * (c * 2 + d * -2.4))
+  cv__4.to = (cx + s * (a * 2 + b * 2.4), cy - s * (c * 2 + d * 2.4))
 
-  ch__0.from = (cx + s * (a * -2.4 + b * -2), cy + s * (c * -2.4 + d * -2))
-  ch__0.to = (cx + s * (a * 2.4 + b * -2), cy + s * (c * 2.4 + d * -2))
-  ch__1.from = (cx + s * (a * -2.4 + b * -1), cy + s * (c * -2.4 + d * -1))
-  ch__1.to = (cx + s * (a * 2.4 + b * -1), cy + s * (c * 2.4 + d * -1))
-  ch__2.from = (cx + s * (a * -2.4 + b * 0), cy + s * (c * -2.4 + d * 0))
-  ch__2.to = (cx + s * (a * 2.4 + b * 0), cy + s * (c * 2.4 + d * 0))
-  ch__3.from = (cx + s * (a * -2.4 + b * 1), cy + s * (c * -2.4 + d * 1))
-  ch__3.to = (cx + s * (a * 2.4 + b * 1), cy + s * (c * 2.4 + d * 1))
-  ch__4.from = (cx + s * (a * -2.4 + b * 2), cy + s * (c * -2.4 + d * 2))
-  ch__4.to = (cx + s * (a * 2.4 + b * 2), cy + s * (c * 2.4 + d * 2))
+  ch__0.from = (cx + s * (a * -2.4 + b * -2), cy - s * (c * -2.4 + d * -2))
+  ch__0.to = (cx + s * (a * 2.4 + b * -2), cy - s * (c * 2.4 + d * -2))
+  ch__1.from = (cx + s * (a * -2.4 + b * -1), cy - s * (c * -2.4 + d * -1))
+  ch__1.to = (cx + s * (a * 2.4 + b * -1), cy - s * (c * 2.4 + d * -1))
+  ch__2.from = (cx + s * (a * -2.4 + b * 0), cy - s * (c * -2.4 + d * 0))
+  ch__2.to = (cx + s * (a * 2.4 + b * 0), cy - s * (c * 2.4 + d * 0))
+  ch__3.from = (cx + s * (a * -2.4 + b * 1), cy - s * (c * -2.4 + d * 1))
+  ch__3.to = (cx + s * (a * 2.4 + b * 1), cy - s * (c * 2.4 + d * 1))
+  ch__4.from = (cx + s * (a * -2.4 + b * 2), cy - s * (c * -2.4 + d * 2))
+  ch__4.to = (cx + s * (a * 2.4 + b * 2), cy - s * (c * 2.4 + d * 2))
 
   a3_t.text = format("{:.1}", a)
   b3_t.text = format("{:.1}", b)
