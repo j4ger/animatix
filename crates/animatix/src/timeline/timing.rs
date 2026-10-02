@@ -128,6 +128,23 @@ impl ModifierHost {
 /// `custom`). Re-export instead of duplicating.
 pub use crate::easing::parse_easing_name;
 
+/// Whether the action named by `subject` declares this modifier key.
+///
+/// The timing parser used to keep its own list of effect keys
+/// (`intensity`, `frequency`, `color`, …) and went stale the first time an
+/// action grew a parameter — `bounce [restitution: …]` warned despite being
+/// legal. The signatures are the single source, and `validate_action_modifiers`
+/// is what reports a real typo.
+fn action_declares_modifier(subject: Option<&str>, name: &str) -> bool {
+    let Some(verb) = subject else {
+        return false;
+    };
+    super::actions::get_action_signatures()
+        .into_iter()
+        .find(|sig| sig.name == verb)
+        .is_some_and(|sig| sig.modifiers.iter().any(|p| p.name == name))
+}
+
 /// Explain an `ease:` value the build layer could not resolve.
 ///
 /// The supported-name list is read from the registry rather than written out
@@ -562,11 +579,7 @@ pub(crate) fn parse_timing_modifiers(
             // the Action host — on assignments/declarations/text these keys
             // have no vocabulary and would be silent no-ops, so they warn.
             Some(name)
-                if host == ModifierHost::Action
-                    && matches!(
-                        name,
-                        "intensity" | "frequency" | "color" | "blend" | "padding" | "radius"
-                    ) => {},
+                if host == ModifierHost::Action && action_declares_modifier(subject, name) => {},
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,

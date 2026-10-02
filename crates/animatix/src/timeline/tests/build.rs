@@ -2426,3 +2426,47 @@ bounce a [1s, intensity: 100, restitution: 0.9]
         y(1000)
     );
 }
+
+/// The timing parser used to keep its own list of effect modifier keys, so an
+/// action gaining a parameter (`bounce [restitution: …]`) produced a warning
+/// about a key its own signature declares.
+#[test]
+fn action_modifiers_are_tolerated_from_the_signature_not_a_literal_list() {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
+bounce a [1s, intensity: 40, restitution: 0.7]
+"#,
+    );
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("ast"), &std::collections::HashMap::new());
+    let noisy: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.message.contains("Unsupported modifier key"))
+        .map(|d| d.message.clone())
+        .collect();
+    assert!(noisy.is_empty(), "declared modifiers warned: {noisy:?}");
+}
+
+#[test]
+fn a_misspelled_action_modifier_still_warns() {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
+bounce a [1s, intensy: 40]
+"#,
+    );
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("ast"), &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.iter().any(|d| d.message.contains("intensy")),
+        "a typo in an action modifier produced no diagnostic"
+    );
+}
