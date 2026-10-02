@@ -157,3 +157,15 @@ frame path must be able to build a second state from the *start* type's
 primitive (the same machinery `render_type_name` now dispatches per frame).
 Until then the tour demos morph strategies that visibly work: auto, match,
 path_arc, stretch.
+
+## Web-demo review pass — engine findings (2026-10-02)
+
+Behaviour gaps found while polishing the site's scenes; all worked around
+scene-side, none fixed in the engine:
+
+| Item | What it is | Status |
+|---|---|---|
+| `Arrow` silently ignores `color:` | The primitive paints shaft and head from `stroke_color` only (`primitives/arrow.rs`), but `color` is a registered property, so an authored `color:` on an Arrow builds, renders grey (`stroke.default`), and warns nothing. Either consume `color` as the stroke fallback (like `Line`?) or emit the drop warning the code rules require. Found making attention's amber accent contract false on screen. | Not started |
+| `import` inside a scene block freezes `always` clocks | A single-scene document with `# Scene` + `import "../lib/theme.amx"` after the header evaluates `always` blocks at a frozen `t` (matrix/rotation's hub card was a static poster of a rotation that never happened; moving the import above `config` fixed it; multi-scene docs with in-scene imports animate their non-`always` content). Needs a root-cause pass in the module/scene build path, and it should at least warn. | Not started |
+| Single-line `text_align` / `text_max_width` do not move the anchor | A one-line `Text` is always centred on `at:` regardless of `text_align` (probe: left/right/plain identical), so right-aligned label columns overlap their bars and left-aligned captions jitter when swapped. The alignment should apply to the line box's anchor, or the combination should warn. Worked around by hand-computing `at:` x per label. | Not started |
+| `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |

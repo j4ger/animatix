@@ -291,7 +291,9 @@ Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-ou
 
 **Effects actions** add emphasis and attention animations:
 - `shake [intensity: N]` - Rapid oscillating horizontal motion
-- `pulse [intensity: N]` - Scale up then return to normal
+- `pulse [intensity: N]` - Scale up then return to normal; the peak scale is
+  `current × (1 + N)` — `intensity: 0.05` is a 5% pop, `intensity: 1.0` doubles
+  the actor
 - `bounce [intensity: N]` - Elastic bounce motion
 
 ```animatix

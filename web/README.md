@@ -12,8 +12,9 @@ the web side only plays back and embeds.
 ```
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
 web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
-web/site.css                 shared light-editorial stylesheet for the whole site
-web/site-chrome.js           shared nav + footer, injected per page (data-root/data-section)
+web/site.css                 shared dark "instrument" stylesheet for the whole site
+web/site-chrome.js           shared nav + footer + timeline chrome (scroll playhead,
+                             keyframe stamps, hover-play, theater), injected per page
 web/index.html               project homepage — hero scene, features, demo entry points
 web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still,
                              every live figure editable in place (tour/editor.js);
@@ -137,7 +138,8 @@ Behavior:
   bar below the picture — play/pause, landmark scrubber, time, speed),
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
-  afterwards), `profile` (below), `quality` (below).
+  afterwards), `profile` (below), `quality` (below), `sealed` and `fit`
+  (page-driven mode, below).
 - **Controls UX** — the strip lives *below* the canvas, full-height and
   always visible: it never covers the picture, and it doubles as the
   timeline inspector. The engine reports the author's `#2s` keyframe
@@ -205,6 +207,50 @@ opacity for `hold` seconds, then dissolves out over the last ~0.28 s and the
 build-up fades back in. Set `hold="0"` for an unadorned loop. `hold` is the
 embed's own knob and applies to any scene, declared duration or not — useful for
 third-party scenes that cannot be edited.
+
+A `play()` issued from the poster/finished frame restarts at 0 rather than
+continuing the rest — a loop kicked off by a card hover or a scroll gesture
+always begins with the build-up, not the hold.
+
+### Page-driven playback (`sealed`, `fit`, `amxready`)
+
+The homepage and tour drive the players from the page's own JS instead of
+handing them to the reader. Two attributes and one event back that mode:
+
+- **`sealed`** — page-driven mode: no center play affordance, no canvas
+  gestures; playback belongs to the page (`play()` / `pause()` / `seek()`).
+  With `autoplay` the scene also resumes by itself on re-entering the
+  viewport, since a sealed embed has no visible control to resume it with.
+  Used for the full-bleed hero, the scroll-scrubbed duality figure and the
+  demos-hub hover-play cards (`<amx-player data-hoverplay>` on a poster card
+  starts on mouse/focus and pauses on leave — the chrome wires that).
+- **`fit="cover"`** — the stage unlocks from its aspect-ratio box and the
+  canvas crops to fill whatever box the page gives the element (default
+  `contain` letterboxes the whole frame). Cover scenes need a safe center.
+- **`amxready`** — a bubbling event fired once the scene has built; the
+  element's `duration` (compiled timeline, excludes the loop rest) and
+  `time` (current position, clamped to `duration`) getters read 0 until
+  then, so page drivers wait for the event before computing scrub
+  mappings.
+
+### The ink design system
+
+Every web scene draws in one palette so the plates melt into the page:
+`web/demos/lib/theme.amx` defines the `ink` `Colorscheme` (extends
+`editorial-dark`) plus shared spacing/type/radius tokens. A scene opts in by
+importing the library and naming the scheme:
+
+```amx
+import "../lib/theme.amx"          // path relative to the scene
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7 }
+```
+
+`ink.scene.background` equals the site stylesheet's `--bg` (`#0b0e14`)
+exactly, `text.primary` equals `--ink` (bone `#ece7db`), and the accent
+hues are disciplined: amber `#f5b942` leads, coral `#ff8666` is a one-beat
+drama voice, sage `#8fc7a3` and steel `#8ab4f8` only carry a diagram's
+genuine semantic channels. New scenes should follow `web/tour/scenes/` and
+`web/demos/transformer/scenes/` as the polished references.
 
 ### Authoring notes that bit these scenes
 
