@@ -34,6 +34,13 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Workflow
 
+0. **Background tasks need no polling.** The agent harness notifies when a
+   background command finishes — do not add a sentinel loop to "wait for it."
+   A `while pgrep -f '<pattern>'` loop self-matches its own command line (the
+   pattern string lives in the loop text) and never exits, leaving a zombie
+   task. If a wait guard is truly required, bound the iterations and exclude
+   self (`pgrep -f 'cargo bench' | grep -vx "$$"`).
+
 1. Read relevant docs before changing (`docs/spec.md`, `docs/architecture.md`, etc.).
 2. Keep tests green: run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing when relevant.
 3. **Before committing**: format first, then run these checks and ensure they pass:
