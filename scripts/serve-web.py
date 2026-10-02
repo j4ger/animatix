@@ -9,13 +9,15 @@
   `.amx` scene sources must be revalidated — a five-minute cache on a scene file
   means your edit appears to do nothing
 
-Usage: python3 scripts/serve-web.py [port]   (default 8124, serves web/)
+Usage: python3 scripts/serve-web.py [port] [root]  (default 8124, serves web/)
 """
 import http.server
 import os
 import sys
 
-WEB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "web")
+WEB_DIR = os.environ.get("SERVE_ROOT") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "web"
+)
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -88,6 +90,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8124
+    if len(sys.argv) > 2:
+        WEB_DIR = os.path.abspath(sys.argv[2])
     server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    print(f"serving web/ at http://127.0.0.1:{port}/")
+    print(f"serving {WEB_DIR} at http://127.0.0.1:{port}/")
     server.serve_forever()

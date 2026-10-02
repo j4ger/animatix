@@ -70,16 +70,19 @@
         # `nix run .#serve` — preview web/ at http://127.0.0.1:8124 with the
         # three things the player needs: application/wasm MIME, brotli
         # compression (dynamic — serves the same bytes as the prebuilt .br
-        # twins), and ETag revalidation so scene edits show on reload.
-        # Serves $PWD/web so edits are live; override with SERVE_ROOT and
-        # SERVE_PORT. Lighter than scripts/serve-web.py (no Python).
+        # twins), and cache headers that keep the edit-and-reload loop honest.
+        # That last point is why this runs scripts/serve-web.py rather than a
+        # static-web-server binary: SAS's built-in Cache-Control list (no
+        # override flag exists in 2.39.0) gives .css a ONE-YEAR max-age, so a
+        # returning browser renders fresh HTML against a stale cached
+        # stylesheet. Serves the repo's web/ so edits are live; override with
+        # SERVE_PORT and SERVE_ROOT.
         apps.serve =
           let
             script = pkgs.writeShellScript "serve-web" ''
-              exec ${pkgs.static-web-server}/bin/static-web-server \
-                --port "''${SERVE_PORT:-8124}" \
-                --root "''${SERVE_ROOT:-$PWD/web}" \
-                --compression true
+              exec ${pkgs.python3}/bin/python3 "${./scripts/serve-web.py}" \
+                "''${SERVE_PORT:-8124}" \
+                "''${SERVE_ROOT:-$PWD/web}"
             '';
           in
           { type = "app"; program = toString script; };
