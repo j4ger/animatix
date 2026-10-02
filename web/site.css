@@ -43,7 +43,13 @@
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Consolas, monospace;
   --serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --measure: 1040px;
-  --spring: cubic-bezier(.22, 1.18, .32, 1);
+  /* One motion vocabulary for the page and the scenes it embeds. The engine
+   * grew `expo-out` and `spring` for exactly these shapes, so the DOM
+   * furniture now shares the same arrival instead of running on CSS defaults.
+   * `--settle` is the single-overshoot landing (a stamp hitting paper);
+   * hover and reveal curves are `--expo-out`, which never bounces back. */
+  --expo-out: cubic-bezier(.16, 1, .3, 1);
+  --settle: cubic-bezier(.34, 1.32, .64, 1);
 }
 
 * { box-sizing: border-box; }
@@ -291,7 +297,7 @@ figcaption a.src:hover { color: var(--accent-strong); }
    * page that points at itself; site-chrome.js fades the whole cue out as
    * soon as the reader scrolls, so the hint has a lifetime, not a rhythm. */
   transform: scaleY(0); transform-origin: top;
-  animation: cue-draw 900ms cubic-bezier(.16, 1, .3, 1) 500ms forwards;
+  animation: cue-draw 900ms var(--expo-out) 500ms forwards;
 }
 @keyframes cue-draw {
   to { transform: scaleY(1); transform-origin: top; }
@@ -331,7 +337,7 @@ figcaption a.src:hover { color: var(--accent-strong); }
 }
 .ledger .row.in {
   opacity: 1; transform: none;
-  transition: opacity .55s ease-out, transform .65s var(--spring);
+  transition: opacity .5s var(--expo-out), transform .62s var(--settle);
 }
 .ledger .row:nth-child(2n).in { transition-delay: .07s; }
 .ledger .stat {
@@ -401,7 +407,7 @@ figcaption a.src:hover { color: var(--accent-strong); }
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--raised); border: 1px solid var(--border-soft);
   border-radius: 16px; text-decoration: none;
-  transition: border-color .25s, transform .35s var(--spring);
+  transition: border-color .25s, transform .35s var(--expo-out);
 }
 a.hub-card:hover { border-color: var(--accent-dim); transform: translateY(-3px); }
 .hub-card.featured { grid-column: 1 / -1; flex-direction: row; align-items: stretch; }
