@@ -122,20 +122,11 @@ impl ModifierHost {
     }
 }
 
-/// Parse an easing name into the corresponding `Easing` variant.
-pub fn parse_easing_name(raw: &str) -> Option<Easing> {
-    match raw {
-        "ease-in" | "easein" => Some(Easing::EaseIn),
-        "ease-out" | "easeout" => Some(Easing::EaseOut),
-        "ease-in-out" | "easeinout" => Some(Easing::EaseInOut),
-        "bounce" => Some(Easing::Bounce),
-        "elastic" => Some(Easing::Elastic),
-        "back" => Some(Easing::Back),
-        "expo" => Some(Easing::Expo),
-        "linear" => Some(Easing::Linear),
-        _ => None,
-    }
-}
+/// Easing names have one source of truth: `animatix_syntax::easing`, which
+/// the engine re-exports as `crate::easing`. This used to carry its own copy
+/// of the table, and the two had already drifted (the engine's was missing
+/// `custom`). Re-export instead of duplicating.
+pub use crate::easing::parse_easing_name;
 
 pub(crate) fn parse_duration_literal(raw: &str) -> Option<f64> {
     if let Some(ms) = raw.strip_suffix("ms") {

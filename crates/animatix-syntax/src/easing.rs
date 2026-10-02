@@ -179,3 +179,49 @@ pub fn parse_easing_name(raw: &str) -> Option<Easing> {
 pub fn format_cubic_bezier(cp: [f32; 4]) -> String {
     format!("cubic-bezier({:.2}, {:.2}, {:.2}, {:.2})", cp[0], cp[1], cp[2], cp[3])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The registry is what the GUI, the curve panel and LSP completion list,
+    /// and this parser is what `.amx` source hits. A name on one side and not
+    /// the other means the editor offers an easing the engine then rejects.
+    #[test]
+    fn every_registry_id_parses() {
+        for (id, label) in EASING_REGISTRY {
+            assert!(
+                parse_easing_name(id).is_some(),
+                "registry id {id:?} ({label:?}) does not parse"
+            );
+        }
+    }
+
+    /// Every curve must be anchored at both ends: a keyframe's target value is
+    /// what the stage shows once it settles, so a curve that lands anywhere
+    /// but 1.0 silently moves the resting composition.
+    #[test]
+    fn every_curve_holds_its_endpoints() {
+        let curves = [
+            Easing::Linear,
+            Easing::EaseIn,
+            Easing::EaseOut,
+            Easing::EaseInOut,
+            Easing::Bounce,
+            Easing::Elastic,
+            Easing::Back,
+            Easing::Expo,
+            Easing::CubicBezier(DEFAULT_CUSTOM_EASING),
+        ];
+        for easing in curves {
+            assert!(
+                apply_easing(0.0, easing).abs() < 1e-6,
+                "{easing:?} does not start at 0"
+            );
+            assert!(
+                (apply_easing(1.0, easing) - 1.0).abs() < 1e-3,
+                "{easing:?} does not land on 1"
+            );
+        }
+    }
+}

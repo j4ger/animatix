@@ -137,3 +137,16 @@ fn test_keyframe_times_s_empty_when_no_keyframes() {
     let times = timeline.keyframe_times_s();
     assert!(times.is_empty());
 }
+
+/// The engine once kept its own copy of the easing name table and fell behind:
+/// `custom` parsed in the editor and then silently resolved to nothing at
+/// build time. Both layers must answer for the same set of names.
+#[test]
+fn engine_easing_names_cover_the_syntax_registry() {
+    for (id, label) in crate::easing::EASING_REGISTRY {
+        assert!(
+            crate::timeline::parse_easing_name(id).is_some(),
+            "{label:?} is offered by the registry but rejected by the engine"
+        );
+    }
+}
