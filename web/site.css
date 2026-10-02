@@ -278,16 +278,18 @@ figcaption a.src:hover { color: var(--accent-strong); }
 .hero-full .scroll-cue::after {
   content: ""; width: 1px; height: 34px;
   background: linear-gradient(var(--accent), transparent);
-  animation: cue-drop 2.2s var(--spring) infinite;
+  /* Draws down once and rests. A looping pulse is the one motion on this
+   * page that points at itself; site-chrome.js fades the whole cue out as
+   * soon as the reader scrolls, so the hint has a lifetime, not a rhythm. */
+  transform: scaleY(0); transform-origin: top;
+  animation: cue-draw 900ms cubic-bezier(.16, 1, .3, 1) 500ms forwards;
 }
-@keyframes cue-drop {
-  0% { transform: scaleY(0); transform-origin: top; }
-  45% { transform: scaleY(1); transform-origin: top; }
-  55% { transform: scaleY(1); transform-origin: bottom; }
-  100% { transform: scaleY(0); transform-origin: bottom; }
+@keyframes cue-draw {
+  to { transform: scaleY(1); transform-origin: top; }
 }
+.hero-full .scroll-cue { transition: opacity .5s ease-out; }
 @media (prefers-reduced-motion: reduce) {
-  .hero-full .scroll-cue::after { animation: none; }
+  .hero-full .scroll-cue::after { animation: none; transform: none; }
 }
 
 /* ── home: the code/stage duality ──────────────────────────────────── */

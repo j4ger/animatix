@@ -132,6 +132,7 @@
   });
 
   let ticking = false;
+  const cue = document.querySelector(".scroll-cue");
   function measure() {
     const doc = document.documentElement;
     const maxScroll = Math.max(doc.scrollHeight - window.innerHeight, 1);
@@ -150,6 +151,12 @@
     rulerFill.style.transform = `scaleX(${p})`;
     rulerHead.style.left = `${p * 100}%`;
     timecode.textContent = fmt(p * duration);
+    if (cue) {
+      // The scroll hint gets a lifetime, not a rhythm: it gives way under the
+      // first flick instead of pulsing until the reader gives up.
+      const gone = Math.min(Math.max((window.scrollY - 60) / 200, 0), 1);
+      cue.style.opacity = String(1 - gone);
+    }
   }
   function onScroll() {
     if (!ticking) {
