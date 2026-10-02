@@ -72,7 +72,7 @@
   const rulerHead = document.createElement("div");
   rulerHead.className = "ruler-head";
   ruler.append(rulerTrack, rulerFill, rulerHead);
-  nav.append(ruler);
+  nav.append(inner, ruler);
   document.body.prepend(nav);
 
   const wrap = document.querySelector(".wrap");
