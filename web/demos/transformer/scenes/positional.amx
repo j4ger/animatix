@@ -27,7 +27,7 @@
 
 import "../../lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.8 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.1 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · every position gets a fingerprint", font_size: 15, color: text.muted,
@@ -90,19 +90,19 @@ lab3: Text, text: "period 24", font_size: 15, color: text.secondary,
   text_max_width: 150, text_align: "right", at: (171, 477)
 
 // ── column axis ─────────────────────────────────────────────────────
-p0: Text, text: "0", font_size: 14, color: text.muted, at: (296, 544)
-p1: Text, text: "1", font_size: 14, color: text.muted, at: (380, 544)
-p2: Text, text: "2", font_size: 14, color: text.muted, at: (464, 544)
-p3: Text, text: "3", font_size: 14, color: text.muted, at: (548, 544)
-p4: Text, text: "4", font_size: 14, color: text.muted, at: (632, 544)
-p5: Text, text: "5", font_size: 14, color: text.muted, at: (716, 544)
-p6: Text, text: "6", font_size: 14, color: text.muted, at: (800, 544)
-p7: Text, text: "7", font_size: 14, color: text.muted, at: (884, 544)
+p0: Text, text: "0", font_size: 15, color: text.secondary, at: (296, 544)
+p1: Text, text: "1", font_size: 15, color: text.secondary, at: (380, 544)
+p2: Text, text: "2", font_size: 15, color: text.secondary, at: (464, 544)
+p3: Text, text: "3", font_size: 15, color: text.secondary, at: (548, 544)
+p4: Text, text: "4", font_size: 15, color: text.secondary, at: (632, 544)
+p5: Text, text: "5", font_size: 15, color: text.secondary, at: (716, 544)
+p6: Text, text: "6", font_size: 15, color: text.secondary, at: (800, 544)
+p7: Text, text: "7", font_size: 15, color: text.secondary, at: (884, 544)
 axis: Text, text: "position", font_size: 15, color: text.muted, at: (590, 578)
 
 // ── the signed scale, stated once ──────────────────────────────────
 key_cap: Text, text: "shade = value", font_size: 15, color: text.muted,
-  text_max_width: 210, text_align: "left", at: (1080, 268)
+  text_max_width: 210, text_align: "center", at: (1016, 268)
 key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (988, 304)
 key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1016, 304)
 key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1044, 304)
@@ -154,7 +154,7 @@ stagger [30ms] {
 
 #1.35s
 fade-out phase1 [260ms]
-fade-in phase2 [280ms]
+fade-in phase2 [280ms, delay: 200ms]
 stagger [70ms] {
   fade-in lab0 [280ms]
   fade-in lab1 [280ms]
@@ -203,3 +203,30 @@ sequence {
   shift cursor [by: (84, 0), 150ms, delay: 90ms, ease: ease-out]
 }
 fade-out cursor [300ms, delay: 2000ms]
+
+// Outro: the matrix Grid fades as a container; quiet plate before the wrap.
+#5.90s
+stagger [40ms] {
+  fade-out matrix [260ms]
+  fade-out key_cap [260ms]
+  fade-out key_lo [260ms]
+  fade-out key_mid [260ms]
+  fade-out key_hi [260ms]
+  fade-out key_lo_t [260ms]
+  fade-out key_zero [260ms]
+  fade-out key_hi_t [260ms]
+  fade-out axis [260ms]
+  fade-out p7 [260ms]
+  fade-out p6 [260ms]
+  fade-out p5 [260ms]
+  fade-out p4 [260ms]
+  fade-out p3 [260ms]
+  fade-out p2 [260ms]
+  fade-out p1 [260ms]
+  fade-out p0 [260ms]
+  fade-out lab3 [260ms]
+  fade-out lab2 [260ms]
+  fade-out lab1 [260ms]
+  fade-out lab0 [260ms]
+  fade-out phase3 [260ms]
+}

@@ -20,7 +20,7 @@
 import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.8 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · the text", font_size: 15, color: text.muted,
@@ -90,14 +90,14 @@ brace_label: Text, text: "d_model = 512", font_size: 20, color: accent.primary,
 
 // Closing beat: one bright rule walks down the entries, so the matrix reads as
 // many rows of numbers rather than as five stacked blocks.
-scan: Rect, size: (790, 3), corner_radius: 2, color: accent.warning, opacity: 0.0, at: (580, 249)
+scan: Rect, size: (790, 3), corner_radius: 2, color: accent.primary, opacity: 0.0, at: (580, 249)
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
 fade-in phase1 [300ms]
 
 #0.40s
-wipe-in bar [420ms, ease: ease-out]
+fade-in bar [420ms, ease: ease-out]
 
 #0.75s
 fade-in bar_t [320ms]
@@ -105,7 +105,7 @@ fade-in bar_t [320ms]
 // The sentence splits: the bar dissolves as the chips take its place.
 #1.30s
 fade-out phase1 [260ms]
-fade-in phase2 [260ms]
+fade-in phase2 [260ms, delay: 200ms]
 stagger [130ms] {
   fade-in chip_the [380ms]
   fade-in chip_cat [380ms]
@@ -125,16 +125,16 @@ stagger [120ms] {
 
 #2.85s
 fade-out phase2 [260ms]
-fade-in phase3 [300ms]
+fade-in phase3 [300ms, delay: 200ms]
 stagger [45ms] {
   the_v0.opacity = 0.95 [300ms]
   the_v1.opacity = 0.52 [300ms]
   the_v2.opacity = 0.78 [300ms]
-  the_v3.opacity = 0.38 [300ms]
+  the_v3.opacity = 0.42 [300ms]
   the_v4.opacity = 0.62 [300ms]
   cat_v0.opacity = 0.44 [300ms]
   cat_v1.opacity = 0.88 [300ms]
-  cat_v2.opacity = 0.34 [300ms]
+  cat_v2.opacity = 0.42 [300ms]
   cat_v3.opacity = 0.72 [300ms]
   cat_v4.opacity = 0.50 [300ms]
   sat_v0.opacity = 0.70 [300ms]
@@ -169,3 +169,43 @@ fade-in brace_label [400ms]
 fade-in scan [260ms]
 shift scan [by: (0, 290), 1500ms, ease: ease-in-out]
 fade-out scan [300ms, delay: 1400ms]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#7.10s
+stagger [10ms] {
+  fade-out brace_label [260ms]
+  fade-out brace_top [260ms]
+  fade-out brace_mid [260ms]
+  fade-out brace_bot [260ms]
+  fade-out phase3 [260ms]
+  fade-out sat_d0 [260ms]
+  fade-out sat_d1 [260ms]
+  fade-out sat_d2 [260ms]
+  fade-out cat_d0 [260ms]
+  fade-out cat_d1 [260ms]
+  fade-out cat_d2 [260ms]
+  fade-out the_d0 [260ms]
+  fade-out the_d1 [260ms]
+  fade-out the_d2 [260ms]
+  fade-out sat_v0 [260ms]
+  fade-out sat_v1 [260ms]
+  fade-out sat_v2 [260ms]
+  fade-out sat_v3 [260ms]
+  fade-out sat_v4 [260ms]
+  fade-out cat_v0 [260ms]
+  fade-out cat_v1 [260ms]
+  fade-out cat_v2 [260ms]
+  fade-out cat_v3 [260ms]
+  fade-out cat_v4 [260ms]
+  fade-out the_v0 [260ms]
+  fade-out the_v1 [260ms]
+  fade-out the_v2 [260ms]
+  fade-out the_v3 [260ms]
+  fade-out the_v4 [260ms]
+  fade-out link_the [260ms]
+  fade-out link_cat [260ms]
+  fade-out link_sat [260ms]
+  fade-out chip_the [260ms]
+  fade-out chip_cat [260ms]
+  fade-out chip_sat [260ms]
+}

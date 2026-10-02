@@ -15,7 +15,7 @@
 import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 7.0 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · a token's vector enters the stack", font_size: 15, color: text.muted,
@@ -60,24 +60,24 @@ s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.
 s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 222)
 
 // ── flow up the tower ───────────────────────────────────────────────
-up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
-up2: Arrow, from: (640, 402), to: (640, 378), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
-up3: Arrow, from: (640, 290), to: (640, 266), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
+up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
+up2: Arrow, from: (640, 402), to: (640, 378), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
+up3: Arrow, from: (640, 290), to: (640, 266), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
 
 // Branch out of the top block into the two heads.
-up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
-up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, color: text.muted, opacity: 0.0
+up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
+up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
 
 // ── output heads ────────────────────────────────────────────────────
 out_lm: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
-  stroke: (0.98, 0.83, 0.44, 1.0), stroke_width: 2, at: (520, 118)
+  stroke: accent.primary, stroke_width: 2, at: (520, 118)
 out_lm_t: Text, text: "LM head", font_size: 17, color: text.primary, at: (520, 118)
 out_cls: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
-  stroke: (0.35, 0.86, 0.63, 1.0), stroke_width: 2, at: (760, 118)
+  stroke: accent.success, stroke_width: 2, at: (760, 118)
 out_cls_t: Text, text: "task head", font_size: 17, color: text.primary, at: (760, 118)
 
 // Closing beat: one token's vector climbing the whole stack.
-climb: Ellipse, size: (16, 16), color: accent.warning, opacity: 0.0, at: (640, 556)
+climb: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (640, 556)
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
@@ -95,7 +95,7 @@ up1.opacity = 0.6 [280ms]
 
 #1.25s
 fade-out phase1 [260ms]
-fade-in phase2 [280ms]
+fade-in phase2 [280ms, delay: 200ms]
 fade-in b1 [420ms, ease: ease-out]
 fade-in b1_t [300ms, delay: 200ms]
 stagger [50ms] {
@@ -134,7 +134,7 @@ stagger [50ms] {
 
 #3.40s
 fade-out phase2 [260ms]
-fade-in phase3 [300ms]
+fade-in phase3 [300ms, delay: 200ms]
 draw-in up_lm [380ms, ease: ease-out]
 draw-in up_cls [380ms, ease: ease-out]
 up_lm.opacity = 0.6 [340ms]
@@ -167,3 +167,43 @@ b2.size = (560, 80) [220ms, ease: ease-in]
 b3.size = (584, 83) [180ms, ease: ease-out]
 #5.72s
 b3.size = (560, 80) [220ms, ease: ease-in]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#6.55s
+stagger [35ms] {
+  fade-out out_cls_t [260ms]
+  fade-out out_cls [260ms]
+  fade-out out_lm_t [260ms]
+  fade-out out_lm [260ms]
+  fade-out up_cls [260ms]
+  fade-out up_lm [260ms]
+  fade-out s3_4 [260ms]
+  fade-out s3_3 [260ms]
+  fade-out s3_2 [260ms]
+  fade-out s3_1 [260ms]
+  fade-out s3_0 [260ms]
+  fade-out b3_t [260ms]
+  fade-out b3 [260ms]
+  fade-out up3 [260ms]
+  fade-out s2_4 [260ms]
+  fade-out s2_3 [260ms]
+  fade-out s2_2 [260ms]
+  fade-out s2_1 [260ms]
+  fade-out s2_0 [260ms]
+  fade-out b2_t [260ms]
+  fade-out b2 [260ms]
+  fade-out up2 [260ms]
+  fade-out s1_4 [260ms]
+  fade-out s1_3 [260ms]
+  fade-out s1_2 [260ms]
+  fade-out s1_1 [260ms]
+  fade-out s1_0 [260ms]
+  fade-out b1_t [260ms]
+  fade-out b1 [260ms]
+  fade-out climb [260ms]
+  fade-out in4 [260ms]
+  fade-out in3 [260ms]
+  fade-out in2 [260ms]
+  fade-out in1 [260ms]
+  fade-out phase3 [260ms]
+}

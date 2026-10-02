@@ -18,7 +18,7 @@
 import "../../lib/theme.amx"
 import "../lib/components.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.9 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · \"it\" looks back", font_size: 15, color: text.muted,
@@ -49,10 +49,10 @@ query_tag: Text, text: "query", font_size: 14, color: accent.warning, at: (1000,
 // the thin rule carries the direction of reading for the rest.
 // Both accents are authored `opacity: 0.0` — an authored non-zero opacity is
 // visible from frame 0 whatever entrance follows — and settle via assignment.
-a_animal: Arrow, from: (965, 224), to: (460, 312), head_size: 16,
-  stroke_width: 7, color: accent.primary, opacity: 0.0
-scan: Arrow, from: (975, 296), to: (250, 296), head_size: 12,
-  stroke_width: 2, color: accent.primary, opacity: 0.0
+a_animal: Arrow, from: (965, 224), to: (460, 312), head_size: 16, stroke: accent.primary,
+  stroke_width: 7, opacity: 0.0
+scan: Arrow, from: (975, 272), to: (760, 272), head_size: 12, stroke: accent.primary,
+  stroke_width: 2, opacity: 0.0
 scan_label: Text, text: "attends to", font_size: 15, color: text.muted,
   text_max_width: 160, text_align: "left", at: (330, 326)
 
@@ -99,18 +99,18 @@ draw-in base [420ms, ease: ease-out]
 
 #1.70s
 fade-out phase1 [260ms]
-fade-in phase2 [280ms]
+fade-in phase2 [280ms, delay: 200ms]
 stagger [90ms] {
-  wipe-in bar_the [380ms]
-  wipe-in bar_animal [380ms]
-  wipe-in bar_didnt [380ms]
-  wipe-in bar_cross [380ms]
-  wipe-in bar_self [380ms]
+  fade-in bar_the [380ms]
+  fade-in bar_animal [380ms]
+  fade-in bar_didnt [380ms]
+  fade-in bar_cross [380ms]
+  fade-in bar_self [380ms]
 }
 
 #2.45s
 fade-out phase2 [260ms]
-fade-in phase3 [280ms]
+fade-in phase3 [280ms, delay: 200ms]
 stagger [70ms] {
   fade-in w_the [240ms]
   fade-in w_animal [240ms]
@@ -134,5 +134,34 @@ fade-in scale_label [380ms]
 fade-in formula [380ms, delay: 140ms]
 
 #5.00s
-pulse bar_animal [700ms, intensity: 1.04]
-pulse w_animal [700ms, intensity: 1.04]
+pulse bar_animal [700ms, intensity: 0.04]
+pulse w_animal [700ms, intensity: 0.04]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#6.75s
+stagger [30ms] {
+  fade-out formula [260ms]
+  fade-out scale_label [260ms]
+  fade-out w_self [260ms]
+  fade-out w_cross [260ms]
+  fade-out w_didnt [260ms]
+  fade-out w_animal [260ms]
+  fade-out w_the [260ms]
+  fade-out bar_self [260ms]
+  fade-out bar_cross [260ms]
+  fade-out bar_didnt [260ms]
+  fade-out bar_animal [260ms]
+  fade-out bar_the [260ms]
+  fade-out base [260ms]
+  fade-out scan_label [260ms]
+  fade-out scan [260ms]
+  fade-out a_animal [260ms]
+  fade-out query_tag [260ms]
+  fade-out halo [260ms]
+  fade-out tok5 [260ms]
+  fade-out tok4 [260ms]
+  fade-out tok3 [260ms]
+  fade-out tok2 [260ms]
+  fade-out tok1 [260ms]
+  fade-out phase3 [260ms]
+}

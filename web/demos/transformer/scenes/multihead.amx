@@ -16,7 +16,7 @@
 
 import "../../lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.9 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · several heads in parallel", font_size: 15, color: text.muted,
@@ -33,7 +33,7 @@ panel_c: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opac
 
 title_a: Text, text: "who did what", font_size: 16, color: accent.primary, at: (290, 172)
 title_b: Text, text: "did what to whom", font_size: 16, color: accent.success, at: (640, 172)
-title_c: Text, text: "next token only", font_size: 16, color: accent.warning, at: (990, 172)
+title_c: Text, text: "next token only", font_size: 16, color: accent.info, at: (990, 172)
 
 head1_grid: Grid, cols: 3, gap: 12, at: (290, 315) {
   // ── head 1: subject → verb ──────────────────────────────────────────
@@ -63,29 +63,29 @@ head2_grid: Grid, cols: 3, gap: 12, at: (640, 315) {
 }
 head3_grid: Grid, cols: 3, gap: 12, at: (990, 315) {
   // ── head 3: neighbours ──────────────────────────────────────────────
-  h3_00: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_01: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_02: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_10: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_11: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_12: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_20: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_21: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
-  h3_22: Rect, size: (64, 64), corner_radius: 8, color: accent.warning, opacity: 0.0
+  h3_00: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_01: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_02: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_10: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_11: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_12: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_20: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_21: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+  h3_22: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
 
 }
 // ── each head's output drops into its own segment ───────────────────
 drop_a: Arrow, from: (290, 452), to: (290, 496), head_size: 12,
-  stroke_width: 2, color: accent.primary, opacity: 0.0
+  stroke_width: 2, stroke: accent.primary, opacity: 0.0
 drop_b: Arrow, from: (640, 452), to: (640, 496), head_size: 12,
-  stroke_width: 2, color: accent.success, opacity: 0.0
+  stroke_width: 2, stroke: accent.success, opacity: 0.0
 drop_c: Arrow, from: (990, 452), to: (990, 496), head_size: 12,
-  stroke_width: 2, color: accent.warning, opacity: 0.0
+  stroke_width: 2, stroke: accent.info, opacity: 0.0
 
 segs: Row, at: (640, 530), gap: 4 {
   seg_a: Rect, size: (346, 56), corner_radius: 10, color: accent.primary, opacity: 0.0
   seg_b: Rect, size: (346, 56), corner_radius: 10, color: accent.success, opacity: 0.0
-  seg_c: Rect, size: (346, 56), corner_radius: 10, color: accent.warning, opacity: 0.0
+  seg_c: Rect, size: (346, 56), corner_radius: 10, color: accent.info, opacity: 0.0
 }
 
 mix_label: Text, text: "concat, then a linear mix", font_size: 16, color: text.muted, at: (640, 606)
@@ -109,7 +109,7 @@ stagger [130ms] {
 // Head by head, so each pattern can be compared with the one before it.
 #0.95s
 fade-out phase1 [260ms]
-fade-in phase2 [280ms]
+fade-in phase2 [280ms, delay: 200ms]
 stagger [45ms] {
   h1_00.opacity = 0.95 [300ms]
   h1_01.opacity = 0.45 [300ms]
@@ -125,7 +125,7 @@ stagger [45ms] {
 // Each head's strongest link pulses just before the next head builds —
 // "this one locked in", by which time its cells have all landed.
 #1.80s
-pulse h1_00 [560ms, intensity: 1.05]
+pulse h1_00 [560ms, intensity: 0.05]
 
 #1.85s
 stagger [45ms] {
@@ -141,7 +141,7 @@ stagger [45ms] {
 }
 
 #2.70s
-pulse h2_12 [560ms, intensity: 1.05]
+pulse h2_12 [560ms, intensity: 0.05]
 
 #2.75s
 stagger [45ms] {
@@ -158,8 +158,8 @@ stagger [45ms] {
 
 #3.60s
 fade-out phase2 [260ms]
-fade-in phase3 [280ms]
-pulse h3_21 [560ms, intensity: 1.05]
+fade-in phase3 [280ms, delay: 200ms]
+pulse h3_21 [560ms, intensity: 0.05]
 
 #3.70s
 stagger [130ms] {
@@ -182,3 +182,23 @@ stagger [130ms] {
 
 #4.80s
 fade-in mix_label [400ms]
+
+// Outro: grids and the segment row fade as containers; quiet plate at the wrap.
+#5.80s
+stagger [50ms] {
+  fade-out mix_label [260ms]
+  fade-out segs [260ms]
+  fade-out drop_c [260ms]
+  fade-out drop_b [260ms]
+  fade-out drop_a [260ms]
+  fade-out head3_grid [260ms]
+  fade-out head2_grid [260ms]
+  fade-out head1_grid [260ms]
+  fade-out title_c [260ms]
+  fade-out title_b [260ms]
+  fade-out title_a [260ms]
+  fade-out panel_c [260ms]
+  fade-out panel_b [260ms]
+  fade-out panel_a [260ms]
+  fade-out phase3 [260ms]
+}
