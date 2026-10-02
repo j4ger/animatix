@@ -149,7 +149,7 @@
     const maxScroll = Math.max(doc.scrollHeight - window.innerHeight, 1);
     const p = Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
     rulerFill.style.transform = `scaleX(${p})`;
-    rulerHead.style.left = `${p * 100}%`;
+    rulerHead.style.setProperty("--head", `${p * 100}%`);
     timecode.textContent = fmt(p * duration);
     if (cue) {
       // The scroll hint gets a lifetime, not a rhythm: it gives way under the

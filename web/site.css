@@ -113,7 +113,11 @@ nav.site .ruler .ruler-fill {
   transform-origin: left; transform: scaleX(0);
 }
 nav.site .ruler .ruler-head {
-  position: absolute; top: 50%; left: 0; width: 9px; height: 9px;
+  position: absolute; top: 50%; width: 9px; height: 9px;
+  /* site-chrome.js writes --head as the scroll progress. Clamping the track
+   * ends keeps the diamond inside the ruler at 0 and 1 instead of hanging
+   * half off the nav edge. */
+  left: clamp(5px, var(--head, 0%), calc(100% - 5px));
   transform: translate(-50%, -50%) rotate(45deg);
   background: var(--accent); border-radius: 2px;
 }
@@ -214,10 +218,15 @@ figure amx-player, figure img.plate {
 }
 figure img.plate { width: 100%; height: auto; }
 figcaption {
-  display: flex; align-items: baseline; gap: 16px; margin-top: 12px;
+  display: flex; flex-wrap: wrap; align-items: baseline;
+  gap: 8px 16px; margin-top: 12px;
   font-size: 14px; color: var(--faint);
 }
-figcaption .cap { flex: 1; min-width: 0; }
+/* The caption is the only shrinkable item, so give it a floor: the player's
+ * theater/edit buttons are injected as siblings, and on a narrow screen a
+ * `flex: 1; min-width: 0` caption collapsed to 12px and poured its text over
+ * the source link. Below 220px the controls wrap to their own line instead. */
+figcaption .cap { flex: 1 1 220px; min-width: 0; }
 figcaption .cap b { color: var(--dim); font-weight: 560; }
 figcaption a.src {
   color: var(--faint); text-decoration: none; white-space: nowrap;
