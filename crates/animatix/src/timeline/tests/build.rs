@@ -2327,3 +2327,52 @@ fade-in r [500ms]
         report.diagnostics
     );
 }
+
+#[test]
+fn rect_to_ellipse_redeclaration_keeps_rect_geometry_before_the_morph() {
+    // A same-label re-declaration that changes the actor type (the morph
+    // syntax) must not reach back before its own beat: the actor renders as
+    // its declared type until the morph starts. Regression: `box: Ellipse`
+    // at #1.5s made the Rect draw as a circle from frame 0 (the morph target
+    // leaked into the pre-morph span).
+    let source = r#"
+config { resolution: (640, 360), duration: 3 }
+box: Rect, size: (140, 140), color: accent.primary, at: (320, 180)
+
+#0.3s
+fade-in box [250ms, ease: ease-out]
+
+#1.5s
+box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
+"#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+    let track = timeline.tracks.get("box").expect("box track exists");
+
+    let radius_pre = track.shape.corner_radius.get(500, 0.0);
+    assert_eq!(
+        radius_pre, 0.0,
+        "corner_radius at t=500ms (before the #1.5s morph) must be the Rect's 0, got {radius_pre}"
+    );
+    let shape_pre = crate::timeline::TrackAccessor::get(
+        &track.shape.shape_type,
+        500,
+        crate::timeline::ShapeType::Rect,
+    );
+    assert_eq!(
+        shape_pre,
+        crate::timeline::ShapeType::Rect,
+        "shape_type at t=500ms must still be Rect"
+    );
+
+    // The frame-time primitive must follow the shape_type track, not the
+    // (last-write-wins) track identity: the actor renders as the declared
+    // Rect until the morph beat and as the re-declared Ellipse after it.
+    assert_eq!(track.render_type_name(500), "Rect");
+    assert_eq!(track.render_type_name(1_400), "Rect");
+    assert_eq!(track.render_type_name(2_400), "Ellipse");
+}

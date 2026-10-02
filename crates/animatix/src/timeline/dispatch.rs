@@ -29,6 +29,7 @@ use super::animation_track::{
 use super::kurbo_shapes::KurboShape;
 use super::morph;
 use super::property_track::{PropertyTrack, TrackAccessor};
+use super::shapes::ShapeType;
 use crate::easing::Easing;
 use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
@@ -311,6 +312,71 @@ impl AnimationTrack {
     pub(crate) fn set_identity(&mut self, actor_type: &str) {
         self.actor_type = actor_type.to_string();
         self.caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+    }
+
+    /// The primitive type name this track must resolve to at `time_ms`.
+    ///
+    /// Normally the track identity, but a same-label re-declaration that
+    /// changes the actor type — the morph syntax — leaves the identity
+    /// holding the LAST type while the `shape_type` keyframes carry the
+    /// switch. Resolving the primitive from the identity alone made the
+    /// target shape own the whole timeline: a `Rect` re-declared `Ellipse`
+    /// drew as a circle from birth (the Ellipse primitive builds its state
+    /// from the shared size track, so every pre-morph frame rounded too).
+    /// Inside the vector-shape family the per-frame `shape_type` value picks
+    /// the primitive instead; every other identity keeps its type, including
+    /// non-shape actors whose plan carries only a vestigial constant
+    /// `shape_type` (inserted by the generic morph build path).
+    pub fn render_type_name(&self, time_ms: u64) -> &str {
+        const VECTOR_SHAPES: [&str; 6] = ["Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path"];
+        if !VECTOR_SHAPES.contains(&self.actor_type.as_str()) {
+            return &self.actor_type;
+        }
+        let Some(shape_track) = self.shape.shape_type.as_ref() else {
+            return &self.actor_type;
+        };
+        // Only a track whose value actually changes may switch the primitive.
+        // The verdict is memoized on the track (`shape_type_switches`, cleared
+        // by `invalidate_frame_cache`): constant tracks — every non-morph
+        // vector shape — pay one `Cell` read per frame instead of re-walking
+        // the keyframe map.
+        let switches = match self.shape.shape_type_switches.get() {
+            Some(verdict) => verdict,
+            None => {
+                let mut values = shape_track.keyframes.values();
+                let Some((first, _)) = values.next() else {
+                    self.shape.shape_type_switches.set(Some(false));
+                    return &self.actor_type;
+                };
+                let changed = values.any(|(v, _)| v != first);
+                self.shape.shape_type_switches.set(Some(changed));
+                changed
+            },
+        };
+        if !switches {
+            return &self.actor_type;
+        }
+        // A `switches == true` verdict implies a non-empty map; emptiness
+        // returns through `invalidate_frame_cache`'s memo clear, so this
+        // guard is belt-and-braces, not a live path.
+        let Some((first, _)) = shape_track.keyframes.values().next() else {
+            return &self.actor_type;
+        };
+        let at: ShapeType = self.shape.shape_type.get(time_ms, *first);
+        let name = match at {
+            ShapeType::Rect => "Rect",
+            ShapeType::Ellipse => "Ellipse",
+            ShapeType::Line => "Line",
+            ShapeType::Polygon => "Polygon",
+            ShapeType::Path => "Path",
+            ShapeType::Arrow => "Arrow",
+            _ => return &self.actor_type,
+        };
+        if name != self.actor_type {
+            name
+        } else {
+            &self.actor_type
+        }
     }
 
     /// Refine this track's capabilities from a registration info card.

@@ -1490,6 +1490,7 @@ impl Timeline {
                 .shape
                 .vector_paths_epoch
                 .set(track.shape.vector_paths_epoch.get().wrapping_add(1));
+            track.shape.shape_type_switches.set(None);
         }
     }
 

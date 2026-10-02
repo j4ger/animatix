@@ -424,6 +424,14 @@ pub struct ShapeTracks {
     /// Mutation counter matched with the memo; see [`Self::vector_paths_memo`].
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths_epoch: std::cell::Cell<u64>,
+    /// Memoized "does this track's `shape_type` value ever change" verdict,
+    /// guarding the per-frame primitive switch in
+    /// `AnimationTrack::render_type_name` (cross-type morphs): a constant
+    /// shape-type track pays one `Cell` read per frame instead of re-scanning
+    /// the keyframe map. `invalidate_frame_cache` clears it in the same funnel
+    /// that bumps [`Self::vector_paths_epoch`]. Never serialized.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub shape_type_switches: std::cell::Cell<Option<bool>>,
 
     // ── Actor-anchor refs for `from`/`to` (G6) ──
     /// When set, `line_from` / `from` is resolved each frame from this

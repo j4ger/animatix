@@ -687,7 +687,7 @@ impl Timeline {
             // "no drawable content" — nothing is drawn and no hit region or
             // precise bounds are recorded for it.
             let primitive_dispatch = {
-                let primitive = self.track_primitive(track);
+                let primitive = self.track_primitive_at(track, time_ms);
                 if let Some(primitive) = primitive {
                     // Clear the shape-memo bounds handoff: a non-shape
                     // primitive must never observe the previous node's data.
@@ -822,14 +822,16 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve a track's primitive from its required `actor_type` registry key.
-    /// No kind fallback: a track without a resolvable type is a build-time
-    /// error, validated once at the end of `Timeline::build`.
-    pub(crate) fn track_primitive<'a>(
+    /// Resolve the primitive a track renders with at `time_ms`. The track's
+    /// `actor_type` is the registry key — except across a cross-type morph,
+    /// where the per-frame `shape_type` value, not the (last) identity, picks
+    /// the primitive; see `AnimationTrack::render_type_name`.
+    pub(crate) fn track_primitive_at<'a>(
         &'a self,
         track: &AnimationTrack,
+        time_ms: u64,
     ) -> Option<&'a dyn crate::primitives::Primitive> {
-        self.primitive_registry.find(&track.actor_type)
+        self.primitive_registry.find(track.render_type_name(time_ms))
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
@@ -844,7 +846,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
-        let primitive = self.track_primitive(child)?;
+        let primitive = self.track_primitive_at(child, time_ms)?;
         let vector_paths = child.evaluate_vector_paths(time_ms);
         child.begin_shape_commands();
         let ctx = crate::primitives::EvaluateCtx {
@@ -901,7 +903,7 @@ impl Timeline {
         // The primitive is the single child-rendering entry point; the pipeline
         // no longer branches on the child-processing strategy. A primitive
         // without a registered type renders nothing (validated at build time).
-        let Some(primitive) = self.track_primitive(track) else {
+        let Some(primitive) = self.track_primitive_at(track, time_ms) else {
             return;
         };
 
@@ -1332,7 +1334,7 @@ impl Timeline {
             };
             // A fragment is any child whose primitive opts into
             // `equation_fragment` — never a hard-coded type name.
-            let Some(primitive) = self.track_primitive(child_track) else {
+            let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
                 continue;
             };
             let child_vector_paths = child_track.evaluate_vector_paths(time_ms);
