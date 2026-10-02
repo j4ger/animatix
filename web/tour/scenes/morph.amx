@@ -9,7 +9,9 @@
 // state shapes"). The circle is a 16-gon (1.6px flats — it reads as a
 // circle), the square a phase-matched 16-gon, the match beat a 6-point
 // square→hexagon. `auto` is taught twice (a circle settling into a square,
-// a square tipping into a diamond).
+// a square tipping into a diamond). The diamond is sampled at 10 points and
+// the trapezoid at 6 for the same reason — do not "simplify" them back to 4:
+// a 4→10 span collapses into a blob mid-morph.
 //
 // Captions are five separate `Text` actors that hand off — one fully faded
 // out before the next fades in — instead of re-assigning one shared actor's
@@ -36,7 +38,7 @@ capS: Text, text: "stretch: true", font_size: 22, color: text.secondary,
 
 circle: Polygon, points: {(85, 0), (79, 32), (60, 60), (32, 79), (0, 85), (-32, 79), (-60, 60), (-79, 32), (-85, 0), (-79, -32), (-60, -60), (-32, -79), (0, -85), (32, -79), (60, -60), (79, -32)}, color: accent.primary, at: (320, 330)
 rect: Polygon, points: {(0, -85), (85, -85), (85, 85), (0, 85), (-85, 85), (-85, -85)}, color: accent.success, at: (640, 330)
-poly: Polygon, points: {(0, -85), (85, 0), (0, 85), (-85, 0)}, color: accent.warning, at: (960, 330)
+poly: Polygon, points: {(0, -85), (28, -57), (57, -28), (57, 28), (28, 57), (0, 85), (-28, 57), (-57, 28), (-57, -28), (-28, -57)}, color: accent.warning, at: (960, 330)
 
 #0.5s
 stagger [100ms] {
@@ -81,7 +83,7 @@ fade-out capP3 [200ms, ease: ease-in]
 fade-in capP25 [200ms, ease: expo-out]
 
 #6.5s
-poly: Polygon, points: {(0, -88), (88, 0), (0, 88), (-88, 0)}, color: accent.primary, at: (960, 330) [1.2s, path_arc: 0.25]
+poly: Polygon, points: {(0, -88), (29, -59), (59, -29), (59, 29), (29, 59), (0, 88), (-29, 59), (-59, 29), (-59, -29), (-29, -59)}, color: accent.primary, at: (960, 330) [1.2s, path_arc: 0.25]
 
 #7.65s
 fade-out capP25 [200ms, ease: ease-in]
@@ -104,7 +106,7 @@ fade-out capA [200ms, ease: ease-in]
 fade-in capS [200ms, ease: expo-out]
 
 #9s
-rect: Polygon, points: {(-90, -52), (90, -52), (62, 52), (-62, 52)}, color: accent.warning, at: (640, 330) [1s, stretch: true]
+rect: Polygon, points: {(0, -52), (90, -52), (62, 52), (0, 52), (-62, 52), (-90, -52)}, color: accent.warning, at: (640, 330) [1s, stretch: true]
 
 // Unify on the brand amber as a finale
 #9.8s

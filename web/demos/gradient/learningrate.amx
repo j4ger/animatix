@@ -11,7 +11,7 @@ step4_title: Text, text: "4. Step Size Matters", font_size: 40,
 
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 350),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with three parametric curves showing different decay rates.
@@ -19,7 +19,7 @@ contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
 // visible side by side; only the rate changes, matching the radial
 // gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
+  size: (560, 560), at: (400, 350) {
   too_small: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.12 * s) * cos(0.95),
                   3.84 * exp(-0.12 * s) * sin(0.95)),
@@ -36,16 +36,16 @@ lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
 
 // Labels for each curve
 label_small: Text, text: "Too small: slow", font_size: 14,
-  color: text.muted, at: (180, 200)
+  color: text.muted, at: (1000, 200)
 label_right: Text, text: "Just right: converges", font_size: 14,
-  color: accent.success, at: (180, 230)
+  color: accent.success, at: (1000, 230)
 label_big: Text, text: "Too big: diverges", font_size: 14,
-  color: accent.danger, at: (180, 260)
+  color: accent.danger, at: (1000, 260)
 
 // Lesson text
 lesson: Text,
   text: "Pick a learning rate that converges — not too small, not too large",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 300)
 
 #0.5s
 fade-in step4_title [500ms, ease: expo-out]

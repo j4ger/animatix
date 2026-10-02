@@ -43,7 +43,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 }
 
 # TheSort
-config { colorscheme: "ink", dynamic_layout: true, duration: 19 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 18.9 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -56,7 +56,7 @@ key_note: Callout {
   place: bottom,
   standoff: 10,
   label: "key",
-  label_at: (0, 22),
+  label_at: (26, 22),
   color: accent.warning
 }
 

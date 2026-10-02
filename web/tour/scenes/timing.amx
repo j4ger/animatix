@@ -24,11 +24,11 @@ row: Row, anchor: scene.center, gap: 64, align: "center", offset: (0, -40) {
   }
 }
 
-label_0: Text, text: "linear", font_size: 20, color: text.secondary, at: (272, 462)
-label_1: Text, text: "ease-in", font_size: 20, color: text.secondary, at: (456, 462)
-label_2: Text, text: "ease-out", font_size: 20, color: text.secondary, at: (640, 462)
-label_3: Text, text: "ease-in-out", font_size: 20, color: text.secondary, at: (824, 462)
-label_4: Text, text: "bounce", font_size: 20, color: text.secondary, at: (1008, 462)
+label_0: Text, text: "linear", font_size: 26, color: text.secondary, at: (272, 462)
+label_1: Text, text: "ease-in", font_size: 26, color: text.secondary, at: (456, 462)
+label_2: Text, text: "ease-out", font_size: 26, color: text.secondary, at: (640, 462)
+label_3: Text, text: "ease-in-out", font_size: 26, color: text.secondary, at: (824, 462)
+label_4: Text, text: "bounce", font_size: 26, color: text.secondary, at: (1008, 462)
 
 #0.5s
 fade-in title [500ms, ease: expo-out]
@@ -42,24 +42,25 @@ stagger [120ms] {
 
 #2.5s
 sequence {
-  square[0].size = (150, 150) [400ms, ease: ease-out]
-  square[1].size = (150, 150) [400ms, ease: ease-out]
-  square[2].size = (150, 150) [400ms, ease: ease-out]
-  square[3].size = (150, 150) [400ms, ease: ease-out]
-  square[4].size = (150, 150) [400ms, ease: ease-out]
+  square[0].scale = 1.25 [400ms, ease: ease-out]
+  square[1].scale = 1.25 [400ms, ease: ease-out]
+  square[2].scale = 1.25 [400ms, ease: ease-out]
+  square[3].scale = 1.25 [400ms, ease: ease-out]
+  square[4].scale = 1.25 [400ms, ease: ease-out]
 }
 
-// five named eases, one per square — animating SIZE, not color: a color
+// five named eases, one per square — animating SCALE, not color: a color
 // lerp cannot show an ease curve, and re-assigning the declared colors is
-// an identity assignment (nothing moves). 150 -> 120 makes linear vs
-// ease-in vs bounce visibly different while the labels stay under the
-// slot centres.
+// an identity assignment (nothing moves). 1.25 -> 1.0 makes linear vs
+// ease-in vs bounce visibly different. Scale rather than size: these squares
+// live in a Row, so growing `size` reflows the slots and each label drifts off
+// the square it names; `scale` paints without touching layout.
 #5s
-square[0].size = (120, 120) [600ms, ease: linear]
-square[1].size = (120, 120) [600ms, ease: ease-in]
-square[2].size = (120, 120) [600ms, ease: ease-out]
-square[3].size = (120, 120) [600ms, ease: ease-in-out]
-square[4].size = (120, 120) [600ms, ease: bounce]
+square[0].scale = 1.0 [600ms, ease: linear]
+square[1].scale = 1.0 [600ms, ease: ease-in]
+square[2].scale = 1.0 [600ms, ease: ease-out]
+square[3].scale = 1.0 [600ms, ease: ease-in-out]
+square[4].scale = 1.0 [600ms, ease: bounce]
 
 // Labels arrive BEFORE the ease beat (last one settles at 4.94 < 5.0) —
 // they name curves that are already over when they fade in.

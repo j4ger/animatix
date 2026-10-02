@@ -9,7 +9,7 @@ title: Text, text: "Actors & keyframes", font_size: 34, color: text.primary,
   anchor: scene.top, offset: (0, 56)
 
 box: Rect, size: (240, 240), color: accent.primary, at: (420, 390)
-dot: Ellipse, size: (40, 40), color: accent.danger, at: (930, 390)
+dot: Ellipse, size: (40, 40), color: accent.danger, at: (930, 560)
 
 #0.3s
 fade-in title [600ms, ease: expo-out]
@@ -29,7 +29,7 @@ box.color = text.primary [700ms, ease: ease-out]
 fade-in dot [350ms, ease: expo-out]
 
 #4.3s
-dot.at = (640, 390) [700ms, ease: ease-in-out]
+dot.at = (640, 560) [700ms, ease: ease-in-out]
 
 // Outro: empty the plate so the loop wraps from quiet, not from a full frame.
 #6.3s

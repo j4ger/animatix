@@ -21,7 +21,7 @@ eq3: Typst, text: "$ integral_0^1 x^2 dif x = 1/3 $",
 code1: Code, code: "def attention(q, k):", language: "python",
   font_size: 32, color: text.primary, anchor: scene.center, offset: (-133, 170)
 code2: Code, code: "    return softmax(q @ k / sqrt(64))", language: "python",
-  font_size: 32, color: text.primary, anchor: scene.center, offset: (-60, 220)
+  font_size: 32, color: text.primary, anchor: scene.center, offset: (-20, 220)
 
 #0.4s
 fade-in title [500ms, ease: expo-out]

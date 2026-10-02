@@ -47,6 +47,13 @@ goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
 #5.2s
 fade-in goal_hint [500ms, ease: expo-out]
 
+// Clear the title slot before the crossfade: both acts title at
+// `scene.top, offset: (0, 52)`, so a `fade` between them superimposes the two
+// headings into an unreadable smear.
+#5.6s
+fade-out goal_title [350ms, ease: ease-in]
+fade-out goal_hint [300ms, ease: ease-in]
+
 #6s
 play OneCircle [fade, 500ms]
 
@@ -108,6 +115,10 @@ always {
 
 #13.8s
 fade-in one_hint [400ms, ease: expo-out]
+
+#14s
+fade-out one_title [350ms, ease: ease-in]
+fade-out one_hint [300ms, ease: ease-in]
 
 #14.4s
 play Hero [wipe-left, 500ms]
@@ -226,6 +237,9 @@ eq_7.color = accent.warning [400ms]
 
 #15.5s
 eq_7.color = text.secondary [400ms]
+
+#21.1s
+fade-out hero_title [350ms, ease: ease-in]
 
 #21.5s
 play Spectrum [wipe-left, 500ms]

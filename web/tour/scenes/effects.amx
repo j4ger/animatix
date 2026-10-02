@@ -21,7 +21,7 @@ panel: Filter, anchor: scene.center {
   art: Group, anchor: scene.center {
     plate: Rect, size: (560, 320), color: surface.secondary
     ring: Ellipse, size: (180, 180), color: accent.primary
-    bar: Rect, size: (340, 24), color: accent.primary, at: (0, 120)
+    bar: Rect, size: (340, 24), color: accent.primary, at: (0, 140)
   }
 }
 
@@ -29,13 +29,13 @@ label: Text, text: "filters are declared as children", font_size: 24,
   color: text.primary, at: (640, 168)
 
 capB: Text, text: "blur radius 0 -> 14", font_size: 22, color: text.secondary,
-  at: (640, 622), opacity: 0.0
+  at: (640, 660), opacity: 0.0
 capV: Text, text: "vignette 0.75", font_size: 22, color: text.secondary,
-  at: (640, 622), opacity: 0.0
+  at: (640, 660), opacity: 0.0
 capD: Text, text: "brightness dip", font_size: 22, color: text.secondary,
-  at: (640, 622), opacity: 0.0
+  at: (640, 660), opacity: 0.0
 capE: Text, text: "shake + pulse", font_size: 22, color: text.secondary,
-  at: (640, 622), opacity: 0.0
+  at: (640, 660), opacity: 0.0
 
 chip: Rect, size: (150, 44), color: accent.warning, anchor: scene.center, offset: (0, 220)
 

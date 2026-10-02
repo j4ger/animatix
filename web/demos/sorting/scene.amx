@@ -71,6 +71,15 @@ fade-in title [700ms, ease: expo-out]
 fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
 fade-in hint [500ms, delay: 450ms, ease: expo-out]
 
+// The overture's centred text sits exactly where the bars grow, so clear it
+// before the crossfade rather than letting both draw at half opacity.
+#2.1s
+stagger [60ms] {
+  fade-out title [280ms, ease: ease-in]
+  fade-out subtitle [280ms, ease: ease-in]
+  fade-out hint [280ms, ease: ease-in]
+}
+
 #2.5s
 play TheSort [fade, 500ms]
 
@@ -90,7 +99,7 @@ key_note: Callout {
   place: bottom,
   standoff: 10,
   label: "key",
-  label_at: (0, 22),
+  label_at: (26, 22),
   color: accent.warning
 }
 

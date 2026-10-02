@@ -205,8 +205,11 @@ sequence {
 fade-out cursor [300ms, delay: 2000ms, ease: ease-in]
 
 // Outro: the matrix Grid fades as a container; quiet plate before the wrap.
+// The stagger is deliberately near-simultaneous: at 40ms the 23 items spread
+// ~0.9s, so the grid had vanished while the row/column labels were still
+// fully lit — a half-empty stage for the last beat of the loop.
 #5.90s
-stagger [40ms] {
+stagger [12ms] {
   fade-out matrix [260ms, ease: ease-in]
   fade-out key_cap [260ms, ease: ease-in]
   fade-out key_lo [260ms, ease: ease-in]

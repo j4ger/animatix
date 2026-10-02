@@ -11,7 +11,7 @@ cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
 grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.2, 1.2),
   size: (640, 480), at: (420, 400),
   x_range: (-1, 1, 1), y_range: (-1, 1, 1),
-  color: surface.secondary, stroke_width: 1.0
+  color: stroke.default, stroke_width: 1.0
 
 unit_circle: Ellipse, size: (400, 400), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (420, 400)

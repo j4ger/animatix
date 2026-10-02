@@ -27,8 +27,10 @@ q_formula: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
   color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
 q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (980, 250)
 
+// The verdict row runs under the buckets: the old offset (-260, -160) put it
+// at (380, 560), straight through the "owl" resident chip and its chain line.
 verdict_hit: Text, text: "found", font_size: 18, color: accent.success,
-  anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
+  anchor: scene.bottom, offset: (0, -56), opacity: 0.0
 
 #0.3s
 fade-in lk_title [500ms, ease: expo-out]
@@ -61,7 +63,7 @@ fade-out q_chip [300ms, ease: ease-in]
 fade-out verdict_hit [240ms, ease: ease-in]
 
 // query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
-q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250), opacity: 0.0
 #5.2s
 fade-in q2 [300ms, ease: expo-out]
 q_formula.text = "owl: 50 mod 8 = 2"
@@ -80,9 +82,9 @@ fade-in verdict_hit [260ms, ease: expo-out]
 fade-out verdict_hit [240ms, ease: ease-in]
 
 // query 3: cow → bucket 1 → empty → not found
-q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
+q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250), opacity: 0.0
 verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
-  anchor: scene.bottom, offset: (-530, -160), opacity: 0.0
+  anchor: scene.bottom, offset: (0, -56), opacity: 0.0
 #9.9s
 fade-in q3 [300ms, ease: expo-out]
 q_formula.text = "cow: 41 mod 8 = 1"

@@ -19,15 +19,12 @@ spectrum: BarChart,
   show_labels: true,
   at: (640, 400)
 
-spec_note: Callout {
-  from: (880, 200),
-  target: spectrum,
-  place: left,
-  standoff: 12,
-  label: "1/k decay",
-  label_at: (0, -20),
-  color: accent.warning
-}
+// A Callout placed left of the Bars lands its label inside the k=1 bar
+// (measured 256-341 × 360-382 against a bar spanning 297-470) — coral on
+// amber, unreadable. The note is a property of the whole series, so it reads
+// better in the clear left margin than with a leader through a bar.
+spec_note: Text, text: "1/k decay", font_size: 20, color: accent.warning,
+  anchor: scene.center, offset: (-430, -120)
 
 #0.4s
 fade-in spec_title [500ms, ease: expo-out]

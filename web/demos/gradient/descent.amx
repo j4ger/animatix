@@ -34,7 +34,7 @@ live_loss: Text, text: "loss = 14.75", font_size: 18,
 
 // Takeaway text
 takeaway: Text, text: "Step against the gradient, reach the minimum", font_size: 22,
-  color: text.secondary, anchor: scene.center, offset: (0, 260)
+  color: text.secondary, anchor: scene.center, offset: (330, 180)
 
 always {
   let s = clamp(t - 1.0, 0.0, 4.5)

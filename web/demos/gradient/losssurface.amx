@@ -9,16 +9,16 @@ step_title: Text, text: "The Loss Surface", font_size: 40,
 
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 400),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 372),
   resolution: 96, color: accent.primary, stroke_width: 2.0
 
 // Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
 field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 400),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 372),
   color: text.muted
 
 // Global minimum at (0, 0)
-min_dot: Ellipse, size: (12, 12), color: accent.success, at: (640, 400)
+min_dot: Ellipse, size: (12, 12), color: accent.success, at: (640, 372)
 
 caption: Text,
   text: "Contours = equal loss; arrows = gradient (uphill)",
