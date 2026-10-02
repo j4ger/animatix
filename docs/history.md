@@ -1385,3 +1385,85 @@ canvas region white while `debug_readback` proves the scene renders: hero
 avg (17,19,24) / 50 distinct colours), so scroll-wiring verdicts rest on
 DOM probes + the readback path; the no-WebGPU veil was confirmed by running
 without the flag ("no WebGPU adapter available" surfaces, no white screen).
+
+## The Easing Pass — one vocabulary for the site's motion (2026-10-02)
+
+Started as a bug report ("the bounce animation on the page is cheap") and
+ended as a pass over the easing library, the `bounce` action, the formatter,
+and every content scene.
+
+**Why the bounce was cheap.** `Easing` is a scalar `progress → progress` map
+applied to the lerp between two keyframe values, so it can only modulate
+travel *along the line between them*. `ease: bounce` on
+`ball.at = (1360,726)` from `(240,726)` therefore cannot make an arc — the
+endpoints share a y, so the curve has nowhere to put the hop, and what you get
+is the ball jerking sideways past its target. The name invited it: there is
+also a `bounce` **action**, which does move through space. Five uses in the
+hero plate, and the most-seen motion on the site was a wobble wearing a
+physics name.
+
+**What the library gained.** `expo-out` and `expo-in-out` (the corpus had 155
+annotations on a *quadratic* ease-out and no fast-start/long-settle curve at
+all — `expo` was expo-in), `spring(damping, frequency)` as a damped oscillator
+that overshoots once and rings down onto its target, and `ease:
+cubic-bezier(x1,y1,x2,y2)` / `ease: spring(6,9)` call syntax. The bezier
+variant and its evaluator already existed; `extract_easing` only accepted a
+bare identifier, so `ease: custom` had been silently resolving to fixed
+default control points ≈ ease-in-out.
+
+**Four tables, now one.** Name→curve mappings lived in
+`animatix-syntax::easing`, `animatix::timeline::timing` (a shadowing copy that
+had already fallen behind — it lacked `custom`, so the editor offered an
+easing the build layer rejected and quietly ignored), the GUI's
+`easing_display_name`, and the GUI's source-edit table which overwrote any
+custom curve with `linear` on save. All four resolve through
+`parse_easing_name` / `easing_source_form` / `easing_to_expr` now, pinned by
+`every_registry_id_parses`, `every_curve_holds_its_endpoints`,
+`source_form_round_trips`, `parameterized_eases_check_their_arity`,
+`engine_easing_names_cover_the_syntax_registry` and `ease_roundtrip.rs`.
+Registry ids became the hyphenated forms the corpus actually writes, so the
+GUI stopped emitting `easeout` into hand-authored files.
+
+**The formatter deleted eases.** `Stmt::Assignment` keeps its easing in a
+typed field that the parser lifts *out* of the modifier list, and the printer
+walked only the list — so `animatix fmt` turned
+`[1.2s, ease: ease-out]` into `[1.2s]`. Statement-count roundtrip tests could
+not see it. Fixed, with `eases_survive_the_source_roundtrip` as the guard.
+(The formatter still destroys comments — see `docs/roadmap.md`.)
+
+**The `bounce` action is now gravity.** It wrote three `motion_offset`
+keyframes — down `intensity`, up 30% of it, settle — one overshoot wearing the
+name. It is now a decaying series: hop *n* rises `intensity·r^(2n)` and stays
+airborne `d₀·rⁿ`, so contacts fall closer and closer together, with
+`restitution` as the handle and the hops scaled to fill the duration exactly.
+Rising decelerates and falling accelerates, which *is* the parabola; and
+because it stays on the additive `motion_offset` channel it composes under a
+positional `at` keyframe instead of fighting it. The hero plate's ball moved
+onto it, replacing a hand-solved `always` block with two lines.
+
+**Action modifiers from their signatures.** `parse_timing_modifiers` tolerated
+effect keys through a hardcoded six-name list, so `bounce [restitution: …]`
+warned about a modifier the bounce signature declares. The signatures are now
+the source, with tests for both directions (declared keys silent, typos loud).
+
+**Content pass.** 42 scenes audited: 155 of 207 explicit easings were the same
+curve and ~880 timed statements carried none at all, interpolating Linear.
+Adopted a vocabulary — entrances `expo-out`, exits `ease-in`, emphasis
+landings `spring`, measurement motion `linear` — applied mechanically to
+entrance/exit verbs, then reviewed scene by scene from rendered keyframes.
+That review found and fixed 20 layout and correctness defects; see the
+`fix(animatix): clear the collisions…` commit. The worst were the matrix
+scenes drawing +y downward while their live readout said `(cos, sin)` —
+the diagram contradicting the numbers for an entire scene — and morph spans
+whose point counts differed, collapsing into a blob mid-interpolation.
+
+**Acceptance notes.** All 17 pages × 3 viewports (1280/820/420) pass a DOM
+layout probe with zero page-overflow, off-screen, or clipped-text findings;
+the probe found the nav playhead hanging half off the edge at scroll 0 and a
+`figcaption` nowrap flex row that squeezed the caption to 12px and poured its
+text over the source link on every demo page below ~500px. The wasm bundles
+are gitignored and CI-built (`pages.yml`), and this environment's dev-shell
+`rustc` cannot see the rustup-installed wasm32 std, so the new curves are
+verified through the native renderer and the shared evaluator rather than a
+locally rebuilt browser bundle; a stale bundle degrades them to linear rather
+than erroring.
