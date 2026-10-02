@@ -171,13 +171,14 @@ p strong { color: var(--ink); font-weight: 560; }
 a { color: var(--accent-strong); text-decoration-color: var(--accent-dim); }
 a:hover { color: var(--accent); text-decoration-color: var(--accent); }
 
+/* A wrapping metadata row needs no separators: the gap is the separator.
+   Leading dots orphaned at the head of a wrapped line, trailing ones dangled
+   at the end of one. */
 .meta {
   color: var(--faint); font-size: 14px; margin: 20px 0 0; padding: 0;
-  display: flex; gap: 18px; flex-wrap: wrap; list-style: none;
-  font-family: var(--mono);
+  display: flex; flex-wrap: wrap; column-gap: 30px; row-gap: 6px;
+  list-style: none; font-family: var(--mono);
 }
-.meta li::before { content: "·"; margin-right: 8px; color: var(--accent-dim); }
-.meta li:first-child::before { content: none; margin: 0; }
 
 /* ── contents ──────────────────────────────────────────────────────── */
 nav.toc {
