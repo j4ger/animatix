@@ -6,11 +6,11 @@
 // for the slim engine (plain text and vector shapes only).
 //
 // Structure: viewfinder brackets draw first (the instrument frame), the
-// layout grid flashes in and recedes, the wordmark rises onto it while an
+// layout grid flashes in and recedes, the wordmark settles onto it while an
 // amber underline draws itself under a riding carriage, the tagline follows,
 // then three primitives fly in from off-stage and trade shapes and colors —
-// one of them morphing — and a red ball crosses the footer of the frame on
-// `ease: bounce` to close the loop.
+// one of them morphing — and a red ball hops across the footer under its own
+// gravity to close the loop.
 //
 // Layout rule observed: every actor is declared before the first keyframe;
 // ones with no authored opacity stay hidden until their entrance action.
@@ -95,7 +95,8 @@ stagger [90ms] {
 fade-in grid [650ms, ease: ease-out]
 
 // The grid flashes to full, then recedes to a texture as the type arrives;
-// the wordmark rises the last few pixels with a back-ease overshoot.
+// the wordmark settles the last few pixels. Display type never overshoots —
+// a 168px wordmark on a back-ease reads as jelly, not as motion design.
 #0.9s
 grid.opacity = 0.15 [1s, ease: ease-out]
 
@@ -103,7 +104,7 @@ grid.opacity = 0.15 [1s, ease: ease-out]
 fade-in wordmark [550ms, ease: ease-out]
 
 #1.1s
-shift wordmark [by: (0, 24), 750ms, ease: back]
+shift wordmark [by: (0, 24), 750ms, ease: ease-out]
 
 #1.7s
 draw-in underline [750ms, ease: ease-out]
@@ -118,19 +119,21 @@ fade-out carriage [300ms]
 fade-in tagline [600ms, ease: ease-out]
 
 #2.9s
-shift tagline [by: (0, -12), 650ms, ease: back]
+shift tagline [by: (0, -12), 650ms, ease: ease-out]
 
-// The trio flies in — each from a different edge, on the bounce. The
+// The trio flies in — each from a different edge. The arrival is a plain
+// ease-out: they are props for the morph beat below, and a shape that
+// wobbles into place announces the easing rather than the object. The
 // stagger is tight (60ms) so all three are airborne together and the beat
 // reads as a trio, not a sequence of solo dots.
 #3.9s
 stagger [60ms] {
   fade-in sq [200ms]
-  sq.at = (704, 610) [700ms, ease: bounce]
+  sq.at = (704, 610) [700ms, ease: ease-out]
   fade-in ci [200ms]
-  ci.at = (800, 610) [700ms, ease: bounce]
+  ci.at = (800, 610) [700ms, ease: ease-out]
   fade-in di [200ms]
-  di.at = (896, 610) [700ms, ease: bounce]
+  di.at = (896, 610) [700ms, ease: ease-out]
 }
 
 // The trade: square morphs round, the diamond squares up and takes the
@@ -143,14 +146,27 @@ di: Polygon, points: {(0, -49), (49, 0), (0, 49), (-49, 0)},
 ci.size = (96, 42) [450ms, ease: ease-in-out]
 
 #6.7s
-ci.size = (76, 76) [500ms, ease: bounce]
+ci.size = (76, 76) [500ms, ease: ease-out]
 
-// The red ball crosses the footer on the brand ease.
+// The red ball hops across the footer under its own gravity. `ease: bounce`
+// on a straight traverse is not a bounce — it is the curve wobbling past its
+// target, so the ball jerks sideways and stops. Here `always` solves the arc
+// per frame instead: each hop keeps 60% of the last one's airtime, so the
+// contacts fall closer and closer together the way a settling ball does, and
+// x advances independently of the arc, so the drift never stalls at an apex.
 #7.8s
 fade-in ball [250ms]
 
-#8.3s
-ball.at = (1360, 726) [2.2s, ease: bounce]
+always {
+  let bt = min(t - 8.3, 2.3)
+  if bt >= 0.0 {
+    let r = 0.6
+    let k = floor(log(1.0 - bt * (1.0 - r) / 0.95) / log(r))
+    let rk = exp(k * log(r))
+    let u = (bt - 0.95 * (1.0 - rk) / (1.0 - r)) / (0.95 * rk)
+    ball.at = (240.0 + 487.0 * bt, 726.0 - 760.0 * rk * rk * u * (1.0 - u))
+  }
+}
 
 // Settle: the grid breathes once…
 #10.3s
