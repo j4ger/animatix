@@ -528,6 +528,39 @@ fade-in pic [300ms]
 
     // The transformer demo scenes (web/demos/transformer/scenes) must always
     // build cleanly — they are embedded in the shipped demo page.
+    //
+    // The scenes import the site theme two directories up (`../../lib/
+    // theme.amx` -> web/demos/lib/theme.amx), which the browser fetches and
+    // registers through the missing-imports retry protocol. The test helper
+    // drives that same protocol: build, register every reported key from the
+    // theme source, rebuild until the graph closes.
+    fn build_demo_scene(source: &str) -> BuiltDocument {
+        let mut modules: Vec<(PathBuf, String)> = Vec::new();
+        for _ in 0..4 {
+            let mut doc = build_document_with_modules(
+                source,
+                &modules,
+                Arc::new(FontContext::new()),
+                BuildQuality::Draft,
+                None,
+            );
+            if doc.result.missing_imports.is_empty() {
+                return doc;
+            }
+            for key in std::mem::take(&mut doc.result.missing_imports) {
+                assert!(
+                    key.ends_with("theme.amx"),
+                    "demo scenes should only import the site theme, got {key}"
+                );
+                let path = PathBuf::from(&key);
+                if !modules.iter().any(|(p, _)| *p == path) {
+                    modules.push((path, include_str!("../../../web/demos/lib/theme.amx").into()));
+                }
+            }
+        }
+        panic!("the demo scene's import graph never closed: {source:?}");
+    }
+
     #[test]
     fn transformer_demo_scenes_build_cleanly() {
         const SCENES: &[(&str, &str)] = &[
@@ -546,7 +579,7 @@ fade-in pic [300ms]
             ("pipeline", include_str!("../../../web/demos/transformer/scenes/pipeline.amx")),
         ];
         for (name, source) in SCENES {
-            let doc = build_document(source, Arc::new(FontContext::new()), BuildQuality::Draft);
+            let doc = build_demo_scene(source);
             assert!(
                 doc.result.ok,
                 "demo scene '{name}' failed to build: {:?}",
@@ -567,8 +600,8 @@ fade-in pic [300ms]
     #[test]
     fn load_result_markers_expose_timeline_landmarks() {
         const TOKENS: &str = include_str!("../../../web/demos/transformer/scenes/tokens.amx");
-        let doc = build_document(TOKENS, Arc::new(FontContext::new()), BuildQuality::Draft);
-        assert!(doc.result.ok);
+        let doc = build_demo_scene(TOKENS);
+        assert!(doc.result.ok, "tokens should build: {:?}", doc.result.diagnostics);
         let ts: Vec<f64> = doc
             .result
             .markers

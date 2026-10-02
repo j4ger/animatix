@@ -3045,7 +3045,18 @@ mod tests {
 
     /// Helper: create a default FontContext (loads system fonts, may be slow on CI).
     fn test_font_ctx() -> FontContext {
-        FontContext::with_fast_path(true)
+        let mut ctx = FontContext::with_fast_path(true);
+        // These tests assert the BUNDLED Open Sans faces "should always
+        // work", but the plain `FontContext` db is system fonts only — the
+        // bundle is registered by the embed/wasm path, not by `new()`.
+        // Mirror that registration here so the tests are hermetic instead of
+        // passing only on hosts that happen to install Open Sans system-wide.
+        for bf in BUNDLED_FONTS {
+            if bf.family == "Open Sans" {
+                ctx.load_font_bytes(bf.data.to_vec());
+            }
+        }
+        ctx
     }
 
     /// Serialize the tests that assert on the process-wide compile cache
