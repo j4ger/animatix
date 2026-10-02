@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
@@ -13,7 +14,7 @@ spec_eq: Text, text: "a(k) = 4 / (pi k)   for odd k,   0   otherwise",
 spectrum: BarChart,
   data: {("k=1", 140), ("k=3", 47), ("k=5", 28), ("k=7", 20)},
   size: (760, 360),
-  bar_colors: {(0.38, 0.78, 1, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1), (1, 0.5, 0.55, 1)},
+  bar_colors: {accent.primary, accent.primary, accent.primary, accent.warning},
   show_axis: true,
   show_labels: true,
   at: (640, 400)

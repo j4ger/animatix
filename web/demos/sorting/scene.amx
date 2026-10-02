@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 
 config {
@@ -11,6 +12,9 @@ config {
 // currently at the two slots being exchanged. Each comparison lights a tick in
 // `comp_row`; each swap lights one in `swap_row` — the counters count up with
 // zero hand-written keyframes. `[step:]` advances the build-time clock.
+// Ticks light by COLOUR (surface.secondary -> the row's token), not by an
+// opacity fade-in: `fade-in` settles on the authored 0.15 and the counter
+// never visibly lights.
 fn insertion_sort(bars, values: List<Num>, comp_ticks, swap_ticks) {
   let order = {0, 1, 2, 3, 4, 5, 6, 7}
   let ci = 0
@@ -19,12 +23,12 @@ fn insertion_sort(bars, values: List<Num>, comp_ticks, swap_ticks) {
     key_note.target = bars.bar[order[key]] [300ms]
     for j in {0, 1, 2, 3, 4, 5, 6} [step: 300ms] {
       if j < key {
-        fade-in comp_ticks.t[ci] [120ms]
+        comp_ticks.t[ci].color = accent.info [120ms]
         let ci = ci + 1
         if values[order[key - j]] < values[order[key - j - 1]] {
           swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [260ms]
           let order = list_swap(order, key - j, key - j - 1)
-          fade-in swap_ticks.t[si] [120ms]
+          swap_ticks.t[si].color = accent.warning [120ms]
           let si = si + 1
         }
       }
@@ -32,10 +36,10 @@ fn insertion_sort(bars, values: List<Num>, comp_ticks, swap_ticks) {
   }
 }
 
-pub component Ticks(count: List<Num>, color: Color) {
+pub component Ticks(count: List<Num>) {
   row: Row, gap: 6 {
     for v, i in count {
-      t[i]: Rect, size: (14, 22), color: color, opacity: 0.15
+      t[i]: Rect, size: (14, 22), color: surface.secondary
     }
   }
 }
@@ -51,7 +55,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 // ── Scene 1: Overture ───────────────────────────────────────────────────────
 
 # Overture
-config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 3 }
 
 title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -70)
@@ -60,20 +64,20 @@ subtitle: Text, text: "insertion sort · eight bars · one timeline function",
   font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 10)
 
 hint: Text, text: "every comparison and swap below is emitted at build time",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.center, offset: (0, 70)
+  font_size: 20, color: text.muted, anchor: scene.center, offset: (0, 70)
 
 #0s
 fade-in title [700ms, ease: ease-out]
 fade-in subtitle [600ms, delay: 250ms]
 fade-in hint [500ms, delay: 450ms]
 
-#5.4s
+#2.5s
 play TheSort [fade, 500ms]
 
 // ── Scene 2: The Sort ───────────────────────────────────────────────────────
 
 # TheSort
-config { colorscheme: "ink", dynamic_layout: true, duration: 21 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 19.5 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -83,23 +87,25 @@ bars: Bars, values: {42, 17, 93, 5, 68, 31, 76, 12}, color: accent.info
 key_note: Callout {
   from: (240, 150),
   target: bars.bar[1],
-  place: top,
+  place: bottom,
   standoff: 10,
   label: "key",
-  label_at: (0, -18),
+  label_at: (0, 22),
   color: accent.warning
 }
 
-comp_label: Text, text: "comparisons", font_size: theme.text_sm,
-  color: text.secondary, anchor: scene.center, offset: (-430, 235)
-comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}, color: accent.info, anchor: scene.center, offset: (-300, 243)
+// Labels end at x~163 (left-anchored column), strips start at x=223 — the
+// rows never share pixels.
+comp_label: Text, text: "comparisons", font_size: 20,
+  color: text.secondary, anchor: scene.center, offset: (-520, 235)
+comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}, anchor: scene.center, offset: (-140, 243)
 
-swap_label: Text, text: "swaps", font_size: theme.text_sm,
-  color: text.secondary, anchor: scene.center, offset: (-430, 285)
-swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, color: accent.warning, anchor: scene.center, offset: (-300, 293)
+swap_label: Text, text: "swaps", font_size: 20,
+  color: text.secondary, anchor: scene.center, offset: (-520, 285)
+swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, anchor: scene.center, offset: (-270, 293)
 
 sort_caption: Text, text: "the key slides left past every larger neighbor",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0s
 fade-in sort_title [500ms]
@@ -108,6 +114,8 @@ fade-in key_note [400ms, delay: 300ms]
 stagger [80ms] {
   fade-in comp_label [300ms]
   fade-in swap_label [300ms]
+  fade-in comp_ticks [300ms]
+  fade-in swap_ticks [300ms]
   fade-in sort_caption [300ms]
 }
 
@@ -115,24 +123,24 @@ stagger [80ms] {
 #1.2s
 insertion_sort(bars, {42, 17, 93, 5, 68, 31, 76, 12}, comp_ticks, swap_ticks)
 
-#19.5s
+#19s
 play Finale [fade, 500ms]
 
 // ── Scene 3: Finale ─────────────────────────────────────────────────────────
 
 # Finale
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 5.5 }
 
 finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 64)
+  color: text.primary, anchor: scene.top, offset: (0, 120)
 
-finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.success
+finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.primary
 
 footnote: Text, text: "insertion sort: O(n^2) comparisons, O(1) extra memory",
   font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
 
 endnote: Text, text: "one timeline function emitted every beat you just watched",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 #0s
 fade-in finale_title [500ms]
@@ -148,3 +156,12 @@ fade-in footnote [700ms, ease: ease-out]
 
 #3.2s
 fade-in endnote [600ms]
+
+// Outro: quiet plate before the document loops.
+#5.0s
+stagger [60ms] {
+  fade-out endnote [280ms]
+  fade-out footnote [280ms]
+  fade-out finale_bars [280ms]
+  fade-out finale_title [280ms]
+}

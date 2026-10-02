@@ -1,22 +1,23 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
 # Hero
-config { colorscheme: "ink", dynamic_layout: true, duration: 24 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 22 }
 
 hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
 
-c1: Ellipse, size: (280, 280), color: accent.info,
+c1: Ellipse, size: (280, 280), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (280, 400)
-c2: Ellipse, size: (94, 94), color: accent.success,
+c2: Ellipse, size: (94, 94), stroke: accent.success,
   fill_opacity: 0, stroke_width: 2, at: (420, 400)
-c3: Ellipse, size: (56, 56), color: accent.warning,
+c3: Ellipse, size: (56, 56), stroke: accent.primary,
   fill_opacity: 0, stroke_width: 2, at: (466, 400), opacity: 0
-c4: Ellipse, size: (40, 40), color: accent.danger,
+c4: Ellipse, size: (40, 40), stroke: accent.danger,
   fill_opacity: 0, stroke_width: 2, at: (494, 400), opacity: 0
 
-tip: Ellipse, size: (14, 14), color: accent.warning, at: (420, 400)
+tip: Ellipse, size: (14, 14), color: accent.primary, at: (420, 400)
 
 hero_graph: Graph, at: (830, 400), size: (760, 440),
   x_domain: (0, 12.566), y_domain: (-2, 2) {
@@ -25,10 +26,10 @@ hero_graph: Graph, at: (830, 400), size: (760, 440),
     color: accent.primary, stroke_width: 3, stroke_progress: 0
 }
 
-wave_tip: Ellipse, size: (12, 12), color: accent.warning, at: (830, 400)
+wave_tip: Ellipse, size: (12, 12), color: accent.primary, at: (830, 400)
 
-hero_link: Line, from: tip.center, to: wave_tip.center,
-  stroke: accent.warning, stroke_width: 1.5, opacity: 0.6
+hero_link: Line, from: (420, 400), to: (830, 400),
+  stroke: accent.primary, stroke_width: 1.5, opacity: 0.45
 
 // The harmonic terms are a Row of separate Text actors so each one can be
 // highlighted on its own beat. (Equation Fragments are dodged deliberately:
@@ -40,43 +41,57 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
   eq_7: Text, text: "+ sin 7x/7", font_size: 26, color: text.secondary
 }
 
-#0.3s
+#0.05s
 fade-in hero_title [500ms]
 fade-in c1 [500ms]
 fade-in c2 [500ms]
 fade-in tip [400ms, delay: 200ms]
 fade-in hero_graph [500ms, delay: 300ms]
-fade-in hero_wave [400ms, delay: 400ms]
 fade-in wave_tip [400ms, delay: 500ms]
+fade-in hero_link [400ms, delay: 500ms]
 fade-in eq_row [500ms, delay: 500ms]
 
 #1s
 hero_wave.stroke_progress = 1.0 [20s, ease: linear]
 
-// Epicycle chain: every center is an analytic function of t.
+// Epicycle chain: every center is an analytic function of t. Two turns over
+// the 20s span; the wave x advances at the same rate. The graph maps +y UP,
+// so every sin term subtracts from screen y — tip height == wave-dot height
+// at all times, and the tie-line lands on the curve. The w3/w5/w7 weights
+// ramp each harmonic in on its reveal beat so the tip never leaves the
+// visible chain (and `wy` matches the drawn function's own growth).
 always {
-  let th = 2 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let th = 4 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let w3 = clamp((t - 4.0) / 1.5, 0.0, 1.0)
+  let w5 = clamp((t - 9.0) / 1.5, 0.0, 1.0)
+  let w7 = clamp((t - 14.0) / 1.5, 0.0, 1.0)
   let r1 = 140
   let r3 = 140 / 3
   let r5 = 140 / 5
   let r7 = 140 / 7
   let c2x = 280 + r1 * cos(th)
-  let c2y = 400 + r1 * sin(th)
+  let c2y = 400 - r1 * sin(th)
   c2.at = (c2x, c2y)
-  let c3x = c2x + r3 * cos(3 * th)
-  let c3y = c2y + r3 * sin(3 * th)
+  let c3x = c2x + w3 * r3 * cos(3 * th)
+  let c3y = c2y - w3 * r3 * sin(3 * th)
   c3.at = (c3x, c3y)
-  let c4x = c3x + r5 * cos(5 * th)
-  let c4y = c3y + r5 * sin(5 * th)
+  let c4x = c3x + w5 * r5 * cos(5 * th)
+  let c4y = c3y - w5 * r5 * sin(5 * th)
   c4.at = (c4x, c4y)
-  tip.at = (c4x + r7 * cos(7 * th), c4y + r7 * sin(7 * th))
+  let tipx = c4x + w7 * r7 * cos(7 * th)
+  let tipy = c4y - w7 * r7 * sin(7 * th)
+  tip.at = (tipx, tipy)
   let x_now = 12.566 * clamp(t - 1.0, 0.0, 20.0) / 20.0
-  let wy = (4 / pi) * (sin(x_now) + sin(3 * x_now) / 3 + sin(5 * x_now) / 5 + sin(7 * x_now) / 7)
-  // Same linear mapping as the OneCircle scene (hero_graph geometry).
-  wave_tip.at = (450 + 60.5 * x_now, 400 - 110 * wy)
+  let wy = (4 / pi) * (sin(x_now) + w3 * sin(3 * x_now) / 3 + w5 * sin(5 * x_now) / 5 + w7 * sin(7 * x_now) / 7)
+  let dotx = 450 + 60.5 * x_now
+  let doty = 400 - 110 * wy
+  wave_tip.at = (dotx, doty)
+  hero_link.from = (tipx, tipy)
+  hero_link.to = (dotx, doty)
 }
 
-// The wave grows: function transitions add harmonic after harmonic.
+// The wave grows: function transitions add harmonic after harmonic. The
+// eq-term highlight is the one-beat drama voice (coral), then it returns.
 #4s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
 fade-in c3 [400ms]
@@ -100,7 +115,17 @@ eq_7.color = accent.warning [400ms]
 #15.5s
 eq_7.color = text.secondary [400ms]
 
-#21.5s
-
-// ── Scene 4: Spectrum — 1/k amplitude decay ─────────────────────────────────
-
+// Outro: quiet plate before the loop wrap.
+#21.0s
+stagger [60ms] {
+  fade-out eq_row [300ms]
+  fade-out hero_link [300ms]
+  fade-out wave_tip [300ms]
+  fade-out hero_graph [300ms]
+  fade-out tip [300ms]
+  fade-out c4 [300ms]
+  fade-out c3 [300ms]
+  fade-out c2 [300ms]
+  fade-out c1 [300ms]
+  fade-out hero_title [300ms]
+}

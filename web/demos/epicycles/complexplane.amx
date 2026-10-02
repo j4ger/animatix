@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
@@ -12,22 +13,22 @@ grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.2, 1.2),
   x_range: (-1, 1, 1), y_range: (-1, 1, 1),
   color: surface.secondary, stroke_width: 1.0
 
-unit_circle: Ellipse, size: (400, 400), color: accent.info,
+unit_circle: Ellipse, size: (400, 400), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (420, 400)
 
 vector: Line, from: (420, 400), to: (620, 400),
   stroke: accent.warning, stroke_width: 3
 
-vec_tip: Ellipse, size: (14, 14), color: accent.warning, at: (620, 400)
+vec_tip: Ellipse, size: (14, 14), color: accent.primary, at: (620, 400)
 
 cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 26,
   font_size: 26, color: accent.primary, anchor: scene.center, offset: (330, -60)
 
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
-  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (330, 20)
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, 20)
 
 endnote: Text, text: "sum enough circles and even a square wave is just rotation",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 always {
   let th = 2 * pi * clamp(t - 0.8, 0.0, 10.0) / 10.0

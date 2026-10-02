@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 
 config {
@@ -8,16 +9,17 @@ config {
 
 // Fourier series of a square wave: y(x) = (4/pi) * sum over odd k of sin(k x)/k
 // Epicycle radii (screen px, base 110): r_k = 110 * 4 / (pi * k) for odd k.
+// The pen/wave phase is locked: theta does TWO turns over a scene span, the
+// wave x advances at the same rate (12.566 = 4pi), and both map +sin to +y,
+// so the tie-line is exactly horizontal — the "pen height = wave height"
+// claim the scenes teach.
 //
-// NOTE: one known engine bug touches this demo (docs/roadmap.md): declared
-// PlotCurve stroke colors render white, so the curves lean on the scheme's
-// auto colour. The Equation-Fragments bug is dodged — see the Hero scene's
-// eq_row.
+// The Equation-Fragments bug is dodged — see the Hero scene's eq_row.
 
 // ── Scene 1: Goal — the finished square wave draws itself ───────────────────
 
 # Goal
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6.5 }
 
 goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -30,9 +32,9 @@ goal_graph: Graph, at: (640, 400), size: (900, 380),
 }
 
 goal_hint: Text, text: "the destination — a square wave built from circles",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
-#0.5s
+#0.1s
 fade-in goal_title [600ms, ease: ease-out]
 fade-in goal_graph [600ms, ease: ease-out]
 
@@ -45,7 +47,7 @@ goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
 #5.2s
 fade-in goal_hint [500ms]
 
-#9.2s
+#6s
 play OneCircle [fade, 500ms]
 
 // ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
@@ -56,10 +58,10 @@ config { colorscheme: "ink", dynamic_layout: true, duration: 15 }
 one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
 
-one_circle: Ellipse, size: (280, 280), color: accent.info,
+one_circle: Ellipse, size: (280, 280), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (280, 400)
 
-pen: Ellipse, size: (18, 18), color: accent.warning, at: (420, 400)
+pen: Ellipse, size: (18, 18), color: accent.primary, at: (420, 400)
 
 one_graph: Graph, at: (830, 400), size: (760, 440),
   x_domain: (0, 12.566), y_domain: (-2, 2) {
@@ -69,33 +71,39 @@ one_graph: Graph, at: (830, 400), size: (760, 440),
     color: accent.primary, stroke_width: 3, stroke_progress: 0
 }
 
-wave_dot: Ellipse, size: (14, 14), color: accent.warning, at: (830, 400)
+wave_dot: Ellipse, size: (14, 14), color: accent.primary, at: (830, 400)
 
-link: Line, from: pen.center, to: wave_dot.center,
-  stroke: accent.warning, stroke_width: 1.5, opacity: 0.6
+// The tie-line is driven from the always block below (an actor-center read
+// here would freeze it at its build-time stub).
+link: Line, from: (420, 400), to: (830, 400),
+  stroke: accent.primary, stroke_width: 1.5, opacity: 0.45
 
 one_hint: Text, text: "the pen rides the rim — height over time is a sine",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
-#0.3s
+#0.05s
 fade-in one_title [500ms]
 fade-in one_circle [500ms]
 fade-in pen [400ms, delay: 200ms]
 fade-in one_graph [500ms, delay: 300ms]
-fade-in sine [400ms, delay: 400ms]
 fade-in wave_dot [400ms, delay: 400ms]
+fade-in link [400ms, delay: 400ms]
 
 #1s
 sine.stroke_progress = 1.0 [12s, ease: linear]
 
 always {
-  let th = 2 * pi * clamp(t - 1.0, 0.0, 12.0) / 12.0
-  pen.at = (280 + 140 * cos(th), 400 + 140 * sin(th))
-  let px = clamp(t - 1.0, 0.0, 12.0)
+  // two turns while the wave advances the full x_domain (4pi = 12.566)
+  let th = 4 * pi * clamp(t - 1.0, 0.0, 12.0) / 12.0
+  let px = 12.566 * clamp(t - 1.0, 0.0, 12.0) / 12.0
+  pen.at = (280 + 140 * cos(th), 400 - 140 * sin(th))
   let wy = (4 / pi) * sin(px)
   // Graph maps x_domain (0, 12.566) / y_domain (-2, 2) onto the 760x440 box
-  // at (830, 400): screen = (450 + 60.5 x, 400 - 110 y).
+  // at (830, 400): screen = (450 + 60.5 x, 400 + 110 y) — same +y sense as
+  // the pen, so the tie-line stays horizontal.
   wave_dot.at = (450 + 60.5 * px, 400 - 110 * wy)
+  link.from = (280 + 140 * cos(th), 400 - 140 * sin(th))
+  link.to = (450 + 60.5 * px, 400 - 110 * wy)
 }
 
 #13.8s
@@ -107,21 +115,21 @@ play Hero [wipe-left, 500ms]
 // ── Scene 3: Hero — circles stack up, the wave grows into a square ──────────
 
 # Hero
-config { colorscheme: "ink", dynamic_layout: true, duration: 24 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 22 }
 
 hero_title: Text, text: "2. Stack the odd harmonics", font_size: 36, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
 
-c1: Ellipse, size: (280, 280), color: accent.info,
+c1: Ellipse, size: (280, 280), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (280, 400)
-c2: Ellipse, size: (94, 94), color: accent.success,
+c2: Ellipse, size: (94, 94), stroke: accent.success,
   fill_opacity: 0, stroke_width: 2, at: (420, 400)
-c3: Ellipse, size: (56, 56), color: accent.warning,
+c3: Ellipse, size: (56, 56), stroke: accent.primary,
   fill_opacity: 0, stroke_width: 2, at: (466, 400), opacity: 0
-c4: Ellipse, size: (40, 40), color: accent.danger,
+c4: Ellipse, size: (40, 40), stroke: accent.danger,
   fill_opacity: 0, stroke_width: 2, at: (494, 400), opacity: 0
 
-tip: Ellipse, size: (14, 14), color: accent.warning, at: (420, 400)
+tip: Ellipse, size: (14, 14), color: accent.primary, at: (420, 400)
 
 hero_graph: Graph, at: (830, 400), size: (760, 440),
   x_domain: (0, 12.566), y_domain: (-2, 2) {
@@ -130,10 +138,10 @@ hero_graph: Graph, at: (830, 400), size: (760, 440),
     color: accent.primary, stroke_width: 3, stroke_progress: 0
 }
 
-wave_tip: Ellipse, size: (12, 12), color: accent.warning, at: (830, 400)
+wave_tip: Ellipse, size: (12, 12), color: accent.primary, at: (830, 400)
 
-hero_link: Line, from: tip.center, to: wave_tip.center,
-  stroke: accent.warning, stroke_width: 1.5, opacity: 0.6
+hero_link: Line, from: (420, 400), to: (830, 400),
+  stroke: accent.primary, stroke_width: 1.5, opacity: 0.45
 
 // The harmonic terms are a Row of separate Text actors so each one can be
 // highlighted on its own beat. (Equation Fragments are dodged deliberately:
@@ -145,43 +153,57 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
   eq_7: Text, text: "+ sin 7x/7", font_size: 26, color: text.secondary
 }
 
-#0.3s
+#0.05s
 fade-in hero_title [500ms]
 fade-in c1 [500ms]
 fade-in c2 [500ms]
 fade-in tip [400ms, delay: 200ms]
 fade-in hero_graph [500ms, delay: 300ms]
-fade-in hero_wave [400ms, delay: 400ms]
 fade-in wave_tip [400ms, delay: 500ms]
+fade-in hero_link [400ms, delay: 500ms]
 fade-in eq_row [500ms, delay: 500ms]
 
 #1s
 hero_wave.stroke_progress = 1.0 [20s, ease: linear]
 
-// Epicycle chain: every center is an analytic function of t.
+// Epicycle chain: every center is an analytic function of t. The graph maps
+// +y UP so every sin term subtracts from screen y — tip height == wave-dot
+// height, tie-line horizontal and on the curve. w3/w5/w7 ramp each harmonic
+// in on its reveal beat so the tip never leaves the visible chain.
 always {
-  let th = 2 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  // two turns over the 20s span; the wave x advances at the same rate
+  let th = 4 * pi * clamp(t - 1.0, 0.0, 20.0) / 20.0
+  let w3 = clamp((t - 4.0) / 1.5, 0.0, 1.0)
+  let w5 = clamp((t - 9.0) / 1.5, 0.0, 1.0)
+  let w7 = clamp((t - 14.0) / 1.5, 0.0, 1.0)
   let r1 = 140
   let r3 = 140 / 3
   let r5 = 140 / 5
   let r7 = 140 / 7
   let c2x = 280 + r1 * cos(th)
-  let c2y = 400 + r1 * sin(th)
+  let c2y = 400 - r1 * sin(th)
   c2.at = (c2x, c2y)
-  let c3x = c2x + r3 * cos(3 * th)
-  let c3y = c2y + r3 * sin(3 * th)
+  let c3x = c2x + w3 * r3 * cos(3 * th)
+  let c3y = c2y - w3 * r3 * sin(3 * th)
   c3.at = (c3x, c3y)
-  let c4x = c3x + r5 * cos(5 * th)
-  let c4y = c3y + r5 * sin(5 * th)
+  let c4x = c3x + w5 * r5 * cos(5 * th)
+  let c4y = c3y - w5 * r5 * sin(5 * th)
   c4.at = (c4x, c4y)
-  tip.at = (c4x + r7 * cos(7 * th), c4y + r7 * sin(7 * th))
+  let tipx = c4x + w7 * r7 * cos(7 * th)
+  let tipy = c4y - w7 * r7 * sin(7 * th)
+  tip.at = (tipx, tipy)
   let x_now = 12.566 * clamp(t - 1.0, 0.0, 20.0) / 20.0
-  let wy = (4 / pi) * (sin(x_now) + sin(3 * x_now) / 3 + sin(5 * x_now) / 5 + sin(7 * x_now) / 7)
+  let wy = (4 / pi) * (sin(x_now) + w3 * sin(3 * x_now) / 3 + w5 * sin(5 * x_now) / 5 + w7 * sin(7 * x_now) / 7)
   // Same linear mapping as the OneCircle scene (hero_graph geometry).
-  wave_tip.at = (450 + 60.5 * x_now, 400 - 110 * wy)
+  let dotx = 450 + 60.5 * x_now
+  let doty = 400 - 110 * wy
+  wave_tip.at = (dotx, doty)
+  hero_link.from = (tipx, tipy)
+  hero_link.to = (dotx, doty)
 }
 
-// The wave grows: function transitions add harmonic after harmonic.
+// The wave grows: function transitions add harmonic after harmonic. The
+// eq-term highlight is the one-beat drama voice (coral), then it returns.
 #4s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
 fade-in c3 [400ms]
@@ -211,7 +233,7 @@ play Spectrum [wipe-left, 500ms]
 // ── Scene 4: Spectrum — 1/k amplitude decay ─────────────────────────────────
 
 # Spectrum
-config { colorscheme: "ink", dynamic_layout: true, duration: 11 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 4 }
 
 spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -219,25 +241,20 @@ spec_title: Text, text: "3. Only odd harmonics, shrinking as 1/k", font_size: 36
 spec_eq: Text, text: "a(k) = 4 / (pi k)   for odd k,   0   otherwise",
   font_size: 24, color: accent.primary, anchor: scene.center, offset: (0, -215)
 
+// Amber bars with the 7th harmonic as the one-beat coral accent (it is the
+// term the Hero scene just landed).
 spectrum: BarChart,
   data: {("k=1", 140), ("k=3", 47), ("k=5", 28), ("k=7", 20)},
   size: (760, 360),
-  bar_colors: {(0.38, 0.78, 1, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1), (1, 0.5, 0.55, 1)},
+  bar_colors: {accent.primary, accent.primary, accent.primary, accent.warning},
   show_axis: true,
   show_labels: true,
   at: (640, 400)
 
-spec_note: Callout {
-  from: (880, 200),
-  target: spectrum,
-  place: left,
-  standoff: 12,
-  label: "1/k decay",
-  label_at: (0, -20),
-  color: accent.warning
-}
+spec_note: Text, text: "1/k decay", font_size: 20,
+  color: accent.primary, anchor: scene.center, offset: (-430, -120)
 
-#0.4s
+#0.05s
 fade-in spec_title [500ms]
 fade-in spec_eq [500ms, delay: 200ms]
 
@@ -245,13 +262,13 @@ fade-in spec_eq [500ms, delay: 200ms]
 fade-in spectrum [800ms, ease: ease-out]
 fade-in spec_note [500ms, delay: 500ms]
 
-#9.8s
+#3.5s
 play ComplexPlane [fade, 500ms]
 
 // ── Scene 5: Complex Plane — e^{i theta} ────────────────────────────────────
 
 # ComplexPlane
-config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 12 }
 
 cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -261,30 +278,30 @@ grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.2, 1.2),
   x_range: (-1, 1, 1), y_range: (-1, 1, 1),
   color: surface.secondary, stroke_width: 1.0
 
-unit_circle: Ellipse, size: (400, 400), color: accent.info,
+unit_circle: Ellipse, size: (400, 400), stroke: accent.info,
   fill_opacity: 0, stroke_width: 2, at: (420, 400)
 
 vector: Line, from: (420, 400), to: (620, 400),
-  stroke: accent.warning, stroke_width: 3
+  stroke: accent.primary, stroke_width: 3
 
-vec_tip: Ellipse, size: (14, 14), color: accent.warning, at: (620, 400)
+vec_tip: Ellipse, size: (14, 14), color: accent.primary, at: (620, 400)
 
 cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 26,
-  font_size: 26, color: accent.primary, anchor: scene.center, offset: (330, -60)
+  color: accent.primary, anchor: scene.center, offset: (330, -60)
 
 cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
-  font_size: theme.text_sm, color: text.secondary, anchor: scene.center, offset: (330, 20)
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, 20)
 
 endnote: Text, text: "sum enough circles and even a square wave is just rotation",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 always {
   let th = 2 * pi * clamp(t - 0.8, 0.0, 10.0) / 10.0
-  vector.to = (420 + 200 * cos(th), 400 + 200 * sin(th))
-  vec_tip.at = (420 + 200 * cos(th), 400 + 200 * sin(th))
+  vector.to = (420 + 200 * cos(th), 400 - 200 * sin(th))
+  vec_tip.at = (420 + 200 * cos(th), 400 - 200 * sin(th))
 }
 
-#0.4s
+#0.05s
 fade-in cp_title [500ms]
 fade-in grid [600ms, ease: ease-out]
 fade-in unit_circle [600ms, ease: ease-out]
@@ -299,3 +316,16 @@ fade-in cp_note [500ms, delay: 300ms]
 
 #4s
 fade-in endnote [600ms]
+
+// Outro: quiet plate before the document loops.
+#11.2s
+stagger [60ms] {
+  fade-out endnote [300ms]
+  fade-out cp_note [300ms]
+  fade-out cp_eq [300ms]
+  fade-out vec_tip [300ms]
+  fade-out vector [300ms]
+  fade-out unit_circle [300ms]
+  fade-out grid [300ms]
+  fade-out cp_title [300ms]
+}

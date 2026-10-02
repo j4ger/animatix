@@ -1,3 +1,4 @@
+import "../lib/theme.amx"
 import "../lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
@@ -15,7 +16,7 @@ goal_graph: Graph, at: (640, 400), size: (900, 380),
 }
 
 goal_hint: Text, text: "the destination — a square wave built from circles",
-  font_size: theme.text_sm, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0.5s
 fade-in goal_title [600ms, ease: ease-out]

@@ -296,6 +296,12 @@ genuine semantic channels. New scenes should follow `web/tour/scenes/` and
   0` on a component instance either — fade-in's authored-zero branch sets only
   the instance track and never lifts the child seeds, so the component fades
   in as nothing.
+- **Don't fade in a container and its child curve.** A `fade-in` on a
+  container lifts the whole hidden-by-default subtree; a child's own entrance
+  that starts mid-lift then settles on the *interpolated* opacity it observes
+  at its start (measured: a `PlotCurve` inside a `Graph` faded this way
+  rendered at ~17% — near-invisible). Fade the container, or fade the child
+  after the lift completes, never both at once.
 
 Hosting requirements for the runtime host: serve `.wasm` as
 `application/wasm`, and prefer precompressed `.br` twins (the build script
