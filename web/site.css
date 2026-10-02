@@ -326,6 +326,11 @@ figcaption a.src:hover { color: var(--accent-strong); }
 .ledger .stat {
   font-family: var(--serif); font-size: 40px; font-weight: 600; line-height: 1;
   color: var(--accent); letter-spacing: -0.02em;
+  /* Right-aligned: the stats mix digits and words ("31" vs "Typst"), and a
+   * left-aligned fixed column leaves a huge gutter for short items and
+   * slams long ones into the text. Flushing right keeps one clean rule
+   * beside the content column. */
+  text-align: right;
 }
 .ledger .row h3 {
   margin: 0 0 4px; font-size: 16.5px; font-weight: 620; letter-spacing: 0;
