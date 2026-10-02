@@ -48,7 +48,7 @@ fade-in capX [300ms, ease: expo-out]
 
 #3.2s
 pulse c2 [400ms]
-shift row [by: (0, -40), 500ms, ease: ease-out]
+shift row [by: (0, -40), 500ms, ease: spring]
 
 #4.6s
 fade-out capX [200ms, ease: ease-in]

@@ -139,7 +139,7 @@ fade-in col_f [260ms, ease: expo-out]
 #2.0s
 shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
 #2.7s
-shift chip_owl [by: (0, 84), 320ms, ease: ease-out]
+shift chip_owl [by: (0, 84), 320ms, ease: spring]
 fade-in chain [240ms, ease: expo-out]
 fade-out col_f [200ms, ease: ease-in]
 fade-in col_note [300ms, ease: expo-out]
@@ -225,7 +225,7 @@ shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
 fade-out q_f2 [200ms, ease: ease-in]
 #7.2s
-shift q2 [by: (120, 85), 300ms, ease: ease-out]
+shift q2 [by: (120, 85), 300ms, ease: spring]
 #8.3s
 fade-out q2 [260ms, ease: ease-in]
 fade-in v_hit2 [260ms, ease: expo-out]

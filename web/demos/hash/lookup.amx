@@ -73,7 +73,7 @@ shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
 fade-out q_formula [200ms, ease: ease-in]
 #7.2s
-shift q2 [by: (0, 85), 300ms, ease: ease-out]
+shift q2 [by: (0, 85), 300ms, ease: spring]
 #8.3s
 fade-out q2 [260ms, ease: ease-in]
 verdict_hit.text = "found — after one compare"

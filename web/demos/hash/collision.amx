@@ -49,7 +49,7 @@ fade-in col_f [260ms, ease: expo-out]
 #2.0s
 shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
 #2.7s
-shift chip_owl [by: (0, 84), 320ms, ease: ease-out]
+shift chip_owl [by: (0, 84), 320ms, ease: spring]
 fade-in chain [240ms, ease: expo-out]
 fade-out col_f [200ms, ease: ease-in]
 fade-in col_note [300ms, ease: expo-out]
