@@ -1,5 +1,16 @@
 # Handoff — Web Demo Redesign ("the instrument")
 
+> **STATUS: COMPLETE (2026-10-02).** Every item in "Remaining work" landed:
+> the engine fix shipped with the perf-bench guard (`a4ce11f7`), the serial
+> review loop took all scene groups to measured PASS (tour `fa345ecd`,
+> transformer `b5654c2e`, gradient/matrix/hash `3328b581`, epicycles/sorting
+> `efd5071d` — that group turned out never to have registered the ink scheme),
+> the page-level pass fixed the nav-assembly regression, assets and docs are
+> updated, and the full-workspace checks ran green. The story is told in
+> `docs/history.md`, "The instrument redesign: web/ as a living timeline".
+> This file is kept as the design-direction reference (locked palette, chrome
+> spec, review pipeline).
+
 *2026-10-02 · state of the working tree at `9f449f5` + staged polish (see
 "Commits" below). This document is the pickup point for finishing the
 redesign; the design direction was approved by the repo owner.*

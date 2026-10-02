@@ -1310,3 +1310,72 @@ Note for anyone reproducing locally: `web/pkg-slim` is a build artifact. The
 JavaScript-side fixes in this pass take effect on reload, but this one needs
 `scripts/build-web.sh --slim` (and CI's Pages job rebuilds both profiles on any
 push touching `crates/animatix-web/**`).
+
+## The instrument redesign: web/ as a living timeline (2026-10-01 → 2026-10-02)
+
+The site's "light editorial" skin was rebuilt into the approved direction:
+**the page itself is an Animatix timeline**. Palette, chrome, player API,
+every scene, and the engine bugs the honest frames exposed.
+
+**Design system (`web/demos/lib/theme.amx`, scheme `ink`).** Scene background
+equals the site `--bg` (`#0b0e14`) so plates melt into the page; bone
+`#ece7db` text; amber `#f5b942` is the brand lead, coral `#ff8666` a one-beat
+drama voice, sage `#8fc7a3` / steel `#8ab4f8` rationed to genuine diagram
+semantics. The old "gallery" scheme was retired. Registration idiom: only the
+**unaliased** `import "…/theme.amx"` flattens `pub let ink` into the file —
+the aliased `as theme` form (which the epicycles/sorting group carried) never
+registers the scheme, so those ten files had been rendering default-dark
+while claiming ink.
+
+**Timeline chrome (`web/site-chrome.js`).** The nav carries a scroll playhead
+(ruler with one tick per section, diamond head, `#12.4s` timecode chip: one
+beat of 4 s per section); section heads stamp their master time; ledger rows
+stamp in via IntersectionObserver; `amx-player[data-hoverplay]` poster cards
+play on hover/focus; the homepage duality figure scrubs with scroll and lights
+the code line owning the current beat; gallery/theater uses the Fullscreen
+API. One regression shipped unnoticed: `.site-inner` (wordmark, links,
+timecode) was built but never appended to the nav — every page rendered a
+bare ruler strip until the headless DOM pass of 2026-10-02.
+
+**Player API (`web/embed/src/amx-player.js`).** `sealed` (page-driven: no
+center button, no canvas gestures, resumes on re-entering the viewport),
+`fit="cover"` (stage unlocks from its aspect box — the full-bleed hero),
+the bubbling `amxready` event plus `duration`/`time` getters, and `play()`
+from the poster frame restarting at 0.
+
+**Engine fix: cross-type morphs resolved per frame.** A same-label
+re-declaration that changes actor type called `set_identity`, and the frame
+path keyed the primitive on `actor_type` — the morph target owned the whole
+timeline (a Rect re-declared Ellipse drew as a circle from birth),
+falsifying every cross-type morph on the site. `render_type_name(time_ms)`
+now resolves from the `shape_type` track inside the vector-shape family
+only, with the "changes over time" verdict memoized on the track (the
+un-memoized scan measured ~+7% on `scrub_layout_scene_100frames` in the
+perf-bench A/B). The pre-fix baseline had been saved; the compare gate
+(120 benches, 0 regressions) had to be replayed outside the dev shell —
+`perf-bench.sh`'s compare step needs python3, which `nix develop` does not
+provide, a gap that also silently killed the first compare run.
+
+**Serial scene review pipeline.** Every scene group was frame-audited by
+subagents (one at a time): keyframe stamps + mid-beat offsets rendered to
+contact sheets, then per-keyframe verdicts and prioritized .amx fixes,
+re-rendered and re-verified until PASS. Production rules that emerged:
+casts ≥25% of frame width; per-beat on-screen captions; amber finale unify;
+a ~350 ms reverse-order outro so loops wrap from a quiet plate; coral only
+for one beat. The pass also exposed engine behaviours now documented or
+roadmapped: `pulse intensity` is additive (1.04 = 2× scale); `Arrow` paints
+only from `stroke_color` (a `color:`-authored arrow is silently grey);
+an `import` inside a scene block freezes `always` clocks (a hub card was a
+static poster of a rotation that never happened); single-line `text_align`
+does not move the anchor; container + child `fade-in` settles the child at
+the mid-lift opacity (~17%); Graph/BarChart axes render pure white under
+`dynamic_layout`; and state-shape morph spans swap silhouettes instead of
+interpolating (the tour's morph scene now teaches point-matched Polygons,
+where every span is a measured hybrid).
+
+**Acceptance notes.** Headless Chromium (flake `.#web`, `--webgpu`) cannot
+exercise rAF-driven furniture (no compositor frames — screenshots show the
+canvas region white while `debug_readback` proves the scene renders: hero
+avg (17,19,24) / 50 distinct colours), so scroll-wiring verdicts rest on
+DOM probes + the readback path; the no-WebGPU veil was confirmed by running
+without the flag ("no WebGPU adapter available" surfaces, no white screen).
