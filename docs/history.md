@@ -1368,7 +1368,13 @@ only from `stroke_color` (a `color:`-authored arrow is silently grey);
 an `import` inside a scene block freezes `always` clocks (a hub card was a
 static poster of a rotation that never happened); single-line `text_align`
 does not move the anchor; container + child `fade-in` settles the child at
-the mid-lift opacity (~17%); Graph/BarChart axes render pure white under
+the mid-lift opacity (~17%); `ContourSet`/`VectorField` ignore `opacity`
+outright (0.05 renders identical to 1.0 — dim backdrops go by colour
+instead); a static keyframe `.text =` assignment overprints the declared
+and assigned strings simultaneously (per-query actors are the workaround);
+`Graph.map()` maps math coords at half the px/unit the plotted curve uses
+(a ball tracking `map(f(t))` rides beside its own trail — double the coords
+to land on the stroke); Graph/BarChart axes render pure white under
 `dynamic_layout`; and state-shape morph spans swap silhouettes instead of
 interpolating (the tour's morph scene now teaches point-matched Polygons,
 where every span is a measured hybrid).
