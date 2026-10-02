@@ -9,7 +9,7 @@ use chumsky::prelude::*;
 
 use super::token_parser::{self, TokErr, TokInput};
 use crate::ast::*;
-use crate::easing::parse_easing_name;
+use crate::easing::parse_easing_expr;
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -324,23 +324,23 @@ pub(crate) fn modifiers<'src>(
 
 /// Scan modifiers for `ease: ...` and extract the easing value.
 ///
-/// Only a *resolvable* easing name is consumed (and its modifier removed).
-/// Unknown names stay in the list so the build layer's
-/// `parse_timing_modifiers` can report them — the parse layer has no
-/// diagnostics, so dropping them here would silence the typo forever.
+/// Both the bare-name form (`ease: expo-out`) and the parameterized form
+/// (`ease: cubic-bezier(0.16, 1, 0.3, 1)`) are consumed here; the arity rules
+/// live in [`parse_easing_call`] so no second copy can drift.
+///
+/// Only a *resolvable* easing is consumed (and its modifier removed). Unknown
+/// names stay in the list so the build layer's `parse_timing_modifiers` can
+/// report them — the parse layer has no diagnostics, so dropping them here
+/// would silence the typo forever.
 pub(crate) fn extract_easing(modifiers: &mut Vec<Modifier>) -> Option<crate::easing::Easing> {
     let mut easing = None;
     modifiers.retain(|m| {
         if m.name.as_deref() == Some("ease") {
-            if let Expr::Ident(raw) = &m.value {
-                if let Some(parsed) = parse_easing_name(raw) {
-                    easing = Some(parsed);
-                    return false;
-                }
-                // Unknown easing identifier: keep for the build-layer warning.
-                return true;
+            if let Some(parsed) = parse_easing_expr(&m.value) {
+                easing = Some(parsed);
+                return false;
             }
-            // Non-identifier ease value: keep for the build-layer warning.
+            // Unresolvable ease value: keep for the build-layer warning.
             return true;
         }
         true

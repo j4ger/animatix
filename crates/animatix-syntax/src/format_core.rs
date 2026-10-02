@@ -513,6 +513,7 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             property,
             value,
             modifiers,
+            easing,
             ..
         } => {
             let assignment_str = if target.is_empty() {
@@ -525,10 +526,15 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
                     format_expr(value)
                 )
             };
+            // The parser lifts `ease:` out of `modifiers` into the typed field,
+            // so printing only the modifier list silently deletes the easing.
+            let mut mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>();
+            if let Some(easing) = easing {
+                mods.push(format!("ease: {}", crate::easing::easing_source_form(*easing)));
+            }
             let mut parts = vec![assignment_str];
-            if !modifiers.is_empty() {
-                let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
-                parts.push(format!(" [{}]", mods));
+            if !mods.is_empty() {
+                parts.push(format!(" [{}]", mods.join(", ")));
             }
             parts.join("")
         },

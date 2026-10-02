@@ -93,17 +93,17 @@ pub(super) fn render_dope_sheet(
 // ─── Compact Track Row ────────────────────────────────────────────────────
 
 fn easing_display_name(easing: Easing) -> String {
-    match easing {
-        Easing::Linear => "Linear".into(),
-        Easing::EaseIn => "Ease In".into(),
-        Easing::EaseOut => "Ease Out".into(),
-        Easing::EaseInOut => "Ease In Out".into(),
-        Easing::Bounce => "Bounce".into(),
-        Easing::Elastic => "Elastic".into(),
-        Easing::Back => "Back".into(),
-        Easing::Expo => "Expo".into(),
-        Easing::CubicBezier(cp) => animatix_syntax::easing::format_cubic_bezier(cp),
-    }
+    // Resolved through the registry rather than a local table: this used to be
+    // a fourth copy of the name list, which went stale every time a curve was
+    // added. Curves the registry does not name (a hand-authored bezier) fall
+    // back to their source form, which is readable and round-trips.
+    animatix_syntax::easing::EASING_REGISTRY
+        .iter()
+        .find(|(id, _)| animatix_syntax::easing::parse_easing_name(id) == Some(easing))
+        .map_or_else(
+            || animatix_syntax::easing::easing_source_form(easing),
+            |(_, label)| (*label).to_string(),
+        )
 }
 
 fn render_compact_track_row(

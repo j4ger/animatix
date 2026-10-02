@@ -128,6 +128,34 @@ impl ModifierHost {
 /// `custom`). Re-export instead of duplicating.
 pub use crate::easing::parse_easing_name;
 
+/// Explain an `ease:` value the build layer could not resolve.
+///
+/// The supported-name list is read from the registry rather than written out
+/// here, so adding a curve cannot leave this message behind — the previous
+/// version of this string had already gone stale.
+fn ease_value_diagnostic(value: &Expr, host: ModifierHost) -> String {
+    let supported = EASING_REGISTRY.iter().map(|(id, _)| *id).collect::<Vec<_>>().join(", ");
+    match value {
+        Expr::Call(name, _) => match easing_expects_args(name) {
+            Some(form) => {
+                format!("Ease '{name}' on {} expects the form {form}.", host.display_name())
+            },
+            None => format!(
+                "Unknown easing '{name}' on {}; supported values are {supported}, or cubic-bezier(x1, y1, x2, y2).",
+                host.display_name()
+            ),
+        },
+        Expr::Ident(raw) => format!(
+            "Unsupported ease value '{raw}' on {}; supported values are {supported}, or a cubic-bezier(…) / spring(…) call.",
+            host.display_name()
+        ),
+        other => format!(
+            "Unsupported ease modifier value {other:?} on {}; expected an easing name or a cubic-bezier(…) / spring(…) call.",
+            host.display_name()
+        ),
+    }
+}
+
 pub(crate) fn parse_duration_literal(raw: &str) -> Option<f64> {
     if let Some(ms) = raw.strip_suffix("ms") {
         ms.parse::<f64>().ok()
@@ -333,41 +361,21 @@ pub(crate) fn parse_timing_modifiers(
                     subject,
                 ),
             },
-            Some("ease") => match &modifier.value {
-                Expr::Ident(raw) => {
-                    if let Some(easing) = parse_easing_name(raw) {
-                        if saw_ease {
-                            push_conflicting_modifier_diagnostic(
-                                diagnostics,
-                                "ease",
-                                host,
-                                subject,
-                            );
-                        }
-                        parsed.easing = easing;
-                        saw_ease = true;
-                    } else {
-                        push_modifier_diagnostic(
-                            diagnostics,
-                            DiagnosticCode::InvalidModifierValue,
-                            format!(
-                                "Unsupported ease value '{raw}' on {}; supported values are linear, ease-in, ease-out, ease-in-out, bounce, elastic, back, and expo.",
-                                host.display_name()
-                            ),
-                            subject,
-                        );
+            Some("ease") => {
+                if let Some(easing) = parse_easing_expr(&modifier.value) {
+                    if saw_ease {
+                        push_conflicting_modifier_diagnostic(diagnostics, "ease", host, subject);
                     }
-                },
-                other => push_modifier_diagnostic(
-                    diagnostics,
-                    DiagnosticCode::InvalidModifierValue,
-                    format!(
-                        "Unsupported ease modifier value {:?} on {}; expected an easing identifier.",
-                        other,
-                        host.display_name()
-                    ),
-                    subject,
-                ),
+                    parsed.easing = easing;
+                    saw_ease = true;
+                } else {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        ease_value_diagnostic(&modifier.value, host),
+                        subject,
+                    );
+                }
             },
             Some("strategy") => {
                 if !host.supports_morph_modifiers() {

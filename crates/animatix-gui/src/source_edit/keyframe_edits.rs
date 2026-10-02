@@ -258,23 +258,10 @@ fn set_keyframe_easing_inner(
     easing: animatix_syntax::easing::Easing,
 ) -> Result<(), SourceEditError> {
     let source_prop = canonical_to_source(property);
-    let easing_name = match easing {
-        animatix_syntax::easing::Easing::Linear => "linear",
-        animatix_syntax::easing::Easing::EaseIn => "easein",
-        animatix_syntax::easing::Easing::EaseOut => "easeout",
-        animatix_syntax::easing::Easing::EaseInOut => "easeinout",
-        animatix_syntax::easing::Easing::Bounce => "bounce",
-        animatix_syntax::easing::Easing::Elastic => "elastic",
-        animatix_syntax::easing::Easing::Back => "back",
-        animatix_syntax::easing::Easing::Expo => "expo",
-        animatix_syntax::easing::Easing::CubicBezier(cp) => {
-            // Serialize custom easing as a special ident that the parser
-            // will handle; for now fall back to linear in source edits.
-            let _ = cp;
-            "linear"
-        },
-    };
-    let easing_expr = animatix_syntax::ast::Expr::Ident(easing_name.to_string());
+    // The name table this used to carry was a fourth copy of the easing names,
+    // in unhyphenated forms the hand-written corpus never uses, and its
+    // `CubicBezier` arm overwrote the user's curve with `linear`.
+    let easing_expr = animatix_syntax::easing::easing_to_expr(easing);
 
     // Walk through keyframes looking for the match
     let mut current_time = 0.0f64;

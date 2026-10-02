@@ -180,6 +180,19 @@ pub fn load_standard_library(env: &mut Environment) {
     register_num1!(env, "elastic", |t| { apply_easing(t as f32, Easing::Elastic) as f64 });
     register_num1!(env, "back", |t| { apply_easing(t as f32, Easing::Back) as f64 });
     register_num1!(env, "expo", |t| { apply_easing(t as f32, Easing::Expo) as f64 });
+    register_num1!(env, "expo_out", |t| { apply_easing(t as f32, Easing::ExpoOut) as f64 });
+    register_num1!(env, "expo_in_out", |t| { apply_easing(t as f32, Easing::ExpoInOut) as f64 });
+    // The default spring; `ease: spring(damping, frequency)` is where the
+    // parameters live, and an `always` block can write the oscillator itself.
+    register_num1!(env, "spring", |t| {
+        apply_easing(
+            t as f32,
+            Easing::Spring {
+                damping: animatix_syntax::easing::DEFAULT_SPRING[0],
+                frequency: animatix_syntax::easing::DEFAULT_SPRING[1],
+            },
+        ) as f64
+    });
 
     // Composable interpolation helpers
     env.set(
