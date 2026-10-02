@@ -25,8 +25,8 @@ endnote: Text, text: "one timeline function emitted every beat you just watched"
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 #0s
-fade-in finale_title [500ms]
-fade-in finale_bars [600ms, ease: ease-out]
+fade-in finale_title [500ms, ease: expo-out]
+fade-in finale_bars [600ms, ease: expo-out]
 
 // No celebration beat here on purpose: a color-wave over these bars (via
 // nested component-child assignments) does not survive composition
@@ -34,7 +34,7 @@ fade-in finale_bars [600ms, ease: ease-out]
 // the footnote close the scene.
 
 #2.2s
-fade-in footnote [700ms, ease: ease-out]
+fade-in footnote [700ms, ease: expo-out]
 
 #3.2s
-fade-in endnote [600ms]
+fade-in endnote [600ms, ease: expo-out]

@@ -67,9 +67,9 @@ hint: Text, text: "every comparison and swap below is emitted at build time",
   font_size: 20, color: text.muted, anchor: scene.center, offset: (0, 70)
 
 #0s
-fade-in title [700ms, ease: ease-out]
-fade-in subtitle [600ms, delay: 250ms]
-fade-in hint [500ms, delay: 450ms]
+fade-in title [700ms, ease: expo-out]
+fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
+fade-in hint [500ms, delay: 450ms, ease: expo-out]
 
 #2.5s
 play TheSort [fade, 500ms]
@@ -108,15 +108,15 @@ sort_caption: Text, text: "the key slides left past every larger neighbor",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0s
-fade-in sort_title [500ms]
-fade-in bars [600ms, ease: ease-out]
-fade-in key_note [400ms, delay: 300ms]
+fade-in sort_title [500ms, ease: expo-out]
+fade-in bars [600ms, ease: expo-out]
+fade-in key_note [400ms, delay: 300ms, ease: expo-out]
 stagger [80ms] {
-  fade-in comp_label [300ms]
-  fade-in swap_label [300ms]
-  fade-in comp_ticks [300ms]
-  fade-in swap_ticks [300ms]
-  fade-in sort_caption [300ms]
+  fade-in comp_label [300ms, ease: expo-out]
+  fade-in swap_label [300ms, ease: expo-out]
+  fade-in comp_ticks [300ms, ease: expo-out]
+  fade-in swap_ticks [300ms, ease: expo-out]
+  fade-in sort_caption [300ms, ease: expo-out]
 }
 
 // The whole sort runs here — one call, zero hand-written swaps.
@@ -143,8 +143,8 @@ endnote: Text, text: "one timeline function emitted every beat you just watched"
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 #0s
-fade-in finale_title [500ms]
-fade-in finale_bars [600ms, ease: ease-out]
+fade-in finale_title [500ms, ease: expo-out]
+fade-in finale_bars [600ms, ease: expo-out]
 
 // No celebration beat here on purpose: a color-wave over these bars (via
 // nested component-child assignments) does not survive composition
@@ -152,16 +152,16 @@ fade-in finale_bars [600ms, ease: ease-out]
 // the footnote close the scene.
 
 #2.2s
-fade-in footnote [700ms, ease: ease-out]
+fade-in footnote [700ms, ease: expo-out]
 
 #3.2s
-fade-in endnote [600ms]
+fade-in endnote [600ms, ease: expo-out]
 
 // Outro: quiet plate before the document loops.
 #5.0s
 stagger [60ms] {
-  fade-out endnote [280ms]
-  fade-out footnote [280ms]
-  fade-out finale_bars [280ms]
-  fade-out finale_title [280ms]
+  fade-out endnote [280ms, ease: ease-in]
+  fade-out footnote [280ms, ease: ease-in]
+  fade-out finale_bars [280ms, ease: ease-in]
+  fade-out finale_title [280ms, ease: ease-in]
 }

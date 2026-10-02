@@ -85,14 +85,14 @@ ball: Ellipse, size: (30, 30), color: accent.danger, at: (240, 726)
 
 #0.1s
 stagger [90ms] {
-  draw-in bracket_tl [450ms, ease: ease-out]
-  draw-in bracket_tr [450ms, ease: ease-out]
-  draw-in bracket_bl [450ms, ease: ease-out]
-  draw-in bracket_br [450ms, ease: ease-out]
+  draw-in bracket_tl [450ms, ease: expo-out]
+  draw-in bracket_tr [450ms, ease: expo-out]
+  draw-in bracket_bl [450ms, ease: expo-out]
+  draw-in bracket_br [450ms, ease: expo-out]
 }
 
 #0.3s
-fade-in grid [650ms, ease: ease-out]
+fade-in grid [650ms, ease: expo-out]
 
 // The grid flashes to full, then recedes to a texture as the type arrives;
 // the wordmark settles the last few pixels. Display type never overshoots —
@@ -101,22 +101,22 @@ fade-in grid [650ms, ease: ease-out]
 grid.opacity = 0.15 [1s, ease: ease-out]
 
 #1.0s
-fade-in wordmark [550ms, ease: ease-out]
+fade-in wordmark [550ms, ease: expo-out]
 
 #1.1s
 shift wordmark [by: (0, 24), 750ms, ease: ease-out]
 
 #1.7s
-draw-in underline [750ms, ease: ease-out]
-fade-in carriage [180ms]
+draw-in underline [750ms, ease: expo-out]
+fade-in carriage [180ms, ease: expo-out]
 // The carriage rides the draw tip: same start, span and ease as the draw.
 carriage.at = (1030, 428) [750ms, ease: ease-out]
 
 #2.6s
-fade-out carriage [300ms]
+fade-out carriage [300ms, ease: ease-in]
 
 #2.8s
-fade-in tagline [600ms, ease: ease-out]
+fade-in tagline [600ms, ease: expo-out]
 
 #2.9s
 shift tagline [by: (0, -12), 650ms, ease: ease-out]
@@ -128,11 +128,11 @@ shift tagline [by: (0, -12), 650ms, ease: ease-out]
 // reads as a trio, not a sequence of solo dots.
 #3.9s
 stagger [60ms] {
-  fade-in sq [200ms]
+  fade-in sq [200ms, ease: expo-out]
   sq.at = (704, 610) [700ms, ease: ease-out]
-  fade-in ci [200ms]
+  fade-in ci [200ms, ease: expo-out]
   ci.at = (800, 610) [700ms, ease: ease-out]
-  fade-in di [200ms]
+  fade-in di [200ms, ease: expo-out]
   di.at = (896, 610) [700ms, ease: ease-out]
 }
 
@@ -155,7 +155,7 @@ ci.size = (76, 76) [500ms, ease: ease-out]
 // contacts fall closer and closer together the way a settling ball does, and
 // x advances independently of the arc, so the drift never stalls at an apex.
 #7.8s
-fade-in ball [250ms]
+fade-in ball [250ms, ease: expo-out]
 
 always {
   let bt = min(t - 8.3, 2.3)
@@ -176,27 +176,27 @@ grid.opacity = 0.3 [1.2s, ease: ease-in-out]
 // quiet stage into the bracket draw-in instead of hard-cutting a full frame
 // to black.
 #10.6s
-fade-out ball [350ms]
+fade-out ball [350ms, ease: ease-in]
 
 #11.2s
 stagger [90ms] {
-  fade-out tagline [450ms]
-  fade-out underline [450ms]
-  fade-out sq [450ms]
-  fade-out ci [450ms]
-  fade-out di [450ms]
+  fade-out tagline [450ms, ease: ease-in]
+  fade-out underline [450ms, ease: ease-in]
+  fade-out sq [450ms, ease: ease-in]
+  fade-out ci [450ms, ease: ease-in]
+  fade-out di [450ms, ease: ease-in]
 }
 
 #11.9s
-fade-out wordmark [650ms]
+fade-out wordmark [650ms, ease: ease-in]
 
 #12.0s
 grid.opacity = 0.05 [700ms, ease: ease-in]
 
 #12.3s
 stagger [80ms] {
-  fade-out bracket_tl [380ms]
-  fade-out bracket_tr [380ms]
-  fade-out bracket_bl [380ms]
-  fade-out bracket_br [380ms]
+  fade-out bracket_tl [380ms, ease: ease-in]
+  fade-out bracket_tr [380ms, ease: ease-in]
+  fade-out bracket_bl [380ms, ease: ease-in]
+  fade-out bracket_br [380ms, ease: ease-in]
 }

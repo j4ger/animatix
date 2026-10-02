@@ -30,12 +30,12 @@ one_hint: Text, text: "the pen rides the rim — height over time is a sine",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0.05s
-fade-in one_title [500ms]
-fade-in one_circle [500ms]
-fade-in pen [400ms, delay: 200ms]
-fade-in one_graph [500ms, delay: 300ms]
-fade-in wave_dot [400ms, delay: 400ms]
-fade-in link [400ms, delay: 400ms]
+fade-in one_title [500ms, ease: expo-out]
+fade-in one_circle [500ms, ease: expo-out]
+fade-in pen [400ms, delay: 200ms, ease: expo-out]
+fade-in one_graph [500ms, delay: 300ms, ease: expo-out]
+fade-in wave_dot [400ms, delay: 400ms, ease: expo-out]
+fade-in link [400ms, delay: 400ms, ease: expo-out]
 
 #1s
 sine.stroke_progress = 1.0 [12s, ease: linear]
@@ -57,16 +57,16 @@ always {
 }
 
 #13.0s
-fade-in one_hint [400ms]
+fade-in one_hint [400ms, ease: expo-out]
 
 // Outro: quiet plate before the loop wrap.
 #14.2s
 stagger [60ms] {
-  fade-out one_hint [300ms]
-  fade-out link [300ms]
-  fade-out wave_dot [300ms]
-  fade-out one_graph [300ms]
-  fade-out pen [300ms]
-  fade-out one_circle [300ms]
-  fade-out one_title [300ms]
+  fade-out one_hint [300ms, ease: ease-in]
+  fade-out link [300ms, ease: ease-in]
+  fade-out wave_dot [300ms, ease: ease-in]
+  fade-out one_graph [300ms, ease: ease-in]
+  fade-out pen [300ms, ease: ease-in]
+  fade-out one_circle [300ms, ease: ease-in]
+  fade-out one_title [300ms, ease: ease-in]
 }

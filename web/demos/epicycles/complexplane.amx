@@ -37,17 +37,17 @@ always {
 }
 
 #0.4s
-fade-in cp_title [500ms]
-fade-in grid [600ms, ease: ease-out]
-fade-in unit_circle [600ms, ease: ease-out]
+fade-in cp_title [500ms, ease: expo-out]
+fade-in grid [600ms, ease: expo-out]
+fade-in unit_circle [600ms, ease: expo-out]
 
 #1s
-fade-in vector [400ms]
-fade-in vec_tip [400ms]
+fade-in vector [400ms, ease: expo-out]
+fade-in vec_tip [400ms, ease: expo-out]
 
 #2s
-fade-in cp_eq [600ms, ease: ease-out]
-fade-in cp_note [500ms, delay: 300ms]
+fade-in cp_eq [600ms, ease: expo-out]
+fade-in cp_note [500ms, delay: 300ms, ease: expo-out]
 
 #4s
-fade-in endnote [600ms]
+fade-in endnote [600ms, ease: expo-out]

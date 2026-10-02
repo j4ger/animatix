@@ -33,31 +33,31 @@ shear_cap: Text, text: "the unit square leans into a parallelogram — same base
 
 #0.3s
 stagger [60ms] {
-  fade-in vl__0 [300ms]
-  fade-in vl__1 [300ms]
-  fade-in vl__2 [300ms]
-  fade-in vl__3 [300ms]
-  fade-in vl__4 [300ms]
-  fade-in hl__0 [300ms]
-  fade-in hl__1 [300ms]
-  fade-in hl__2 [300ms]
-  fade-in hl__3 [300ms]
-  fade-in hl__4 [300ms]
+  fade-in vl__0 [300ms, ease: expo-out]
+  fade-in vl__1 [300ms, ease: expo-out]
+  fade-in vl__2 [300ms, ease: expo-out]
+  fade-in vl__3 [300ms, ease: expo-out]
+  fade-in vl__4 [300ms, ease: expo-out]
+  fade-in hl__0 [300ms, ease: expo-out]
+  fade-in hl__1 [300ms, ease: expo-out]
+  fade-in hl__2 [300ms, ease: expo-out]
+  fade-in hl__3 [300ms, ease: expo-out]
+  fade-in hl__4 [300ms, ease: expo-out]
 }
-fade-in i_hat [300ms, delay: 350ms]
-fade-in i_t [300ms, delay: 400ms]
-fade-in j_t [300ms, delay: 450ms]
-fade-in m_brace [260ms, delay: 100ms]
-fade-in j_hat [300ms, delay: 450ms]
+fade-in i_hat [300ms, delay: 350ms, ease: expo-out]
+fade-in i_t [300ms, delay: 400ms, ease: expo-out]
+fade-in j_t [300ms, delay: 450ms, ease: expo-out]
+fade-in m_brace [260ms, delay: 100ms, ease: expo-out]
+fade-in j_hat [300ms, delay: 450ms, ease: expo-out]
 stagger [90ms] {
-  fade-in a_t [260ms]
-  fade-in b_t [260ms]
-  fade-in c_t [260ms]
-  fade-in d_t [260ms]
-  fade-in det_t [260ms]
+  fade-in a_t [260ms, ease: expo-out]
+  fade-in b_t [260ms, ease: expo-out]
+  fade-in c_t [260ms, ease: expo-out]
+  fade-in d_t [260ms, ease: expo-out]
+  fade-in det_t [260ms, ease: expo-out]
 }
-fade-in shear_title [500ms, ease: ease-out]
-fade-in shear_sub [400ms, delay: 150ms]
+fade-in shear_title [500ms, ease: expo-out]
+fade-in shear_sub [400ms, delay: 150ms, ease: expo-out]
 
 always {
   // Smoothstep shear: k rises 0 → 1 between t = 2.5 and t = 6.

@@ -30,29 +30,29 @@ col_note: Text, text: "collision: owl chains below dog", font_size: 20,
   color: accent.warning, anchor: scene.bottom, offset: (0, -120), opacity: 0.0
 
 #0.3s
-fade-in col_title [500ms, ease: ease-out]
+fade-in col_title [500ms, ease: expo-out]
 stagger [60ms] {
-  fade-in b0c [300ms]
-  fade-in b1c [300ms]
-  fade-in b2c [300ms]
-  fade-in b3c [300ms]
-  fade-in b4c [300ms]
-  fade-in b5c [300ms]
-  fade-in b6c [300ms]
-  fade-in b7c [300ms]
+  fade-in b0c [300ms, ease: expo-out]
+  fade-in b1c [300ms, ease: expo-out]
+  fade-in b2c [300ms, ease: expo-out]
+  fade-in b3c [300ms, ease: expo-out]
+  fade-in b4c [300ms, ease: expo-out]
+  fade-in b5c [300ms, ease: expo-out]
+  fade-in b6c [300ms, ease: expo-out]
+  fade-in b7c [300ms, ease: expo-out]
 }
-fade-in resident [300ms, delay: 400ms]
+fade-in resident [300ms, delay: 400ms, ease: expo-out]
 
 #1.4s
-fade-in chip_owl [300ms]
-fade-in col_f [260ms]
+fade-in chip_owl [300ms, ease: expo-out]
+fade-in col_f [260ms, ease: expo-out]
 #2.0s
 shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
 #2.7s
 shift chip_owl [by: (0, 84), 320ms, ease: ease-out]
-fade-in chain [240ms]
-fade-out col_f [200ms]
-fade-in col_note [300ms]
+fade-in chain [240ms, ease: expo-out]
+fade-out col_f [200ms, ease: ease-in]
+fade-in col_note [300ms, ease: expo-out]
 
 
 // ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
@@ -61,18 +61,18 @@ fade-in col_note [300ms]
 // Outro: quiet plate before the loop wrap.
 #4.2s
 stagger [30ms] {
-  fade-out col_note [280ms]
-  fade-out chain [280ms]
-  fade-out chip_owl [280ms]
-  fade-out col_f [280ms]
-  fade-out resident [280ms]
-  fade-out b7c [280ms]
-  fade-out b6c [280ms]
-  fade-out b5c [280ms]
-  fade-out b4c [280ms]
-  fade-out b3c [280ms]
-  fade-out b2c [280ms]
-  fade-out b1c [280ms]
-  fade-out b0c [280ms]
-  fade-out col_title [280ms]
+  fade-out col_note [280ms, ease: ease-in]
+  fade-out chain [280ms, ease: ease-in]
+  fade-out chip_owl [280ms, ease: ease-in]
+  fade-out col_f [280ms, ease: ease-in]
+  fade-out resident [280ms, ease: ease-in]
+  fade-out b7c [280ms, ease: ease-in]
+  fade-out b6c [280ms, ease: ease-in]
+  fade-out b5c [280ms, ease: ease-in]
+  fade-out b4c [280ms, ease: ease-in]
+  fade-out b3c [280ms, ease: ease-in]
+  fade-out b2c [280ms, ease: ease-in]
+  fade-out b1c [280ms, ease: ease-in]
+  fade-out b0c [280ms, ease: ease-in]
+  fade-out col_title [280ms, ease: ease-in]
 }

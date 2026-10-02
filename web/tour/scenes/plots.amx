@@ -23,32 +23,32 @@ cap2: Text, text: "the gradient field of sin(x)cos(y)", font_size: 22,
   color: text.secondary, at: (1050, 560)
 
 #0.4s
-fade-in title [600ms, ease: ease-out]
+fade-in title [600ms, ease: expo-out]
 
 #1.0s
-fade-in main [600ms, ease: ease-out]
+fade-in main [600ms, ease: expo-out]
 
 // cap1 is up BEFORE the trace starts so the beat arrives labeled
 #1.7s
-fade-in cap1 [400ms]
+fade-in cap1 [400ms, ease: expo-out]
 
 #1.8s
-fade-in sine [300ms]
+fade-in sine [300ms, ease: expo-out]
 sine.stroke_progress = 1.0 [2.4s, ease: ease-in-out]
 
 // hand off to cap2 as the field beat starts
 #4.4s
-fade-out cap1 [200ms]
+fade-out cap1 [200ms, ease: ease-in]
 
 #4.6s
-fade-in field [600ms, ease: ease-out]
-fade-in cap2 [400ms]
+fade-in field [600ms, ease: expo-out]
+fade-in cap2 [400ms, ease: expo-out]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #6.7s
 stagger [80ms] {
-  fade-out cap2 [350ms]
-  fade-out field [350ms]
-  fade-out main [350ms]
-  fade-out title [350ms]
+  fade-out cap2 [350ms, ease: ease-in]
+  fade-out field [350ms, ease: ease-in]
+  fade-out main [350ms, ease: ease-in]
+  fade-out title [350ms, ease: ease-in]
 }

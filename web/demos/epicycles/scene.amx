@@ -35,17 +35,17 @@ goal_hint: Text, text: "the destination — a square wave built from circles",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0.1s
-fade-in goal_title [600ms, ease: ease-out]
-fade-in goal_graph [600ms, ease: ease-out]
+fade-in goal_title [600ms, ease: expo-out]
+fade-in goal_graph [600ms, ease: expo-out]
 
 #1.2s
-fade-in goal_wave [400ms]
+fade-in goal_wave [400ms, ease: expo-out]
 
 #1.5s
 goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
 
 #5.2s
-fade-in goal_hint [500ms]
+fade-in goal_hint [500ms, ease: expo-out]
 
 #6s
 play OneCircle [fade, 500ms]
@@ -82,12 +82,12 @@ one_hint: Text, text: "the pen rides the rim — height over time is a sine",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0.05s
-fade-in one_title [500ms]
-fade-in one_circle [500ms]
-fade-in pen [400ms, delay: 200ms]
-fade-in one_graph [500ms, delay: 300ms]
-fade-in wave_dot [400ms, delay: 400ms]
-fade-in link [400ms, delay: 400ms]
+fade-in one_title [500ms, ease: expo-out]
+fade-in one_circle [500ms, ease: expo-out]
+fade-in pen [400ms, delay: 200ms, ease: expo-out]
+fade-in one_graph [500ms, delay: 300ms, ease: expo-out]
+fade-in wave_dot [400ms, delay: 400ms, ease: expo-out]
+fade-in link [400ms, delay: 400ms, ease: expo-out]
 
 #1s
 sine.stroke_progress = 1.0 [12s, ease: linear]
@@ -107,7 +107,7 @@ always {
 }
 
 #13.8s
-fade-in one_hint [400ms]
+fade-in one_hint [400ms, ease: expo-out]
 
 #14.4s
 play Hero [wipe-left, 500ms]
@@ -154,14 +154,14 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
 }
 
 #0.05s
-fade-in hero_title [500ms]
-fade-in c1 [500ms]
-fade-in c2 [500ms]
-fade-in tip [400ms, delay: 200ms]
-fade-in hero_graph [500ms, delay: 300ms]
-fade-in wave_tip [400ms, delay: 500ms]
-fade-in hero_link [400ms, delay: 500ms]
-fade-in eq_row [500ms, delay: 500ms]
+fade-in hero_title [500ms, ease: expo-out]
+fade-in c1 [500ms, ease: expo-out]
+fade-in c2 [500ms, ease: expo-out]
+fade-in tip [400ms, delay: 200ms, ease: expo-out]
+fade-in hero_graph [500ms, delay: 300ms, ease: expo-out]
+fade-in wave_tip [400ms, delay: 500ms, ease: expo-out]
+fade-in hero_link [400ms, delay: 500ms, ease: expo-out]
+fade-in eq_row [500ms, delay: 500ms, ease: expo-out]
 
 #1s
 hero_wave.stroke_progress = 1.0 [20s, ease: linear]
@@ -206,7 +206,7 @@ always {
 // eq-term highlight is the one-beat drama voice (coral), then it returns.
 #4s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
-fade-in c3 [400ms]
+fade-in c3 [400ms, ease: expo-out]
 eq_3.color = accent.warning [400ms]
 
 #5.5s
@@ -214,7 +214,7 @@ eq_3.color = text.secondary [400ms]
 
 #9s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5) [1.5s]
-fade-in c4 [400ms]
+fade-in c4 [400ms, ease: expo-out]
 eq_5.color = accent.warning [400ms]
 
 #10.5s
@@ -255,12 +255,12 @@ spec_note: Text, text: "1/k decay", font_size: 20,
   color: accent.primary, anchor: scene.center, offset: (-430, -120)
 
 #0.05s
-fade-in spec_title [500ms]
-fade-in spec_eq [500ms, delay: 200ms]
+fade-in spec_title [500ms, ease: expo-out]
+fade-in spec_eq [500ms, delay: 200ms, ease: expo-out]
 
 #1.2s
-fade-in spectrum [800ms, ease: ease-out]
-fade-in spec_note [500ms, delay: 500ms]
+fade-in spectrum [800ms, ease: expo-out]
+fade-in spec_note [500ms, delay: 500ms, ease: expo-out]
 
 #3.5s
 play ComplexPlane [fade, 500ms]
@@ -302,30 +302,30 @@ always {
 }
 
 #0.05s
-fade-in cp_title [500ms]
-fade-in grid [600ms, ease: ease-out]
-fade-in unit_circle [600ms, ease: ease-out]
+fade-in cp_title [500ms, ease: expo-out]
+fade-in grid [600ms, ease: expo-out]
+fade-in unit_circle [600ms, ease: expo-out]
 
 #1s
-fade-in vector [400ms]
-fade-in vec_tip [400ms]
+fade-in vector [400ms, ease: expo-out]
+fade-in vec_tip [400ms, ease: expo-out]
 
 #2s
-fade-in cp_eq [600ms, ease: ease-out]
-fade-in cp_note [500ms, delay: 300ms]
+fade-in cp_eq [600ms, ease: expo-out]
+fade-in cp_note [500ms, delay: 300ms, ease: expo-out]
 
 #4s
-fade-in endnote [600ms]
+fade-in endnote [600ms, ease: expo-out]
 
 // Outro: quiet plate before the document loops.
 #11.2s
 stagger [60ms] {
-  fade-out endnote [300ms]
-  fade-out cp_note [300ms]
-  fade-out cp_eq [300ms]
-  fade-out vec_tip [300ms]
-  fade-out vector [300ms]
-  fade-out unit_circle [300ms]
-  fade-out grid [300ms]
-  fade-out cp_title [300ms]
+  fade-out endnote [300ms, ease: ease-in]
+  fade-out cp_note [300ms, ease: ease-in]
+  fade-out cp_eq [300ms, ease: ease-in]
+  fade-out vec_tip [300ms, ease: ease-in]
+  fade-out vector [300ms, ease: ease-in]
+  fade-out unit_circle [300ms, ease: ease-in]
+  fade-out grid [300ms, ease: ease-in]
+  fade-out cp_title [300ms, ease: ease-in]
 }

@@ -48,24 +48,24 @@ lesson: Text,
   font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
 
 #0.5s
-fade-in step4_title [500ms, ease: ease-out]
-fade-in contours_lr [600ms]
-fade-in lr_graph [600ms]
+fade-in step4_title [500ms, ease: expo-out]
+fade-in contours_lr [600ms, ease: expo-out]
+fade-in lr_graph [600ms, ease: expo-out]
 
 #1.0s
 stagger [400ms] {
-  fade-in too_small [600ms]
-  fade-in just_right [600ms]
-  fade-in too_big [600ms]
+  fade-in too_small [600ms, ease: expo-out]
+  fade-in just_right [600ms, ease: expo-out]
+  fade-in too_big [600ms, ease: expo-out]
 }
 
 #3.5s
-fade-in label_small [400ms]
-fade-in label_right [400ms]
-fade-in label_big [400ms]
+fade-in label_small [400ms, ease: expo-out]
+fade-in label_right [400ms, ease: expo-out]
+fade-in label_big [400ms, ease: expo-out]
 
 #5.0s
-fade-in lesson [600ms]
+fade-in lesson [600ms, ease: expo-out]
 
 
 // =============================================================================

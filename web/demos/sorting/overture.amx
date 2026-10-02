@@ -15,9 +15,9 @@ hint: Text, text: "every comparison and swap below is emitted at build time",
   font_size: 20, color: text.muted, anchor: scene.center, offset: (0, 70)
 
 #0s
-fade-in title [700ms, ease: ease-out]
-fade-in subtitle [600ms, delay: 250ms]
-fade-in hint [500ms, delay: 450ms]
+fade-in title [700ms, ease: expo-out]
+fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
+fade-in hint [500ms, delay: 450ms, ease: expo-out]
 
 #5.4s
 

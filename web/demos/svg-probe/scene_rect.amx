@@ -7,4 +7,4 @@ backdrop: Rect, size: (640, 360), color: text.primary, opacity: 1.0, at: (320, 1
 logo: Svg, url: "mark_rect.svg", at: (320, 180)
 
 #0.2s
-fade-in logo [300ms]
+fade-in logo [300ms, ease: expo-out]

@@ -81,23 +81,23 @@ climb: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (640, 5
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
-fade-in phase1 [300ms]
+fade-in phase1 [300ms, ease: expo-out]
 stagger [100ms] {
-  fade-in in1 [340ms]
-  fade-in in2 [340ms]
-  fade-in in3 [340ms]
-  fade-in in4 [340ms]
+  fade-in in1 [340ms, ease: expo-out]
+  fade-in in2 [340ms, ease: expo-out]
+  fade-in in3 [340ms, ease: expo-out]
+  fade-in in4 [340ms, ease: expo-out]
 }
 
 #1.05s
-draw-in up1 [300ms]
+draw-in up1 [300ms, ease: expo-out]
 up1.opacity = 0.6 [280ms]
 
 #1.25s
-fade-out phase1 [260ms]
-fade-in phase2 [280ms, delay: 200ms]
-fade-in b1 [420ms, ease: ease-out]
-fade-in b1_t [300ms, delay: 200ms]
+fade-out phase1 [260ms, ease: ease-in]
+fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in b1 [420ms, ease: expo-out]
+fade-in b1_t [300ms, delay: 200ms, ease: expo-out]
 stagger [50ms] {
   s1_0.opacity = 0.30 [280ms]
   s1_1.opacity = 0.85 [280ms]
@@ -105,12 +105,12 @@ stagger [50ms] {
   s1_3.opacity = 0.70 [280ms]
   s1_4.opacity = 0.35 [280ms]
 }
-draw-in up2 [300ms, delay: 620ms]
+draw-in up2 [300ms, delay: 620ms, ease: expo-out]
 up2.opacity = 0.6 [280ms, delay: 620ms]
 
 #1.95s
-fade-in b2 [420ms, ease: ease-out]
-fade-in b2_t [300ms, delay: 200ms]
+fade-in b2 [420ms, ease: expo-out]
+fade-in b2_t [300ms, delay: 200ms, ease: expo-out]
 stagger [50ms] {
   s2_0.opacity = 0.60 [280ms]
   s2_1.opacity = 0.40 [280ms]
@@ -118,12 +118,12 @@ stagger [50ms] {
   s2_3.opacity = 0.35 [280ms]
   s2_4.opacity = 0.75 [280ms]
 }
-draw-in up3 [300ms, delay: 620ms]
+draw-in up3 [300ms, delay: 620ms, ease: expo-out]
 up3.opacity = 0.6 [280ms, delay: 620ms]
 
 #2.65s
-fade-in b3 [420ms, ease: ease-out]
-fade-in b3_t [300ms, delay: 200ms]
+fade-in b3 [420ms, ease: expo-out]
+fade-in b3_t [300ms, delay: 200ms, ease: expo-out]
 stagger [50ms] {
   s3_0.opacity = 0.85 [280ms]
   s3_1.opacity = 0.55 [280ms]
@@ -133,25 +133,25 @@ stagger [50ms] {
 }
 
 #3.40s
-fade-out phase2 [260ms]
-fade-in phase3 [300ms, delay: 200ms]
-draw-in up_lm [380ms, ease: ease-out]
-draw-in up_cls [380ms, ease: ease-out]
+fade-out phase2 [260ms, ease: ease-in]
+fade-in phase3 [300ms, delay: 200ms, ease: expo-out]
+draw-in up_lm [380ms, ease: expo-out]
+draw-in up_cls [380ms, ease: expo-out]
 up_lm.opacity = 0.6 [340ms]
 up_cls.opacity = 0.6 [340ms]
-fade-in out_lm [400ms, delay: 260ms]
-fade-in out_lm_t [300ms, delay: 420ms]
-fade-in out_cls [400ms, delay: 420ms]
-fade-in out_cls_t [300ms, delay: 580ms]
+fade-in out_lm [400ms, delay: 260ms, ease: expo-out]
+fade-in out_lm_t [300ms, delay: 420ms, ease: expo-out]
+fade-in out_cls [400ms, delay: 420ms, ease: expo-out]
+fade-in out_cls_t [300ms, delay: 580ms, ease: expo-out]
 
 // The token rides the whole stack; the block it is passing through pulses.
 // (Explicit size breaths rather than `pulse`: the action's overshoot reads
 // as a different-sized block, and the stack's whole point is that the blocks
 // are identical.)
 #4.35s
-fade-in climb [240ms]
+fade-in climb [240ms, ease: expo-out]
 shift climb [by: (0, -406), 1700ms, ease: ease-in-out]
-fade-out climb [300ms, delay: 1560ms]
+fade-out climb [300ms, delay: 1560ms, ease: ease-in]
 
 #4.90s
 b1.size = (584, 83) [180ms, ease: ease-out]
@@ -171,39 +171,39 @@ b3.size = (560, 80) [220ms, ease: ease-in]
 // Outro: quiet the plate before the wrap (reverse order).
 #6.55s
 stagger [35ms] {
-  fade-out out_cls_t [260ms]
-  fade-out out_cls [260ms]
-  fade-out out_lm_t [260ms]
-  fade-out out_lm [260ms]
-  fade-out up_cls [260ms]
-  fade-out up_lm [260ms]
-  fade-out s3_4 [260ms]
-  fade-out s3_3 [260ms]
-  fade-out s3_2 [260ms]
-  fade-out s3_1 [260ms]
-  fade-out s3_0 [260ms]
-  fade-out b3_t [260ms]
-  fade-out b3 [260ms]
-  fade-out up3 [260ms]
-  fade-out s2_4 [260ms]
-  fade-out s2_3 [260ms]
-  fade-out s2_2 [260ms]
-  fade-out s2_1 [260ms]
-  fade-out s2_0 [260ms]
-  fade-out b2_t [260ms]
-  fade-out b2 [260ms]
-  fade-out up2 [260ms]
-  fade-out s1_4 [260ms]
-  fade-out s1_3 [260ms]
-  fade-out s1_2 [260ms]
-  fade-out s1_1 [260ms]
-  fade-out s1_0 [260ms]
-  fade-out b1_t [260ms]
-  fade-out b1 [260ms]
-  fade-out climb [260ms]
-  fade-out in4 [260ms]
-  fade-out in3 [260ms]
-  fade-out in2 [260ms]
-  fade-out in1 [260ms]
-  fade-out phase3 [260ms]
+  fade-out out_cls_t [260ms, ease: ease-in]
+  fade-out out_cls [260ms, ease: ease-in]
+  fade-out out_lm_t [260ms, ease: ease-in]
+  fade-out out_lm [260ms, ease: ease-in]
+  fade-out up_cls [260ms, ease: ease-in]
+  fade-out up_lm [260ms, ease: ease-in]
+  fade-out s3_4 [260ms, ease: ease-in]
+  fade-out s3_3 [260ms, ease: ease-in]
+  fade-out s3_2 [260ms, ease: ease-in]
+  fade-out s3_1 [260ms, ease: ease-in]
+  fade-out s3_0 [260ms, ease: ease-in]
+  fade-out b3_t [260ms, ease: ease-in]
+  fade-out b3 [260ms, ease: ease-in]
+  fade-out up3 [260ms, ease: ease-in]
+  fade-out s2_4 [260ms, ease: ease-in]
+  fade-out s2_3 [260ms, ease: ease-in]
+  fade-out s2_2 [260ms, ease: ease-in]
+  fade-out s2_1 [260ms, ease: ease-in]
+  fade-out s2_0 [260ms, ease: ease-in]
+  fade-out b2_t [260ms, ease: ease-in]
+  fade-out b2 [260ms, ease: ease-in]
+  fade-out up2 [260ms, ease: ease-in]
+  fade-out s1_4 [260ms, ease: ease-in]
+  fade-out s1_3 [260ms, ease: ease-in]
+  fade-out s1_2 [260ms, ease: ease-in]
+  fade-out s1_1 [260ms, ease: ease-in]
+  fade-out s1_0 [260ms, ease: ease-in]
+  fade-out b1_t [260ms, ease: ease-in]
+  fade-out b1 [260ms, ease: ease-in]
+  fade-out climb [260ms, ease: ease-in]
+  fade-out in4 [260ms, ease: ease-in]
+  fade-out in3 [260ms, ease: ease-in]
+  fade-out in2 [260ms, ease: ease-in]
+  fade-out in1 [260ms, ease: ease-in]
+  fade-out phase3 [260ms, ease: ease-in]
 }

@@ -14,4 +14,4 @@ kinds: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (330, 330), at: (320, 
 }
 
 #0.2s
-fade-in kinds [300ms]
+fade-in kinds [300ms, ease: expo-out]

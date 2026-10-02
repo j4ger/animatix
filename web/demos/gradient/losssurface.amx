@@ -25,17 +25,17 @@ caption: Text,
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.5s
-fade-in step_title [500ms, ease: ease-out]
+fade-in step_title [500ms, ease: expo-out]
 
 #1.0s
 stagger [150ms] {
-  fade-in contours [600ms]
-  fade-in field [600ms]
-  fade-in min_dot [400ms]
+  fade-in contours [600ms, ease: expo-out]
+  fade-in field [600ms, ease: expo-out]
+  fade-in min_dot [400ms, ease: expo-out]
 }
 
 #3.5s
-fade-in caption [500ms]
+fade-in caption [500ms, ease: expo-out]
 
 
 // =============================================================================
@@ -45,9 +45,9 @@ fade-in caption [500ms]
 // Outro: quiet plate before the loop wrap.
 #4.4s
 stagger [60ms] {
-  fade-out caption [300ms]
-  fade-out min_dot [300ms]
-  fade-out field [300ms]
-  fade-out contours [300ms]
-  fade-out step_title [300ms]
+  fade-out caption [300ms, ease: ease-in]
+  fade-out min_dot [300ms, ease: ease-in]
+  fade-out field [300ms, ease: ease-in]
+  fade-out contours [300ms, ease: ease-in]
+  fade-out step_title [300ms, ease: ease-in]
 }

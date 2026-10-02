@@ -24,15 +24,15 @@ code2: Code, code: "    return softmax(q @ k / sqrt(64))", language: "python",
   font_size: 32, color: text.primary, anchor: scene.center, offset: (-60, 220)
 
 #0.4s
-fade-in title [500ms]
+fade-in title [500ms, ease: expo-out]
 #0.9s
 stagger [180ms] {
-  fade-in eq1 [500ms]
-  fade-in eq2 [500ms]
-  fade-in eq3 [500ms]
+  fade-in eq1 [500ms, ease: expo-out]
+  fade-in eq2 [500ms, ease: expo-out]
+  fade-in eq3 [500ms, ease: expo-out]
 }
 #2.2s
 stagger [150ms] {
-  fade-in code1 [450ms]
-  fade-in code2 [450ms]
+  fade-in code1 [450ms, ease: expo-out]
+  fade-in code2 [450ms, ease: expo-out]
 }

@@ -40,68 +40,68 @@ poly: Polygon, points: {(0, -85), (85, 0), (0, 85), (-85, 0)}, color: accent.war
 
 #0.5s
 stagger [100ms] {
-  fade-in circle [500ms, ease: ease-out]
-  fade-in rect [500ms, ease: ease-out]
-  fade-in poly [500ms, ease: ease-out]
+  fade-in circle [500ms, ease: expo-out]
+  fade-in rect [500ms, ease: expo-out]
+  fade-in poly [500ms, ease: expo-out]
 }
 
 // Circle → square with auto strategy (both 16 points, phase-matched)
 #1.9s
-fade-in capA [200ms]
+fade-in capA [200ms, ease: expo-out]
 
 #2s
 circle: Polygon, points: {(85, 0), (85, 35), (85, 85), (35, 85), (0, 85), (-35, 85), (-85, 85), (-85, 35), (-85, 0), (-85, -35), (-85, -85), (-35, -85), (0, -85), (35, -85), (85, -85), (85, -35)}, color: text.primary, at: (320, 330) [1s, strategy: auto]
 
 #3.25s
-fade-out capA [200ms]
+fade-out capA [200ms, ease: ease-in]
 
 // Square → hexagon with match strategy — vertex matching is what the label teaches
 #3.45s
-fade-in capM [200ms]
+fade-in capM [200ms, ease: expo-out]
 
 #3.5s
 rect: Polygon, points: {(0, -95), (82, -48), (82, 48), (0, 95), (-82, 48), (-82, -48)}, color: accent.primary, at: (640, 330) [1s, strategy: match]
 
 #4.75s
-fade-out capM [200ms]
+fade-out capM [200ms, ease: ease-in]
 
 // Diamond → star with a path-arc hint
 #4.95s
-fade-in capP3 [200ms]
+fade-in capP3 [200ms, ease: expo-out]
 
 #5s
 poly: Polygon, points: {(0, -95), (24, -30), (90, -30), (36, 12), (54, 78), (0, 42), (-54, 78), (-36, 12), (-90, -30), (-24, -30)}, color: accent.success, at: (960, 330) [1.5s, path_arc: 0.3]
 
 #6.25s
-fade-out capP3 [200ms]
+fade-out capP3 [200ms, ease: ease-in]
 
 // Star → diamond with a tighter arc: the return trip shows path_arc on a
 // different vertex pairing than the five-point morph above.
 #6.45s
-fade-in capP25 [200ms]
+fade-in capP25 [200ms, ease: expo-out]
 
 #6.5s
 poly: Polygon, points: {(0, -88), (88, 0), (0, 88), (-88, 0)}, color: accent.primary, at: (960, 330) [1.2s, path_arc: 0.25]
 
 #7.65s
-fade-out capP25 [200ms]
+fade-out capP25 [200ms, ease: ease-in]
 
 // The square (left) tips into a diamond under `auto` — 16 points on both
 // ends, so the tip interpolates; its own caption window keeps two strategies
 // out of one label.
 #7.85s
-fade-in capA [200ms]
+fade-in capA [200ms, ease: expo-out]
 
 #7.9s
 circle: Polygon, points: {(88, 0), (62, 26), (44, 44), (26, 62), (0, 88), (-26, 62), (-44, 44), (-62, 26), (-88, 0), (-62, -26), (-44, -44), (-26, -62), (0, -88), (26, -62), (44, -44), (62, -26)}, color: accent.primary, at: (320, 330) [1s, strategy: auto]
 
 #8.75s
-fade-out capA [200ms]
+fade-out capA [200ms, ease: ease-in]
 
 // Square-based trapezoid with stretch normalization — Polygon→Polygon so
 // the span interpolates (a state-shape Ellipse → Path collapsed mid-span).
 #8.95s
-fade-in capS [200ms]
+fade-in capS [200ms, ease: expo-out]
 
 #9s
 rect: Polygon, points: {(-90, -52), (90, -52), (62, 52), (-62, 52)}, color: accent.warning, at: (640, 330) [1s, stretch: true]
@@ -113,12 +113,12 @@ rect.color = accent.primary [500ms]
 poly.color = accent.primary [500ms]
 
 #10.4s
-fade-out capS [300ms]
+fade-out capS [300ms, ease: ease-in]
 
 // Outro: quiet the plate before the wrap.
 #10.6s
 stagger [80ms] {
-  fade-out circle [350ms]
-  fade-out rect [350ms]
-  fade-out poly [350ms]
+  fade-out circle [350ms, ease: ease-in]
+  fade-out rect [350ms, ease: ease-in]
+  fade-out poly [350ms, ease: ease-in]
 }

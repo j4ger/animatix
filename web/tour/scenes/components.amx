@@ -28,36 +28,36 @@ row: Row, anchor: scene.center, gap: 28, align: "center" {
 }
 
 #0.4s
-fade-in heading [600ms, ease: ease-out]
+fade-in heading [600ms, ease: expo-out]
 
 #0.6s
-fade-in capI [300ms]
+fade-in capI [300ms, ease: expo-out]
 
 #1.0s
 stagger [150ms] {
-  fade-in c1 [450ms, ease: ease-out]
-  fade-in c2 [450ms, ease: ease-out]
-  fade-in c3 [450ms, ease: ease-out]
+  fade-in c1 [450ms, ease: expo-out]
+  fade-in c2 [450ms, ease: expo-out]
+  fade-in c3 [450ms, ease: expo-out]
 }
 
 #2.4s
-fade-out capI [200ms]
+fade-out capI [200ms, ease: ease-in]
 
 #2.6s
-fade-in capX [300ms]
+fade-in capX [300ms, ease: expo-out]
 
 #3.2s
 pulse c2 [400ms]
 shift row [by: (0, -40), 500ms, ease: ease-out]
 
 #4.6s
-fade-out capX [200ms]
+fade-out capX [200ms, ease: ease-in]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #5.1s
 stagger [80ms] {
-  fade-out c3 [350ms]
-  fade-out c2 [350ms]
-  fade-out c1 [350ms]
-  fade-out heading [350ms]
+  fade-out c3 [350ms, ease: ease-in]
+  fade-out c2 [350ms, ease: ease-in]
+  fade-out c1 [350ms, ease: ease-in]
+  fade-out heading [350ms, ease: ease-in]
 }

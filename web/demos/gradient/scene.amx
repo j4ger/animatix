@@ -18,10 +18,10 @@ subtitle: Text, text: "Rolling down the loss surface", font_size: 28,
   color: text.secondary, anchor: scene.center, offset: (0, 40)
 
 #0.0s
-fade-in title [800ms, ease: ease-out]
+fade-in title [800ms, ease: expo-out]
 
 #1.4s
-fade-in subtitle [600ms, ease: ease-out]
+fade-in subtitle [600ms, ease: expo-out]
 
 play LossSurface [fade, 400ms]
 
@@ -52,17 +52,17 @@ caption: Text,
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.0s
-fade-in step_title [500ms, ease: ease-out]
+fade-in step_title [500ms, ease: expo-out]
 
 #1.0s
 stagger [150ms] {
-  fade-in contours [600ms]
-  fade-in field [600ms]
-  fade-in min_dot [400ms]
+  fade-in contours [600ms, ease: expo-out]
+  fade-in field [600ms, ease: expo-out]
+  fade-in min_dot [400ms, ease: expo-out]
 }
 
 #3.5s
-fade-in caption [500ms]
+fade-in caption [500ms, ease: expo-out]
 
 play GradientDirection [wipe-left, 400ms]
 
@@ -108,21 +108,21 @@ gradient_eq: Text,
   font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
 
 #0.0s
-fade-in contours_bg [600ms]
-fade-in field_bg [600ms]
-fade-in step2_title [500ms, ease: ease-out, delay: 450ms]
-fade-in ball [400ms]
+fade-in contours_bg [600ms, ease: expo-out]
+fade-in field_bg [600ms, ease: expo-out]
+fade-in step2_title [500ms, ease: expo-out, delay: 450ms]
+fade-in ball [400ms, ease: expo-out]
 
 #1.5s
-fade-in up_arrow [800ms]
-fade-in up_label [800ms]
+fade-in up_arrow [800ms, ease: expo-out]
+fade-in up_label [800ms, ease: expo-out]
 
 #2.0s
-fade-in gradient_eq [600ms]
+fade-in gradient_eq [600ms, ease: expo-out]
 
 #3.2s
-fade-in down_arrow [800ms]
-fade-in down_label [800ms]
+fade-in down_arrow [800ms, ease: expo-out]
+fade-in down_label [800ms, ease: expo-out]
 
 #3.5s
 highlight ball [600ms]
@@ -181,21 +181,21 @@ always {
 }
 
 #0.0s
-fade-in step3_title [500ms, ease: ease-out, delay: 450ms]
-fade-in contours_dim [600ms]
-fade-in descent_graph [600ms]
+fade-in step3_title [500ms, ease: expo-out, delay: 450ms]
+fade-in contours_dim [600ms, ease: expo-out]
+fade-in descent_graph [600ms, ease: expo-out]
 
 #1.0s
-fade-in ball [400ms]
-fade-in live_loss [400ms]
-fade-in trail [400ms]
+fade-in ball [400ms, ease: expo-out]
+fade-in live_loss [400ms, ease: expo-out]
+fade-in trail [400ms, ease: expo-out]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
 
 #5.7s
 highlight ball [600ms]
 
 #6.5s
-fade-in takeaway [600ms]
+fade-in takeaway [600ms, ease: expo-out]
 
 play LearningRate [fade, 400ms]
 
@@ -247,24 +247,24 @@ lesson: Text,
   font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
 
 #0.0s
-fade-in step4_title [500ms, ease: ease-out, delay: 450ms]
-fade-in contours_lr [600ms]
-fade-in lr_graph [600ms]
+fade-in step4_title [500ms, ease: expo-out, delay: 450ms]
+fade-in contours_lr [600ms, ease: expo-out]
+fade-in lr_graph [600ms, ease: expo-out]
 
 #1.0s
 stagger [400ms] {
-  fade-in too_small [600ms]
-  fade-in just_right [600ms]
-  fade-in too_big [600ms]
+  fade-in too_small [600ms, ease: expo-out]
+  fade-in just_right [600ms, ease: expo-out]
+  fade-in too_big [600ms, ease: expo-out]
 }
 
 #3.5s
-fade-in label_small [400ms]
-fade-in label_right [400ms]
-fade-in label_big [400ms]
+fade-in label_small [400ms, ease: expo-out]
+fade-in label_right [400ms, ease: expo-out]
+fade-in label_big [400ms, ease: expo-out]
 
 #5.0s
-fade-in lesson [600ms]
+fade-in lesson [600ms, ease: expo-out]
 
 play Outro [fade, 400ms]
 
@@ -281,11 +281,11 @@ tag: Text, text: "gradient descent  ·  animatix", font_size: 18,
   color: text.muted, anchor: scene.center, offset: (0, 50)
 
 #0.0s
-fade-in thanks [700ms, ease: ease-out]
+fade-in thanks [700ms, ease: expo-out]
 
 #1.0s
-fade-in tag [500ms, ease: ease-out]
+fade-in tag [500ms, ease: expo-out]
 
 #2.2s
-fade-out thanks [300ms]
-fade-out tag [300ms]
+fade-out thanks [300ms, ease: ease-in]
+fade-out tag [300ms, ease: ease-in]

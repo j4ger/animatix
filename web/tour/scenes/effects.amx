@@ -41,25 +41,25 @@ chip: Rect, size: (150, 44), color: accent.warning, anchor: scene.center, offset
 
 #0.5s
 stagger [90ms] {
-  fade-in plate [500ms, ease: ease-out]
-  fade-in ring [500ms, ease: ease-out]
-  fade-in bar [500ms, ease: ease-out]
-  fade-in label [500ms, ease: ease-out]
+  fade-in plate [500ms, ease: expo-out]
+  fade-in ring [500ms, ease: expo-out]
+  fade-in bar [500ms, ease: expo-out]
+  fade-in label [500ms, ease: expo-out]
 }
 
 // blur in, caption first
 #1.7s
-fade-in capB [200ms]
+fade-in capB [200ms, ease: expo-out]
 
 #1.8s
 panel.soft.radius = 14 [1.2s, ease: ease-out]
 
 #2.9s
-fade-out capB [200ms]
+fade-out capB [200ms, ease: ease-in]
 
 // vignette lands once the blur is resolving
 #3.15s
-fade-in capV [200ms]
+fade-in capV [200ms, ease: expo-out]
 
 #3.0s
 panel.vig.amount = 0.75 [0.8s, ease: ease-in-out]
@@ -68,25 +68,25 @@ panel.vig.amount = 0.75 [0.8s, ease: ease-in-out]
 panel.soft.radius = 0 [1s, ease: ease-out]
 
 #4.1s
-fade-out capV [200ms]
+fade-out capV [200ms, ease: ease-in]
 panel.vig.amount = 0 [0.6s, ease: ease-out]
 
 // brightness dip — from the 1.0 baseline, down to a readable dusk
 #4.3s
-fade-in capD [200ms]
+fade-in capD [200ms, ease: expo-out]
 
 #4.4s
 panel.grade.brightness = 0.55 [0.8s, ease: ease-in-out]
 
 #5.15s
-fade-out capD [200ms]
+fade-out capD [200ms, ease: ease-in]
 
 #5.35s
-fade-in capE [200ms]
+fade-in capE [200ms, ease: expo-out]
 
 #5.2s
 panel.grade.brightness = 1.0 [0.7s, ease: ease-out]
-fade-in chip [400ms, ease: ease-out]
+fade-in chip [400ms, ease: expo-out]
 
 #5.5s
 shake chip [500ms]
@@ -95,12 +95,12 @@ pulse chip [400ms]
 // Outro: quiet the plate before the wrap (reverse order).
 #6.4s
 stagger [80ms] {
-  fade-out chip [350ms]
-  fade-out label [350ms]
-  fade-out bar [350ms]
-  fade-out ring [350ms]
-  fade-out plate [350ms]
+  fade-out chip [350ms, ease: ease-in]
+  fade-out label [350ms, ease: ease-in]
+  fade-out bar [350ms, ease: ease-in]
+  fade-out ring [350ms, ease: ease-in]
+  fade-out plate [350ms, ease: ease-in]
 }
 
 #6.6s
-fade-out capE [200ms]
+fade-out capE [200ms, ease: ease-in]

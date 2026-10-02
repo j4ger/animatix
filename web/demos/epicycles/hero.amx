@@ -42,14 +42,14 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
 }
 
 #0.05s
-fade-in hero_title [500ms]
-fade-in c1 [500ms]
-fade-in c2 [500ms]
-fade-in tip [400ms, delay: 200ms]
-fade-in hero_graph [500ms, delay: 300ms]
-fade-in wave_tip [400ms, delay: 500ms]
-fade-in hero_link [400ms, delay: 500ms]
-fade-in eq_row [500ms, delay: 500ms]
+fade-in hero_title [500ms, ease: expo-out]
+fade-in c1 [500ms, ease: expo-out]
+fade-in c2 [500ms, ease: expo-out]
+fade-in tip [400ms, delay: 200ms, ease: expo-out]
+fade-in hero_graph [500ms, delay: 300ms, ease: expo-out]
+fade-in wave_tip [400ms, delay: 500ms, ease: expo-out]
+fade-in hero_link [400ms, delay: 500ms, ease: expo-out]
+fade-in eq_row [500ms, delay: 500ms, ease: expo-out]
 
 #1s
 hero_wave.stroke_progress = 1.0 [20s, ease: linear]
@@ -94,7 +94,7 @@ always {
 // eq-term highlight is the one-beat drama voice (coral), then it returns.
 #4s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3) [1.5s]
-fade-in c3 [400ms]
+fade-in c3 [400ms, ease: expo-out]
 eq_3.color = accent.warning [400ms]
 
 #5.5s
@@ -102,7 +102,7 @@ eq_3.color = text.secondary [400ms]
 
 #9s
 hero_wave.func = (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5) [1.5s]
-fade-in c4 [400ms]
+fade-in c4 [400ms, ease: expo-out]
 eq_5.color = accent.warning [400ms]
 
 #10.5s
@@ -118,14 +118,14 @@ eq_7.color = text.secondary [400ms]
 // Outro: quiet plate before the loop wrap.
 #21.0s
 stagger [60ms] {
-  fade-out eq_row [300ms]
-  fade-out hero_link [300ms]
-  fade-out wave_tip [300ms]
-  fade-out hero_graph [300ms]
-  fade-out tip [300ms]
-  fade-out c4 [300ms]
-  fade-out c3 [300ms]
-  fade-out c2 [300ms]
-  fade-out c1 [300ms]
-  fade-out hero_title [300ms]
+  fade-out eq_row [300ms, ease: ease-in]
+  fade-out hero_link [300ms, ease: ease-in]
+  fade-out wave_tip [300ms, ease: ease-in]
+  fade-out hero_graph [300ms, ease: ease-in]
+  fade-out tip [300ms, ease: ease-in]
+  fade-out c4 [300ms, ease: ease-in]
+  fade-out c3 [300ms, ease: ease-in]
+  fade-out c2 [300ms, ease: ease-in]
+  fade-out c1 [300ms, ease: ease-in]
+  fade-out hero_title [300ms, ease: ease-in]
 }

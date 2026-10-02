@@ -65,33 +65,33 @@ always {
 
 #0.5s
 stagger [80ms] {
-  fade-in title [500ms]
-  fade-in ring [400ms]
-  fade-in cross_h [400ms]
-  fade-in cross_v [400ms]
-  fade-in dot [400ms]
-  fade-in status [400ms]
+  fade-in title [500ms, ease: expo-out]
+  fade-in ring [400ms, ease: expo-out]
+  fade-in cross_h [400ms, ease: expo-out]
+  fade-in cross_v [400ms, ease: expo-out]
+  fade-in dot [400ms, ease: expo-out]
+  fade-in status [400ms, ease: expo-out]
 }
 
 #0.6s
-fade-in capA [300ms]
+fade-in capA [300ms, ease: expo-out]
 
 #2.4s
-fade-out capA [200ms]
+fade-out capA [200ms, ease: ease-in]
 
 #2.6s
-fade-in capB [300ms]
+fade-in capB [300ms, ease: expo-out]
 
 #4.6s
-fade-out capB [200ms]
+fade-out capB [200ms, ease: ease-in]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #5.9s
 stagger [80ms] {
-  fade-out status [350ms]
-  fade-out dot [350ms]
-  fade-out cross_v [350ms]
-  fade-out cross_h [350ms]
-  fade-out ring [350ms]
-  fade-out title [350ms]
+  fade-out status [350ms, ease: ease-in]
+  fade-out dot [350ms, ease: ease-in]
+  fade-out cross_v [350ms, ease: ease-in]
+  fade-out cross_h [350ms, ease: ease-in]
+  fade-out ring [350ms, ease: ease-in]
+  fade-out title [350ms, ease: ease-in]
 }

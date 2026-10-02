@@ -31,64 +31,64 @@ verdict_hit: Text, text: "found", font_size: 18, color: accent.success,
   anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
 
 #0.3s
-fade-in lk_title [500ms, ease: ease-out]
+fade-in lk_title [500ms, ease: expo-out]
 stagger [60ms] {
-  fade-in b0l [300ms]
-  fade-in b1l [300ms]
-  fade-in b2l [300ms]
-  fade-in b3l [300ms]
-  fade-in b4l [300ms]
-  fade-in b5l [300ms]
-  fade-in b6l [300ms]
-  fade-in b7l [300ms]
+  fade-in b0l [300ms, ease: expo-out]
+  fade-in b1l [300ms, ease: expo-out]
+  fade-in b2l [300ms, ease: expo-out]
+  fade-in b3l [300ms, ease: expo-out]
+  fade-in b4l [300ms, ease: expo-out]
+  fade-in b5l [300ms, ease: expo-out]
+  fade-in b6l [300ms, ease: expo-out]
+  fade-in b7l [300ms, ease: expo-out]
 }
-fade-in r_sun [300ms, delay: 400ms]
-fade-in r_dog [300ms, delay: 500ms]
-fade-in r_owl [300ms, delay: 600ms]
-fade-in r_chain [240ms, delay: 700ms]
+fade-in r_sun [300ms, delay: 400ms, ease: expo-out]
+fade-in r_dog [300ms, delay: 500ms, ease: expo-out]
+fade-in r_owl [300ms, delay: 600ms, ease: expo-out]
+fade-in r_chain [240ms, delay: 700ms, ease: expo-out]
 
 // query 1: sun → bucket 6 → found
 #2.0s
-fade-in q_chip [300ms]
-fade-in q_formula [260ms]
+fade-in q_chip [300ms, ease: expo-out]
+fade-in q_formula [260ms, ease: expo-out]
 #2.6s
 shift q_chip [by: (0, 250), 520ms, ease: ease-in]
 #3.3s
-fade-out q_formula [200ms]
-fade-in verdict_hit [260ms]
+fade-out q_formula [200ms, ease: ease-in]
+fade-in verdict_hit [260ms, ease: expo-out]
 #4.4s
-fade-out q_chip [300ms]
-fade-out verdict_hit [240ms]
+fade-out q_chip [300ms, ease: ease-in]
+fade-out verdict_hit [240ms, ease: ease-in]
 
 // query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
 q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
 #5.2s
-fade-in q2 [300ms]
+fade-in q2 [300ms, ease: expo-out]
 q_formula.text = "owl: 50 mod 8 = 2"
-fade-in q_formula [260ms]
+fade-in q_formula [260ms, ease: expo-out]
 #5.9s
 shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
-fade-out q_formula [200ms]
+fade-out q_formula [200ms, ease: ease-in]
 #7.2s
 shift q2 [by: (0, 85), 300ms, ease: ease-out]
 #8.3s
-fade-out q2 [260ms]
+fade-out q2 [260ms, ease: ease-in]
 verdict_hit.text = "found — after one compare"
-fade-in verdict_hit [260ms]
+fade-in verdict_hit [260ms, ease: expo-out]
 #9.2s
-fade-out verdict_hit [240ms]
+fade-out verdict_hit [240ms, ease: ease-in]
 
 // query 3: cow → bucket 1 → empty → not found
 q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
 verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
   anchor: scene.bottom, offset: (-530, -160), opacity: 0.0
 #9.9s
-fade-in q3 [300ms]
+fade-in q3 [300ms, ease: expo-out]
 q_formula.text = "cow: 41 mod 8 = 1"
-fade-in q_formula [260ms]
+fade-in q_formula [260ms, ease: expo-out]
 #10.5s
 shift q3 [by: (0, 250), 520ms, ease: ease-in]
 #11.2s
-fade-out q_formula [200ms]
-fade-in verdict_miss [260ms]
+fade-out q_formula [200ms, ease: ease-in]
+fade-in verdict_miss [260ms, ease: expo-out]

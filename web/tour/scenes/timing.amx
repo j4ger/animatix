@@ -31,13 +31,13 @@ label_3: Text, text: "ease-in-out", font_size: 20, color: text.secondary, at: (8
 label_4: Text, text: "bounce", font_size: 20, color: text.secondary, at: (1008, 462)
 
 #0.5s
-fade-in title [500ms, ease: ease-out]
+fade-in title [500ms, ease: expo-out]
 stagger [120ms] {
-  fade-in square[0] [500ms, ease: ease-out]
-  fade-in square[1] [500ms, ease: ease-out]
-  fade-in square[2] [500ms, ease: ease-out]
-  fade-in square[3] [500ms, ease: ease-out]
-  fade-in square[4] [500ms, ease: ease-out]
+  fade-in square[0] [500ms, ease: expo-out]
+  fade-in square[1] [500ms, ease: expo-out]
+  fade-in square[2] [500ms, ease: expo-out]
+  fade-in square[3] [500ms, ease: expo-out]
+  fade-in square[4] [500ms, ease: expo-out]
 }
 
 #2.5s
@@ -65,31 +65,31 @@ square[4].size = (120, 120) [600ms, ease: bounce]
 // they name curves that are already over when they fade in.
 #4.4s
 stagger [60ms] {
-  fade-in label_0 [300ms]
-  fade-in label_1 [300ms]
-  fade-in label_2 [300ms]
-  fade-in label_3 [300ms]
-  fade-in label_4 [300ms]
+  fade-in label_0 [300ms, ease: expo-out]
+  fade-in label_1 [300ms, ease: expo-out]
+  fade-in label_2 [300ms, ease: expo-out]
+  fade-in label_3 [300ms, ease: expo-out]
+  fade-in label_4 [300ms, ease: expo-out]
 }
 
 // Outro: quiet plate before the wrap.
 #6.5s
 stagger [80ms] {
-  fade-out label_0 [300ms]
-  fade-out label_1 [300ms]
-  fade-out label_2 [300ms]
-  fade-out label_3 [300ms]
-  fade-out label_4 [300ms]
+  fade-out label_0 [300ms, ease: ease-in]
+  fade-out label_1 [300ms, ease: ease-in]
+  fade-out label_2 [300ms, ease: ease-in]
+  fade-out label_3 [300ms, ease: ease-in]
+  fade-out label_4 [300ms, ease: ease-in]
 }
 
 #6.9s
 stagger [80ms] {
-  fade-out square[0] [350ms]
-  fade-out square[1] [350ms]
-  fade-out square[2] [350ms]
-  fade-out square[3] [350ms]
-  fade-out square[4] [350ms]
+  fade-out square[0] [350ms, ease: ease-in]
+  fade-out square[1] [350ms, ease: ease-in]
+  fade-out square[2] [350ms, ease: ease-in]
+  fade-out square[3] [350ms, ease: ease-in]
+  fade-out square[4] [350ms, ease: ease-in]
 }
 
 #7.1s
-fade-out title [300ms]
+fade-out title [300ms, ease: ease-in]

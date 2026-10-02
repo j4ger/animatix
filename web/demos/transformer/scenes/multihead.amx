@@ -92,7 +92,7 @@ mix_label: Text, text: "concat, then a linear mix", font_size: 16, color: text.m
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s
-fade-in phase1 [300ms]
+fade-in phase1 [300ms, ease: expo-out]
 stagger [130ms] {
   panel_a.opacity = 0.55 [400ms]
   panel_b.opacity = 0.55 [400ms]
@@ -101,15 +101,15 @@ stagger [130ms] {
 
 #0.50s
 stagger [130ms] {
-  fade-in title_a [300ms]
-  fade-in title_b [300ms]
-  fade-in title_c [300ms]
+  fade-in title_a [300ms, ease: expo-out]
+  fade-in title_b [300ms, ease: expo-out]
+  fade-in title_c [300ms, ease: expo-out]
 }
 
 // Head by head, so each pattern can be compared with the one before it.
 #0.95s
-fade-out phase1 [260ms]
-fade-in phase2 [280ms, delay: 200ms]
+fade-out phase1 [260ms, ease: ease-in]
+fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
 stagger [45ms] {
   h1_00.opacity = 0.95 [300ms]
   h1_01.opacity = 0.45 [300ms]
@@ -157,15 +157,15 @@ stagger [45ms] {
 }
 
 #3.60s
-fade-out phase2 [260ms]
-fade-in phase3 [280ms, delay: 200ms]
+fade-out phase2 [260ms, ease: ease-in]
+fade-in phase3 [280ms, delay: 200ms, ease: expo-out]
 pulse h3_21 [560ms, intensity: 0.05]
 
 #3.70s
 stagger [130ms] {
-  draw-in drop_a [320ms, ease: ease-out]
-  draw-in drop_b [320ms, ease: ease-out]
-  draw-in drop_c [320ms, ease: ease-out]
+  draw-in drop_a [320ms, ease: expo-out]
+  draw-in drop_b [320ms, ease: expo-out]
+  draw-in drop_c [320ms, ease: expo-out]
 }
 stagger [130ms] {
   drop_a.opacity = 0.7 [320ms]
@@ -181,24 +181,24 @@ stagger [130ms] {
 }
 
 #4.80s
-fade-in mix_label [400ms]
+fade-in mix_label [400ms, ease: expo-out]
 
 // Outro: grids and the segment row fade as containers; quiet plate at the wrap.
 #5.80s
 stagger [50ms] {
-  fade-out mix_label [260ms]
-  fade-out segs [260ms]
-  fade-out drop_c [260ms]
-  fade-out drop_b [260ms]
-  fade-out drop_a [260ms]
-  fade-out head3_grid [260ms]
-  fade-out head2_grid [260ms]
-  fade-out head1_grid [260ms]
-  fade-out title_c [260ms]
-  fade-out title_b [260ms]
-  fade-out title_a [260ms]
-  fade-out panel_c [260ms]
-  fade-out panel_b [260ms]
-  fade-out panel_a [260ms]
-  fade-out phase3 [260ms]
+  fade-out mix_label [260ms, ease: ease-in]
+  fade-out segs [260ms, ease: ease-in]
+  fade-out drop_c [260ms, ease: ease-in]
+  fade-out drop_b [260ms, ease: ease-in]
+  fade-out drop_a [260ms, ease: ease-in]
+  fade-out head3_grid [260ms, ease: ease-in]
+  fade-out head2_grid [260ms, ease: ease-in]
+  fade-out head1_grid [260ms, ease: ease-in]
+  fade-out title_c [260ms, ease: ease-in]
+  fade-out title_b [260ms, ease: ease-in]
+  fade-out title_a [260ms, ease: ease-in]
+  fade-out panel_c [260ms, ease: ease-in]
+  fade-out panel_b [260ms, ease: ease-in]
+  fade-out panel_a [260ms, ease: ease-in]
+  fade-out phase3 [260ms, ease: ease-in]
 }

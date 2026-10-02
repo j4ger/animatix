@@ -52,21 +52,21 @@ always {
 }
 
 #0.5s
-fade-in step3_title [500ms, ease: ease-out]
-fade-in contours_dim [600ms]
-fade-in descent_graph [600ms]
+fade-in step3_title [500ms, ease: expo-out]
+fade-in contours_dim [600ms, ease: expo-out]
+fade-in descent_graph [600ms, ease: expo-out]
 
 #1.0s
-fade-in ball [400ms]
-fade-in live_loss [400ms]
-fade-in trail [400ms]
+fade-in ball [400ms, ease: expo-out]
+fade-in live_loss [400ms, ease: expo-out]
+fade-in trail [400ms, ease: expo-out]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
 
 #5.7s
 highlight ball [600ms]
 
 #6.5s
-fade-in takeaway [600ms]
+fade-in takeaway [600ms, ease: expo-out]
 
 
 // =============================================================================

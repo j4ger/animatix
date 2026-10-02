@@ -31,45 +31,45 @@ chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill:
 chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
 
 #0.3s
-fade-in bk_title [500ms, ease: ease-out]
-fade-in bk_sub [400ms, delay: 150ms]
+fade-in bk_title [500ms, ease: expo-out]
+fade-in bk_sub [400ms, delay: 150ms, ease: expo-out]
 stagger [60ms] {
-  fade-in b0 [300ms]
-  fade-in b1 [300ms]
-  fade-in b2 [300ms]
-  fade-in b3 [300ms]
-  fade-in b4 [300ms]
-  fade-in b5 [300ms]
-  fade-in b6 [300ms]
-  fade-in b7 [300ms]
+  fade-in b0 [300ms, ease: expo-out]
+  fade-in b1 [300ms, ease: expo-out]
+  fade-in b2 [300ms, ease: expo-out]
+  fade-in b3 [300ms, ease: expo-out]
+  fade-in b4 [300ms, ease: expo-out]
+  fade-in b5 [300ms, ease: expo-out]
+  fade-in b6 [300ms, ease: expo-out]
+  fade-in b7 [300ms, ease: expo-out]
 }
 
 // cat → bucket 0
 #1.6s
-fade-in chip_cat [300ms]
-fade-in f_cat [260ms]
+fade-in chip_cat [300ms, ease: expo-out]
+fade-in f_cat [260ms, ease: expo-out]
 #2.1s
 shift chip_cat [by: (0, 250), 520ms, ease: ease-in]
 #2.7s
-fade-out f_cat [220ms]
+fade-out f_cat [220ms, ease: ease-in]
 
 // dog → bucket 2
 #3.4s
-fade-in chip_dog [300ms]
-fade-in f_dog [260ms]
+fade-in chip_dog [300ms, ease: expo-out]
+fade-in f_dog [260ms, ease: expo-out]
 #3.9s
 shift chip_dog [by: (0, 250), 520ms, ease: ease-in]
 #4.5s
-fade-out f_dog [220ms]
+fade-out f_dog [220ms, ease: ease-in]
 
 // sun → bucket 6
 #5.2s
-fade-in chip_sun [300ms]
-fade-in f_sun [260ms]
+fade-in chip_sun [300ms, ease: expo-out]
+fade-in f_sun [260ms, ease: expo-out]
 #5.7s
 shift chip_sun [by: (0, 250), 520ms, ease: ease-in]
 #6.3s
-fade-out f_sun [220ms]
+fade-out f_sun [220ms, ease: ease-in]
 
 bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
   font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 1.0
