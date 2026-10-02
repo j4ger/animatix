@@ -12,34 +12,35 @@ step4_title: Text, text: "4. Step Size Matters", font_size: 40,
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
+  resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with three parametric curves showing different decay rates.
-// All stay on the same radial ray; only the rate toward/away from the
-// minimum changes, matching the radial gradient of x² + y².
+// Each rides its own radial ray (0.95 / 0.676 / 0.40) so all three stay
+// visible side by side; only the rate changes, matching the radial
+// gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
   size: (560, 560), at: (400, 380) {
   too_small: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(-0.12 * s) * cos(0.676),
-                  3.84 * exp(-0.12 * s) * sin(0.676)),
+    func: (s) => (3.84 * exp(-0.12 * s) * cos(0.95),
+                  3.84 * exp(-0.12 * s) * sin(0.95)),
     t_domain: (0, 4.5), color: text.muted, stroke_width: 2, opacity: 0.0
   just_right: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
                   3.84 * exp(-0.55 * s) * sin(0.676)),
     t_domain: (0, 4.5), color: accent.success, stroke_width: 3, opacity: 0.0
   too_big: PlotCurve, kind: "parametric",
-    func: (s) => (3.84 * exp(0.15 * s) * cos(0.676),
-                  3.84 * exp(0.15 * s) * sin(0.676)),
+    func: (s) => (3.84 * exp(0.15 * s) * cos(0.40),
+                  3.84 * exp(0.15 * s) * sin(0.40)),
     t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0.0
 }
 
 // Labels for each curve
 label_small: Text, text: "Too small: slow", font_size: 14,
-  color: text.muted, at: (650, 200)
+  color: text.muted, at: (180, 200)
 label_right: Text, text: "Just right: converges", font_size: 14,
-  color: accent.success, at: (650, 230)
+  color: accent.success, at: (180, 230)
 label_big: Text, text: "Too big: diverges", font_size: 14,
-  color: accent.danger, at: (650, 260)
+  color: accent.danger, at: (180, 260)
 
 // Lesson text
 lesson: Text,

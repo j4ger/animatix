@@ -78,22 +78,22 @@ step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
 // Dimmed backdrop of the same contour map and field
 contours_bg: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.4
+  resolution: 96, color: stroke.default, stroke_width: 2.0
 
 field_bg: VectorField, func: (x, y) => (x, y), density: 8,
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  color: text.muted, opacity: 0.4
+  color: text.muted
 
 // Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70)
 ball: Ellipse, size: (16, 16), color: text.primary, at: (610, 212)
 
 // Arrow pointing uphill along +∇f
 up_arrow: Arrow, from: (610, 212), to: (715, 128),
-  color: accent.danger, stroke_width: 3
+  stroke: accent.danger, stroke_width: 3
 
 // Arrow pointing downhill along −∇f
 down_arrow: Arrow, from: (610, 212), to: (505, 296),
-  color: accent.success, stroke_width: 3
+  stroke: accent.success, stroke_width: 3
 
 // Labels near arrow tips
 up_label: Text, text: "grad f (uphill)", font_size: 16,
@@ -110,7 +110,7 @@ gradient_eq: Text,
 #0.0s
 fade-in contours_bg [600ms]
 fade-in field_bg [600ms]
-fade-in step2_title [500ms, ease: ease-out]
+fade-in step2_title [500ms, ease: ease-out, delay: 450ms]
 fade-in ball [400ms]
 
 #1.5s
@@ -141,7 +141,7 @@ step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
 // Dimmed contour backdrop
 contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
+  resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with the parametric descent trail. For f(x, y) = x² + y² the
 // gradient is radial, so steepest descent stays on a constant-angle ray.
@@ -171,13 +171,17 @@ always {
   let th = 0.676
   let mx = r * cos(th)
   let my = r * sin(th)
-  ball.at = descent_graph.map(mx, my)
+  // graph.map() runs at half the px/unit of the plotted curve — double
+  // the math coords to land the ball on the drawn stroke
+  let bx = 2.0 * mx
+  let by = 2.0 * my
+  ball.at = descent_graph.map(bx, by)
   let loss = r * r
   live_loss.text = format("loss = {:.2}", loss)
 }
 
 #0.0s
-fade-in step3_title [500ms, ease: ease-out]
+fade-in step3_title [500ms, ease: ease-out, delay: 450ms]
 fade-in contours_dim [600ms]
 fade-in descent_graph [600ms]
 
@@ -207,16 +211,17 @@ step4_title: Text, text: "4. Step Size Matters", font_size: 40,
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0, opacity: 0.3
+  resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with three parametric curves showing different decay rates.
-// All stay on the same radial ray; only the rate toward/away from the
-// minimum changes, matching the radial gradient of x² + y².
+// Each rides its own radial ray (0.95 / 0.676 / 0.40) so all three stay
+// visible side by side; only the rate toward/away from the minimum changes,
+// matching the radial gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
   size: (560, 560), at: (400, 380) {
   too_small: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.12 * s) * cos(0.95),
-                  3.84 * exp(-0.12 * s) * sin(0.676)),
+                  3.84 * exp(-0.12 * s) * sin(0.95)),
     t_domain: (0, 4.5), color: text.muted, stroke_width: 2, opacity: 0.0
   just_right: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
@@ -224,7 +229,7 @@ lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
     t_domain: (0, 4.5), color: accent.success, stroke_width: 3, opacity: 0.0
   too_big: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(0.15 * s) * cos(0.40),
-                  3.84 * exp(0.15 * s) * sin(0.676)),
+                  3.84 * exp(0.15 * s) * sin(0.40)),
     t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0.0
 }
 
@@ -242,7 +247,7 @@ lesson: Text,
   font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
 
 #0.0s
-fade-in step4_title [500ms, ease: ease-out]
+fade-in step4_title [500ms, ease: ease-out, delay: 450ms]
 fade-in contours_lr [600ms]
 fade-in lr_graph [600ms]
 

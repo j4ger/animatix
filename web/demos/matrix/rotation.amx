@@ -11,9 +11,9 @@ rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
 rot_sub: Text, text: "column 1 is where i lands; column 2 is where j lands",
   font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
 
-a2_t: Text, text: "1.0", font_size: 26, color: accent.danger, at: (196, 170)
+a2_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (196, 170)
 b2_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
-c2_t: Text, text: "0.0", font_size: 26, color: accent.danger, at: (196, 226)
+c2_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
 d2_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
 m2_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
 det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
@@ -22,7 +22,7 @@ for x, i in {-2, -1, 0, 1, 2} {
   rv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
   rh[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
 }
-ri_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_width: 3.5
+ri_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.primary, stroke_width: 3.5
 rj_hat: Line, from: (760, 400), to: (760, 510), stroke: accent.success, stroke_width: 3.5
 
 rot_cap: Text, text: "a quarter turn, tracked the whole way by the numbers", opacity: 1.0,
@@ -99,8 +99,23 @@ always {
 
 
 // Outro: quiet plate before the loop wrap.
-#7.4s
-stagger [60ms] {
+#7.0s
+stagger [25ms] {
+  fade-out m2_brace [280ms]
+  fade-out d2_t [280ms]
+  fade-out c2_t [280ms]
+  fade-out b2_t [280ms]
+  fade-out a2_t [280ms]
+  fade-out rv__4 [280ms]
+  fade-out rv__3 [280ms]
+  fade-out rv__2 [280ms]
+  fade-out rv__1 [280ms]
+  fade-out rv__0 [280ms]
+  fade-out rh__4 [280ms]
+  fade-out rh__3 [280ms]
+  fade-out rh__2 [280ms]
+  fade-out rh__1 [280ms]
+  fade-out rh__0 [280ms]
   fade-out rot_cap [280ms]
   fade-out det2_t [280ms]
   fade-out rj_hat [280ms]

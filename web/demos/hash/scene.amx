@@ -43,6 +43,9 @@ chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 22, fill:
 chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (300, 250)
 chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
 
+bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+
 #0.0s
 fade-in bk_title [500ms, ease: ease-out]
 fade-in bk_sub [400ms, delay: 150ms]
@@ -83,9 +86,7 @@ fade-in f_sun [260ms]
 shift chip_sun [by: (0, 250), 520ms, ease: ease-in]
 #6.3s
 fade-out f_sun [220ms]
-
-bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 1.0
+fade-in bk_cap [300ms]
 
 play Collision [wipe-left, 500ms]
 
@@ -148,7 +149,7 @@ play Lookup [wipe-left, 500ms]
 // ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
 
 # Lookup
-config { colorscheme: "ink", duration: 11.5 }
+config { colorscheme: "ink", duration: 12.6 }
 
 lk_title: Text, text: "Lookup: hash first, compare after", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -168,11 +169,20 @@ r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: ac
 r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 585)
 r_chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2
 
-q_formula: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
+// One Text actor per query line: a static text-assignment leaves the
+// declared string and the assigned one BOTH drawn before the first change
+// (verified overprint) — never re-title an actor mid-scene.
+q_f1: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
+q_f2: Text, text: "owl: 50 mod 8 = 2", font_size: 21,
+  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
+q_f3: Text, text: "cow: 41 mod 8 = 1", font_size: 21,
   color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
 q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (980, 250)
 
-verdict_hit: Text, text: "found", font_size: 18, color: accent.success,
+v_hit1: Text, text: "found", font_size: 18, color: accent.success,
+  anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
+v_hit2: Text, text: "found — after one compare", font_size: 18, color: accent.success,
   anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
 
 #0.0s
@@ -195,34 +205,32 @@ fade-in r_chain [240ms, delay: 700ms]
 // query 1: sun → bucket 6 → found
 #2.0s
 fade-in q_chip [300ms]
-fade-in q_formula [260ms]
+fade-in q_f1 [260ms]
 #2.6s
 shift q_chip [by: (0, 190), 520ms, ease: ease-in]
 #3.3s
-fade-out q_formula [200ms]
-fade-in verdict_hit [260ms]
+fade-out q_f1 [200ms]
+fade-in v_hit1 [260ms]
 #4.4s
 fade-out q_chip [300ms]
-fade-out verdict_hit [240ms]
+fade-out v_hit1 [240ms]
 
 // query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
 q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
 #5.2s
 fade-in q2 [300ms]
-q_formula.text = "owl: 50 mod 8 = 2"
-fade-in q_formula [260ms]
+fade-in q_f2 [260ms]
 #5.9s
 shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
-fade-out q_formula [200ms]
+fade-out q_f2 [200ms]
 #7.2s
 shift q2 [by: (120, 85), 300ms, ease: ease-out]
 #8.3s
 fade-out q2 [260ms]
-verdict_hit.text = "found — after one compare"
-fade-in verdict_hit [260ms]
+fade-in v_hit2 [260ms]
 #9.2s
-fade-out verdict_hit [240ms]
+fade-out v_hit2 [240ms]
 
 // query 3: cow → bucket 1 → empty → not found
 q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
@@ -230,17 +238,16 @@ verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
   anchor: scene.bottom, offset: (-530, -160), opacity: 0.0
 #9.9s
 fade-in q3 [300ms]
-q_formula.text = "cow: 41 mod 8 = 1"
-fade-in q_formula [260ms]
+fade-in q_f3 [260ms]
 #10.5s
 shift q3 [by: (0, 250), 520ms, ease: ease-in]
 #11.2s
-fade-out q_formula [200ms]
+fade-out q_f3 [200ms]
 fade-in verdict_miss [260ms]
 
 // Outro: quiet plate before the loop wrap.
-#11.0s
-stagger [50ms] {
+#11.7s
+stagger [30ms] {
   fade-out verdict_miss [260ms]
   fade-out q3 [260ms]
   fade-out lk_title [260ms]

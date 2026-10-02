@@ -23,7 +23,7 @@ shear_sub: Text, text: "M = [[1, k], [0, 1]] — a shear. Every point slides; no
 // The four matrix entries, live.
 a_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
 b_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
-c_t: Text, text: "0.0", font_size: 26, color: accent.warning, at: (196, 226)
+c_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
 d_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (276, 226)
 m_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
 det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
@@ -167,8 +167,8 @@ fade-in b2_t [240ms]
 fade-in c2_t [240ms]
 fade-in d2_t [240ms]
 fade-in det2_t [240ms]
-fade-in rot_title [500ms, ease: ease-out]
-fade-in rot_sub [400ms, delay: 150ms]
+fade-in rot_title [500ms, ease: ease-out, delay: 550ms]
+fade-in rot_sub [400ms, delay: 650ms]
 
 always {
   // A quarter turn between t = 2.5 and t = 6.5.
@@ -229,7 +229,7 @@ col_sub: Text, text: "d shrinks through 0 — the grid flattens onto a line, the
 a3_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
 b3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
 c3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (196, 226)
-d3_t: Text, text: "1.0", font_size: 26, color: accent.warning, at: (276, 226)
+d3_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (276, 226)
 m3_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
 det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
 
@@ -262,8 +262,8 @@ fade-in a3_t [240ms]
 fade-in b3_t [240ms]
 fade-in c3_t [240ms]
 fade-in d3_t [240ms]
-fade-in col_title [500ms, ease: ease-out]
-fade-in col_sub [400ms, delay: 150ms]
+fade-in col_title [500ms, ease: ease-out, delay: 550ms]
+fade-in col_sub [400ms, delay: 650ms]
 fade-in det3_t [240ms, delay: 300ms]
 
 // det crosses zero exactly here — the readout turns red with the flip.
@@ -316,8 +316,8 @@ always {
 }
 
 // Outro: quiet plate before the loop wrap.
-#9.5s
-stagger [50ms] {
+#9.0s
+stagger [30ms] {
   fade-out col_cap [280ms]
   fade-out det3_t [280ms]
   fade-out cj_hat [280ms]

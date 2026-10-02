@@ -59,8 +59,8 @@ fade-in col_note [300ms]
 
 
 // Outro: quiet plate before the loop wrap.
-#4.4s
-stagger [50ms] {
+#4.2s
+stagger [30ms] {
   fade-out col_note [280ms]
   fade-out chain [280ms]
   fade-out chip_owl [280ms]
