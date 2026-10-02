@@ -81,6 +81,13 @@ di: Polygon, points: {(0, -49), (49, 0), (0, 49), (-49, 0)},
 
 ball: Ellipse, size: (30, 30), color: accent.danger, at: (240, 726)
 
+// ── the instrument sweep ────────────────────────────────────────────
+// One hairline scanning the grid for the whole loop. A title sequence with
+// dead seconds reads as a stalled render; this is the element that says the
+// clock is running even when nothing else moves.
+
+sweep: Rect, size: (2, 780), color: accent.primary, at: (80, 450), opacity: 0.0
+
 // ── timeline ────────────────────────────────────────────────────────
 
 #0.1s
@@ -94,6 +101,15 @@ stagger [90ms] {
 #0.3s
 fade-in grid [650ms, ease: expo-out]
 
+// The sweep crosses the plate exactly once per loop, so the scan and the
+// sequence share one clock.
+#0.6s
+sweep.opacity = 0.14 [900ms, ease: expo-out]
+
+always {
+  sweep.at = (80.0 + 1440.0 * (t / 13.0), 450.0)
+}
+
 // The grid flashes to full, then recedes to a texture as the type arrives;
 // the wordmark settles the last few pixels. Display type never overshoots —
 // a 168px wordmark on a back-ease reads as jelly, not as motion design.
@@ -104,13 +120,15 @@ grid.opacity = 0.15 [1s, ease: ease-out]
 fade-in wordmark [550ms, ease: expo-out]
 
 #1.1s
-shift wordmark [by: (0, 24), 750ms, ease: ease-out]
+shift wordmark [by: (0, 24), 750ms, ease: expo-out]
 
 #1.7s
 draw-in underline [750ms, ease: expo-out]
 fade-in carriage [180ms, ease: expo-out]
 // The carriage rides the draw tip: same start, span and ease as the draw.
-carriage.at = (1030, 428) [750ms, ease: ease-out]
+// The ease here must move in lockstep with the `draw-in` above or the tip
+// and the carriage separate mid-stroke.
+carriage.at = (1030, 428) [750ms, ease: expo-out]
 
 #2.6s
 fade-out carriage [300ms, ease: ease-in]
@@ -119,21 +137,20 @@ fade-out carriage [300ms, ease: ease-in]
 fade-in tagline [600ms, ease: expo-out]
 
 #2.9s
-shift tagline [by: (0, -12), 650ms, ease: ease-out]
+shift tagline [by: (0, -12), 650ms, ease: expo-out]
 
-// The trio flies in — each from a different edge. The arrival is a plain
-// ease-out: they are props for the morph beat below, and a shape that
-// wobbles into place announces the easing rather than the object. The
+// The trio flies in — each from a different edge — and lands on a spring, so
+// the three props arrive with weight instead of sliding to a halt. The
 // stagger is tight (60ms) so all three are airborne together and the beat
 // reads as a trio, not a sequence of solo dots.
 #3.9s
 stagger [60ms] {
   fade-in sq [200ms, ease: expo-out]
-  sq.at = (704, 610) [700ms, ease: ease-out]
+  sq.at = (704, 610) [700ms, ease: spring]
   fade-in ci [200ms, ease: expo-out]
-  ci.at = (800, 610) [700ms, ease: ease-out]
+  ci.at = (800, 610) [700ms, ease: spring]
   fade-in di [200ms, ease: expo-out]
-  di.at = (896, 610) [700ms, ease: ease-out]
+  di.at = (896, 610) [700ms, ease: spring]
 }
 
 // The trade: square morphs round, the diamond squares up and takes the
@@ -146,31 +163,27 @@ di: Polygon, points: {(0, -49), (49, 0), (0, 49), (-49, 0)},
 ci.size = (96, 42) [450ms, ease: ease-in-out]
 
 #6.7s
-ci.size = (76, 76) [500ms, ease: ease-out]
+ci.size = (76, 76) [500ms, ease: spring]
 
-// The red ball hops across the footer under its own gravity. `ease: bounce`
-// on a straight traverse is not a bounce — it is the curve wobbling past its
-// target, so the ball jerks sideways and stops. Here `always` solves the arc
-// per frame instead: each hop keeps 60% of the last one's airtime, so the
-// contacts fall closer and closer together the way a settling ball does, and
-// x advances independently of the arc, so the drift never stalls at an apex.
+// The red ball hops across the footer under real gravity. `ease: bounce` on a
+// straight traverse is not a bounce — it is the curve wobbling past its
+// target, so the ball jerks sideways and stops. The `bounce` ACTION is the
+// physics: it writes the additive `motion_offset` channel, so a linear carry
+// and a decaying hop run at the same time without fighting each other.
 #7.8s
 fade-in ball [250ms, ease: expo-out]
 
-always {
-  let bt = min(t - 8.3, 2.3)
-  if bt >= 0.0 {
-    let r = 0.6
-    let k = floor(log(1.0 - bt * (1.0 - r) / 0.95) / log(r))
-    let rk = exp(k * log(r))
-    let u = (bt - 0.95 * (1.0 - rk) / (1.0 - r)) / (0.95 * rk)
-    ball.at = (240.0 + 487.0 * bt, 726.0 - 760.0 * rk * rk * u * (1.0 - u))
-  }
-}
+#8.3s
+ball.at = (1360, 726) [2.3s, ease: linear]
+bounce ball [2.3s, intensity: 190, restitution: 0.6]
 
 // Settle: the grid breathes once…
 #10.3s
 grid.opacity = 0.3 [1.2s, ease: ease-in-out]
+
+// …and the scan winds down with it, so the outro empties in one gesture.
+#10.6s
+sweep.opacity = 0.0 [700ms, ease: ease-in]
 
 // …then the plate empties itself in reverse order, so the loop wraps from a
 // quiet stage into the bracket draw-in instead of hard-cutting a full frame
