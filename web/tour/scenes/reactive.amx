@@ -1,20 +1,35 @@
 // reactive.amx — tour §08: an always block re-evaluates every frame, and
 // is_animating(&prop) lets actors react to the keyframe clock itself.
 // Adapted from examples/animation/06_reactive.amx.
+//
+// Choreography note: `is_animating(&ring.at)` stays true from the first
+// keyframe until the LAST one completes — it reads the clock, not the
+// motion — so the scene compresses all travel into 0.5–3.2 and then holds:
+// the TRACKING -> IDLE flip at ~3.2 is the beat this section teaches, and
+// it needs a long readable window. The crosshair arms are bone (their own
+// voice — amber arms on an amber disc disappear); amber = TRACKING, sage =
+// IDLE are the two semantic channels of the readout. Captions hand off
+// rather than superimpose (one shared `text` actor cross-fades two strings
+// on top of each other).
 
 import "../../demos/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.5 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.8 }
 
 title: Text, text: "Live focus reticle", font_size: 32, color: text.primary,
   anchor: scene.top, offset: (0, 60)
-status: Text, text: "IDLE", font_size: 16, color: text.muted,
-  anchor: scene.bottom, offset: (0, -60)
+status: Text, text: "IDLE", font_size: 22, color: text.muted,
+  anchor: scene.bottom, offset: (0, -56)
 
-ring: Ellipse, size: (50, 50), color: accent.primary, stroke_width: 3, anchor: scene.center
-cross_h: Rect, size: (80, 2), color: accent.primary, anchor: scene.center
-cross_v: Rect, size: (2, 80), color: accent.primary, anchor: scene.center
-dot: Ellipse, size: (6, 6), color: accent.danger, anchor: scene.center
+capA: Text, text: "`always { }` re-runs every frame", font_size: 22,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0.0
+capB: Text, text: "is_animating(&ring.at) flips the readout", font_size: 22,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0.0
+
+ring: Ellipse, size: (220, 220), color: accent.primary, stroke_width: 4, anchor: scene.center
+cross_h: Rect, size: (360, 3), color: text.primary, anchor: scene.center
+cross_v: Rect, size: (3, 360), color: text.primary, anchor: scene.center
+dot: Ellipse, size: (18, 18), color: text.primary, anchor: scene.center
 
 #0s
 ring.at = (640, 360)
@@ -22,34 +37,29 @@ ring.at = (640, 360)
 #1s
 ring.at = (360, 200) [1s, ease: ease-in-out]
 
-#2.5s
-ring.at = (920, 520) [1s, ease: ease-in-out]
-
-#4s
-ring.at = (640, 360) [1s, ease: ease-out]
+#2.2s
+ring.at = (920, 420) [1s, ease: ease-in-out]
 
 always {
   cross_h.at = ring.at
   cross_v.at = ring.at
   dot.at = ring.at
+  // the arms keep their bone voice from the declaration — colour here is
+  // the ring's and the status line's semantic channel, not theirs
 
   if !is_animating(&ring.at) {
     let p = 0.5 + 0.5 * sin(t * 3)
-    cross_h.color = accent.success
-    cross_v.color = accent.success
     ring.color = accent.success
-    ring.size = (50 - p * 10, 50 - p * 10)
-    ring.stroke_width = 3.0 - p * 1.0
+    ring.size = (220 - p * 24, 220 - p * 24)
+    ring.stroke_width = 4.0 - p * 1.2
     status.text = "IDLE — at rest"
     status.color = accent.success
   } else {
-    cross_h.color = accent.primary
-    cross_v.color = accent.primary
     ring.color = accent.primary
-    ring.size = (50, 50)
-    ring.stroke_width = 3.0
+    ring.size = (220, 220)
+    ring.stroke_width = 4.0
     status.text = "TRACKING — keyframe active"
-    status.color = accent.warning
+    status.color = accent.primary
   }
 }
 
@@ -61,4 +71,27 @@ stagger [80ms] {
   fade-in cross_v [400ms]
   fade-in dot [400ms]
   fade-in status [400ms]
+}
+
+#0.6s
+fade-in capA [300ms]
+
+#2.4s
+fade-out capA [200ms]
+
+#2.6s
+fade-in capB [300ms]
+
+#4.6s
+fade-out capB [200ms]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#5.9s
+stagger [80ms] {
+  fade-out status [350ms]
+  fade-out dot [350ms]
+  fade-out cross_v [350ms]
+  fade-out cross_h [350ms]
+  fade-out ring [350ms]
+  fade-out title [350ms]
 }

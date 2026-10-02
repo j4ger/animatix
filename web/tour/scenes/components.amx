@@ -1,6 +1,11 @@
 // components.amx — tour §09: import a module, instantiate its components.
 // `lib/components.amx` is a copy of examples/lib/components.amx; the browser
 // fetches it relative to the scene, the CLI resolves it from disk.
+//
+// The lead chip carries the brand amber (an imported component reads as
+// part of the cast, not as grey UI); the #3.2 beat is a pulse + lift that
+// actually registers on screen — a 16px shift is invisible at card scale.
+// Captions hand off (one shared `text` actor would cross-fade two strings).
 
 import "../../demos/lib/theme.amx"
 import "../lib/components.amx"
@@ -10,14 +15,23 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 heading: Text, text: "import once, instantiate many", font_size: 32,
   color: text.primary, anchor: scene.top, offset: (0, 56)
 
+capI: Text, text: "import ../lib/components.amx", font_size: 22,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -48), opacity: 0.0
+capX: Text, text: "one definition, three instances", font_size: 22,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -48), opacity: 0.0
+
 row: Row, anchor: scene.center, gap: 28, align: "center" {
-  c1: LabeledBox, label: "Query", width: 180
-  c2: LabeledBox, label: "Key", width: 150
-  c3: LabeledBox, label: "Value", width: 170
+  c1: LabeledBox, label: "Query", width: 240, height: 140, text_size: 30
+  c2: LabeledBox, label: "Key", width: 200, height: 140, text_size: 30,
+    fill: accent.primary, text_color: (0.043, 0.055, 0.078, 1)
+  c3: LabeledBox, label: "Value", width: 230, height: 140, text_size: 30
 }
 
 #0.4s
 fade-in heading [600ms, ease: ease-out]
+
+#0.6s
+fade-in capI [300ms]
 
 #1.0s
 stagger [150ms] {
@@ -26,5 +40,24 @@ stagger [150ms] {
   fade-in c3 [450ms, ease: ease-out]
 }
 
+#2.4s
+fade-out capI [200ms]
+
+#2.6s
+fade-in capX [300ms]
+
 #3.2s
-shift row [by: (0, -16), 500ms, ease: ease-out]
+pulse c2 [400ms]
+shift row [by: (0, -40), 500ms, ease: ease-out]
+
+#4.6s
+fade-out capX [200ms]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#5.1s
+stagger [80ms] {
+  fade-out c3 [350ms]
+  fade-out c2 [350ms]
+  fade-out c1 [350ms]
+  fade-out heading [350ms]
+}

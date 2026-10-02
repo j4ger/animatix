@@ -18,22 +18,24 @@ fade-in title [700ms, ease: ease-out]
 fade-in sub [500ms, delay: 150ms]
 
 #2.2s
-fade-out title [350ms]
-fade-out sub [350ms]
+fade-out title [200ms]
+fade-out sub [200ms]
 
 play Diagram [fade, 450ms]
 
 # Diagram
 
 config { colorscheme: "ink" }
-graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (520, 520), anchor: scene.center {
+graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4), size: (520, 520), stroke: stroke.default, anchor: scene.center {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x) * 2, color: accent.primary, stroke_width: 3
   cosine: PlotCurve, kind: "cartesian", func: (x) => cos(x) * 2, color: accent.success, stroke_width: 2
 }
-label: Text, text: "sin(x), cos(x)", font_size: 18, color: text.secondary,
+label: Text, text: "sin(x), cos(x)", font_size: 22, color: text.secondary,
   anchor: scene.bottom, offset: (0, -56)
 
-#0.5s
+// The entrant is at full when the transition window opens (`#0.0s`) — an
+// entrance at `#0.5s` makes the 450ms fade dissolve empty into empty.
+#0.0s
 fade-in graph [700ms, ease: ease-out]
 stagger [120ms] {
   fade-in sine [400ms]
@@ -42,8 +44,8 @@ stagger [120ms] {
 fade-in label [400ms, delay: 250ms]
 
 #2.8s
-fade-out graph [350ms]
-fade-out label [350ms]
+fade-out graph [200ms]
+fade-out label [200ms]
 
 play Outro [wipe-left, 450ms]
 
@@ -56,6 +58,13 @@ thanks: Text, text: "one file, many scenes", font_size: 52, color: text.primary,
 tag: Text, text: "the cut is a GPU transition", font_size: 20, color: accent.primary,
   anchor: scene.center, offset: (0, 52)
 
-#0.5s
+#0.0s
 fade-in thanks [600ms, ease: ease-out]
 fade-in tag [450ms, delay: 150ms]
+
+// Hold, then a quiet wrap so the loop does not cut from a bright plate.
+#2.6s
+fade-out tag [300ms]
+
+#2.8s
+fade-out thanks [350ms]

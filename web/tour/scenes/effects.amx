@@ -1,25 +1,43 @@
 // effects.amx — tour §05: a Filter scope with animated effect parameters,
 // plus the emphasis actions. Plain shapes only (slim engine plays this).
+//
+// The caption ladder is five separate `Text` actors handing off (never one
+// shared actor re-assigned — assignments cross-fade two strings on top of
+// each other), and the label rides OUTSIDE the filter scope: inside, the
+// blur beat smears the scene's own text into illegibility. Effects are
+// de-stacked so no frame goes sub-legible: blur resolves before the
+// vignette lands, and the brightness dip starts from 1.0 — a 0.6 baseline
+// renders the surface plate *darker* than the page ground, reading as a
+// hole instead of a panel.
 
 import "../../demos/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 
 panel: Filter, anchor: scene.center {
   soft: Blur, radius: 0
-  grade: ColorGrade, brightness: 0.6
+  grade: ColorGrade, brightness: 1.0
   vig: Vignette, amount: 0, radius: 0.55, softness: 0.7
   art: Group, anchor: scene.center {
     plate: Rect, size: (560, 320), color: surface.secondary
     ring: Ellipse, size: (180, 180), color: accent.primary
-    bar: Rect, size: (340, 24), color: accent.warning, at: (0, 120)
-    label: Text, text: "filters are declared as children", font_size: 24,
-      color: text.primary, at: (0, -90)
+    bar: Rect, size: (340, 24), color: accent.primary, at: (0, 120)
   }
 }
 
-chip: Rect, size: (150, 44), color: accent.danger, anchor: scene.center, offset: (0, 220)
+label: Text, text: "filters are declared as children", font_size: 24,
+  color: text.primary, at: (640, 168)
 
+capB: Text, text: "blur radius 0 -> 14", font_size: 22, color: text.secondary,
+  at: (640, 622), opacity: 0.0
+capV: Text, text: "vignette 0.75", font_size: 22, color: text.secondary,
+  at: (640, 622), opacity: 0.0
+capD: Text, text: "brightness dip", font_size: 22, color: text.secondary,
+  at: (640, 622), opacity: 0.0
+capE: Text, text: "shake + pulse", font_size: 22, color: text.secondary,
+  at: (640, 622), opacity: 0.0
+
+chip: Rect, size: (150, 44), color: accent.warning, anchor: scene.center, offset: (0, 220)
 
 #0.5s
 stagger [90ms] {
@@ -29,22 +47,60 @@ stagger [90ms] {
   fade-in label [500ms, ease: ease-out]
 }
 
+// blur in, caption first
+#1.7s
+fade-in capB [200ms]
+
 #1.8s
 panel.soft.radius = 14 [1.2s, ease: ease-out]
 
-#2.6s
-panel.vig.amount = 0.75 [1s, ease: ease-in-out]
+#2.9s
+fade-out capB [200ms]
+
+// vignette lands once the blur is resolving
+#3.15s
+fade-in capV [200ms]
+
+#3.0s
+panel.vig.amount = 0.75 [0.8s, ease: ease-in-out]
 
 #3.2s
 panel.soft.radius = 0 [1s, ease: ease-out]
-panel.grade.brightness = 0.25 [1.2s, ease: ease-in-out]
 
-#4.6s
-panel.grade.brightness = 0.6 [1s, ease: ease-out]
+#4.1s
+fade-out capV [200ms]
+panel.vig.amount = 0 [0.6s, ease: ease-out]
 
-#4.9s
+// brightness dip — from the 1.0 baseline, down to a readable dusk
+#4.3s
+fade-in capD [200ms]
+
+#4.4s
+panel.grade.brightness = 0.55 [0.8s, ease: ease-in-out]
+
+#5.15s
+fade-out capD [200ms]
+
+#5.35s
+fade-in capE [200ms]
+
+#5.2s
+panel.grade.brightness = 1.0 [0.7s, ease: ease-out]
 fade-in chip [400ms, ease: ease-out]
 
-#5.4s
+#5.5s
 shake chip [500ms]
 pulse chip [400ms]
+
+// Outro: quiet the plate before the wrap (reverse order).
+#6.4s
+stagger [80ms] {
+  fade-out chip [350ms]
+  fade-out label [350ms]
+  fade-out bar [350ms]
+  fade-out ring [350ms]
+  fade-out plate [350ms]
+}
+
+#6.6s
+fade-out capE [200ms]

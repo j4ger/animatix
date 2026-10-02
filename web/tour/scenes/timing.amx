@@ -49,21 +49,27 @@ sequence {
   square[4].size = (150, 150) [400ms, ease: ease-out]
 }
 
-// five named eases, one per square
+// five named eases, one per square — animating SIZE, not color: a color
+// lerp cannot show an ease curve, and re-assigning the declared colors is
+// an identity assignment (nothing moves). 150 -> 120 makes linear vs
+// ease-in vs bounce visibly different while the labels stay under the
+// slot centres.
 #5s
-square[0].color = accent.primary [600ms, ease: linear]
-square[1].color = text.primary [600ms, ease: ease-in]
-square[2].color = accent.warning [600ms, ease: ease-out]
-square[3].color = accent.success [600ms, ease: ease-in-out]
-square[4].color = accent.info [600ms, ease: bounce]
+square[0].size = (120, 120) [600ms, ease: linear]
+square[1].size = (120, 120) [600ms, ease: ease-in]
+square[2].size = (120, 120) [600ms, ease: ease-out]
+square[3].size = (120, 120) [600ms, ease: ease-in-out]
+square[4].size = (120, 120) [600ms, ease: bounce]
 
-#5.2s
-stagger [100ms] {
-  fade-in label_0 [350ms]
-  fade-in label_1 [350ms]
-  fade-in label_2 [350ms]
-  fade-in label_3 [350ms]
-  fade-in label_4 [350ms]
+// Labels arrive BEFORE the ease beat (last one settles at 4.94 < 5.0) —
+// they name curves that are already over when they fade in.
+#4.4s
+stagger [60ms] {
+  fade-in label_0 [300ms]
+  fade-in label_1 [300ms]
+  fade-in label_2 [300ms]
+  fade-in label_3 [300ms]
+  fade-in label_4 [300ms]
 }
 
 // Outro: quiet plate before the wrap.

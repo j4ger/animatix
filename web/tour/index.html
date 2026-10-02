@@ -85,9 +85,9 @@ box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span cl
         container plus a compile-time <code class="inline">for</code> over an
         array of colors, instead of five copied lines.
       </p>
-      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">44</span>, align: <span class="str">"center"</span> {
-  <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">accent.success</span>, <span class="cmt">…</span>} {
-    square[i]: <span class="prop">Rect</span>, size: (<span class="num">70</span>, <span class="num">70</span>), color: color
+      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span> {
+  <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">text.primary</span>, <span class="cmt">…</span>} {
+    square[i]: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: color
   }
 }
 
@@ -98,7 +98,7 @@ box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span cl
 }
 
 <span class="at">#5s</span>
-square[<span class="num">4</span>].color = <span class="prop">accent.danger</span> [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
+square[<span class="num">4</span>].size = (<span class="num">120</span>, <span class="num">120</span>) [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Sequence, stagger and easing"></amx-player>
@@ -147,22 +147,23 @@ square[<span class="num">4</span>].color = <span class="prop">accent.danger</spa
       <p>
         Re-declaring an actor at a later keyframe morphs it — shape to shape,
         with <strong>strategies</strong>: <code class="inline">auto</code>,
-        <code class="inline">match</code> (match by vertex),
-        <code class="inline">fade</code>, or a <code class="inline">path_arc</code>
-        hint for the travel, plus <code class="inline">stretch</code> for
-        normalization. Paths morph through their control points.
+        <code class="inline">match</code> (match by vertex), or a
+        <code class="inline">path_arc</code> hint for the travel, plus
+        <code class="inline">stretch</code> for normalization. Paths morph
+        through their control points.
       </p>
       <pre><span class="at">#2s</span>
-circle: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.danger</span> [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
+circle: <span class="prop">Polygon</span>, points: {(<span class="num">85</span>, <span class="num">0</span>), (<span class="num">85</span>, <span class="num">35</span>), <span class="cmt">… sixteen-point square …</span>}, color: <span class="prop">text.primary</span> [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
 
 <span class="at">#5s</span>
-poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">80</span>), (<span class="num">20</span>, -<span class="num">25</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
+poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">95</span>), (<span class="num">24</span>, -<span class="num">30</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/morph.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Shape morphing strategies"></amx-player>
         <figcaption>
-          <span class="cap">Circle to rect to star to diamond to trapezoid — a
-            different morph strategy each beat, then the colors unify.</span>
+          <span class="cap">Circle to square to hexagon, a star round trip, a
+            tipped diamond, a stretched trapezoid — a different morph strategy
+            each beat, then the colors unify.</span>
           <a class="src" href="scenes/morph.amx">scenes/morph.amx ↗</a>
         </figcaption>
       </figure>
