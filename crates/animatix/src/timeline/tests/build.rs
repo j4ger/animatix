@@ -2376,3 +2376,53 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     assert_eq!(track.render_type_name(1_400), "Rect");
     assert_eq!(track.render_type_name(2_400), "Ellipse");
 }
+
+#[test]
+fn bounce_action_settles_with_decaying_hops() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
+bounce a [1s, intensity: 100]
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
+
+    // restitution 0.6 ⇒ six visible hops filling the 1s window, so the first
+    // airtime is 1000·(1-0.6)/(1-0.6⁶) ≈ 420ms: apex at 210, contact at 420.
+    assert!(y(210) < -95.0, "first apex should reach ~100px up, got {}", y(210));
+    assert!(y(420).abs() < 1.5, "first contact must return to rest, got {}", y(420));
+    // Hop 2 keeps 0.6² of the height and 0.6 of the airtime.
+    assert!(y(545) > -40.0 && y(545) < -30.0, "second apex should be ~36px, got {}", y(545));
+    assert!(y(1000).abs() < 1.5, "the actor must finish where it started, got {}", y(1000));
+    // A rise decelerates and a fall accelerates: that pair is the parabola, so
+    // the arc must not be linear in either half. A quarter into the rise the
+    // actor is already most of the way up; a quarter into the fall it has
+    // barely left the apex.
+    assert!(y(52) < -35.0, "rising should be front-loaded, got {}", y(52));
+    assert!(y(262) < -85.0, "falling should be back-loaded, got {}", y(262));
+}
+
+#[test]
+fn bounce_restitution_stretches_the_series_to_the_duration() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
+bounce a [1s, intensity: 100, restitution: 0.9]
+"#,
+    );
+    let track = timeline.tracks.get("a").expect("rect track");
+    let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
+    // A springier ball is still airborne at 900ms — the hop cap must not leave
+    // it parked early — and it is home at the end of the duration.
+    assert!(y(900) < -1.0, "0.9 restitution should still be bouncing, got {}", y(900));
+    assert!(
+        y(1000).abs() < 1.5,
+        "the series should end on the rest position, got {}",
+        y(1000)
+    );
+}

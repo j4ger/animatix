@@ -3,7 +3,7 @@ use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{AnimationTrack, ModifierHost, Timeline, parse_timing_modifiers};
 
 fn effect_timing_params() -> Vec<ActionParam> {
     let mut params = vec![
@@ -203,17 +203,56 @@ impl BuiltinAction for Pulse {
     }
 }
 
-/// Bounce action applies an elastic bounce effect to position
+/// Default fraction of velocity each impact keeps. 0.6 gives a first rebound at
+/// 36% of the original height — visibly alive, settled inside eight hops.
+const DEFAULT_RESTITUTION: f32 = 0.6;
+
+/// A hop shorter than this many pixels is not visible, so the series stops
+/// there rather than emitting a buzz of sub-pixel contacts.
+const MIN_VISIBLE_HOP: f32 = 0.5;
+
+/// Upper bound on hops, so a deliberately springy `restitution: 0.95` cannot
+/// emit an unbounded keyframe chain.
+const MAX_BOUNCE_HOPS: usize = 8;
+
+/// Keyframe the additive `motion_offset` channel of a track.
+///
+/// Effects write here rather than to `at`, so they stack on top of whatever
+/// positional choreography the author already keyed.
+fn add_offset(track: &mut AnimationTrack, at_ms: u64, y: [f32; 2], easing: Easing) {
+    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(at_ms, y, easing);
+}
+
+/// Read a numeric modifier of an effect action, evaluated against the
+/// timeline's build-time environment.
+fn effect_modifier_num(action: &Action, timeline: &Timeline, name: &str) -> Option<f32> {
+    action.modifiers.iter().find(|m| m.name.as_deref() == Some(name)).and_then(|m| {
+        crate::timeline::evaluate_expr(&m.value, &timeline.env)
+            .ok()
+            .map(|v| v.as_num() as f32)
+    })
+}
+
+/// Bounce action launches the actor off its resting spot and lets gravity
+/// settle it back down.
 pub struct Bounce;
 
 impl BuiltinAction for Bounce {
     fn signature(&self) -> ActionSignature {
+        let mut modifiers = effect_timing_params();
+        modifiers.push(ActionParam {
+            name: "restitution".to_string(),
+            description:
+                "Fraction of velocity each impact keeps (default 0.6); higher bounces longer"
+                    .to_string(),
+            type_info: "number".to_string(),
+        });
         ActionSignature {
             name: "bounce".to_string(),
             category: "Effects".to_string(),
-            description: "Applies elastic bounce motion to the target.".to_string(),
+            description: "Hops the target under gravity: `intensity` is the first hop's height, each rebound keeps `restitution` of the last one's velocity.".to_string(),
             params: vec![],
-            modifiers: effect_timing_params(),
+            modifiers,
         }
     }
 
@@ -237,16 +276,27 @@ impl BuiltinAction for Bounce {
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-        let intensity = action
-            .modifiers
-            .iter()
-            .find(|m| m.name.as_deref() == Some("intensity"))
-            .and_then(|m| {
-                crate::timeline::evaluate_expr(&m.value, &timeline.env)
-                    .ok()
-                    .map(|v| v.as_num() as f32)
-            })
-            .unwrap_or(50.0); // Default 50px bounce
+        // `intensity` is the first hop's height in pixels. `restitution` is the
+        // fraction of the previous rebound's *velocity* each impact keeps, so a
+        // hop's airtime shrinks by it and its height by its square — which is
+        // why the contacts fall closer together as the ball settles.
+        let intensity = effect_modifier_num(action, timeline, "intensity").unwrap_or(40.0);
+        let restitution = effect_modifier_num(action, timeline, "restitution")
+            .unwrap_or(DEFAULT_RESTITUTION)
+            .clamp(0.05, 0.95);
+
+        // The series is truncated once a hop is too small to see, so the first
+        // hop's airtime is scaled to make exactly those hops fill the requested
+        // duration: Σ d₀·rᵏ for k in 0..hops = duration.
+        let hops = (0..MAX_BOUNCE_HOPS)
+            .filter(|k| intensity * restitution.powi(2 * *k as i32) >= MIN_VISIBLE_HOP)
+            .count();
+        let first_airtime = if hops == 0 {
+            0.0
+        } else {
+            duration_ms as f64 * f64::from(1.0 - restitution)
+                / f64::from(1.0 - restitution.powi(hops as i32))
+        };
 
         for target in &action.targets {
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
@@ -259,41 +309,31 @@ impl BuiltinAction for Bounce {
             };
 
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            add_offset(track, t_start_ms, start_offset, Easing::Linear);
 
-            // Bounce trajectory: down fast, up slower, settle
-            // Keyframes at thirds of duration
-            let t_33 = (time_ms + delay_ms + duration_ms * 0.33) as u64;
-            let t_66 = (time_ms + delay_ms + duration_ms * 0.66) as u64;
+            let mut cursor = 0.0f64;
+            let mut airtime = first_airtime;
+            for hop in 0..hops {
+                let peak = intensity * restitution.powi(2 * hop as i32);
+                let base = t_start_ms as f64 + cursor;
+                // Rising decelerates and falling accelerates: that pair *is*
+                // the parabola, so the arc needs no per-frame expression.
+                let apex_ms = (base + airtime * 0.5) as u64;
+                let land_ms = (base + airtime) as u64;
+                add_offset(
+                    track,
+                    apex_ms,
+                    [start_offset[0], start_offset[1] - peak],
+                    Easing::EaseOut,
+                );
+                add_offset(track, land_ms, start_offset, Easing::EaseIn);
+                cursor += airtime;
+                airtime *= f64::from(restitution);
+            }
 
-            // Start
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-                t_start_ms,
-                start_offset,
-                Easing::Linear,
-            );
-
-            // Down (elastic overshoot)
-            let bounce_down = [start_offset[0], start_offset[1] + intensity];
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-                t_33,
-                bounce_down,
-                Easing::EaseOut,
-            );
-
-            // Up (recovery)
-            let bounce_up = [start_offset[0], start_offset[1] - intensity * 0.3];
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-                t_66,
-                bounce_up,
-                Easing::EaseOut,
-            );
-
-            // Settle back
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-                t_end_ms,
-                start_offset,
-                easing,
-            );
+            // Pin the rest position: if the series is truncated by the hop cap
+            // the actor must still land where it started.
+            add_offset(track, t_end_ms, start_offset, easing);
         }
     }
 }

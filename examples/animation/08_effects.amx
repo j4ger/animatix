@@ -66,7 +66,7 @@ pulse target [400ms, intensity: 1.5]
 shake target [500ms, intensity: 2]
 
 #10.5s
-bounce target [400ms, intensity: 2.5]
+bounce target [900ms, intensity: 24, restitution: 0.62]
 
 #2.5s
 bg.bg_vignette.amount = 0.5 [1.2s, ease: ease-out]

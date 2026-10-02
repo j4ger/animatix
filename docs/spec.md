@@ -79,7 +79,7 @@ Use these rules when generating `.amx` files:
 | `play` | Scene transition statement | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
 | `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
-| `[ ]` | Statement modifiers (duration, delay, ease) | `[2s, ease: bounce]` |
+| `[ ]` | Statement modifiers (duration, delay, ease) | `[2s, ease: expo-out]` |
 | `=` | Property assignment (instant or animated) | `btn.color = red` |
 | `,` | Separates object properties | `Type, prop: val` |
 | ` ` | Separates action verb from arguments | `fade-in btn [1s]` |
@@ -240,11 +240,46 @@ config { colorscheme: "forest" }
 ```animatix
 [2s]                      // Duration shorthand
 [2s, ease: ease-in-out]  // Duration + easing
-[ease: bounce]           // Easing only (instant change)
+[ease: expo-out]         // Easing only (instant change)
+[ease: cubic-bezier(0.16, 1, 0.3, 1)]  // Parameterized curve
 [delay: 250ms, 0s]       // Delayed instant change
 [path_arc: 1.57]         // Morph control (path-morphing only)
 [stretch: true]           // Bounds-normalized morph
 ```
+
+### Easing curves
+
+An easing is a scalar map over the progress between two keyframe values. That
+definition is the whole boundary of what it can express: it modulates travel
+**along the line from the previous value to the next**, so no easing — however
+physical its shape — can move a value off that line. Arcs, orbits and gravity
+are trajectories, not easings; use the `bounce` action, a `motion_offset`
+effect, or an `always` block for those.
+
+| `ease:` | Shape | Use it for |
+|---------|-------|-----------|
+| `linear` | constant | clocks, stroke draws, anything measuring time |
+| `ease-in` | accelerates | exits — leaving the frame |
+| `ease-out` | decelerates (quadratic) | generic arrivals |
+| `ease-in-out` | both | travel between two on-screen places |
+| `expo-out` | leaves fast, settles long | the default "arriving and settling" feel; snappier than `ease-out` |
+| `expo-in-out` | both ends exponential | deliberate, weighty transitions |
+| `spring(damping, frequency)` | overshoots once, rings down | an object coming to rest (defaults `spring(6, 9)`) |
+| `elastic` | multi-cycle overshoot | rubbery emphasis, ration it |
+| `back` | pulls back, then goes | anticipation before a move |
+| `expo` | accelerates hard | a comedic slam |
+| `bounce-in` | CSS bounce: hops *along* the segment | landing on a value, not gravity |
+| `cubic-bezier(x1, y1, x2, y2)` | any monotone or single-overshoot curve | anything not listed |
+
+`bounce` is accepted as a legacy spelling of `bounce-in` and means the curve,
+not the action — the collision is why it is deprecated. `custom` is likewise
+accepted and resolves to `cubic-bezier(0.42, 0, 0.58, 1)`.
+
+Every curve is anchored at both ends (`f(0)=0`, `f(1)=1`), which is what lets a
+keyframe's target value be the resting composition; `every_curve_holds_its_endpoints`
+in `animatix-syntax` pins it. The names are also available inside expressions as
+functions of progress — `ease_out(t)`, `expo_out(t)`, `spring(t)` — for
+`always` blocks and plot closures.
 
 **Runtime support by statement kind:**
 
@@ -275,7 +310,8 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | `shift` | `shift target [by: Vec2, duration, ease]` |
 | `rotate` | `rotate target [by: Num, duration, ease]` |
 | `scale` | `scale target [by: Num, duration, ease]` |
-| `shake`, `pulse`, `bounce` | `verb target [duration, intensity: Num]` |
+| `shake`, `pulse` | `verb target [duration, intensity: Num]` |
+| `bounce` | `bounce target [duration, intensity: Num, restitution: Num, ease]` |
 | `highlight` | `highlight target [color: Color, blend: Str, padding: Num, radius: Num, duration, ease]` |
 | `unhighlight` | `unhighlight target [duration, ease]` |
 | `swap` | `swap childA, childB [duration, ease]` |
@@ -294,7 +330,13 @@ Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-ou
 - `pulse [intensity: N]` - Scale up then return to normal; the peak scale is
   `current × (1 + N)` — `intensity: 0.05` is a 5% pop, `intensity: 1.0` doubles
   the actor
-- `bounce [intensity: N]` - Elastic bounce motion
+- `bounce [intensity: N, restitution: e]` - Launches the actor off its resting
+  spot and lets gravity settle it: `intensity` is the first hop's height in
+  pixels, and each impact keeps `e` of the previous rebound's velocity, so hop
+  *n* rises `N·e²ⁿ` and stays airborne `d₀·eⁿ` — the contacts fall closer and
+  closer together. The hops are scaled to fill the duration exactly. Because it
+  writes the additive `motion_offset` channel, it stacks under a positional
+  `at` keyframe instead of fighting it.
 
 ```animatix
 fade-in btn [1s]
@@ -311,7 +353,7 @@ Effects examples:
 ```animatix
 shake badge [intensity: 2]
 pulse btn [intensity: 1.5]
-bounce badge [intensity: 3]
+bounce badge [intensity: 18]
 ```
 
 **Reorder:**
@@ -611,13 +653,13 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 **Text shorthand:**
 ```animatix
 title: "Hello"                    // desugars to: title: Text, text: "Hello"
-title: "Hello" [2s, ease: bounce] // with modifiers
+title: "Hello" [2s, ease: expo-out] // with modifiers
 ```
 
 **Typst shorthand:**
 ```animatix
 eq: $$ x^2 + y^2 $$                    // desugars to: eq: Typst, content: "x^2 + y^2"
-eq: $$ x^2 $$ [2s, ease: bounce]       // with modifiers
+eq: $$ x^2 $$ [2s, ease: expo-out]       // with modifiers
 ```
 
 A bare `$$ ... $$` block produces a `Typst` actor. The content between `$$` delimiters is taken as raw Text (unquoted) and becomes the `text` property. A label is required. Modifiers are supported.

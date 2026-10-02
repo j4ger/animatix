@@ -173,3 +173,15 @@ scene-side, none fixed in the engine:
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` | The bundled Open Sans/CJK faces reach the db only through the embed/wasm path (`with_fonts_and_fallback`), so the plain fast path resolves the bundle only when the host happens to install those families system-wide — four `animatix-text` fast-path tests asserted "Open Sans is bundled" while quietly depending on the machine (made hermetic in the 2026-10-02 test fix, but the engine-side question stands: should the native context bundle-register by default, like the wasm one does?). | Not started |
 | `ContourSet`/`VectorField` silently ignore `opacity` | The property descriptor marks `opacity` applicable to everything, but these primitives never read it — an authored `opacity: 0.05` renders pixel-identical to 1.0 (measured), so dimmed backdrops are impossible via opacity and no drop warning fires. Either consume it in the shape-command path or warn; scenes currently dim by colour (`stroke.default`) as a workaround. | Not started |
 | Static keyframe `.text =` assignments overprint | `actor.text = "…"` at a keyframe leaves BOTH the declared string and the assigned one drawn before the first change lands (verified: two strings in one box mid-scene). The reactive `always` form replaces cleanly; the keyframe form should too — or the pattern should warn. Worked around in `web/demos/hash/scene.amx` with one actor per string. | Not started |
+
+## Easing library pass — findings (2026-10-02)
+
+Landed: one easing name table, `ease: cubic-bezier(…)` / `ease: spring(…)`,
+`expo-out` / `expo-in-out` / `spring`, `bounce` → `bounce-in`, and a physical
+`bounce` action. Found on the way, not fixed:
+
+| Item | What it is | Status |
+|---|---|---|
+| `animatix fmt` deletes comments | Formatting `web/scenes/hero.amx` drops its 19-line header block and collapses every multi-line declaration onto one line (202 → 124 lines). The formatter rebuilds from the AST and never re-emits trivia, so the lossless tokenizer's promise stops at the parser. `animatix fmt --check` currently reports most of `web/` and `examples/` unformatted, i.e. the tool is unrunnable on real source, which is why the `ease:` deletion above went unnoticed. Fixing the trivia model is a prerequisite for trusting any `fmt`-based gate. | Not started |
+| Native-plugin easing ABI is lossy | `easing_code` (`extension_native_plugin.rs`) maps every easing except {EaseIn, EaseOut, EaseInOut} onto code 0 = Linear, so a plugin reading a `spring` or `cubic-bezier` track sees a linear one. Pre-dates this pass (it did it for `Bounce` too). Widening the code space is a plugin-API version bump, not an easing change. | Not started |
+| The GUI cannot edit a bezier's control points | `ease: cubic-bezier(…)` parses, evaluates and round-trips, and the curve panel plots it, but the inspector's easing dropdown is registry-driven, so it offers only the named curves. Editing points needs a small numeric editor widget in the keyframe table. | Not started |
