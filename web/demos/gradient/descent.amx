@@ -1,9 +1,9 @@
+import "../lib/theme.amx"
+
 
 config { resolution: (1280, 720) }
 
 # Descent
-import "../lib/theme.amx"
-
 config { colorscheme: "ink", duration: 8.0 }
 
 step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,

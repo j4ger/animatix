@@ -4,25 +4,25 @@ config { resolution: (1280, 720) }
 # LossSurface
 config { colorscheme: "ink", duration: 5.0 }
 
-step_title: Text, text: "1. The Loss Surface", font_size: 40,
+step_title: Text, text: "The Loss Surface", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
 
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 400),
   resolution: 96, color: accent.primary, stroke_width: 2.0
 
 // Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
 field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 400),
   color: text.muted
 
 // Global minimum at (0, 0)
-min_dot: Ellipse, size: (12, 12), color: accent.success, at: (400, 380)
+min_dot: Ellipse, size: (12, 12), color: accent.success, at: (640, 400)
 
 caption: Text,
   text: "Contours = equal loss; arrows = gradient (uphill)",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.5s
 fade-in step_title [500ms, ease: ease-out]
@@ -41,3 +41,13 @@ fade-in caption [500ms]
 // =============================================================================
 // Scene 3: Show which direction to step — against the gradient
 // =============================================================================
+
+// Outro: quiet plate before the loop wrap.
+#4.4s
+stagger [60ms] {
+  fade-out caption [300ms]
+  fade-out min_dot [300ms]
+  fade-out field [300ms]
+  fade-out contours [300ms]
+  fade-out step_title [300ms]
+}

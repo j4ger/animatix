@@ -1,9 +1,9 @@
+import "../lib/theme.amx"
+
 
 config { resolution: (1280, 720) }
 
 # Collapse
-import "../lib/theme.amx"
-
 config { colorscheme: "ink", duration: 10 }
 
 col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,

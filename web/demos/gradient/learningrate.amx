@@ -1,9 +1,9 @@
+import "../lib/theme.amx"
+
 
 config { resolution: (1280, 720) }
 
 # LearningRate
-import "../lib/theme.amx"
-
 config { colorscheme: "ink", duration: 6.8 }
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 40,
