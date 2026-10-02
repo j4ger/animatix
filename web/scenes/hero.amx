@@ -19,7 +19,7 @@
 
 import "../demos/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1600, 900), duration: 11.5 }
+config { colorscheme: "ink", resolution: (1600, 900), duration: 13.0 }
 
 // ── the instrument frame ────────────────────────────────────────────
 // Four corner brackets framing the safe area — the viewfinder motif the
@@ -65,7 +65,7 @@ underline: Path,
 
 carriage: Rect, size: (12, 26), color: accent.primary, at: (570, 428)
 
-tagline: Text, text: "a declarative animation language", font_size: 34,
+tagline: Text, text: "a declarative animation language", font_size: 38,
   color: text.secondary, anchor: scene.center, offset: (0, 38)
 
 // ── the trio: three primitives that trade shapes and colors ─────────
@@ -79,7 +79,7 @@ di: Polygon, points: {(0, -49), (49, 0), (0, 49), (-49, 0)},
 
 // ── the closing ball ────────────────────────────────────────────────
 
-ball: Ellipse, size: (26, 26), color: accent.danger, at: (240, 780)
+ball: Ellipse, size: (30, 30), color: accent.danger, at: (240, 726)
 
 // ── timeline ────────────────────────────────────────────────────────
 
@@ -97,20 +97,19 @@ fade-in grid [650ms, ease: ease-out]
 // The grid flashes to full, then recedes to a texture as the type arrives;
 // the wordmark rises the last few pixels with a back-ease overshoot.
 #0.9s
-grid.opacity = 0.2 [1s, ease: ease-out]
+grid.opacity = 0.15 [1s, ease: ease-out]
 
 #1.0s
 fade-in wordmark [550ms, ease: ease-out]
 
 #1.1s
-shift wordmark [by: (0, 14), 750ms, ease: back]
+shift wordmark [by: (0, 24), 750ms, ease: back]
 
 #1.7s
 draw-in underline [750ms, ease: ease-out]
 fade-in carriage [180ms]
-
-#1.8s
-carriage.at = (1030, 428) [750ms, ease: linear]
+// The carriage rides the draw tip: same start, span and ease as the draw.
+carriage.at = (1030, 428) [750ms, ease: ease-out]
 
 #2.6s
 fade-out carriage [300ms]
@@ -121,15 +120,17 @@ fade-in tagline [600ms, ease: ease-out]
 #2.9s
 shift tagline [by: (0, -12), 650ms, ease: back]
 
-// The trio flies in — each from a different edge, on the bounce.
+// The trio flies in — each from a different edge, on the bounce. The
+// stagger is tight (60ms) so all three are airborne together and the beat
+// reads as a trio, not a sequence of solo dots.
 #3.9s
-stagger [140ms] {
-  fade-in sq [300ms]
-  sq.at = (704, 610) [900ms, ease: bounce]
-  fade-in ci [300ms]
-  ci.at = (800, 610) [900ms, ease: bounce]
-  fade-in di [300ms]
-  di.at = (896, 610) [900ms, ease: bounce]
+stagger [60ms] {
+  fade-in sq [200ms]
+  sq.at = (704, 610) [700ms, ease: bounce]
+  fade-in ci [200ms]
+  ci.at = (800, 610) [700ms, ease: bounce]
+  fade-in di [200ms]
+  di.at = (896, 610) [700ms, ease: bounce]
 }
 
 // The trade: square morphs round, the diamond squares up and takes the
@@ -149,8 +150,37 @@ ci.size = (76, 76) [500ms, ease: bounce]
 fade-in ball [250ms]
 
 #8.3s
-ball.at = (1360, 780) [2.2s, ease: bounce]
+ball.at = (1360, 726) [2.2s, ease: bounce]
 
-// Settle: the grid breathes once, everything rests until the loop.
+// Settle: the grid breathes once…
 #10.3s
 grid.opacity = 0.3 [1.2s, ease: ease-in-out]
+
+// …then the plate empties itself in reverse order, so the loop wraps from a
+// quiet stage into the bracket draw-in instead of hard-cutting a full frame
+// to black.
+#10.6s
+fade-out ball [350ms]
+
+#11.2s
+stagger [90ms] {
+  fade-out tagline [450ms]
+  fade-out underline [450ms]
+  fade-out sq [450ms]
+  fade-out ci [450ms]
+  fade-out di [450ms]
+}
+
+#11.9s
+fade-out wordmark [650ms]
+
+#12.0s
+grid.opacity = 0.05 [700ms, ease: ease-in]
+
+#12.3s
+stagger [80ms] {
+  fade-out bracket_tl [380ms]
+  fade-out bracket_tr [380ms]
+  fade-out bracket_bl [380ms]
+  fade-out bracket_br [380ms]
+}

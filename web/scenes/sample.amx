@@ -9,13 +9,13 @@ import "../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 4.2 }
 
-box: Rect, size: (140, 140), color: accent.primary, at: (440, 360)
+box: Rect, size: (220, 220), color: accent.primary, at: (640, 360)
 
 #0.5s
 fade-in box [600ms, ease: ease-out]
 
 #1.5s
-box: Ellipse, size: (140, 110), color: accent.success [900ms, strategy: match]
+box: Ellipse, size: (220, 170), color: accent.success [900ms, strategy: match]
 
 #3.0s
-shift box [by: (240, 0), 800ms, ease: bounce]
+shift box [by: (280, 0), 800ms, ease: bounce]

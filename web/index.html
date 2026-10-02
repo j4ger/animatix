@@ -16,7 +16,7 @@
   <!-- The hero is the scene. Same ink as the page, fit=cover, no frame —
        the title sequence simply happens on the page itself. -->
   <div class="hero-full">
-    <amx-player src="./scenes/hero.amx" autoplay loop sealed fit="cover" hold="2"
+    <amx-player src="./scenes/hero.amx" autoplay loop sealed fit="cover" hold="1"
                 title="Animatix — a declarative animation language"></amx-player>
     <div class="scroll-cue" aria-hidden="true">scroll</div>
     <div class="hero-strip">
@@ -43,13 +43,13 @@
       </p>
       <div class="duality">
         <pre><span class="line"><span class="cmt">// one actor, three beats of choreography</span></span>
-<span class="line">box: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">440</span>, <span class="num">360</span>)</span>
+<span class="line">box: <span class="prop">Rect</span>, size: (<span class="num">220</span>, <span class="num">220</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">640</span>, <span class="num">360</span>)</span>
 <span class="line" data-t="0.5,1.5"><span class="at">#0.5s</span></span>
 <span class="line" data-t="0.5,1.5"><span class="kw">fade-in</span> box [<span class="num">600ms</span>, ease: <span class="str">ease-out</span>]</span>
 <span class="line" data-t="1.5,3.0"><span class="at">#1.5s</span></span>
-<span class="line" data-t="1.5,3.0">box: <span class="prop">Ellipse</span>, size: (<span class="num">140</span>, <span class="num">110</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]</span>
+<span class="line" data-t="1.5,3.0">box: <span class="prop">Ellipse</span>, size: (<span class="num">220</span>, <span class="num">170</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]</span>
 <span class="line" data-t="3.0,4.2"><span class="at">#3.0s</span></span>
-<span class="line" data-t="3.0,4.2"><span class="kw">shift</span> box [by: (<span class="num">240</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</span></pre>
+<span class="line" data-t="3.0,4.2"><span class="kw">shift</span> box [by: (<span class="num">280</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</span></pre>
         <div class="stage-col">
           <figure>
             <amx-player src="./scenes/sample.amx" sealed aspect="16:9"

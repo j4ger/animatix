@@ -3,18 +3,35 @@
 // time by a `for` over an array of colors — layout and generation instead
 // of five hand-copied lines. (For-expansion covers declarations, not the
 // inside of stagger/sequence blocks: choreography stays explicit.)
+//
+// The easing beat names each ease on screen: the finale palette uses all
+// five distinct channels (amber/bone/coral/sage/steel) because here hue IS
+// the per-square semantic channel. The labels are hand-positioned at the
+// Row's slot centres (x = 272 + 184i, from 5 slots of 120 + gap 64 centred
+// on 640) so each name sits exactly under its square even after the squares
+// outgrow their layout slots.
 
 import "../../demos/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.4 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 7.7 }
 
-row: Row, anchor: scene.center, gap: 44, align: "center" {
-  for color, i in {accent.primary, accent.success, accent.warning, accent.danger, text.primary} {
-    square[i]: Rect, size: (70, 70), color: color
+title: Text, text: "stagger · sequence · easing", font_size: 30, color: text.primary,
+  anchor: scene.top, offset: (0, 56)
+
+row: Row, anchor: scene.center, gap: 64, align: "center", offset: (0, -40) {
+  for color, i in {accent.primary, text.primary, accent.warning, accent.success, accent.info} {
+    square[i]: Rect, size: (120, 120), color: color
   }
 }
 
+label_0: Text, text: "linear", font_size: 20, color: text.secondary, at: (272, 462)
+label_1: Text, text: "ease-in", font_size: 20, color: text.secondary, at: (456, 462)
+label_2: Text, text: "ease-out", font_size: 20, color: text.secondary, at: (640, 462)
+label_3: Text, text: "ease-in-out", font_size: 20, color: text.secondary, at: (824, 462)
+label_4: Text, text: "bounce", font_size: 20, color: text.secondary, at: (1008, 462)
+
 #0.5s
+fade-in title [500ms, ease: ease-out]
 stagger [120ms] {
   fade-in square[0] [500ms, ease: ease-out]
   fade-in square[1] [500ms, ease: ease-out]
@@ -25,17 +42,48 @@ stagger [120ms] {
 
 #2.5s
 sequence {
-  square[0].size = (100, 100) [400ms, ease: ease-out]
-  square[1].size = (100, 100) [400ms, ease: ease-out]
-  square[2].size = (100, 100) [400ms, ease: ease-out]
-  square[3].size = (100, 100) [400ms, ease: ease-out]
-  square[4].size = (100, 100) [400ms, ease: ease-out]
+  square[0].size = (150, 150) [400ms, ease: ease-out]
+  square[1].size = (150, 150) [400ms, ease: ease-out]
+  square[2].size = (150, 150) [400ms, ease: ease-out]
+  square[3].size = (150, 150) [400ms, ease: ease-out]
+  square[4].size = (150, 150) [400ms, ease: ease-out]
 }
 
 // five named eases, one per square
 #5s
-square[0].color = accent.danger [600ms, ease: linear]
-square[1].color = accent.warning [600ms, ease: ease-in]
-square[2].color = accent.primary [600ms, ease: ease-out]
+square[0].color = accent.primary [600ms, ease: linear]
+square[1].color = text.primary [600ms, ease: ease-in]
+square[2].color = accent.warning [600ms, ease: ease-out]
 square[3].color = accent.success [600ms, ease: ease-in-out]
-square[4].color = accent.danger [600ms, ease: bounce]
+square[4].color = accent.info [600ms, ease: bounce]
+
+#5.2s
+stagger [100ms] {
+  fade-in label_0 [350ms]
+  fade-in label_1 [350ms]
+  fade-in label_2 [350ms]
+  fade-in label_3 [350ms]
+  fade-in label_4 [350ms]
+}
+
+// Outro: quiet plate before the wrap.
+#6.5s
+stagger [80ms] {
+  fade-out label_0 [300ms]
+  fade-out label_1 [300ms]
+  fade-out label_2 [300ms]
+  fade-out label_3 [300ms]
+  fade-out label_4 [300ms]
+}
+
+#6.9s
+stagger [80ms] {
+  fade-out square[0] [350ms]
+  fade-out square[1] [350ms]
+  fade-out square[2] [350ms]
+  fade-out square[3] [350ms]
+  fade-out square[4] [350ms]
+}
+
+#7.1s
+fade-out title [300ms]

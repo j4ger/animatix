@@ -143,3 +143,17 @@ second-input-texture ABI bump (`docs/effects.md` §4.1) and are **not**
 scheduled: the ping-pong chain overwrites the original after the first pass,
 so an add-back has no source. `Mix` additionally needs named intermediate
 chain outputs — a separate chain-model change, not part of that bump.
+
+## Morph: `strategy: fade` has no cross-fade for state shapes
+
+`MorphStrategy::Fade` is documented as a cross-fade overlay, and the tour
+once taught it that way, but for shapes whose geometry lives in the shape
+state rather than a `vector_paths` track (Rect, Ellipse, and points-list
+Polygons — everything the PF-4 shortcut covers) a fade re-declaration
+renders as a color lerp followed by a one-frame silhouette swap: nothing
+cross-fades. A real implementation needs the morph span to evaluate both the
+start and end states and draw them at opposite opacities, which means the
+frame path must be able to build a second state from the *start* type's
+primitive (the same machinery `render_type_name` now dispatches per frame).
+Until then the tour demos morph strategies that visibly work: auto, match,
+path_arc, stretch.

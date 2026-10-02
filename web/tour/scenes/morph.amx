@@ -1,15 +1,23 @@
 // morph.amx — tour §04: re-declaration morphing with strategies.
 // Adapted from examples/animation/05_morph.amx.
+//
+// A caption names each strategy as it plays — the scene teaches strategies,
+// so the vocabulary has to be on screen. The finale unifies on amber (the
+// brand lead); coral stays a per-beat accent only.
 
 import "../../demos/lib/theme.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 9.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 11.4 }
 
-circle: Ellipse, size: (140, 140), color: accent.primary, at: (320, 360)
-rect: Rect, size: (140, 140), color: accent.success, at: (640, 360)
-poly: Polygon, points: {(0, -70), (70, 0), (0, 70), (-70, 0)}, color: accent.warning, at: (960, 360)
+caption: Text, text: "strategy: auto", font_size: 22, color: text.secondary,
+  anchor: scene.center, offset: (0, 250)
+
+circle: Ellipse, size: (170, 170), color: accent.primary, at: (320, 330)
+rect: Rect, size: (170, 170), color: accent.success, at: (640, 330)
+poly: Polygon, points: {(0, -85), (85, 0), (0, 85), (-85, 0)}, color: accent.warning, at: (960, 330)
 
 #0.5s
+fade-in caption [400ms]
 stagger [100ms] {
   fade-in circle [500ms, ease: ease-out]
   fade-in rect [500ms, ease: ease-out]
@@ -18,26 +26,46 @@ stagger [100ms] {
 
 // Circle → Rect with auto strategy
 #2s
-circle: Rect, size: (140, 140), color: accent.danger, at: (320, 360) [1s, strategy: auto]
+circle: Rect, size: (170, 170), color: accent.danger, at: (320, 330) [1s, strategy: auto]
+caption.text = "strategy: auto" [300ms]
 
 // Rect → Ellipse with match strategy
 #3.5s
-rect: Ellipse, size: (160, 120), color: accent.primary, at: (640, 360) [1s, strategy: match]
+rect: Ellipse, size: (190, 145), color: accent.primary, at: (640, 330) [1s, strategy: match]
+caption.text = "strategy: match" [300ms]
 
 // Diamond → star with a path-arc hint
 #5s
-poly: Polygon, points: {(0, -80), (20, -25), (75, -25), (30, 10), (45, 65), (0, 35), (-45, 65), (-30, 10), (-75, -25), (-20, -25)}, color: accent.success, at: (960, 360) [1.5s, path_arc: 0.3]
+poly: Polygon, points: {(0, -95), (24, -30), (90, -30), (36, 12), (54, 78), (0, 42), (-54, 78), (-36, 12), (-90, -30), (-24, -30)}, color: accent.success, at: (960, 330) [1.5s, path_arc: 0.3]
+caption.text = "path_arc: 0.3" [300ms]
 
-// Rect (now) → diamond with fade strategy
+// Star → diamond with a tighter arc: the return trip shows path_arc on a
+// different vertex pairing than the five-point morph above.
 #6.5s
-circle: Polygon, points: {(0, -75), (75, 0), (0, 75), (-75, 0)}, color: accent.primary, at: (320, 360) [1s, strategy: fade]
+poly: Polygon, points: {(0, -88), (88, 0), (0, 88), (-88, 0)}, color: accent.primary, at: (960, 330) [1.2s, path_arc: 0.25]
+caption.text = "path_arc: 0.25" [300ms]
+
+#6.9s
+circle: Polygon, points: {(0, -88), (88, 0), (0, 88), (-88, 0)}, color: accent.primary, at: (320, 330) [1s, strategy: auto]
 
 // Ellipse (now) → trapezoid with stretch normalization
-#6.8s
-rect: Path, commands: {move_to(-80, -45), line_to(80, -45), line_to(55, 45), line_to(-55, 45), close()}, color: accent.danger, at: (640, 360) [1s, stretch: true]
+#8.1s
+rect: Path, commands: {move_to(-90, -52), line_to(90, -52), line_to(62, 52), line_to(-62, 52), close()}, color: accent.danger, at: (640, 330) [1s, stretch: true]
+caption.text = "stretch: true" [300ms]
 
-// Unify colors as a finale
-#8s
-circle.color = accent.warning [800ms]
-rect.color = accent.warning [800ms]
-poly.color = accent.warning [800ms]
+// Unify on the brand amber as a finale
+#9.3s
+circle.color = accent.primary [800ms]
+rect.color = accent.primary [800ms]
+poly.color = accent.primary [800ms]
+
+// Outro: quiet the plate before the wrap.
+#10.4s
+stagger [100ms] {
+  fade-out circle [400ms]
+  fade-out rect [400ms]
+  fade-out poly [400ms]
+}
+
+#10.8s
+fade-out caption [350ms]
