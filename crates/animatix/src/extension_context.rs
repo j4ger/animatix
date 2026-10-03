@@ -1041,9 +1041,13 @@ mod tests {
             track.property_plan.get(level).and_then(|slot| slot.track.sample(0)),
             Some(crate::timeline::PropertyValue::F32(42.0))
         );
+        // `#1s g.level = 80` carries no `[duration]`, so it is an instant change
+        // (`docs/spec.md`, "Instant Change"): the declared 42 holds until the
+        // stamp rather than easing toward 80 across the preceding second.
         assert_eq!(
             track.property_plan.get(level).and_then(|slot| slot.track.sample(500)),
-            Some(crate::timeline::PropertyValue::F32(61.0))
+            Some(crate::timeline::PropertyValue::F32(42.0)),
+            "an undated extension assignment eased from the previous keyframe"
         );
         assert_eq!(
             track.property_plan.get(level).and_then(|slot| slot.track.sample(1000)),
@@ -1055,7 +1059,7 @@ mod tests {
             crate::timeline::SceneDimensions::default(),
             &std::collections::HashMap::new(),
         );
-        assert_eq!(frame_env.get("g.level"), Some(Value::Num(61.0)));
+        assert_eq!(frame_env.get("g.level"), Some(Value::Num(42.0)));
     }
 
     #[test]
@@ -1084,7 +1088,18 @@ mod tests {
                 .property_plan
                 .get(animatix_syntax::schema::PropertyId(1_000_000))
                 .and_then(|slot| slot.track.sample(500)),
-            Some(crate::timeline::PropertyValue::F32(7.5))
+            // Undated assignment at `#1s`, so the declared 5 holds through the
+            // gap; see `build_with_context_writes_extension_properties`.
+            Some(crate::timeline::PropertyValue::F32(5.0)),
+            "an undated assignment on a built-in actor eased from its declaration"
+        );
+        assert_eq!(
+            track
+                .property_plan
+                .get(animatix_syntax::schema::PropertyId(1_000_000))
+                .and_then(|slot| slot.track.sample(1000)),
+            Some(crate::timeline::PropertyValue::F32(10.0)),
+            "the step did not take effect at its own stamp"
         );
     }
 

@@ -2674,3 +2674,38 @@ t.text = \"second\"
         "the swap did not take effect at its own stamp"
     );
 }
+
+/// The numeric half of the same rule: a bare assignment is a step at its stamp.
+///
+/// `docs/spec.md` calls this an "Instant Change". The track model has no step
+/// keyframe, so the value has to be fenced one millisecond before the stamp or
+/// the previous keyframe eases into it across the whole gap — which is what
+/// happened until `write_property_plan_slot` learned to fence undated writes.
+#[test]
+fn an_undated_numeric_assignment_is_a_step_not_a_backwards_ramp() {
+    let source = "\
+config { resolution: (400, 300), duration: 3 }
+r: Rect, size: (40, 40), color: (1.0, 0.0, 0.0, 1.0), opacity: 1.0, at: (200, 200)
+#2s
+r.opacity = 0.0
+";
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
+            .output;
+    let rect = timeline.tracks.get("r").expect("rect track");
+
+    for ms in [0u64, 500, 1000, 1999] {
+        assert_eq!(
+            rect.style.opacity.get(ms, 0.0),
+            1.0,
+            "the rect was already fading at {ms}ms, two seconds before the assignment"
+        );
+    }
+    assert_eq!(
+        rect.style.opacity.get(2000, 1.0),
+        0.0,
+        "the step did not take effect at its own stamp"
+    );
+}

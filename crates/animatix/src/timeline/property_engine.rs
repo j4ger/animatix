@@ -535,9 +535,26 @@ pub fn write_property_plan_slot(
 ) -> bool {
     let has_duration = t_end_ms > t_start_ms;
     let slot = track.property_plan.ensure_slot(id, kind);
-    if has_duration {
-        if let Some(start) = slot.track.sample(t_start_ms) {
-            slot.track.add_keyframe(t_start_ms, start);
+    // The track model has no step keyframe: two writes at one timestamp collapse
+    // to the later one, and any two *consecutive* keyframes read as an
+    // interpolation segment. So an undated change has to be fenced as well, or
+    // the previous keyframe eases all the way into it and `r.opacity = 0.0` at
+    // `#2s` starts fading out at frame 0 — `docs/spec.md` calls a bare property
+    // assignment an "Instant Change", and this is where that is true.
+    // `preserve_instant_delayed_value` in `timeline/position.rs` is the same
+    // fence for the delayed case; the slot track here is a `DynTrack` rather
+    // than an `Option<PropertyTrack<T>>`, so it cannot be reused directly.
+    let seed_ms = if has_duration {
+        t_start_ms
+    } else {
+        t_start_ms.saturating_sub(1)
+    };
+    if seed_ms > 0 {
+        // `sample` reads what the slot holds *before* the target below is
+        // written, so re-seeding a stamp that already carries a keyframe writes
+        // that same value again rather than clobbering it.
+        if let Some(start) = slot.track.sample(seed_ms) {
+            slot.track.add_keyframe(seed_ms, start);
         }
     }
     slot.track.add_keyframe_eased(t_end_ms, value, easing).is_some()
