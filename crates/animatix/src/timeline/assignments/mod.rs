@@ -856,7 +856,14 @@ pub(crate) fn recompile_text_at_assignment(
             start_val,
             Easing::Linear,
         );
-    } else if instant_delayed {
+    } else {
+        // A step has to be fenced too. With no keyframe just before the stamp,
+        // the previously declared string interpolates all the way into the new
+        // one, and the cross-fade branch in `primitives` then compiles and draws
+        // *both* strings for the whole preceding gap — the roadmap's "static
+        // keyframe `.text =` assignments overprint". `preserve_instant_delayed_value`
+        // already does the fencing for delayed steps; an undated assignment needs
+        // exactly the same thing one millisecond earlier.
         preserve_instant_delayed_value(&mut track.text.text_content, t_start_ms);
     }
     track.text.text_content.ensure(String::new()).add_keyframe(

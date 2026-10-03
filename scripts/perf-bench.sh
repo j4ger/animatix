@@ -23,6 +23,17 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+# The regression verdict is computed by a Python script (see compare_estimates).
+# If python3 is missing the function produces no output, its caller reads an
+# empty line, and the run reports success with zero benches compared — a green
+# result that means nothing. Refuse instead.
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "perf-bench: python3 not found — cannot compute regression verdicts." >&2
+    echo "           Run this inside a shell that provides python3 (the repo's dev" >&2
+    echo "           shell does not); refusing to report a green run without it." >&2
+    exit 1
+fi
+
 # Crates whose benches the regression guard covers. The engine owns the
 # render/frame suite; the analyzer owns the editor-intelligence suite (it
 # cannot live in the engine's benches: the engine does not depend on it).

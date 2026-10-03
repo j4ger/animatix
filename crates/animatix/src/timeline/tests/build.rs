@@ -2559,3 +2559,118 @@ fn plot_actors_honour_an_authored_opacity() {
         );
     }
 }
+
+/// A re-declaration at a shared timestamp must not steal its own target as its
+/// starting value.
+///
+/// `insert_start_keyframes` captures what the track currently holds and writes
+/// it at the declaration's timestamp, so a sibling that had already written a
+/// keyframe at that same stamp could in principle become the "start" — the
+/// animation would then run from its destination and the frame before the stamp
+/// would show the new shape instead of the old one. Four orderings are checked
+/// here because the interesting one is the combination: a statement sharing the
+/// `#1s` stamp with the morph, written before it.
+#[test]
+fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
+    let prelude = "config { resolution: (400, 300), duration: 3 }\n\
+                   a: Ellipse, size: (60, 60), color: (1.0, 0.0, 0.0, 1.0), at: (100, 100)\n";
+    let cases = [
+        (
+            "a morph on its own",
+            "#1s\na: Rect, size: (60, 60), color: (0.0, 0.0, 1.0, 1.0), at: (100, 100) [500ms]\n",
+        ),
+        (
+            "an instant assignment first",
+            "#1s\na.color = (0.0, 1.0, 0.0, 1.0)\na: Rect, size: (60, 60), color: (0.0, 0.0, 1.0, 1.0), at: (100, 100) [500ms]\n",
+        ),
+        (
+            "a timed assignment first",
+            "#1s\na.color = (0.0, 1.0, 0.0, 1.0) [500ms]\na: Rect, size: (60, 60), color: (0.0, 0.0, 1.0, 1.0), at: (100, 100) [500ms]\n",
+        ),
+    ];
+
+    for (label, tail) in cases {
+        let (ast, errors) = animatix_syntax::parser::parse_source(&(prelude.to_string() + tail));
+        assert!(errors.is_empty(), "{label}: parse errors {errors:?}");
+        let timeline =
+            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
+                .output;
+        let track = timeline.tracks.get("a").unwrap_or_else(|| panic!("{label}: no track 'a'"));
+
+        // The frame before the stamp is still the declared ellipse, and still
+        // carries no blue at all.
+        assert_eq!(
+            track.shape.shape_type.get(999, crate::timeline::ShapeType::Rect),
+            crate::timeline::ShapeType::Ellipse,
+            "{label}: the frame before the morph already shows the target shape"
+        );
+        assert!(
+            track.style.color.get(999, [0.0; 4])[2] < 0.01,
+            "{label}: the pre-morph frame started from the target colour: {:?}",
+            track.style.color.get(999, [0.0; 4])
+        );
+        // And the morph itself still lands on the target.
+        assert_eq!(
+            track.shape.shape_type.get(1500, crate::timeline::ShapeType::Ellipse),
+            crate::timeline::ShapeType::Rect,
+            "{label}: the morph never reached its target shape"
+        );
+        assert!(
+            track.style.color.get(1500, [0.0; 4])[2] > 0.99,
+            "{label}: the colour morph did not finish: {:?}",
+            track.style.color.get(1500, [0.0; 4])
+        );
+    }
+}
+
+/// An undated `.text =` swap must not begin before its own stamp.
+///
+/// The track model reads any two consecutive keyframes as an interpolation
+/// segment, so unless the change is fenced the previously declared string
+/// interpolates all the way into the new one — and the cross-fade branch in
+/// `primitives` then compiles and draws *both* strings across the whole
+/// preceding gap. That is the roadmap's "static keyframe `.text =` assignments
+/// overprint", which forced `web/demos/hash/scene.amx` onto one actor per string.
+#[test]
+fn an_undated_text_swap_holds_the_old_string_until_its_own_stamp() {
+    let source = "\
+config { resolution: (400, 300), duration: 3 }
+t: Text, text: \"first\", font_size: 30, at: (100, 100)
+#2s
+t.text = \"second\"
+";
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
+            .output;
+    let text = timeline.tracks.get("t").expect("text track");
+
+    for ms in [0u64, 500, 1000, 1999] {
+        assert_eq!(
+            text.text.text_content.get(ms, String::new()),
+            "first",
+            "the text swap leaked into the frame before its stamp at {ms}ms"
+        );
+        // The renderer cross-fades whenever a segment is open *between two
+        // different strings*; a segment whose endpoints are the same string is
+        // harmless, so that is the property asserted here.
+        if let Some((_, prev, found, _, _)) = text
+            .text
+            .text_content
+            .as_ref()
+            .and_then(|track| track.interpolation_segment(ms))
+        {
+            assert_eq!(
+                prev, found,
+                "two different strings were interpolating at {ms}ms, before the swap is due"
+            );
+        }
+    }
+
+    assert_eq!(
+        text.text.text_content.get(2000, String::new()),
+        "second",
+        "the swap did not take effect at its own stamp"
+    );
+}

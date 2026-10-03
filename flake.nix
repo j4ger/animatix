@@ -27,6 +27,11 @@
             alsa-lib
             pipewire  # Provides libasound_module_pcm_pipewire.so for ALSA
             nodejs
+            # scripts/perf-bench.sh computes its regression verdict in Python;
+            # without it the harness printed nothing and exited 0 — a green perf
+            # gate that had compared nothing. It now refuses to run, so the shell
+            # has to be able to run it.
+            python3
             clang
 
             libX11
