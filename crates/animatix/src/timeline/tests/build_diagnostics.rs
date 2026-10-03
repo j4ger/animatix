@@ -304,3 +304,56 @@ r: Rect, size: (100, 80), colour: (1, 0, 0, 1), at: (160, 90)
         .expect("expected an unknown-property warning for 'colour'");
     assert!(warned.message.contains("colour"), "warning names the property: {warned:?}");
 }
+
+fn inapplicable_warnings(source: &str) -> Vec<String> {
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::InapplicableProperty)
+        .map(|d| d.message.clone())
+        .collect()
+}
+
+/// The case `unknown-property` cannot see: a property name that really exists,
+/// on a type that never reads it. `colour:` at least looks wrong in the source;
+/// this looks entirely correct and the value disappears anyway.
+#[test]
+fn a_property_the_primitive_never_reads_warns() {
+    let warnings = inapplicable_warnings(
+        r#"
+config { resolution: (320, 180) }
+t: Text, text: "caption", font_size: 20, stroke_width: 6, at: (160, 90)
+"#,
+    );
+    assert_eq!(
+        warnings.len(),
+        1,
+        "`stroke_width` is not a Text property and should warn once: {warnings:?}"
+    );
+    assert!(
+        warnings[0].contains("stroke_width") && warnings[0].contains("(Text)"),
+        "the warning should name the actor type and the dropped property: {}",
+        warnings[0]
+    );
+}
+
+/// The exemption that must hold, because 94 shipped scenes depend on it:
+/// `text_max_width` is Text's wrap width. Its descriptor row used to list only
+/// `Legend`, which made the property look inapplicable on every text actor —
+/// the same disagreement between table and consumption that this lint exists to
+/// surface, on the false-positive side.
+#[test]
+fn a_wrap_width_on_a_text_actor_is_silent() {
+    let warnings = inapplicable_warnings(
+        r#"
+config { resolution: (320, 180) }
+t: Text, text: "a long caption that wraps", font_size: 20, text_max_width: 240, at: (160, 90)
+l: Legend, at: (160, 150), title: "Series", text_max_width: 200
+"#,
+    );
+    assert!(warnings.is_empty(), "text wrap width warned on both hosts: {warnings:?}");
+}

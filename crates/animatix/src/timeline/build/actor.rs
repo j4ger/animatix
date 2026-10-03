@@ -212,6 +212,66 @@ impl Timeline {
     /// how a typo'd property (`colour:`) ships as a scene that "works" without
     /// the value. The known sets are the single-source tables, so this warning
     /// cannot drift from what the build actually reads.
+    /// A property name the registry knows, but which this actor's primitive
+    /// never reads.
+    ///
+    /// `unknown-property` above catches a typo; this catches the worse case,
+    /// because a misspelling is at least visibly wrong while this one is
+    /// indistinguishable from correct source — `stroke_width: 6` on a `Text`
+    /// names a real property that `Text` ignores, and the value disappears with
+    /// no diagnostic anywhere. It is the same class as the plot-family `opacity`
+    /// and `Arrow` `color` drops, found by eye this round.
+    ///
+    /// The predicate is `Applicable::includes`, the table the inspector already
+    /// filters its property list with, so the editor and the build cannot
+    /// disagree about what a type takes. Two honest limits:
+    ///
+    /// - Rows declared `Applicable::Everything` (`color`, `opacity`, `at`, …)
+    ///   pass unconditionally, so a primitive that ignores one of those is
+    ///   invisible here. That is a defect in the table, not in this check, and
+    ///   the fix is to narrow the row.
+    /// - Coverage matches `warn_unknown_declaration_properties`' exactly, which
+    ///   means the plot-family dispatch is not covered at all (it never calls
+    ///   either function). Its runtime parameters are the reason: `freq: 2` on
+    ///   `func: (x) => sin(freq * x)` is read by the author's closure, not by a
+    ///   primitive, and the exemption would have to be `plot_runtime_params`.
+    fn warn_inapplicable_declaration_properties(
+        &self,
+        label: &str,
+        ty: &str,
+        props: &[Property],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(caps) = animatix_std::caps_for_type(ty) else {
+            // Extension primitives have no catalog caps; their property surface
+            // is the extension registry, which `warn_unknown_declaration_
+            // properties` already consults.
+            return;
+        };
+        for prop in props {
+            let Some(descriptor) = animatix_core::property::descriptor(&prop.name) else {
+                continue; // an unknown name is the other warning's subject
+            };
+            if descriptor.applicable.includes(&caps, ty) {
+                continue;
+            }
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InapplicableProperty,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Actor '{label}' ({ty}) declares '{}' but {ty} never reads it, so the \
+                         value is dropped. Check the primitive's property list, or move the \
+                         value to a property {ty} consumes.",
+                        prop.name
+                    ),
+                )
+                .with_subject(format!("{label}.{}", prop.name))
+                .with_byte_span(prop.value_span),
+            );
+        }
+    }
+
     pub(crate) fn warn_unknown_declaration_properties(
         &self,
         label: &str,
@@ -249,6 +309,9 @@ impl Timeline {
                 .with_subject(format!("{label}.{}", prop.name)),
             );
         }
+        // Same call sites, same coverage: a name that exists but is ignored by
+        // this primitive is the sibling of a name that does not exist at all.
+        self.warn_inapplicable_declaration_properties(label, ty, props, diagnostics);
     }
 
     #[allow(clippy::too_many_arguments)]

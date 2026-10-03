@@ -119,7 +119,11 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("font_family", Applicable::TextLike, PropertyValueKind::String),
     PropertyDescriptor::new(
         "font_size",
-        Applicable::Actors(&["Code", "Equation", "Math", "Text", "Typst"]),
+        // `Legend` draws its own labels through the text engine and reads
+        // `font_size` off its props (`primitives/legend.rs`), so the row has to
+        // include it or the applicability lint reports a working property as
+        // dropped.
+        Applicable::Actors(&["Code", "Equation", "Legend", "Math", "Text", "Typst"]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("font_style", Applicable::TextLike, PropertyValueKind::String),
@@ -278,7 +282,12 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("text_align", Applicable::TextLike, PropertyValueKind::String),
     PropertyDescriptor::new(
         "text_max_width",
-        Applicable::Actors(&["Legend"]),
+        // `Legend` has its own legend label wrapping, and the text engine reads
+        // this as the canonical wrap width (`declarations_text.rs`: "Canonical
+        // name per spec; `max_width` kept as a legacy alias"). The row used to
+        // list only `Legend`, which is why 94 site scenes could set a wrap width
+        // on a `Text` that the table claimed did not take one.
+        Applicable::Any(&[Applicable::Actors(&["Legend"]), Applicable::TextLike]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new(

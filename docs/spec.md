@@ -465,6 +465,13 @@ circle: Ellipse, at: (100, 100) [2s]
 > unreferenced actor can genuinely signal — declared but never shown — the build
 > reports `never-revealed`, which does warn.
 
+> **A property the actor ignores.** `inapplicable-property` is a build **warning**
+> for the case a typo check cannot see: the name is real, but this primitive never
+> reads it, so the value disappears from a line that looks entirely correct
+> (`stroke_width:` on a `Text`). `unknown-property` remains the misspelling case.
+> Both carry the property's own source span, and `// lint-disable:
+> inapplicable-property` suppresses them per file.
+
 **Shipped morph modifiers** (timed path-morphing only):
 ```animatix
 [2s, strategy: auto]     // Engine decides (default)

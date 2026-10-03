@@ -176,6 +176,9 @@ pub enum DiagnosticCode {
     UndefinedLabel,
     /// A property is not part of the known surface for its actor type.
     UnknownProperty,
+    /// A property name the build knows, but which this actor's primitive never
+    /// reads, so the authored value is dropped.
+    InapplicableProperty,
     /// An actor type name is not recognized.
     UnknownType,
     /// Text content contains characters the shaping path has no glyph for; they
@@ -268,6 +271,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UnusedLabel => write!(f, "unused-label"),
             DiagnosticCode::UndefinedLabel => write!(f, "undefined-label"),
             DiagnosticCode::UnknownProperty => write!(f, "unknown-property"),
+            DiagnosticCode::InapplicableProperty => write!(f, "inapplicable-property"),
             DiagnosticCode::MissingGlyph => write!(f, "missing-glyph"),
             DiagnosticCode::UnknownType => write!(f, "unknown-type"),
         }

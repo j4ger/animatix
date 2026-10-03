@@ -6,7 +6,7 @@ import "../lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
 // =============================================================================
-// Scene 1: Percentage-based sizing and min/max constraints
+// Scene 1: Percentage-based sizing and minimum-width constraints
 // =============================================================================
 # PercentSizing
 config { colorscheme: "editorial-dark" }
@@ -19,13 +19,15 @@ row: Row, gap: 16, padding: 20,
   at: (640, 380), size: (900, 120) {
   // 25% of 900px = 225px wide; min_width prevents it shrinking below 80px
   a: Rect, size: (25%, 80), color: accent.primary, min_width: 80
-  // 50% of parent width; max_width caps at 400px
-  b: Rect, size: (50%, 80), color: accent.success, max_width: 400
+  // 50% of parent width; min_width raises it to a 500px floor when the parent
+  // is narrow. (There is no `max_width` *layout* constraint: that name is bound
+  // to the text wrap width, and the layout engine caps widths at infinity.)
+  b: Rect, size: (50%, 80), color: accent.success, min_width: 500
   // fill = remaining space
   c: Rect, size: (fill, 80), color: accent.warning
 }
 
-hint: Text, text: "25% · 50% (max 400px) · fill — min/max constraints apply",
+hint: Text, text: "25% (floor 80) · 50% (floor 500) · fill — min_width raises, nothing caps",
   font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -60)
 
 #0.5s

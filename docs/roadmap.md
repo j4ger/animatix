@@ -170,6 +170,9 @@ list at the end of the easing-pass section); what is left is below.
 | Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` — the brightest pixels on the ink page, out-shining the amber lead. Outside `dynamic_layout` the scenes dim them with `stroke: stroke.default` (verified in `web/tour/scenes/plots.amx`); inside a `dynamic_layout` scene that same property blanks the whole graph, so the epicycles/spectrum axes stay white. Needs the plot axis style to read the colorscheme's `stroke.default` by default. (Its companion finding — `Graph.map()` returning screen coords at half the px/unit the curve uses — is fixed; see below.) | Not started |
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` | The bundled Open Sans/CJK faces reach the db only through the embed/wasm path (`with_fonts_and_fallback`), so the plain fast path resolves the bundle only when the host happens to install those families system-wide — four `animatix-text` fast-path tests asserted "Open Sans is bundled" while quietly depending on the machine (made hermetic in the 2026-10-02 test fix, but the engine-side question stands: should the native context bundle-register by default, like the wasm one does?). | Not started |
+| Percentage and `fill` child sizes collapse in a `Row` | `examples/layout/27_layout_text.amx`'s PercentSizing scene is the reference for `size: (25%, 80)` / `(50%, 80)` / `(fill, 80)` inside `row: Row, size: (900, 120)`, and it renders two ~2px slivers and one ~100px square instead of 225/450/fill — verified identical at HEAD and after the `min_width` correction, and unchanged by adding `dynamic_layout: true`. `timeline/layout.rs:946` hardcodes `let parent_content_size = [0.0f32, 0.0f32];` on the path the comment labels "If the container has no layout_size", so percentages resolve against zero and `min_width` does not lift the result either. Needs the container's declared `size` to reach the child constraint pass. | Not started |
+| Layout has no `max_width` constraint, and the name is already taken | `animation_track.rs` gives geometry `min_width`, `min_height` and `max_height` — and no `max_width`; `timeline/layout.rs:952` hardcodes `let max_w = f32::INFINITY;` where the child cap would be read. So a Row/Col item can be given a floor but never a ceiling. It cannot be fixed by adding the property, because `max_width` is bound to the text wrap width (`ActorField::TextMaxWidth`), which is why `27_layout_text.amx` could carry `b: Rect, max_width: 400` with a comment claiming a cap for as long as it has existed. Needs a distinct name (`max_item_width`?) plus the geometry field and the taffy constraint. | Not started |
+| `Applicable::Everything` rows hide the drop class this lint exists for | `color`, `opacity`, `at`, `offset`, `transform`, `solo` and friends are declared applicable to every actor, so `inapplicable-property` passes them unconditionally — and the two silent drops found and fixed this round (the plot family discarding `opacity`, `Arrow` discarding `color`) are both in that set. The rows are also what the inspector offers and what plan slots are filtered by, so a wrong `Everything` is a wrong editor too. Durable fix is to narrow each such row to the primitives that read it, which is the same audit `applicability_table_agrees_with_reads.rs` does for the `Actors(&[…])` rows — that test cannot see these because they are not name lists. | Not started |
 | Static keyframe `.text =` assignments overprint | `actor.text = "…"` at a keyframe leaves BOTH the declared string and the assigned one drawn before the first change lands (verified: two strings in one box mid-scene). The reactive `always` form replaces cleanly; the keyframe form should too — or the pattern should warn. Worked around in `web/demos/hash/scene.amx` with one actor per string. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
@@ -250,4 +253,26 @@ scene was still empty, so the import demoted the block into the scene body →
 duration fell back to keyframe-span inference → and the web player wraps its
 clock on that duration, so `always` blocks kept re-evaluating a truncated loop.
 Position no longer matters: any `config` inside a scene is now promoted, and
-multiple blocks merge. See `docs/history.md`, "The Easing Pass".
+multiple blocks merge.
+
+And the engine-level lint the round was meant to add: **
+`inapplicable-property`** (`build/actor.rs`, next to the existing typo warning, sharing
+its call sites so coverage matches). It asks the same `Applicable::includes`
+predicate the inspector filters with, so the editor and the build cannot
+disagree, and it carries the property's own byte span — the first build-phase
+property lint that does, which is why it does not need the CLI's
+label-to-position heuristic. Running it over the corpus found three things on
+its first pass:
+
+- `text_max_width`'s row listed only `Legend`, while the text engine reads it as
+  the canonical wrap width — 94 shipped scenes were being described to the
+  inspector as setting a property their actor ignores. The row is now
+  `Any[Actors(Legend), TextLike]`.
+- `font_size` omitted `Legend`, which reads it for its own labels — the same
+  class, on the false-positive side, and the reason `applicability_table_agrees_with_reads.rs`
+  now cross-checks every `Actors(&[…])` row against the primitives' own match
+  arms (verified to fail when a type is removed from a row it reads).
+- `examples/layout/27_layout_text.amx` declared `max_width: 400` on a `Rect` and
+  told readers it capped the item at 400px. It did nothing: layout has no width
+  ceiling at all, and the name belongs to the text wrap width. Both are open
+  items above; the example now demonstrates `min_width` and says so. See `docs/history.md`, "The Easing Pass".
