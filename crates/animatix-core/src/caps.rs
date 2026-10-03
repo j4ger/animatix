@@ -67,6 +67,20 @@ pub enum ShapeKind {
     Arrow,
 }
 
+impl ShapeKind {
+    /// True when the primitive paints from `stroke_color` alone, so an
+    /// authored `color:` has nothing else it could mean and the build/assign
+    /// paths inherit one into the other.
+    ///
+    /// `Arrow` belongs here despite the filled head: `primitives/arrow.rs`
+    /// builds both the head fill and the shaft stroke from `stroke_color`, so
+    /// before this predicate existed an authored `color:` on an Arrow built
+    /// cleanly, rendered grey, and warned about nothing.
+    pub fn is_stroke_only(self) -> bool {
+        matches!(self, Self::Line | Self::Arrow)
+    }
+}
+
 /// The text engine backing a text-like actor.
 ///
 /// Mirrors the renderer's compile-time text kinds (which are

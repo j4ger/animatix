@@ -634,8 +634,9 @@ impl Timeline {
             legend_color
         };
 
-        // For Line actors, inherit stroke_color from color since Line is stroke-only
-        if !stroke_color_explicitly_set && caps.shape == Some(super::ShapeKind::Line) {
+        // Stroke-only shapes have no independent fill, so an authored `color:`
+        // is the colour the author means the drawing to take.
+        if !stroke_color_explicitly_set && caps.shape.is_some_and(|s| s.is_stroke_only()) {
             stroke_color = color;
         }
 
@@ -1320,11 +1321,29 @@ impl Timeline {
                 label,
             );
             let size = initial_size;
-            let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
-            let opacity = if is_first_decl && !has_explicit_opacity {
-                self.default_opacity
-            } else {
-                1.0
+            let authored_opacity = props.iter().find(|p| p.name == "opacity");
+            let has_explicit_opacity = authored_opacity.is_some();
+            // An authored `opacity:` used to be detected and then thrown away:
+            // `has_explicit_opacity` only ever pushed the value to the `1.0`
+            // branch, so `opacity: 0.05` on any plot actor rendered at full
+            // strength and warned about nothing. The render layer already
+            // multiplies fill/stroke alpha by node opacity — the parse was the
+            // only missing piece, and it is shared by Graph, BarChart,
+            // ContourSet and VectorField.
+            let opacity = match authored_opacity {
+                Some(prop) => {
+                    let subject = format!("{}.{}", label, prop.name);
+                    evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &subject,
+                    )
+                    .unwrap_or(Value::Num(1.0))
+                    .as_num() as f32
+                },
+                None if is_first_decl => self.default_opacity,
+                None => 1.0,
             };
 
             let ParsedTimingModifiers {

@@ -702,9 +702,9 @@ impl Timeline {
                     diagnostics,
                 );
 
-                // For Line actors, `color` assignment also sets `stroke_color` (Line is
-                // stroke-only)
-                if property == "color" && track.caps.shape == Some(super::ShapeKind::Line) {
+                // For stroke-only shapes, a `color` assignment also sets
+                // `stroke_color` — they paint from it and nothing else.
+                if property == "color" && track.caps.shape.is_some_and(|s| s.is_stroke_only()) {
                     if let Some(spv) = parse_property_value(
                         schema.value_type,
                         value,

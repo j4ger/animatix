@@ -955,6 +955,13 @@ fn graph_map_inverse_registered_as_native_fn() {
 }
 
 /// Round-trip: `map_inverse(map(mx, my))` returns the original math coordinates.
+///
+/// This used to build its own call environment and set `g.size` (which `map`
+/// reads) and `g_size` (which `map_inverse` reads) to the *same* hand-picked
+/// value — so it passed vacuously and could not see that the real build
+/// populates them differently: `g.size` carries the half-size track while
+/// `g_size` carries the declared full size. That 2x disagreement was the bug.
+/// Assert against the environment the build actually produced instead.
 #[test]
 fn graph_map_inverse_round_trip() {
     let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
@@ -973,32 +980,63 @@ fn graph_map_inverse_round_trip() {
         other => panic!("g.map_inverse not a NativeFn: {other:?}"),
     };
 
-    // Build a call environment with the keys each NativeFn expects.
-    // `map` reads `{label}.size` / `{label}.at`.
-    // `map_inverse` reads `{label}_size` / `{label}_at` / `{label}_padding`.
-    let mut call_env = Environment::new();
-    call_env.set("g.size", Value::Vec2([800.0, 600.0]));
-    call_env.set("g.at", Value::Vec2([0.0, 0.0]));
-    call_env.set("g_size", Value::Vec2([800.0, 600.0]));
-    call_env.set("g_at", Value::Vec2([0.0, 0.0]));
-    call_env.set("g_padding", Value::Vec4([0.0; 4]));
+    // The two size keys must agree in the real build, or the pair cannot
+    // round-trip no matter what the functions do.
+    let dotted = env.get("g.size").and_then(|v| match v {
+        Value::Vec2(s) => Some(s),
+        _ => None,
+    });
+    let side = env.get("g_size").and_then(|v| match v {
+        Value::Vec2(s) => Some(s),
+        _ => None,
+    });
+    println!("g.size={dotted:?} g_size={side:?}");
 
     for (mx, my) in [(-5.0_f64, 3.0_f64), (0.0, 0.0), (7.5, -4.0)] {
-        let screen = map_fn(&[Value::Num(mx), Value::Num(my)], &call_env).expect("map call");
+        let screen = map_fn(&[Value::Num(mx), Value::Num(my)], env).expect("map call");
         let (sx, sy) = match screen {
             Value::Vec2([sx, sy]) => (sx, sy),
             other => panic!("map returned {other:?}"),
         };
-        let math =
-            map_inv_fn(&[Value::Num(sx), Value::Num(sy)], &call_env).expect("map_inverse call");
+        let math = map_inv_fn(&[Value::Num(sx), Value::Num(sy)], env).expect("map_inverse call");
         match math {
             Value::Vec2([rx, ry]) => {
-                assert!((rx - mx).abs() < 1e-9, "x round-trip: {mx} -> {sx} -> {rx}");
-                assert!((ry - my).abs() < 1e-9, "y round-trip: {my} -> {sy} -> {ry}");
+                assert!((rx - mx).abs() < 1e-6, "x round-trip: {mx} -> {sx} -> {rx}");
+                assert!((ry - my).abs() < 1e-6, "y round-trip: {my} -> {sy} -> {ry}");
             },
             other => panic!("map_inverse returned {other:?}"),
         }
     }
+}
+
+/// `map()` must scale at the same px/unit the curve is drawn with: a point at
+/// the +x domain edge lands on the right half-width, not a quarter of it.
+#[test]
+fn graph_map_agrees_with_the_drawn_curve_scale() {
+    let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
+    let (ast, _) = animatix_syntax::parser::parse_source(source);
+    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+    let env = report.output.env();
+    let map_fn = match env.get("g.map") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map not a NativeFn: {other:?}"),
+    };
+
+    let centre = match map_fn(&[Value::Num(0.0), Value::Num(0.0)], env).expect("map") {
+        Value::Vec2(v) => v,
+        other => panic!("map returned {other:?}"),
+    };
+    let right = match map_fn(&[Value::Num(10.0), Value::Num(0.0)], env).expect("map") {
+        Value::Vec2(v) => v,
+        other => panic!("map returned {other:?}"),
+    };
+    // 800px wide over a 20-unit domain is 40 px/unit; padding is zero here.
+    let px_per_unit = (right[0] - centre[0]) / 10.0;
+    assert!(
+        (px_per_unit - 40.0).abs() < 1.0,
+        "map() reports {px_per_unit} px/unit, but an 800px graph over a 20-unit \
+         domain is 40 — the curve and its tracking actors disagree"
+    );
 }
 
 /// `map_inverse` respects padding: screen center (shifted by padding) maps to math (0, 0).
@@ -2469,4 +2507,55 @@ bounce a [1s, intensy: 40]
         report.diagnostics.iter().any(|d| d.message.contains("intensy")),
         "a typo in an action modifier produced no diagnostic"
     );
+}
+
+/// `Arrow` paints both its shaft and its head from `stroke_color`, so an
+/// authored `color:` had nowhere to go: the actor built, rendered grey, and
+/// warned about nothing.
+#[test]
+fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
+    for (ty, label) in [("Arrow", "arrow"), ("Line", "line")] {
+        let source = format!(
+            "config {{ colorscheme: \"editorial-dark\", resolution: (640, 360) }}\n\
+             #0s\na: {ty}, from: (100, 100), to: (300, 200), color: accent.danger, at: (0, 0)\n"
+        );
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
+        let report =
+            Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+        let track = report.output.tracks.get("a").expect("track");
+        let stroke = track.style.stroke_color.get(0, [0.0; 4]);
+        let fill = track.style.color.get(0, [0.0; 4]);
+        // Assert the tracks exist, not just that they agree: two absent tracks
+        // both read back as the [0,0,0,0] default and would match vacuously.
+        assert!(fill != [0.0, 0.0, 0.0, 0.0], "{label}: no color track was built at all");
+        assert_eq!(
+            stroke, fill,
+            "{label}: authored `color:` never reached stroke_color ({stroke:?} vs {fill:?})"
+        );
+    }
+}
+
+/// The plot dispatch detected an authored `opacity:` and then overwrote it
+/// with 1.0, so dimmed backdrops were impossible on Graph/BarChart/ContourSet/
+/// VectorField without a warning to say so.
+#[test]
+fn plot_actors_honour_an_authored_opacity() {
+    for ty in ["Graph", "BarChart"] {
+        let source = format!(
+            "config {{ colorscheme: \"editorial-dark\", resolution: (640, 360) }}\n\
+             #0s\ng: {ty}, size: (400, 300), values: {{1, 2, 3}}, x_domain: (-1, 1), \
+             y_domain: (-1, 1), opacity: 0.05, at: (320, 180)\n"
+        );
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(parse_errors.is_empty(), "{ty} parse errors: {parse_errors:?}");
+        let report =
+            Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+        let track = report.output.tracks.get("g").expect("plot track");
+        let opacity = track.style.opacity.get(0, 99.0);
+        assert!(
+            (opacity - 0.05).abs() < 1e-6,
+            "{ty} dropped the authored opacity (got {opacity})"
+        );
+    }
 }

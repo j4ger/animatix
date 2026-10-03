@@ -2624,8 +2624,14 @@ fn make_graph_map_fn(
             };
 
             // Read size and at from runtime env for animation support.
+            // `size` must come from the side channel, exactly as `map_inverse`
+            // reads it: the dotted `{label}.size` key carries the HALF-size
+            // track (`initial_size` is assigned `w/2` upstream and only the
+            // side channel multiplies it back), so `map()` returned screen
+            // coords at half the px/unit the plotted curve actually uses and
+            // an actor tracking `map(f(t))` rode beside its own trail.
             let size = env
-                .get(&format!("{}.size", label))
+                .get(crate::timeline::env_keys::side_channel(&label, "size").as_str())
                 .and_then(|v| match v {
                     Value::Vec2(s) => Some(s),
                     _ => None,

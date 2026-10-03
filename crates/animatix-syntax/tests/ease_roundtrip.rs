@@ -116,11 +116,9 @@ fn a_wrong_arity_bezier_is_not_silently_accepted() {
 fn first_transition_easing(stmts: &[Stmt]) -> Option<animatix_syntax::easing::Easing> {
     for stmt in stmts {
         match stmt {
-            Stmt::Play { transition, .. } => {
-                if let Some(t) = transition {
-                    return Some(t.easing);
-                }
-            },
+            Stmt::Play {
+                transition: Some(t), ..
+            } => return Some(t.easing),
             Stmt::Scene { body, .. } => {
                 if let Some(e) = first_transition_easing(body) {
                     return Some(e);
@@ -153,8 +151,7 @@ fn a_play_transition_ease_parses_and_survives_formatting() {
         let parsed = first_transition_easing(&parse(&doc(written)));
         assert_eq!(parsed, Some(want), "play [{written}] did not resolve its easing");
 
-        let serialized =
-            animatix_syntax::to_source::stmts_to_source(&parse(&doc(written)));
+        let serialized = animatix_syntax::to_source::stmts_to_source(&parse(&doc(written)));
         assert_eq!(
             first_transition_easing(&parse(&serialized)),
             Some(want),
@@ -165,8 +162,5 @@ fn a_play_transition_ease_parses_and_survives_formatting() {
     // No authored ease must not start inventing one in the output.
     let plain = "# A\nconfig { resolution: (400, 400), duration: 1 }\n#0s\nplay B [fade, 800ms]\n# B\nconfig { resolution: (400, 400), duration: 1 }\n";
     let out = animatix_syntax::to_source::stmts_to_source(&parse(plain));
-    assert!(
-        !out.contains("ease:"),
-        "a transition with no authored ease grew one:\n{out}"
-    );
+    assert!(!out.contains("ease:"), "a transition with no authored ease grew one:\n{out}");
 }
