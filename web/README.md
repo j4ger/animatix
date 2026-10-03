@@ -65,8 +65,41 @@ python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
 
-Nix users have a lighter option — a single static-web-server binary, no
-Python (`nix run .#serve`, port/root overridable via `SERVE_PORT` /
+**The build needs a toolchain that carries the `wasm32-unknown-unknown` std,
+which the repo's default dev shell does not.** Run it in its own shell:
+
+```bash
+nix develop .#web-build          # rust with the wasm32 target + binaryen + brotli
+scripts/build-web.sh --slim
+```
+
+`#default` is a GUI/dev shell: its `rust-bin` toolchain has no wasm32 std, so
+the build fails inside it with `can't find crate for 'std'` in every
+dependency and a misleading "the target may not be installed" — the target may
+well be installed under `~/.rustup`, but that toolchain cannot see it.
+`build-web.sh` now checks this up front and names the right shell.
+
+**Enter `.#web-build` from a plain shell, not from inside `.#default`.**
+Dev shells prepend to `PATH` rather than replacing it, so nesting them keeps
+the outer `rustc` first — the shell *looks* like it loaded (wasm-opt and
+brotli resolve fine) while the build still fails. Confirm before building:
+
+```bash
+ls "$(rustc --print sysroot)/lib/rustlib/"   # must list wasm32-unknown-unknown
+```
+
+The script also wants `wasm-bindgen-cli` at **exactly** the version
+`crates/animatix-web/Cargo.toml` pins (`=0.2.128` as of writing;
+`wasm-bindgen-futures` releases in lockstep, so a mismatch is a hard failure
+at glue generation, several build minutes later). nixpkgs ships 0.2.114, which
+is why the CLI is not in the flake:
+
+```bash
+cargo install --version 0.2.128 --locked wasm-bindgen-cli
+```
+
+Nix users have a lighter option for *serving* — a single static-web-server
+binary, no Python (`nix run .#serve`, port/root overridable via `SERVE_PORT` /
 `SERVE_ROOT`): it sends `application/wasm` for the engine, compresses
 text responses with brotli on demand (the same bytes the prebuilt `.br`
 twins hold), and answers with ETags so scene edits show on reload.

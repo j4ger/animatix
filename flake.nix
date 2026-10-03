@@ -67,6 +67,42 @@
           ];
         };
 
+        # `nix develop .#web-build` — the shell that can build the wasm engine.
+        # It has to be its own shell: .#default carries a rust toolchain built
+        # without the wasm32 std, so `scripts/build-web.sh` dies in the first
+        # dependency it touches ("can't find crate for `std`", plus the
+        # misleading "target may not be installed" — the target *is* installed
+        # under ~/.rustup, but this toolchain cannot see it) while also paying
+        # for ALSA/FFmpeg/X it never uses.
+        #
+        # binaryen and brotli are the script's optional optimise/compress
+        # steps; without them it falls back to `nix shell` fetches per run.
+        #
+        # wasm-bindgen-cli is deliberately NOT here. nixpkgs ships 0.2.114,
+        # crates/animatix-web pins `=0.2.128` (wasm-bindgen-futures 0.4.78
+        # releases in lockstep with it), and a mismatch fails at glue
+        # generation. build-web.sh checks the version on PATH and says exactly
+        # what to install rather than half-working.
+        #
+        # GOTCHA: devShells do not replace PATH, they prepend to it. Entering
+        # this shell from inside .#default (or a direnv-loaded one) keeps the
+        # OUTER rustc first on PATH, so `rustc --print sysroot` still reports
+        # the toolchain without the wasm32 std and the build fails exactly as
+        # before — while wasm-opt and brotli resolve correctly, which makes it
+        # look like the shell loaded fine. Check with
+        # `ls $(rustc --print sysroot)/lib/rustlib/`; it must list
+        # wasm32-unknown-unknown. From a login shell, or with `env -i`, it does.
+        devShells.web-build = pkgs.mkShell {
+          packages = [
+            (pkgs.rust-bin.stable.latest.default.override {
+              targets = [ "wasm32-unknown-unknown" ];
+            })
+            pkgs.binaryen
+            pkgs.brotli
+            pkgs.pkg-config
+          ];
+        };
+
         # `nix run .#serve` — preview web/ at http://127.0.0.1:8124 with the
         # three things the player needs: application/wasm MIME, brotli
         # compression (dynamic — serves the same bytes as the prebuilt .br

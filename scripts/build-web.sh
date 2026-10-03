@@ -36,9 +36,40 @@ done
 
 # wasm has no auto-vectorization without an explicit target feature, and every
 # browser that can run the player (WebGPU shipped long after SIMD128) has it.
+# Append rather than assign: inside `nix develop` the shell may already carry
+# RUSTFLAGS from the stdenv, and overwriting the variable silently drops them.
 cargo_env=()
 if [ "$out_profile" != "debug" ]; then
-  cargo_env=(env RUSTFLAGS="-C target-feature=+simd128")
+  cargo_env=(env RUSTFLAGS="${RUSTFLAGS:-} -C target-feature=+simd128")
+fi
+
+# Preflight the two failure modes that cost the most time, because neither
+# says what is wrong. A missing wasm32 std does not report a missing target —
+# rustc fails `can't find crate for 'std'` in every dependency and suggests
+# `rustup target add`, which is a dead end inside nix (the target may well be
+# installed under ~/.rustup; this toolchain just cannot see it). And a
+# wasm-bindgen that does not match the pinned crate version works fine until
+# the glue-generation step, several build minutes later.
+if ! ls "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" >/dev/null 2>&1; then
+  echo "error: this rustc has no wasm32-unknown-unknown std (sysroot: $(rustc --print sysroot))." >&2
+  echo "       Build the wasm engine in the shell that does:  nix develop .#web-build" >&2
+  exit 1
+fi
+
+want_wbg=$(sed -nE 's/^[[:space:]]*wasm-bindgen = "=[0-9.]*/&/p' crates/animatix-web/Cargo.toml \
+  | sed -nE 's/.*"=([0-9.]+)".*/\1/p' | head -1)
+if ! command -v wasm-bindgen >/dev/null 2>&1; then
+  echo "error: wasm-bindgen not on PATH; this crate pins wasm-bindgen =$want_wbg." >&2
+  echo "       cargo install --version $want_wbg --locked wasm-bindgen-cli" >&2
+  exit 1
+fi
+have_wbg=$(wasm-bindgen --version | awk '{print $NF}')
+if [ -n "$want_wbg" ] && [ "$have_wbg" != "$want_wbg" ]; then
+  echo "error: wasm-bindgen $have_wbg is on PATH but animatix-web pins =$want_wbg." >&2
+  echo "       wasm-bindgen-futures releases in lockstep with it, so a mismatch" >&2
+  echo "       fails at glue generation. Install the pinned CLI:" >&2
+  echo "       cargo install --version $want_wbg --locked wasm-bindgen-cli" >&2
+  exit 1
 fi
 
 "${cargo_env[@]}" cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
