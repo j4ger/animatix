@@ -775,6 +775,22 @@ impl GpuFilterBackend {
         origin: wgpu::Origin3d,
         dimensions: SceneDimensions,
     ) -> Result<SceneImage, String> {
+        // This path blocks: `map_async` hands its result to a channel and
+        // `device.poll(Wait)` then drains it. Neither can complete on wasm,
+        // where the callback only runs when control returns to the browser event
+        // loop — so the first `recv()` hangs the tab outright, and the poisoned
+        // device left in the shared context takes every later render in the page
+        // down with it. The engine's caller degrades to unfiltered rendering on
+        // `Err`, which is the honest outcome in a browser until this becomes
+        // async end to end.
+        if cfg!(target_arch = "wasm32") {
+            return Err(
+                "synchronous texture readback cannot complete on wasm; the filtered region is \
+                 rendered unfiltered"
+                    .into(),
+            );
+        }
+
         let output_buffer = &self.output_buffer;
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

@@ -474,7 +474,22 @@ the slim set).
   (`index.html` full scene, `variants.html` rect-vs-circle content bisection)
   with the same `__probe_state` readback hook.
 - `debug_fill(r,g,b)` / `debug_readback(t, cb)` / `debug_svg_stats(t_ms)` on
-  `AmxPlayer` — the wasm methods behind the hooks above. `debug_svg_stats`
+  `AmxPlayer` — the wasm methods behind the hooks above.
+- `debug_readback_rgba(t, cb)` on `AmxPlayer` — the same offscreen render as
+  `debug_readback`, but `cb` receives `{ width, height, bytes }` (a `Uint8Array`
+  of tight RGBA rows) instead of a statistics string. A headless browser
+  screenshot cannot see a WebGPU canvas — it captures the player skeleton and
+  nothing else — so this is the only way to get a real picture of what the page
+  rendered. In the browser:
+
+  ```js
+  const c = new OffscreenCanvas(v.width, v.height);
+  c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(v.bytes), v.width, v.height), 0, 0);
+  const png = await (await c.convertToBlob({ type: "image/png" })).arrayBuffer();
+  ```
+
+  Each call renders a whole frame at scene resolution and waits on the browser
+  to poll the map, so it takes seconds — it is a probe, not a preview path. `debug_svg_stats`
   reports the SVG pipeline stage by stage (asset-cache path counts, per-track
   static/evaluated path counts and opacity at `t_ms`, vello draw/path totals);
   sample at or after the actor's entrance, since a hidden-by-default actor

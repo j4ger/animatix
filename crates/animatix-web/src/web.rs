@@ -95,6 +95,20 @@ async fn ensure_engine() -> Result<(), String> {
     }));
     device.set_device_lost_callback(|reason, message| {
         web_sys::console::error_1(&format!("wgpu device lost: {reason:?} — {message}").into());
+        // Drop the dead context. Leaving it in the slot means every later call
+        // from every player in the page reaches the same lost device and fails
+        // the same way, so one loss permanently breaks the tab; clearing it lets
+        // the next `ensure_engine` negotiate a fresh adapter and lets a
+        // re-created `<amx-player>` animate again.
+        //
+        // Known limit: players that already exist still hold targets and
+        // sessions built on the dead device, so they keep failing until they are
+        // re-created. Rebuilding their state in place needs a generation stamp
+        // on `EngineContext` that each player can compare its own against —
+        // tracked in `docs/roadmap.md`.
+        CONTEXT.with(|cell| {
+            *cell.borrow_mut() = None;
+        });
     });
 
     let core =
@@ -468,6 +482,11 @@ impl AmxPlayer {
         urls: Vec<JsValue>,
         payloads: Vec<JsValue>,
     ) -> Result<JsValue, JsError> {
+        // `mut` is only needed under the `svg` feature — the slim profile
+        // inserts nothing mutable — so the slim wasm build warns without this.
+        // The x86 clippy job never compiles this crate's wasm path, which is how
+        // it stayed unseen.
+        #[allow(unused_mut)]
         let mut cache = AssetCache::new();
         for (url, payload) in urls.into_iter().zip(payloads) {
             let Some(url) = url.as_string() else { continue };
@@ -816,11 +835,74 @@ impl AmxPlayer {
                                 setup.bytes_per_row,
                             );
                             drop(data);
+                            // Dropping the mapped range does not unmap the
+                            // buffer; `filter_backend.rs` gets this right and
+                            // these two paths did not, so every probe left a
+                            // pinned mapping behind.
+                            buffer.unmap();
                             summary
                         },
                         Err(err) => format!("{{\"error\":\"map failed: {err}\"}}"),
                     };
                     let _ = on_result.call1(&JsValue::NULL, &JsValue::from_str(&payload));
+                });
+            },
+            Err(err) => {
+                let _ = on_result
+                    .call1(&JsValue::NULL, &JsValue::from_str(&format!("{{\"error\":\"{err}\"}}")));
+            },
+        }
+    }
+
+    /// Diagnostic: the same readback as [`Self::debug_readback`], handed back as
+    /// pixels rather than statistics.
+    ///
+    /// `debug_readback` can prove *that* a scene rendered; it cannot show what
+    /// it looked like — and a headless browser screenshot cannot either, because
+    /// the WebGPU canvas comes out of one blank (see `docs/roadmap.md`, "Headless
+    /// cannot see the site's primary surface"). This is the byte path that gap
+    /// needs: `on_result` receives `{ width, height, bytes }`, with `bytes` a
+    /// `Uint8Array` of tight RGBA rows ready for an `ImageData`.
+    pub fn debug_readback_rgba(&mut self, time_s: f64, on_result: js_sys::Function) {
+        let result = readback_impl(self, time_s);
+        match result {
+            Ok(setup) => {
+                let map_target = setup.buffer.clone();
+                let buffer = setup.buffer.clone();
+                map_target.slice(..).map_async(wgpu::MapMode::Read, move |mapped| {
+                    let pixels = match mapped {
+                        Ok(()) => {
+                            let slice = buffer.slice(..);
+                            let data = slice.get_mapped_range();
+                            let rgba =
+                                compact_rgba(&data, setup.width, setup.height, setup.bytes_per_row);
+                            drop(data);
+                            buffer.unmap();
+                            Ok(rgba)
+                        },
+                        Err(err) => Err(format!("map failed: {err}")),
+                    };
+                    match pixels {
+                        Ok(rgba) => {
+                            let out = js_sys::Object::new();
+                            let _ =
+                                js_sys::Reflect::set(&out, &"width".into(), &setup.width.into());
+                            let _ =
+                                js_sys::Reflect::set(&out, &"height".into(), &setup.height.into());
+                            let _ = js_sys::Reflect::set(
+                                &out,
+                                &"bytes".into(),
+                                &js_sys::Uint8Array::from(rgba.as_slice()),
+                            );
+                            let _ = on_result.call1(&JsValue::NULL, &out);
+                        },
+                        Err(err) => {
+                            let _ = on_result.call1(
+                                &JsValue::NULL,
+                                &JsValue::from_str(&format!("{{\"error\":\"{err}\"}}")),
+                            );
+                        },
+                    }
                 });
             },
             Err(err) => {
@@ -1094,12 +1176,15 @@ fn readback_with(
         player.compositor = Some(TransitionCompositor::new(&ctx.device)?);
     }
 
-    let AmxPlayer {
-        target,
-        filter_backend,
-        filter_backend_to,
-        ..
-    } = player;
+    let AmxPlayer { target, .. } = player;
+    // The probe gets its own filter backends for the same reason it gets its own
+    // targets. `render_document` drains `take_pending_composites()` off whichever
+    // backend it is handed and blits the result into its target, so probing
+    // through the player's backend pulled the composited effect regions off a
+    // frame that was still in flight — the probe's pixels came out right and the
+    // next presented frame came out missing them.
+    let mut filter_backend: Option<GpuFilterBackend> = None;
+    let mut filter_backend_to: Option<GpuFilterBackend> = None;
     let mut core = ctx.core.borrow_mut();
     // Readbacks always rasterize at the scene's own resolution: the pixel
     // probes compare against backdrop baselines and each other, so they must
@@ -1107,8 +1192,8 @@ fn readback_with(
     let mut scratch = vello::Scene::new();
     let frame = render_document(
         &mut core,
-        filter_backend,
-        filter_backend_to,
+        &mut filter_backend,
+        &mut filter_backend_to,
         &ctx.device,
         &ctx.queue,
         &mut primary,
@@ -1295,6 +1380,18 @@ fn render_timeline(
 }
 
 /// Per-pixel-sample statistics over a mapped readback buffer, as JSON.
+/// Drop the row alignment a readback buffer carries (rows are padded to a
+/// 256-byte boundary) so the caller gets `width * height * 4` tight RGBA bytes.
+fn compact_rgba(data: &[u8], width: u32, height: u32, bytes_per_row: u32) -> Vec<u8> {
+    let row_bytes = width as usize * 4;
+    let mut out = Vec::with_capacity(row_bytes * height as usize);
+    for y in 0..height as usize {
+        let start = y * bytes_per_row as usize;
+        out.extend_from_slice(&data[start..start + row_bytes]);
+    }
+    out
+}
+
 fn summarize_pixels(data: &[u8], width: u32, height: u32, bytes_per_row: u32) -> String {
     use std::collections::HashSet;
     let mut samples = 0u64;
