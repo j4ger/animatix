@@ -2177,6 +2177,38 @@ box.at = {280, "x"} [300ms]
     );
 }
 
+/// The layout readers take a number or a `(x, y)` tuple and used to leave
+/// anything else alone with no output at all. `gap`'s type row now admits a
+/// string (BarChart reads `"auto"` as the same name), so the drop has to be
+/// reported by the reader instead of relying on the type check.
+#[test]
+fn container_layout_value_it_cannot_read_is_reported() {
+    for (label, source) in [
+        ("Row string gap", r#"row: Row, gap: "auto" { a: Rect, size: (10, 10) }"#),
+        ("Col string gap", r#"col: Col, gap: "auto" { a: Rect, size: (10, 10) }"#),
+        (
+            "Grid string gap",
+            r#"grid: Grid, cols: 2, gap: "auto" { a: Rect, size: (10, 10) }"#,
+        ),
+    ] {
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
+        let ast = ast.expect("parsed AST");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast,
+            &std::collections::HashMap::new(),
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| {
+                d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+                    && d.message.contains("gap")
+            }),
+            "{label} must report the gap it dropped, got: {:?}",
+            report.diagnostics
+        );
+    }
+}
+
 /// A timed declaration seeds a start snapshot *and* an end keyframe for every
 /// shape value it carries. `corner_radius` was missing from the start list
 /// while being present in the end list, which made a timed radius declaration

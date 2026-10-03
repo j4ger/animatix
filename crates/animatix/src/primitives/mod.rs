@@ -51,7 +51,7 @@
 //! | Plots | Graph, PlotCurve |
 //! | Containers | Row, Col, Grid, Stack, Group, Mask |
 use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::renderer::error::RenderError;
 use crate::renderer::types::TextPath;
@@ -541,6 +541,19 @@ mod legend;
 pub use legend::LEGEND;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
+
+/// A container's `gap`/`padding` that the layout pass could not read.
+///
+/// The layout readers take a number or a `(x, y)` tuple and leave the value
+/// alone otherwise, so without this the authored property disappears with no
+/// output at all — the case AGENTS.md says must never be silent.
+pub(crate) fn unreadable_layout_value(label: &str, prop: &str) -> Diagnostic {
+    Diagnostic::warning(
+        DiagnosticCode::InvalidPropertyValue,
+        DiagnosticPhase::Build,
+        format!("{label}.{prop} expects a number or a (x, y) tuple; the value was ignored"),
+    )
+}
 
 /// Context passed to `Primitive::build()`.
 pub struct BuildCtx<'a> {

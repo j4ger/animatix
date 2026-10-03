@@ -43,19 +43,17 @@ impl Primitive for ColPrimitive {
             match prop.name.as_str() {
                 "gap" => match &prop.value {
                     Expr::Tuple(items) if items.len() == 2 => {
-                        if let (Ok(Value::Num(a)), Ok(Value::Num(b))) = (
+                        match (
                             crate::timeline::utils::evaluate_expr(&items[0], env),
                             crate::timeline::utils::evaluate_expr(&items[1], env),
                         ) {
-                            gap = [a as f32, b as f32];
+                            (Ok(Value::Num(a)), Ok(Value::Num(b))) => gap = [a as f32, b as f32],
+                            _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
                         }
                     },
-                    _ => {
-                        if let Ok(Value::Num(n)) =
-                            crate::timeline::utils::evaluate_expr(&prop.value, env)
-                        {
-                            gap = [n as f32, n as f32];
-                        }
+                    _ => match crate::timeline::utils::evaluate_expr(&prop.value, env) {
+                        Ok(Value::Num(n)) => gap = [n as f32, n as f32],
+                        _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
                     },
                 },
                 "padding" => {

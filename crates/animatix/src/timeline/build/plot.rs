@@ -2261,7 +2261,25 @@ pub(crate) fn build_bar_chart_paths(
                 {
                     show_axis = match v {
                         Value::Bool(b) => b,
-                        Value::Str(s) => s == "true" || s == "1",
+                        Value::Str(ref s) => match s.as_str() {
+                            "true" | "1" => true,
+                            "false" | "0" => false,
+                            other => {
+                                // The type row admits any string, so without
+                                // this `show_axis: "yes"` silently reads false.
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        format!(
+                                            "BarChart '{label}' show_axis expects a boolean, got \"{other}\""
+                                        ),
+                                    )
+                                    .with_subject(&subject),
+                                );
+                                true
+                            },
+                        },
                         _ => {
                             diagnostics.push(
                                 Diagnostic::warning(
@@ -2282,7 +2300,23 @@ pub(crate) fn build_bar_chart_paths(
                 {
                     show_labels = match v {
                         Value::Bool(b) => b,
-                        Value::Str(s) => s == "true" || s == "1",
+                        Value::Str(ref s) => match s.as_str() {
+                            "true" | "1" => true,
+                            "false" | "0" => false,
+                            other => {
+                                diagnostics.push(
+                                    Diagnostic::warning(
+                                        DiagnosticCode::InvalidPropertyValue,
+                                        DiagnosticPhase::Build,
+                                        format!(
+                                            "BarChart '{label}' show_labels expects a boolean, got \"{other}\""
+                                        ),
+                                    )
+                                    .with_subject(&subject),
+                                );
+                                true
+                            },
+                        },
                         _ => {
                             diagnostics.push(
                                 Diagnostic::warning(
