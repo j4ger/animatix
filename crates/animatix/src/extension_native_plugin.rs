@@ -15,7 +15,10 @@ use animatix_plugin_api::{
     NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
     NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
     NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
-    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_EFFECT_PARAM_KIND_BOOL, NATIVE_EFFECT_PARAM_KIND_F32,
+    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_EASING_BACK, NATIVE_EASING_BOUNCE_IN,
+    NATIVE_EASING_ELASTIC, NATIVE_EASING_EXPO, NATIVE_EASING_EXPO_IN_OUT, NATIVE_EASING_EXPO_OUT,
+    NATIVE_EASING_IN, NATIVE_EASING_IN_OUT, NATIVE_EASING_LINEAR, NATIVE_EASING_OUT,
+    NATIVE_EASING_UNSUPPORTED, NATIVE_EFFECT_PARAM_KIND_BOOL, NATIVE_EFFECT_PARAM_KIND_F32,
     NATIVE_EFFECT_PARAM_KIND_U32, NATIVE_EFFECT_PARAM_KIND_VEC2, NATIVE_EFFECT_PARAM_KIND_VEC4,
     NATIVE_PATH_ARC, NATIVE_PATH_CUBIC, NATIVE_PATH_ELLIPSE, NATIVE_PATH_LINE, NATIVE_PATH_POLYGON,
     NATIVE_PATH_QUADRATIC, NATIVE_PATH_RECT, NATIVE_PATH_ROUNDED_RECT, NATIVE_PROPERTY_BOOL,
@@ -1565,21 +1568,52 @@ fn native_to_property_value(
     }
 }
 
-fn native_easing(code: u32) -> crate::easing::Easing {
+/// Decode an easing code a plugin sent.
+///
+/// `None` means the host does not know that code, and both callers turn it into
+/// `NATIVE_STATUS_TYPE_ERROR`. Falling back to [`Easing::Linear`] instead would
+/// be the silent drop this table exists to prevent: a plugin that asked for
+/// `bounce-in` would get a straight line and no diagnostic.
+fn native_easing(code: u32) -> Option<crate::easing::Easing> {
+    use crate::easing::Easing;
     match code {
-        1 => crate::easing::Easing::EaseIn,
-        2 => crate::easing::Easing::EaseOut,
-        3 => crate::easing::Easing::EaseInOut,
-        _ => crate::easing::Easing::Linear,
+        NATIVE_EASING_LINEAR => Some(Easing::Linear),
+        NATIVE_EASING_IN => Some(Easing::EaseIn),
+        NATIVE_EASING_OUT => Some(Easing::EaseOut),
+        NATIVE_EASING_IN_OUT => Some(Easing::EaseInOut),
+        NATIVE_EASING_BOUNCE_IN => Some(Easing::Bounce),
+        NATIVE_EASING_ELASTIC => Some(Easing::Elastic),
+        NATIVE_EASING_BACK => Some(Easing::Back),
+        NATIVE_EASING_EXPO => Some(Easing::Expo),
+        NATIVE_EASING_EXPO_OUT => Some(Easing::ExpoOut),
+        NATIVE_EASING_EXPO_IN_OUT => Some(Easing::ExpoInOut),
+        // Includes NATIVE_EASING_UNSUPPORTED (a curve with arguments) and any
+        // code outside the table.
+        _ => None,
     }
 }
 
+/// Encode an easing curve for a plugin.
+///
+/// Exhaustive by construction: adding an `Easing` variant is a compile error
+/// here until it is given a code or explicitly declared un-encodable. That is
+/// the guard the old `_ => 0` arm did not provide — it quietly reported every
+/// curve outside the original three as linear.
 fn easing_code(easing: crate::easing::Easing) -> u32 {
+    use crate::easing::Easing;
     match easing {
-        crate::easing::Easing::EaseIn => 1,
-        crate::easing::Easing::EaseOut => 2,
-        crate::easing::Easing::EaseInOut => 3,
-        _ => 0,
+        Easing::Linear => NATIVE_EASING_LINEAR,
+        Easing::EaseIn => NATIVE_EASING_IN,
+        Easing::EaseOut => NATIVE_EASING_OUT,
+        Easing::EaseInOut => NATIVE_EASING_IN_OUT,
+        Easing::Bounce => NATIVE_EASING_BOUNCE_IN,
+        Easing::Elastic => NATIVE_EASING_ELASTIC,
+        Easing::Back => NATIVE_EASING_BACK,
+        Easing::Expo => NATIVE_EASING_EXPO,
+        Easing::ExpoOut => NATIVE_EASING_EXPO_OUT,
+        Easing::ExpoInOut => NATIVE_EASING_EXPO_IN_OUT,
+        // Carries parameters; one u32 cannot name it.
+        Easing::Spring { .. } | Easing::CubicBezier(_) => NATIVE_EASING_UNSUPPORTED,
     }
 }
 
@@ -1613,6 +1647,9 @@ unsafe extern "C" fn native_assignment_write_keyframe(
     let Some(property_value) = native_to_property_value(value, *kind) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    let Some(easing) = native_easing(easing) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
     crate::timeline::property_engine::write_property_plan_slot(
         host.track,
         *id,
@@ -1620,7 +1657,7 @@ unsafe extern "C" fn native_assignment_write_keyframe(
         property_value,
         t_start_ms,
         t_end_ms,
-        native_easing(easing),
+        easing,
     );
     NATIVE_STATUS_OK
 }
@@ -1963,6 +2000,9 @@ unsafe extern "C" fn native_action_write_keyframe(
     let Some(property_value) = native_to_property_value(value, *kind) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
+    let Some(easing) = native_easing(easing) else {
+        return NATIVE_STATUS_TYPE_ERROR;
+    };
     crate::timeline::property_engine::write_property_plan_slot(
         track,
         *id,
@@ -1970,7 +2010,7 @@ unsafe extern "C" fn native_action_write_keyframe(
         property_value,
         t_start_ms,
         t_end_ms,
-        native_easing(easing),
+        easing,
     );
     NATIVE_STATUS_OK
 }
@@ -2416,6 +2456,70 @@ mod tests {
     use crate::timeline::{Environment, PropertyKind, Value};
     use animatix_plugin_api::NATIVE_RESIZE_MODE_SIZE;
     use std::ffi::c_void;
+
+    /// The ABI easing table must not be able to lie. Every code the host
+    /// advertises decodes to a curve and re-encodes to that same code, codes it
+    /// does not know are rejected instead of reading as `Linear`, and the two
+    /// parameterized curves report `UNSUPPORTED` rather than borrowing a
+    /// neighbour's name. Before the table was exhaustive, `bounce`/`elastic`/
+    /// `back`/`expo*` all crossed the boundary as `Linear` in both directions.
+    #[test]
+    fn easing_codes_round_trip_and_reject_the_unknown() {
+        use crate::easing::Easing;
+        let table: &[(u32, Easing)] = &[
+            (NATIVE_EASING_LINEAR, Easing::Linear),
+            (NATIVE_EASING_IN, Easing::EaseIn),
+            (NATIVE_EASING_OUT, Easing::EaseOut),
+            (NATIVE_EASING_IN_OUT, Easing::EaseInOut),
+            (NATIVE_EASING_BOUNCE_IN, Easing::Bounce),
+            (NATIVE_EASING_ELASTIC, Easing::Elastic),
+            (NATIVE_EASING_BACK, Easing::Back),
+            (NATIVE_EASING_EXPO, Easing::Expo),
+            (NATIVE_EASING_EXPO_OUT, Easing::ExpoOut),
+            (NATIVE_EASING_EXPO_IN_OUT, Easing::ExpoInOut),
+        ];
+        for (code, easing) in table {
+            assert_eq!(
+                native_easing(*code),
+                Some(*easing),
+                "code {code} did not decode to {easing:?}"
+            );
+            assert_eq!(easing_code(*easing), *code, "{easing:?} did not encode back to {code}");
+        }
+        let mut codes: Vec<u32> = table.iter().map(|(c, _)| *c).collect();
+        codes.sort_unstable();
+        codes.dedup();
+        assert_eq!(codes.len(), table.len(), "two easings share one code");
+        assert_eq!(
+            codes.last().copied(),
+            Some(animatix_plugin_api::NATIVE_EASING_MAX),
+            "NATIVE_EASING_MAX no longer names the highest tabled code"
+        );
+
+        // Unknown in both directions must be loud, never linear.
+        assert_eq!(native_easing(animatix_plugin_api::NATIVE_EASING_MAX + 1), None);
+        assert_eq!(native_easing(NATIVE_EASING_UNSUPPORTED), None);
+        assert_eq!(native_easing(4242), None);
+        assert_eq!(
+            easing_code(Easing::Spring {
+                damping: 6.0,
+                frequency: 9.0
+            }),
+            NATIVE_EASING_UNSUPPORTED
+        );
+        assert_eq!(
+            easing_code(Easing::CubicBezier([0.1, 0.2, 0.3, 0.4])),
+            NATIVE_EASING_UNSUPPORTED
+        );
+        assert_ne!(
+            easing_code(Easing::Spring {
+                damping: 6.0,
+                frequency: 9.0
+            }),
+            NATIVE_EASING_LINEAR,
+            "a parameterized curve was reported as linear"
+        );
+    }
 
     static BUILD_CHILD_COUNT: std::sync::atomic::AtomicUsize =
         std::sync::atomic::AtomicUsize::new(0);

@@ -175,6 +175,34 @@ services. Expression callbacks exchange `NativeValue` values: `Num`, `Bool`,
 `U32`, `Vec2`, `Vec3`, `Vec4`, `Color`, `String`, and `List`. Objects, closures,
 and native function values return a type error.
 
+### Easing codes
+
+Easing crosses the boundary as a single `u32`, in both directions: the host
+reports the assignment's curve in `NativeAssignmentContext::easing`, and a
+plugin names the curve it wants as `write_keyframe`'s last argument.
+
+| Code | Constant | Source name |
+|---|---|---|
+| 0 | `NATIVE_EASING_LINEAR` | `linear` |
+| 1 | `NATIVE_EASING_IN` | `ease-in` |
+| 2 | `NATIVE_EASING_OUT` | `ease-out` |
+| 3 | `NATIVE_EASING_IN_OUT` | `ease-in-out` |
+| 4 | `NATIVE_EASING_BOUNCE_IN` | `bounce-in` |
+| 5 | `NATIVE_EASING_ELASTIC` | `elastic` |
+| 6 | `NATIVE_EASING_BACK` | `back` |
+| 7 | `NATIVE_EASING_EXPO` | `expo` |
+| 8 | `NATIVE_EASING_EXPO_OUT` | `expo-out` |
+| 9 | `NATIVE_EASING_EXPO_IN_OUT` | `expo-in-out` |
+| `u32::MAX` | `NATIVE_EASING_UNSUPPORTED` | — (not a curve) |
+
+A code outside the table is rejected with `NATIVE_STATUS_TYPE_ERROR` rather than
+applied as linear. `spring(damping, frequency)` and
+`cubic-bezier(p1x, p1y, p2x, p2y)` carry arguments one `u32` cannot hold, so the
+host reports `NATIVE_EASING_UNSUPPORTED` for them instead of naming a different
+curve; a plugin must read that as "no curve was specified", not as a curve to
+interpolate. Giving the parameterized curves codes needs a payload slot beside
+the `u32`, which is an ABI bump.
+
 ```bash
 cargo build -p animatix-plugin-demo
 animatix check demo.amx --plugin crates/animatix-plugin-demo/demo.amx-plugin.toml

@@ -85,6 +85,28 @@ pub const NATIVE_EASING_IN: u32 = 1;
 pub const NATIVE_EASING_OUT: u32 = 2;
 /// Easing code: ease in-out.
 pub const NATIVE_EASING_IN_OUT: u32 = 3;
+/// Easing code: the CSS bounce curve (source name `bounce-in`).
+pub const NATIVE_EASING_BOUNCE_IN: u32 = 4;
+/// Easing code: elastic overshoot.
+pub const NATIVE_EASING_ELASTIC: u32 = 5;
+/// Easing code: backward pull before the move.
+pub const NATIVE_EASING_BACK: u32 = 6;
+/// Easing code: exponential ease in.
+pub const NATIVE_EASING_EXPO: u32 = 7;
+/// Easing code: exponential ease out.
+pub const NATIVE_EASING_EXPO_OUT: u32 = 8;
+/// Easing code: exponential ease in-out.
+pub const NATIVE_EASING_EXPO_IN_OUT: u32 = 9;
+/// Highest easing code the host recognizes; codes above it are rejected.
+pub const NATIVE_EASING_MAX: u32 = NATIVE_EASING_EXPO_IN_OUT;
+/// One code per easing curve, so a curve that needs arguments cannot be one.
+///
+/// `spring(damping, frequency)` and `cubic-bezier(p1x, p1y, p2x, p2y)` carry
+/// parameters and the ABI's easing slot is a single `u32`, so the host reports
+/// this sentinel rather than naming a different curve. A plugin must treat it
+/// as "no easing was specified here", not as a curve to interpolate; the way
+/// to lift it is a payload slot, which is an ABI bump.
+pub const NATIVE_EASING_UNSUPPORTED: u32 = u32::MAX;
 
 /// A finite runtime value exchanged with native extension callbacks.
 ///
@@ -245,7 +267,8 @@ pub struct NativeAssignmentContext {
     pub t_start_ms: u64,
     /// Animation end time in milliseconds.
     pub t_end_ms: u64,
-    /// Easing code (0=Linear, 1=EaseIn, 2=EaseOut, 3=EaseInOut).
+    /// Easing curve, as a `NATIVE_EASING_*` code. The host sends
+    /// [`NATIVE_EASING_UNSUPPORTED`] for a curve this ABI cannot name.
     pub easing: u32,
     /// Read the assigned value.
     pub get_value: unsafe extern "C" fn(*mut c_void, *mut NativeValue) -> i32,
@@ -671,7 +694,9 @@ pub struct NativeActionContext {
     pub get_modifier_count: unsafe extern "C" fn(*mut c_void) -> usize,
     /// Read one action modifier.
     pub get_modifier: unsafe extern "C" fn(*mut c_void, usize, *mut NativeModifierValue) -> i32,
-    /// Write an extension property keyframe on an actor.
+    /// Write an extension property keyframe on an actor. The trailing `u32` is
+    /// a `NATIVE_EASING_*` code; an unrecognized code is rejected with
+    /// [`NATIVE_STATUS_TYPE_ERROR`] rather than applied as linear.
     pub write_keyframe: unsafe extern "C" fn(
         *mut c_void,
         *const c_char,
