@@ -467,8 +467,26 @@ pub(crate) fn evaluate_shape_render(
     ctx: &EvaluateCtx,
     state: &VectorShapeState,
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
+    use crate::timeline::TrackAccessor;
+
     let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
     let epoch = ctx.track.shape.vector_paths_epoch.get();
+
+    // `draw-in` cuts stroke-only geometry while its `stroke_progress` track is
+    // between 0 and 1. The trim deliberately bypasses the shape-command memo
+    // in both directions: keying the memo on progress would leave the slot
+    // holding the last animated key forever (a permanent miss once the draw
+    // settles), and trimming a taken payload would poison the recycle
+    // protocol with cut geometry. Skipping the take keeps the untouched
+    // full-length payload valid in the slot — it serves again at
+    // progress == 1 — and build_shape_commands' only-store-when-empty guard
+    // keeps the mid-draw clones out of it.
+    let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
+    if progress < 1.0 {
+        let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
+        return Ok(Some(trim_shape_stroke_progress(&built, progress)));
+    }
+
     if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
         ctx.track.offer_shape_command_bounds(bounds);
         return Ok(Some(commands));
@@ -476,6 +494,39 @@ pub(crate) fn evaluate_shape_render(
     ctx.track
         .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)
         .map(Some)
+}
+
+/// Apply `draw-in`'s stroke trim to built shape commands: stroke-only paths
+/// (the `fill: None` + `stroke: Some` combination `build_vello_path` produces
+/// for `fill_opacity: 0` shapes) are cut to the leading `progress` fraction of
+/// their segments, matching the plot primitive's consumption of the same
+/// track. Filled paths pass through untouched so a fill keeps the
+/// reveal-to-authored-opacity semantics (commit `8e244595`).
+fn trim_shape_stroke_progress(commands: &[RenderCommand], progress: f64) -> Vec<RenderCommand> {
+    use crate::timeline::path_progress::trim_path_by_progress;
+
+    commands
+        .iter()
+        .map(|cmd| match cmd {
+            RenderCommand::Paths { paths } => RenderCommand::Paths {
+                paths: paths
+                    .iter()
+                    .map(|vp| {
+                        let mut trimmed = vp.clone();
+                        if trimmed.fill.is_none() && trimmed.stroke.is_some() {
+                            trimmed.path =
+                                std::sync::Arc::new(trim_path_by_progress(&vp.path, progress));
+                            if progress <= 0.0 {
+                                trimmed.stroke = None;
+                            }
+                        }
+                        trimmed
+                    })
+                    .collect(),
+            },
+            other => other.clone(),
+        })
+        .collect()
 }
 
 // ── Re-export all primitive modules ──────────────────────────────────────

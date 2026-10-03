@@ -470,6 +470,149 @@ fade-in c [100ms]
 }
 
 #[test]
+fn draw_in_trims_stroke_only_path_geometry_mid_draw() {
+    // `draw-in` writes `stroke_progress`, but only the plot primitive used to
+    // read it — a stroke-only `Path` faded in at full width instead of drawing
+    // (the hero underline/brackets defect). Mid-draw the shape's commands must
+    // carry a partial path, and the settled frames must serve the full path
+    // again (the shape-command memo must never hand back trimmed geometry).
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+p: Path, commands: {move_to(0, 0), line_to(100, 0), line_to(100, 100), line_to(0, 100)},
+  stroke: accent.primary, stroke_width: 4, fill_opacity: 0.0, at: (320, 180)
+
+#0s
+draw-in p [1s, ease: linear]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let count_stroke_segments = |time: f64| -> usize {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let mut segments = 0;
+        for item in &program.items {
+            for command in &item.commands {
+                if let crate::primitives::RenderCommand::Paths { paths } = command {
+                    for vp in paths {
+                        if vp.stroke.is_some() {
+                            segments += vp
+                                .path
+                                .elements()
+                                .iter()
+                                .filter(|el| {
+                                    matches!(
+                                        el,
+                                        kurbo::PathEl::LineTo(_)
+                                            | kurbo::PathEl::QuadTo(_, _)
+                                            | kurbo::PathEl::CurveTo(_, _, _)
+                                    )
+                                })
+                                .count();
+                        }
+                    }
+                }
+            }
+        }
+        segments
+    };
+
+    // Linear ease over 1s: t=0.5 → progress 0.5 → ceil(0.5 × 3) = 2 of 3
+    // segments drawn.
+    assert_eq!(count_stroke_segments(0.5), 2, "mid-draw the stroke must be partial");
+    // At the stamp nothing is drawn yet (progress clamps to 0, stroke hidden).
+    assert_eq!(count_stroke_segments(0.0), 0);
+    // Settled: the full path is back, twice, so a memo hit after a mid-draw
+    // bypass is covered too.
+    assert_eq!(count_stroke_segments(1.5), 3);
+    assert_eq!(count_stroke_segments(2.5), 3);
+}
+
+#[test]
+fn draw_in_cuts_a_straight_line_mid_segment() {
+    // The hero-underline case: a single-segment stroke must draw from its
+    // start point rather than pop whole segments (trim is arc-length aware).
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+underline: Path, commands: {move_to(100, 180), line_to(540, 180)},
+  stroke: accent.primary, stroke_width: 6, fill_opacity: 0.0
+
+#0s
+draw-in underline [1s, ease: linear]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let stroke_end = |time: f64| -> kurbo::Point {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let mut end = None;
+        for item in &program.items {
+            for command in &item.commands {
+                if let crate::primitives::RenderCommand::Paths { paths } = command {
+                    for vp in paths {
+                        if vp.stroke.is_some() {
+                            for el in vp.path.elements().iter().rev() {
+                                if let kurbo::PathEl::LineTo(p) = el {
+                                    end = Some(*p);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        end.expect("stroke path present")
+    };
+
+    // Linear 1s draw over a 440px line: at 0.5s the tip sits at the midpoint,
+    // at 0.25s a quarter in, settled exactly on the authored end.
+    let mid = stroke_end(0.5);
+    assert!((mid.x - 320.0).abs() < 1.0 && (mid.y - 180.0).abs() < 0.5, "got {mid:?}");
+    let quarter = stroke_end(0.25);
+    assert!((quarter.x - 210.0).abs() < 1.0, "got {quarter:?}");
+    let done = stroke_end(1.5);
+    assert!((done.x - 540.0).abs() < 0.5, "got {done:?}");
+}
+
+#[test]
 fn sum_range_computes_series_at_build_and_frame_time() {
     // Build time: `let` precompute inside a keyframe. 1! + 2! + 3! = 9 and
     // an arithmetic series 0+1+2+3+4 = 10.
