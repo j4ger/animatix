@@ -174,14 +174,44 @@ scene-side, none fixed in the engine:
 | `ContourSet`/`VectorField` silently ignore `opacity` | The property descriptor marks `opacity` applicable to everything, but these primitives never read it — an authored `opacity: 0.05` renders pixel-identical to 1.0 (measured), so dimmed backdrops are impossible via opacity and no drop warning fires. Either consume it in the shape-command path or warn; scenes currently dim by colour (`stroke.default`) as a workaround. | Not started |
 | Static keyframe `.text =` assignments overprint | `actor.text = "…"` at a keyframe leaves BOTH the declared string and the assigned one drawn before the first change lands (verified: two strings in one box mid-scene). The reactive `always` form replaces cleanly; the keyframe form should too — or the pattern should warn. Worked around in `web/demos/hash/scene.amx` with one actor per string. | Not started |
 
-## Easing library pass — findings (2026-10-02)
+## Easing pass — what else it turned up (2026-10-02)
 
-Landed: one easing name table, `ease: cubic-bezier(…)` / `ease: spring(…)`,
-`expo-out` / `expo-in-out` / `spring`, `bounce` → `bounce-in`, and a physical
-`bounce` action. Found on the way, not fixed:
+Landed: one easing name table (there were four), `ease: cubic-bezier(…)` /
+`ease: spring(…)`, `expo-out` / `expo-in-out` / `spring`, `bounce` →
+`bounce-in`, a physical `bounce` action, and a formatter that stops deleting
+eases. What follows is everything the pass surfaced but did not fix, sorted by
+whether the behaviour is *wrong* or merely *shaped badly*.
 
-| Item | What it is | Status |
+### Bugs — the behaviour is wrong
+
+| # | Item | Evidence |
 |---|---|---|
-| `animatix fmt` deletes comments | Formatting `web/scenes/hero.amx` drops its 19-line header block and collapses every multi-line declaration onto one line (202 → 124 lines). The formatter rebuilds from the AST and never re-emits trivia, so the lossless tokenizer's promise stops at the parser. `animatix fmt --check` currently reports most of `web/` and `examples/` unformatted, i.e. the tool is unrunnable on real source, which is why the `ease:` deletion above went unnoticed. Fixing the trivia model is a prerequisite for trusting any `fmt`-based gate. | Not started |
-| Native-plugin easing ABI is lossy | `easing_code` (`extension_native_plugin.rs`) maps every easing except {EaseIn, EaseOut, EaseInOut} onto code 0 = Linear, so a plugin reading a `spring` or `cubic-bezier` track sees a linear one. Pre-dates this pass (it did it for `Bounce` too). Widening the code space is a plugin-API version bump, not an easing change. | Not started |
-| The GUI cannot edit a bezier's control points | `ease: cubic-bezier(…)` parses, evaluates and round-trips, and the curve panel plots it, but the inspector's easing dropdown is registry-driven, so it offers only the named curves. Editing points needs a small numeric editor widget in the keyframe table. | Not started |
+| 1 | **`play … [fade, 800ms, ease: ease-in-out]` discards the easing at every layer.** | `parser/top_level.rs:229` hardcodes `easing: Easing::Linear` and its match arm ends in `_ => {}`, so the authored value never reaches the AST and nothing warns. `format_transition` (`format_core.rs:120`) prints only id + duration, so `animatix fmt` deletes it from source. Meanwhile `TransitionCompositor::render` *does* take an easing and applies it (`transition.rs:231`) — the feature is wired end to end except for the part that reads the author's intent. Confirmed: `animatix check` on a doc with that play line yields no diagnostic, and `fmt` strips the `ease:`. Fix is small — parse it, print it, thread it to `blend.easing`. |
+| 2 | **`animatix fmt` deletes comments and reflows declarations.** | Formatting `web/scenes/hero.amx` drops its 19-line header block and collapses every multi-line declaration onto one line (202 → 124 lines). The formatter rebuilds from the AST and never re-emits trivia, so the "single lossless tokenizer" promise stops at the parser. `animatix fmt --check` reports most of `web/` and `examples/` unformatted, i.e. the tool is unrunnable on real source — which is exactly why #1 and the ease-deletion went unnoticed. Fixing the trivia model is a prerequisite for trusting any `fmt` gate. |
+| 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin.rs:1577`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic-bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
+| 4 | **`unused-label` fires on deliberately static actors.** | `matrix/collapse.amx`'s `col_cap` and `shear.amx`'s `shear_cap` are standing captions with explicit `opacity: 1.0` that are never animated, by design. The build reports "Unused actor" for them, so the diagnostic is noise on real source and trains authors to skim it. Either scope it to actors that are never *rendered*, or demote it. |
+| 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade-in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Needs a minimal repro outside the demo. |
+| 6 | **`scripts/build-web.sh` cannot run inside `nix develop`.** | The dev shell's `rustc` has no wasm32 std (every dependency fails with `can't find crate for 'std'`), while the rustup toolchain has the target but no matching cargo. The script and `web/README.md` present it as *the* build path without saying it must run outside the shell. Either ship a wasm-capable rust in the flake or say where to run it. |
+
+### Design flaws — the shape invites the wrong thing
+
+| # | Item |
+|---|---|
+| 7 | **Every typed statement field is invisible to the formatter unless someone remembers to print it.** `Stmt::Assignment` kept its easing in a typed field the printer walked past (fixed); `Stmt::Play` still does (#1). `format_core.rs` has a `variant_coverage_guardrails` test for *`Expr` variants* — the analogous guard for *`Stmt` fields* is missing. The systemic fix is a roundtrip assertion that a statement carrying non-default values survives parse → format → parse with them intact; `ease_roundtrip.rs` covers eases only. |
+| 8 | **Nothing keeps a coupled ease pair in sync.** The hero's carriage "rides the draw tip" by repeating the `draw-in`'s start, span *and* ease. A mechanical retune of the draw silently separated the two and no test or diagnostic noticed. Either give the follower its own construct, or warn on two segments with identical span and different easing. |
+| 9 | **Curve names that promise physics.** An easing is a scalar map over progress between two values; it can only modulate travel *along* that line, so no easing can produce an arc. `bounce` was renamed `bounce-in` and the boundary is now written into `docs/spec.md`, but `elastic` still promises a spring and delivers a progress wobble. |
+| 10 | **Headless cannot see the site's primary surface.** No WebGPU compositor frame is captured, so screenshots show the player skeleton while `debug_readback` proves the scene rendered, and rAF-driven furniture (`.in` stamping, hover posters) cannot be exercised at all. Page motion is therefore verified by DOM probe plus native renders — not by a picture of the browser. Worth a capture path that reaches the GPU surface before any visual CI gate is claimed. |
+| 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
+| 12 | **The GUI cannot author a parameterized ease.** `ease: cubic-bezier(…)` / `spring(…)` parse, evaluate, plot in the curve panel and round-trip through source, but the inspector's dropdown is registry-driven and offers only named curves. Editing control points needs a small numeric editor in the keyframe table. |
+
+### Also resolved by this pass
+
+`ease: custom` silently ≈ ease-in-out (dead escape hatch) · a second
+`parse_easing_name` in the engine that had already drifted from the canonical
+table · the GUI's source-edit path overwriting any custom curve with `linear`
+· the formatter deleting `ease:` from property assignments ·
+`bounce [restitution: …]` warning about a modifier its own signature declares
+· the matrix scenes drawing +y downward against a `(cos, sin)` readout ·
+morph spans with mismatched point counts · the nav playhead hanging half off
+the page at scroll 0 · `figcaption` squeezing its caption to 12px below
+~500px. See `docs/history.md`, "The Easing Pass".
