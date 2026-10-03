@@ -1,0 +1,23 @@
+// Documented BarChart value forms that the builders read but the property
+// type table used to reject: every one of these produced a `type-mismatch`
+// warning while `docs/primitives.md` listed it as valid, because the type row
+// was a single `Type` per property *name* while the builder accepts a number
+// or the string "auto" (and, for the two flags, a boolean or "true"/"false").
+//
+// Added with the fix that widened those rows, so the golden pins zero
+// diagnostics: the analyzer must accept what the builder accepts. Top-level
+// declarations only — the semantic walker does not reach actors inside a
+// container's braces (see docs/roadmap.md).
+config { resolution: (640, 360) }
+
+chart: BarChart, size: (400, 240),
+  data: {("A", 4), ("B", 8), ("C", 6)},
+  bar_width: "auto",
+  gap: "auto",
+  max_value: "auto",
+  bar_colors: "auto",
+  show_axis: "false",
+  show_labels: "true"
+
+#1s
+fade-in chart [500ms]

@@ -129,10 +129,10 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 |----------|------|----------|------------|------------|
 | `func` | BuildTimeOnly | — | Transitions | PlotCurve, VectorField, Heatmap, ContourSet |
 | `data` | BuildTimeOnly | — | — | BarChart |
-| `bar_width` | F32 | — | — | BarChart |
+| `bar_width` | F32 / auto | — | — | BarChart |
 | `bar_colors` | BuildTimeOnly | — | — | BarChart |
 | `direction` | String | — | — | BarChart |
-| `max_value` | F32 | — | — | BarChart |
+| `max_value` | F32 / auto | — | — | BarChart |
 | `show_axis` | Bool/String | — | — | BarChart |
 | `show_labels` | Bool/String | — | — | BarChart |
 | `x_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
@@ -157,7 +157,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `gap` | F32 | — | — | Row, Col, Grid, Stack, Group, Mask, Legend, BarChart |
+| `gap` | F32 | — | — | Row, Col, Grid, Stack, Group, Mask, Legend, BarChart (BarChart also accepts `auto`) |
 | `padding` | F32 | — | — | Row, Col, Grid, Stack |
 | `align` | String | — | — | Row, Col, Grid |
 | `cols` | U32 | — | — | Grid |

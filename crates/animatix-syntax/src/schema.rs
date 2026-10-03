@@ -409,7 +409,10 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("at", Type::Vec2),
         ("background_color", Type::Color),
         ("bar_colors", Type::Any),
-        ("bar_width", Type::Num),
+        // Both spellings of "auto" are read by the BarChart builder
+        // (`Expr::Ident` or `Expr::Str`), and the docs say so; a bare `auto`
+        // already type-checked because an unresolved identifier is not a Str.
+        ("bar_width", Type::Union(vec![Type::Num, Type::Str])),
         ("baseline", Type::Num),
         ("bounds", Type::Vec4),
         ("char_progress", Type::Num),
@@ -428,7 +431,12 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("font_weight", Type::Union(vec![Type::Num, Type::Str])),
         ("from", Type::Vec2),
         ("func", Type::Any),
-        ("gap", Type::Num),
+        // Two consumers, one row: BarChart reads it as bar spacing and accepts
+        // "auto" (`build/plot.rs`), the layout containers read it as a number.
+        // Widening this to allow a string is safe only because every container
+        // now reports the value it cannot read (`Primitive::...`'s
+        // `unreadable_layout_value`) instead of dropping it silently.
+        ("gap", Type::Union(vec![Type::Num, Type::Str])),
         ("grid", Type::Str),
         ("head_size", Type::Num),
         ("height", Type::Num),
@@ -448,7 +456,7 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("line_join", Type::Num),
         ("max_depth", Type::Num),
         ("max_height", Type::Num),
-        ("max_value", Type::Num),
+        ("max_value", Type::Union(vec![Type::Num, Type::Str])),
         ("max_width", Type::Num),
         ("min_height", Type::Num),
         ("min_width", Type::Num),
@@ -465,8 +473,9 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("rotation", Type::Num),
         ("scale", Type::Num),
         ("shift", Type::Vec2),
-        ("show_axis", Type::Bool),
-        ("show_labels", Type::Bool),
+        // The BarChart builder reads `Value::Bool` or `Value::Str` ("true"/"1").
+        ("show_axis", Type::Union(vec![Type::Bool, Type::Str])),
+        ("show_labels", Type::Union(vec![Type::Bool, Type::Str])),
         ("size", Type::Vec2),
         // Authored solo flag: hides every non-solo subtree (recursively).
         ("solo", Type::Bool),
