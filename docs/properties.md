@@ -157,7 +157,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `gap` | F32 | — | — | Row, Col, Grid, BarChart |
+| `gap` | F32 | — | — | Row, Col, Grid, Stack, Group, Mask, Legend, BarChart |
 | `padding` | F32 | — | — | Row, Col, Grid, Stack |
 | `align` | String | — | — | Row, Col, Grid |
 | `cols` | U32 | — | — | Grid |

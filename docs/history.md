@@ -1467,3 +1467,44 @@ are gitignored and CI-built (`pages.yml`), and this environment's dev-shell
 verified through the native renderer and the shared evaluator rather than a
 locally rebuilt browser bundle; a stale bundle degrades them to linear rather
 than erroring.
+
+---
+
+## Phase 2 handoff — closed out (2026-10-03)
+
+`docs/handoff_phase2.md` left six candidates for "Phase 3". Five turned out to
+be already closed by later sessions; the sixth — `BarChart` missing from the
+`gap` applicability row — was still open and is now fixed. The handoff records,
+for each item, the commit and the test that fails if the fix is undone, rather
+than prose claiming it works.
+
+### The BarChart `gap` row
+
+`docs/primitives.md` documents `gap` as bar spacing, `build/plot.rs` has read it
+since the primitive shipped, and every other BarChart-specific property already
+had a row — but `gap`'s row listed only the layout containers. Consequences:
+`animatix check` emitted an info `unknown-property` for a line that works, and
+the inspector did not offer it, because the inspector's list, plan-slot
+filtering and that hint all derive from the same `Applicable` value.
+
+The old handoff guessed this needed "a per-actor schema variant"; it did not,
+because `Applicable` *is* already per-actor, and the runtime binding for `gap`
+(`ActorField::ContainerLayoutGroup`) has no track storage at all — so adding the
+type widened the surface without widening what the engine stores or can animate.
+`chart.gap = 10` still fails loudly with `unsupported-assignment-property`,
+exactly like `chart.bar_width = 6`.
+
+The regression test is `bar_chart_gap_is_applicable_to_bar_chart` in
+`crates/animatix/tests/applicability_table_agrees_with_reads.rs`, verified to
+fail when `BarChart` is removed from the row. It lives beside the generic
+row-vs-primitive test rather than inside it because BarChart has no primitive
+file — the chart's properties are read by the shared plot builder, which the
+generic test deliberately does not attribute.
+
+### What it turned up
+
+The type table is one `Type` per property name, so `gap: "auto"`, `bar_width:
+"auto"`, `max_value: "auto"` and `show_axis: "true"` are all reported as
+`type-mismatch` even though their builders accept those strings. Left open in
+`roadmap.md` instead of patched, because widening `gap`'s type row would also
+silence the only signal that a `Row` dropped an unreadable `gap`.

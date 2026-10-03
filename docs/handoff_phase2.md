@@ -1,9 +1,18 @@
 # Phase 2 Handoff — Demo Gallery
 
+> **Status: closed.** Every item this file left open has landed since it was
+> written; nothing here is outstanding. Kept as the record of *why* each one was
+> open and what closed it — see [§ Where each remaining item landed](#where-each-remaining-item-landed).
+> Two later sessions superseded much of the surrounding state: the branch below
+> was merged into `main` long ago, and the engine has since absorbed the
+> extension/primitive rewrite, the easing table work, and the silent-drop round
+> (`docs/handoff_silent_drops.md` is the current one to read next).
+
 ## Status
 
-- **Branch**: `feat/demo-gallery-p2` at `/home/xiayuxuan/Documents/animatix-phase2`,
-  9 commits ahead of `main` (fast-forward merge ready; main has not moved).
+- **Branch**: `feat/demo-gallery-p2` — merged to `main` (fast-forward); the
+  working copy referenced below (`/home/xiayuxuan/Documents/animatix-phase2`)
+  no longer exists, but the commit hashes in this file resolve in this repo.
 - **`dashboard_story.amx`**: complete, 5 scenes, smoke-rendered.
 - **`motion_poster.amx`**: complete, 4 scenes (~28s), smoke-rendered at 2.5s /
   6.5s / 18s / 25s. Per-letter reveal, slogan cross-fade, morph strategy
@@ -44,36 +53,56 @@
    hidden-by-default rule above. The real filter bug was different: static
    `blur:` etc. never applied (fixed in `8c4d916d`).
 
-## Remaining known issues (candidates for Phase 3)
+## Where each remaining item landed
 
-1. **`Mask` clip semantics** — the engine-fixed Mask clips children to the
-   Mask's own `size` rect at the Mask's position (the clip layer used to be
-   pushed at the scene origin, hiding every child of any mask not at the
-   top-left corner — fixed). A `clip_shape` child is still just a rendered
-   child, not the clip geometry: implementing "clip takes the clip_shape
-   child's shape/size (and hides it)" is the remaining piece.
-2. **Hosted-plot size convention** — `{graph}_size` is stored as half-size but
-   consumed as full-size by bars/curves/`.map()`, so a plot hosted in a Graph
-   occupies only the central half of the axis box. Needs a convention decision
-   (touches several call sites + GUI inspector).
-3. ~~Silent fallback on failed property expressions~~ **Fixed** — multi-segment
-   path failures now report the full dotted path, producing an
-   `unknown-lookup-path` diagnostic (with "did you mean" suggestions) instead
-   of silently defaulting.
-4. ~~Invalid easing names fall back silently~~ **Fixed** — the parser no longer
-   consumes unresolvable `ease:` modifiers, so the build layer's
-   `Unsupported ease value` warning fires.
-5. **LSP/GUI don't call `Analyzer::merge_import_symbols`** — the CLI check/lint
-   paths now resolve imported symbols for diagnostics; wiring the same call
-   into the LSP/GUI analyzers would fix the editor experience too.
-6. **`gap` not registered for BarChart** in the runtime property registry
-   (the builder parses it, so charts work; the GUI inspector just won't list
-   it). The registry is keyed by property name and `gap` is owned by the
-   `ContainerLayoutGroup` schema — exposing it for BarChart needs either a
-   per-actor schema variant or group-handler support, not a one-line change.
-   Invalid easing names DO warn now (the parser no longer consumes
-   unresolvable `ease:` modifiers), and the CLI check/lsp/gui analyzers
-   resolve imported symbols.
+All six of the "candidates for Phase 3" are closed. 1–5 were done by later
+sessions; 6 was the last one outstanding and is closed now. Evidence, in each
+case a test that fails if the fix is undone rather than a claim:
+
+| # | Item | Closed by | Evidence it is closed |
+|---|---|---|---|
+| 1 | `Mask` clip_shape defines the clip geometry and does not paint | `24da1f9b` (make `clip_shape` the clip source), `f35ca6eb` (round rect, `Text`/plot fallbacks), `b0e1f22e` + `12297136` (`Primitive::clip_path` capability, plot geometry excluded — ABI 8) | Five GPU tests in `crates/animatix-render/src/offscreen.rs`: `mask_clip_shape_ellipse_defines_clip_region`, `mask_clip_shape_polygon_defines_clip_region`, `mask_clip_shape_without_geometry_warns`, `mask_clip_shape_plot_falls_back_with_warning`, `mask_clips_children_at_mask_position`. All pass inside `nix develop` (software Vulkan). Documented in `docs/primitives.md` §Mask. |
+| 2 | Hosted-plot size convention | Behaviour is FULL size everywhere now; stale "half-extent" comments corrected in `2a36a5bf` | `crates/animatix/src/timeline/tests/bar_chart.rs:370` `hosted_bar_chart_spans_graph_axis` measures the baked bar span against the graph's 800 px axis box; `crates/animatix-render/src/offscreen.rs:1457` `hosted_bar_chart_paints_bars_across_the_full_graph_axis` does the same at the pixel level (`3e312998`). Both pass. |
+| 3 | Silent fallback on failed property expressions | multi-segment path failures report the full dotted path | `unknown-lookup-path` diagnostic; see `docs/history.md`. |
+| 4 | Invalid easing names fall back silently | `4e8a607d` made the parser stop consuming unresolvable `ease:` modifiers; `328f5aef` collapsed the four easing tables into one | The build layer's `Unsupported ease value` warning fires; the GUI offers only names the registry knows. |
+| 5 | LSP/GUI don't resolve imported symbols | `4e8a607d` wired `Analyzer::merge_import_symbols` into both; `eea24034` re-resolves on `didSave`, `a573683d` on watched-file changes | Call sites today: `animatix-gui/src/editor.rs:53` (once per opened buffer), `animatix-lsp/src/main.rs:134` (open), `:396` (save), `:431` (watched `.amx` change). The GUI's per-buffer cache intentionally does not re-resolve on every keystroke. |
+| 6 | `gap` not registered for BarChart | This session — the row itself stayed as it was because **`Applicable` is already per-actor**: adding `BarChart` to the row was all it took | `crates/animatix/tests/applicability_table_agrees_with_reads.rs::bar_chart_gap_is_applicable_to_bar_chart` fails when `BarChart` is dropped from the row. See below for why the earlier "needs a per-actor schema variant" guess was wrong. |
+
+### Why item 6 was one line after all
+
+The old note predicted the registry could not expose `gap` for BarChart "without
+a per-actor schema variant or group-handler support". It can, because the three
+surfaces that care are all *derived* from the same `Applicable` value:
+
+- `animatix_syntax::schema::property_specs()` filters each row by
+  `applicable.includes(...)` and that single slice drives the GUI inspector's
+  property list, plan-slot filtering, and the analyzer's `unknown-property`
+  hint — one row, every consumer.
+- The runtime binding (`binding!("gap", …ActorField::ContainerLayoutGroup…)`) is
+  keyed by property *name*, not by actor type, and `ContainerLayoutGroup` has no
+  track storage at all: `dispatch.rs:1025` returns `None` for it and the engine
+  only uses it to say "cannot set 'layout' directly". So widening the row adds
+  no storage and no new animated/assignable surface — `chart.gap = 10` still
+  fails loudly with `unsupported-assignment-property`, exactly like
+  `chart.bar_width = 6` always did.
+- BarChart itself has never depended on the row: `build/plot.rs:2164` reads the
+  prop straight from syntax, which is why charts always worked.
+
+The row now reads `Actors(&["BarChart", "Col", "Grid", "Group", "Legend",
+"Mask", "Row", "Stack"])`. Before it did, `animatix check` reported
+`unknown-property: Property 'gap' not commonly used on BarChart (may still be
+valid)` for a property both documented in `docs/primitives.md` §BarChart and
+honoured at build time.
+
+**Follow-up found while closing it (recorded in `docs/roadmap.md`):** the type
+row for `gap` is `Type::Num`, so the documented string form `gap: "auto"` trips
+`type-mismatch` even though the builder accepts `Expr::Str("auto")` — the bare
+`gap: auto` form is clean. `bar_width` and `max_value` have the same mismatch
+already, and `show_axis`/`show_labels` are typed `Bool` while their builders
+accept `"true"`/`"false"`. Widening `gap`'s type row is not a free correctness
+fix: it would also remove the only signal that a `Row` silently drops a
+non-numeric `gap` (the container primitives read it with `if let Ok(Value::Num)`
+and report nothing), so it is a decision rather than a patch.
 
 ## How to verify the current state
 
@@ -114,8 +143,10 @@ Approximate motion_poster scene starts (global, with transitions):
 
 ## Notes for the next session
 
-- All pre-commit gates pass (fmt, `cargo check --workspace`, syntax 213,
-  animatix lib 706, serially).
+- Gates from this session: `cargo fmt --all`,
+  `cargo check --workspace --all-targets`,
+  `cargo clippy --workspace --all-targets -- -D warnings`,
+  `cargo test -p animatix-syntax`, `cargo test -p animatix --lib` serially.
 - No generated PNGs are committed; smoke outputs are disposable.
 - `cog commit` works inside `nix develop` (cocogitto is on the shell `PATH`). It
   cannot, however, open a *linked worktree's* `.git` file — when committing on a
@@ -123,4 +154,7 @@ Approximate motion_poster scene starts (global, with transitions):
   the `git commit -m "type(scope): ..."` fallback (and note it, per AGENTS.md).
 - Keep using `nix develop` for workspace checks and renders (software Vulkan
   via lavapipe; a bare GPU adapter is unavailable outside the shell).
-- Merge `feat/demo-gallery-p2` back to `main` when ready (fast-forward).
+- ~~Merge `feat/demo-gallery-p2` back to `main`~~ done; `main` has moved a long
+  way since (easing tables, the primitive/extension rewrite, the instrument
+  redesign, the silent-drop round).
+- Read `docs/handoff_silent_drops.md` next — it is the open one.

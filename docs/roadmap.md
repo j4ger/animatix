@@ -302,3 +302,36 @@ its first pass:
   told readers it capped the item at 400px. It did nothing: layout has no width
   ceiling at all, and the name belongs to the text wrap width. Both are open
   items above; the example now demonstrates `min_width` and says so. See `docs/history.md`, "The Easing Pass".
+
+## The property type table does not know about `"auto"` (found 2026-10-03)
+
+`animatix_syntax::schema::raw_property_types()` is one `Type` per property *name*,
+but several builders accept more than one shape for the same name, so the checker
+contradicts both those builders and `docs/primitives.md`:
+
+| Property | Type row | Also accepted at build | Repro |
+|---|---|---|---|
+| `gap` (BarChart) | `Num` | `auto` (bare or `"auto"`) — `build/plot.rs:2164` | `BarChart, data: {…}, gap: "auto"` → `type-mismatch: expected Num, found Str` |
+| `bar_width` | `Num` | same | `bar_width: "auto"` → same warning |
+| `max_value` | `Num` | same | `max_value: "auto"` → same warning |
+| `show_axis` / `show_labels` | `Bool` | `"true"` / `"false"` (`show_axis_string`, `show_labels_string` both pass today) | `show_axis: "false"` → `type-mismatch: expected Bool, found Str` |
+
+The bare form (`gap: auto`) is clean, because an unresolved identifier infers to
+something compatible; only the quoted string trips it.
+
+Why this is a row here and not a three-line patch: widening `gap`'s row to
+`Union(Num, Str)` would also silence the **only** signal a container gets today
+that its `gap` was dropped — `Row`/`Col`/`Grid`/`Stack` read it with
+`if let Ok(Value::Num(n))` and report nothing otherwise, so `gap: "auto"` on a
+`Row` is currently caught by the checker and would become silent. Either fix the
+container drop first (a diagnostic in each container primitive, which AGENTS.md
+asks for anyway), give the type layer per-actor-type rows, or drop the documented
+string form and say so in `docs/primitives.md` — all reasonable, none of them a
+drive-by change.
+
+This came out of closing the last open item in `docs/handoff_phase2.md`
+(`BarChart` missing from the `gap` applicability row), which also produced
+`bar_chart_gap_is_applicable_to_bar_chart` in
+`crates/animatix/tests/applicability_table_agrees_with_reads.rs` — the generic
+test in that file cannot see BarChart, because the chart's properties are read by
+the shared plot builder rather than by a file in `src/primitives/`.
