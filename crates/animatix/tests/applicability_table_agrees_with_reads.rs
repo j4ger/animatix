@@ -103,6 +103,35 @@ fn read_properties(source: &str) -> Vec<String> {
 }
 
 #[test]
+fn bar_chart_gap_is_applicable_to_bar_chart() {
+    // The generic test above cannot see this one: `BarChart` has no primitive
+    // file reading its properties, because the chart's builder lives in the
+    // shared plot builder (`timeline/build/plot.rs`) rather than in
+    // `src/primitives/`. `gap` was listed for the layout containers alone while
+    // that builder read it as the bar spacing, so `animatix check` reported
+    // `unknown-property` for a property that works and documented, and the
+    // inspector left it off BarChart's property list.
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let property_rs =
+        std::fs::read_to_string(manifest.join("../animatix-core/src/property.rs")).expect("table");
+    let rows = actor_rows(&property_rs);
+    let gap_types = rows
+        .get("gap")
+        .expect("the table has no `gap` row — the row was renamed or removed");
+    assert!(
+        gap_types.iter().any(|ty| ty == "BarChart"),
+        "`BarChart` reads `gap` as the bar spacing but the row lists {gap_types:?}"
+    );
+
+    let plot_rs =
+        std::fs::read_to_string(manifest.join("src/timeline/build/plot.rs")).expect("plot builder");
+    assert!(
+        read_properties(&plot_rs).iter().any(|name| name == "gap"),
+        "the plot builder no longer reads `gap` — drop this test with the read"
+    );
+}
+
+#[test]
 fn every_actor_row_covers_the_type_that_reads_it() {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
     let property_rs =

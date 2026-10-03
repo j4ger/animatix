@@ -140,7 +140,11 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     ),
     PropertyDescriptor::new(
         "gap",
-        Applicable::Actors(&["Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack"]),
+        // `BarChart` reads the same name as the bar spacing; for containers it is
+        // the child gap. One row, two consumers — see `build/plot.rs`.
+        Applicable::Actors(&[
+            "BarChart", "Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack",
+        ]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("grid", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
