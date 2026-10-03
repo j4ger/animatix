@@ -153,24 +153,19 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                 });
             },
             Stmt::Config { .. } => {
-                if let Some(Stmt::Scene {
-                    ref mut config,
-                    ref body,
-                    ..
-                }) = current_scene
-                {
-                    if config.is_empty() && body.is_empty() {
-                        if let Stmt::Config { settings, .. } = stmt {
-                            *config = settings;
-                            continue;
-                        }
+                // A `config` block anywhere inside a scene is that scene's
+                // configuration, whatever precedes it. The gate used to require
+                // the scene still be empty, so one leading statement — an
+                // `import`, which belongs to no keyframe — demoted the block
+                // into the scene body, leaving `Scene.config` empty for the
+                // composition to fall back on keyframe-span duration.
+                if let Some(Stmt::Scene { ref mut config, .. }) = current_scene {
+                    if let Stmt::Config { settings, .. } = stmt {
+                        config.extend(settings);
+                        continue;
                     }
                 }
-                if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {
-                    body.push(stmt);
-                } else {
-                    result.push(stmt);
-                }
+                result.push(stmt);
             },
             other => {
                 if let Some(Stmt::Scene { ref mut body, .. }) = current_scene {

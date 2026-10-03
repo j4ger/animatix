@@ -160,18 +160,16 @@ path_arc, stretch.
 
 ## Web-demo review pass — engine findings (2026-10-02)
 
-Behaviour gaps found while polishing the site's scenes; all worked around
-scene-side, none fixed in the engine:
+Behaviour gaps found while polishing the site's scenes, each worked around
+scene-side first. Four of the nine are now fixed in the engine (see the resolved
+list at the end of the easing-pass section); what is left is below.
 
 | Item | What it is | Status |
 |---|---|---|
-| `Arrow` silently ignores `color:` | The primitive paints shaft and head from `stroke_color` only (`primitives/arrow.rs`), but `color` is a registered property, so an authored `color:` on an Arrow builds, renders grey (`stroke.default`), and warns nothing. Either consume `color` as the stroke fallback (like `Line`?) or emit the drop warning the code rules require. Found making attention's amber accent contract false on screen. | Not started |
-| `import` inside a scene block freezes `always` clocks | A single-scene document with `# Scene` + `import "../lib/theme.amx"` after the header evaluates `always` blocks at a frozen `t` (matrix/rotation's hub card was a static poster of a rotation that never happened; moving the import above `config` fixed it; multi-scene docs with in-scene imports animate their non-`always` content). Needs a root-cause pass in the module/scene build path, and it should at least warn. | Not started |
 | Single-line `text_align` / `text_max_width` do not move the anchor | A one-line `Text` is always centred on `at:` regardless of `text_align` (probe: left/right/plain identical), so right-aligned label columns overlap their bars and left-aligned captions jitter when swapped. The alignment should apply to the line box's anchor, or the combination should warn. Worked around by hand-computing `at:` x per label. | Not started |
-| Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` (`timeline/build/plot.rs`) — the brightest pixels on the ink page, out-shining the amber lead. Outside `dynamic_layout` the scenes dim them with `stroke: stroke.default` (verified in `web/tour/scenes/plots.amx`); inside a `dynamic_layout` scene that same property blanks the whole graph, so the epicycles/spectrum axes stay white. Needs the plot axis style to read the colorscheme's `stroke.default` by default. Related: `Graph.map()` returns screen coords at HALF the px/unit the plotted curve uses (measured 43.2 vs 87.0 px/unit on the descent graph) — an actor tracking `map(f(t))` rides beside its own trail; the descent scene doubles the math coords to compensate. If `map` is meant for a different space, it needs docs; if not, it is a bug. | Not started |
+| Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` — the brightest pixels on the ink page, out-shining the amber lead. Outside `dynamic_layout` the scenes dim them with `stroke: stroke.default` (verified in `web/tour/scenes/plots.amx`); inside a `dynamic_layout` scene that same property blanks the whole graph, so the epicycles/spectrum axes stay white. Needs the plot axis style to read the colorscheme's `stroke.default` by default. (Its companion finding — `Graph.map()` returning screen coords at half the px/unit the curve uses — is fixed; see below.) | Not started |
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` | The bundled Open Sans/CJK faces reach the db only through the embed/wasm path (`with_fonts_and_fallback`), so the plain fast path resolves the bundle only when the host happens to install those families system-wide — four `animatix-text` fast-path tests asserted "Open Sans is bundled" while quietly depending on the machine (made hermetic in the 2026-10-02 test fix, but the engine-side question stands: should the native context bundle-register by default, like the wasm one does?). | Not started |
-| `ContourSet`/`VectorField` silently ignore `opacity` | The property descriptor marks `opacity` applicable to everything, but these primitives never read it — an authored `opacity: 0.05` renders pixel-identical to 1.0 (measured), so dimmed backdrops are impossible via opacity and no drop warning fires. Either consume it in the shape-command path or warn; scenes currently dim by colour (`stroke.default`) as a workaround. | Not started |
 | Static keyframe `.text =` assignments overprint | `actor.text = "…"` at a keyframe leaves BOTH the declared string and the assigned one drawn before the first change lands (verified: two strings in one box mid-scene). The reactive `always` form replaces cleanly; the keyframe form should too — or the pattern should warn. Worked around in `web/demos/hash/scene.amx` with one actor per string. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
@@ -235,4 +233,21 @@ column unreadable for any lint added later. The actor case is now a hint (a
 `let` nobody reads still warns), and `animatix check`/`lint` fold hints from
 their text output while `--format json` keeps them, so the 56 files carrying one
 still say so once. `never-revealed` in the build layer remains the lint that
-catches an actor that is declared and never shown. See `docs/history.md`, "The Easing Pass".
+catches an actor that is declared and never shown.
+
+From the web-demo review pass, same round: **`Arrow` ignored an authored
+`color:`** (it is now one of the stroke-only shapes that inherit it, via a new
+`ShapeKind::is_stroke_only()` so the next such shape cannot be forgotten) ·
+**the plot family discarded authored `opacity`** (one fix in the shared dispatch
+covers Graph, BarChart, ContourSet and VectorField) · **`Graph.map()` returned
+screen coords at half the px/unit the curve it describes uses**, because it read
+the dotted half-size track while `map_inverse` read the side channel · and
+**an `import` written inside a scene block froze that scene's clock**, whose
+chain turned out to be worth writing down because nothing in it is obvious:
+`group_scenes` promoted a `config` block into `Scene.config` only while the
+scene was still empty, so the import demoted the block into the scene body →
+`Scene.config` empty → `extract_duration_from_config` found nothing → the
+duration fell back to keyframe-span inference → and the web player wraps its
+clock on that duration, so `always` blocks kept re-evaluating a truncated loop.
+Position no longer matters: any `config` inside a scene is now promoted, and
+multiple blocks merge. See `docs/history.md`, "The Easing Pass".

@@ -1193,3 +1193,34 @@ fn test_summary_reports_playback_order_and_edges() {
 
     assert!(summary.total_duration_s >= 2.0);
 }
+
+/// A scene's authored `duration` is the player's clock, so losing it is not
+/// cosmetic: `animatix-web` wraps playback time at the scene duration, and a
+/// scene whose last keyframe lands earlier than its declared length restarts
+/// early. An `import` written in front of the `config` block used to demote that
+/// block into the scene body, leaving `Scene.config` empty and the duration to
+/// be inferred from keyframe span — which is why this assertion sits in the
+/// composition layer instead of stopping at the parser.
+#[test]
+fn a_scene_config_written_after_an_import_still_sets_the_scene_duration() {
+    let source = concat!(
+        "# Intro\n",
+        "import \"./lib/tokens.amx\" as tk\n",
+        "config { resolution: (400, 300), duration: 4 }\n",
+        "title: Text, text: \"Welcome\"\n",
+        "#0s\n",
+        "title.opacity = 0\n",
+        "#1s\n",
+        "title.opacity = 1\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let comp = &report.output;
+    assert_eq!(
+        comp.scenes.get("Intro").expect("Intro scene").duration_s,
+        4.0,
+        "the scene ran on inferred keyframe span rather than its authored duration; \
+         diagnostics: {:?}",
+        report.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}

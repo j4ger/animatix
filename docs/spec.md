@@ -2007,11 +2007,22 @@ graph: Rect, size: (400, 400)
 
 A scene may contain its own `config` block after the scene declaration. Scene-scoped keys (`colorscheme`, `dynamic_layout`, `duration`) override the prelude; composition-scoped keys (`resolution`, `strict_types`) are ignored with a warning. See [Config Merge Semantics](#config-merge-semantics) below.
 
+**Position inside the scene does not matter.** A `config` block configures its
+scene whether it is the first statement after the header or the last, and several
+blocks in one scene merge. This was not always so: promotion used to require the
+scene to still be empty, so writing an `import` — which belongs to the file, not
+to a keyframe — in front of the block silently demoted it into the scene body,
+and the scene lost its `duration` (the composition then inferred one from
+keyframe spans, which is what the player wraps its clock on).
+
 ```animatix
 # Intro
 config { colorscheme: "editorial-dark" }
 title: Text, text: "Welcome"
 ```
+
+> `import` is file-level. One written *inside* a scene is ignored by the build —
+> put it above the first `# Scene` header, in the shared prelude.
 
 ### Shared Prelude
 
