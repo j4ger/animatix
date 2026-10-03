@@ -4,8 +4,10 @@
 > has a decided design and no implementation. WP7 is half done: the plugin ABI
 > easing table (B3) landed, the real `MorphStrategy::Fade` cross-fade (B2) has
 > not been scoped or written. WP8 is untouched.
-> **14 commits are local and unpushed on `main`, at the owner's explicit
-> instruction ("hold the push") — pushing triggers the GitHub Pages deploy.**
+> **15 commits are local and unpushed on `main`, at the owner's explicit
+> instruction ("hold the push") — pushing triggers the GitHub Pages deploy.
+> Count them with `git rev-list --count origin/main..HEAD`; that number drifts
+> as the remaining packages land, the instruction does not.**
 
 This round had three sources that turned out to be one problem: values that are
 parsed, authored and accepted, then discarded somewhere between the AST and the
@@ -186,7 +188,7 @@ parallel test runners (process-global cache; green with `--test-threads=1`).
   fails inside ALSA/FFmpeg — always run workspace gates in `nix develop`.
 - Only **stable rustfmt** exists here; CI's fmt job uses nightly with
   `imports_granularity`/`group_imports`, which stable silently ignores. None of
-  this round's 14 commits has been through CI, because none is pushed.
+  this round's commits has been through CI, because none is pushed.
 
 ## Gates to run before finishing anything
 
