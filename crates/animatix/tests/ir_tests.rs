@@ -1010,3 +1010,126 @@ fn letchain_ir_matches_ast() {
 
     let _ = call; // call_expr is the invoked form; the raw closure+arg pair is unused
 }
+
+#[test]
+fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
+    let color = |r: f64, g: f64, b: f64| {
+        // `rgb()` scales by 1/255, so pass 0–1 fractions through as byte values.
+        Expr::Call(
+            "rgb".to_string(),
+            vec![
+                Expr::Num(r * 255.0),
+                Expr::Num(g * 255.0),
+                Expr::Num(b * 255.0),
+            ],
+        )
+    };
+    let cases = vec![
+        Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]),
+        Expr::Call("noise2".to_string(), vec![Expr::Num(1.5), Expr::Num(-2.0)]),
+        Expr::Call("seeded_noise".to_string(), vec![Expr::Num(7.0), Expr::Num(3.25)]),
+        Expr::Call(
+            "seeded_noise2".to_string(),
+            vec![Expr::Num(7.0), Expr::Num(3.25), Expr::Num(9.0)],
+        ),
+        Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(4.0)]),
+        Expr::Call("seeded_fbm".to_string(), vec![Expr::Num(7.0), Expr::Num(1.5), Expr::Num(3.0)]),
+        Expr::Call(
+            "lerp_color_oklab".to_string(),
+            vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+        ),
+    ];
+
+    for expr in &cases {
+        let compiled = compile_expr(expr).expect("environment call should compile");
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
+        let ast_value = evaluate_expr(expr, &env).expect("ast eval should work");
+        assert_eq!(ir_value, ast_value, "IR and AST disagree for {expr:?}");
+    }
+
+    // Value-level assertions on the same surface an `always` block uses.
+    let mut env = Environment::new();
+    load_standard_library(&mut env);
+    let eval = |expr: &Expr| evaluate_expr(expr, &env).expect("eval");
+
+    // Noise is deterministic and bounded.
+    let n = eval(&Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]));
+    let n_again = eval(&Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]));
+    assert_eq!(n, n_again, "noise must be pure");
+    let Value::Num(n) = n else {
+        panic!("noise must return Num, got {n:?}")
+    };
+    assert!((0.0..=1.0).contains(&n), "noise in [0,1], got {n}");
+
+    // More octaves change the mix but stay in range.
+    let f3 = eval(&Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(3.0)]));
+    let f6 = eval(&Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(6.0)]));
+    assert_ne!(f3, f6, "octave count must matter");
+    for v in [f3, f6] {
+        let Value::Num(v) = v else {
+            panic!("fbm must return Num")
+        };
+        assert!((0.0..=1.0).contains(&v), "fbm in [0,1], got {v}");
+    }
+
+    // OKLab lerp: achromatic mixes stay achromatic and between; a saturated
+    // midpoint stays in gamut (the raw sRGB lerp of red→green is muddy olive).
+    let white = Expr::Call("rgb".to_string(), vec![Expr::Num(255.0); 3]);
+    let black = Expr::Call("rgb".to_string(), vec![Expr::Num(0.0); 3]);
+    let gray =
+        eval(&Expr::Call("lerp_color_oklab".to_string(), vec![white, black, Expr::Num(0.5)]));
+    let Value::Color(gray) = gray else {
+        panic!("lerp_color_oklab must return Color, got {gray:?}")
+    };
+    assert!(
+        (gray[0] - gray[1]).abs() < 1e-6 && (gray[1] - gray[2]).abs() < 1e-6,
+        "achromatic midpoint must stay achromatic, got {gray:?}"
+    );
+    assert!(
+        (0.3..0.7).contains(&gray[0]),
+        "achromatic midpoint between black and white, got {}",
+        gray[0]
+    );
+
+    let mid = eval(&Expr::Call(
+        "lerp_color_oklab".to_string(),
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+    ));
+    let Value::Color(mid) = mid else {
+        panic!("lerp_color_oklab must return Color, got {mid:?}")
+    };
+    assert!(
+        mid.iter().all(|v| (0.0..=1.0).contains(v)),
+        "midpoint stays in gamut, got {mid:?}"
+    );
+    // The whole point of OKLab: the perceptual midpoint of red→green is a
+    // *bright* chartreuse, where the raw sRGB channel lerp dips to muddy
+    // olive (r = g = 0.5, far darker in luminance terms).
+    assert!(
+        mid[0] > 0.65 && mid[1] > 0.5,
+        "red→green OKLab midpoint must stay bright, got {mid:?}"
+    );
+    let srgb_mid = eval(&Expr::Call(
+        "lerp_color".to_string(),
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+    ));
+    let Value::Color(srgb_mid) = srgb_mid else {
+        panic!("lerp_color must return Color, got {srgb_mid:?}")
+    };
+    assert!(
+        mid[0] > srgb_mid[0] && mid[1] > srgb_mid[1],
+        "OKLab midpoint brighter than the sRGB one: oklab {mid:?} vs srgb {srgb_mid:?}"
+    );
+
+    // Endpoints survive the round trip exactly (up to encoding error).
+    let back = eval(&Expr::Call(
+        "lerp_color_oklab".to_string(),
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.0)],
+    ));
+    let Value::Color(back) = back else {
+        panic!("Color expected")
+    };
+    assert!((back[0] - 1.0).abs() < 1e-6 && back[1].abs() < 1e-6 && back[2].abs() < 1e-6);
+}

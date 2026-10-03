@@ -125,6 +125,100 @@ macro_rules! register_num3 {
     };
 }
 
+/// Deterministic splitmix64 hash — the base for every seeded stochastic
+/// builtin (`seeded_rand`, the noise family), so `always` blocks stay pure
+/// functions of `t` and the expression cache stays valid.
+fn splitmix64(x: u64) -> u64 {
+    let z = x.wrapping_add(0x9e3779b97f4a7c15);
+    let z = z ^ (z >> 30);
+    let z = z.wrapping_mul(0xbf58476d1ce4e5b9);
+    let z = z ^ (z >> 27);
+    let z = z.wrapping_mul(0x94d049bb133111eb);
+    z ^ (z >> 31)
+}
+
+/// Hash one integer lattice point into `[0, 1)`.
+fn noise_lattice(seed: u64, x: i64, y: i64) -> f64 {
+    let mixed = (x as u64).wrapping_mul(0x9e3779b97f4a7c15) ^ (y as u64).rotate_left(21);
+    let h = splitmix64(seed ^ splitmix64(mixed));
+    (h >> 11) as f64 / (1u64 << 53) as f64
+}
+
+/// Smooth 2-D value noise in `[0, 1]`: hashed lattice corners blended with
+/// smoothstep. 1-D noise is the `y = 0` slice.
+fn value_noise(seed: u64, x: f64, y: f64) -> f64 {
+    let (ix, iy) = (x.floor(), y.floor());
+    let (tx, ty) = (x - ix, y - iy);
+    let tx = tx * tx * (3.0 - 2.0 * tx);
+    let ty = ty * ty * (3.0 - 2.0 * ty);
+    let (ix, iy) = (ix as i64, iy as i64);
+    let n00 = noise_lattice(seed, ix, iy);
+    let n10 = noise_lattice(seed, ix + 1, iy);
+    let n01 = noise_lattice(seed, ix, iy + 1);
+    let n11 = noise_lattice(seed, ix + 1, iy + 1);
+    let top = n00 + (n10 - n00) * tx;
+    let bottom = n01 + (n11 - n01) * tx;
+    top + (bottom - top) * ty
+}
+
+/// Fractal Brownian motion over the value noise: up to 8 layers at doubling
+/// frequency and half amplitude, normalized back to `[0, 1]`.
+fn fbm(seed: u64, x: f64, y: f64, octaves: f64) -> f64 {
+    let octaves = octaves.clamp(1.0, 8.0).floor() as u32;
+    let (mut amp, mut freq, mut sum, mut norm) = (1.0, 1.0, 0.0, 0.0);
+    for o in 0..octaves {
+        sum += amp * value_noise(seed.wrapping_add(u64::from(o) * 0x9e37_79b9), x * freq, y * freq);
+        norm += amp;
+        amp *= 0.5;
+        freq *= 2.0;
+    }
+    sum / norm
+}
+
+/// sRGB → OKLab (Björn Ottosson's constants). Channels in `[0, 1]`; alpha
+/// passes through untouched.
+pub(crate) fn oklab_from_srgb(c: [f64; 4]) -> [f64; 4] {
+    let linear = |v: f64| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let (r, g, b) = (linear(c[0]), linear(c[1]), linear(c[2]));
+
+    let l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b).cbrt();
+    let m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b).cbrt();
+    let s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b).cbrt();
+
+    [
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+        c[3],
+    ]
+}
+
+/// OKLab → sRGB — the inverse of [`oklab_from_srgb`].
+pub(crate) fn srgb_from_oklab(lab: [f64; 4]) -> [f64; 4] {
+    let l_ = lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2];
+    let m_ = lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2];
+    let s_ = lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2];
+    let (l, m, s) = (l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_);
+
+    let delinear = |v: f64| {
+        if v <= 0.0031308 {
+            v * 12.92
+        } else {
+            1.055 * v.powf(1.0 / 2.4) - 0.055
+        }
+    };
+    let r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+    let g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+    let b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+    [delinear(r), delinear(g), delinear(b), lab[3]]
+}
+
 /// Load standard mathematical and utility functions into the environment.
 pub fn load_standard_library(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
@@ -253,6 +347,43 @@ pub fn load_standard_library(env: &mut Environment) {
         })),
     );
 
+    // Perceptual color interpolation: raw sRGB channel lerps make midpoints
+    // muddy (a red→green mix dips to dark olive); in OKLab the hue stays even
+    // and lightness moves monotonically through the mix. Prefer this for
+    // cross-color motion; `lerp_color` stays for backwards compatibility.
+    env.set(
+        "lerp_color_oklab",
+        Value::NativeFn(Arc::new(|args, _env| {
+            expect_arg_count("lerp_color_oklab", args, 3)?;
+            let start = match &args[0] {
+                Value::Color(c) => *c,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_color_oklab expects start as Color".to_string(),
+                    ));
+                },
+            };
+            let end = match &args[1] {
+                Value::Color(c) => *c,
+                _ => {
+                    return Err(EvalError::TypeMismatch(
+                        "lerp_color_oklab expects end as Color".to_string(),
+                    ));
+                },
+            };
+            let t = expect_num("lerp_color_oklab", &args[2])?;
+            let a = oklab_from_srgb(start);
+            let b = oklab_from_srgb(end);
+            let mixed = [
+                a[0] + (b[0] - a[0]) * t,
+                a[1] + (b[1] - a[1]) * t,
+                a[2] + (b[2] - a[2]) * t,
+                a[3] + (b[3] - a[3]) * t,
+            ];
+            Ok(Value::Color(srgb_from_oklab(mixed).map(|v| v.clamp(0.0, 1.0))))
+        })),
+    );
+
     env.set("rand", Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))));
 
     // Σ_{k=lo}^{hi} f(k): invoke a single-parameter closure over an integer
@@ -357,15 +488,6 @@ pub fn load_standard_library(env: &mut Environment) {
 
     // Deterministic pseudo-random using splitmix64 hash.
     // Same seed always produces the same value in [0, 1).
-    fn splitmix64(x: u64) -> u64 {
-        let z = x.wrapping_add(0x9e3779b97f4a7c15);
-        let z = z ^ (z >> 30);
-        let z = z.wrapping_mul(0xbf58476d1ce4e5b9);
-        let z = z ^ (z >> 27);
-        let z = z.wrapping_mul(0x94d049bb133111eb);
-        z ^ (z >> 31)
-    }
-
     env.set(
         "seeded_rand",
         Value::NativeFn(Arc::new(|args, _env| {
@@ -375,6 +497,27 @@ pub fn load_standard_library(env: &mut Environment) {
             Ok(Value::Num(hash as f64 / u64::MAX as f64))
         })),
     );
+
+    // ── organic motion: seeded value noise ───────────────────────────────
+    // Pure functions of their arguments (the expression-cache requirement),
+    // so an `always` block can drive wobble / drift / flicker as
+    // `noise(t * k)` or layer octaves through `fbm` for organic irregularity.
+    const DEFAULT_NOISE_SEED: u64 = 0x006e_6f69_7365;
+    register_num1!(env, "noise", |x| value_noise(DEFAULT_NOISE_SEED, x, 0.0));
+    register_num2!(env, "noise2", |x: f64, y: f64| value_noise(DEFAULT_NOISE_SEED, x, y));
+    register_num2!(env, "seeded_noise", |seed: f64, x: f64| value_noise(seed.to_bits(), x, 0.0));
+    register_num3!(env, "seeded_noise2", |seed: f64, x: f64, y: f64| value_noise(
+        seed.to_bits(),
+        x,
+        y
+    ));
+    register_num2!(env, "fbm", |x: f64, octaves: f64| fbm(DEFAULT_NOISE_SEED, x, 0.0, octaves));
+    register_num3!(env, "seeded_fbm", |seed: f64, x: f64, octaves: f64| fbm(
+        seed.to_bits(),
+        x,
+        0.0,
+        octaves
+    ));
 
     for name in ["RED", "GREEN", "BLUE", "BLACK", "WHITE"] {
         if let Some(color) = animatix_syntax::typing::named_color_rgba(name) {
