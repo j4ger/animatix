@@ -117,7 +117,8 @@ fn first_transition_easing(stmts: &[Stmt]) -> Option<animatix_syntax::easing::Ea
     for stmt in stmts {
         match stmt {
             Stmt::Play {
-                transition: Some(t), ..
+                transition: Some(t),
+                ..
             } => return Some(t.easing),
             Stmt::Scene { body, .. } => {
                 if let Some(e) = first_transition_easing(body) {

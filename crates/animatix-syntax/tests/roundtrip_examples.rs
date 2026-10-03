@@ -114,3 +114,125 @@ fn roundtrip_all_example_files() {
         panic!("roundtrip failures for {} file(s):\n{}", failures.len(), failures.join("\n\n"));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Serializer stability over the whole repo
+// ---------------------------------------------------------------------------
+
+/// Roots whose `.amx` files are real content, not fixtures.
+fn repo_amx_files() -> Vec<std::path::PathBuf> {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("workspace root");
+    let mut files = Vec::new();
+    for dir in ["examples", "dogfood", "web"] {
+        files.extend(collect_amx_files(&root.join(dir)));
+    }
+    files.sort();
+    files
+}
+
+/// One line of the first pass next to its second-pass replacement.
+fn first_difference(a: &str, b: &str) -> Option<(String, String)> {
+    a.lines()
+        .zip(b.lines())
+        .chain((a.lines().count()..b.lines().count()).map(|_| ("<absent line>", "<extra line>")))
+        .find(|(x, y)| x != y)
+        .map(|(x, y)| (x.to_string(), y.to_string()))
+}
+
+/// Both serializers must be stable: serializing an already-serialized document
+/// has to produce byte-identical output, and must never fail to parse.
+///
+/// `animatix fmt` used to rewrite `move b to (300, 200)` into
+/// `move b, to 300, 200`, which the parser rejects — a single format pass
+/// destroyed the file. Statement *counts* could not see that, and neither
+/// could the old `assert_eq!(arms, arms)` guardrails.
+///
+/// The one accepted exception is asserted narrowly below: a string literal's
+/// backslashes grow on every pass, because the lexer stores the raw text
+/// between the quotes while `format_expr` escapes it again. Decoding escapes at
+/// lex time is a language-semantics decision (see `docs/roadmap.md`), so
+/// instability is tolerated *only* where a backslash is on the line that
+/// changed — anything else fails.
+#[test]
+fn both_serializers_are_stable_across_the_repo() {
+    let formatter =
+        animatix_syntax::formatter::Formatter::new(animatix_syntax::formatter::FormatConfig {
+            indent_size: 2,
+            ..Default::default()
+        });
+    let files = repo_amx_files();
+    assert!(files.len() > 100, "expected the repo's .amx corpus, found {}", files.len());
+
+    let mut failures: Vec<String> = Vec::new();
+    let mut escape_debt: Vec<std::path::PathBuf> = Vec::new();
+
+    for file_path in &files {
+        let Ok(source) = std::fs::read_to_string(file_path) else {
+            continue;
+        };
+        let label = file_path.display().to_string();
+        let (stmts, parse_errors) = animatix_syntax::parser::parse_source(&source);
+        let Some(stmts) = stmts else {
+            failures.push(format!(
+                "{label}: could not parse as shipped: {:?}",
+                parse_errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+            ));
+            continue;
+        };
+
+        for (serializer_name, serialized) in [
+            ("to_source", animatix_syntax::to_source::stmts_to_source(&stmts)),
+            ("Formatter", formatter.format(&stmts)),
+        ] {
+            let (again_opt, re_errors) = animatix_syntax::parser::parse_source(&serialized);
+            let Some(again) = again_opt else {
+                failures.push(format!(
+                    "{label}: {serializer_name} emitted text that will not parse: {:?}",
+                    re_errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+                ));
+                continue;
+            };
+            let second = match serializer_name {
+                "to_source" => animatix_syntax::to_source::stmts_to_source(&again),
+                _ => formatter.format(&again),
+            };
+            if second == serialized {
+                continue;
+            }
+            let Some((before, after)) = first_difference(&serialized, &second) else {
+                continue;
+            };
+            if before.contains('\\') {
+                escape_debt.push(file_path.clone());
+            } else {
+                failures.push(format!(
+                    "{label}: {serializer_name} is not idempotent\n  pass 1: {before}\n  pass 2: {after}"
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} file(s) fail serializer stability:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+
+    // The tolerance above must stay scoped to the escape bug: every excused
+    // file has to actually contain a backslash, or the exemption is hiding
+    // something else.
+    let unjustified: Vec<String> = escape_debt
+        .iter()
+        .filter(|path| std::fs::read_to_string(path).is_ok_and(|text| !text.contains('\\')))
+        .map(|path| path.display().to_string())
+        .collect();
+    assert!(
+        unjustified.is_empty(),
+        "serializer instability was excused as the string-escape bug in files with no \
+         backslash at all: {unjustified:?}"
+    );
+}

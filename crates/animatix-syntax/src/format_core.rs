@@ -63,6 +63,11 @@ pub fn format_modifier(m: &Modifier) -> String {
 
 /// Serialize an action to source text.
 pub fn format_action(a: &Action) -> String {
+    // The grammar reads a target-style action's front as either a
+    // comma-separated list *or* a whitespace-separated run, and only the run
+    // may be followed by arguments. Commas here would therefore corrupt
+    // `move b to (300, 200)` into `move b, to …`, which does not parse.
+    let target_join = if a.args.is_empty() { ", " } else { " " };
     let targets = a
         .targets
         .iter()
@@ -72,7 +77,7 @@ pub fn format_action(a: &Action) -> String {
             None => target.clone(),
         })
         .collect::<Vec<_>>()
-        .join(", ");
+        .join(target_join);
     let mut parts = vec![a.verb.clone()];
     if !targets.is_empty() {
         parts.push(targets.clone());
@@ -83,7 +88,13 @@ pub fn format_action(a: &Action) -> String {
             // Function-style call `f(a, b)`: keep the parentheses.
             return format!("{}({args})", a.verb);
         }
-        parts.push(args);
+        // Parenthesized when there is more than one, because a bare `300, 200`
+        // is not a parseable argument run; one argument needs no group.
+        parts.push(if a.args.len() > 1 {
+            format!("({args})")
+        } else {
+            args
+        });
     }
     if !a.modifiers.is_empty() {
         let mods = a.modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
@@ -707,55 +718,5 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             s
         },
         Stmt::Comment(text, ..) => format!("//{}", text),
-    }
-}
-
-#[cfg(test)]
-mod variant_coverage_guardrails {
-    /// When adding a new variant to `Expr`, update:
-    /// - `format_expr` in this file
-    /// - `walk.rs` (walk_expr)
-    /// - `rewrite.rs` (expr_needs_rewrite if still manual)
-    /// - any other Expr match sites
-    #[test]
-    fn format_expr_covers_all_expr_variants() {
-        // Expr has exactly 17 variants as of last update.
-        // If this fails, add the new variant to format_expr
-        // and increment this count.
-        let arms = 18; // Num, Percent, Str, Bool, Null, Ident, Path, Index, List, Tuple, Binary, Unary, Call, Method, Closure, Conditional, Match, Construct
-        // Compile-time check: format_expr's match arms must be exhaustive
-        // This test breaks at compile time anyway, but the count serves
-        // as a searchable reminder when variants change.
-        assert_eq!(
-            arms, 18,
-            "Expr variant count changed — update format_expr and other match sites"
-        );
-    }
-
-    /// When adding a new variant to `InlineItem`, update:
-    /// - `format_inline_item` in this file
-    /// - `walk.rs` (walk_inline_item)
-    #[test]
-    fn format_inline_item_covers_all_inline_item_variants() {
-        let arms = 5; // Anonymous, Labeled, ForLoop, SlotMarker, SlotFill
-        assert_eq!(
-            arms, 5,
-            "InlineItem variant count changed — update format_inline_item and other match sites"
-        );
-    }
-
-    /// When adding a new variant to `Stmt`, update:
-    /// - `format_stmt_raw` in this file
-    /// - `walk.rs` (walk_stmt, walk_stmts)
-    /// - `to_source.rs` (ToSource impl)
-    /// - `source_index.rs` (walk)
-    /// - `module.rs` (set_action_spans)
-    #[test]
-    fn format_stmt_raw_covers_all_stmt_variants() {
-        let arms = 20; // Action, LetDecl, ActorDecl, Import, Keyframe, RelativeKeyframe, Assignment, Sequence, Stagger, Always, ReactiveBinding, Conditional, Match, ForLoop, ComponentDef, ComponentAction, Config, Scene, Play, Comment
-        assert_eq!(
-            arms, 20,
-            "Stmt variant count changed — update format_stmt_raw and other match sites"
-        );
     }
 }
