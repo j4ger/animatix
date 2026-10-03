@@ -126,6 +126,15 @@ Done (recorded so they are not re-litigated):
 | Canvas backing store at the displayed size | Done (embed `_applyRenderScale`). Worth ~0.14 ms where `display px × dpr` is below the scene resolution, and a no-op above it. |
 | Foreground-window measurement | Done 2026-09-30. The gap is **real**, not background-tab throttling: 3.42 ms/frame at display size vs native 1.63 ms at a larger raster. |
 
+## Test-suite flake worth fixing
+
+`cargo test -p animatix-text` fails `fast_path_caches_results` when run with
+default parallelism (it passes with `--test-threads=1`). The text cache is a
+process-global memo, so tests that exercise it are order-dependent. The repo
+workflow already runs the suite serially, which hides it — but a contributor
+typing the obvious command gets a red build for no reason. Either give the cache
+a per-test scope or make that test own its cache generation.
+
 ## Planned Features
 
 | Feature | Notes | Status |
@@ -175,7 +184,13 @@ list at the end of the easing-pass section); what is left is below.
 
 | Item | What it is | Status |
 |---|---|---|
-| Single-line `text_align` / `text_max_width` do not move the anchor | A one-line `Text` is always centred on `at:` regardless of `text_align` (probe: left/right/plain identical), so right-aligned label columns overlap their bars and left-aligned captions jitter when swapped. The alignment should apply to the line box's anchor, or the combination should warn. Worked around by hand-computing `at:` x per label. | Not started |
+| Single-line `text_align` / `text_max_width` do not move the anchor | A one-line `Text` is always centred on `at:` regardless of `text_align` (probe: left/right/plain identical), so right-aligned label columns overlap their bars and left-aligned captions jitter when swapped. The alignment should apply to the line box's anchor, or the combination should warn. Worked around by hand-computing `at:` x per label. | Not started — attempted 2026-10-03 and reverted; see below |
+| `text_align` cannot be fixed without deciding what it means | An implementation was written and measured, then reverted. Two findings from it, both needing a decision before anyone tries again:
+
+1. **The property default is `"left"` but the renderer has always centred.** `property_registry.rs` seeds `text_align` with `"left"`, while `compile_text_*` centred the measured ink regardless of the value — so the default has been lying for as long as it has existed, and `"left"` / `"center"` / `"right"` were indistinguishable (the roadmap's original probe). Any real implementation has to pick: either the default becomes `"center"` to match observed behaviour, or `"left"` starts meaning left and every un-aligned caption in the language re-anchors.
+2. **Making alignment real moves 200 of 304 corpus frames.** Measured with two binaries differing *only* in the alignment work (box-centring for bounded blocks + an anchor shift for unbounded ones, default set to `"center"` so untouched scenes should have been stable): 200 frames differed, e.g. `examples/basics/00_hello.amx` at PSNR 40. So the shift is not confined to scenes that ask for alignment — it reaches ordinary centred text everywhere, most likely through the bounded path where the declared box is wider than the drawn line.
+
+What that means for the fix: it cannot be a renderer tweak. It needs a design — probably an explicit anchor knob (`text_anchor: "left"|"center"|"right"` alongside the intra-box `text_align`, which is what the two meanings really are) plus a content pass over `examples/` and `web/` to re-tune whatever moves. The site's hand-computed `at:` x for right-aligned label columns stays in place until then, and is the thing that should be deleted when this lands. | Not started |
 | Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` — the brightest pixels on the ink page, out-shining the amber lead. Outside `dynamic_layout` the scenes dim them with `stroke: stroke.default` (verified in `web/tour/scenes/plots.amx`); inside a `dynamic_layout` scene that same property blanks the whole graph, so the epicycles/spectrum axes stay white. Needs the plot axis style to read the colorscheme's `stroke.default` by default. (Its companion finding — `Graph.map()` returning screen coords at half the px/unit the curve uses — is fixed; see below.) | Not started |
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` | The bundled Open Sans/CJK faces reach the db only through the embed/wasm path (`with_fonts_and_fallback`), so the plain fast path resolves the bundle only when the host happens to install those families system-wide — four `animatix-text` fast-path tests asserted "Open Sans is bundled" while quietly depending on the machine (made hermetic in the 2026-10-02 test fix, but the engine-side question stands: should the native context bundle-register by default, like the wasm one does?). | Not started |
