@@ -78,8 +78,24 @@ pub fn collect_semantic_diagnostics(
             {
                 continue;
             }
+            // An unreferenced *actor* is not a defect: every declared actor
+            // paints, so `caption: Text, text: "…"` that nothing animates is
+            // ordinary source, not dead code. This used to report as a warning
+            // and fired 347 times across this repo's own `examples/`, `web/`
+            // and `dogfood/` — every one of them on an actor, which trained
+            // authors to skim the whole diagnostic list. It stays available as
+            // a hint, because the case it genuinely catches ("this was meant to
+            // be wired to something") is invisible to any other check:
+            // `never-revealed` covers actors that never show up, and nothing
+            // covers `clip_shape` declared as a mask source and never used.
+            // A `let` nobody reads has no such defence — it is simply dead.
+            let severity = if info.kind == LabelKind::Actor {
+                DiagnosticSeverity::Hint
+            } else {
+                DiagnosticSeverity::Warning
+            };
             diagnostics.push(span_diagnostic(
-                DiagnosticSeverity::Warning,
+                severity,
                 DiagnosticCode::UnusedLabel,
                 format!(
                     "Unused {}: '{}'",
@@ -613,6 +629,7 @@ fn check_stmt(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::Expr;
 
     fn unused_labels(stmts: &[Stmt]) -> Vec<String> {
         let symbols = SymbolTable::build_from_ast(stmts);
@@ -621,6 +638,67 @@ mod tests {
             .filter(|d| d.code == DiagnosticCode::UnusedLabel)
             .map(|d| d.message.clone())
             .collect()
+    }
+
+    fn unused_label_severity(stmts: &[Stmt], name: &str) -> Option<DiagnosticSeverity> {
+        let symbols = SymbolTable::build_from_ast(stmts);
+        collect_semantic_diagnostics(stmts, &symbols, &[], "")
+            .into_iter()
+            .find(|d| d.code == DiagnosticCode::UnusedLabel && d.message.contains(name))
+            .map(|d| d.severity)
+    }
+
+    fn bare_actor(ty: &str, label: &str, props: Vec<crate::ast::Property>) -> Stmt {
+        Stmt::ActorDecl {
+            is_pub: false,
+            is_anonymous: false,
+            label: label.to_string(),
+            array_index: None,
+            ty: ty.to_string(),
+            props,
+            modifiers: vec![],
+            children: vec![],
+            span: None,
+        }
+    }
+
+    /// A standing caption is content, not a loose end: nothing animates it and
+    /// nothing has to. It stays a hint so editors can still offer the removal,
+    /// but it must not sit in the warning column with real defects — 347 of
+    /// this repo's own files said "Unused actor" and the lint stopped being
+    /// readable.
+    #[test]
+    fn an_unreferenced_but_visible_actor_is_a_hint_not_a_warning() {
+        let stmts = vec![bare_actor(
+            "Text",
+            "col_cap",
+            vec![
+                crate::ast::Property::new("text", Expr::Str("column space".into())),
+                crate::ast::Property::new("opacity", Expr::Num(1.0)),
+            ],
+        )];
+        assert_eq!(
+            unused_label_severity(&stmts, "'col_cap'"),
+            Some(DiagnosticSeverity::Hint),
+            "a static caption must not be reported as a warning"
+        );
+    }
+
+    /// The counterpart: a binding nothing reads has no defence, and this is the
+    /// case the diagnostic was actually built for.
+    #[test]
+    fn an_unread_binding_is_still_a_warning() {
+        let stmts = vec![Stmt::LetDecl {
+            is_pub: false,
+            name: "leftover".to_string(),
+            value: Expr::Num(3.0),
+            span: None,
+        }];
+        assert_eq!(
+            unused_label_severity(&stmts, "'leftover'"),
+            Some(DiagnosticSeverity::Warning),
+            "demoting actors must not have demoted the case that means something"
+        );
     }
 
     #[test]

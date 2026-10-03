@@ -1,7 +1,7 @@
 {
   "diagnostics": [
     { "code": "unterminated-string", "severity": "error", "line": 0, "col": 19 },
-    { "code": "unused-label", "severity": "warning", "line": 0, "col": 0 },
-    { "code": "unused-label", "severity": "warning", "line": 1, "col": 0 }
+    { "code": "unused-label", "severity": "hint", "line": 0, "col": 0 },
+    { "code": "unused-label", "severity": "hint", "line": 1, "col": 0 }
   ]
 }

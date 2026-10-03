@@ -188,7 +188,6 @@ whether the behaviour is *wrong* or merely *shaped badly*.
 |---|---|---|
 | 2 | **`animatix fmt` deletes comments and reflows declarations.** | Formatting `web/scenes/hero.amx` drops its 19-line header block and collapses every multi-line declaration onto one line (202 → 124 lines). The formatter rebuilds from the AST and never re-emits trivia, so the "single lossless tokenizer" promise stops at the parser. Re-scoped 2026-10-03: statement-position comments are dropped at exactly one place (`parser/token_parser.rs:28`, the token filter), and `Stmt::Comment` already exists, already prints, and is already tolerated by every walker — but **statements carry no byte spans** (only `Property::value_span` does), so the `attach_trailing_comments` offset trick cannot be reused for them. Real options: (a) let `Comment` tokens through the grammar and make every `choice`/`delimited_by` site skip them, or (b) give statements spans and back-fill like trailing comments. Neither is small; (b) is the one that also gives diagnostics better locations for free. |
 | 3 | **The native-plugin ABI silently flattens most easings to Linear.** | `easing_code` (`extension_native_plugin.rs:1577`) maps everything outside {EaseIn, EaseOut, EaseInOut} onto code 0, so a plugin reading a `spring`, `bounce`, or `cubic-bezier` track sees a linear one. Pre-dates this pass. Widening the code space is a plugin-API version bump, not an easing change. |
-| 4 | **`unused-label` fires on deliberately static actors.** | `matrix/collapse.amx`'s `col_cap` and `shear.amx`'s `shear_cap` are standing captions with explicit `opacity: 1.0` that are never animated, by design. The build reports "Unused actor" for them, so the diagnostic is noise on real source and trains authors to skim it. Either scope it to actors that are never *rendered*, or demote it. |
 | 5 | **A component actor declared between keyframes renders half-drawn.** | `hash/lookup.amx`'s `q2`/`q3` (`LabeledBox`) appeared as a dim box *without its label* in beats before their own `fade-in`. Worked around scene-side with `opacity: 0.0`, but the engine question stands: "declared inside a keyframe is visible immediately" should not produce a partially drawn component. Needs a minimal repro outside the demo. |
 | 13 | **A string literal's backslashes grow every time a file is formatted.** | The lexer stores the raw text between the quotes (`token.rs:397` `lex_string` skips escape pairs but never decodes them) while `format_expr`'s `Str` arm re-escapes (`s.replace('\\', "\\\\")`), so `"…\n…"` becomes `"…\\n…"` and then `"…\\\\n…"`: `animatix fmt` is not idempotent and each pass drifts the rendered text further. Four repo files are affected (`dogfood/probes/008-render-correctness/text.amx`, `examples/gallery/sorting_theatre.amx`, `examples/layout/27_layout_text.amx`, `web/demos/transformer/scenes/attention.amx`); `roundtrip_examples.rs` excuses instability *only* when the changed line contains a backslash, so a fifth cause cannot appear silently. The fix is a language decision, not a printer tweak: decode escapes at lex time so `Expr::Str` holds the value (then `\n` in `text:` finally means a newline, and Typst's `\sqrt` stops needing `\\sqrt`), or declare the field raw-text and give the ~10 GUI `Expr::Str(…)` construction sites an explicit escaping constructor. Today the field means both things at once, which is why no printer rule can be right. |
 
@@ -226,4 +225,14 @@ with two or more arguments into text the parser rejects**
 (`move b to (300, 200)` → `move b, to 300, 200`), so one format pass destroyed
 such a file; `format_action` now emits a reparseable form and
 `roundtrip_examples.rs` checks serializer stability across every `.amx` in
-`examples/`, `dogfood/` and `web/`. See `docs/history.md`, "The Easing Pass".
+`examples/`, `dogfood/` and `web/`.
+
+Also #4, whose real size the row understated: `unused-label` fired **347 times**
+across this repo's own corpus — every one of them on an *actor*, none on a
+binding or component — because an unreferenced actor still renders. A warning
+that is wrong on every legitimate file is not a warning, and it also made the
+column unreadable for any lint added later. The actor case is now a hint (a
+`let` nobody reads still warns), and `animatix check`/`lint` fold hints from
+their text output while `--format json` keeps them, so the 56 files carrying one
+still say so once. `never-revealed` in the build layer remains the lint that
+catches an actor that is declared and never shown. See `docs/history.md`, "The Easing Pass".

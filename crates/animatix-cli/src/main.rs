@@ -357,8 +357,12 @@ fn emit_check_report(
                 for diag in &diagnostics {
                     println!("{}", format_diagnostic_with_source(diag, source));
                 }
-                for diag in &semantic {
+                let (shown, folded) = fold_hints(&semantic);
+                for diag in shown {
                     println!("{}:{}", file_label, diag);
+                }
+                if folded > 0 {
+                    println!("{file_label}: {folded} hint(s) folded — --format json lists them");
                 }
             }
         },
@@ -367,6 +371,25 @@ fn emit_check_report(
     if has_error {
         std::process::exit(1);
     }
+}
+
+/// Split semantic diagnostics into the ones a text report should print, and how
+/// many hints it folded away.
+///
+/// A hint is an observation about source that is usually deliberate — an
+/// unreferenced actor still renders every frame — and this repo's own corpus
+/// carries 347 of them, which was enough to make the warning column unreadable
+/// (see `docs/roadmap.md`, "Easing pass"). They are folded from the text
+/// report rather than deleted: the count is stated, and `--format json` keeps
+/// every one.
+fn fold_hints(
+    diagnostics: &[animatix_analyzer::Diagnostic],
+) -> (Vec<&animatix_analyzer::Diagnostic>, usize) {
+    let shown: Vec<&animatix_analyzer::Diagnostic> = diagnostics
+        .iter()
+        .filter(|d| d.severity != animatix_analyzer::DiagnosticSeverity::Hint)
+        .collect();
+    (shown.clone(), diagnostics.len() - shown.len())
 }
 
 /// Extensions loaded from CLI `--plugin` arguments.
@@ -1645,8 +1668,15 @@ fn main() {
                     if !diagnostics.is_empty() {
                         match format {
                             OutputFormat::Text => {
-                                for diag in &diagnostics {
+                                let (shown, folded) = fold_hints(&diagnostics);
+                                for diag in shown {
                                     println!("{}:{}", file.display(), diag);
+                                }
+                                if folded > 0 {
+                                    println!(
+                                        "{}: {folded} hint(s) folded — --format json lists them",
+                                        file.display()
+                                    );
                                 }
                             },
                             OutputFormat::Json => {

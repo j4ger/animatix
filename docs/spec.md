@@ -453,6 +453,18 @@ circle: Ellipse, at: (100, 100) [2s]
 > (`// lint-disable: duplicate-label` suppresses it). Scenes are separate
 > namespaces: the same label may appear in different scenes.
 
+> **Unused declarations.** A `let` binding nothing reads is a **warning**. An
+> unreferenced *actor* is only a **hint**: declaring an actor is itself what puts
+> it on screen, so the standing caption, the backdrop and the mask source that
+> nothing animates are ordinary source rather than loose ends. (The distinction
+> is recent — the actor case used to warn, and 347 of this repo's own files said
+> so, which made the warning column unreadable.) Both share the `unused-label`
+> code, so `// lint-disable: unused-label` covers both; `animatix check` and
+> `animatix lint` fold hints out of their text output and print how many were
+> folded, and `--format json` still reports every one. For the failure an
+> unreferenced actor can genuinely signal — declared but never shown — the build
+> reports `never-revealed`, which does warn.
+
 **Shipped morph modifiers** (timed path-morphing only):
 ```animatix
 [2s, strategy: auto]     // Engine decides (default)

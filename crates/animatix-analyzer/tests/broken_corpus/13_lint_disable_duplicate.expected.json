@@ -1,5 +1,5 @@
 {
   "diagnostics": [
-    { "code": "unused-label", "severity": "warning", "line": 1, "col": 0 }
+    { "code": "unused-label", "severity": "hint", "line": 1, "col": 0 }
   ]
 }

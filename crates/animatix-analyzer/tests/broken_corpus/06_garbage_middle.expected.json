@@ -2,6 +2,6 @@
   "diagnostics": [
     { "code": "parse-error", "severity": "error", "line": 2, "col": 0 },
     { "code": "parse-error", "severity": "error", "line": 2, "col": 18 },
-    { "code": "unused-label", "severity": "warning", "line": 4, "col": 0 }
+    { "code": "unused-label", "severity": "hint", "line": 4, "col": 0 }
   ]
 }
