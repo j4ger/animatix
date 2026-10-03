@@ -303,31 +303,44 @@ its first pass:
   ceiling at all, and the name belongs to the text wrap width. Both are open
   items above; the example now demonstrates `min_width` and says so. See `docs/history.md`, "The Easing Pass".
 
-## The property type table does not know about `"auto"` (found 2026-10-03)
+## Property value forms the checker rejects but the builders read
 
-`animatix_syntax::schema::raw_property_types()` is one `Type` per property *name*,
-but several builders accept more than one shape for the same name, so the checker
-contradicts both those builders and `docs/primitives.md`:
+**Resolved 2026-10-03** for the four rows below, kept because the shape is still
+live: `animatix_syntax::schema::raw_property_types()` is one `Type` per property
+*name*, so one property shared by two readers can only have one row. A property
+whose builder accepts `"auto"` therefore needs `Type::Union`, and widening a
+*shared* row is only safe once every other reader reports what it drops — which
+is exactly what unblocked `gap`:
 
-| Property | Type row | Also accepted at build | Repro |
+| Property | Row before | Also accepted at build | Now |
 |---|---|---|---|
-| `gap` (BarChart) | `Num` | `auto` (bare or `"auto"`) — `build/plot.rs:2164` | `BarChart, data: {…}, gap: "auto"` → `type-mismatch: expected Num, found Str` |
-| `bar_width` | `Num` | same | `bar_width: "auto"` → same warning |
-| `max_value` | `Num` | same | `max_value: "auto"` → same warning |
-| `show_axis` / `show_labels` | `Bool` | `"true"` / `"false"` (`show_axis_string`, `show_labels_string` both pass today) | `show_axis: "false"` → `type-mismatch: expected Bool, found Str` |
+| `gap` | `Num` | `auto` / `"auto"` — BarChart bar spacing (`build/plot.rs`) | `Union(Num, Str)`, and each container now pushes `InvalidPropertyValue` for a value it cannot read (`container_layout_value_it_cannot_read_is_reported` covers Row/Col/Grid) |
+| `bar_width` | `Num` | same, BarChart only | `Union(Num, Str)` |
+| `max_value` | `Num` | same, BarChart only | `Union(Num, Str)` |
+| `show_axis` / `show_labels` | `Bool` | `"true"` / `"false"` | `Union(Bool, Str)`, plus a diagnostic for a string that is none of `true/1/false/0` — previously `show_axis: "yes"` silently read false |
 
-The bare form (`gap: auto`) is clean, because an unresolved identifier infers to
-something compatible; only the quoted string trips it.
+Wrong values still fail: they now produce the *consumer's* message
+(`BarChart 'c' bar_width expects a number or "auto", got Str("wide")`) instead of
+only a type warning, which is the stronger signal either way. Pinned by the
+golden `broken_corpus/19_bar_chart_documented_forms.amx`, which asserts zero
+analyzer diagnostics for every documented form.
 
-Why this is a row here and not a three-line patch: widening `gap`'s row to
-`Union(Num, Str)` would also silence the **only** signal a container gets today
-that its `gap` was dropped — `Row`/`Col`/`Grid`/`Stack` read it with
-`if let Ok(Value::Num(n))` and report nothing otherwise, so `gap: "auto"` on a
-`Row` is currently caught by the checker and would become silent. Either fix the
-container drop first (a diagnostic in each container primitive, which AGENTS.md
-asks for anyway), give the type layer per-actor-type rows, or drop the documented
-string form and say so in `docs/primitives.md` — all reasonable, none of them a
-drive-by change.
+### Anything declared inside a container is not property-checked at all
+
+Found while writing that golden. The semantic walker (`crate::walk::walk_stmts`)
+recurses into statement bodies but **not** into `ActorDecl.children`, so:
+
+```
+row: Row, gap: 24 { r: Rect, size: (10, 10), opacity: "late" }   // no warning
+top: Rect, size: (10, 10), opacity: "late"                      // type-mismatch
+```
+
+Both `unknown-property` and `type-mismatch` skip every actor inside braces, which
+is most of the language's content. Fixing it means teaching `walk_stmts` (or the
+diagnostic pass) to visit `InlineItem::Labeled` declarations, and every existing
+scene then gets checked for the first time — expect a real wave of findings
+(`check_examples.sh` currently reports 19 allowed warnings; this could triple
+that) and duplicates to dedupe first. Worth doing, not a drive-by.
 
 This came out of closing the last open item in `docs/handoff_phase2.md`
 (`BarChart` missing from the `gap` applicability row), which also produced

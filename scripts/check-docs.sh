@@ -66,7 +66,13 @@ echo ""
 echo "2. Roadmap Active Work completed-status rows"
 echo "-------------------------------------------"
 COMPLETED_ROWS="$ROOT/docs/roadmap.md"
-if grep -nE '^\|.*\| (Done|Completed|Resolved|Shipped) \|' "$COMPLETED_ROWS"; then
+# Scoped to the Active Work section on purpose. The later per-round findings
+# tables ("Web-demo review pass", "Easing pass") are history with their own
+# Status column and are *supposed* to say Resolved when something ships;
+# scanning the whole file flagged those and made this check unpassable.
+ACTIVE_WORK=$(awk '/^## Backlog & Prioritization/{inside=1; next} /^## /{inside=0} inside' \
+    "$COMPLETED_ROWS")
+if echo "$ACTIVE_WORK" | grep -nE '^\|.*\| (Done|Completed|Resolved|Shipped) \|'; then
     echo "  FAILED: completed rows should be removed from Active Work"
     FAILED=1
 else
