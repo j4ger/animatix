@@ -79,6 +79,15 @@ Remaining:
 
 ### Web playback performance (active)
 
+> **Instrument warning, 2026-10-03.** `debug_bench_frames` on a *demo* page is
+> not usable for small A/B comparisons: the page's adaptive quality step changes
+> the raster scale between runs, and p50 swung 1.7 ms → 55.2 ms across two runs of
+> the same build. Pin `set_render_scale` first, and prefer
+> `web/demos/perf-probe.html` with `?base=`, which was built for this. A frame-cache
+> gating change was measured on `web/demos/matrix/` (four embeds, machine busy)
+> and the result — p50 45.2 ms before, 49.4 ms after, at a pinned 0.5 scale — is
+> **inconclusive in both directions**, so no perf claim is attached to it.
+
 Method and measurements: `docs/performance_evaluation.md` §3.7. Shipped
 2026-09-30: a browser frame-cost harness (`debug_bench_frames` /
 `debug_gpu_drain` / `web/demos/perf-probe.html`, `?base=` for A/B of two engine

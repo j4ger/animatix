@@ -518,6 +518,16 @@ pub struct Timeline {
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
     /// Optional extension context used during build.
     extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
+    /// Whether any actor here is an effect scope (`Filter`, `Mask`, and any
+    /// primitive whose caps say so).
+    ///
+    /// A frame-cache entry replays a built vello scene, which cannot carry the
+    /// filter backend's pending-composite side channel — so replaying is only
+    /// safe while nothing in the scene would have consulted the backend at all,
+    /// and that is exactly this flag. Without it the cache has to bail whenever a
+    /// backend is merely *present*, and the web runtime passes one on every
+    /// frame, which is how browsers ended up re-evaluating from scratch.
+    pub(crate) has_effect_scopes: bool,
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
@@ -819,6 +829,7 @@ impl Timeline {
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
             extensions: None,
+            has_effect_scopes: false,
             env_base: std::sync::Arc::new(std::collections::HashMap::new()),
             env_pool: std::cell::RefCell::new(None),
             modifiers: Vec::new(),

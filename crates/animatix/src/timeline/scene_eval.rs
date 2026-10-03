@@ -1602,6 +1602,21 @@ impl Timeline {
             .scene
     }
 
+    /// Whether a supplied filter backend could actually be consulted while
+    /// building a frame.
+    ///
+    /// The backend is only reached by effect-scope actors, so its mere presence
+    /// is not a reason to skip the frame cache — a runtime that always supplies
+    /// one (the web player passes it on every frame) would otherwise never
+    /// cache anything. Debug options are a separate matter: they change what is
+    /// drawn, so they always block.
+    fn backend_can_run(
+        &self,
+        filter_backend: &Option<&mut dyn crate::timeline::effects::FilterBackend>,
+    ) -> bool {
+        filter_backend.is_some() && self.has_effect_scopes
+    }
+
     /// Restore cache-derived frame state when a frame cache entry matches.
     fn restore_frame_cache(
         &self,
@@ -1611,7 +1626,7 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
     ) -> Option<crate::timeline::scene_program::SceneProgram> {
-        if filter_backend.is_some() || debug_options != DebugRenderOptions::default() {
+        if self.backend_can_run(filter_backend) || debug_options != DebugRenderOptions::default() {
             return None;
         }
         let time_ms = (time_s * 1000.0) as u64;
@@ -1735,7 +1750,7 @@ impl Timeline {
         // buffer. Filter/debug frames bypass the frame cache (its entry stays
         // valid), so they recycle via scene_buffer instead.
         let debug_or_filter =
-            filter_backend.is_some() || debug_options != DebugRenderOptions::default();
+            self.backend_can_run(filter_backend) || debug_options != DebugRenderOptions::default();
         let mut scene = if debug_or_filter {
             self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
         } else {
@@ -1866,7 +1881,7 @@ impl Timeline {
                 // subtree's (label, rect) pairs once and restores them on hits, so
                 // the GUI (which always requests `compute_hit_regions` for picking)
                 // keeps its static-subtree reuse.
-                if out.filter_backend.is_none() && self.is_static_subtree(root) {
+                if !self.backend_can_run(out.filter_backend) && self.is_static_subtree(root) {
                     let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
                     let cache = self.eval_caches.static_subtree_cache.borrow_mut();
                     if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
@@ -2006,7 +2021,7 @@ impl Timeline {
             precise_bounds: program_bounds,
             diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };
-        if filter_backend.is_none() && debug_options == DebugRenderOptions::default() {
+        if !self.backend_can_run(filter_backend) && debug_options == DebugRenderOptions::default() {
             *self.eval_caches.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
                 dimensions: scene_dimensions,
@@ -2174,6 +2189,43 @@ mod tests {
             let entry = cache.as_ref().expect("program evaluation should populate cache");
             assert!(entry.collect_items);
         }
+    }
+
+    /// The frame cache is gated on this flag rather than on the backend's mere
+    /// presence, so that a runtime which supplies a backend on every frame (the
+    /// web player) can still cache. Getting the flag wrong in the permissive
+    /// direction is the dangerous one: an effect scene would replay a cached
+    /// frame with its composited regions silently missing.
+    #[test]
+    fn has_effect_scopes_tracks_what_the_scene_actually_contains() {
+        let build = |src: &str| {
+            let (ast, errors) = animatix_syntax::parser::parse_source(src);
+            assert!(errors.is_empty(), "parse errors: {errors:?}");
+            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
+                .output
+        };
+
+        let plain = build(
+            "config { resolution: (100, 100) }\n\
+             b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
+             #0s\nb.opacity = 1.0\n",
+        );
+        assert!(
+            !plain.has_effect_scopes,
+            "an effect-free scene reported effect scopes, which would keep the web player out of the frame cache"
+        );
+
+        let filtered = build(
+            "config { resolution: (100, 100) }\n\
+             f: Filter, at: (30, 30), size: (60, 60), blur: 4 {\n\
+               b: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
+             }\n\
+             #0s\nf.opacity = 1.0\n",
+        );
+        assert!(
+            filtered.has_effect_scopes,
+            "a `Filter` scope was not detected; the frame cache would swallow its composites"
+        );
     }
 
     #[test]

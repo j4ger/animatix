@@ -776,6 +776,13 @@ impl Timeline {
             timeline.asset_cache.asset_usage().map(|(path, _)| path.clone()).collect();
         std::sync::Arc::make_mut(&mut timeline.asset_cache).prune_unreferenced(&referenced);
 
+        // Whether anything here could consult the filter backend at all. The
+        // frame cache is gated on this rather than on the backend's presence, so
+        // a runtime that always supplies one (the web player) is not locked out
+        // of caching for scenes that contain no effects.
+        timeline.has_effect_scopes =
+            timeline.tracks.values().any(|track| track.caps.is_effect_scope());
+
         BuildReport::new(timeline, diagnostics)
     }
 }
