@@ -122,6 +122,12 @@ pub fn format_transition(t: &Transition) -> String {
     if t.duration_ms > 0 {
         parts.push(format!("{}ms", t.duration_ms));
     }
+    // Emitted only when it is not the default, so formatting a file that never
+    // asked for an easing leaves it untouched. Omitting this line is what made
+    // `animatix fmt` delete an authored `ease:` from a play statement.
+    if t.easing != crate::easing::Easing::Linear {
+        parts.push(format!("ease: {}", crate::easing::easing_source_form(t.easing)));
+    }
     parts.join(", ")
 }
 

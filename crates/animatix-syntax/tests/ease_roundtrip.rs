@@ -111,3 +111,62 @@ fn a_wrong_arity_bezier_is_not_silently_accepted() {
     });
     assert!(kept, "the bad ease was dropped instead of left for a diagnostic");
 }
+
+/// Recursively find the first `play` transition's easing (scene bodies nest).
+fn first_transition_easing(stmts: &[Stmt]) -> Option<animatix_syntax::easing::Easing> {
+    for stmt in stmts {
+        match stmt {
+            Stmt::Play { transition, .. } => {
+                if let Some(t) = transition {
+                    return Some(t.easing);
+                }
+            },
+            Stmt::Scene { body, .. } => {
+                if let Some(e) = first_transition_easing(body) {
+                    return Some(e);
+                }
+            },
+            _ => {},
+        }
+    }
+    None
+}
+
+/// A `play` transition's ease used to be discarded twice over: the parser
+/// hardcoded `Easing::Linear` behind a `_ => {}`, and the transition printer
+/// emitted only id + duration, so `animatix fmt` deleted the authored value.
+#[test]
+fn a_play_transition_ease_parses_and_survives_formatting() {
+    use animatix_syntax::easing::Easing;
+
+    let doc = |ease: &str| {
+        format!(
+            "# A\nconfig {{ resolution: (400, 400), duration: 1 }}\nb: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n#0s\nplay B [fade, 800ms, ease: {ease}]\n# B\nconfig {{ resolution: (400, 400), duration: 1 }}\nc: Rect, size: (10, 10), color: accent.primary, at: (1, 1)\n"
+        )
+    };
+
+    for (written, want) in [
+        ("ease-in-out", Easing::EaseInOut),
+        ("expo-out", Easing::ExpoOut),
+        ("cubic-bezier(0.16, 1, 0.3, 1)", Easing::CubicBezier([0.16, 1.0, 0.3, 1.0])),
+    ] {
+        let parsed = first_transition_easing(&parse(&doc(written)));
+        assert_eq!(parsed, Some(want), "play [{written}] did not resolve its easing");
+
+        let serialized =
+            animatix_syntax::to_source::stmts_to_source(&parse(&doc(written)));
+        assert_eq!(
+            first_transition_easing(&parse(&serialized)),
+            Some(want),
+            "transition ease lost in formatting; serializer emitted:\n{serialized}"
+        );
+    }
+
+    // No authored ease must not start inventing one in the output.
+    let plain = "# A\nconfig { resolution: (400, 400), duration: 1 }\n#0s\nplay B [fade, 800ms]\n# B\nconfig { resolution: (400, 400), duration: 1 }\n";
+    let out = animatix_syntax::to_source::stmts_to_source(&parse(plain));
+    assert!(
+        !out.contains("ease:"),
+        "a transition with no authored ease grew one:\n{out}"
+    );
+}

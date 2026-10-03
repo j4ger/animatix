@@ -45,8 +45,8 @@ pub(crate) fn parser<'src>(
     let play_stmt = keyword("play")
         .ignore_then(scene_ref)
         .then(modifiers.clone())
-        .map(|(scene_name, mods)| {
-            let transition = parse_transition_from_modifiers(&mods);
+        .map(|(scene_name, mut mods)| {
+            let transition = parse_transition_from_modifiers(&mut mods);
             Stmt::Play {
                 scene_name,
                 transition,
@@ -191,12 +191,20 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
 
 /// Convert play statement modifiers into a `Transition` descriptor.
 pub(crate) fn parse_transition_from_modifiers(
-    modifiers: &[Modifier],
+    modifiers: &mut Vec<Modifier>,
 ) -> Option<crate::ast::Transition> {
     let mut transition_id: Option<String> = None;
     let mut duration_ms: u64 = 0;
 
-    for m in modifiers {
+    // `ease:` is a named modifier, so the ident loop below would skip it and
+    // every transition would run Linear no matter what the author wrote —
+    // while the compositor downstream does apply the easing. Lift it first
+    // through the shared extractor, which also handles the parameterized
+    // `ease: cubic-bezier(…)` form and leaves unresolvable values in place for
+    // the build layer to report.
+    let easing = common::extract_easing(modifiers).unwrap_or(crate::easing::Easing::Linear);
+
+    for m in modifiers.iter() {
         match (&m.name, &m.value) {
             (None, Expr::Ident(name))
                 if transition_id.is_none() && crate::transition_registry::find(name).is_some() =>
@@ -226,6 +234,6 @@ pub(crate) fn parse_transition_from_modifiers(
     transition_id.map(|id| crate::ast::Transition {
         id,
         duration_ms,
-        easing: crate::easing::Easing::Linear,
+        easing,
     })
 }

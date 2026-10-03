@@ -289,7 +289,58 @@ fn test_orphan_scene_warning() {
 }
 
 #[test]
-fn test_eased_progress_on_transition_blend() {
+fn an_authored_transition_ease_reaches_the_blend() {
+    let source = concat!(
+        "# Intro\n",
+        "#0s\n",
+        "title: Text, text: \"Welcome\"\n",
+        "#1s\n",
+        "play Diagram [fade, 500ms, ease: ease-in]\n",
+        "\n",
+        "# Diagram\n",
+        "#0s\n",
+        "graph: Text, text: \"Graph\"\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let comp = &report.output;
+    let intro_dur = comp.scenes.get("Intro").unwrap().duration_s;
+
+    // A transition overlaps *backwards* into the outgoing scene, so the blend
+    // window is [intro_dur - fade, intro_dur], not the region after it.
+    let mut blend = None;
+    for step in 0..40 {
+        let t = intro_dur - 0.45 + f64::from(step) * 0.01;
+        if let Some(b) = comp.evaluate(t).2 {
+            if b.progress > 0.0 && b.progress < 1.0 {
+                blend = Some(b);
+                break;
+            }
+        }
+    }
+    let blend = blend.expect("a 500ms fade must open a blend window");
+    assert_eq!(
+        blend.easing,
+        crate::easing::Easing::EaseIn,
+        "the authored `ease:` never reached the blend — the parser dropped it"
+    );
+    // ease-in is t^2, so the composited progress must sit behind the raw one.
+    assert!(
+        (blend.eased_progress - blend.progress * blend.progress).abs() < 1e-3,
+        "eased progress {} is not ease-in of {}",
+        blend.eased_progress,
+        blend.progress
+    );
+    assert!(
+        blend.eased_progress < blend.progress,
+        "ease-in must lag the raw ramp: {} vs {}",
+        blend.eased_progress,
+        blend.progress
+    );
+}
+
+#[test]
+fn a_transition_without_an_eased_authored_stays_linear() {
     let source = concat!(
         "# Intro\n",
         "#0s\n",
@@ -302,20 +353,26 @@ fn test_eased_progress_on_transition_blend() {
         "graph: Text, text: \"Graph\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
-    let comp = &report.output;
-
-    // At the transition midpoint, eased_progress should differ from raw progress
-    // (unless easing is Linear, which it is by default — so test with non-linear)
-    // The default transition is cut (0ms), so there's no blend period.
-    // Let's just verify the field exists and is populated.
+    let comp = Composition::build(&parsed, &std::collections::HashMap::new()).output;
     let intro_dur = comp.scenes.get("Intro").unwrap().duration_s;
-    let (_, _, blend) = comp.evaluate(intro_dur + 0.1);
-    // With cut transition (0ms), there may be no blend — that's OK.
-    // The test verifies evaluate() doesn't panic and returns valid data.
-    if let Some(blend) = blend {
-        assert!(blend.eased_progress >= 0.0 && blend.eased_progress <= 1.0);
+    let mut blend = None;
+    for step in 0..40 {
+        let t = intro_dur - 0.45 + f64::from(step) * 0.01;
+        if let Some(b) = comp.evaluate(t).2 {
+            if b.progress > 0.0 && b.progress < 1.0 {
+                blend = Some(b);
+                break;
+            }
+        }
     }
+    let blend = blend.expect("a 500ms fade must open a blend window");
+    assert_eq!(blend.easing, crate::easing::Easing::Linear);
+    assert!(
+        (blend.eased_progress - blend.progress).abs() < 1e-6,
+        "linear must not bend progress: {} vs {}",
+        blend.eased_progress,
+        blend.progress
+    );
 }
 
 #[test]
