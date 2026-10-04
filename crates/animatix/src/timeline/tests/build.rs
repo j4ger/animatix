@@ -3072,10 +3072,10 @@ r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) 
                 if let crate::primitives::RenderCommand::Paths { paths } = command {
                     for vp in paths {
                         if vp.fill_gradient.is_some() {
-                            found.0 = vp.fill_gradient.clone();
+                            found.0 = vp.fill_gradient.as_deref().cloned();
                         }
                         if vp.stroke_gradient.is_some() {
-                            found.1 = vp.stroke_gradient.clone();
+                            found.1 = vp.stroke_gradient.as_deref().cloned();
                         }
                     }
                 }

@@ -603,20 +603,14 @@ fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
     }
 }
 
-/// True when either gradient track carries an authored ramp.
+/// True when either gradient track was authored.
+///
+/// A `is_some` probe, not a sample: unlike `dash_pattern`, the gradient tracks
+/// are only created by an authored `fill_gradient:` / `stroke_gradient:`, and
+/// sampling one per frame would clone its stop `Vec` on the way to deciding
+/// whether to clone it.
 fn shape_has_gradient(ctx: &EvaluateCtx) -> bool {
-    use crate::timeline::{GradientSpec, TrackAccessor};
-
-    let fill = ctx.track.style.fill_gradient.get(ctx.time_ms, GradientSpec::default());
-    if !fill.stops.is_empty() {
-        return true;
-    }
-    !ctx.track
-        .style
-        .stroke_gradient
-        .get(ctx.time_ms, GradientSpec::default())
-        .stops
-        .is_empty()
+    ctx.track.style.fill_gradient.is_some() || ctx.track.style.stroke_gradient.is_some()
 }
 
 /// Stamp the sampled `fill_gradient:` / `stroke_gradient:` paints onto every
@@ -663,13 +657,13 @@ fn stamp_shape_gradient(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
                     let mut g = fill.clone();
                     g.extend = extend;
                     g.space = space;
-                    vp.fill_gradient = Some(g);
+                    vp.fill_gradient = Some(Box::new(g));
                 }
                 if !stroke.stops.is_empty() {
                     let mut g = stroke.clone();
                     g.extend = extend;
                     g.space = space;
-                    vp.stroke_gradient = Some(g);
+                    vp.stroke_gradient = Some(Box::new(g));
                 }
             }
         }

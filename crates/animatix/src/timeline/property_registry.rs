@@ -713,7 +713,11 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("baseline", ValueType::F32, F::ANIMATED, ActorField::Baseline, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("blend", ValueType::String, F::ASSIGNABLE_AI, ActorField::Blend, |_| {
+    // `blend` and `dash_pattern` are deliberately not INJECTABLE: the frame
+    // environment injects every INJECTABLE row of every actor every frame, and a
+    // blend name / dash list is written and stamped, never read back. See the note
+    // on `fill_gradient`.
+    binding!("blend", ValueType::String, F::ASSIGNABLE_A, ActorField::Blend, |_| {
         super::property_engine::PropertyValue::String("normal".to_string())
     }),
     binding!(
@@ -759,7 +763,11 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "dash_pattern",
         ValueType::F32List,
-        F::ASSIGNABLE_AI,
+        // Not INJECTABLE: see the note on `blend`. The stamp reads the track
+        // directly, so injection only ever cost a `Vec` clone per actor per
+        // frame. `dash_offset` stays injectable — `(r.dash_offset + 0.4) % 17`
+        // is how marching ants are written.
+        F::ASSIGNABLE_A,
         ActorField::DashPattern,
         |_| super::property_engine::PropertyValue::F32List(Vec::new())
     ),
@@ -778,7 +786,14 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "fill_gradient",
         ValueType::Gradient,
-        F::ASSIGNABLE_AI,
+        // Deliberately not INJECTABLE (also `stroke_gradient`, `gradient_extend`,
+        // `gradient_space`): the frame environment injects every INJECTABLE
+        // property of every actor every frame, so four more rows cost ~15% on
+        // `reactive_evaluate_100frames` for a value no scene reads back. A ramp
+        // is written, sampled by the shape stamp and never referenced — and
+        // `&r.fill_gradient` says so with `unknown-target-path` rather than
+        // silently reading nothing.
+        F::ASSIGNABLE_A,
         ActorField::FillGradient,
         |_| super::property_engine::PropertyValue::Gradient(Default::default())
     ),
@@ -827,14 +842,14 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "gradient_extend",
         ValueType::String,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_A,
         ActorField::GradientExtend,
         |_| super::property_engine::PropertyValue::String("pad".to_string())
     ),
     binding!(
         "gradient_space",
         ValueType::String,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_A,
         ActorField::GradientSpace,
         |_| super::property_engine::PropertyValue::String("oklab".to_string())
     ),
@@ -1048,7 +1063,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "stroke_gradient",
         ValueType::Gradient,
-        F::ASSIGNABLE_AI,
+        F::ASSIGNABLE_A,
         ActorField::StrokeGradient,
         |_| super::property_engine::PropertyValue::Gradient(Default::default())
     ),

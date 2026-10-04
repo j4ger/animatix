@@ -202,9 +202,15 @@ pub struct VelloPath {
     /// Phase offset into the dash pattern, in scene pixels.
     pub dash_offset: f32,
     /// Paint that ramps across the fill, overriding `fill`.
-    pub fill_gradient: Option<GradientSpec>,
+    ///
+    /// Boxed on purpose: `VelloPath` is cloned per frame by the shape-command
+    /// memo and the plot path, and inlining a 48-byte `GradientSpec` here
+    /// doubled the struct (72 → 184 bytes) and cost every scene ~15% on frame
+    /// evaluation — including the scenes that never author a ramp.
+    pub fill_gradient: Option<Box<GradientSpec>>,
     /// Paint that ramps across the stroke, overriding the stroke color.
-    pub stroke_gradient: Option<GradientSpec>,
+    /// Boxed for the same reason as [`Self::fill_gradient`].
+    pub stroke_gradient: Option<Box<GradientSpec>>,
 }
 
 impl Default for VelloPath {
@@ -220,5 +226,22 @@ impl Default for VelloPath {
             fill_gradient: None,
             stroke_gradient: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// `VelloPath` is cloned per frame — the shape-command memo takes and
+    /// recycles the command `Vec`, and the plot path clones its payloads every
+    /// frame — so its size is a hot-path cost, not just a memory question.
+    /// Inlining the two `GradientSpec`s instead of boxing them took it from 72
+    /// to 184 bytes and cost `reactive_evaluate_100frames` ~15%.
+    #[test]
+    fn vello_path_stays_small_enough_to_clone_per_frame() {
+        let size = std::mem::size_of::<super::VelloPath>();
+        assert!(
+            size <= 112,
+            "VelloPath is {size} bytes — box the new payload rather than inlining it"
+        );
     }
 }
