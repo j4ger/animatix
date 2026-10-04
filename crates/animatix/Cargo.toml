@@ -45,8 +45,12 @@ typst = { version = "0.15.1" }
 usvg = { version = "0.47.0", optional = true }
 # Pinned pre-#1558 (atlas residency): that change makes image draws vanish
 # when a non-image vello render runs between two image renders — fatal for
-# our multi-scope filter pipeline (see tests/vello_img_probe.rs). Revisit on
-# an upstream fix.
+# our multi-scope filter pipeline. The gate is tests/vello_img_probe.rs, which
+# now asserts its A–H matrix. Probed 2026-10-04 against upstream main
+# (f3000c8d): the probe could not run there at all, because that vello builds
+# against wgpu 30 while this workspace pins 29 (`[workspace.dependencies]
+# wgpu`). The pin therefore lifts with a wgpu 29→30 bump, not with a rev change;
+# whether upstream has since fixed the residency regression is still unmeasured.
 vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 taffy = { version = "0.10", default-features = false, features = ["flexbox", "grid", "std", "taffy_tree"] }

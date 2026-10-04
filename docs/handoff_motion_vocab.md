@@ -1,15 +1,19 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04, fifth session).** M1 (#1-#11), M2 (#12-#16)
-> and M3 (#17-#20) are complete, and M4's data half is too: #21 (the
+> **STATUS: IN PROGRESS (2026-10-04, sixth session).** M1 (#1-#11), M2 (#12-#16)
+> and M3 (#17-#20) are complete, and M4 is now down to one item: #21 (the
 > second-input-texture ABI bump, `Bloom`, soft `DropShadow`) and #23 (the BarChart
-> race) have both landed. So have the site's recipes gallery, the tour's new
-> "Light & camera" section, the authored-bounds camera gap, a delayed
-> `camera.zoom` bug the new tests surfaced, and the
-> `always-overrides-keyframes` false positive. What remains is #22 (glass), #24
-> (variable weights — three changes, not one; see its row), #25 (the vello pin —
-> a local probe after a rev bump, not an upstream gate), the camera's two real
-> follow-ups, an open +10.7% on one analyzer bench, and the #13 content leftovers.
+> race) have both landed. So have the site's recipes gallery (now eight scenes —
+> `bar_race` is the newest), the tour's new "Light & camera" section, the
+> authored-bounds camera gap, a delayed `camera.zoom` bug the new tests surfaced,
+> the `always-overrides-keyframes` false positive, and the `unused-label` false
+> positive that batch 5 left open (cause: `SymbolTable::merge` flattens an
+> import's labels but not its references). **#25 is answered rather than open**:
+> the vello pin cannot move until wgpu moves 29→30 workspace-wide, and the probe
+> that guards it asserts now instead of printing numbers to be read. What remains
+> is #22 (glass) and #24 (variable weights — three changes, not one; see its
+> row), the camera's two real follow-ups, an open +10.7% on one analyzer bench,
+> and the #13 content leftovers.
 > See
 > ["Landed so far"](#landed-so-far) and
 > ["Remaining work, next-session order"](#remaining-work-next-session-order).
@@ -458,7 +462,7 @@ each non-trivial. Verified 2026-10-04.
 | 22 | `glass` / backdrop-blur | LARGE, **parked, but now decision-ready** | Re-scoped in batch 6 against the pipeline rather than the summary. ABI v2 does **not** help: binding 5 is the *scope's own* pre-chain sub-scene, and glass needs the main target's pixels *below* the scope in z, which nothing in the frame ever exposes as a texture (`offscreen.rs:267-294` renders the whole scene in one pass; `filter_backend.rs:54-67` renders only sub-scenes into the backend's own targets). And the obvious shortcut — render the frame, sample the region, blit the above-glass content afterwards — is wrong for the common case, because a label sitting *on* a glass card would be swallowed by the composite. The shape that is correct: evaluate once, emit **two** vello scenes pivoted at the glass scope, render below→texA, copy texA's region as the chain's second input, render above→texB with a transparent `base_color`, blit texA then the glass result then texB. Two hard facts to design around: (a) `RendererCore` only ever hands vello a `RenderParams { base_color, .. }` (`core.rs:151-170`), i.e. every render clears its target, so "draw a second scene over the first in the same texture" does not exist here — the split must go to separate textures and be composited; (b) `EffectRegion` is a plain rect, so a rounded glass panel needs either a mask pass or rounded-region support. Cost: N glass scopes = N+1 vello renders per frame, and **the filter path has no bench guard at all** (batch 4's note — every bench in the suite stops at scene evaluation), so that guard has to be written before this lands. Still also owed: compositing *below* children, and a decision on whether glass is one effect or a `Filter` variant |
 | 23 | BarChart race | ~~MEDIUM-LARGE~~ **DONE** (batch 5) | Landed along the five steps as scoped — `BarDataTransition` beside `FuncTransition` (`timeline/plot.rs`), label matching in `interpolate_bar_data`, the frame-time sampler `bar_data_at` called from `evaluate_node`, and the layout kept on the track so a rebuild never re-parses properties — with **two corrections to the plan**. Step 4's memo is unnecessary: the rebuild is gated on `bar_data_transitions` being non-empty, so a chart that never animates its data pays one `is_empty()` per frame. And step 5 was a no-op — the `data` entry in `build/plot.rs:1160`'s skip list is the *declaration* walk, not the assignment path; removing it would have broken the builder. The assignment hooks in through `Primitive::handle_assignment`, the extension point that already existed for exactly this (eight primitives use it). Two documented limits: a changed label set **or order** warns, because captions are compiled at build into the declaration's slots, and `max_value: auto` normalises the tallest bar every frame, which hides the race unless the author pins it. A third branch the plan assumed turned out to be **dead**: `build/plot.rs` resolves the layout for every `BarChart` whether or not `data:` was declared, so assigning without a declaration is not an error — it is an empty `from`, bars entering from 0, with its own warning that there were no captions to compile. And it is the render, not the test suite, that proves label matching: bar tops read back from three frames of `examples/data/27_bars_race.amx` land on the interpolated values, with `api` overtaking `web` inside the first window and losing it inside the second.
 | 24 | Variable-font weight animation | NOT feasible today — **three changes, not one** | Scoped in batch 5 against the code rather than the summary: (1) the bundle ships four *static* Open Sans faces (`animatix-text/src/lib.rs:600-646` — Regular/Bold/Italic/BoldItalic) plus Noto Sans SC and Fira Math, so a variable face has to be added (asset + licence); (2) `font_weight_to_typst` (`:960`) quantizes the numeric axis to nine *named* CSS weights as a `&'static str`, and typst then picks a face by name — six of those nine names have no face in the bundle and fall back, so the path needs typst's numeric `("family", weight: 640)` form rather than a keyword; (3) weight changes recompile glyphs every frame, which is the `count_up` cost path, so it needs the same frame-time memo question answered. Parked |
-| 25 | Vello pin lift | **locally answerable as of batch 6** | Batch 3 and batch 5 both called this an external gate because `gh` is absent, `WebFetch` is quota-blocked (`FORBIDDEN`, not a network fault) and a web search returns no status. Neither matters: the probe *is* the gate, and the revision to probe for is now known. `git ls-remote` (2026-10-04) puts upstream `main` at **`f3000c8d`**, and this box's cargo git cache (`~/.cargo/git/db/vello-*`) tops out at `17166312` "Update wgpu badge", whose parent is `c55a2b5e` "vello: Keep image atlas residency across renders (#1558)" — the change the pin avoids, sitting directly on top of the pinned `d8686d52`. So the work is one command away: set `rev = "f3000c8d"` in the `vello` entries, run `cargo test -p animatix-render --features animatix/svg --test vello_img_probe` on a quiet machine, and read the A–D matrix. Pass → lift the pin everywhere and re-run `animatix video dogfood/projects/effects-wave1/entry.amx` (the symptom is a vanished checker backdrop between non-image renders); fail → the pin's comment gains the rev it was tested against, which is more than this row has ever had |
+| 25 | Vello pin lift | **attempted and answered — the blocker is a wgpu major, not upstream** | Batch 5 said this was not answerable from here because `gh` is absent, `WebFetch` is quota-blocked and search returns no status. True, and irrelevant: the probe is the gate, and the revision to probe for is `git ls-remote` away. Batch 6 did it. Upstream `main` is **`f3000c8d`**; this box's cargo cache tops out at `17166312`, whose parent is `c55a2b5e` "vello: Keep image atlas residency across renders (#1558)" — the change the pin avoids, sitting directly on the pinned `d8686d52`. Bumping all three `vello` entries to `f3000c8d` **does not compile**: `Renderer::new(device, …)` reports `expected vello::wgpu::Device, found wgpu::Device`, because that vello builds against wgpu 30 while the workspace pins `wgpu = "29.0.0"`. So lifting the pin needs a coordinated wgpu 29→30 bump first, and whether #1558's regression is fixed upstream remains unmeasured — the probe could not run on the new rev. While there: `tests/vello_img_probe.rs` **asserts** its A–H matrix now (it used to only `eprintln!` the counts, so the "gate" depended on a human reading numbers), passes on the pin under both GPU and `ANIMATIX_CPU_RENDER=1`, and was checked to fail with "only 0 of 921_600 canvas pixels have ink" when a draw is forced empty. Pin comments, `core.rs`'s dependency invariant and `docs/roadmap.md` all say what would actually lift it |
 
 ## Remaining work, next-session order
 
@@ -473,12 +477,16 @@ the order that makes sense to attempt it:
    the vocabulary, not only in the gallery.
 
 2. **#22 glass** (needs mid-frame scene splitting that ABI v2 does *not*
-   provide — the main vello target is still never an input texture), **#24 font
-   weights** (three changes, not the one it was described as: asset, a
-   numeric-weight path into typst, per-frame glyph recompile — see its row), and
-   **#25 vello pin lift** (a local probe after a rev bump, not an upstream check —
-   see its row). ~~#23 BarChart race~~ landed in batch 5. None of the rest is
-   a quiet afternoon.
+   provide — the main vello target is still never an input texture; batch 6
+   turned the row into a design: two vello scenes pivoted at the glass scope,
+   because `render_to_texture` clears its target and cannot draw over an
+   existing one), and **#24 font weights** (three changes, not the one it was
+   described as: asset, a numeric-weight path into typst, per-frame glyph
+   recompile — see its row). ~~#23 BarChart race~~ landed in batch 5.
+   ~~#25 vello pin lift~~ was **attempted in batch 6 and answered**: the pin
+   cannot move until wgpu moves 29→30 workspace-wide, which is a different job
+   than this round's and now named in the pin, `core.rs` and `docs/roadmap.md`.
+   None of the rest is a quiet afternoon.
 3. **#13 closeout, mostly done.** Landed across the round: the theme/vivid pack
    (`ef6a0c00` schemes, `2e170adf` `examples/lib/light.amx` genre pack), the
    glyph-gap item — which turned out to be closed already: the build warns
@@ -608,8 +616,9 @@ the order that makes sense to attempt it:
    demoting rows one at a time.
 
 Milestones as originally proposed: M1 = items 1-11 (**complete**), M2 = 12-16
-(**complete**), M3 = 17-20 (**complete**), M4 = 21-25 — #21 and #23 landed, #22
-(glass), #24 (variable weights) and #25 (the vello pin) are open.
+(**complete**), M3 = 17-20 (**complete**), M4 = 21-25 — #21, #23 landed, #25
+answered (the pin needs a wgpu 29→30 bump, which is outside this round), leaving
+#22 (glass) and #24 (variable weights) as the two unfinished features.
 
 ## Relationship to other documents
 

@@ -22,9 +22,15 @@ use animatix_core::error::RenderError;
 /// boundary with `tests/vello_img_probe.rs`, which reproduces the failing
 /// sequence against a bare renderer.
 ///
-/// Before moving the pin forward: run that test, then
+/// Before moving the pin forward: run that test — it asserts, so a vanished
+/// image fails the run rather than printing a number to be read — then
 /// `animatix video dogfood/projects/effects-wave1/entry.amx` and confirm the
 /// checker backdrop survives every frame. `docs/roadmap.md` tracks the pin.
+///
+/// Probing the pin forward is not just a rev change: upstream vello's current
+/// `main` builds against wgpu 30 while this workspace pins 29, so the two
+/// `wgpu::Device` types do not unify and nothing compiles until the wgpu bump
+/// lands (measured 2026-10-04 against `f3000c8d`).
 pub struct RendererCore {
     /// The underlying Vello renderer instance.
     pub renderer: Renderer,

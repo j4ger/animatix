@@ -1,5 +1,11 @@
 //! Minimal vello-level repro: does an alpha-0 image render poison later renders?
 //!
+//! This is the gate the `vello` pin's comment names, and it **asserts**: every
+//! step of the matrix must land on one of three bright-pixel counts (a
+//! full-frame image, the 20×40 rect, or nothing). It is the check to run before
+//! moving the pin — note that upstream vello has since moved to wgpu 30 while
+//! this workspace pins 29, so a rev bump alone does not compile; see the pin.
+//!
 //!History matrix (each row = a fresh Renderer + texture):
 //!  A: img(α0) → img(α1)              (bd_video shape — expected OK)
 //!  B: img(α0) → rect → img(α1)       (case_vig shape — FAILS in production)
@@ -164,7 +170,7 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
         antialiasing_method: AaConfig::Area,
     };
     let data = checker_image();
-    for (kind, alpha) in steps {
+    for (i, (kind, alpha)) in steps.iter().enumerate() {
         let scene = match *kind {
             "img" => img_scene(*alpha, &data),
             "rect" => rect_scene(),
@@ -175,6 +181,33 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
             .expect("render");
         let bright = readback_bright(&device, &queue, &texture);
         eprintln!("[vp] {name} step {kind} alpha={alpha}: bright={bright}");
+        // The gate, not the print. Measured on the pinned rev, each step of the
+        // matrix is exactly one of three counts: a full-frame image at alpha 1
+        // covers the canvas (921_600), the 20×40 rect covers 800 px, and an
+        // image at alpha 0 covers nothing. The failure the pin exists for is the
+        // first of those collapsing to the third — the atlas evicting an image
+        // that a later non-image render had touched, so the draw produces no
+        // pixels at all. Thresholds rather than equality, so a backend whose
+        // antialiasing bleeds a little cannot fail for the wrong reason.
+        match (*kind, *alpha) {
+            ("img", a) if a > 0.5 => assert!(
+                bright >= 900_000,
+                "{name}: step {i} drew an image at alpha {a} and only {bright} of \
+                 921_600 canvas pixels have ink — the vanished-image symptom \
+                 `Cargo.toml` pins against"
+            ),
+            ("img", _) => assert!(
+                bright <= 1_000,
+                "{name}: step {i} drew an image at alpha {alpha} and got {bright} \
+                 bright pixels; an alpha-0 image must cover nothing"
+            ),
+            ("rect", _) => assert!(
+                (700..=900).contains(&bright),
+                "{name}: step {i} drew the 20×40 rect and got {bright} bright pixels, \
+                 outside the 700..=900 the rect alone covers"
+            ),
+            _ => unreachable!("run_case is only given img and rect steps"),
+        }
     }
 }
 
