@@ -66,8 +66,7 @@ pub(crate) fn is_camera_property(property: &str) -> bool {
 }
 
 /// The names of the properties a camera accepts, for diagnostics.
-pub(crate) const CAMERA_PROPERTIES: &str =
-    "at / position / pan, zoom / scale, rotation / spin";
+pub(crate) const CAMERA_PROPERTIES: &str = "at / position / pan, zoom / scale, rotation / spin";
 
 fn override_vec2(overrides: Option<&HashMap<String, Value>>, keys: &[&str]) -> Option<[f32; 2]> {
     let value = keys.iter().find_map(|key| overrides?.get(*key))?;
@@ -177,14 +176,11 @@ impl Camera {
     ) -> Affine {
         let pan = override_vec2(overrides, &PAN_KEYS)
             .unwrap_or_else(|| self.pan.get(time_ms, [0.0, 0.0]));
-        let zoom = override_num(overrides, &ZOOM_KEYS)
-            .unwrap_or_else(|| self.zoom.get(time_ms, 1.0));
-        let spin = override_num(overrides, &SPIN_KEYS)
-            .unwrap_or_else(|| self.spin.get(time_ms, 0.0));
-        let center = (
-            scene_dimensions.width as f64 / 2.0,
-            scene_dimensions.height as f64 / 2.0,
-        );
+        let zoom =
+            override_num(overrides, &ZOOM_KEYS).unwrap_or_else(|| self.zoom.get(time_ms, 1.0));
+        let spin =
+            override_num(overrides, &SPIN_KEYS).unwrap_or_else(|| self.spin.get(time_ms, 0.0));
+        let center = (scene_dimensions.width as f64 / 2.0, scene_dimensions.height as f64 / 2.0);
         // Right-to-left composition: move the world so the scene center is the
         // origin, turn and scale about it, put it back, then pan in screen px.
         Affine::translate((center.0 + pan[0] as f64, center.1 + pan[1] as f64))

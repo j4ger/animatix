@@ -19,9 +19,9 @@ mod build;
 #[cfg(test)]
 mod build_diagnostics;
 #[cfg(test)]
-mod camera;
-#[cfg(test)]
 mod callout;
+#[cfg(test)]
+mod camera;
 #[cfg(test)]
 mod colorscheme;
 #[cfg(test)]

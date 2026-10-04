@@ -103,10 +103,7 @@ always { camera.at = (4.0, 4.0) }
 a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 "#,
     );
-    assert!(
-        timeline.camera_used.get(),
-        "an `always`-driven camera must count as used"
-    );
+    assert!(timeline.camera_used.get(), "an `always`-driven camera must count as used");
 
     let mut per_axis = std::collections::HashMap::new();
     per_axis.insert("at".to_string(), Value::Vec2([7.0, -7.0]));
@@ -153,9 +150,7 @@ camera.zoom = (1.0, 2.0)
 "#,
     );
     assert!(
-        diagnostics
-            .iter()
-            .any(|d| d.message.contains("camera.zoom` expects a number")),
+        diagnostics.iter().any(|d| d.message.contains("camera.zoom` expects a number")),
         "a tuple zoom must be reported, got {:?}",
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );

@@ -327,13 +327,7 @@ impl Timeline {
                     )
                     .with_subject(&assignment_subject),
                 );
-            } else if !self.camera.assign(
-                property,
-                &evaluated,
-                t_start_ms,
-                t_end_ms,
-                easing,
-            ) {
+            } else if !self.camera.assign(property, &evaluated, t_start_ms, t_end_ms, easing) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InvalidPropertyValue,
