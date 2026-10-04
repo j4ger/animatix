@@ -1879,6 +1879,7 @@ mod tests {
             "DropShadow",
             vec![
                 EffectParamValue::Vec2([-8.0, 0.0]), // offset (shadow to the left)
+                EffectParamValue::F32(0.0),          // softness (hard silhouette)
                 EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]), // opaque black shadow
             ],
         );
@@ -1897,5 +1898,49 @@ mod tests {
         assert!(content > 200, "the content must stay white, got {content}");
         let clear = raw[(32 * w + 4) * 4 + 3];
         assert!(clear < 20, "outside the shadow extent the frame stays empty, got {clear}");
+    }
+
+    /// `softness` must spread the silhouette into a penumbra that the hard
+    /// case does not have, in the same scene at the same offset.
+    #[test]
+    fn drop_shadow_softness_spreads_the_silhouette() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+
+        let scene =
+            filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(24.0, 16.0, 56.0, 48.0));
+        let color = EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]);
+        let mut shadow_at = |softness: f32| {
+            let chain = effect_chain(
+                "DropShadow",
+                vec![
+                    EffectParamValue::Vec2([-8.0, 0.0]),
+                    EffectParamValue::F32(softness),
+                    color,
+                ],
+            );
+            backend
+                .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
+                .expect("drop-shadow path should succeed")
+        };
+        // The hard shadow's left edge sits at x=16 (rect left 24, offset -8);
+        // x=12 is 4px outside it, so only a penumbra can reach it.
+        let px = (32 * dims.width as usize + 12) * 4 + 3;
+
+        let hard = shadow_at(0.0);
+        assert_eq!(hard.data.data.data()[px], 0, "softness 0 must stay hard: nothing reaches x=12");
+        let soft = shadow_at(6.0);
+        let alpha = soft.data.data.data()[px];
+        assert!(
+            (20..200).contains(&alpha),
+            "softness 6 must cast a partial-coverage penumbra at x=12, got alpha {alpha}"
+        );
     }
 }

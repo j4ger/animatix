@@ -1,0 +1,25 @@
+// probe_shadow.amx — hard vs soft `DropShadow`.
+//
+// The left scope runs the original hard silhouette copy (`softness` unauthored,
+// which must stay byte-identical to the pre-softness engine — verified by
+// rendering `examples/animation/30_effects_catalog.amx` on both binaries and
+// comparing the PNGs). The right one adds `softness: 12`, spreading the same
+// offset copy over a disc so it reads as cast rather than pasted.
+//
+// The cards carry an explicit `opacity: 1.0`: they are declared inside a scope
+// before any keyframe, so without it they would be seeded hidden and the probe
+// would measure an empty stage.
+
+config { colorscheme: "editorial-dark", resolution: (480, 200), duration: 2 }
+
+hard: Filter, at: (120, 100) {
+  fx: DropShadow, offset: (14, 14), color: (0, 0, 0, 0.7)
+  card: Rect, size: (120, 90), corner_radius: 12, color: accent.primary, opacity: 1.0
+}
+
+soft: Filter, at: (340, 100) {
+  fx: DropShadow, offset: (14, 14), softness: 12, color: (0, 0, 0, 0.7)
+  card: Rect, size: (120, 90), corner_radius: 12, color: accent.primary, opacity: 1.0
+}
+
+#0s

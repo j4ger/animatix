@@ -104,6 +104,7 @@ Built-in examples:
 | `Edge` | `threshold` | `0` |
 | `LensDistortion` | `amount` | `0` |
 | `DropShadow` | `offset` | `(0, 0)` |
+| `DropShadow` | `softness` | `0` |
 | `DropShadow` | `color` | `(0, 0, 0, 1)` |
 
 ## 3. Spatial support and ROI

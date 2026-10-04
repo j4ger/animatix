@@ -1030,7 +1030,7 @@ nothing (the pass and the offscreen round-trip are skipped).
 | `Posterize` | `levels` (0) | Quantises each channel to `levels` steps (`2` = hard threshold); `0` means off |
 | `Edge` | `amount` (0), `threshold` (0) | Sobel gradient magnitude normalised to 0..1, blended over the original; `threshold` drops weak edges |
 | `LensDistortion` | `amount` (0, px) | Barrel/pincushion UV warp through the linear sampler; `amount` is the corner displacement, positive pulls samples inward |
-| `DropShadow` | `offset` (0, 0, px), `color` (black, opaque) | Offsets a copy of the silhouette behind the content; `color`'s alpha is the shadow strength |
+| `DropShadow` | `offset` (0, 0, px), `softness` (0, px), `color` (black, opaque) | Offsets a copy of the silhouette behind the content; `color`'s alpha is the shadow strength and `softness` spreads the copy over a disc of that radius (0 keeps the hard shadow, bit-identical) |
 
 Chain order is declaration order; the chain is fixed at build time (effects
 cannot appear or disappear over time). An effect declared outside a `Filter`

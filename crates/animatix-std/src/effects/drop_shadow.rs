@@ -1,7 +1,12 @@
-//! `DropShadow` (hard) — offsets a copy of the silhouette behind the content.
+//! `DropShadow` — offsets a copy of the silhouette behind the content.
 //!
 //! This file is the single source for the effect: parameters (name, kind,
 //! identity), WGSL passes, `pack`, and `support`.
+//!
+//! `softness` spreads the silhouette over a disc of taps. `softness: 0` is the
+//! original hard shadow, unchanged down to the bit: the radius-zero case keeps
+//! its own single-sample branch rather than relying on an average of identical
+//! taps happening to round back to the same value.
 
 use animatix_core::effect::{
     Effect, EffectParamKind, EffectParamSpec, EffectParamValue, EffectParams, EffectPassSpec,
@@ -10,11 +15,15 @@ use animatix_core::effect::{
 /// `DropShadow` parameters.
 ///
 /// `offset` shifts the shadow copy in scene pixels (positive x right,
-/// positive y down). `color` carries the shadow colour *and* its strength in
-/// the alpha channel. A zero offset is the identity, so an unauthored stage
-/// contributes nothing.
+/// positive y down). `softness` spreads that copy over a disc of the given
+/// radius, which is what makes a shadow read as cast rather than pasted.
+/// `color` carries the shadow colour *and* its strength in the alpha channel.
+/// A zero offset is the identity, so an unauthored stage contributes nothing.
 pub const DROP_SHADOW_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("offset", EffectParamKind::Vec2, EffectParamValue::Vec2([0.0, 0.0]), 0, 8),
+    // Spread of the silhouette in scene px. Lands in the word the layout used
+    // to pad, so `color` keeps its own 16-byte line.
+    EffectParamSpec::new("softness", EffectParamKind::F32, EffectParamValue::F32(0.0), 8, 4),
     // vec4 lands on its own 16-byte line per the host packing rule.
     EffectParamSpec::new(
         "color",
@@ -28,7 +37,8 @@ pub const DROP_SHADOW_PARAMS: &[EffectParamSpec] = &[
 const DROP_SHADOW_WGSL: &str = r#"
 struct DropShadowParams {
     offset: vec2<f32>,
-    _pad0: vec2<f32>,
+    softness: f32,
+    _pad0: f32,
     color: vec4<f32>,
 }
 
@@ -58,14 +68,36 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         return;
     }
 
-    // The silhouette is the source alpha read at the shadow's offset. Sampling
-    // at an integer texel keeps the shadow hard and makes `support` exact.
+    // The silhouette is the source alpha read at the shadow's offset, spread
+    // over a disc of `softness` px. Sixteen golden-angle taps average to a
+    // penumbra.
     let shadow_coord = vec2<i32>(coord) - vec2<i32>(params.offset);
-    var shadow_alpha = 0.0;
-    if (shadow_coord.x >= 0 && shadow_coord.y >= 0
-        && shadow_coord.x < i32(size.x) && shadow_coord.y < i32(size.y)) {
-        shadow_alpha = textureLoad(src, shadow_coord, 0).a * params.color.a;
+    let radius = max(params.softness, 0.0);
+    var shadow_cover = 0.0;
+    if (radius <= 0.0) {
+        // The hard case takes the single sample it always took. Averaging
+        // sixteen identical taps would be the same number to within an
+        // accumulation rounding, and "within" is not "identical" — existing
+        // scenes must not shift a shade.
+        if (shadow_coord.x >= 0 && shadow_coord.y >= 0
+            && shadow_coord.x < i32(size.x) && shadow_coord.y < i32(size.y)) {
+            shadow_cover = textureLoad(src, shadow_coord, 0).a;
+        }
+    } else {
+        let taps: u32 = 16u;
+        var shadow_sum = 0.0;
+        for (var i: u32 = 0u; i < taps; i = i + 1u) {
+            let f = (f32(i) + 0.5) / f32(taps);
+            let angle = f32(i) * 2.399963229728653;
+            let reach = sqrt(f) * radius;
+            let tap = shadow_coord + vec2<i32>(vec2<f32>(cos(angle), sin(angle)) * reach);
+            if (tap.x >= 0 && tap.y >= 0 && tap.x < i32(size.x) && tap.y < i32(size.y)) {
+                shadow_sum = shadow_sum + textureLoad(src, tap, 0).a;
+            }
+        }
+        shadow_cover = shadow_sum / f32(taps);
     }
+    let shadow_alpha = shadow_cover * params.color.a;
 
     // The render target is premultiplied, so compose "original over shadow"
     // in premultiplied space and keep the result premultiplied.
@@ -105,7 +137,10 @@ impl Effect for DropShadow {
             out[0..4].copy_from_slice(&offset[0].to_le_bytes());
             out[4..8].copy_from_slice(&offset[1].to_le_bytes());
         }
-        if let Some(EffectParamValue::Vec4(color)) = params.values.get(1) {
+        if let Some(EffectParamValue::F32(softness)) = params.values.get(1) {
+            out[8..12].copy_from_slice(&softness.to_le_bytes());
+        }
+        if let Some(EffectParamValue::Vec4(color)) = params.values.get(2) {
             for (channel, value) in color.iter().enumerate() {
                 let at = 16 + channel * 4;
                 out[at..at + 4].copy_from_slice(&value.to_le_bytes());
@@ -113,13 +148,19 @@ impl Effect for DropShadow {
         }
     }
 
-    /// The shadow samples the silhouette at a fixed offset.
+    /// The shadow samples the silhouette at a fixed offset, spread by
+    /// `softness`, so the region has to grow by both.
     fn support(&self, params: &EffectParams) -> f32 {
-        match params.values.first() {
+        let offset = match params.values.first() {
             Some(EffectParamValue::Vec2(offset)) => {
                 (offset[0] * offset[0] + offset[1] * offset[1]).sqrt()
             },
             _ => 0.0,
-        }
+        };
+        let softness = match params.values.get(1) {
+            Some(EffectParamValue::F32(softness)) => softness.max(0.0),
+            _ => 0.0,
+        };
+        offset + softness
     }
 }
