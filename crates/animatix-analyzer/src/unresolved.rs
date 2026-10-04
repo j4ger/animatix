@@ -11,6 +11,7 @@
 
 use std::collections::HashSet;
 use std::path::Path;
+use std::sync::LazyLock;
 
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::builtins;
@@ -66,7 +67,7 @@ pub fn collect_unresolved_variables(
     tokens: &[Token],
     source: &str,
 ) -> Vec<Diagnostic> {
-    let exempt = exempt_names(stmts, symbols);
+    let local_exempt = document_exempt_names(stmts, symbols);
     let assignment_targets = collect_assignment_target_names(stmts);
     let mut diagnostics = Vec::new();
 
@@ -74,7 +75,9 @@ pub fn collect_unresolved_variables(
         if occurrence.kind != OccurrenceKind::Variable || occurrence.declaration {
             continue;
         }
-        if exempt.contains(occurrence.name.as_str()) {
+        if STATIC_EXEMPT.contains(occurrence.name.as_str())
+            || local_exempt.contains(occurrence.name.as_str())
+        {
             continue;
         }
         // A declaration of this name in the occurrence's own scope chain
@@ -122,10 +125,16 @@ pub fn collect_unresolved_variables(
     diagnostics
 }
 
-/// Names the check must never flag: builtins (functions, colors, the time
-/// variables), easing curves, transition ids, anchor enums, action particles,
-/// and plot runtime parameters injected into `func` closures.
-fn exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
+/// The document-independent half of the exemption set: builtins (functions,
+/// colors, the time variables), easing curves in both spellings, transition ids
+/// used bare inside modifier lists, anchor / alignment enums and action
+/// particles.
+///
+/// Built once per process on purpose. This pass re-runs on every keystroke, and
+/// the whole set is vocabulary the language declares — nothing in it can depend
+/// on the file being edited, so building it per update allocated ~200 `String`s
+/// to answer a constant question.
+static STATIC_EXEMPT: LazyLock<HashSet<String>> = LazyLock::new(|| {
     let mut exempt: HashSet<String> = [
         builtins::MATH_FUNCTIONS,
         builtins::LIST_FUNCTIONS,
@@ -188,11 +197,17 @@ fn exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
     }
     // Transition ids used bare inside modifier lists (`[fade, 300ms]`).
     exempt.extend(animatix_syntax::transition_registry::all_ids().iter().map(|s| (*s).to_string()));
+    exempt
+});
+
+/// The half of the exemption set that depends on *this* document: every
+/// primitive type name (a module can add one) and the plot-family runtime
+/// parameters its `func` closures inject.
+fn document_exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
     // Colorscheme tokens (`accent.primary` paths are not bare idents, but a
     // scheme may expose bare names through expressions) and every primitive
     // type name.
-    exempt.extend(symbols.types.iter().cloned());
-
+    let mut exempt: HashSet<String> = symbols.types.iter().cloned().collect();
     // Plot-family runtime parameters (`freq: 2` on `func: (x) => sin(freq*x)`).
     collect_plot_params(stmts, &mut exempt);
     exempt
