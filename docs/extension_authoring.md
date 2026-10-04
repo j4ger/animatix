@@ -288,7 +288,11 @@ Register effects from `animatix_plugin_install` through
 - `passes` are ordered compute passes, each with its own WGSL text and entry
   point (conventionally `main`). The binding layout is fixed
   (`docs/effects.md` §4): input texture, output storage texture, author
-  parameters, host `EffectContext`, and a linear sampler.
+  parameters, host `EffectContext`, a linear sampler, and — since ABI v2 —
+  binding 5, the *pre-chain* original of the scope. Declare only the bindings
+  you read: a layout may bind more than a pipeline consumes, so an effect
+  written against the older five-binding shape compiles unchanged, and
+  `original` is the input that turns a blur into a glow (what `Bloom` reads).
 - `support_px` is the conservative spatial support used to pad regions of
   interest.
 

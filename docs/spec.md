@@ -207,6 +207,19 @@ unresolvable color string falls back to the default gray and warns with
 `unknown-color-reference`.
 
 **Built-in schemes.** Six ship with the engine; a scene can also declare its own.
+Each resolves the same twelve keys (`scene.background`, `text.primary` /
+`.secondary` / `.muted`, `surface.primary` / `.secondary`, the six `accent.*`
+roles, `stroke.default`) plus a six-colour auto-assignment cycle, so switching
+one never leaves a key unresolved.
+
+| Scheme | Ground | Accents | Reach for it when |
+|---|---|---|---|
+| `default-dark` | pure black | cyan-blue family, white text | the scene is about contrast between shape and void |
+| `default-light` | near-white | the same blue family, darkened for legibility | a dark scheme would fight a light page it sits in |
+| `editorial-dark` | very dark blue-gray | cyan-blue family with a lifted near-white stroke | documentation, dashboards, narrated explainers — the house default |
+| `vivid` | deep violet-black | full-chroma coral, mint, amber, magenta on violet surfaces | demo and trailer material that needs energy |
+| `paper` | warm off-white | terracotta, slate teal, olive, ochre on ink-brown text | daytime, print-adjacent, editorial copy |
+| `neon-night` | charcoal | saturated mint, magenta, azure, with a mint stroke | glow and `blend: "screen"` lighting — the surfaces stay dark enough for light to read as added |
 
 | Scheme | Character | Reach for it when |
 |--------|-----------|-------------------|
@@ -1315,6 +1328,14 @@ One rule comes with them: a component that writes a property from `always`
 owns it. Enter those actors with `fade-in` (opacity), not `settle-in` /
 `pop-in` (scale) or `draw-in` (stroke progress) — a frame-time write wins every
 frame, so the entrance would do nothing.
+
+**Where to watch them move.** Every recipe in this section has a running version
+in the browser. `web/recipes/` plays one move per figure — `two_point_light`,
+`marching_ants`, `count_up`, `camera_push`, `word_reveal`, `analytic_sparks`,
+`bloom_stage` — and tour §06 (`web/tour/scenes/light_camera.amx`) stacks them
+into a single scene so the *order* is visible: light first, then a live edge,
+then bloom, and the camera push last. The sources are ordinary `.amx` under
+`web/recipes/scenes/` and `web/tour/scenes/`, so each one can be copied whole.
 
 ### Property References & State Queries
 

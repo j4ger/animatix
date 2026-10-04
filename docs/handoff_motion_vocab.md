@@ -1,12 +1,15 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04, fourth session).** M1 (#1-#11) and M2
-> (#12-#16) are complete, M3 (#17-#20) is complete with the scene camera landed
-> last, and M4's #21 — the second-input-texture ABI bump with `Bloom` and a soft
-> `DropShadow` — is landed *and committed*, along with the site's recipes
-> gallery. What remains is the rest of M4 (#22 glass, #23 BarChart race, #24
-> font weights, #25 the vello pin, which is an upstream gate) plus the #13
-> content closeout. See
+> **STATUS: IN PROGRESS (2026-10-04, fifth session).** M1 (#1-#11), M2 (#12-#16)
+> and M3 (#17-#20) are complete, and M4's #21 — the second-input-texture ABI bump
+> with `Bloom` and a soft `DropShadow` — is landed and committed. So is the site's
+> recipes gallery, the tour's new "Light & camera" section, the authored-bounds
+> camera gap, and a delayed-`camera.zoom` bug the new tests surfaced. What remains
+> is #22 (glass), #23 (BarChart race), #24 (variable weights — three changes, not
+> one; see its row), #25 (the vello pin — a local probe, not an upstream gate),
+> the `always-overrides-keyframes` seed-vs-animated fix, the camera's remaining
+> follow-ups, an open +10.7% on one analyzer bench, and the #13 content leftovers.
+> See
 > ["Landed so far"](#landed-so-far) and
 > ["Remaining work, next-session order"](#remaining-work-next-session-order).
 > The decision questions at the bottom were resolved by the owner's go-ahead to
@@ -23,7 +26,46 @@
 
 ## Landed so far
 
-### Batch 4 (2026-10-04, fourth session) — five commits, local only
+### Batch 5 (2026-10-04, fifth session) — five commits, local only
+
+| Commit | Item | Evidence it landed |
+|---|---|---|
+| `889c6149` | A delayed `camera.zoom` no longer zeroes the scene until its stamp | `a_delayed_camera_write_holds_its_identity_until_its_stamp` (IDENTITY at t=0 and t=999, the authored 2× at t=1500); the *general* fix is recorded in the message as not free — seeding `max_height`'s `INFINITY` identity makes the 1 ms preserve segment interpolate to `NaN`, which `test_write_read_roundtrip_max_height` catches |
+| `b329b19c` | **Authored `Filter` bounds follow the camera** (the gap batch 4 measured and left open) | `dogfood/probe_camera_scopes.amx`: authored vs the same scene with `bounds:` deleted went 73,512 differing pixels at t=1.6 → **0**, with the 9-pixel padding floor at t=0.2 unchanged; `filter_bounds_follow_the_camera` covers the mapping; the full 120-bench compare is quoted in the message |
+| `a8647000` | The analyzer's exemption vocabulary is built once per process, not per keystroke | 111 + 2 analyzer tests unchanged; measured **neutral** on the bench (129.4 → 129.2 µs) and kept on that basis, not as a perf claim |
+| `f65b497c` | The tour now teaches the round: new §06 "Light & camera", and §05's effects scene gets its bloom | Both scenes `check`-clean; four frames of the new scene rendered and measured (15% → 29% → 32% → 51% content as the layers land); the bloom beat moves the sphere's two unsaturated channels (255,214,13) → (255,255,28); `never-revealed` caught the first draft's invisible bulb |
+| this commit | Docs closeout: six-scheme table, `architecture.md`'s stale scheme list, `roadmap.md`'s effects section, the plugin ABI's binding note, and #24/#25 rescoped | See the notes below |
+
+Notes the next session will want from batch 5:
+
+- **`analyzer_update/small` is a real, unattributed +10.7%.** It has now
+  reproduced across four runs against the 2026-10-02 baseline with a *tight*
+  within-run spread (129.2 µs ±1.4% vs a 116.8 µs baseline), while
+  `analyzer_update/dogfood` and `/large` — same code path, bigger inputs — read
+  11-15% *faster*. So it is a fixed-cost effect on the smallest input, not noise,
+  and not machine drift. Two candidates were measured out: the per-update
+  exemption set (`a8647000` made it static; the number moved 0.2%) and
+  `raw_property_types()` (it sits inside a `get_or_init`, so it was never
+  per-update). The next step is a profiler on `Analyzer::update` for
+  `examples/basics/00_hello.amx`; no profiler was available in this environment
+  (`perf`/`valgrind` both absent).
+- **The guard's own noise bound on that bench is useless.** Across runs of the
+  same tree its limit has ranged 5.0% → 84.8%, because the bound is built from
+  whichever `std_dev` that run happened to measure. Treat a flag there as a
+  question ("re-run isolated and look at the spread"), never as a verdict.
+- **#24 was mis-scoped and #25 was mis-blamed.** Variable-font weights need three
+  changes, not an asset swap (see the inventory row); the vello pin's gate is not
+  upstream's issue tracker but our own `vello_img_probe`, which needs a rev bump
+  and a quiet machine. Both rows now say that.
+- **Docs drift is wider than the code you changed.** This round's effect additions
+  left stale counts in four places the tests cannot see: the homepage's "13 GPU
+  effects"/"19 built-in actions", the tour's "Thirteen ship built in",
+  `architecture.md`'s three-scheme list, and `roadmap.md` still describing the ABI
+  bump as blocked. `docs/extension_authoring.md` also still told plugin authors the
+  binding layout had five entries. Sweep the site and docs for *numbers and lists
+  of vocabulary* after any addition — `grep` for the old count is the whole method.
+
+### Batch 4 (2026-10-04, fourth session) — seven commits, local only
 
 | Commit | Item | Evidence it landed |
 |---|---|---|
@@ -32,6 +74,8 @@
 | `455f403b` | Eleven builtins the engine answered and the language never declared, plus `LIST_FUNCTIONS` | `git show HEAD~:crates/animatix-syntax/src/builtins.rs` matches none of the thirteen names; `check` on a scene calling all thirteen now reports no `unresolved-variable` at all |
 | `e7fa1a1b` | `docs/spec.md`'s built-in math line rewritten to match the declaration table | The docs listed a subset, which is how the undeclared names stayed unnoticed |
 | `7d568e64` | The site's recipes gallery — decision 8's third preset layer | `web/recipes/index.html` + seven scenes, all `check`-clean and all rendered at t=2.6 s with content measured (0.97% of frame for a dashed rule, 43.6% for the bloom stage) |
+| `d4bfdd25` | `docs/spec.md`'s `format` example used a placeholder form the engine never had | Rendered proof of the grammar: `named {x}` stays literal, `plain {}` yields `12.345`, `{:.0}` yields `12`, `{:.2}` yields `12.35`, `{:,}` stays literal. A grep for the class over `examples/`, `web/`, `docs/`, `dogfood/` found no other use |
+| `22b3632f` | The batch-4 record, plus the camera/authored-bounds limit this batch then fixed | The probe's header carries the 9 px / 73,512 px measurement that `b329b19c` closed |
 
 Notes the next session will want from batch 4:
 
@@ -406,8 +450,8 @@ each non-trivial. Verified 2026-10-04.
 | 21 | Second-input-texture ABI bump → Bloom, soft DropShadow, chain Mix | **DONE** `b27ca5e5` + `a046cbf6` | ABI v2 binds the pre-chain original at `binding: 5` (`filter_backend.rs`), copied once per scope before pass 0. `Bloom` is its first consumer (`animatix-std/src/effects/bloom.rs`) and `DropShadow.softness` the second. "chain Mix" needed no new effect: `Bloom`'s `keep` parameter *is* a linear mix of the chain result with the original, so a second effect over the same math would be a duplicate |
 | 22 | `glass` / backdrop-blur | LARGE, **parked** | The main vello target is never an input texture (`offscreen.rs:267-294`; the filter backend renders its own sub-scenes, `filter_backend.rs:54-67`). Needs mid-frame scene splitting + rounded-rect regions (`EffectRegion` is a plain rect) + compositing *below* children. Revisit after #21 — shared machinery |
 | 23 | BarChart race | MEDIUM-LARGE, parked — **scoped in batch 3** | `data` is static and deliberately non-keyframeable (`build/plot.rs:1154` lists it among the properties the generic path skips; `parse_bar_chart_data` at `:2043` returns a build-time `Vec<(String, f32)>` baked into paths). Five steps, in order: (1) a `data_transitions` side channel mirroring `FuncTransition` (`timeline/plot.rs:183`, whose module doc at `:11-200` is the worked explanation of why it lives beside the track rather than in it); (2) bar identity matching by label between the two datasets — the genuinely new logic, with unmatched bars entering from height 0 and exiting to it; (3) a frame-time sampler beside `sample_procedural_plot_at` that lerps matched values; (4) rebuilding bar geometry per frame, which is the hot-path part (bars are built once today), so it needs `scripts/perf-bench.sh compare` and probably a memo keyed on `(t, data_epoch)`; (5) removing `data` from the non-keyframeable list, which the analyzer and `warn_inapplicable_declaration_properties` both read |
-| 24 | Variable-font weight animation | NOT feasible today | slim builds bundle Open Sans **Regular only** (`animatix-text/src/lib.rs:594-657`, `:200-201`); `font_weight` snaps Regular\|Bold (rich-text only). Needs a variable font or 9 static faces — parked |
-| 25 | Vello pin lift | external gate | unchanged: upstream #1558, then the `vello_img_probe` matrix. Attempted in batch 3 and not answerable from here: no `gh` on PATH and the web-fetch tool refused `api.github.com`, so the upstream state is unverified. The pin's own comment (`crates/animatix-render/Cargo.toml:29-33`) is the record of what to look for: atlas residency making image draws vanish between non-image renders, fatal for the multi-scope filter pipeline |
+| 24 | Variable-font weight animation | NOT feasible today — **three changes, not one** | Scoped in batch 5 against the code rather than the summary: (1) the bundle ships four *static* Open Sans faces (`animatix-text/src/lib.rs:600-646` — Regular/Bold/Italic/BoldItalic) plus Noto Sans SC and Fira Math, so a variable face has to be added (asset + licence); (2) `font_weight_to_typst` (`:960`) quantizes the numeric axis to nine *named* CSS weights as a `&'static str`, and typst then picks a face by name — six of those nine names have no face in the bundle and fall back, so the path needs typst's numeric `("family", weight: 640)` form rather than a keyword; (3) weight changes recompile glyphs every frame, which is the `count_up` cost path, so it needs the same frame-time memo question answered. Parked |
+| 25 | Vello pin lift | external gate | unchanged: upstream #1558, then the `vello_img_probe` matrix. Attempted in batch 3 and again in batch 5, and still not answerable from here: no `gh` on PATH, `WebFetch` is quota-blocked (`FORBIDDEN`, not a network fault) and a web search for the PR returns no status. The actionable path does not need upstream's issue tracker at all — bump `rev = "d8686d52"` in `crates/animatix-render/Cargo.toml` and run `crates/animatix-render/tests/vello_img_probe.rs` on a quiet machine; that probe *is* the gate the pin's comment names. The pin's comment (`crates/animatix-render/Cargo.toml:29-33`) records the symptom to look for: atlas residency making image draws vanish between non-image renders, fatal for the multi-scope filter pipeline |
 
 ## Remaining work, next-session order
 
@@ -423,7 +467,9 @@ the order that makes sense to attempt it:
    provide — the main vello target is still never an input texture), **#23
    BarChart race** (now scoped to five ordered steps), **#24 font weights**
    (needs a variable face in the slim bundle), **#25 vello pin lift** (an
-   upstream check this session could not make — see the inventory row). None is
+   upstream check this session could not make — see the inventory row). **#24 is
+   three changes, not the one it was described as** (asset, numeric-weight path
+   into typst, per-frame glyph recompile) — see its row. None is
    a quiet afternoon.
 3. **#13 closeout, mostly done.** Landed across the round: the theme/vivid pack
    (`ef6a0c00` schemes, `2e170adf` `examples/lib/light.amx` genre pack), the
@@ -439,35 +485,50 @@ the order that makes sense to attempt it:
    `web/README.md` now says so; **deleting them is the owner's call**), and
    pruning this handoff into `docs/history.md` when the round closes.
 
-4. **A suspected `always-overrides-keyframes` false positive on component
-   internals.** `examples/animation/36_light_pack.amx` warns that the `always`
-   inside `MarchingRail` writes `dash_offset` on actor `rail`, which "also has
-   keyframe animation" — but `rail` is the *instance* label and the write lands
-   on `rail.line`, whose only keyframes are the opacity the entrance author
-   intended. Worth a look the next time that lint is touched; the scene renders
-   as designed.
+4. **`always-overrides-keyframes` fires on declaration seeds, not on
+   animation.** `examples/animation/36_light_pack.amx` warns that the `always`
+   inside `MarchingRail` writes `dash_offset` on actor `rail`, "which also has
+   keyframe animation". The guess recorded here when it was filed — that the
+   write lands on `rail.line` while the lint looks at `rail` — was wrong: a
+   single-actor component's internal actor *is* the instance track, because
+   `animatix-syntax/src/module/rewrite.rs` drops the root label when it rewrites
+   `self.line.dash_offset`, so the target really is `["rail"]`. The cause is one
+   level down: the lint asks `has_keyframes_for`, which is
+   `keyframe_count() > 0`, and `insert_end_keyframes` stamps a constant keyframe
+   for every declared property — `dash_offset` gets one at the scene end holding
+   its default `0.0`. Nothing animates. That is the same root cause batch 2 noted
+   for `size` on a `Rect`: a non-zero keyframe count says *declared*, not
+   *animated*, and no lint should treat the two as the same question.
 5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
    for a HUD that must not move, the camera is not carried across scenes by
    `persistent`/carry-bag, `animatix verify` ink checks are in scene rather than
    screen space, and the loop-perfect lint does not sample the camera axes.
-   A `Filter` scope survives it for the reason in the code rather than by
-   luck: the sub-scene is rendered with the node's `global_transform`
-   (`scene_eval.rs:1061-1075`), the region is derived from the subtree bounds
-   that transform produced, and the composite blits back at that same
-   `region.origin` — all three in the same camerad space. What breaks is an
-   **authored `bounds: (x, y, w, h)`** on a scope: those numbers are scene
-   coords and the camera does not move them, so a zoomed scope filters the
-   wrong rectangle. **Confirmed by measurement** in
-   `dogfood/probe_camera_scopes.amx`: the same scene with and without its
-   `bounds:` differs in 9 pixels at t=0.2 (camera identity — the two regions
-   coincide) and 73,512 pixels — a third of the frame — at t=1.6 after a push
-   and pan. The fix is to transform authored bounds by the camera affine — not
-   the one-liner it first looked like: `effect_scope_region`
-   (`scene_eval.rs:1186-1205`) has no frame context, and threading the camera
-   affine to it means a field on `RenderFrame` plus its five construction sites
-   (`primitives/mod.rs:990`, `scene_eval.rs:1554/1585/1616/1913`), three of
-   which are container adapters that would have to carry it rather than derive
-   it. Worth doing; scoped, not started.
+
+   A `Filter` scope is correct under all three axes now, authored bounds
+   included. A derived region never was a problem: the sub-scene renders with the
+   node's `global_transform`, the region comes from the subtree bounds that
+   transform recorded, and the composite blits back at that same
+   `region.origin`. Authored `bounds: (x, y, w, h)` are scene coordinates, so
+   `effect_scope_region` maps them through the camera affine before the support
+   padding. Measured on `dogfood/probe_camera_scopes.amx`, authored against the
+   same scene with `bounds:` deleted: **73,512 differing pixels at t=1.6 → 0**,
+   with the 9-pixel padding floor at t=0.2 unchanged.
+
+   Two things about that fix are worth keeping. It was scoped here as needing a
+   field on `RenderFrame` plus its five construction sites, and that was wrong —
+   `RenderFrame` already carries the frame's `overrides`, so the affine the root
+   subtrees were wrapped in can be recomputed at the scope from the same inputs.
+   And the first attempt passed the scope's own `global_transform`, which
+   double-counted the scope's `at` and slid the region by (320, 180): 42,126
+   differing pixels at t=0.2 where the answer is 9. The affine that belongs here
+   is the camera's, not the node's.
+
+   A delayed `camera.zoom` also used to zero the scene until its stamp arrived:
+   the write helpers preserve the pre-stamp value, and for a track with no
+   declaration behind it that fallback is `f32::default()` — `0.0` for zoom.
+   Fixed in `889c6149`, where the *general* version of that fix is recorded as
+   not free: `max_height`'s identity is `INFINITY` and the 1 ms preserve segment
+   then interpolates to `NaN`.
 6. **The residual reactive-frame cost is closed** (`1727d558`): the mechanism
    was `inject_property_into_env` walking every INJECTABLE row of every actor
    every frame, and six of batch 1/2's rows are now `ASSIGNABLE_A`. What is

@@ -156,11 +156,19 @@ Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
 2026-09-13, wave 2 (`Duotone`, `Posterize`, `Edge`, `LensDistortion`,
 `DropShadow`) shipped 2026-09-14 — see `docs/history.md` for both.
 
-`Bloom`, soft `DropShadow`, and a generic chain `Mix` are blocked on the
-second-input-texture ABI bump (`docs/effects.md` §4.1) and are **not**
-scheduled: the ping-pong chain overwrites the original after the first pass,
-so an add-back has no source. `Mix` additionally needs named intermediate
-chain outputs — a separate chain-model change, not part of that bump.
+The second-input-texture ABI bump shipped 2026-10-04 (`docs/effects.md` §4.1:
+binding 5 carries the pre-chain original), and with it `Bloom` and
+`DropShadow.softness`. A generic chain `Mix` is deliberately **not** planned:
+`Bloom`'s `keep` parameter is already a linear mix of the chain result with the
+original, so a second effect over the same math would be a duplicate — an N-way
+mix would need named intermediate chain outputs, which is a chain-model change
+rather than another input texture.
+
+What is left in this family is **`glass` / backdrop-blur**, still not scheduled:
+it needs the main vello target as an input source, which ABI v2 does not provide
+(the filter backend renders its own sub-scenes; `offscreen.rs` never feeds the
+live target back), plus mid-frame scene splitting and non-rectangular regions
+(`EffectRegion` is a plain rect), and compositing *below* the scope's children.
 
 ## Morph: `strategy: fade` has no cross-fade for state shapes
 

@@ -557,7 +557,8 @@ Colorschemes provide declarative color contracts with two pieces:
 
 ### Surface
 
-- Built-in schemes: `default-dark`, `default-light`, `editorial-dark`
+- Built-in schemes: `default-dark`, `default-light`, `editorial-dark`, `vivid`,
+  `paper`, `neon-night` (described in `spec.md` §5)
 - Inline definition: `let ocean = Colorscheme { extends: "default-dark", ... }`
 - Aliased module imports: `import "theme.amx" as theme` (see `spec.md` §11)
 
