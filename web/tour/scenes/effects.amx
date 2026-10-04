@@ -9,19 +9,38 @@
 // vignette lands, and the brightness dip starts from 1.0 — a 0.6 baseline
 // renders the surface plate *darker* than the page ground, reading as a
 // hole instead of a panel.
+//
+// The plate carries material for the filters to chew on. A flat disc under
+// `blur: 14` barely changes; a gradient sphere with a dashed rim and a ramped
+// bar does — the high-frequency dashes are what make the radius readable, and
+// the ramp is what makes `brightness` and `vignette` visible at all. This is
+// the scene about the filter system, so its subject should demonstrate it.
 
 import "../../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
+
+// Ambient light behind the panel, outside the filter scope so the grade beats
+// act on the plate and not on the room it sits in.
+wash: Ellipse, size: (760, 760), at: (640, 360),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421a"), (55%, "#8ab4f60a"), (100%, "#8ab4f600")}),
+  blend: "screen"
 
 panel: Filter, anchor: scene.center {
   soft: Blur, radius: 0
   grade: ColorGrade, brightness: 1.0
   vig: Vignette, amount: 0, radius: 0.55, softness: 0.7
   art: Group, anchor: scene.center {
-    plate: Rect, size: (560, 320), color: surface.secondary
-    ring: Ellipse, size: (180, 180), color: accent.primary
-    bar: Rect, size: (340, 24), color: accent.primary, at: (0, 140)
+    plate: Rect, size: (560, 320), corner_radius: 22,
+      fill_gradient: linear(135, {"#1b2534", "#0b1017"})
+    // The subject: a lit sphere with a dashed rim, so the blur has something
+    // to resolve and the vignette has an edge to fall off from.
+    ring: Ellipse, size: (180, 180),
+      fill_gradient: radial((0.36, 0.3), 0.62, {(0%, "#fff0c2"), (40%, "#ffd60a"), (100%, "#c98a00")})
+    rim: Ellipse, size: (232, 232), stroke: accent.primary, stroke_width: 2,
+      fill_opacity: 0.0, dash_pattern: {10, 8}
+    bar: Rect, size: (340, 24), at: (0, 140), corner_radius: 12,
+      fill_gradient: linear(90, {"#ff8666", "#8ab4f6"})
   }
 }
 
@@ -37,15 +56,30 @@ capD: Text, text: "brightness dip", font_size: 22, color: text.secondary,
 capE: Text, text: "shake + pulse", font_size: 22, color: text.secondary,
   at: (640, 660), opacity: 0.0
 
-chip: Rect, size: (150, 44), color: accent.warning, anchor: scene.center, offset: (0, 220)
+// The emphasis target is a real affordance, not a bare rectangle: a rounded
+// chip with a bundled Lucide `plus` traced onto it, so `shake` and `pulse`
+// land on something the eye already reads as a control.
+chip: Rect, size: (150, 44), anchor: scene.center, offset: (0, 220),
+  corner_radius: 22,
+  fill_gradient: linear(135, {"#ff9f0a", "#ff5c5c"})
+chip_icon: Path, icon: "plus", stroke: (0.10, 0.07, 0.03, 1), stroke_width: 2,
+  fill_opacity: 0.0, anchor: scene.center, offset: (-18, 202), scale: 1.5
+
+#0s
+rim.dash_offset = 0
+rim.dash_offset = 360 [7.2s, ease: linear]
 
 #0.5s
+fade-in wash [700ms, ease: expo-out]
 stagger [90ms] {
-  fade-in plate [500ms, ease: expo-out]
-  fade-in ring [500ms, ease: expo-out]
-  fade-in bar [500ms, ease: expo-out]
+  settle-in plate [500ms, ease: expo-out]
+  settle-in bar [500ms, ease: expo-out]
   fade-in label [500ms, ease: expo-out]
 }
+
+#0.65s
+pop-in ring [550ms, ease: expo-out]
+fade-in rim [500ms, ease: expo-out]
 
 // blur in, caption first
 #1.7s
@@ -86,17 +120,22 @@ fade-in capE [200ms, ease: expo-out]
 
 #5.2s
 panel.grade.brightness = 1.0 [0.7s, ease: ease-out]
-fade-in chip [400ms, ease: expo-out]
+pop-in chip [400ms, ease: expo-out]
+pop-in chip_icon [400ms, ease: expo-out]
 
 #5.5s
 shake chip [500ms]
 pulse chip [400ms]
+shake chip_icon [500ms]
+pulse chip_icon [400ms]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #6.4s
-stagger [80ms] {
+stagger [70ms] {
+  fade-out chip_icon [350ms, ease: ease-in]
   fade-out chip [350ms, ease: ease-in]
   fade-out label [350ms, ease: ease-in]
+  fade-out rim [350ms, ease: ease-in]
   fade-out bar [350ms, ease: ease-in]
   fade-out ring [350ms, ease: ease-in]
   fade-out plate [350ms, ease: ease-in]
@@ -104,3 +143,4 @@ stagger [80ms] {
 
 #6.6s
 fade-out capE [200ms, ease: ease-in]
+fade-out wash [400ms, ease: ease-in]

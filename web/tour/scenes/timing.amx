@@ -6,10 +6,18 @@
 //
 // The easing beat names each ease on screen: the finale palette uses all
 // five distinct channels (amber/bone/coral/sage/steel) because here hue IS
-// the per-square semantic channel. The labels are hand-positioned at the
-// Row's slot centres (x = 272 + 184i, from 5 slots of 120 + gap 64 centred
-// on 640) so each name sits exactly under its square even after the squares
-// outgrow their layout slots.
+// the per-square semantic channel — which is why the squares keep flat
+// `color:` fills and the light under them is a separate actor.
+//
+// The curves are demonstrated by a DROP RACE, not by the squares: five
+// neutral dots fall the same 105px under the same 900ms, each with its own
+// ease, over a dashed guide. Mid-segment the frame reads as a bar chart of
+// the five curves — linear is behind, ease-out is ahead, bounce has already
+// landed and is still wobbling. A scale ramp cannot show that (1.25 -> 1.0
+// is a 25% change on a 120px box, and every curve ends in the same place).
+// The labels are hand-positioned at the Row's slot centres (x = 272 + 184i,
+// from 5 slots of 120 + gap 64 centred on 640) so each name sits exactly
+// under its square.
 
 import "../../demos/lib/theme.amx"
 
@@ -18,9 +26,16 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.7 }
 title: Text, text: "stagger · sequence · easing", font_size: 30, color: text.primary,
   anchor: scene.top, offset: (0, 56)
 
+// One screen-blend pool behind the row: the plate stops being a black field
+// with stickers on it. The ramp fades to transparent at its own edge, so a
+// square box leaves no visible seam.
+wash: Ellipse, size: (900, 900), at: (640, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421e"), (50%, "#8ab4f60c"), (100%, "#8ab4f600")}),
+  blend: "screen"
+
 row: Row, anchor: scene.center, gap: 64, align: "center", offset: (0, -40) {
   for color, i in {accent.primary, text.primary, accent.warning, accent.success, accent.info} {
-    square[i]: Rect, size: (120, 120), color: color
+    square[i]: Rect, size: (120, 120), color: color, corner_radius: 14
   }
 }
 
@@ -30,14 +45,34 @@ label_2: Text, text: "ease-out", font_size: 26, color: text.secondary, at: (640,
 label_3: Text, text: "ease-in-out", font_size: 26, color: text.secondary, at: (824, 462)
 label_4: Text, text: "bounce", font_size: 26, color: text.secondary, at: (1008, 462)
 
+// The race: start rail, landing rail, five neutral dots. The dots are bone,
+// not the squares' hues — the position IS the read, and a coloured dot would
+// compete with the channel above it.
+rail_top: Path,
+  commands: {move_to(212, 505), line_to(1068, 505)},
+  stroke: stroke.default, stroke_width: 1, fill_opacity: 0.0,
+  dash_pattern: {4, 6}
+rail_bot: Path,
+  commands: {move_to(212, 610), line_to(1068, 610)},
+  stroke: stroke.default, stroke_width: 1, fill_opacity: 0.0,
+  dash_pattern: {4, 6}
+
+racers: Group {
+  for x, i in {272, 456, 640, 824, 1008} {
+    drop[i]: Ellipse, size: (24, 24), at: (x, 505),
+      fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
+  }
+}
+
 #0.5s
 fade-in title [500ms, ease: expo-out]
+fade-in wash [700ms, ease: expo-out]
 stagger [120ms] {
-  fade-in square[0] [500ms, ease: expo-out]
-  fade-in square[1] [500ms, ease: expo-out]
-  fade-in square[2] [500ms, ease: expo-out]
-  fade-in square[3] [500ms, ease: expo-out]
-  fade-in square[4] [500ms, ease: expo-out]
+  pop-in square[0] [500ms, ease: expo-out]
+  pop-in square[1] [500ms, ease: expo-out]
+  pop-in square[2] [500ms, ease: expo-out]
+  pop-in square[3] [500ms, ease: expo-out]
+  pop-in square[4] [500ms, ease: expo-out]
 }
 
 #2.5s
@@ -49,21 +84,8 @@ sequence {
   square[4].scale = 1.25 [400ms, ease: ease-out]
 }
 
-// five named eases, one per square — animating SCALE, not color: a color
-// lerp cannot show an ease curve, and re-assigning the declared colors is
-// an identity assignment (nothing moves). 1.25 -> 1.0 makes linear vs
-// ease-in vs bounce visibly different. Scale rather than size: these squares
-// live in a Row, so growing `size` reflows the slots and each label drifts off
-// the square it names; `scale` paints without touching layout.
-#5s
-square[0].scale = 1.0 [600ms, ease: linear]
-square[1].scale = 1.0 [600ms, ease: ease-in]
-square[2].scale = 1.0 [600ms, ease: ease-out]
-square[3].scale = 1.0 [600ms, ease: ease-in-out]
-square[4].scale = 1.0 [600ms, ease: bounce]
-
-// Labels arrive BEFORE the ease beat (last one settles at 4.94 < 5.0) —
-// they name curves that are already over when they fade in.
+// Labels arrive BEFORE the race (last one settles at 4.94 < 5.0) — they name
+// curves that are about to run.
 #4.4s
 stagger [60ms] {
   fade-in label_0 [300ms, ease: expo-out]
@@ -72,6 +94,25 @@ stagger [60ms] {
   fade-in label_3 [300ms, ease: expo-out]
   fade-in label_4 [300ms, ease: expo-out]
 }
+
+#4.9s
+fade-in rail_top [300ms, ease: expo-out]
+fade-in rail_bot [300ms, ease: expo-out]
+fade-in drop[0] [250ms, ease: expo-out]
+fade-in drop[1] [250ms, ease: expo-out]
+fade-in drop[2] [250ms, ease: expo-out]
+fade-in drop[3] [250ms, ease: expo-out]
+fade-in drop[4] [250ms, ease: expo-out]
+
+// The race itself. Deliberately NO `anticipate:` here: a counter-move before
+// the drop would be a sixth variable in a comparison that is only valid when
+// all five starts are identical.
+#5s
+move drop[0] [to: (0, 105), 900ms, ease: linear]
+move drop[1] [to: (0, 105), 900ms, ease: ease-in]
+move drop[2] [to: (0, 105), 900ms, ease: ease-out]
+move drop[3] [to: (0, 105), 900ms, ease: ease-in-out]
+move drop[4] [to: (0, 105), 900ms, ease: bounce]
 
 // Outro: quiet plate before the wrap.
 #6.5s
@@ -82,6 +123,19 @@ stagger [80ms] {
   fade-out label_3 [300ms, ease: ease-in]
   fade-out label_4 [300ms, ease: ease-in]
 }
+
+#6.6s
+stagger [60ms] {
+  fade-out drop[0] [280ms, ease: ease-in]
+  fade-out drop[1] [280ms, ease: ease-in]
+  fade-out drop[2] [280ms, ease: ease-in]
+  fade-out drop[3] [280ms, ease: ease-in]
+  fade-out drop[4] [280ms, ease: ease-in]
+}
+
+#6.7s
+fade-out rail_top [280ms, ease: ease-in]
+fade-out rail_bot [280ms, ease: ease-in]
 
 #6.9s
 stagger [80ms] {
@@ -94,3 +148,4 @@ stagger [80ms] {
 
 #7.1s
 fade-out title [300ms, ease: ease-in]
+fade-out wash [400ms, ease: ease-in]

@@ -1,5 +1,12 @@
 // syntax.amx — tour §01: actors and keyframes.
 // One actor per line, one beat per keyframe stamp.
+//
+// The footer rail makes the lesson visible: it IS the timeline, and a tick
+// pops onto it at exactly the moment each keyframe stamp fires, with a
+// playhead sweeping the whole duration. Reading "one beat per stamp" off a
+// flat list of numbers is abstract; watching five marks land under a moving
+// head is not. The rail's ants march so the clock reads as running even in
+// the gaps between beats.
 
 import "../../demos/lib/theme.amx"
 
@@ -8,28 +15,74 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 title: Text, text: "Actors & keyframes", font_size: 34, color: text.primary,
   anchor: scene.top, offset: (0, 56)
 
-box: Rect, size: (240, 240), color: accent.primary, at: (420, 390)
-dot: Ellipse, size: (40, 40), color: accent.danger, at: (930, 560)
+// The light layer: one screen-blend pool under the cast. Its ramp fades to a
+// transparent stop, which is what lets it ride to full opacity and still read
+// as light instead of as a grey ellipse.
+wash: Ellipse, size: (760, 760), at: (560, 400),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94224"), (50%, "#f5b9420e"), (100%, "#f5b94200")}),
+  blend: "screen"
+
+// A ramp, not a flat fill — and the #2.9s beat re-keys the RAMP (same kind,
+// same stop count), which is what makes the recolour beat visible at all:
+// `fill_gradient` overrides the solid fill, so a plain `color:` assignment
+// here would animate a value nothing reads.
+box: Rect, size: (240, 240), at: (420, 390), corner_radius: 18,
+  fill_gradient: linear(135, {"#f5b942", "#ff8666"})
+
+dot: Ellipse, size: (40, 40), at: (930, 560),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffb3b3"), (45%, "#ff5c5c"), (100%, "#b3123a")})
+
+// ── the timeline rail ───────────────────────────────────────────────
+// x = 200 + (t / 7.2) * 880, so the five ticks sit at their own beat times.
+rail: Path,
+  commands: {move_to(200, 620), line_to(1080, 620)},
+  stroke: accent.info, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {8, 6}
+
+ticks: Group {
+  for x, i in {298, 396, 554, 677, 726} {
+    tick[i]: Rect, size: (3, 30), at: (x, 620), corner_radius: 1,
+      color: accent.info
+  }
+}
+
+head: Rect, size: (2, 56), at: (200, 620), color: accent.primary, opacity: 0.0
+
+#0s
+rail.dash_offset = 0
+rail.dash_offset = 260 [6.3s, ease: linear]
+head.opacity = 0.22 [400ms, ease: expo-out]
+
+always {
+  head.at = (200.0 + 880.0 * (t / 7.2), 620.0)
+}
 
 #0.3s
 fade-in title [600ms, ease: expo-out]
+fade-in rail [450ms, ease: expo-out]
+fade-in wash [900ms, ease: expo-out]
 
 #0.8s
-fade-in box [500ms, ease: expo-out]
+settle-in box [600ms, ease: expo-out]
+pop-in tick[0] [280ms]
 
 #1.6s
-box.at = (640, 390) [900ms, ease: ease-in-out]
+move box [to: (220, 0), 900ms, ease: ease-in-out, anticipate: 80ms]
+pop-in tick[1] [280ms]
 
 #2.9s
 box.size = (340, 130) [700ms, ease: ease-out]
-box.color = text.primary [700ms, ease: ease-out]
+box.fill_gradient = linear(135, {"#ece7db", "#b9b3a6"}) [700ms, ease: ease-out]
+pop-in tick[2] [280ms]
 
 // The dot beat starts right as the recolor settles — no dead gap.
 #3.9s
 fade-in dot [350ms, ease: expo-out]
+pop-in tick[3] [280ms]
 
 #4.3s
-dot.at = (640, 560) [700ms, ease: ease-in-out]
+move dot [to: (-290, 0), 700ms, ease: ease-in-out, anticipate: 60ms]
+pop-in tick[4] [280ms]
 
 // Outro: empty the plate so the loop wraps from quiet, not from a full frame.
 #6.3s
@@ -37,6 +90,20 @@ stagger [120ms] {
   fade-out dot [350ms, ease: ease-in]
   fade-out box [350ms, ease: ease-in]
 }
+
+#6.5s
+stagger [60ms] {
+  fade-out tick[0] [280ms, ease: ease-in]
+  fade-out tick[1] [280ms, ease: ease-in]
+  fade-out tick[2] [280ms, ease: ease-in]
+  fade-out tick[3] [280ms, ease: ease-in]
+  fade-out tick[4] [280ms, ease: ease-in]
+}
+
+#6.7s
+fade-out head [300ms, ease: ease-in]
+fade-out rail [350ms, ease: ease-in]
+fade-out wash [400ms, ease: ease-in]
 
 #6.8s
 fade-out title [400ms, ease: ease-in]

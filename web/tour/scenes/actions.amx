@@ -6,6 +6,11 @@
 // feature, not a stray dot. The orbit's ry clears the actor's band, and the
 // actor returns to the brand amber after the recolor beat so the coral
 // stays a one-beat accent.
+//
+// The orbit now draws its own locus: a dashed ring at exactly the ellipse the
+// `always` expression traces, with marching ants for direction. Without it
+// the satellite is a dot teleporting through empty space and the scene's
+// headline feature is invisible; with it, the periodicity IS the picture.
 
 import "../../demos/lib/theme.amx"
 
@@ -14,24 +19,50 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 9.6 }
 title: Text, text: "shift · rotate · scale · always", font_size: 30, color: text.primary,
   anchor: scene.top, offset: (0, 56)
 
-actor: Rect, size: (160, 160), color: accent.primary, at: (640, 360)
+// Screen-blend pool behind the stage so the plate has a floor to stand on.
+wash: Ellipse, size: (820, 820), at: (640, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}),
+  blend: "screen"
+
+// A two-stop ramp, keyed by the recolour beats. The actor deliberately has no
+// `color:` assignments any more: `fill_gradient` overrides the solid fill, so
+// a colour track here would animate a value nothing reads.
+actor: Rect, size: (160, 160), at: (640, 360), corner_radius: 20,
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
+
 // explicit opacity: the always block below owns `at`/`size` from frame 0,
 // so no entrance action (and no keyframe conflict) applies. Authored 0 is
 // the hidden-by-default seed; the #0.5s entrances lift it — without them
 // the satellite hard-pops on every loop entry.
-pulse: Rect, size: (60, 60), color: accent.success, opacity: 0.0
+pulse: Rect, size: (60, 60), opacity: 0.0, corner_radius: 30,
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#8fc7a3"), (100%, "#2f7a4d")})
+// The satellite's own light: a wider, transparent-edged screen-blend pool
+// that the `always` block parks under it.
+halo: Ellipse, size: (190, 190), opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a338"), (60%, "#8fc7a312"), (100%, "#8fc7a300")}),
+  blend: "screen"
+orbit: Ellipse, size: (840, 400), at: (640, 360), stroke: accent.info,
+  stroke_width: 2, fill_opacity: 0.0, dash_pattern: {8, 10}
 sat_label: Text, text: "always { }", font_size: 26, color: text.secondary, opacity: 0.0
+
+#0s
+orbit.dash_offset = 0
+// Continuous marching: 80 full dash periods (18px each) across the loop.
+orbit.dash_offset = 1440 [9.6s, ease: linear]
 
 #0.5s
 fade-in title [500ms, ease: expo-out]
-fade-in pulse [400ms, ease: expo-out]
+fade-in wash [700ms, ease: expo-out]
+fade-in orbit [500ms, ease: expo-out]
+fade-in halo [400ms, ease: expo-out]
+pop-in pulse [450ms, ease: expo-out]
 fade-in sat_label [400ms, ease: expo-out]
 
 #0.8s
-fade-in actor [600ms, ease: expo-out]
+settle-in actor [650ms, ease: expo-out]
 
 #1.5s
-shift actor [by: (160, 0), 800ms, ease: ease-in-out]
+shift actor [by: (160, 0), 800ms, ease: ease-in-out, anticipate: 90ms]
 
 #2.5s
 rotate actor [by: deg(90), 800ms, ease: ease-in-out]
@@ -40,20 +71,20 @@ rotate actor [by: deg(90), 800ms, ease: ease-in-out]
 scale actor [by: 1.4, 800ms, ease: ease-in-out]
 
 #4.5s
-actor.color = accent.warning [600ms, ease: ease-in-out]
+actor.fill_gradient = linear(135, {"#ff9f0a", "#ff5c5c"}) [600ms, ease: ease-in-out]
 
 #5.5s
 scale actor [by: 0.714, 800ms, ease: ease-in-out]
 
 // Back to the brand lead: coral was a one-beat accent, not a new owner.
 #6.4s
-actor.color = accent.primary [600ms, ease: ease-in-out]
+actor.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [600ms, ease: ease-in-out]
 
 #6.5s
 rotate actor [by: deg(-90), 800ms, ease: ease-in-out]
 
 #7.5s
-shift actor [by: (-160, 0), 800ms, ease: ease-in-out]
+shift actor [by: (-160, 0), 800ms, ease: ease-in-out, anticipate: 90ms]
 
 // Reactive expression: orbital motion, evaluated every frame. (Literal
 // centre — `scene.center.x` is not available to frame-time expressions.)
@@ -61,9 +92,14 @@ shift actor [by: (-160, 0), 800ms, ease: ease-in-out]
 // actor's travel band (shift is +/-160, scale peak 1.4): SAT-checked over
 // the whole timeline, the tightest corner gap is ~10px at the diagonal
 // crossings. rx 300 collided (max 18px penetration at t=6.0; rx 420 doubles the margin).
+// `orbit` is the same ellipse declared as geometry: 2 * 420 x 2 * 200 at the
+// same centre, so the drawn locus and the evaluated one cannot drift apart.
 always {
-  pulse.at = (640 + 420 * cos(t * 2.0), 360 + 200 * sin(t * 2.0))
-  sat_label.at = pulse.at + (0, 56)
+  let px = 640 + 420 * cos(t * 2.0)
+  let py = 360 + 200 * sin(t * 2.0)
+  pulse.at = (px, py)
+  halo.at = (px, py)
+  sat_label.at = (px, py + 56)
 }
 
 // Outro: hold the settled composition a beat, then quiet the plate.
@@ -74,7 +110,10 @@ fade-out actor [500ms, ease: ease-in]
 fade-out sat_label [300ms, ease: ease-in]
 
 #9.1s
+fade-out halo [300ms, ease: ease-in]
 fade-out pulse [300ms, ease: ease-in]
 
 #9.25s
 fade-out title [300ms, ease: ease-in]
+fade-out orbit [300ms, ease: ease-in]
+fade-out wash [350ms, ease: ease-in]

@@ -13,15 +13,44 @@
 // the trapezoid at 6 for the same reason — do not "simplify" them back to 4:
 // a 4→10 span collapses into a blob mid-morph.
 //
+// The three shapes are lit volumes, not decals: each carries a two-stop
+// `linear` ramp and every beat re-keys the RAMP alongside the geometry, so
+// the hue story (amber → bone, sage → amber, coral → sage → amber, all
+// unified on amber at the end) survives. A plain `color:` assignment would
+// have been silently dead here — `fill_gradient` overrides the solid fill —
+// and ramps of the same kind and stop count interpolate, so the recolour is
+// itself a morph.
+//
 // Captions are five separate `Text` actors that hand off — one fully faded
 // out before the next fades in — instead of re-assigning one shared actor's
 // `text`: an assignment swaps by cross-fading the two strings on top of each
-// other (and a duration-free one lands a beat early). The finale unifies on
-// amber; coral stays a per-beat accent.
+// other (and a duration-free one lands a beat early).
 
 import "../../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 11.4 }
+
+title: Text, text: "re-declare, and the shape follows", font_size: 30,
+  color: text.primary, anchor: scene.top, offset: (0, 56)
+
+// Three pools, one per column: the stage has a floor and the shapes stop
+// floating on black.
+pool_a: Ellipse, size: (420, 420), at: (320, 350),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94220"), (60%, "#f5b9420a"), (100%, "#f5b94200")}),
+  blend: "screen"
+pool_b: Ellipse, size: (420, 420), at: (640, 350),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a320"), (60%, "#8fc7a30a"), (100%, "#8fc7a300")}),
+  blend: "screen"
+pool_c: Ellipse, size: (420, 420), at: (960, 350),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff866620"), (60%, "#ff86660a"), (100%, "#ff866600")}),
+  blend: "screen"
+
+// The bench: a dashed rule the three columns stand on, marching for the whole
+// loop so the plate never goes fully still between beats.
+bench: Path,
+  commands: {move_to(140, 470), line_to(1140, 470)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {8, 6}
 
 // Caption hand-off ladder: authored 0.0 is the hidden seed; each entrance
 // lifts it, each exit settles it before the next caption's entrance.
@@ -36,23 +65,42 @@ capP25: Text, text: "path_arc: 0.25", font_size: 22, color: text.secondary,
 capS: Text, text: "stretch: true", font_size: 22, color: text.secondary,
   anchor: scene.center, offset: (0, 250), opacity: 0.0
 
-circle: Polygon, points: {(85, 0), (79, 32), (60, 60), (32, 79), (0, 85), (-32, 79), (-60, 60), (-79, 32), (-85, 0), (-79, -32), (-60, -60), (-32, -79), (0, -85), (32, -79), (60, -60), (79, -32)}, color: accent.primary, at: (320, 330)
-rect: Polygon, points: {(0, -85), (85, -85), (85, 85), (0, 85), (-85, 85), (-85, -85)}, color: accent.success, at: (640, 330)
-poly: Polygon, points: {(0, -85), (28, -57), (57, -28), (57, 28), (28, 57), (0, 85), (-28, 57), (-57, 28), (-57, -28), (-28, -57)}, color: accent.warning, at: (960, 330)
+circle: Polygon, points: {(85, 0), (79, 32), (60, 60), (32, 79), (0, 85), (-32, 79), (-60, 60), (-79, 32), (-85, 0), (-79, -32), (-60, -60), (-32, -79), (0, -85), (32, -79), (60, -60), (79, -32)}, at: (320, 330),
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
+rect: Polygon, points: {(0, -85), (85, -85), (85, 85), (0, 85), (-85, 85), (-85, -85)}, at: (640, 330),
+  fill_gradient: linear(135, {"#b7e0c2", "#6fae83"})
+poly: Polygon, points: {(0, -85), (28, -57), (57, -28), (57, 28), (28, 57), (0, 85), (-28, 57), (-57, 28), (-57, -28), (-28, -57)}, at: (960, 330),
+  fill_gradient: linear(135, {"#ff9f8a", "#ff5c3a"})
+
+#0s
+bench.dash_offset = 0
+bench.dash_offset = 204 [11.4s, ease: linear]
 
 #0.5s
+fade-in title [500ms, ease: expo-out]
 stagger [100ms] {
-  fade-in circle [500ms, ease: expo-out]
-  fade-in rect [500ms, ease: expo-out]
-  fade-in poly [500ms, ease: expo-out]
+  pop-in circle [600ms, ease: expo-out]
+  pop-in rect [600ms, ease: expo-out]
+  pop-in poly [600ms, ease: expo-out]
 }
+
+#0.7s
+stagger [90ms] {
+  fade-in pool_a [600ms, ease: expo-out]
+  fade-in pool_b [600ms, ease: expo-out]
+  fade-in pool_c [600ms, ease: expo-out]
+}
+
+#1.2s
+fade-in bench [500ms, ease: expo-out]
 
 // Circle → square with auto strategy (both 16 points, phase-matched)
 #1.9s
 fade-in capA [200ms, ease: expo-out]
 
 #2s
-circle: Polygon, points: {(85, 0), (85, 35), (85, 85), (35, 85), (0, 85), (-35, 85), (-85, 85), (-85, 35), (-85, 0), (-85, -35), (-85, -85), (-35, -85), (0, -85), (35, -85), (85, -85), (85, -35)}, color: text.primary, at: (320, 330) [1s, strategy: auto]
+circle: Polygon, points: {(85, 0), (85, 35), (85, 85), (35, 85), (0, 85), (-35, 85), (-85, 85), (-85, 35), (-85, 0), (-85, -35), (-85, -85), (-35, -85), (0, -85), (35, -85), (85, -85), (85, -35)}, at: (320, 330),
+  fill_gradient: linear(135, {"#f2efe7", "#b9b3a6"}) [1s, strategy: auto]
 
 #3.25s
 fade-out capA [200ms, ease: ease-in]
@@ -62,7 +110,8 @@ fade-out capA [200ms, ease: ease-in]
 fade-in capM [200ms, ease: expo-out]
 
 #3.5s
-rect: Polygon, points: {(0, -95), (82, -48), (82, 48), (0, 95), (-82, 48), (-82, -48)}, color: accent.primary, at: (640, 330) [1s, strategy: match]
+rect: Polygon, points: {(0, -95), (82, -48), (82, 48), (0, 95), (-82, 48), (-82, -48)}, at: (640, 330),
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"}) [1s, strategy: match]
 
 #4.75s
 fade-out capM [200ms, ease: ease-in]
@@ -72,7 +121,8 @@ fade-out capM [200ms, ease: ease-in]
 fade-in capP3 [200ms, ease: expo-out]
 
 #5s
-poly: Polygon, points: {(0, -95), (24, -30), (90, -30), (36, 12), (54, 78), (0, 42), (-54, 78), (-36, 12), (-90, -30), (-24, -30)}, color: accent.success, at: (960, 330) [1.5s, path_arc: 0.3]
+poly: Polygon, points: {(0, -95), (24, -30), (90, -30), (36, 12), (54, 78), (0, 42), (-54, 78), (-36, 12), (-90, -30), (-24, -30)}, at: (960, 330),
+  fill_gradient: linear(135, {"#b7e0c2", "#6fae83"}) [1.5s, path_arc: 0.3]
 
 #6.25s
 fade-out capP3 [200ms, ease: ease-in]
@@ -83,7 +133,8 @@ fade-out capP3 [200ms, ease: ease-in]
 fade-in capP25 [200ms, ease: expo-out]
 
 #6.5s
-poly: Polygon, points: {(0, -88), (29, -59), (59, -29), (59, 29), (29, 59), (0, 88), (-29, 59), (-59, 29), (-59, -29), (-29, -59)}, color: accent.primary, at: (960, 330) [1.2s, path_arc: 0.25]
+poly: Polygon, points: {(0, -88), (29, -59), (59, -29), (59, 29), (29, 59), (0, 88), (-29, 59), (-59, 29), (-59, -29), (-29, -59)}, at: (960, 330),
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"}) [1.2s, path_arc: 0.25]
 
 #7.65s
 fade-out capP25 [200ms, ease: ease-in]
@@ -95,7 +146,8 @@ fade-out capP25 [200ms, ease: ease-in]
 fade-in capA [200ms, ease: expo-out]
 
 #7.9s
-circle: Polygon, points: {(88, 0), (62, 26), (44, 44), (26, 62), (0, 88), (-26, 62), (-44, 44), (-62, 26), (-88, 0), (-62, -26), (-44, -44), (-26, -62), (0, -88), (26, -62), (44, -44), (62, -26)}, color: accent.primary, at: (320, 330) [1s, strategy: auto]
+circle: Polygon, points: {(88, 0), (62, 26), (44, 44), (26, 62), (0, 88), (-26, 62), (-44, 44), (-62, 26), (-88, 0), (-62, -26), (-44, -44), (-26, -62), (0, -88), (26, -62), (44, -44), (62, -26)}, at: (320, 330),
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"}) [1s, strategy: auto]
 
 #8.75s
 fade-out capA [200ms, ease: ease-in]
@@ -106,13 +158,14 @@ fade-out capA [200ms, ease: ease-in]
 fade-in capS [200ms, ease: expo-out]
 
 #9s
-rect: Polygon, points: {(0, -52), (90, -52), (62, 52), (0, 52), (-62, 52), (-90, -52)}, color: accent.warning, at: (640, 330) [1s, stretch: true]
+rect: Polygon, points: {(0, -52), (90, -52), (62, 52), (0, 52), (-62, 52), (-90, -52)}, at: (640, 330),
+  fill_gradient: linear(135, {"#ff9f8a", "#ff5c3a"}) [1s, stretch: true]
 
 // Unify on the brand amber as a finale
 #9.8s
-circle.color = accent.primary [500ms]
-rect.color = accent.primary [500ms]
-poly.color = accent.primary [500ms]
+circle.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
+rect.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
+poly.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 
 #10.4s
 fade-out capS [300ms, ease: ease-in]
@@ -124,3 +177,14 @@ stagger [80ms] {
   fade-out rect [350ms, ease: ease-in]
   fade-out poly [350ms, ease: ease-in]
 }
+
+#10.9s
+fade-out bench [300ms, ease: ease-in]
+stagger [70ms] {
+  fade-out pool_a [300ms, ease: ease-in]
+  fade-out pool_b [300ms, ease: ease-in]
+  fade-out pool_c [300ms, ease: ease-in]
+}
+
+#11.1s
+fade-out title [300ms, ease: ease-in]

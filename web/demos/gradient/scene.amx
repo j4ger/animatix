@@ -11,6 +11,10 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # TitleCard
 config { colorscheme: "ink", duration: 2.6 }
 
+wash: Ellipse, size: (820, 820), at: (640, 340),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff86661a"), (50%, "#ffd60a0e"), (100%, "#ffd60a00")}),
+  blend: "screen"
+
 title: Text, text: "Gradient Descent", font_size: 64,
   color: text.primary, anchor: scene.center, offset: (0, -40)
 
@@ -18,6 +22,7 @@ subtitle: Text, text: "Rolling down the loss surface", font_size: 28,
   color: text.secondary, anchor: scene.center, offset: (0, 40)
 
 #0.0s
+fade-in wash [900ms, ease: expo-out]
 fade-in title [800ms, ease: expo-out]
 
 #1.4s
@@ -34,6 +39,21 @@ config { colorscheme: "ink", duration: 5.0 }
 step_title: Text, text: "1. The Loss Surface", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
 
+// The loss field itself. Contour rings tell you there IS a surface; this
+// screen-blend annulus shows you its shape — green in the basin, hot at the
+// rim, dissolving to transparent so it never reads as a disc. Every scene
+// that follows re-uses the same ramp so the reader never has to re-learn it.
+heat: Ellipse, size: (640, 640), at: (400, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15820"), (26%, "#ffd60a12"), (62%, "#ff86662a"), (86%, "#ff2d5538"), (100%, "#ff2d5500")}),
+  blend: "screen"
+
+// The legend for the ramp above, in the empty right third.
+legend_bar: Rect, size: (18, 300), at: (1080, 380), corner_radius: 9,
+  fill_gradient: linear(0, {"#30d158", "#ffd60a", "#ff8666", "#ff2d55"})
+legend_hi: Text, text: "L high", font_size: 18, color: text.secondary, at: (1080, 205)
+legend_lo: Text, text: "L low", font_size: 18, color: text.secondary, at: (1080, 555)
+legend_cap: Text, text: "loss", font_size: 20, color: text.muted, at: (1080, 165)
+
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
@@ -45,7 +65,8 @@ field: VectorField, func: (x, y) => (x, y), density: 8,
   color: text.muted
 
 // Global minimum at (0, 0)
-min_dot: Ellipse, size: (12, 12), color: accent.success, at: (400, 380)
+min_dot: Ellipse, size: (16, 16), at: (400, 380),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#30d158"), (100%, "#0d5c2e")})
 
 caption: Text,
   text: "Contours = equal loss; arrows = gradient (uphill)",
@@ -54,11 +75,22 @@ caption: Text,
 #0.0s
 fade-in step_title [500ms, ease: expo-out]
 
+#0.6s
+fade-in heat [900ms, ease: expo-out]
+
 #1.0s
 stagger [150ms] {
   fade-in contours [600ms, ease: expo-out]
   fade-in field [600ms, ease: expo-out]
-  fade-in min_dot [400ms, ease: expo-out]
+  pop-in min_dot [400ms, ease: expo-out]
+}
+
+#1.9s
+stagger [90ms] {
+  fade-in legend_bar [400ms, ease: expo-out]
+  fade-in legend_cap [400ms, ease: expo-out]
+  fade-in legend_hi [400ms, ease: expo-out]
+  fade-in legend_lo [400ms, ease: expo-out]
 }
 
 #3.5s
@@ -84,8 +116,15 @@ field_bg: VectorField, func: (x, y) => (x, y), density: 8,
   x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
   color: text.muted
 
-// Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70)
-ball: Ellipse, size: (16, 16), color: text.primary, at: (610, 212)
+heat: Ellipse, size: (640, 640), at: (400, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
+
+// Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70).
+// A lit sphere, because it is about to roll — the highlight is what makes it
+// read as a body in a field rather than a dot on a map.
+ball: Ellipse, size: (20, 20), at: (610, 212),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
 
 // Arrow pointing uphill along +∇f
 up_arrow: Arrow, from: (610, 212), to: (715, 128),
@@ -108,10 +147,11 @@ gradient_eq: Text,
   font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
 
 #0.0s
+fade-in heat [700ms, ease: expo-out]
 fade-in contours_bg [600ms, ease: expo-out]
 fade-in field_bg [600ms, ease: expo-out]
 fade-in step2_title [500ms, ease: expo-out, delay: 450ms]
-fade-in ball [400ms, ease: expo-out]
+pop-in ball [450ms, ease: expo-out]
 
 #1.5s
 fade-in up_arrow [800ms, ease: expo-out]
@@ -154,8 +194,17 @@ descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
     stroke_progress: 0
 }
 
+heat: Ellipse, size: (640, 640), at: (400, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
+
 // Ball driven by the always block (math coords → screen coords)
-ball: Ellipse, size: (16, 16), color: text.primary, at: (610, 212)
+ball: Ellipse, size: (20, 20), at: (610, 212),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
+// Its light, parked under it by the same always block that parks the ball.
+ball_glow: Ellipse, size: (120, 120), at: (610, 212), opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a33d"), (60%, "#8fc7a314"), (100%, "#8fc7a300")}),
+  blend: "screen"
 
 // Live loss readout
 live_loss: Text, text: "loss = 14.75", font_size: 18,
@@ -176,17 +225,20 @@ always {
   let bx = 2.0 * mx
   let by = 2.0 * my
   ball.at = descent_graph.map(bx, by)
+  ball_glow.at = ball.at
   let loss = r * r
   live_loss.text = format("loss = {:.2}", loss)
 }
 
 #0.0s
+fade-in heat [700ms, ease: expo-out]
 fade-in step3_title [500ms, ease: expo-out, delay: 450ms]
 fade-in contours_dim [600ms, ease: expo-out]
 fade-in descent_graph [600ms, ease: expo-out]
 
 #1.0s
-fade-in ball [400ms, ease: expo-out]
+fade-in ball_glow [400ms, ease: expo-out]
+pop-in ball [450ms, ease: expo-out]
 fade-in live_loss [400ms, ease: expo-out]
 fade-in trail [400ms, ease: expo-out]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
@@ -207,6 +259,10 @@ config { colorscheme: "ink", duration: 6.8 }
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 40,
   color: text.primary, anchor: scene.top, offset: (0, 60)
+
+heat: Ellipse, size: (640, 640), at: (400, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
 
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
@@ -247,6 +303,7 @@ lesson: Text,
   font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
 
 #0.0s
+fade-in heat [700ms, ease: expo-out]
 fade-in step4_title [500ms, ease: expo-out, delay: 450ms]
 fade-in contours_lr [600ms, ease: expo-out]
 fade-in lr_graph [600ms, ease: expo-out]
@@ -274,6 +331,10 @@ play Outro [fade, 400ms]
 # Outro
 config { colorscheme: "ink" }
 
+wash: Ellipse, size: (820, 820), at: (640, 360),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581e"), (50%, "#ffd60a0d"), (100%, "#ffd60a00")}),
+  blend: "screen"
+
 thanks: Text, text: "theta* = argmin L(theta)",
   font_size: 40, color: text.primary, anchor: scene.center, offset: (0, -30)
 
@@ -281,6 +342,7 @@ tag: Text, text: "gradient descent  ·  animatix", font_size: 18,
   color: text.muted, anchor: scene.center, offset: (0, 50)
 
 #0.0s
+fade-in wash [800ms, ease: expo-out]
 fade-in thanks [700ms, ease: expo-out]
 
 #1.0s
@@ -289,3 +351,4 @@ fade-in tag [500ms, ease: expo-out]
 #2.2s
 fade-out thanks [300ms, ease: ease-in]
 fade-out tag [300ms, ease: ease-in]
+fade-out wash [300ms, ease: ease-in]

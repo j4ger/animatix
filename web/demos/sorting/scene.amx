@@ -44,10 +44,15 @@ pub component Ticks(count: List<Num>) {
   }
 }
 
+// The ramp is the component's own lighting rig: every bar is dark where it
+// meets the floor and takes the caller's colour at its head, so a column
+// reads as a volume with a top instead of as a sticker. `color` stays the
+// public knob — the two call sites keep their steel/amber identities.
 pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
   row: Row, at: at, gap: gap, align: "end" {
     for v, i in values {
-      bar[i]: Rect, size: (bar_w, v * scale), color: color
+      bar[i]: Rect, size: (bar_w, v * scale), corner_radius: 8,
+        fill_gradient: linear(0, {"#0a0e16", color})
     }
   }
 }
@@ -56,6 +61,10 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 
 # Overture
 config { colorscheme: "ink", dynamic_layout: true, duration: 3 }
+
+wash: Ellipse, size: (760, 760), at: (640, 330),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}),
+  blend: "screen"
 
 title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
   color: text.primary, anchor: scene.center, offset: (0, -70)
@@ -67,6 +76,7 @@ hint: Text, text: "every comparison and swap below is emitted at build time",
   font_size: 20, color: text.muted, anchor: scene.center, offset: (0, 70)
 
 #0s
+fade-in wash [900ms, ease: expo-out]
 fade-in title [700ms, ease: expo-out]
 fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
 fade-in hint [500ms, delay: 450ms, ease: expo-out]
@@ -78,6 +88,7 @@ stagger [60ms] {
   fade-out title [280ms, ease: ease-in]
   fade-out subtitle [280ms, ease: ease-in]
   fade-out hint [280ms, ease: ease-in]
+  fade-out wash [280ms, ease: ease-in]
 }
 
 #2.5s
@@ -90,6 +101,18 @@ config { colorscheme: "ink", dynamic_layout: true, duration: 19.5 }
 
 sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
+
+wash: Ellipse, size: (900, 900), at: (640, 420),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8ab4f61a"), (55%, "#8ab4f609"), (100%, "#8ab4f600")}),
+  blend: "screen"
+
+// The floor. The bars are `align: "end"` on a Row, so this rule is the line
+// they actually grow out of; without it the columns float. Its ants march for
+// the whole sort, which is also the scene's clock.
+floor: Path,
+  commands: {move_to(200, 545), line_to(1080, 545)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {9, 7}
 
 bars: Bars, values: {42, 17, 93, 5, 68, 31, 76, 12}, color: accent.info
 
@@ -117,7 +140,13 @@ sort_caption: Text, text: "the key slides left past every larger neighbor",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0s
+floor.dash_offset = 0
+floor.dash_offset = 320 [19s, ease: linear]
+
+#0s
 fade-in sort_title [500ms, ease: expo-out]
+fade-in wash [800ms, ease: expo-out]
+fade-in floor [600ms, ease: expo-out]
 fade-in bars [600ms, ease: expo-out]
 fade-in key_note [400ms, delay: 300ms, ease: expo-out]
 stagger [80ms] {
@@ -141,7 +170,17 @@ play Finale [fade, 500ms]
 config { colorscheme: "ink", dynamic_layout: true, duration: 5.5 }
 
 finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 120)
+  color: text.primary, anchor: scene.top, offset: (34, 120)
+
+// The payoff beat. `draw-in` on a bundled Lucide stroke icon trims the path
+// by arc length, so the tick is traced rather than faded — the one
+// celebration that does not need a colour wave over the component children.
+tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
+  fill_opacity: 0.0, anchor: scene.top, offset: (-150, 116), scale: 2.6
+
+finale_wash: Ellipse, size: (820, 820), at: (640, 400),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421e"), (55%, "#8fc7a30b"), (100%, "#8fc7a300")}),
+  blend: "screen"
 
 finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.primary
 
@@ -152,13 +191,16 @@ endnote: Text, text: "one timeline function emitted every beat you just watched"
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
 
 #0s
+fade-in finale_wash [800ms, ease: expo-out]
 fade-in finale_title [500ms, ease: expo-out]
 fade-in finale_bars [600ms, ease: expo-out]
 
-// No celebration beat here on purpose: a color-wave over these bars (via
-// nested component-child assignments) does not survive composition
-// evaluation, and `pulse` overshoots (docs/roadmap.md). The sorted row and
-// the footnote close the scene.
+// The colour-wave idea is still out (a nested component-child assignment does
+// not survive composition evaluation, and `pulse` overshoots —
+// docs/roadmap.md). The stroke draw replaces it with a beat that does.
+
+#1.1s
+draw-in tick_mark [600ms, ease: expo-out]
 
 #2.2s
 fade-in footnote [700ms, ease: expo-out]
@@ -166,11 +208,14 @@ fade-in footnote [700ms, ease: expo-out]
 #3.2s
 fade-in endnote [600ms, ease: expo-out]
 
-// Outro: quiet plate before the document loops.
+// Outro: quiet plate before the document loops. The 40ms stagger keeps the
+// last exit inside the declared 5.5s duration.
 #5.0s
-stagger [60ms] {
+stagger [40ms] {
   fade-out endnote [280ms, ease: ease-in]
   fade-out footnote [280ms, ease: ease-in]
   fade-out finale_bars [280ms, ease: ease-in]
   fade-out finale_title [280ms, ease: ease-in]
+  fade-out tick_mark [280ms, ease: ease-in]
+  fade-out finale_wash [280ms, ease: ease-in]
 }

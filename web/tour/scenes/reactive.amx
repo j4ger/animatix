@@ -7,10 +7,20 @@
 // motion — so the scene compresses all travel into 0.5–3.2 and then holds:
 // the TRACKING -> IDLE flip at ~3.2 is the beat this section teaches, and
 // it needs a long readable window. The crosshair arms are bone (their own
-// voice — amber arms on an amber disc disappear); amber = TRACKING, sage =
-// IDLE are the two semantic channels of the readout. Captions hand off
-// rather than superimpose (one shared `text` actor cross-fades two strings
-// on top of each other).
+// voice — amber arms on an amber reticle disappear); amber = TRACKING, sage
+// = IDLE are the two semantic channels of the readout. Captions hand off
+// rather than superimpose (one shared `text` actor would cross-fade two
+// strings on top of each other).
+//
+// The reticle is a RING, not a disc: `fill_opacity: 0.0` with a coloured
+// `stroke`. It previously carried a solid fill, which turned the focus
+// reticle into a 440px amber lollipop that covered the scene's own title.
+//
+// The idle "breathing" is written into SCALARS only (`stroke_width`). It must
+// not write `ring.size`: a frame-time `size`
+// override on an Ellipse is applied on top of the baked geometry, so
+// `always { ring.size = (220, 220) }` on a 220 actor renders ~440 wide. That
+// is what made the old disc fill half the stage.
 
 import "../../demos/lib/theme.amx"
 
@@ -26,37 +36,51 @@ capA: Text, text: "`always { }` re-runs every frame", font_size: 22,
 capB: Text, text: "is_animating(&ring.at) flips the readout", font_size: 22,
   color: text.secondary, anchor: scene.bottom, offset: (0, -100), opacity: 0.0
 
-ring: Ellipse, size: (220, 220), color: accent.primary, stroke_width: 4, anchor: scene.center
+// The plate light travels with the reticle — the scene reads as a lens, not
+// as stickers on black.
+glow: Ellipse, size: (520, 520), anchor: scene.center, opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94226"), (55%, "#f5b9420c"), (100%, "#f5b94200")}),
+  blend: "screen"
+
+ring: Ellipse, size: (220, 220), stroke: accent.primary, stroke_width: 4,
+  fill_opacity: 0.0, anchor: scene.center
+// The acquisition ring: a dashed circle the reticle carries with it. Its ants
+// march continuously, so the readout has a live edge even while idle.
+lock: Ellipse, size: (286, 286), stroke: accent.info, stroke_width: 2,
+  fill_opacity: 0.0, dash_pattern: {12, 9}, anchor: scene.center
 cross_h: Rect, size: (360, 3), color: text.primary, anchor: scene.center
 cross_v: Rect, size: (3, 360), color: text.primary, anchor: scene.center
-dot: Ellipse, size: (18, 18), color: text.primary, anchor: scene.center
+dot: Ellipse, size: (18, 18), anchor: scene.center,
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#7d786f")})
 
 #0s
-ring.at = (640, 360)
+lock.dash_offset = 0
+lock.dash_offset = 420 [6.8s, ease: linear]
+ring.at = (640, 380)
 
 #1s
-ring.at = (360, 200) [1s, ease: ease-in-out]
+ring.at = (400, 260) [1s, ease: ease-in-out]
 
 #2.2s
-ring.at = (920, 420) [1s, ease: ease-in-out]
+ring.at = (900, 430) [1s, ease: ease-in-out]
 
 always {
   cross_h.at = ring.at
   cross_v.at = ring.at
   dot.at = ring.at
+  glow.at = ring.at
+  lock.at = ring.at
   // the arms keep their bone voice from the declaration — colour here is
   // the ring's and the status line's semantic channel, not theirs
 
   if !is_animating(&ring.at) {
     let p = 0.5 + 0.5 * sin(t * 3)
-    ring.color = accent.success
-    ring.size = (220 - p * 24, 220 - p * 24)
-    ring.stroke_width = 4.0 - p * 1.2
+    ring.stroke = accent.success
+    ring.stroke_width = 6.0 - p * 2.4
     status.text = "IDLE — at rest"
     status.color = accent.success
   } else {
-    ring.color = accent.primary
-    ring.size = (220, 220)
+    ring.stroke = accent.primary
     ring.stroke_width = 4.0
     status.text = "TRACKING — keyframe active"
     status.color = accent.primary
@@ -66,10 +90,12 @@ always {
 #0.5s
 stagger [80ms] {
   fade-in title [500ms, ease: expo-out]
+  fade-in glow [400ms, ease: expo-out]
   fade-in ring [400ms, ease: expo-out]
+  fade-in lock [400ms, ease: expo-out]
   fade-in cross_h [400ms, ease: expo-out]
   fade-in cross_v [400ms, ease: expo-out]
-  fade-in dot [400ms, ease: expo-out]
+  pop-in dot [400ms, ease: expo-out]
   fade-in status [400ms, ease: expo-out]
 }
 
@@ -85,13 +111,16 @@ fade-in capB [300ms, ease: expo-out]
 #4.6s
 fade-out capB [200ms, ease: ease-in]
 
-// Outro: quiet the plate before the wrap (reverse order).
+// Outro: quiet the plate before the wrap (reverse order). The 60ms stagger
+// keeps the last exit inside the declared 6.8s duration.
 #5.9s
-stagger [80ms] {
+stagger [60ms] {
   fade-out status [350ms, ease: ease-in]
   fade-out dot [350ms, ease: ease-in]
   fade-out cross_v [350ms, ease: ease-in]
   fade-out cross_h [350ms, ease: ease-in]
+  fade-out lock [350ms, ease: ease-in]
   fade-out ring [350ms, ease: ease-in]
+  fade-out glow [350ms, ease: ease-in]
   fade-out title [350ms, ease: ease-in]
 }

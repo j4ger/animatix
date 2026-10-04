@@ -6,6 +6,11 @@
 // part of the cast, not as grey UI); the #3.2 beat is a pulse + lift that
 // actually registers on screen — a 16px shift is invisible at card scale.
 // Captions hand off (one shared `text` actor would cross-fade two strings).
+//
+// The three boxes are bracketed by a dashed rule above and below and lit from
+// behind, so the row sits ON a stage instead of floating in a void: the scene
+// is about one definition producing several instances, and the rails are the
+// shared frame those instances live in.
 
 import "../../demos/lib/theme.amx"
 import "../lib/components.amx"
@@ -20,6 +25,20 @@ capI: Text, text: "import ../lib/components.amx", font_size: 22,
 capX: Text, text: "one definition, three instances", font_size: 22,
   color: text.secondary, anchor: scene.bottom, offset: (0, -48), opacity: 0.0
 
+wash: Ellipse, size: (760, 760), at: (640, 360),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}),
+  blend: "screen"
+
+// The shared frame: two dashed rules the three instances sit between.
+rail_a: Path,
+  commands: {move_to(250, 236), line_to(1030, 236)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {9, 7}
+rail_b: Path,
+  commands: {move_to(250, 484), line_to(1030, 484)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {9, 7}
+
 row: Row, anchor: scene.center, gap: 28, align: "center" {
   c1: LabeledBox, label: "Query", width: 240, height: 140, text_size: 30
   c2: LabeledBox, label: "Key", width: 200, height: 140, text_size: 30,
@@ -27,17 +46,26 @@ row: Row, anchor: scene.center, gap: 28, align: "center" {
   c3: LabeledBox, label: "Value", width: 230, height: 140, text_size: 30
 }
 
+#0s
+rail_a.dash_offset = 0
+rail_a.dash_offset = 160 [6.0s, ease: linear]
+rail_b.dash_offset = 0
+rail_b.dash_offset = -160 [6.0s, ease: linear]
+
 #0.4s
 fade-in heading [600ms, ease: expo-out]
+fade-in wash [700ms, ease: expo-out]
+fade-in rail_a [450ms, ease: expo-out]
+fade-in rail_b [450ms, ease: expo-out]
 
 #0.6s
 fade-in capI [300ms, ease: expo-out]
 
 #1.0s
 stagger [150ms] {
-  fade-in c1 [450ms, ease: expo-out]
-  fade-in c2 [450ms, ease: expo-out]
-  fade-in c3 [450ms, ease: expo-out]
+  settle-in c1 [500ms, ease: expo-out]
+  settle-in c2 [500ms, ease: expo-out]
+  settle-in c3 [500ms, ease: expo-out]
 }
 
 #2.4s
@@ -48,16 +76,21 @@ fade-in capX [300ms, ease: expo-out]
 
 #3.2s
 pulse c2 [400ms]
-shift row [by: (0, -40), 500ms, ease: spring]
+// anticipate: the row winds up 80ms before it lifts, which is what makes a
+// 40px move read as a deliberate gesture rather than as a translate.
+shift row [by: (0, -40), 500ms, ease: spring, anticipate: 80ms]
 
 #4.6s
 fade-out capX [200ms, ease: ease-in]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #5.1s
-stagger [80ms] {
+stagger [70ms] {
   fade-out c3 [350ms, ease: ease-in]
   fade-out c2 [350ms, ease: ease-in]
   fade-out c1 [350ms, ease: ease-in]
   fade-out heading [350ms, ease: ease-in]
+  fade-out rail_a [300ms, ease: ease-in]
+  fade-out rail_b [300ms, ease: ease-in]
+  fade-out wash [300ms, ease: ease-in]
 }
