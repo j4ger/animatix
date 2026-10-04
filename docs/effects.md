@@ -80,6 +80,8 @@ Built-in examples:
 | `ChromaticAberration` | `offset` | `0` |
 | `Sharpen` | `amount` | `0` |
 | `Sharpen` | `radius` | `0` |
+| `Bloom` | `intensity` | `0` |
+| `Bloom` | `keep` | `1.0` |
 | `Vignette` | `amount` | `0` |
 | `Vignette` | `radius` | `0.9` |
 | `Vignette` | `softness` | `0.6` |
@@ -172,9 +174,13 @@ binding layout.
 - The host owns the ping-pong textures. A shader must never assume whether it
   read or wrote a given physical texture; `binding 0` is always the input view
   and `binding 1` always the output view for that pass.
-- **One input texture in v1.** A second input (original for bloom add-back, or a
-  mask) is deliberately *not* reserved. Adding it is a deliberate ABI bump, not
-  a speculative field.
+- **Two input textures as of ABI v2.** Binding 5 is the *pre-chain* original of
+  the scope, copied by the host before pass 0 runs, so a pass can add light back
+  onto what the scene looked like rather than onto whatever the previous pass
+  left. `Bloom` is its first consumer (`Blur` then `Bloom` in one scope is a
+  glow; `Bloom` alone is a brightening). v1 had one input and no second
+  reserved — the bump was made deliberately, with its cost measured: one extra
+  full-region copy per scope per frame, and one extra texture per scratch set.
 
 ### 4.2 Bind group 0
 
@@ -186,9 +192,14 @@ binding layout.
 | 3 | `var<uniform> EffectContext` | host |
 | 4 | `sampler` (linear, clamp-to-edge) | host |
 
-Binding 4 is always present in the layout so sub-pixel effects (chromatic
-aberration, motion blur) are expressible; a shader that uses only `textureLoad`
-simply does not declare it.
+| 5 | `texture_2d<f32>` | host (pre-chain original, ABI v2) |
+
+Bindings 4 and 5 are always present in the layout — 4 so sub-pixel effects
+(chromatic aberration, motion blur) are expressible, 5 so a pass can read the
+untouched frame. A shader that does not need one simply does not declare it: a
+bind group layout may bind more than a pipeline reads, which is what made the
+ABI bump additive rather than breaking for the thirteen effects already written
+against v1.
 
 ### 4.3 Host context (binding 3)
 

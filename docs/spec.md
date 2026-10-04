@@ -1018,6 +1018,7 @@ nothing (the pass and the offscreen round-trip are skipped).
 | Effect | Parameters | Description |
 |--------|------------|-------------|
 | `Blur` | `radius` (default 0) | Gaussian blur radius in px; two passes (H then V) |
+| `Bloom` | `intensity` (0.7), `keep` (1.0) | Adds the chain's current state back onto the pre-chain original (ABI v2 binding 5). Meaningful *after* a `Blur` in the same scope: `blur: Blur, radius: 14` then `glow: Bloom, intensity: 0.8` is a glow; `Bloom` alone just brightens. `keep` is how much of the untouched frame stays underneath |
 | `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
 | `ChromaticAberration` | `offset` (default 0) | Radial RGB channel separation in px; single pass through the linear sampler |
 | `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` texels |

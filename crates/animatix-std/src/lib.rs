@@ -28,8 +28,8 @@ use animatix_core::effect::{Effect, EffectParamSpec, EffectParams, EffectPassSpe
 
 pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
 pub use effects::{
-    BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, DROP_SHADOW, DUOTONE, EDGE, GRAIN, LENS_DISTORTION,
-    LEVELS, MOTION_BLUR, POSTERIZE, SHARPEN, VIGNETTE,
+    BLOOM, BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, DROP_SHADOW, DUOTONE, EDGE, GRAIN,
+    LENS_DISTORTION, LEVELS, MOTION_BLUR, POSTERIZE, SHARPEN, VIGNETTE,
 };
 
 // ── Built-in catalog ────────────────────────────────────────────────────────
@@ -37,6 +37,7 @@ pub use effects::{
 /// Bootstrap list of all built-in effects, in registration order.
 pub static EFFECTS: &[&dyn Effect] = &[
     &effects::BLUR,
+    &effects::BLOOM,
     &effects::COLOR_GRADE,
     &effects::CHROMATIC_ABERRATION,
     &effects::SHARPEN,

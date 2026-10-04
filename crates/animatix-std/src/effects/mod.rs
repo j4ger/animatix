@@ -2,6 +2,7 @@
 //! effect: parameters (name, kind, identity), WGSL passes, `pack`, and
 //! `support`.
 
+mod bloom;
 mod blur;
 mod chromatic_aberration;
 mod color_grade;
@@ -16,6 +17,7 @@ mod posterize;
 mod sharpen;
 mod vignette;
 
+pub use bloom::{BLOOM, Bloom};
 pub use blur::{BLUR, Blur};
 pub use chromatic_aberration::{CHROMATIC_ABERRATION, ChromaticAberration};
 pub use color_grade::{COLOR_GRADE, ColorGrade, compose_color_matrix};

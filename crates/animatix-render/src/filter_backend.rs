@@ -73,6 +73,12 @@ pub struct GpuFilterBackend {
     tex_a_view: wgpu::TextureView,
     tex_b: wgpu::Texture,
     tex_b_view: wgpu::TextureView,
+    /// The pre-chain pixels, bound at §4.2 binding 5 for every pass of the
+    /// scope. Bloom-style effects add light back onto the original instead of
+    /// onto whatever the previous pass left, and a chain of effects can mix the
+    /// two. Copied once per scope, before the first pass runs.
+    tex_original: wgpu::Texture,
+    tex_original_view: wgpu::TextureView,
     // Readback buffer
     output_buffer: wgpu::Buffer,
     bytes_per_row: u32,
@@ -119,6 +125,8 @@ struct RegionScratch {
     pp_a_view: wgpu::TextureView,
     pp_b: wgpu::Texture,
     pp_b_view: wgpu::TextureView,
+    pp_original: wgpu::Texture,
+    pp_original_view: wgpu::TextureView,
 }
 
 /// Identifies which internal texture holds the filtered result.
@@ -239,6 +247,18 @@ impl GpuFilterBackend {
         });
         let tex_b_view = tex_b.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let tex_original = device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: ping_pong_usage,
+            label: Some("Animatix Filter Original"),
+            view_formats: &[],
+        });
+        let tex_original_view = tex_original.create_view(&wgpu::TextureViewDescriptor::default());
+
         let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             size: (bytes_per_row * dimensions.height) as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
@@ -302,6 +322,19 @@ impl GpuFilterBackend {
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
+                // 5: the pre-chain original. ABI v2 (docs/effects.md §4.2). A
+                // pass that does not declare it is unaffected — a layout may
+                // bind more than a shader reads.
+                wgpu::BindGroupLayoutEntry {
+                    binding: 5,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
             ],
         });
 
@@ -338,6 +371,8 @@ impl GpuFilterBackend {
             tex_a_view,
             tex_b,
             tex_b_view,
+            tex_original,
+            tex_original_view,
             output_buffer,
             bytes_per_row,
             _dimensions: dimensions,
@@ -399,6 +434,7 @@ impl GpuFilterBackend {
         &self,
         src_view: &wgpu::TextureView,
         dst_view: &wgpu::TextureView,
+        original_view: &wgpu::TextureView,
         uniform_buffer: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -431,6 +467,10 @@ impl GpuFilterBackend {
                 wgpu::BindGroupEntry {
                     binding: 4,
                     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 5,
+                    resource: wgpu::BindingResource::TextureView(original_view),
                 },
             ],
         })
@@ -503,7 +543,16 @@ impl GpuFilterBackend {
             None => (dimensions, scene, None),
         };
         let scratch = scratch.map(std::sync::Arc::new);
-        let (render_view, seed_texture, pp_a, pp_a_view, pp_b, pp_b_view) = match &scratch {
+        let (
+            render_view,
+            seed_texture,
+            pp_a,
+            pp_a_view,
+            pp_b,
+            pp_b_view,
+            pp_original,
+            pp_original_view,
+        ) = match &scratch {
             Some(s) => (
                 s.render_view.clone(),
                 s.render_texture.clone(),
@@ -511,6 +560,8 @@ impl GpuFilterBackend {
                 s.pp_a_view.clone(),
                 s.pp_b.clone(),
                 s.pp_b_view.clone(),
+                s.pp_original.clone(),
+                s.pp_original_view.clone(),
             ),
             None => (
                 self.render_view.clone(),
@@ -519,6 +570,8 @@ impl GpuFilterBackend {
                 self.tex_a_view.clone(),
                 self.tex_b.clone(),
                 self.tex_b_view.clone(),
+                self.tex_original.clone(),
+                self.tex_original_view.clone(),
             ),
         };
 
@@ -589,6 +642,28 @@ impl GpuFilterBackend {
             },
         );
         self.dump_stage("tex_a_seed", &pp_a, dispatch_dims);
+        // The original is the *pre-chain* frame: copied here, before pass 0
+        // runs, so a bloom-style pass can add onto what the scene looked like
+        // rather than onto whatever the previous pass left behind.
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &seed_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &pp_original,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
         let t_seed = t_all.elapsed() - t_render;
 
         // Plan the passes, write every context once (one slot per pass), then
@@ -653,6 +728,7 @@ impl GpuFilterBackend {
                 } else {
                     &pp_a_view
                 },
+                &pp_original_view,
                 uniform_buffer,
             );
             Self::encode_effect_pass(
@@ -745,6 +821,7 @@ impl GpuFilterBackend {
         let (render_texture, render_view) = make("Animatix Region Render Target");
         let (pp_a, pp_a_view) = make("Animatix Region Ping A");
         let (pp_b, pp_b_view) = make("Animatix Region Ping B");
+        let (pp_original, pp_original_view) = make("Animatix Region Original");
         let scratch = RegionScratch {
             render_texture,
             render_view,
@@ -752,6 +829,8 @@ impl GpuFilterBackend {
             pp_a_view,
             pp_b,
             pp_b_view,
+            pp_original,
+            pp_original_view,
         };
         self.region_scratch.insert((width, height), scratch.clone());
         scratch

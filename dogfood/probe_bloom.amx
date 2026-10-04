@@ -1,0 +1,20 @@
+// probe_bloom.amx — ABI v2 check: a pass that reads the pre-chain original.
+//
+// `Blur` then `Bloom` is the whole point of the second input: the chain hands
+// the bloom the blurred frame at binding 0 and the untouched frame at binding
+// 5, so the bright subject lights the plate instead of replacing it.
+
+config { colorscheme: "neon-night", resolution: (400, 240), duration: 2 }
+
+stage: Filter, anchor: scene.center {
+  soft: Blur, radius: 10
+  glow: Bloom, intensity: 0.9, keep: 1.0
+  art: Group, anchor: scene.center {
+    plate: Rect, size: (360, 200), color: "#0b1017"
+    bulb: Ellipse, size: (64, 64), at: (-90, 0), color: "#ffd60a"
+    bar: Rect, size: (150, 10), at: (60, 0), color: "#ff2d55"
+  }
+}
+
+#0s
+fade-in stage [300ms]
