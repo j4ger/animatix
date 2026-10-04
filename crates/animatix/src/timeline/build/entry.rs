@@ -484,13 +484,14 @@ impl Timeline {
                 Stmt::Keyframe { time, body, .. } => {
                     has_seen_keyframe = true;
                     timeline.default_opacity = 1.0;
-                    current_build_time_ms = time_to_ms(time);
+                    current_build_time_ms = time_to_ms_at_beat(time, timeline.beat_duration_ms());
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 },
                 Stmt::RelativeKeyframe { offset, body, .. } => {
                     has_seen_keyframe = true;
                     timeline.default_opacity = 1.0;
-                    current_build_time_ms += time_to_ms(offset);
+                    current_build_time_ms +=
+                        time_to_ms_at_beat(offset, timeline.beat_duration_ms());
                     timeline.process_body(current_build_time_ms, body, None, &mut diagnostics);
                 },
                 Stmt::ActorDecl { .. }

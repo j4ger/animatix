@@ -707,6 +707,9 @@ impl Composition {
                     current_time = match time {
                         crate::ast::Time::Seconds(s) => *s,
                         crate::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                        crate::ast::Time::Beats(b) => {
+                            b * crate::ast::beat_seconds(crate::ast::DEFAULT_BPM)
+                        },
                     };
                 },
                 Stmt::Play {

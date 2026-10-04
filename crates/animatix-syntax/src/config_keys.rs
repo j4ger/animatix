@@ -52,6 +52,12 @@ pub struct ConfigKeyInfo {
 /// Every `config` key the language recognises, sorted by name.
 pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
     ConfigKeyInfo {
+        name: "bpm",
+        scope: ConfigScope::Scene,
+        value: ConfigValueKind::Number,
+        summary: "Tempo that resolves beat stamps (`#2b`, `[4b]`) into time.",
+    },
+    ConfigKeyInfo {
         name: "colorscheme",
         scope: ConfigScope::Scene,
         value: ConfigValueKind::Text,

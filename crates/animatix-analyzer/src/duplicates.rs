@@ -231,6 +231,11 @@ fn absolute_time_key(time: &Time) -> u64 {
     match time {
         Time::Seconds(s) => s.to_bits(),
         Time::Milliseconds(ms) => (*ms as f64 / 1000.0).to_bits(),
+        // Beat stamps collapse to their default-tempo seconds: two stamps that
+        // are equal beats apart are duplicates regardless of the scene tempo.
+        Time::Beats(b) => {
+            (b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)).to_bits()
+        },
     }
 }
 

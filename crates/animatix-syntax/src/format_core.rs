@@ -114,6 +114,7 @@ pub fn format_time(t: &Time) -> String {
             }
         },
         Time::Milliseconds(ms) => format!("{}ms", ms),
+        Time::Beats(b) => format!("{b}b"),
     }
 }
 

@@ -84,6 +84,7 @@ pub fn time<'a>() -> impl Parser<'a, TokInput<'a>, crate::ast::Time, TokErr<'a>>
     select! {
         TokenKind::Time { value, ms } if ms => crate::ast::Time::Milliseconds(value as u64),
         TokenKind::Time { value, ms: false } => crate::ast::Time::Seconds(value),
+        TokenKind::BeatTime { value } => crate::ast::Time::Beats(value),
     }
 }
 

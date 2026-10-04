@@ -298,6 +298,12 @@ fn collect_keyframe_stmt_times(stmts: &[Stmt], base: f64, out: &mut Vec<f64>) {
                 let t = match time {
                     animatix_syntax::ast::Time::Seconds(s) => *s,
                     animatix_syntax::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                    // Marker placement only: beat stamps land at their
+                    // default-tempo position, the same convention the outline
+                    // and analyzer views use.
+                    animatix_syntax::ast::Time::Beats(b) => {
+                        b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)
+                    },
                 };
                 out.push(base + t);
                 collect_keyframe_stmt_times(body, base, out);

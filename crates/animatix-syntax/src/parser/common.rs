@@ -277,6 +277,7 @@ pub(crate) fn modifier<'src>(
                 time.clone().map(|t| match t {
                     Time::Seconds(s) => Expr::Ident(format!("{s}s")),
                     Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
+                    Time::Beats(b) => Expr::Ident(format!("{b}b")),
                 }),
                 keyword_ident().or(expr.clone()),
             )))
@@ -289,6 +290,7 @@ pub(crate) fn modifier<'src>(
             value: match t {
                 Time::Seconds(s) => Expr::Ident(format!("{s}s")),
                 Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
+                Time::Beats(b) => Expr::Ident(format!("{b}b")),
             },
         }),
         expr.clone().map(|value| Modifier { name: None, value }),

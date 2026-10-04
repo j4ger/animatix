@@ -270,6 +270,12 @@ pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
                 let t = match time {
                     animatix_syntax::ast::Time::Seconds(s) => *s,
                     animatix_syntax::ast::Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+                    // Shifting a beat stamp rewrites it as absolute seconds: the
+                    // offset is expressed in seconds, so keeping the beat would
+                    // silently change how far the keyframe moved.
+                    animatix_syntax::ast::Time::Beats(b) => {
+                        *b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)
+                    },
                 };
                 let new_t = t + offset_s;
                 *time = animatix_syntax::ast::Time::Seconds(new_t);

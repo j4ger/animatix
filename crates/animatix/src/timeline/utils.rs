@@ -863,10 +863,19 @@ pub fn parse_color_in_env(expr: &Expr, env: &Environment) -> [f32; 4] {
 }
 
 /// Convert a `Time` value to milliseconds.
+///
+/// A beat stamp resolves at the default tempo; a build that knows the scene's
+/// `config { bpm: … }` uses [`time_to_ms_at_beat`] instead.
 pub fn time_to_ms(time: &Time) -> f64 {
+    time_to_ms_at_beat(time, crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0)
+}
+
+/// Convert a `Time` to milliseconds with `beat_ms` as the length of one beat.
+pub fn time_to_ms_at_beat(time: &Time, beat_ms: f64) -> f64 {
     match time {
         Time::Seconds(s) => *s * 1000.0,
         Time::Milliseconds(ms) => *ms as f64,
+        Time::Beats(b) => *b * beat_ms,
     }
 }
 

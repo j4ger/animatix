@@ -160,7 +160,25 @@ scene.background_color = white [2s]
 ## 4. Timeline & Keyframes
 
 **Absolute:** `#0s`, `#2.5s`, `#500ms`  
-**Relative:** `#+1s`
+**Relative:** `#+1s`  
+**Musical:** `#2b`, `#0.5b` — beats, resolved by `config { bpm: … }`
+
+A beat stamp is a keyframe position expressed in the piece's own meter, so
+retuning the tempo moves the whole arrangement without editing a single stamp:
+with `config { bpm: 60 }`, `#2b` is 2 s; with `bpm: 120` it is 1 s. Without a
+`bpm` declaration beats read at the default **120**. Beat *stamps* are supported;
+a beat *duration* (`[2b]`) is not resolved and reports
+`invalid-modifier-value` — write durations in `s`/`ms`.
+
+```animatix
+config { bpm: 96 }
+#0s
+fade-in title [1.25s]     // one bar at 96 bpm, written as clock time
+#1b
+enter lyric [1b, ease: expo-out]
+#2b
+enter next_line [1b, ease: expo-out]
+```
 
 Actions under the same keyframe execute **simultaneously**:
 ```animatix
@@ -2152,6 +2170,7 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `dynamic_layout` | Scene | ✅ Yes | Scene-level overrides prelude. Enables per-frame layout recomputation. |
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
 | `export_preset` | Composition | ❌ No | Preset name the CLI video/GIF paths pick up (e.g. `"1080p30"`); set once in the prelude. |
+| `bpm` | Scene | ✅ Yes | Tempo in beats per minute. Resolves beat stamps (`#2b`, `[4b]`) to milliseconds; absent, beats run at 120 bpm. |
 | `seamless_loop` | Scene | ✅ Yes | Declares that the scene is replayed end-to-start. The build then samples every keyframed property at the first and last frame and warns with `loop-not-seamless` when a value does not wrap. Values driven by `always` blocks or plot `func` transitions are frame-time computations, not keyframes, so v1 cannot see them and does not lint them. |
 | `text_fast_path` | Program | ❌ No | Routes plain Latin `Text` through the fast shaping path (default on). |
 

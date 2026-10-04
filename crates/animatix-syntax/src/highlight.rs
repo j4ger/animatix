@@ -68,7 +68,10 @@ pub fn classify_token(
 pub fn lexical_role(token: &Token) -> &'static str {
     match &token.kind {
         TokenKind::Keyword(_) => "keyword",
-        TokenKind::Number(_) | TokenKind::Time { .. } | TokenKind::Percent(_) => "number",
+        TokenKind::Number(_)
+        | TokenKind::Time { .. }
+        | TokenKind::BeatTime { .. }
+        | TokenKind::Percent(_) => "number",
         TokenKind::Bool(_) => "boolean",
         TokenKind::Str(_) | TokenKind::Typst(_) => "string",
         TokenKind::Comment(_) => "comment",

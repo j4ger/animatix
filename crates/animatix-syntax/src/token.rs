@@ -26,6 +26,12 @@ pub enum TokenKind {
         /// `true` for milliseconds, `false` for seconds.
         ms: bool,
     },
+    /// A beat literal such as `2b` — a musical-time stamp whose millisecond
+    /// length comes from the scene's `config { bpm: … }`.
+    BeatTime {
+        /// Number of beats.
+        value: f64,
+    },
     /// A percentage literal such as `50%`.
     Percent(f64),
     /// A string literal (without quotes).
@@ -127,6 +133,7 @@ impl std::fmt::Display for TokenKind {
             TokenKind::Keyword(s) | TokenKind::Ident(s) => write!(f, "{s}"),
             TokenKind::Number(n) => write!(f, "{n}"),
             TokenKind::Time { value, ms } => write!(f, "{value}{}", if *ms { "ms" } else { "s" }),
+            TokenKind::BeatTime { value } => write!(f, "{value}b"),
             TokenKind::Percent(n) => write!(f, "{n}%"),
             TokenKind::Str(s) => write!(f, "\"{s}\""),
             TokenKind::Comment(_) => write!(f, "comment"),
@@ -385,6 +392,12 @@ impl<'a> Lexer<'a> {
         if self.peek() == b's' {
             self.pos += 1;
             return TokenKind::Time { value, ms: false };
+        }
+        // Beat literal: number immediately followed by `b`. Checked after `s`
+        // and `ms` so no time unit is stolen from another suffix.
+        if self.peek() == b'b' {
+            self.pos += 1;
+            return TokenKind::BeatTime { value };
         }
         // Percentage literal: number immediately followed by `%`.
         if self.peek() == b'%' {

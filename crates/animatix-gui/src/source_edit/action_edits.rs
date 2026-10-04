@@ -176,6 +176,9 @@ fn time_to_seconds(time: &Time) -> f64 {
     match time {
         Time::Seconds(s) => *s,
         Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+        // Editor-side positioning only: a beat stamp reads at the default
+        // tempo, the same convention the outline and analyzer use.
+        Time::Beats(b) => b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM),
     }
 }
 

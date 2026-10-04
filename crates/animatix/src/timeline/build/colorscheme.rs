@@ -165,6 +165,25 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "bpm" {
+                match &setting.value {
+                    Expr::Num(bpm) if *bpm > 0.0 => {
+                        self.beat_ms = Some(60_000.0 / bpm);
+                    },
+                    other => diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidConfigValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Config key 'bpm' expects a positive tempo in beats per minute, got {other:?}; beat stamps fall back to the default 120 bpm."
+                            ),
+                        )
+                        .with_subject("bpm"),
+                    ),
+                }
+                continue;
+            }
+
             if setting.name == "seamless_loop" {
                 self.seamless_loop = match &setting.value {
                     Expr::Bool(b) => *b,

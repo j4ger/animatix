@@ -3387,3 +3387,57 @@ fade-in t [200ms]
         "`--set tint` must reach the fill"
     );
 }
+
+#[test]
+fn beat_stamps_resolve_against_the_declared_tempo() {
+    // `#2b` is a musical stamp: its millisecond position comes from the scene's
+    // `config { bpm: … }`, so a retempo moves the whole arrangement without
+    // editing any stamp.
+    let source = |config: &str| {
+        format!(
+            r#"
+config {{ colorscheme: "editorial-dark", resolution: (640, 360), {config} }}
+
+box: Rect, size: (100, 100), at: (200, 180), color: accent.primary, opacity: 1.0
+#0s
+box.shift = (0, 0)
+#2b
+box.shift = (240, 0)
+"#
+        )
+    };
+    let shift_at = |config: &str, ms: u64| -> [f32; 2] {
+        let (ast, errors) = animatix_syntax::parser::parse_source(&source(config));
+        assert!(errors.is_empty(), "Parse errors: {errors:?}");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            ast.as_ref().unwrap(),
+            &std::collections::HashMap::new(),
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .all(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed
+                    || d.code == crate::diagnostics::DiagnosticCode::UnknownConfigKey
+                    || d.code == crate::diagnostics::DiagnosticCode::InvalidConfigValue),
+            "unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        use crate::timeline::read_property_value;
+        let schema = crate::timeline::property_registry::lookup_property("shift").unwrap();
+        let track = report.output.tracks.get("box").unwrap();
+        match read_property_value(track, schema.field, ms) {
+            Some(crate::timeline::PropertyValue::Vec2(v)) => v,
+            other => panic!("expected a Vec2 shift, got {other:?}"),
+        }
+    };
+
+    // 60 bpm: two beats is exactly two seconds, so the move has not started at
+    // 1999 ms and has landed by 2000 ms.
+    assert_eq!(shift_at("bpm: 60", 1999), [0.0, 0.0]);
+    assert_eq!(shift_at("bpm: 60", 2000), [240.0, 0.0]);
+    // 120 bpm is the documented default, so the same stamp lands at one second.
+    assert_eq!(shift_at("bpm: 120", 1000), [240.0, 0.0]);
+    assert_eq!(shift_at("", 1000), [240.0, 0.0], "no bpm means the default tempo");
+    assert_eq!(shift_at("bpm: 120", 999), [0.0, 0.0]);
+}

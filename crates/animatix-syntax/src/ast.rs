@@ -390,6 +390,22 @@ pub enum Time {
     Seconds(f64),
     /// Time in milliseconds (e.g. `500ms`).
     Milliseconds(u64),
+    /// Time in beats (e.g. `2b`), resolved by the scene's `config { bpm: … }`.
+    Beats(f64),
+}
+
+/// Tempo assumed where a beat stamp has to be resolved without a scene config
+/// (formatting, outline views, the analyzer). A scene that means a different
+/// tempo declares `config { bpm: … }`.
+pub const DEFAULT_BPM: f64 = 120.0;
+
+/// Seconds per beat at `bpm`.
+pub fn beat_seconds(bpm: f64) -> f64 {
+    if bpm > 0.0 {
+        60.0 / bpm
+    } else {
+        60.0 / DEFAULT_BPM
+    }
 }
 
 /// Type annotation for parameters.

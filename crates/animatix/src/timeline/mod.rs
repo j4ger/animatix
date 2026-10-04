@@ -253,7 +253,10 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
+pub use utils::{
+    evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms,
+    time_to_ms_at_beat,
+};
 pub use vello_path::{GradientExtend, GradientShape, GradientSpace, GradientSpec, VelloPath};
 
 use crate::ast::{Expr, Modifier, Stmt};
@@ -573,6 +576,9 @@ pub struct Timeline {
     /// Declared via `config { seamless_loop: true }`: the scene is replayed, so
     /// the build checks that its keyframed values wrap at the seam.
     pub(crate) seamless_loop: bool,
+    /// Tempo declared via `config { bpm: N }`, the length of one beat in
+    /// milliseconds. `None` falls back to the default tempo.
+    pub(crate) beat_ms: Option<f64>,
     /// Names supplied on the command line via `--set NAME=VALUE`. They seed the
     /// build environment before the walk and are re-applied after it, so a
     /// template's own top-level `let` acts as a default rather than a blocker.
@@ -859,6 +865,7 @@ impl Timeline {
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,
             seamless_loop: false,
+            beat_ms: None,
             cli_defines: std::collections::HashSet::new(),
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
@@ -1438,6 +1445,13 @@ impl Timeline {
     /// Recompute [`Timeline::blend_used`] from the tracks. Called from
     /// `invalidate_frame_cache` (every public mutation funnels through it)
     /// and once at the end of the build walk.
+    /// Length of one beat in milliseconds: the scene's `config { bpm: … }` when
+    /// declared, the documented default tempo otherwise.
+    pub(crate) fn beat_duration_ms(&self) -> f64 {
+        self.beat_ms
+            .unwrap_or(crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0)
+    }
+
     pub(crate) fn refresh_blend_used(&self) {
         let any = self.tracks.values().any(|t| t.style.blend.is_some());
         self.blend_used.set(any);

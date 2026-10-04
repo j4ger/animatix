@@ -316,6 +316,9 @@ pub fn time_to_seconds(t: &Time) -> f64 {
     match t {
         Time::Seconds(s) => *s,
         Time::Milliseconds(ms) => *ms as f64 / 1000.0,
+        // Beat stamps resolve against the scene tempo; callers that have no
+        // config in scope fall back to the documented default.
+        Time::Beats(b) => *b * crate::ast::beat_seconds(crate::ast::DEFAULT_BPM),
     }
 }
 
