@@ -128,6 +128,7 @@ pub fn collect_unresolved_variables(
 fn exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
     let mut exempt: HashSet<String> = [
         builtins::MATH_FUNCTIONS,
+        builtins::LIST_FUNCTIONS,
         builtins::COLOR_CONSTRUCTOR_FUNCTIONS,
         builtins::FORMAT_FUNCTIONS,
         builtins::COLOR_NAMES,

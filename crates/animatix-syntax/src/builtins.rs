@@ -82,33 +82,56 @@ pub const ACTIONS: &[&str] = &[
 pub const COLOR_CONSTRUCTOR_FUNCTIONS: &[&str] = &["rgb", "rgba", "hsv", "hsl", "hsla"];
 
 /// Built-in scalar/math functions.
+///
+/// This list is the language's declaration of what `eval_shared` implements:
+/// the analyzer exempts these names from `unresolved-variable`, and
+/// [`function_return_type`] types the call. A builtin missing here works at
+/// runtime and is still wrong — the editor flags it and completion never
+/// offers it. Checked against `eval_shared`'s dispatch in batch 3, which found
+/// eleven such names.
 pub const MATH_FUNCTIONS: &[&str] = &[
     "abs",
+    "atan2",
     "clamp",
     "ceil",
     "cos",
     "deg",
+    "deg_to_rad",
     "exp",
     "factorial",
     "fbm",
     "floor",
+    "fract",
+    "hypot",
     "lerp",
+    "ln",
     "log",
     "max",
     "min",
     "noise",
     "noise2",
+    "pow",
     "rad",
+    "rad_to_deg",
     "rand",
+    "rem",
+    "round",
     "seeded_fbm",
     "seeded_noise",
     "seeded_noise2",
     "seeded_rand",
+    "signum",
     "sin",
     "sqrt",
+    "step",
     "sum",
     "tan",
 ];
+
+/// Built-in list helpers. Separate from [`MATH_FUNCTIONS`] because they do not
+/// return a number: `list_set`/`list_swap` return a new list, and typing them
+/// as `Num` would make the type checker reject the assignment the docs show.
+pub const LIST_FUNCTIONS: &[&str] = &["list_set", "list_swap"];
 
 /// Built-in string-formatting function.
 pub const FORMAT_FUNCTIONS: &[&str] = &["format"];
@@ -130,6 +153,10 @@ pub fn function_return_type(name: &str) -> Option<Type> {
         Some(Type::Str)
     } else if MATH_FUNCTIONS.contains(&name) {
         Some(Type::Num)
+    } else if LIST_FUNCTIONS.contains(&name) {
+        // `Any` inner on purpose: the helpers preserve whatever the list
+        // held, and claiming `Num` would reject a list of strings.
+        Some(Type::List(Box::new(Type::Any)))
     } else {
         None
     }
