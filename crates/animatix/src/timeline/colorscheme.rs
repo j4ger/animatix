@@ -27,6 +27,12 @@ pub enum BuiltInColorscheme {
     DefaultLight,
     /// Editorial dark theme with refined contrast.
     EditorialDark,
+    /// High-energy saturated palette on near-black — demo/trailer material.
+    Vivid,
+    /// Warm light "paper" theme — daytime, editorial, print-adjacent.
+    Paper,
+    /// Neon-on-charcoal night theme for glow/screen-blend material.
+    NeonNight,
 }
 
 impl BuiltInColorscheme {
@@ -36,6 +42,9 @@ impl BuiltInColorscheme {
             "default-dark" => Some(Self::DefaultDark),
             "default-light" => Some(Self::DefaultLight),
             "editorial-dark" => Some(Self::EditorialDark),
+            "vivid" => Some(Self::Vivid),
+            "paper" => Some(Self::Paper),
+            "neon-night" => Some(Self::NeonNight),
             _ => None,
         }
     }
@@ -113,12 +122,84 @@ impl BuiltInColorscheme {
                     [0.98, 0.83, 0.44, 1.0],
                 ]
             },
+            Self::Vivid => {
+                colors.insert("scene.background".to_string(), [0.055, 0.04, 0.11, 1.0]);
+                colors.insert("text.primary".to_string(), [1.0, 0.98, 0.95, 1.0]);
+                colors.insert("text.secondary".to_string(), [0.86, 0.82, 0.95, 1.0]);
+                colors.insert("text.muted".to_string(), [0.62, 0.58, 0.75, 1.0]);
+                colors.insert("surface.primary".to_string(), [0.13, 0.1, 0.24, 1.0]);
+                colors.insert("surface.secondary".to_string(), [0.2, 0.15, 0.35, 1.0]);
+                colors.insert("accent.primary".to_string(), [1.0, 0.42, 0.31, 1.0]);
+                colors.insert("accent.secondary".to_string(), [0.4, 0.94, 0.78, 1.0]);
+                colors.insert("accent.info".to_string(), [0.36, 0.68, 1.0, 1.0]);
+                colors.insert("accent.success".to_string(), [0.55, 0.9, 0.35, 1.0]);
+                colors.insert("accent.warning".to_string(), [1.0, 0.78, 0.26, 1.0]);
+                colors.insert("accent.danger".to_string(), [1.0, 0.25, 0.45, 1.0]);
+                colors.insert("stroke.default".to_string(), [0.85, 0.8, 1.0, 1.0]);
+                vec![
+                    [1.0, 0.42, 0.31, 1.0],
+                    [0.4, 0.94, 0.78, 1.0],
+                    [0.36, 0.68, 1.0, 1.0],
+                    [1.0, 0.78, 0.26, 1.0],
+                    [1.0, 0.25, 0.45, 1.0],
+                    [0.55, 0.9, 0.35, 1.0],
+                ]
+            },
+            Self::Paper => {
+                colors.insert("scene.background".to_string(), [0.965, 0.945, 0.905, 1.0]);
+                colors.insert("text.primary".to_string(), [0.16, 0.14, 0.11, 1.0]);
+                colors.insert("text.secondary".to_string(), [0.38, 0.34, 0.28, 1.0]);
+                colors.insert("text.muted".to_string(), [0.6, 0.56, 0.5, 1.0]);
+                colors.insert("surface.primary".to_string(), [0.99, 0.98, 0.955, 1.0]);
+                colors.insert("surface.secondary".to_string(), [0.92, 0.895, 0.85, 1.0]);
+                colors.insert("accent.primary".to_string(), [0.72, 0.28, 0.12, 1.0]);
+                colors.insert("accent.secondary".to_string(), [0.16, 0.4, 0.55, 1.0]);
+                colors.insert("accent.info".to_string(), [0.3, 0.5, 0.62, 1.0]);
+                colors.insert("accent.success".to_string(), [0.3, 0.52, 0.24, 1.0]);
+                colors.insert("accent.warning".to_string(), [0.78, 0.5, 0.08, 1.0]);
+                colors.insert("accent.danger".to_string(), [0.7, 0.16, 0.14, 1.0]);
+                colors.insert("stroke.default".to_string(), [0.2, 0.18, 0.15, 1.0]);
+                vec![
+                    [0.72, 0.28, 0.12, 1.0],
+                    [0.16, 0.4, 0.55, 1.0],
+                    [0.3, 0.52, 0.24, 1.0],
+                    [0.78, 0.5, 0.08, 1.0],
+                    [0.7, 0.16, 0.14, 1.0],
+                    [0.45, 0.38, 0.6, 1.0],
+                ]
+            },
+            Self::NeonNight => {
+                colors.insert("scene.background".to_string(), [0.05, 0.055, 0.07, 1.0]);
+                colors.insert("text.primary".to_string(), [0.92, 0.96, 1.0, 1.0]);
+                colors.insert("text.secondary".to_string(), [0.66, 0.74, 0.85, 1.0]);
+                colors.insert("text.muted".to_string(), [0.45, 0.52, 0.62, 1.0]);
+                colors.insert("surface.primary".to_string(), [0.09, 0.1, 0.13, 1.0]);
+                colors.insert("surface.secondary".to_string(), [0.13, 0.15, 0.19, 1.0]);
+                colors.insert("accent.primary".to_string(), [0.2, 1.0, 0.85, 1.0]);
+                colors.insert("accent.secondary".to_string(), [1.0, 0.35, 0.75, 1.0]);
+                colors.insert("accent.info".to_string(), [0.3, 0.55, 1.0, 1.0]);
+                colors.insert("accent.success".to_string(), [0.55, 1.0, 0.4, 1.0]);
+                colors.insert("accent.warning".to_string(), [1.0, 0.62, 0.25, 1.0]);
+                colors.insert("accent.danger".to_string(), [1.0, 0.2, 0.35, 1.0]);
+                colors.insert("stroke.default".to_string(), [0.55, 0.95, 0.9, 1.0]);
+                vec![
+                    [0.2, 1.0, 0.85, 1.0],
+                    [1.0, 0.35, 0.75, 1.0],
+                    [0.3, 0.55, 1.0, 1.0],
+                    [1.0, 0.62, 0.25, 1.0],
+                    [0.55, 1.0, 0.4, 1.0],
+                    [0.75, 0.5, 1.0, 1.0],
+                ]
+            },
         };
 
         let name = match self {
             Self::DefaultDark => "default-dark",
             Self::DefaultLight => "default-light",
             Self::EditorialDark => "editorial-dark",
+            Self::Vivid => "vivid",
+            Self::Paper => "paper",
+            Self::NeonNight => "neon-night",
         };
 
         ResolvedColorscheme {

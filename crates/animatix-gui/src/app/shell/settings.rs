@@ -204,6 +204,9 @@ impl GuiShell {
                 ("default-dark", "Default Dark"),
                 ("default-light", "Default Light"),
                 ("editorial-dark", "Editorial Dark"),
+                ("vivid", "Vivid"),
+                ("paper", "Paper"),
+                ("neon-night", "Neon Night"),
             ];
             layout::labeled_row(
                 ui,
