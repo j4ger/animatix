@@ -39,8 +39,10 @@ fade-out actor [600ms, ease: ease-in]
 
 // Reactive expression: orbital motion and pulsing
 always {
-  let cx = scene.center.x
-  let cy = scene.center.y
+  // `scene.center` is an anchor point, not a frame-time expression value; the
+  // scene dimensions are what `always` can read.
+  let cx = scene_width / 2.0
+  let cy = scene_height / 2.0
   pulse.at = (cx + 130 * cos(t * 2.0), cy + 90 * sin(t * 2.0))
   let s = 1.0 + 0.4 * sin(t * 3.0)
   pulse.size = (60 * s, 60 * s)

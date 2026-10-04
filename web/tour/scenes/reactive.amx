@@ -16,11 +16,11 @@
 // `stroke`. It previously carried a solid fill, which turned the focus
 // reticle into a 440px amber lollipop that covered the scene's own title.
 //
-// The idle "breathing" is written into SCALARS only (`stroke_width`). It must
-// not write `ring.size`: a frame-time `size`
-// override on an Ellipse is applied on top of the baked geometry, so
-// `always { ring.size = (220, 220) }` on a 220 actor renders ~440 wide. That
-// is what made the old disc fill half the stage.
+// The idle "breathing" rides `stroke_width` and `size` together. The frame-time
+// `size` override is authored in full width/height like the declaration is —
+// `ring.size = (238, 238)` on a 220 actor grows it by 18 px, not 476 — which is
+// what the doubling bug in `primitives::override_size` used to make impossible;
+// the scene had to keep its breathing to scalars.
 
 import "../../demos/lib/theme.amx"
 
@@ -77,11 +77,13 @@ always {
     let p = 0.5 + 0.5 * sin(t * 3)
     ring.stroke = accent.success
     ring.stroke_width = 6.0 - p * 2.4
+    ring.size = (220 + p * 18, 220 + p * 18)
     status.text = "IDLE — at rest"
     status.color = accent.success
   } else {
     ring.stroke = accent.primary
     ring.stroke_width = 4.0
+    ring.size = (220, 220)
     status.text = "TRACKING — keyframe active"
     status.color = accent.primary
   }
