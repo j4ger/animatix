@@ -1095,9 +1095,14 @@ During video export, all `Audio` actors from the current scene (or all scenes in
 always {
   let x = slider_value
   ball.position = (x, x^2)
-  label.text = format("y = {x}", x)
+  label.text = format("y = {:.2}", x)
 }
 ```
+
+> `format`'s placeholders are `{}` (the next argument) and `{.N}` (the next
+> argument at `N` decimal places). Anything else between the braces — `{x}`,
+> `{:.1f}`, `{:,}` — is emitted literally, on purpose: an unsupported spec shows
+> up in the render instead of silently substituting something else.
 
 **`for`**: Compile-time structural expansion.
 ```animatix
