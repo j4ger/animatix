@@ -520,6 +520,10 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("stroke_gradient", Type::Any),
         ("gradient_extend", Type::Str),
         ("gradient_space", Type::Str),
+        // Build-time icon name for `Path` (expands to `commands`); stores as
+        // `Generic` via the `BuildTimeOnly` engine binding, so the declared
+        // expression type only guides the analyzer (a string literal).
+        ("icon", Type::Str),
     ]
 }
 
@@ -568,7 +572,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            104,
+            105,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

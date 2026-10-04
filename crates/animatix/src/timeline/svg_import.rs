@@ -15,7 +15,8 @@
 //! ## Limitations / TODOs
 //!
 //! - No support for SVG `<use>`, `<clipPath>`, patterns
-//! - SVG `<path>` `d` attribute: supports M, L, Q, C, Z commands (absolute/relative)
+//! - SVG `<path>` `d` attribute: supports M/m, L/l, H/h, V/v, Q/q, C/c, S/s,
+//!   T/t, A/a, Z/z; `A`/`a` arcs are approximated as a straight chord
 //! - SVG `currentColor`, `inherit` fill types: not yet supported
 //! - SVG `stroke-linecap`, `stroke-linejoin`: not yet mapped
 
@@ -825,9 +826,19 @@ fn parse_hex_color(hex: &str) -> Option<Expr> {
 
 /// Parse an SVG `d` attribute into Animatix path command expressions.
 ///
-/// Supports absolute and relative commands: M/m, L/l, Q/q, C/c, Z/z.
-/// Returns a tuple of commands: `(move_to(...), line_to(...), ...)`
-fn parse_svg_path_data(d: &str) -> Expr {
+/// Supports absolute and relative commands: M/m, L/l, Q/q, C/c, H/h, V/v,
+/// S/s, T/t, A/a, Z/z. Returns a list expression:
+/// `{move_to(...), line_to(...), ...}` — the same shape the `commands` property
+/// consumes, so callers can reuse it to expand path data into actor commands
+/// (this is how the bundled `icon:` set becomes `Path` geometry).
+///
+/// Two SVG-grammar rules are honored here because compact real-world path data
+/// depends on both, and neither was handled before: a trailing coordinate pair
+/// after `M`/`m` is an *implicit* `line_to` (only the first pair is a moveto),
+/// and `tokenize_path_data` splits numbers at every sign / second decimal point
+/// (see its doc comment). Arc commands (`A`/`a`) are still approximated as a
+/// straight chord, so callers that need smooth curves should pass curve data.
+pub(crate) fn parse_svg_path_data(d: &str) -> Expr {
     let tokens = tokenize_path_data(d);
     let mut commands: Vec<Expr> = Vec::new();
     let mut i = 0;
@@ -840,6 +851,13 @@ fn parse_svg_path_data(d: &str) -> Expr {
         match cmd {
             "M" | "m" => {
                 let abs = cmd == "M";
+                // SVG rule: only the *first* coordinate pair after a moveto is a
+                // new subpath; every following pair is an implicit lineto. The
+                // old code emitted `move_to` for all of them, which silently
+                // dropped the connecting segment (a diagonal `M17 7 7 17`
+                // rendered as two invisible dots). Track the first pair so the
+                // rest lower to `line_to`.
+                let mut first_pair = true;
                 while i + 1 < tokens.len() && is_number(&tokens[i]) {
                     let x = parse_token_num(&tokens[i]);
                     let y = parse_token_num(&tokens[i + 1]);
@@ -849,10 +867,10 @@ fn parse_svg_path_data(d: &str) -> Expr {
                     } else {
                         (current_pos.0 + x, current_pos.1 + y)
                     };
-                    commands.push(Expr::Call(
-                        "move_to".into(),
-                        vec![Expr::Num(abs_x), Expr::Num(abs_y)],
-                    ));
+                    let name = if first_pair { "move_to" } else { "line_to" };
+                    first_pair = false;
+                    commands
+                        .push(Expr::Call(name.into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
                     current_pos = (abs_x, abs_y);
                 }
             },
@@ -1068,10 +1086,22 @@ fn parse_svg_path_data(d: &str) -> Expr {
 }
 
 /// Tokenize an SVG path `d` attribute into command letters and numbers.
+///
+/// Compact SVG path data omits separators between numbers wherever the grammar
+/// is unambiguous, so the split rules are:
+/// - a command letter always starts a new token;
+/// - a `,`/whitespace ends the current token;
+/// - a `+`/`-` starts a new number (unless it is the leading sign of a token
+///   that has not begun), which is what turns `7-7` into `7` and `-7`;
+/// - a `.` ends the current number if it already contains one, which turns the
+///   radii pair `.53.53` into `.53` and `.53` (a number has at most one point).
+///
+/// Without this, real-world data (Lucide, most icon sets) produced single
+/// unparseable tokens like `7-7`/`.53.53` that `parse_token_num` silently turned
+/// into `0.0`, corrupting the geometry.
 fn tokenize_path_data(d: &str) -> Vec<String> {
     let mut tokens = Vec::new();
     let mut current = String::new();
-    let mut is_prev_num = false;
 
     for ch in d.chars() {
         if ch.is_ascii_alphabetic() {
@@ -1079,25 +1109,25 @@ fn tokenize_path_data(d: &str) -> Vec<String> {
                 tokens.push(std::mem::take(&mut current));
             }
             tokens.push(ch.to_string());
-            is_prev_num = false;
-        } else if ch == '-' || ch == '+' || ch.is_ascii_digit() || ch == '.' {
-            if !is_prev_num && !current.is_empty() {
-                // e.g., "5-3" → push "5" then start "-3"
-                // This handles minus signs in scientific notation vs. negation
-                // Actually, in SVG path data, a minus sign starts a new number
-                // after a completed one.
-                // Check: if previous char was a digit and current is '-', it's a new number
-                if ch == '-' && current.chars().last().is_some_and(|c| c.is_ascii_digit()) {
-                    tokens.push(std::mem::take(&mut current));
-                }
-            }
-            current.push(ch);
-            is_prev_num = true;
-        } else if ch == ',' || ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' {
+        } else if ch == '-' || ch == '+' {
+            // A sign begins a new number whenever a number is already open; the
+            // lone leading sign of a fresh token just accumulates.
             if !current.is_empty() {
                 tokens.push(std::mem::take(&mut current));
             }
-            is_prev_num = false;
+            current.push(ch);
+        } else if ch == '.' {
+            if current.contains('.') {
+                tokens.push(std::mem::take(&mut current));
+            }
+            current.push(ch);
+        } else if ch.is_ascii_digit() {
+            current.push(ch);
+        } else {
+            // Delimiters: comma and any whitespace.
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
         }
     }
     if !current.is_empty() {
@@ -2050,6 +2080,51 @@ mod tests {
             Expr::Call("close".into(), vec![]),
         ]);
         assert_eq!(expr, expected);
+    }
+
+    /// Compact path data glues a minus onto the following number, so `7-7` must
+    /// split into two tokens. The old tokenizer only split a sign after a
+    /// delimiter, silently turning `7-7`/`.53.53` into a single unparseable
+    /// token (and then `0.0`).
+    #[test]
+    fn test_tokenize_splits_compact_numbers() {
+        assert_eq!(tokenize_path_data("M5 12h14"), vec!["M", "5", "12", "h", "14"]);
+        assert_eq!(
+            tokenize_path_data("m19 12-7 7-7-7"),
+            vec!["m", "19", "12", "-7", "7", "-7", "-7"]
+        );
+        assert_eq!(tokenize_path_data(".53.53"), vec![".53", ".53"]);
+        assert_eq!(tokenize_path_data("l-5-5"), vec!["l", "-5", "-5"]);
+    }
+
+    /// Only the first pair after a moveto opens a subpath; later pairs are an
+    /// implicit lineto (SVG rule). This is what makes a diagonal such as
+    /// `M17 7 7 17` render as a line instead of two disconnected dots.
+    #[test]
+    fn test_parse_svg_path_moveto_chains_to_lineto() {
+        let expr = parse_svg_path_data("M17 7 7 17");
+        assert_eq!(
+            expr,
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(17.0), Expr::Num(7.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(7.0), Expr::Num(17.0)]),
+            ])
+        );
+    }
+
+    /// The exact shape produced from the `check` icon's path data — used by the
+    /// `icon:` property to expand a bundled stroke icon into `Path` commands.
+    #[test]
+    fn test_parse_svg_path_check_icon_data() {
+        let expr = parse_svg_path_data("M20 6 9 17l-5-5");
+        assert_eq!(
+            expr,
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(20.0), Expr::Num(6.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(9.0), Expr::Num(17.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(4.0), Expr::Num(12.0)]),
+            ])
+        );
     }
 
     #[test]

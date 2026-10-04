@@ -1143,23 +1143,21 @@ fn color_builtins_accept_color_strings() {
     let lerp = |a: Expr, b: Expr| {
         let mut env = Environment::new();
         load_standard_library(&mut env);
-        evaluate_expr(
-            &Expr::Call(
-                "lerp_color_oklab".to_string(),
-                vec![a, b, Expr::Num(0.5)],
-            ),
-            &env,
-        )
-        .expect("lerp_color_oklab should evaluate")
+        evaluate_expr(&Expr::Call("lerp_color_oklab".to_string(), vec![a, b, Expr::Num(0.5)]), &env)
+            .expect("lerp_color_oklab should evaluate")
     };
     let rgb = |r: f64, g: f64, b: f64| {
-        Expr::Call("rgb".to_string(), vec![Expr::Num(r * 255.0), Expr::Num(g * 255.0), Expr::Num(b * 255.0)])
+        Expr::Call(
+            "rgb".to_string(),
+            vec![
+                Expr::Num(r * 255.0),
+                Expr::Num(g * 255.0),
+                Expr::Num(b * 255.0),
+            ],
+        )
     };
 
-    let from_strings = lerp(
-        Expr::Str("#ff0000".to_string()),
-        Expr::Str("#00ff00".to_string()),
-    );
+    let from_strings = lerp(Expr::Str("#ff0000".to_string()), Expr::Str("#00ff00".to_string()));
     let from_calls = lerp(rgb(1.0, 0.0, 0.0), rgb(0.0, 1.0, 0.0));
     assert_eq!(
         from_strings, from_calls,
@@ -1186,7 +1184,11 @@ fn color_builtins_accept_color_strings() {
     let bad = evaluate_expr(
         &Expr::Call(
             "lerp_color_oklab".to_string(),
-            vec![Expr::Str("not-a-color".to_string()), Expr::Str("#00ff00".to_string()), Expr::Num(0.5)],
+            vec![
+                Expr::Str("not-a-color".to_string()),
+                Expr::Str("#00ff00".to_string()),
+                Expr::Num(0.5),
+            ],
         ),
         &env,
     );

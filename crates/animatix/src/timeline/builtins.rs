@@ -233,12 +233,11 @@ fn color_arg(name: &str, value: &Value) -> Result<[f64; 4], EvalError> {
         Value::Str(text) => crate::timeline::utils::color_from_text(text)
             .map(|c| c.map(f64::from))
             .ok_or_else(|| EvalError::TypeMismatch(format!("{name}: '{text}' is not a color"))),
-        other => Err(EvalError::TypeMismatch(format!(
-            "{name} expects a color, got {other:?}"
-        ))),
+        other => Err(EvalError::TypeMismatch(format!("{name} expects a color, got {other:?}"))),
     }
 }
 
+/// Register the built-in expression constants and functions into `env`.
 pub fn load_standard_library(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
     env.set("E", Value::Num(std::f64::consts::E));

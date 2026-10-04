@@ -3441,3 +3441,114 @@ box.shift = (240, 0)
     assert_eq!(shift_at("", 1000), [240.0, 0.0], "no bpm means the default tempo");
     assert_eq!(shift_at("bpm: 120", 999), [0.0, 0.0]);
 }
+
+/// `icon: "check"` must expand to exactly the `Path` geometry an equivalent
+/// hand-written `commands:` list produces — the whole contract of the property.
+#[test]
+fn icon_property_expands_to_commands_geometry() {
+    // `check`'s bundled path data is `M20 6 9 17l-5-5`, which the shared
+    // SVG parser lowers to move_to(20,6) + implicit line_to(9,17) +
+    // relative line_to(4,12).
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        p_icon: Path, icon: "check", at: (100, 100)
+        p_manual: Path,
+          commands: {move_to(20, 6), line_to(9, 17), line_to(4, 12)},
+          at: (300, 100)
+    "#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "Parse errors: {errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        ast.as_ref().unwrap(),
+        &std::collections::HashMap::new(),
+    );
+
+    let geometry = |label: &str| -> Vec<kurbo::PathEl> {
+        let track = report.output.tracks.get(label).unwrap_or_else(|| panic!("no track {label}"));
+        let paths = track.evaluate_vector_paths_value(0);
+        let mut elements = Vec::new();
+        for vp in paths {
+            elements.extend(vp.path.elements().iter().copied());
+        }
+        elements
+    };
+
+    let from_icon = geometry("p_icon");
+    let from_manual = geometry("p_manual");
+    assert!(!from_icon.is_empty(), "`icon: \"check\"` produced no path geometry at all");
+    assert_eq!(
+        from_icon, from_manual,
+        "`icon: \"check\"` geometry must match the hand-written commands list"
+    );
+}
+
+/// An unknown icon name must warn (naming close candidates) rather than draw
+/// nothing in silence.
+#[test]
+fn unknown_icon_warns() {
+    let source = r#"
+        config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+        p: Path, icon: "nope", at: (100, 100)
+    "#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "Parse errors: {errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        ast.as_ref().unwrap(),
+        &std::collections::HashMap::new(),
+    );
+
+    let warned = report.diagnostics.iter().find(|d| {
+        d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
+            && d.message.contains("nope")
+    });
+    assert!(
+        warned.is_some(),
+        "unknown `icon` value must emit an InvalidPropertyValue warning; got {:?}",
+        report.diagnostics
+    );
+}
+
+#[test]
+fn an_authored_scale_reaches_the_transform() {
+    // `scale:` on a declaration was dropped on the floor for every actor kind:
+    // it is not in the legacy per-primitive loop and was not routed through the
+    // generic engine, so `scale: 4.0` rendered at 1.0 while the keyframed
+    // `x.scale = 4.0` worked. Bundled icons made it visible — a 24 px mark that
+    // could not be enlarged was otherwise unusable.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+box: Rect, size: (20, 20), at: (200, 180), color: accent.primary, scale: 4.0
+half: Rect, size: (20, 20), at: (400, 180), color: accent.primary, scale: 0.5
+plain: Rect, size: (20, 20), at: (500, 180), color: accent.primary
+
+#0s
+fade-in box [200ms]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "Parse errors: {errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        ast.as_ref().unwrap(),
+        &std::collections::HashMap::new(),
+    );
+    let timeline = report.output;
+    use crate::timeline::read_property_value;
+    let schema = crate::timeline::property_registry::lookup_property("scale").unwrap();
+    let scale_of = |label: &str| -> Option<f32> {
+        let track = timeline.tracks.get(label).unwrap();
+        match read_property_value(track, schema.field, 0) {
+            Some(crate::timeline::PropertyValue::F32(v)) => Some(v),
+            None => None,
+            other => panic!("expected a numeric scale for {label}, got {other:?}"),
+        }
+    };
+    assert_eq!(scale_of("box"), Some(4.0), "authored scale must land");
+    assert_eq!(scale_of("half"), Some(0.5), "a shrink must land too");
+    assert_eq!(
+        scale_of("plain"),
+        None,
+        "an actor that never authors scale gets no track, and renders at the 1.0 default"
+    );
+}

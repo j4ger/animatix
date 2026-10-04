@@ -884,6 +884,9 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::HighlightRadius,
         |_| super::property_engine::PropertyValue::F32(3.0)
     ),
+    binding!("icon", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
     binding!("kind", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::String("cartesian".to_string())
     }),

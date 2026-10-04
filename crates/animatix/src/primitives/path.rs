@@ -1,10 +1,13 @@
 //! Custom path shape primitive.
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
+use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::shapes::parse_path_commands_expr;
-use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
+use crate::timeline::svg_import::parse_svg_path_data;
+use crate::timeline::{
+    Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
+};
 
 /// The `Path` primitive.
 pub struct PathPrimitive;
@@ -101,17 +104,121 @@ impl Primitive for PathPrimitive {
         name: &str,
         value: &Expr,
         env: &Environment,
-        _diagnostics: &mut Vec<Diagnostic>,
-        _subject: &str,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
         state: &mut VectorShapeState,
     ) -> bool {
         let VectorShapeState::Path(path) = state else {
             return false;
         };
-        if name != "commands" {
-            return false;
+        match name {
+            "commands" => {
+                path.custom_path = parse_path_commands_expr(value, env);
+                true
+            },
+            "icon" => {
+                // `icon:` is a build-time alias for an authored `commands:` list.
+                // Resolve the name, expand its verbatim path data into command
+                // expressions with the single shared parser, and hand the result
+                // to the same geometry path a `commands:` list would take — so
+                // `draw-in` traces it identically. A non-string value is reported
+                // by `icon_name` (nothing to draw); we still return `true` so the
+                // property is not silently re-routed to the `commands` handler.
+                if let Some(icon_name) = icon_name(value, env, diagnostics, subject) {
+                    match animatix_core::stroke_icons::stroke_icon_path_data(&icon_name) {
+                        Some(subpaths) => {
+                            let commands = icon_commands_expr(subpaths);
+                            path.custom_path = parse_path_commands_expr(&commands, env);
+                        },
+                        None => {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!(
+                                        "unknown icon `{icon_name}`; available icons: {}",
+                                        suggest_icons(&icon_name)
+                                    ),
+                                )
+                                .with_subject(subject),
+                            );
+                        },
+                    }
+                }
+                true
+            },
+            _ => false,
         }
-        path.custom_path = parse_path_commands_expr(value, env);
-        true
     }
+}
+
+/// Expand one or more verbatim path-data subpaths into a `commands:` list
+/// expression. Each subpath is parsed with a fresh origin so a leading relative
+/// moveto (`m…`) resolves against `(0, 0)` exactly as a separate `<path>` element
+/// does in the source SVG; the resulting command runs are concatenated.
+fn icon_commands_expr(subpaths: &[&str]) -> Expr {
+    let mut commands = Vec::new();
+    for d in subpaths {
+        if let Expr::List(items) = parse_svg_path_data(d) {
+            commands.extend(items);
+        }
+    }
+    Expr::List(commands)
+}
+
+/// Read the `icon:` string. Handles a literal `Expr::Str` and any expression
+/// that evaluates to a string; a wrong type is warned about rather than dropped.
+fn icon_name(
+    value: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<String> {
+    if let Expr::Str(s) = value {
+        return Some(s.clone());
+    }
+    match crate::timeline::evaluate_expr(value, env) {
+        Ok(Value::Str(s)) => Some(s),
+        Ok(other) => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("`icon` expects an icon-name string, got {other:?}"),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
+        // The evaluation error is already surfaced as a diagnostic elsewhere.
+        Err(_) => None,
+    }
+}
+
+/// A short, deterministic list of icon names closest to `query`, used to make an
+/// unknown-icon warning actionable without a full edit-distance table.
+fn suggest_icons(query: &str) -> String {
+    let names = animatix_core::stroke_icons::stroke_icon_names();
+    let needle = query.to_ascii_lowercase();
+    let mut scored: Vec<(usize, &&str)> = names
+        .iter()
+        .map(|name| {
+            let lower = name.to_ascii_lowercase();
+            // Cheaper heuristic score: shared leading segment, then substring,
+            // then disjoint. Smaller is closer.
+            let score = if lower == needle {
+                0
+            } else if lower.split('-').next() == needle.split('-').next() {
+                1
+            } else if lower.contains(&needle) || needle.contains(&lower) {
+                2
+            } else {
+                3
+            };
+            (score, name)
+        })
+        .collect();
+    scored.sort_by_key(|(score, name)| (*score, *name));
+    let picks: Vec<&str> = scored.into_iter().take(4).map(|(_, name)| *name).collect();
+    picks.join(", ")
 }

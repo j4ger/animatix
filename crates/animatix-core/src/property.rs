@@ -367,6 +367,11 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]),
         PropertyValueKind::String,
     ),
+    // Bundled stroke-icon name (`icon: "check"`). Build-time only: the engine
+    // expands the name into `Path` command geometry and stores nothing on a
+    // track, so it is declared `Generic` to match its `BuildTimeOnly` runtime
+    // binding (mirrors how `data`/`bar_width` are handled).
+    PropertyDescriptor::new("icon", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

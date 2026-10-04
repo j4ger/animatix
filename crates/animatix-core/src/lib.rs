@@ -14,9 +14,12 @@
 //!   identity types.
 //! - [`icon_glyphs`]: UI glyph constants (defined here rather than via
 //!   `egui_phosphor` so nothing below the GUI depends on egui).
+//! - [`stroke_icons`]: the bundled stroke-icon table that the engine's `icon:`
+//!   property expands into `Path` geometry.
 
 pub mod caps;
 pub mod effect;
 pub mod error;
 pub mod icon_glyphs;
 pub mod property;
+pub mod stroke_icons;

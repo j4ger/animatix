@@ -134,6 +134,7 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `head_size` | F32 | ✓ | ✓ | Arrow |
 | `points` | PointList | ✓ | ✓ | Polygon |
 | `commands` | CommandList | ✓ | ✓ | Path |
+| `icon` | Str (build-time) | — | — | Path |
 
 ## Text / Typst / Code
 

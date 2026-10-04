@@ -232,6 +232,13 @@ guide: Path, commands: {
 
 # 2. Graph Primitives
 
+## Icon names
+
+`Path` also accepts `icon: "<name>"` as build-time sugar for an authored
+`commands:` list — 25 Lucide-derived stroke marks on a 24×24 grid, origin at the
+top-left. Trace them on with `draw-in`; size them with `scale:`. See
+[`spec.md`](spec.md) §Recipes for the full name list and the arc exclusion.
+
 ## Graph
 
 A coordinate container that maps child actor positions to math coordinates. Use when you need to plot data (curves, vectors, etc.) with automatic coordinate mapping.

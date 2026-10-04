@@ -1,0 +1,19 @@
+config { colorscheme: "neon-night", resolution: (1280, 720), duration: 4 }
+
+// Bundled stroke icons: each `Path` actor takes an `icon:` name that the engine
+// expands into `commands:` geometry (Lucide data, 24x24 grid, origin top-left).
+// The marks render near their native ~24 px size, extending down-right from `at`.
+c1: Path, icon: "check", stroke: accent.primary, stroke_width: 2, fill_opacity: 0.0, at: (120, 120), scale: 8
+c2: Path, icon: "arrow-right", stroke: accent.info, stroke_width: 2, fill_opacity: 0.0, at: (500, 120), scale: 8
+c3: Path, icon: "chevron-down", stroke: accent.warning, stroke_width: 2, fill_opacity: 0.0, at: (880, 120), scale: 8
+c4: Path, icon: "plus", stroke: "#30d158", stroke_width: 2, fill_opacity: 0.0, at: (120, 460), scale: 8
+c5: Path, icon: "menu", stroke: "#ff9f0a", stroke_width: 2, fill_opacity: 0.0, at: (500, 460), scale: 8
+
+#0s
+  fade-in c1 [400ms]
+  fade-in c3 [400ms]
+  fade-in c4 [400ms]
+  fade-in c5 [400ms]
+
+#0.6s
+  draw-in c2 [1200ms, ease: expo-out]

@@ -917,8 +917,11 @@ impl Timeline {
             }
         }
 
-        // Registry-backed tagged union properties are not part of the legacy
-        // per-primitive build loop, so write them through the generic engine.
+        // Registry-backed properties that the legacy per-primitive build loop
+        // does not reach are written through the generic engine. `Scale` belongs
+        // here: an authored `scale:` was dropped on the floor for every actor
+        // kind, so `scale: 4.0` on a declaration rendered at 1.0 while
+        // `x.scale = 4.0` in a keyframe worked.
         for prop in props {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
                 && matches!(
@@ -929,6 +932,7 @@ impl Timeline {
                         | crate::timeline::ActorField::StrokeGradient
                         | crate::timeline::ActorField::GradientExtend
                         | crate::timeline::ActorField::GradientSpace
+                        | crate::timeline::ActorField::Scale
                 )
             {
                 let prop_subject = format!("{label}.{}", prop.name);

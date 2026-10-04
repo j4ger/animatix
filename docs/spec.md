@@ -1113,6 +1113,35 @@ always {
 > its box. Anchor it at the right edge (or center it in a fixed-width container)
 > when the digit count changes.
 
+**Stroke icons.** `Path` accepts `icon: "<name>"` as sugar for an authored
+`commands:` list, so a line icon can be traced on with `draw-in` exactly like a
+hand-written path:
+
+```animatix
+tick: Path, icon: "check", stroke: accent.success, stroke_width: 2,
+  fill_opacity: 0.0, at: (200, 180), scale: 6
+#0.4s
+draw-in tick [600ms, ease: expo-out]
+```
+
+The set is 25 icons copied verbatim from [Lucide](https://github.com/lucide-icons/lucide)
+(ISC; attribution ships with the `stroke_icons` module). Names:
+`arrow-down`, `arrow-down-left`, `arrow-down-right`, `arrow-left`,
+`arrow-left-to-line`, `arrow-right`, `arrow-right-to-line`, `arrow-up`,
+`arrow-up-left`, `arrow-up-right`, `check`, `chevron-down`, `chevron-left`,
+`chevron-right`, `chevron-up`, `code`, `menu`, `minus`, `move-horizontal`,
+`move-vertical`, `plus`, `slash`, `trending-down`, `trending-up`, `x`.
+
+Two things to know:
+- The grid is **24 × 24 with the origin at the top-left**, so the mark extends
+  down and to the right of `at` rather than being centered on it. Size it with
+  `scale:`.
+- Only path-data icons are bundled. Shapes that upstream draws with
+  `<circle>`/`<rect>` and forms that need SVG arcs (`heart`, `star`) are not in
+  the set — the shared path-data parser flattens arcs to chords, so bundling
+  them would ship visibly wrong curves.
+- An unknown name warns with the closest matches rather than drawing nothing.
+
 **Seamless loop.** A scene that replays must end where it started. Build the
 motion out of `sin`/`cos` of `(t % period) / period * τ` (and integer multiples
 of it) and it wraps by construction; declare `config { seamless_loop: true }` and
