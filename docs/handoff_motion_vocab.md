@@ -1,13 +1,14 @@
 # Handoff — the motion-vocabulary round
 
 > **STATUS: IN PROGRESS (2026-10-04, fifth session).** M1 (#1-#11), M2 (#12-#16)
-> and M3 (#17-#20) are complete, and M4's #21 — the second-input-texture ABI bump
-> with `Bloom` and a soft `DropShadow` — is landed and committed. So is the site's
-> recipes gallery, the tour's new "Light & camera" section, the authored-bounds
-> camera gap, and a delayed-`camera.zoom` bug the new tests surfaced. What remains
-> is #22 (glass), #23 (BarChart race), #24 (variable weights — three changes, not
-> one; see its row), #25 (the vello pin — a local probe, not an upstream gate),
-> the `always-overrides-keyframes` seed-vs-animated fix, the camera's remaining
+> and M3 (#17-#20) are complete, and M4's data half is too: #21 (the
+> second-input-texture ABI bump, `Bloom`, soft `DropShadow`) and #23 (the BarChart
+> race) have both landed. So have the site's recipes gallery, the tour's new
+> "Light & camera" section, the authored-bounds camera gap, a delayed
+> `camera.zoom` bug the new tests surfaced, and the
+> `always-overrides-keyframes` false positive. What remains is #22 (glass), #24
+> (variable weights — three changes, not one; see its row), #25 (the vello pin —
+> a local probe after a rev bump, not an upstream gate), the camera's two real
 > follow-ups, an open +10.7% on one analyzer bench, and the #13 content leftovers.
 > See
 > ["Landed so far"](#landed-so-far) and
@@ -26,15 +27,17 @@
 
 ## Landed so far
 
-### Batch 5 (2026-10-04, fifth session) — eight commits, local only
+### Batch 5 (2026-10-04, fifth session) — eleven commits, local only
 
 | Commit | Item | Evidence it landed |
 |---|---|---|
 | `889c6149` | A delayed `camera.zoom` no longer zeroes the scene until its stamp | `a_delayed_camera_write_holds_its_identity_until_its_stamp` (IDENTITY at t=0 and t=999, the authored 2× at t=1500); the *general* fix is recorded in the message as not free — seeding `max_height`'s `INFINITY` identity makes the 1 ms preserve segment interpolate to `NaN`, which `test_write_read_roundtrip_max_height` catches |
 | `b329b19c` | **Authored `Filter` bounds follow the camera** (the gap batch 4 measured and left open) | `dogfood/probe_camera_scopes.amx`: authored vs the same scene with `bounds:` deleted went 73,512 differing pixels at t=1.6 → **0**, with the 9-pixel padding floor at t=0.2 unchanged; `filter_bounds_follow_the_camera` covers the mapping; the full 120-bench compare is quoted in the message |
 | `a8647000` | The analyzer's exemption vocabulary is built once per process, not per keystroke | 111 + 2 analyzer tests unchanged; measured **neutral** on the bench (129.4 → 129.2 µs) and kept on that basis, not as a perf claim |
+| `6d4b08c5` | BarChart builder split into `BarChartLayout` + `paths_for`, the precondition for animating `data` | Pixel-identical renders of two bar-chart scenes before and after, plus the existing fifteen `bar_chart` tests |
+| this commit | **#23 the BarChart race** — `data = {…}` keyframes, bars matched by label | `a_data_assignment_records_a_transition`, `bar_data_interpolation_matches_by_label`, `bar_data_at_walks_the_transition_list`, `bar_geometry_follows_the_data_transition` (bbox heights at t=0 / mid / after); `examples/data/27_bars_race.amx`; the assignment that used to be an `unsupported-assignment-property` error now checks clean |
 | `aee62252` | **`always-overrides-keyframes` no longer reads a declaration seed as animation** (item 4) | `is_property_animated` asks for ≥2 keyframes with differing values; three new source-level tests pin seeded-`dash_offset` silent, constant-declared-`size` silent, real `#1s b.size = (140, 80) [1s]` still warning; `check examples/animation/36_light_pack.amx` no longer mentions `dash_offset` |
-| this commit | The loop lint samples the camera axes, and a camera-only scene stops measuring zero length | `seamless_loop_lints_camera_axes`; `check` on a camera-only loop scene now names `camera.zoom`, and the same scene with the push returned to 1.0 stays silent |
+| `39bbf79a` | The loop lint samples the camera axes, and a camera-only scene stops measuring zero length | `seamless_loop_lints_camera_axes`; `check` on a camera-only loop scene now names `camera.zoom`, and the same scene with the push returned to 1.0 stays silent |
 | `757b5b70` | Docs closeout: the six-scheme table, `architecture.md`'s stale scheme list, `roadmap.md`'s effects section, the plugin ABI's sixth binding | Swept for numbers and lists of vocabulary the tests cannot see; the roadmap now says what landed and why a chain `Mix` is deliberately not on the list |
 | `1105234a` | The handoff's claim that `animatix verify` checks ink in scene space was wrong | Settled from the code and from `b329b19c`'s 0-pixel agreement, not a new render |
 | `f65b497c` | The tour now teaches the round: new §06 "Light & camera", and §05's effects scene gets its bloom | Both scenes `check`-clean; four frames of the new scene rendered and measured (15% → 29% → 32% → 51% content as the layers land); the bloom beat moves the sphere's two unsaturated channels (255,214,13) → (255,255,28); `never-revealed` caught the first draft's invisible bulb |
@@ -452,10 +455,10 @@ each non-trivial. Verified 2026-10-04.
 | # | Item | Verdict | Notes |
 |---|---|---|---|
 | 21 | Second-input-texture ABI bump → Bloom, soft DropShadow, chain Mix | **DONE** `b27ca5e5` + `a046cbf6` | ABI v2 binds the pre-chain original at `binding: 5` (`filter_backend.rs`), copied once per scope before pass 0. `Bloom` is its first consumer (`animatix-std/src/effects/bloom.rs`) and `DropShadow.softness` the second. "chain Mix" needed no new effect: `Bloom`'s `keep` parameter *is* a linear mix of the chain result with the original, so a second effect over the same math would be a duplicate |
-| 22 | `glass` / backdrop-blur | LARGE, **parked** | The main vello target is never an input texture (`offscreen.rs:267-294`; the filter backend renders its own sub-scenes, `filter_backend.rs:54-67`). Needs mid-frame scene splitting + rounded-rect regions (`EffectRegion` is a plain rect) + compositing *below* children. Revisit after #21 — shared machinery |
-| 23 | BarChart race | MEDIUM-LARGE, parked — **scoped in batch 3** | `data` is static and deliberately non-keyframeable (`build/plot.rs:1154` lists it among the properties the generic path skips; `parse_bar_chart_data` at `:2043` returns a build-time `Vec<(String, f32)>` baked into paths). Five steps, in order: (1) a `data_transitions` side channel mirroring `FuncTransition` (`timeline/plot.rs:183`, whose module doc at `:11-200` is the worked explanation of why it lives beside the track rather than in it); (2) bar identity matching by label between the two datasets — the genuinely new logic, with unmatched bars entering from height 0 and exiting to it; (3) a frame-time sampler beside `sample_procedural_plot_at` that lerps matched values; (4) rebuilding bar geometry per frame, which is the hot-path part (bars are built once today), so it needs `scripts/perf-bench.sh compare` and probably a memo keyed on `(t, data_epoch)`; (5) removing `data` from the non-keyframeable list, which the analyzer and `warn_inapplicable_declaration_properties` both read |
+| 22 | `glass` / backdrop-blur | LARGE, **parked, but now decision-ready** | Re-scoped in batch 6 against the pipeline rather than the summary. ABI v2 does **not** help: binding 5 is the *scope's own* pre-chain sub-scene, and glass needs the main target's pixels *below* the scope in z, which nothing in the frame ever exposes as a texture (`offscreen.rs:267-294` renders the whole scene in one pass; `filter_backend.rs:54-67` renders only sub-scenes into the backend's own targets). And the obvious shortcut — render the frame, sample the region, blit the above-glass content afterwards — is wrong for the common case, because a label sitting *on* a glass card would be swallowed by the composite. The shape that is correct: evaluate once, emit **two** vello scenes pivoted at the glass scope, render below→texA, copy texA's region as the chain's second input, render above→texB with a transparent `base_color`, blit texA then the glass result then texB. Two hard facts to design around: (a) `RendererCore` only ever hands vello a `RenderParams { base_color, .. }` (`core.rs:151-170`), i.e. every render clears its target, so "draw a second scene over the first in the same texture" does not exist here — the split must go to separate textures and be composited; (b) `EffectRegion` is a plain rect, so a rounded glass panel needs either a mask pass or rounded-region support. Cost: N glass scopes = N+1 vello renders per frame, and **the filter path has no bench guard at all** (batch 4's note — every bench in the suite stops at scene evaluation), so that guard has to be written before this lands. Still also owed: compositing *below* children, and a decision on whether glass is one effect or a `Filter` variant |
+| 23 | BarChart race | ~~MEDIUM-LARGE~~ **DONE** (batch 5) | Landed along the five steps as scoped — `BarDataTransition` beside `FuncTransition` (`timeline/plot.rs`), label matching in `interpolate_bar_data`, the frame-time sampler `bar_data_at` called from `evaluate_node`, and the layout kept on the track so a rebuild never re-parses properties — with **two corrections to the plan**. Step 4's memo is unnecessary: the rebuild is gated on `bar_data_transitions` being non-empty, so a chart that never animates its data pays one `is_empty()` per frame. And step 5 was a no-op — the `data` entry in `build/plot.rs:1160`'s skip list is the *declaration* walk, not the assignment path; removing it would have broken the builder. The assignment hooks in through `Primitive::handle_assignment`, the extension point that already existed for exactly this (eight primitives use it). Two documented limits: a changed label set **or order** warns, because captions are compiled at build into the declaration's slots, and `max_value: auto` normalises the tallest bar every frame, which hides the race unless the author pins it. A third branch the plan assumed turned out to be **dead**: `build/plot.rs` resolves the layout for every `BarChart` whether or not `data:` was declared, so assigning without a declaration is not an error — it is an empty `from`, bars entering from 0, with its own warning that there were no captions to compile. And it is the render, not the test suite, that proves label matching: bar tops read back from three frames of `examples/data/27_bars_race.amx` land on the interpolated values, with `api` overtaking `web` inside the first window and losing it inside the second.
 | 24 | Variable-font weight animation | NOT feasible today — **three changes, not one** | Scoped in batch 5 against the code rather than the summary: (1) the bundle ships four *static* Open Sans faces (`animatix-text/src/lib.rs:600-646` — Regular/Bold/Italic/BoldItalic) plus Noto Sans SC and Fira Math, so a variable face has to be added (asset + licence); (2) `font_weight_to_typst` (`:960`) quantizes the numeric axis to nine *named* CSS weights as a `&'static str`, and typst then picks a face by name — six of those nine names have no face in the bundle and fall back, so the path needs typst's numeric `("family", weight: 640)` form rather than a keyword; (3) weight changes recompile glyphs every frame, which is the `count_up` cost path, so it needs the same frame-time memo question answered. Parked |
-| 25 | Vello pin lift | external gate | unchanged: upstream #1558, then the `vello_img_probe` matrix. Attempted in batch 3 and again in batch 5, and still not answerable from here: no `gh` on PATH, `WebFetch` is quota-blocked (`FORBIDDEN`, not a network fault) and a web search for the PR returns no status. The actionable path does not need upstream's issue tracker at all — bump `rev = "d8686d52"` in `crates/animatix-render/Cargo.toml` and run `crates/animatix-render/tests/vello_img_probe.rs` on a quiet machine; that probe *is* the gate the pin's comment names. The pin's comment (`crates/animatix-render/Cargo.toml:29-33`) records the symptom to look for: atlas residency making image draws vanish between non-image renders, fatal for the multi-scope filter pipeline |
+| 25 | Vello pin lift | **locally answerable as of batch 6** | Batch 3 and batch 5 both called this an external gate because `gh` is absent, `WebFetch` is quota-blocked (`FORBIDDEN`, not a network fault) and a web search returns no status. Neither matters: the probe *is* the gate, and the revision to probe for is now known. `git ls-remote` (2026-10-04) puts upstream `main` at **`f3000c8d`**, and this box's cargo git cache (`~/.cargo/git/db/vello-*`) tops out at `17166312` "Update wgpu badge", whose parent is `c55a2b5e` "vello: Keep image atlas residency across renders (#1558)" — the change the pin avoids, sitting directly on top of the pinned `d8686d52`. So the work is one command away: set `rev = "f3000c8d"` in the `vello` entries, run `cargo test -p animatix-render --features animatix/svg --test vello_img_probe` on a quiet machine, and read the A–D matrix. Pass → lift the pin everywhere and re-run `animatix video dogfood/projects/effects-wave1/entry.amx` (the symptom is a vanished checker backdrop between non-image renders); fail → the pin's comment gains the rev it was tested against, which is more than this row has ever had |
 
 ## Remaining work, next-session order
 
@@ -464,16 +467,17 @@ the order that makes sense to attempt it:
 
 1. ~~**#21 the second-input-texture ABI bump**~~ — **done** (`b27ca5e5`,
    `a046cbf6`). `web/recipes/scenes/bloom_stage.amx` demonstrates the pair on the
-   site; the tour's own `effects` scene still does not show a bloom, which is the
-   obvious content follow-up.
+   site, and the content follow-up that sentence named is landed too: the tour's
+   §05 `effects` scene now carries a `glow: Bloom` that goes up at 2.3 s and back
+   down at 3.2 s (`f65b497c`), so the second input is taught where people learn
+   the vocabulary, not only in the gallery.
 
 2. **#22 glass** (needs mid-frame scene splitting that ABI v2 does *not*
-   provide — the main vello target is still never an input texture), **#23
-   BarChart race** (now scoped to five ordered steps), **#24 font weights**
-   (needs a variable face in the slim bundle), **#25 vello pin lift** (an
-   upstream check this session could not make — see the inventory row). **#24 is
-   three changes, not the one it was described as** (asset, numeric-weight path
-   into typst, per-frame glyph recompile) — see its row. None is
+   provide — the main vello target is still never an input texture), **#24 font
+   weights** (three changes, not the one it was described as: asset, a
+   numeric-weight path into typst, per-frame glyph recompile — see its row), and
+   **#25 vello pin lift** (a local probe after a rev bump, not an upstream check —
+   see its row). ~~#23 BarChart race~~ landed in batch 5. None of the rest is
    a quiet afternoon.
 3. **#13 closeout, mostly done.** Landed across the round: the theme/vivid pack
    (`ef6a0c00` schemes, `2e170adf` `examples/lib/light.amx` genre pack), the
@@ -588,8 +592,9 @@ the order that makes sense to attempt it:
    the properties a modifier program actually reads) rather than to keep
    demoting rows one at a time.
 
-Milestones as originally proposed: M1 = items 1-11 (**complete**),
-M2 = 12-16 (14/15/16 done, 12 in flight, 8 open), M3 = 17-20, M4 = 21-22.
+Milestones as originally proposed: M1 = items 1-11 (**complete**), M2 = 12-16
+(**complete**), M3 = 17-20 (**complete**), M4 = 21-25 — #21 and #23 landed, #22
+(glass), #24 (variable weights) and #25 (the vello pin) are open.
 
 ## Relationship to other documents
 
@@ -608,18 +613,28 @@ M2 = 12-16 (14/15/16 done, 12 in flight, 8 open), M3 = 17-20, M4 = 21-22.
 The owner approved executing the whole handoff; the decisions below are
 recorded with what was actually chosen so they are not re-litigated:
 
-1. **Default easing** — still to do (#8); implement with the noise-floor A/B
-   discipline when its turn comes.
+1. **Default easing** — done (`90285df1` + `ef3b400b`), narrower than proposed:
+   entrances `expo-out`, exits `ease-in`, reposition `ease-in-out`, oscillators
+   and *assignments* stay linear, because an action expands into assignments that
+   inherit its timing modifiers and would double-ease a pre-baked curve. Measured
+   with the noise-floor A/B discipline (two builds, a positive control, a corpus
+   run).
 2. **Color interpolation** — new `lerp_color_oklab` name (non-breaking);
    `lerp_color` untouched; the morph path's u8 sRGB lerp deliberately not
    switched yet.
-3. **Particles** — seeded-analytic form approved in principle (#19 pending).
-4. **Icons** — Lucide-derived data-table route (#12 pending, unblocked by the
-   #6 fix).
-5. **Beat syntax** — approved (#16 pending).
-6. **`--set` semantics** — top-level `let` overrides first (#15 pending).
-7. **Loop lint v1** — skip `always`/plot-func-driven values, document the skip
-   (#14 pending).
+3. **Particles** — done (`fdbdc5c0`) in the seeded-analytic form: no new
+   primitive, no state model, deterministic under scrubbing in both directions.
+4. **Icons** — done (`719d0c77`) on the Lucide-derived data-table route,
+   unblocked by the #6 `draw-in` fix (`385f6e5d`).
+5. **Beat syntax** — done (`a05210b7`): `#2b` stamps and `config { bpm }`.
+   Durations (`[2b]`) are deliberately *not* resolved — the modifier path has no
+   scene tempo in scope and reports rather than guesses.
+6. **`--set` semantics** — done (`adf0fcbc`): CLI defines shadow the authored
+   `let` defaults by *skipping* the authored assignment during the walk, which is
+   what the first attempt got wrong (a `color: tint` fill stayed red).
+7. **Loop lint v1** — done (`f69650d5`), with the `always`/plot-`func` skip
+   documented as designed; batch 5 added the scene camera's three axes
+   (`39bbf79a`), which the track walk could not see.
 8. **Presets** — all three layers: engine verbs (`b4d8e0ac`), `examples/lib`
    genre packs (`examples/lib/light.amx` + `examples/animation/36_light_pack.amx`,
    batch 3), site recipes gallery (`web/recipes/`, batch 4). All three layers

@@ -211,6 +211,17 @@ pub struct AnimationTrack {
     ///    `to` by eased progress.
     pub func_transitions: Vec<FuncTransition>,
 
+    // ── BarChart data transitions (a side channel, like `func_transitions`) ──
+    /// The layout resolved from the declaration, kept so a frame-time `data`
+    /// transition can rebuild the bars without re-parsing properties.
+    pub(crate) bar_layout: Option<super::build::plot::BarChartLayout>,
+    /// The dataset the declaration carries — the base the first transition
+    /// blends from.
+    pub(crate) bar_data: Vec<(String, f32)>,
+    /// `data = {…}` assignments in stamp order, each carrying the dataset it
+    /// replaces. See the `func_transitions` checklist above.
+    pub(crate) bar_data_transitions: Vec<super::plot::BarDataTransition>,
+
     // ── Highlight tier (sub-struct) ──
     /// Highlight property tracks (color, opacity, padding, radius, blend).
     pub highlight: HighlightTracks,
@@ -276,6 +287,9 @@ impl AnimationTrack {
 
             // Func transition tracks
             func_transitions: Vec::new(),
+            bar_layout: None,
+            bar_data: Vec::new(),
+            bar_data_transitions: Vec::new(),
 
             // Highlight tier (sub-struct)
             highlight: HighlightTracks::default(),
@@ -615,6 +629,10 @@ impl AnimationTrack {
         for ft in &self.func_transitions {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
         }
+        // BarChart data transitions: the same reasoning as func transitions.
+        for bt in &self.bar_data_transitions {
+            max = Some(max.map_or(bt.end_ms, |m| m.max(bt.end_ms)));
+        }
         // Effect chain parameters.
         if let Some(t) = self.effects.max_keyframe_time() {
             max = Some(max.map_or(t, |m| m.max(t)));
@@ -636,6 +654,7 @@ impl AnimationTrack {
             || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || self.property_plan.has_any_keyframes()
             || !self.func_transitions.is_empty()
+            || !self.bar_data_transitions.is_empty()
             || self.effects.has_any_keyframes()
     }
 }

@@ -648,6 +648,20 @@ impl Timeline {
         // PF-6: shared Arc — the common static-track case returns a refcount
         // bump instead of a full path-list clone per node per frame.
         let mut vector_paths = track.evaluate_vector_paths(time_ms);
+        // `BarChart` data transitions: once a `data = {…}` assignment has begun,
+        // the declaration's paths are stale, so rebuild the bars from the dataset
+        // in effect. Gated on the side channel being non-empty, so a chart whose
+        // data never animates pays nothing.
+        if !track.bar_data_transitions.is_empty() {
+            if let Some(layout) = track.bar_layout.as_ref() {
+                let data = crate::timeline::plot::bar_data_at(
+                    &track.bar_data,
+                    &track.bar_data_transitions,
+                    time_ms,
+                );
+                vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
+            }
+        }
         // Re-sample procedural plots at frame time so they can reference `t`.
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).

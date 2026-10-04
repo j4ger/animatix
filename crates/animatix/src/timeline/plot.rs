@@ -214,6 +214,94 @@ impl FuncTransition {
     }
 }
 
+/// One `data = {…}` assignment on a `BarChart`: the datasets before and after,
+/// the window, and the easing that carries the bars between them.
+///
+/// This follows [`FuncTransition`]'s pattern (see this module's header) because a
+/// dataset is not an `Interpolate` value: bars are matched by label, so the blend
+/// happens on the *outputs* — each bar's height — rather than on the property.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BarDataTransition {
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub easing: Easing,
+    pub from: Vec<(String, f32)>,
+    pub to: Vec<(String, f32)>,
+}
+
+impl BarDataTransition {
+    /// Eased progress through the transition at `time_ms`, `None` outside it.
+    pub fn progress_at(&self, time_ms: u64) -> Option<f64> {
+        if time_ms < self.start_ms || time_ms > self.end_ms {
+            return None;
+        }
+        let duration = self.end_ms.saturating_sub(self.start_ms);
+        let raw = if duration == 0 {
+            1.0
+        } else {
+            (time_ms - self.start_ms) as f64 / duration as f64
+        };
+        Some(apply_easing(raw as f32, self.easing) as f64)
+    }
+}
+
+/// The dataset a chart shows at `time_ms`: the declaration's, advanced
+/// through every transition whose window has started.
+///
+/// A frame past the last transition still reports that transition's `to` rather
+/// than the declaration, exactly like the procedural-plot sampler: the build-time
+/// paths were built from the declaration, so a completed transition has to keep
+/// the frame path live or the bars snap back.
+pub fn bar_data_at(
+    base: &[(String, f32)],
+    transitions: &[BarDataTransition],
+    time_ms: u64,
+) -> Vec<(String, f32)> {
+    let mut current: Vec<(String, f32)> = base.to_vec();
+    for transition in transitions {
+        if time_ms < transition.start_ms {
+            break;
+        }
+        current = match transition.progress_at(time_ms) {
+            Some(progress) => interpolate_bar_data(&transition.from, &transition.to, progress),
+            None => transition.to.clone(),
+        };
+    }
+    current
+}
+
+/// Interpolate two bar datasets, matching bars by label.
+///
+/// Order follows `to`, because that is the chart the scene is becoming. A label
+/// only in `to` enters from height 0; a label only in `from` leaves toward 0 and
+/// keeps its slot while it does, which is what makes a shrinking chart read as
+/// bars falling away rather than the rest sliding sideways. At `progress` 1 the
+/// result is exactly `to`.
+pub fn interpolate_bar_data(
+    from: &[(String, f32)],
+    to: &[(String, f32)],
+    progress: f64,
+) -> Vec<(String, f32)> {
+    let p = progress.clamp(0.0, 1.0) as f32;
+    let lerp = |a: f32, b: f32| a + (b - a) * p;
+    let mut out: Vec<(String, f32)> = Vec::with_capacity(to.len() + from.len());
+    for (label, value) in to {
+        let start = from
+            .iter()
+            .find(|(from_label, _)| from_label == label)
+            .map_or(0.0, |(_, from_value)| *from_value);
+        out.push((label.clone(), lerp(start, *value)));
+    }
+    if p < 1.0 {
+        for (label, value) in from {
+            if !to.iter().any(|(kept, _)| kept == label) {
+                out.push((label.clone(), lerp(*value, 0.0)));
+            }
+        }
+    }
+    out
+}
+
 /// Evaluate a `FuncSource` at a single scalar argument, returning the scalar
 /// result. Clones `env` locally to avoid mutating the caller's environment.
 /// Test-only today: production sampling goes through `eval_source_scalar`.

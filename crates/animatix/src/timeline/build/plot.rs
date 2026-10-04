@@ -55,6 +55,10 @@ pub(crate) struct ProcessedPlotActor {
     pub vello_paths: Vec<VelloPath>,
     pub procedural_plot: Option<ProceduralPlot>,
     pub tick_label_data: Option<TickLabelData>,
+    /// For a `BarChart`: the layout and dataset the declaration resolved to, kept
+    /// so a `data = {…}` assignment can rebuild the bars per frame.
+    pub bar_layout: Option<BarChartLayout>,
+    pub bar_data: Vec<(String, f32)>,
 }
 
 /// Parameters for building plot curve paths.
@@ -1134,6 +1138,8 @@ impl Timeline {
         let mut vello_paths = vec![];
         let mut procedural_plot = None;
         let mut tick_label_data = TickLabelData::default();
+        let mut bar_layout: Option<BarChartLayout> = None;
+        let mut bar_data: Vec<(String, f32)> = Vec::new();
 
         // Collect custom numeric params from declaration props. Done for every
         // func-backed plot so keyframeable params get a procedural_plot even
@@ -1343,7 +1349,7 @@ impl Timeline {
                     y_domain
                 };
 
-            let (paths, bar_labels) = build_bar_chart_paths(
+            let (layout, data) = resolve_bar_chart_layout(
                 props,
                 size,
                 color,
@@ -1356,6 +1362,9 @@ impl Timeline {
                 diagnostics,
                 label,
             );
+            let (paths, bar_labels) = layout.paths_for(&data);
+            bar_layout = Some(layout);
+            bar_data = data;
             vello_paths = paths;
             tick_label_data.bar_labels = bar_labels;
         } else if primitive.is_plot_curve() {
@@ -1543,6 +1552,8 @@ impl Timeline {
             shape_type,
             vello_paths,
             procedural_plot,
+            bar_layout,
+            bar_data,
             tick_label_data: if (primitive.is_graph_host() || ty == "BarChart")
                 && (!tick_label_data.x_labels.is_empty()
                     || !tick_label_data.y_labels.is_empty()
@@ -2051,7 +2062,22 @@ pub(crate) fn parse_bar_chart_data(
         if prop.name != "data" {
             continue;
         }
-        let expr = &prop.value;
+        data = parse_bar_chart_data_expr(&prop.value, diagnostics, label);
+        break; // Only the first `data` property wins, as before
+    }
+    data
+}
+
+/// The `data` list itself, split out so a `data = {…}` *assignment* can be parsed
+/// by exactly the same rules as the declaration — same auto-labelled flat list,
+/// same `(label, value)` tuples, same diagnostics.
+pub(crate) fn parse_bar_chart_data_expr(
+    expr: &Expr,
+    diagnostics: &mut Vec<Diagnostic>,
+    label: &str,
+) -> Vec<(String, f32)> {
+    let mut data: Vec<(String, f32)> = Vec::new();
+    {
         // Expect a list (outer list of bars)
         if let Expr::List(items) = expr {
             // Flat number list? E.g. {10, 20, 30} — auto-label with 1-based indices.
@@ -2116,7 +2142,6 @@ pub(crate) fn parse_bar_chart_data(
                 }
             }
         }
-        break; // Only process the first `data` property
     }
 
     data
@@ -2175,6 +2200,13 @@ pub(crate) struct BarChartLayout {
 }
 
 impl BarChartLayout {
+    /// Whether this chart compiles bar captions at build. A chart that shows
+    /// none has nothing that can drift out of position, so the caption guard on
+    /// a `data` assignment stays quiet for it.
+    pub(crate) fn has_captions(&self) -> bool {
+        self.show_labels
+    }
+
     /// The bars, the axis line and the label anchors for `data`.
     ///
     /// Returns empty for an empty dataset: the width/gap arithmetic divides by
@@ -2675,37 +2707,6 @@ pub(crate) fn resolve_bar_chart_layout(
         },
         data,
     )
-}
-
-/// Build a `BarChart`'s paths from its declaration.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn build_bar_chart_paths(
-    props: &[Property],
-    size: [f32; 2],
-    color: [f32; 4],
-    stroke_color: [f32; 4],
-    stroke_width: f32,
-    x_domain: [f64; 2],
-    y_domain: [f64; 2],
-    parent_size: Option<[f64; 2]>,
-    env: &Environment,
-    diagnostics: &mut Vec<Diagnostic>,
-    label: &str,
-) -> (Vec<VelloPath>, Vec<(f64, f64, String)>) {
-    let (layout, data) = resolve_bar_chart_layout(
-        props,
-        size,
-        color,
-        stroke_color,
-        stroke_width,
-        x_domain,
-        y_domain,
-        parent_size,
-        env,
-        diagnostics,
-        label,
-    );
-    layout.paths_for(&data)
 }
 
 /// Create a `Value::NativeFn` for `{label}.map_inverse(screen_x, screen_y)` → math coords.

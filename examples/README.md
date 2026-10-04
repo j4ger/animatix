@@ -89,6 +89,7 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 | `data/23_plot_kinds.amx` | Polar, parametric, and implicit curves |
 | `data/24_plot_transitions.amx` | Animated transitions between plot kinds |
 | `data/26_data_math.amx` | BarChart and Equation with Fragment animations |
+| `data/27_bars_race.amx` | `data` keyframes — bars racing between datasets, matched by label |
 
 ## Composition
 

@@ -1459,6 +1459,8 @@ impl Timeline {
             vello_paths,
             procedural_plot,
             tick_label_data,
+            bar_layout,
+            bar_data,
         }) = self.process_plot_actor(
             label,
             ty,
@@ -1554,6 +1556,10 @@ impl Timeline {
             track.set_identity(ty);
             track.rebuild_property_plan();
             track.procedural_plot = procedural_plot;
+            // The bar chart's side channel: a `data = {…}` assignment needs the
+            // layout to rebuild paths per frame, and the dataset it replaces.
+            track.bar_layout = bar_layout;
+            track.bar_data = bar_data;
             if let Some(pl) = parent_label {
                 track.parent = Some(pl.to_string());
             }

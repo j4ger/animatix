@@ -64,6 +64,8 @@ pub mod morph;
 pub mod path_progress;
 pub mod plan;
 mod plot;
+pub(crate) use build::plot::parse_bar_chart_data_expr;
+pub(crate) use plot::BarDataTransition;
 mod position;
 pub(crate) mod property_engine;
 pub mod property_registry;

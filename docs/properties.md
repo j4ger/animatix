@@ -182,7 +182,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `func` | BuildTimeOnly | — | Transitions | PlotCurve, VectorField, Heatmap, ContourSet |
-| `data` | BuildTimeOnly | — | — | BarChart |
+| `data` | BuildTimeOnly | — | Transitions | BarChart |
 | `bar_width` | F32 / auto | — | — | BarChart |
 | `bar_colors` | BuildTimeOnly | — | — | BarChart |
 | `direction` | String | — | — | BarChart |
@@ -199,13 +199,21 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `density` | F32 | — | — | VectorField |
 | `levels` | Vec2 | — | — | ContourSet |
 | `tolerance` | F32 | — | — | PlotCurve |
-
-`func` transitions use assignment modifiers, e.g. `[1s]` for output blending or
-`[1s, blend: opacity]` for cross-fading the two generated plot outputs.
 | `max_depth` | F32 | — | — | PlotCurve, ContourSet |
 | `grid` | String | — | — | Graph |
 | `ticks` | String | — | — | Graph |
 | `tick_labels` | String | — | — | Graph |
+
+`func` transitions use assignment modifiers, e.g. `[1s]` for output blending or
+`[1s, blend: opacity]` for cross-fading the two generated plot outputs.
+
+> **Note on `data` assignment:** `BarChart.data` accepts a timed assignment that
+> races the bars between two datasets, matched by label — see
+> [`spec.md`](spec.md)'s BarChart section for the three limits: slots are chosen
+> at the start of the window (heights animate, positions do not), captions are
+> compiled at build into the declaration's slots so neither the label set nor its
+> order may change, and `max_value: auto` normalises the tallest bar every frame,
+> which hides the race unless pinned.
 
 ## Containers
 

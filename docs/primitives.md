@@ -391,7 +391,10 @@ axis. Supports standalone (pixel coordinates) and `Graph`-child (math coordinate
 modes.
 
 **Properties:**
-- `data`: Brace list of `(key, value)` tuples — the bar data
+- `data`: Brace list of `(key, value)` tuples — the bar data. Assignable on a
+  timed keyframe: `chart.data = {…} [800ms]` races the bars between the two
+  datasets, matched by label (see [`spec.md`](spec.md)'s BarChart section for the
+  three limits that come with it)
 - `size`: Tuple `(width, height)` — chart visual bounds
 - `bar_width`: Number or `"auto"` — per-bar width (default auto-distributes)
 - `gap`: Number or `"auto"` — spacing between bars (default auto)

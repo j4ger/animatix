@@ -771,3 +771,220 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
         other => panic!("expected SceneAnchor binding, got {other:?}"),
     }
 }
+
+fn built(source: &str) -> crate::timeline::Timeline {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    if let Some(d) = without_content_lints(&report.diagnostics).next() {
+        panic!("unexpected diagnostic: {} ({})", d.message, d.code);
+    }
+    report.output
+}
+
+/// `data = {…}` used to be an error (`unsupported-assignment-property`). It is
+/// now a recorded transition carrying the dataset it replaces.
+#[test]
+fn a_data_assignment_records_a_transition() {
+    let timeline = built(
+        r#"
+config { resolution: (640, 360), duration: 3 }
+chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220), opacity: 1.0
+#1s
+chart.data = {("A", 30), ("B", 5)} [800ms]
+"#,
+    );
+    let track = timeline.tracks.get("chart").expect("chart track");
+    assert_eq!(track.bar_data_transitions.len(), 1);
+    let transition = &track.bar_data_transitions[0];
+    assert_eq!((transition.start_ms, transition.end_ms), (1000, 1800));
+    assert_eq!(transition.from, vec![("A".to_string(), 10.0f32), ("B".to_string(), 20.0)]);
+    assert_eq!(transition.to, vec![("A".to_string(), 30.0f32), ("B".to_string(), 5.0)]);
+    // The side channel is content: the scene must know it ends at 1.8s.
+    assert_eq!(track.max_keyframe_time(), Some(1800));
+}
+
+/// Bars are matched **by label**: a category only the new set has enters from
+/// height 0, one it drops leaves toward 0, and `progress` 1 is exactly `to`.
+#[test]
+fn bar_data_interpolation_matches_by_label() {
+    use crate::timeline::plot::interpolate_bar_data;
+    let from = vec![("A".to_string(), 10.0f32), ("B".to_string(), 20.0)];
+    let to = vec![("A".to_string(), 30.0f32), ("C".to_string(), 40.0)];
+
+    assert_eq!(
+        interpolate_bar_data(&from, &to, 0.5),
+        vec![
+            ("A".to_string(), 20.0f32),
+            ("C".to_string(), 20.0),
+            ("B".to_string(), 10.0)
+        ]
+    );
+    assert_eq!(interpolate_bar_data(&from, &to, 1.0), to);
+    // At the start the entering bar holds its zero slot and the leaving bar is
+    // still at full height — the count only drops once the transition is over.
+    assert_eq!(
+        interpolate_bar_data(&from, &to, 0.0),
+        vec![
+            ("A".to_string(), 10.0f32),
+            ("C".to_string(), 0.0),
+            ("B".to_string(), 20.0)
+        ]
+    );
+}
+
+/// The frame-time chooser: declaration before the window, blend inside it,
+/// target after it — and *not* back to the declaration, which is what made the
+/// procedural-plot sampler keep the frame path alive past the last transition.
+#[test]
+fn bar_data_at_walks_the_transition_list() {
+    use crate::timeline::plot::{BarDataTransition, bar_data_at};
+    let base = vec![("A".to_string(), 10.0f32)];
+    let transitions = vec![BarDataTransition {
+        start_ms: 1000,
+        end_ms: 2000,
+        easing: crate::easing::Easing::Linear,
+        from: base.clone(),
+        to: vec![("A".to_string(), 30.0f32)],
+    }];
+
+    assert_eq!(bar_data_at(&base, &transitions, 0), base);
+    assert_eq!(bar_data_at(&base, &transitions, 1500), vec![("A".to_string(), 20.0f32)]);
+    assert_eq!(bar_data_at(&base, &transitions, 2500), vec![("A".to_string(), 30.0f32)]);
+}
+
+/// End to end on the geometry: with `max_value` pinned (auto-scaling would
+/// otherwise normalise the tallest bar to the full plot height every frame and
+/// hide the race), the first bar's rectangle grows across the transition.
+#[test]
+fn bar_geometry_follows_the_data_transition() {
+    use kurbo::Shape;
+    let timeline = built(
+        r#"
+config { resolution: (640, 360), duration: 3 }
+chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: 40, at: (320, 180), size: (400, 220), opacity: 1.0
+#1s
+chart.data = {("A", 30), ("B", 5)} [800ms]
+"#,
+    );
+    let track = timeline.tracks.get("chart").expect("chart track");
+    let layout = track.bar_layout.as_ref().expect("bar layout stored at build");
+    let heights = |time_ms: u64| -> Vec<f64> {
+        let data = crate::timeline::plot::bar_data_at(
+            &track.bar_data,
+            &track.bar_data_transitions,
+            time_ms,
+        );
+        layout
+            .paths_for(&data)
+            .0
+            .iter()
+            .skip(1) // paths[0] is the axis line
+            .map(|p| p.path.bounding_box().height())
+            .collect()
+    };
+
+    let before = heights(0);
+    let mid = heights(1400);
+    let after = heights(2500);
+    assert_eq!(before.len(), 2);
+    assert!(after[0] > before[0], "bar A must grow: {before:?} -> {after:?}");
+    assert!(after[1] < before[1], "bar B must shrink: {before:?} -> {after:?}");
+    assert!(
+        mid[0] > before[0] && mid[0] < after[0],
+        "the halfway frame must sit between the two: {before:?} {mid:?} {after:?}"
+    );
+}
+
+/// A `data` assignment on a chart with no `data:` declaration still animates —
+/// the layout resolves either way — but there were no captions to compile at
+/// build, so the bars arrive unlabeled. That is a warning, not a refusal.
+#[test]
+fn a_data_assignment_with_no_declaration_warns_about_its_captions() {
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
+config { resolution: (640, 360), duration: 3 }
+chart: BarChart, at: (320, 180), size: (400, 220), opacity: 1.0
+#1s
+chart.data = {("A", 30), ("B", 5)} [800ms]
+"#,
+    );
+    let hits: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("declares no `data:`"))
+        .collect();
+    assert_eq!(
+        hits.len(),
+        1,
+        "expected the no-captions warning, got: {:?}",
+        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let track = timeline.tracks.get("chart").expect("chart track");
+    assert!(track.bar_data.is_empty(), "an undeclared chart starts from no dataset");
+    assert_eq!(track.bar_data_transitions.len(), 1);
+    assert_eq!(track.bar_data_transitions[0].from.len(), 0);
+    assert_eq!(track.bar_data_transitions[0].to.len(), 2);
+}
+
+/// A dataset whose labels move (a new set, or the same set in a new order)
+/// warns, because the captions were compiled into the declaration's slots — and
+/// the transition is still recorded, because the values do travel correctly and
+/// the author may want exactly that.
+#[test]
+fn a_moved_label_set_warns_and_is_still_recorded() {
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
+config { resolution: (640, 360), duration: 3 }
+chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220), opacity: 1.0
+#1s
+chart.data = {("A", 30), ("C", 5)} [800ms]
+"#,
+    );
+    let drift: Vec<_> = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("different label set or order"))
+        .collect();
+    assert_eq!(
+        drift.len(),
+        1,
+        "expected one caption-drift warning, got: {:?}",
+        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+    let track = timeline.tracks.get("chart").expect("chart track");
+    assert_eq!(track.bar_data_transitions.len(), 1, "the transition is still recorded");
+    assert_eq!(track.bar_data_transitions[0].to[1].0, "C");
+}
+
+/// Both caption guards speak about captions, so a chart that asks for none
+/// (`show_labels: false`) may re-order its categories without a word.
+#[test]
+fn a_chart_without_captions_may_reorder_silently() {
+    let timeline = built(
+        r#"
+config { resolution: (640, 360), duration: 3 }
+chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: false, at: (320, 180), size: (400, 220), opacity: 1.0
+#1s
+chart.data = {("B", 5), ("A", 30)} [800ms]
+"#,
+    );
+    let track = timeline.tracks.get("chart").expect("chart track");
+    assert_eq!(track.bar_data_transitions.len(), 1);
+    assert_eq!(track.bar_data_transitions[0].to[0].0, "B");
+}
+
+/// [`built`] without its no-warnings assertion, for scenes whose point is the
+/// warning: hands back the timeline and every diagnostic the build produced.
+fn build_ignoring_warnings(
+    source: &str,
+) -> (crate::timeline::Timeline, Vec<animatix_syntax::diagnostics::Diagnostic>) {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    (report.output, report.diagnostics)
+}

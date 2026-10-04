@@ -1,0 +1,29 @@
+// probe_bar_reorder.amx — the `data` assignment's caption guard, as a user sees
+// it in `animatix check`.
+//
+// The second dataset holds the same three categories in a different order. That
+// is the case the guard exists for: bar geometry follows the new order, while
+// the captions were compiled at build into the declaration's slots, so the chart
+// would end up with `A` printed under what is now `C`'s bar. `check` reports
+// (measured, this file's own output):
+//
+//   warning[build:invalid-property-value] BarChart 'chart' assigns a different
+//   label set or order; bar captions are compiled at build time into the
+//   declaration's slots, so the values will interpolate but the captions will
+//   not follow. Keep the same labels in the same order to animate a chart's
+//   values.
+//    --> dogfood/probe_bar_reorder.amx
+//     subject: chart.data
+//
+// The transition is still recorded — the warning is a notice, not a refusal. The
+// name in the message is the actor's, not the target path, because `subject` is
+// `chart.data` and a message reading "BarChart 'chart.data'" blames the wrong
+// thing.
+
+config { resolution: (960, 540), duration: 3 }
+
+chart: BarChart, data: {("A", 10), ("B", 24), ("C", 17)},
+  max_value: 30, at: (480, 300), size: (620, 340), opacity: 1.0
+
+#1s
+chart.data = {("C", 8), ("A", 26), ("B", 14)} [800ms]

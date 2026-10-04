@@ -1139,6 +1139,27 @@ Model: `for` for structure, keyframes for declarative timed animation, `always` 
 
 **BarChart** — produces a set of rectangular bars from `data: {(key, value), ...}` lists. Supports standalone mode (pixel coords) and Graph-child mode (math coords). See `examples/projects/fft_explain.amx`.
 
+`data` keyframes. A later `chart.data = {…} [800ms]` assignment races the bars
+between the two datasets, matched **by label**: a category present in both
+interpolates its height, one only the new set has enters from 0, and one the new
+set drops leaves toward 0 and keeps its slot until it is gone. Three limits
+come with it:
+
+- **Heights animate, slots do not.** The result follows the new set's order, so a
+  re-ordered dataset moves each bar to its new column at the first frame of the
+  window and then interpolates its height. Sorting a chart by value is a
+  `swap`/`reorder` action on separate actors, not a `data` assignment — and
+  reordering that way warns anyway, for the caption reason below.
+- **Labels do not follow.** Bar captions are compiled to text at build, into the
+  slots the *declaration's* dataset laid out, so an assignment that changes the
+  label set **or its order** warns (`BarChart '…' assigns a different label set
+  or order`) and renders the new bars under the old labels. Keep the labels the
+  same, in the same order, and animate the values.
+- **`max_value: auto` hides the race.** Auto-scaling normalises the tallest bar
+  to the full plot height every frame, so growing the maximum changes nothing
+  visible; only relative differences survive. Pin `max_value:` when the point is
+  that the numbers got bigger.
+
 ### Built-in Variables
 
 The following variables are automatically available in `always` blocks and expression evaluation contexts:
