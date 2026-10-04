@@ -31,6 +31,7 @@
 | `6c40c243` | The `web/` visual review pass — 11 scenes re-lit | Rendered and read back: hero at t=4.6s, the tour's word reveal at t=1.3s, the `along` route at t=2.2s |
 | `1727d558` | The reactive-frame cost batch 2 flagged and never dispositioned | `reactive_evaluate_100frames` +16.7% → **+5.0%** in isolation; `vello_path_stays_small_enough_to_clone_per_frame` pins the struct size |
 | `9f344cdb` | The type table catching up with hex color strings, and two missing analyzer exemptions | `check` is silent on `color: "#ffe9c7"` in `34_particles_analytic.amx`, which it used to warn `type-mismatch` about |
+| `2e170adf` | Decision 8's second preset layer — the `examples/lib` genre pack | `examples/lib/light.amx` (`KeyLight`, `CoolLight`, `MarchingRail`, `Ticker`, `Breather`) and `examples/animation/36_light_pack.amx`, rendered at t=2.0s: warm key behind the card, cool fill low-right, the ticker reading its 1284× target, the rail dashed |
 | `e7d0b3ac` | Three scenes re-tuned after the `size` fix | The particles example reads as sparks again; `04_motion`'s orbit is centred on the plate rather than the origin (`scene.center.x` is an anchor, not an expression value); the tour's reticle breathes on `size` again |
 
 Notes the next session will want from batch 3:
@@ -360,28 +361,54 @@ the order that makes sense to attempt it:
    Mix. Already scoped in `docs/effects.md` §4.1-4.2: the bind group gains an
    input binding so a pass can read the pre-chain original. This is the last
    item in the round that adds capability rather than content.
+
+   The concrete site list, verified against the code in batch 3: a third texture
+   beside the ping-pong pair in the `FilterScratch` struct
+   (`filter_backend.rs:119`, built at `:206-240`) and its twin in the
+   region-scoped path (`:746`); a `binding: 5` entry in the shared layout
+   (`:250-310`); the `original` view threaded into
+   `effect_bind_group_for_slot` (`:398-435`) and its call site in the chain loop
+   (`:629-670`); one more `copy_texture_to_texture` beside the `pp_a` seed
+   (`:572-590`) so the original is the *pre-chain* pixels of the same region;
+   and the §4.2 table in `docs/effects.md`. Two costs to benchmark before
+   landing it: a third full-size texture per scope, and one extra whole-region
+   copy per effect scope per frame — both paid by every scene with a filter,
+   whether or not it uses a second input.
 2. **#22 glass** after it (shared machinery), **#23 BarChart race**, **#24 font
    weights** (needs a variable face in the slim bundle), **#25 vello pin lift**
    (check upstream #1558 first). All four are parked for a reason recorded in
    the inventory table; none is a quiet afternoon.
-3. **#13 closeout, partially done.** Still owed: the site content redo with the
-   new vocabulary beyond the review pass, `web/demos/posters/*.png` — eight
+3. **#13 closeout, partially done.** The `examples/lib` genre pack landed in
+   batch 3 (`examples/lib/light.amx` + `examples/animation/36_light_pack.amx`);
+   still owed is the third preset layer — a recipes gallery on the site — plus
+   the site content redo beyond the review pass, and the `web/demos/posters/*.png`
+   question: eight
    1280×720 stills that nothing references any more (the hub cards play live
    `data-hoverplay` embeds, and `web/README.md` now says so). They are stale by
    definition; **deleting them is the owner's call**, so they stay for now, the fast-path glyph-gap fix
    (`ᵀ`/`ₖ` tofu on the tour → ASCII math, an `animatix-text` change), the theme
    pack examples, then pruning this handoff into `docs/history.md` when the
    round closes.
-4. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
+4. **A suspected `always-overrides-keyframes` false positive on component
+   internals.** `examples/animation/36_light_pack.amx` warns that the `always`
+   inside `MarchingRail` writes `dash_offset` on actor `rail`, which "also has
+   keyframe animation" — but `rail` is the *instance* label and the write lands
+   on `rail.line`, whose only keyframes are the opacity the entrance author
+   intended. Worth a look the next time that lint is touched; the scene renders
+   as designed.
+5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
    for a HUD that must not move, the camera is not carried across scenes by
    `persistent`/carry-bag, `animatix verify` ink checks are in scene rather than
    screen space, and the loop-perfect lint does not sample the camera axes.
-5. **The residual reactive-frame cost.** See the perf note under batch 3: the
-   gradient rows were the recoverable half, `dash_pattern` / `dash_offset` /
-   `blend` are the remaining ~8%, and the mechanism is the same
-   (`inject_property_into_env` walks every INJECTABLE row of every actor every
-   frame). De-injecting them is the same one-line-per-row change, at the cost of
-   `&actor.blend`-style references.
+6. **The residual reactive-frame cost is closed** (`1727d558`): the mechanism
+   was `inject_property_into_env` walking every INJECTABLE row of every actor
+   every frame, and six of batch 1/2's rows are now `ASSIGNABLE_A`. What is
+   left is `dash_offset` — deliberately still injectable, because
+   `(r.dash_offset + 0.4) % 17` is how marching ants are written — and the ~5%
+   that remains on that bench, which is inside the run-to-run spread of this
+   box. If it ever matters again, the structural fix is to inject lazily (only
+   the properties a modifier program actually reads) rather than to keep
+   demoting rows one at a time.
 
 Milestones as originally proposed: M1 = items 1-11 (**complete**),
 M2 = 12-16 (14/15/16 done, 12 in flight, 8 open), M3 = 17-20, M4 = 21-22.
@@ -415,8 +442,10 @@ recorded with what was actually chosen so they are not re-litigated:
 6. **`--set` semantics** — top-level `let` overrides first (#15 pending).
 7. **Loop lint v1** — skip `always`/plot-func-driven values, document the skip
    (#14 pending).
-8. **Presets** — all three layers: engine verbs, `examples/lib` genre packs,
-   site recipes gallery.
+8. **Presets** — all three layers: engine verbs (`b4d8e0ac`), `examples/lib`
+   genre packs (`examples/lib/light.amx` + `examples/animation/36_light_pack.amx`,
+   batch 3), site recipes gallery (still open — the tour's Recipes section in
+   `docs/spec.md` points at the pack, the web page does not yet).
 9. **Sequencing** — this round runs after the silent-drops gates each session;
    both tracks stay unpushed per the standing rule until the owner says push.
 
