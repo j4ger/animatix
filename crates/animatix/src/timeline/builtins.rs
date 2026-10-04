@@ -220,6 +220,25 @@ pub(crate) fn srgb_from_oklab(lab: [f64; 4]) -> [f64; 4] {
 }
 
 /// Load standard mathematical and utility functions into the environment.
+/// Read a color argument, accepting the same forms a `color:` property does.
+///
+/// A hex or named color string is a `Value::Str` at call time, so without this
+/// `lerp_color_oklab("#30d158", "#ff2d55", t)` fails even though the identical
+/// string works in a declaration.
+fn color_arg(name: &str, value: &Value) -> Result<[f64; 4], EvalError> {
+    match value {
+        Value::Color(c) => Ok(*c),
+        Value::Vec4(c) => Ok(*c),
+        Value::Vec3(c) => Ok([c[0], c[1], c[2], 1.0]),
+        Value::Str(text) => crate::timeline::utils::color_from_text(text)
+            .map(|c| c.map(f64::from))
+            .ok_or_else(|| EvalError::TypeMismatch(format!("{name}: '{text}' is not a color"))),
+        other => Err(EvalError::TypeMismatch(format!(
+            "{name} expects a color, got {other:?}"
+        ))),
+    }
+}
+
 pub fn load_standard_library(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
     env.set("E", Value::Num(std::f64::consts::E));
@@ -355,22 +374,8 @@ pub fn load_standard_library(env: &mut Environment) {
         "lerp_color_oklab",
         Value::NativeFn(Arc::new(|args, _env| {
             expect_arg_count("lerp_color_oklab", args, 3)?;
-            let start = match &args[0] {
-                Value::Color(c) => *c,
-                _ => {
-                    return Err(EvalError::TypeMismatch(
-                        "lerp_color_oklab expects start as Color".to_string(),
-                    ));
-                },
-            };
-            let end = match &args[1] {
-                Value::Color(c) => *c,
-                _ => {
-                    return Err(EvalError::TypeMismatch(
-                        "lerp_color_oklab expects end as Color".to_string(),
-                    ));
-                },
-            };
+            let start = color_arg("lerp_color_oklab", &args[0])?;
+            let end = color_arg("lerp_color_oklab", &args[1])?;
             let t = expect_num("lerp_color_oklab", &args[2])?;
             let a = oklab_from_srgb(start);
             let b = oklab_from_srgb(end);
