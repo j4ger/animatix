@@ -253,7 +253,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 pub use utils::{evaluate_expr, parse_color, parse_color_in_env, resolve_color_in_env, time_to_ms};
-pub use vello_path::VelloPath;
+pub use vello_path::{GradientExtend, GradientShape, GradientSpace, GradientSpec, VelloPath};
 
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;

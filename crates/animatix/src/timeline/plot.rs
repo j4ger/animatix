@@ -1362,6 +1362,8 @@ fn sample_curve_plot_source(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
         return vello_paths;
     }
@@ -1512,6 +1514,8 @@ fn sample_curve_plot_source(
         line_join: 0,
         dash_pattern: None,
         dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
     });
 
     vello_paths

@@ -155,6 +155,8 @@ pub(crate) fn build_plot_curve_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         } else {
             env_copy.set_binding(&arg_name, Value::Num(min_t));
@@ -364,6 +366,8 @@ pub(crate) fn build_plot_curve_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
     }
@@ -499,6 +503,8 @@ pub(crate) fn build_graph_axis_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
     }
 
@@ -543,6 +549,8 @@ pub(crate) fn build_graph_axis_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
     }
@@ -591,6 +599,8 @@ pub(crate) fn build_graph_axis_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
     }
@@ -1619,6 +1629,8 @@ pub(crate) fn build_number_plane_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
     }
 
@@ -1653,6 +1665,8 @@ pub(crate) fn build_number_plane_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
     }
 
@@ -1697,6 +1711,8 @@ pub(crate) fn build_number_plane_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
     }
 
@@ -1875,6 +1891,8 @@ pub(crate) fn build_vector_field_paths(
         line_join: 0,
         dash_pattern: None,
         dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
     }]
 }
 
@@ -1950,6 +1968,8 @@ pub(crate) fn build_heatmap_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
     }
@@ -2005,6 +2025,8 @@ pub(crate) fn build_contour_set_paths(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
     }
@@ -2501,6 +2523,8 @@ pub(crate) fn build_bar_chart_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
     }
 
@@ -2565,6 +2589,8 @@ pub(crate) fn build_bar_chart_paths(
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         });
 
         if show_labels {

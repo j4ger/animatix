@@ -1,1 +1,3 @@
-pub use crate::renderer::types::VelloPath;
+pub use crate::renderer::types::{
+    GradientExtend, GradientShape, GradientSpace, GradientSpec, VelloPath,
+};

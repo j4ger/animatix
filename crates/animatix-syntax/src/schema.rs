@@ -516,6 +516,10 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("dash_offset", Type::Num),
         ("dash_pattern", Type::List(Box::new(Type::Num))),
         ("blend", Type::Str),
+        ("fill_gradient", Type::Any),
+        ("stroke_gradient", Type::Any),
+        ("gradient_extend", Type::Str),
+        ("gradient_space", Type::Str),
     ]
 }
 
@@ -564,7 +568,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            100,
+            104,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

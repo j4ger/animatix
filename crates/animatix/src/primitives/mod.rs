@@ -486,19 +486,26 @@ pub(crate) fn evaluate_shape_render(
         let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
         let mut trimmed = trim_shape_stroke_progress(&built, progress);
         stamp_shape_dash(&mut trimmed, ctx);
+        stamp_shape_gradient(&mut trimmed, ctx);
         return Ok(Some(trimmed));
     }
 
-    // A dash pattern rides *outside* the shape-command memo (its key is
-    // `(epoch, style, state)`), because an animated `dash_offset` — the
-    // marching-ants case — would otherwise be served from a cached encoding.
-    // Dash-bearing frames build fresh and stamp clones; every other frame
-    // takes the memo fast path untouched.
+    // A dash pattern or a gradient paint rides *outside* the shape-command memo
+    // (its key is `(epoch, style, state)`), because an animated `dash_offset` —
+    // the marching-ants case — or an animated ramp would otherwise be served
+    // from a cached encoding. Bearing frames build fresh and stamp clones;
+    // every other frame takes the memo fast path untouched.
     let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
-    if has_dash {
+    let has_gradient = shape_has_gradient(ctx);
+    if has_dash || has_gradient {
         let mut built =
             ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
-        stamp_shape_dash(&mut built, ctx);
+        if has_dash {
+            stamp_shape_dash(&mut built, ctx);
+        }
+        if has_gradient {
+            stamp_shape_gradient(&mut built, ctx);
+        }
         return Ok(Some(built));
     }
 
@@ -529,6 +536,79 @@ fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
             for vp in paths.iter_mut() {
                 vp.dash_pattern = Some(pattern.clone());
                 vp.dash_offset = offset;
+            }
+        }
+    }
+}
+
+/// True when either gradient track carries an authored ramp.
+fn shape_has_gradient(ctx: &EvaluateCtx) -> bool {
+    use crate::timeline::{GradientSpec, TrackAccessor};
+
+    let fill = ctx.track.style.fill_gradient.get(ctx.time_ms, GradientSpec::default());
+    if !fill.stops.is_empty() {
+        return true;
+    }
+    !ctx.track
+        .style
+        .stroke_gradient
+        .get(ctx.time_ms, GradientSpec::default())
+        .stops
+        .is_empty()
+}
+
+/// Stamp the sampled `fill_gradient:` / `stroke_gradient:` paints onto every
+/// path in `commands`, applying the shared `gradient_extend:` /
+/// `gradient_space:` settings.
+fn stamp_shape_gradient(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
+    use crate::renderer::types::{GradientExtend, GradientSpace, GradientSpec};
+    use crate::timeline::TrackAccessor;
+
+    let fill = ctx.track.style.fill_gradient.get(ctx.time_ms, GradientSpec::default());
+    let stroke = ctx.track.style.stroke_gradient.get(ctx.time_ms, GradientSpec::default());
+    if fill.stops.is_empty() && stroke.stops.is_empty() {
+        return;
+    }
+
+    let extend = match ctx.track.style.gradient_extend.get(ctx.time_ms, "pad".to_string()).as_str()
+    {
+        "repeat" => GradientExtend::Repeat,
+        "reflect" => GradientExtend::Reflect,
+        "pad" | "" => GradientExtend::Pad,
+        other => {
+            tracing::warn!(
+                "gradient_extend: unknown extend '{other}' (expected pad, repeat or reflect); using pad"
+            );
+            GradientExtend::Pad
+        },
+    };
+    let space = match ctx.track.style.gradient_space.get(ctx.time_ms, "oklab".to_string()).as_str()
+    {
+        "srgb" => GradientSpace::Srgb,
+        "oklab" | "" => GradientSpace::Oklab,
+        other => {
+            tracing::warn!(
+                "gradient_space: unknown color space '{other}' (expected oklab or srgb); using oklab"
+            );
+            GradientSpace::Oklab
+        },
+    };
+
+    for cmd in commands.iter_mut() {
+        if let RenderCommand::Paths { paths } = cmd {
+            for vp in paths.iter_mut() {
+                if !fill.stops.is_empty() {
+                    let mut g = fill.clone();
+                    g.extend = extend;
+                    g.space = space;
+                    vp.fill_gradient = Some(g);
+                }
+                if !stroke.stops.is_empty() {
+                    let mut g = stroke.clone();
+                    g.extend = extend;
+                    g.space = space;
+                    vp.stroke_gradient = Some(g);
+                }
             }
         }
     }
@@ -1022,16 +1102,33 @@ impl RenderCommand {
     pub fn execute(&self, scene: &mut vello::Scene, transform: &kurbo::Affine, opacity: f32) {
         match self {
             RenderCommand::Paths { paths } => {
+                use kurbo::Shape as _;
                 for path in paths {
-                    if let Some(mut fc) = path.fill {
-                        fc = fc.with_alpha(fc.components[3] * opacity);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            fc,
-                            None,
-                            path.path.as_ref(),
-                        );
+                    match (&path.fill, &path.fill_gradient) {
+                        (Some(fc), Some(grad)) => {
+                            let g = grad
+                                .to_peniko(path.path.bounding_box(), fc.components[3] * opacity);
+                            scene.fill(
+                                vello::peniko::Fill::NonZero,
+                                *transform,
+                                &g,
+                                None,
+                                path.path.as_ref(),
+                            );
+                        },
+                        (Some(fc), None) => {
+                            let fc = fc.with_alpha(fc.components[3] * opacity);
+                            scene.fill(
+                                vello::peniko::Fill::NonZero,
+                                *transform,
+                                fc,
+                                None,
+                                path.path.as_ref(),
+                            );
+                        },
+                        // A ramp authored on a stroke-only shape paints no fill.
+                        (None, Some(_)) => {},
+                        (None, None) => {},
                     }
                     if let Some((mut sc, sw)) = path.stroke {
                         sc = sc.with_alpha(sc.components[3] * opacity);
@@ -1059,7 +1156,16 @@ impl RenderCommand {
                             dash_pattern: dash,
                             dash_offset: f64::from(path.dash_offset),
                         };
-                        scene.stroke(&stroke, *transform, sc, None, path.path.as_ref());
+                        match &path.stroke_gradient {
+                            Some(grad) => {
+                                let g = grad.to_peniko(
+                                    path.path.bounding_box(),
+                                    sc.components[3] * opacity,
+                                );
+                                scene.stroke(&stroke, *transform, &g, None, path.path.as_ref());
+                            },
+                            None => scene.stroke(&stroke, *transform, sc, None, path.path.as_ref()),
+                        }
                     }
                 }
             },

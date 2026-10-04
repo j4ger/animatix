@@ -823,6 +823,8 @@ pub fn interpolate_vello_paths(
                 line_join: path.line_join,
                 dash_pattern: path.dash_pattern.clone(),
                 dash_offset: path.dash_offset,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
         for path in target {
@@ -834,6 +836,8 @@ pub fn interpolate_vello_paths(
                 line_join: path.line_join,
                 dash_pattern: path.dash_pattern.clone(),
                 dash_offset: path.dash_offset,
+                fill_gradient: None,
+                stroke_gradient: None,
             });
         }
         return result;
@@ -902,6 +906,8 @@ pub fn interpolate_vello_paths(
                 line_join: source_element.map(|e| e.line_join).unwrap_or(0),
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             }
         })
         .collect()
@@ -1239,6 +1245,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let target = vec![VelloPath {
             path: std::sync::Arc::new(BezPath::new()),
@@ -1248,6 +1256,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let result = interpolate_vello_paths(
             &source,
@@ -1273,6 +1283,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let target = vec![VelloPath {
             path: std::sync::Arc::new(BezPath::new()),
@@ -1282,6 +1294,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let result = interpolate_vello_paths(
             &source,
@@ -1307,6 +1321,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let target = vec![VelloPath {
             path: std::sync::Arc::new(BezPath::new()),
@@ -1316,6 +1332,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let result = interpolate_vello_paths(
             &source,
@@ -1376,6 +1394,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let result = interpolate_vello_paths(
             &source,
@@ -1401,6 +1421,8 @@ mod tests {
             line_join: 0,
             dash_pattern: None,
             dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
         }];
         let target: Vec<VelloPath> = vec![];
         let result = interpolate_vello_paths(

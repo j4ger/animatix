@@ -6,7 +6,7 @@ pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 use super::kurbo_shapes::KurboShape;
 use super::property_track::{Interpolate, PropertyTrack};
 use crate::easing::Easing;
-use crate::renderer::types::{TextPath, VelloPath};
+use crate::renderer::types::{GradientSpec, TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::shapes::ShapeType;
 
@@ -522,6 +522,14 @@ pub struct StyleTracks {
     pub dash_offset: Option<PropertyTrack<f32>>,
     /// Compositing blend mode for the node's subtree; "normal" = source-over.
     pub blend: Option<PropertyTrack<String>>,
+    /// Fill paint that ramps between colors, overriding `color`'s fill.
+    pub fill_gradient: Option<PropertyTrack<GradientSpec>>,
+    /// Stroke paint that ramps between colors, overriding `stroke_color`.
+    pub stroke_gradient: Option<PropertyTrack<GradientSpec>>,
+    /// How a gradient behaves past its end stops ("pad", "repeat", "reflect").
+    pub gradient_extend: Option<PropertyTrack<String>>,
+    /// Color space a gradient ramps through ("oklab", "srgb").
+    pub gradient_space: Option<PropertyTrack<String>>,
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 }

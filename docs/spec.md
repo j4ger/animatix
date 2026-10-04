@@ -12,7 +12,7 @@ Use these rules when generating `.amx` files:
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
 - Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`, `Callout`, `Legend`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
-- Colors are RGBA tuples `(r, g, b, a)`, scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`). Do not use hex strings.
+- Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
 - `sequence`/`stagger` may contain actions, assignments, `let`, and nested `sequence`/`stagger`; actor declarations inside them are rejected.
 - Asset paths in examples should point to files that exist under `examples/assets/`.
@@ -176,10 +176,17 @@ The timeline maintains a hierarchical `scene_graph`; transforms/opacities cascad
 ## 5. Color System
 
 Colorscheme v1 surface:
-- `config { colorscheme: "default-dark" | "default-light" | "editorial-dark" }`
+- `config { colorscheme: "default-dark" | "default-light" | "editorial-dark" | "vivid" | "paper" | "neon-night" }`
 - Aliases via `color:` on text/code/math/actor declarations, `stroke:` on actor declarations
 - `color: auto` for deterministic automatic colorscheme assignment
 - Primitive-type defaults when no explicit color/stroke provided
+
+**Color literals.** Anywhere a color is accepted: an RGBA tuple of 0..1 numbers
+(`(1.0, 0.18, 0.33, 1.0)`), a 3- or 4-tuple without alpha, an `rgb(255, 45, 85)` /
+`rgba(255, 45, 85, 0.5)` call, a named color (`red`, `WHITE`), or a CSS-style hex
+string in 3, 4, 6, or 8 digits (`"#f55"`, `"#ff2d55"`, `"#ff2d5580"`). An
+unresolvable color string falls back to the default gray and warns with
+`unknown-color-reference`.
 
 **Color precedence (lowest to highest):**
 1. Runtime hardcoded default (white)
@@ -203,7 +210,10 @@ badge: Ellipse, size: (40, 40), color: auto
 ```animatix
 // Correct
 red: Rect, color: (1.0, 0.0, 0.0, 1.0)
-// NOT supported: hex strings like #ff0000
+// Also correct — hex is resolved like any other color literal
+red: Rect, color: "#ff0000"
+// 8-digit hex carries alpha: fully transparent indigo
+veil: Rect, color: "#5e5ce600"
 ```
 
 **Colorscheme tokens** (available when a colorscheme is active):

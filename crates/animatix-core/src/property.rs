@@ -347,6 +347,26 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("dash_offset", Applicable::AllStrokePaths, PropertyValueKind::F32),
     PropertyDescriptor::new("dash_pattern", Applicable::AllStrokePaths, PropertyValueKind::Generic),
     PropertyDescriptor::new("blend", Applicable::Everything, PropertyValueKind::String),
+    PropertyDescriptor::new(
+        "fill_gradient",
+        Applicable::AllShapesExceptLine,
+        PropertyValueKind::Generic,
+    ),
+    PropertyDescriptor::new(
+        "stroke_gradient",
+        Applicable::AllStrokePaths,
+        PropertyValueKind::Generic,
+    ),
+    PropertyDescriptor::new(
+        "gradient_extend",
+        Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]),
+        PropertyValueKind::String,
+    ),
+    PropertyDescriptor::new(
+        "gradient_space",
+        Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]),
+        PropertyValueKind::String,
+    ),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

@@ -1873,6 +1873,8 @@ fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::
         line_join: command.line_join,
         dash_pattern: None,
         dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
     })
 }
 
@@ -2400,6 +2402,15 @@ fn property_value_to_native(value: &PropertyValue, arena: &mut NativeValueArena)
                 value[5] as f64,
             ],
             ..NativeValue::default()
+        },
+        PropertyValue::Gradient(_) => {
+            // No native brush tag exists yet; a plugin that needs to read a
+            // ramp requires an ABI addition (see docs/handoff_motion_vocab.md
+            // item 1). Logged rather than silently dropped.
+            tracing::debug!(
+                "property_value_to_native: gradient paints are not exposed over the plugin ABI yet"
+            );
+            NativeValue::default()
         },
         PropertyValue::Enum(value) => native_string(NATIVE_VALUE_ENUM, value, arena),
         PropertyValue::Variant { name, value } => {

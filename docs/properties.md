@@ -60,6 +60,52 @@
 | `stroke` | Color | ✓ | ✓ | All shapes |
 | `stroke_width` | F32 | ✓ | ✓ | All shapes |
 | `stroke_progress` | F32 | ✓ | ✓ | All shapes |
+| `dash_pattern` | F32List | ✓ | ✓ | All stroke paths |
+| `dash_offset` | F32 | ✓ | ✓ | All stroke paths |
+| `blend` | Str | ✓ | ✓ | Everything |
+| `fill_gradient` | Gradient | ✓ | ✓ | All shapes except Line |
+| `stroke_gradient` | Gradient | ✓ | ✓ | All stroke paths |
+| `gradient_extend` | Str | ✓ | ✓ | Shapes and stroke paths |
+| `gradient_space` | Str | ✓ | ✓ | Shapes and stroke paths |
+
+`dash_pattern` takes a brace list of alternating segment and gap lengths in scene
+pixels (`dash_pattern: {8, 6}`); animating `dash_offset` gives marching ants.
+`blend` names a CSS mix-blend mode (`"screen"`, `"multiply"`, …) and composites
+the actor's whole subtree against what is behind it.
+
+### Gradients
+
+`fill_gradient` / `stroke_gradient` replace the solid paint with a ramp. The
+value is a call naming the ramp shape, its geometry, and its stops:
+
+```amx
+bar: Rect, size: (400, 70),
+  fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+spot: Ellipse, size: (300, 300),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")})
+arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
+  stroke_gradient: sweep(0, {"#30d158", "#ffd60a", "#ff2d55", "#30d158"})
+```
+
+- `linear(angle, stops)` — `angle` in degrees, CSS convention (`0` points up,
+  `90` to the right). The ramp spans the shape's bounding box along that axis.
+- `radial(center, radius, stops)` — `center` in normalized bounding-box
+  coordinates, `radius` relative to the box's larger side. Both are optional:
+  `radial(stops)` is centered with radius `0.5`.
+- `sweep(angle, stops)` — rotates around an optional `center`, starting at
+  `angle`.
+- A stop is either a color (`"#ff2d55"`, `(1.0, 0.18, 0.33)`, `accent.primary`,
+  `rgb(255, 45, 85)`) or an `(offset, color)` pair, where `offset` is `0..1` or a
+  percentage. Stops without an offset are spread evenly.
+
+The two shared settings apply to whichever ramps an actor carries:
+`gradient_extend: "pad" | "repeat" | "reflect"` (default `"pad"`) and
+`gradient_space: "oklab" | "srgb"` (default `"oklab"`, which avoids the dark band
+a saturated hue ramp gets when interpolated channel-wise).
+
+Ramps are keyframable: two `linear()` values of the same kind and stop count
+interpolate their geometry and colors, so a gradient can turn, stretch, or shift
+hue over time.
 
 ## Filter
 

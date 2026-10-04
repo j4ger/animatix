@@ -31,7 +31,7 @@ use super::morph;
 use super::property_track::{PropertyTrack, TrackAccessor};
 use super::shapes::ShapeType;
 use crate::easing::Easing;
-use crate::renderer::types::{TextPath, VelloPath};
+use crate::renderer::types::{GradientSpec, TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::plot::{FuncTransition, ProceduralPlot};
 use crate::timeline::property_engine::EnumPropertyValue;
@@ -668,6 +668,8 @@ pub enum TrackFieldRef<'a> {
     F32List(&'a Option<PropertyTrack<Vec<f32>>>),
     /// Command string property track.
     CommandList(&'a Option<PropertyTrack<String>>),
+    /// Gradient paint property track.
+    Gradient(&'a Option<PropertyTrack<GradientSpec>>),
     /// Shape type property track.
     ShapeType(&'a Option<PropertyTrack<super::shapes::ShapeType>>),
     /// Placement mode property track.
@@ -708,6 +710,8 @@ pub enum TrackFieldMut<'a> {
     F32List(&'a mut Option<PropertyTrack<Vec<f32>>>),
     /// Command string property track.
     CommandList(&'a mut Option<PropertyTrack<String>>),
+    /// Gradient paint property track.
+    Gradient(&'a mut Option<PropertyTrack<GradientSpec>>),
     /// Shape type property track.
     ShapeType(&'a mut Option<PropertyTrack<super::shapes::ShapeType>>),
     /// Placement mode property track.
@@ -767,6 +771,9 @@ impl<'a> TrackFieldRef<'a> {
             Self::F32List(opt) => {
                 opt.as_ref().map(|pt| PropertyValue::F32List(pt.evaluate(time_ms)))
             },
+            Self::Gradient(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::Gradient(pt.evaluate(time_ms)))
+            },
             Self::CommandList(opt) => {
                 opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms)))
             },
@@ -791,6 +798,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
             },
             Self::F32List(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::Gradient(opt) => {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
             },
             Self::CommandList(opt) => {
@@ -835,6 +845,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::F32List(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::Gradient(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -873,6 +884,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
             Self::F32List(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::Gradient(opt) => {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
             Self::CommandList(opt) => {
@@ -933,6 +947,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
             Self::F32List(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::Gradient(opt) => {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
             Self::CommandList(opt) => {
@@ -997,6 +1014,10 @@ impl AnimationTrack {
             CornerRadius => TrackFieldRef::F32(&self.shape.corner_radius),
             Points => TrackFieldRef::PointList(&self.shape.points),
             DashPattern => TrackFieldRef::F32List(&self.style.dash_pattern),
+            FillGradient => TrackFieldRef::Gradient(&self.style.fill_gradient),
+            StrokeGradient => TrackFieldRef::Gradient(&self.style.stroke_gradient),
+            GradientExtend => TrackFieldRef::String(&self.style.gradient_extend),
+            GradientSpace => TrackFieldRef::String(&self.style.gradient_space),
             DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
             Blend => TrackFieldRef::String(&self.style.blend),
             Commands => TrackFieldRef::CommandList(&self.shape.commands),
@@ -1079,6 +1100,10 @@ impl AnimationTrack {
             CornerRadius => TrackFieldMut::F32(&mut self.shape.corner_radius),
             Points => TrackFieldMut::PointList(&mut self.shape.points),
             DashPattern => TrackFieldMut::F32List(&mut self.style.dash_pattern),
+            FillGradient => TrackFieldMut::Gradient(&mut self.style.fill_gradient),
+            StrokeGradient => TrackFieldMut::Gradient(&mut self.style.stroke_gradient),
+            GradientExtend => TrackFieldMut::String(&mut self.style.gradient_extend),
+            GradientSpace => TrackFieldMut::String(&mut self.style.gradient_space),
             DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
             Blend => TrackFieldMut::String(&mut self.style.blend),
             Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
@@ -1150,6 +1175,9 @@ impl AnimationTrack {
             TrackFieldRef::F32List(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
+            TrackFieldRef::Gradient(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
             TrackFieldRef::PointList(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
@@ -1204,6 +1232,10 @@ impl AnimationTrack {
             "stroke_progress" => StrokeProgress,
             "dash_offset" => DashOffset,
             "dash_pattern" => DashPattern,
+            "fill_gradient" => FillGradient,
+            "stroke_gradient" => StrokeGradient,
+            "gradient_extend" => GradientExtend,
+            "gradient_space" => GradientSpace,
             "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,
@@ -1261,6 +1293,10 @@ impl AnimationTrack {
             "stroke_progress" => StrokeProgress,
             "dash_offset" => DashOffset,
             "dash_pattern" => DashPattern,
+            "fill_gradient" => FillGradient,
+            "stroke_gradient" => StrokeGradient,
+            "gradient_extend" => GradientExtend,
+            "gradient_space" => GradientSpace,
             "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,
@@ -1316,6 +1352,10 @@ impl AnimationTrack {
             "stroke_progress" => StrokeProgress,
             "dash_offset" => DashOffset,
             "dash_pattern" => DashPattern,
+            "fill_gradient" => FillGradient,
+            "stroke_gradient" => StrokeGradient,
+            "gradient_extend" => GradientExtend,
+            "gradient_space" => GradientSpace,
             "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,

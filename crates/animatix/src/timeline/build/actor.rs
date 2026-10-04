@@ -923,7 +923,12 @@ impl Timeline {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
                 && matches!(
                     schema.field,
-                    crate::timeline::ActorField::Tagged(_) | crate::timeline::ActorField::Blend
+                    crate::timeline::ActorField::Tagged(_)
+                        | crate::timeline::ActorField::Blend
+                        | crate::timeline::ActorField::FillGradient
+                        | crate::timeline::ActorField::StrokeGradient
+                        | crate::timeline::ActorField::GradientExtend
+                        | crate::timeline::ActorField::GradientSpace
                 )
             {
                 let prop_subject = format!("{label}.{}", prop.name);

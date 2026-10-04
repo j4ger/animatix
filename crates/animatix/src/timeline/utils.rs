@@ -815,8 +815,35 @@ fn color_from_value(value: Value) -> Option<[f32; 4]> {
         Value::List(items) if items.len() == 3 => {
             all_nums(&items).map(|n| [n[0] as f32, n[1] as f32, n[2] as f32, 1.0])
         },
+        Value::Str(text) => color_from_text(&text),
         _ => None,
     }
+}
+
+/// Resolve a color written as text: a CSS-style hex literal (`#rgb`, `#rgba`,
+/// `#rrggbb`, `#rrggbbaa`) or one of the built-in color names.
+///
+/// Both forms are accepted anywhere a color is, so `color: "#ff2d55"` and the
+/// stops of `fill_gradient: linear(90, {"#ff2d55", "#5e5ce6"})` read the same
+/// way they do on the web.
+pub fn color_from_text(text: &str) -> Option<[f32; 4]> {
+    let text = text.trim();
+    if let Some(hex) = text.strip_prefix('#') {
+        let digits: Vec<u32> = hex.chars().map(|c| c.to_digit(16)).collect::<Option<_>>()?;
+        let bytes: Vec<u32> = match digits.len() {
+            3 | 4 => digits.iter().map(|n| n * 17).collect(),
+            6 | 8 => digits.chunks(2).map(|c| c[0] * 16 + c[1]).collect(),
+            _ => return None,
+        };
+        let scale = |v: u32| v as f32 / 255.0;
+        return Some([
+            scale(bytes[0]),
+            scale(bytes[1]),
+            scale(bytes[2]),
+            bytes.get(3).map_or(1.0, |&a| scale(a)),
+        ]);
+    }
+    named_color(text)
 }
 
 /// Resolve a color expression in the given environment, returning `None` if not a color.

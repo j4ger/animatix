@@ -58,11 +58,7 @@ impl std::error::Error for SvgImportError {}
 // ---------------------------------------------------------------------------
 
 /// A single color stop in a gradient.
-///
-/// `opacity` is parsed but not used because the importer approximates
-/// gradients as a single solid color (see [`GradientDef::approximate_solid_color`]).
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // opacity field parsed but unused; flattened to solid color
 struct GradientStop {
     offset: f64,
     r: u8,
@@ -88,11 +84,7 @@ struct MaskDef {
 }
 
 /// A parsed SVG gradient definition (linear or radial).
-///
-/// Geometric fields (`x1`, `y1`, …) are parsed for completeness but not used
-/// because the importer flattens gradients to a single averaged color.
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // Geometric fields (x1,y1,x2,y2,cx,cy,r) unused; flattened to solid color
 enum GradientDef {
     Linear {
         x1: f64,
@@ -110,13 +102,61 @@ enum GradientDef {
 }
 
 impl GradientDef {
+    /// The ramp's stops, in document order.
+    fn stops(&self) -> &[GradientStop] {
+        match self {
+            GradientDef::Linear { stops, .. } | GradientDef::Radial { stops, .. } => stops,
+        }
+    }
+
+    /// Express the definition as a `linear(…)` / `radial(…)` gradient call so
+    /// an imported SVG keeps its ramp instead of collapsing to one color.
+    ///
+    /// SVG's two-point linear form becomes an angle (the ramp is stretched
+    /// across the shape's bounding box either way); a single-stop ramp has
+    /// nothing to interpolate and returns `None` for the solid fallback.
+    fn to_paint_expr(&self) -> Option<Expr> {
+        let stops = self.stops();
+        if stops.len() < 2 {
+            return None;
+        }
+        let list = Expr::List(
+            stops
+                .iter()
+                .map(|s| {
+                    Expr::Tuple(vec![
+                        Expr::Num(s.offset),
+                        Expr::Tuple(vec![
+                            Expr::Num(f64::from(s.r) / 255.0),
+                            Expr::Num(f64::from(s.g) / 255.0),
+                            Expr::Num(f64::from(s.b) / 255.0),
+                            Expr::Num(s.opacity),
+                        ]),
+                    ])
+                })
+                .collect(),
+        );
+        match self {
+            GradientDef::Linear { x1, y1, x2, y2, .. } => {
+                // CSS convention: 0deg points up, 90deg to the right.
+                let angle = (x2 - x1).atan2(-(y2 - y1)).to_degrees();
+                Some(Expr::Call("linear".into(), vec![Expr::Num(angle), list]))
+            },
+            GradientDef::Radial { cx, cy, r, .. } => Some(Expr::Call(
+                "radial".into(),
+                vec![
+                    Expr::Tuple(vec![Expr::Num(*cx), Expr::Num(*cy)]),
+                    Expr::Num(*r),
+                    list,
+                ],
+            )),
+        }
+    }
+
     /// Approximate this gradient as a single solid RGB color by averaging
     /// stops weighted by their offset spans.
     fn approximate_solid_color(&self) -> (u8, u8, u8) {
-        let stops = match self {
-            GradientDef::Linear { stops, .. } => stops,
-            GradientDef::Radial { stops, .. } => stops,
-        };
+        let stops = self.stops();
         if stops.is_empty() {
             return (0, 0, 0);
         }
@@ -1642,7 +1682,9 @@ fn add_fill_stroke_props(
         }
     });
     if let Some(fill) = fill_value {
-        if let Some(color_expr) =
+        if let Some(grad) = svg_gradient_paint(fill, gradients) {
+            props.push(Property::new("fill_gradient", grad));
+        } else if let Some(color_expr) =
             parse_svg_color_with_gradients(fill, gradients, current_color.as_ref())
         {
             props.push(Property::new("color", color_expr));
@@ -1668,7 +1710,9 @@ fn add_fill_stroke_props(
         }
     });
     if let Some(stroke) = stroke_value {
-        if let Some(color_expr) =
+        if let Some(grad) = svg_gradient_paint(stroke, gradients) {
+            props.push(Property::new("stroke_gradient", grad));
+        } else if let Some(color_expr) =
             parse_svg_color_with_gradients(stroke, gradients, current_color.as_ref())
         {
             props.push(Property::new("stroke_color", color_expr));
@@ -1724,6 +1768,20 @@ fn add_fill_stroke_props(
             props.push(Property::new("opacity", Expr::Num(op)));
         }
     }
+}
+
+/// The `<defs>` id behind a `url(#id)` paint reference, if that is what `value` is.
+fn gradient_ref_id(value: &str) -> Option<&str> {
+    let inner = value.trim().strip_prefix("url(#")?;
+    Some(&inner[..inner.find(')')?])
+}
+
+/// Resolve a `url(#id)` paint to a real gradient call expression.
+///
+/// Returns `None` for non-url values and for ramps too short to interpolate,
+/// which then fall through to the averaged-solid path.
+fn svg_gradient_paint(value: &str, gradients: &HashMap<String, GradientDef>) -> Option<Expr> {
+    gradients.get(gradient_ref_id(value)?)?.to_paint_expr()
 }
 
 /// Parse an SVG color value, with support for `url(#...)` gradient references.
@@ -2330,14 +2388,30 @@ mod tests {
         // Should have config + rect
         assert_eq!(stmts.len(), 2);
         if let Stmt::ActorDecl { props, .. } = &stmts[1] {
-            let color_prop = props.iter().find(|p| p.name == "color").unwrap();
-            // Average of #ff0000 (255,0,0) and #0000ff (0,0,255) ≈ (128, 0, 128)
-            assert_eq!(
-                color_prop.value,
-                Expr::Call("rgb".into(), vec![Expr::Num(128.0), Expr::Num(0.0), Expr::Num(128.0)])
+            // The ramp survives import: a horizontal SVG gradient becomes a
+            // 90deg `linear(...)` call with both stops, not an averaged solid.
+            let grad = props.iter().find(|p| p.name == "fill_gradient").unwrap();
+            match &grad.value {
+                Expr::Call(name, args) => {
+                    assert_eq!(name, "linear");
+                    assert!(
+                        matches!(args[0], Expr::Num(v) if (v - 90.0).abs() < 1e-6),
+                        "expected a 90deg ramp, got {:?}",
+                        args[0]
+                    );
+                    let Expr::List(stops) = &args[1] else {
+                        panic!("expected a stop list, got {:?}", args[1]);
+                    };
+                    assert_eq!(stops.len(), 2, "both stops must carry over");
+                },
+                other => panic!("expected a linear() call, got {other:?}"),
+            }
+            assert!(
+                !props.iter().any(|p| p.name == "color"),
+                "a ramped fill must not also emit the flattened solid color"
             );
         } else {
-            panic!("Expected ActorDecl with gradient-approximated color");
+            panic!("Expected ActorDecl with gradient fill");
         }
     }
 
@@ -2363,13 +2437,18 @@ mod tests {
 
         assert_eq!(stmts.len(), 2);
         if let Stmt::ActorDecl { props, .. } = &stmts[1] {
-            // Should have stroke_color (approximated) and no regular color (fill="none")
-            let stroke_prop = props.iter().find(|p| p.name == "stroke_color").unwrap();
-            // Average of red(255,0,0), green(0,128,0), blue(0,0,255):
-            // spans: 0.0→0.5: avg(red,green) (127,64,0) × 0.5 + 0.5→1.0: avg(green,blue) (0,64,127)
-            // × 0.5 = (63.5, 64, 63.5) → (64, 64, 64)
-            // Let's just verify it's an rgb call
-            assert!(matches!(&stroke_prop.value, Expr::Call(name, ..) if name == "rgb"));
+            // A gradient stroke imports as `stroke_gradient:`, not a solid.
+            let stroke_prop = props.iter().find(|p| p.name == "stroke_gradient").unwrap();
+            match &stroke_prop.value {
+                Expr::Call(name, args) => {
+                    assert_eq!(name, "linear");
+                    let Expr::List(stops) = &args[1] else {
+                        panic!("expected a stop list, got {:?}", args[1]);
+                    };
+                    assert_eq!(stops.len(), 3, "the middle stop must survive");
+                },
+                other => panic!("expected a linear() call, got {other:?}"),
+            }
         } else {
             panic!("Expected ActorDecl with gradient stroke");
         }
@@ -2528,17 +2607,23 @@ mod tests {
 
         assert_eq!(stmts.len(), 2);
         if let Stmt::ActorDecl { props, .. } = &stmts[1] {
-            let color_prop = props.iter().find(|p| p.name == "color").unwrap();
-            // Average of white (255,255,255) and black (0,0,0) ≈ (128,128,128)
-            assert_eq!(
-                color_prop.value,
-                Expr::Call(
-                    "rgb".into(),
-                    vec![Expr::Num(128.0), Expr::Num(128.0), Expr::Num(128.0)]
-                )
-            );
+            let grad = props.iter().find(|p| p.name == "fill_gradient").unwrap();
+            // Default radialGeometry is centered with r=50%, so the imported
+            // call is `radial((0.5, 0.5), 0.5, {…})`.
+            match &grad.value {
+                Expr::Call(name, args) => {
+                    assert_eq!(name, "radial");
+                    assert_eq!(args[0], Expr::Tuple(vec![Expr::Num(0.5), Expr::Num(0.5)]));
+                    assert_eq!(args[1], Expr::Num(0.5));
+                    let Expr::List(stops) = &args[2] else {
+                        panic!("expected a stop list, got {:?}", args[2]);
+                    };
+                    assert_eq!(stops.len(), 2);
+                },
+                other => panic!("expected a radial() call, got {other:?}"),
+            }
         } else {
-            panic!("Expected ActorDecl with radial gradient color");
+            panic!("Expected ActorDecl with radial gradient fill");
         }
     }
 

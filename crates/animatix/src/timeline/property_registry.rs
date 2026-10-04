@@ -70,6 +70,8 @@ pub enum ValueType {
     PointList,
     /// List of floats (stroke dash pattern).
     F32List,
+    /// A color ramp authored as a gradient paint.
+    Gradient,
     /// List of drawing commands.
     CommandList,
     /// 2D affine transform.
@@ -311,6 +313,14 @@ pub enum ActorField {
     DashOffset,
     /// Compositing blend mode for the node's subtree ("normal", "screen", …).
     Blend,
+    /// Fill paint that ramps between colors.
+    FillGradient,
+    /// Stroke paint that ramps between colors.
+    StrokeGradient,
+    /// How a gradient behaves past its end stops.
+    GradientExtend,
+    /// Color space a gradient ramps through.
+    GradientSpace,
 
     // ── Text payload ──
     /// Raw text content.
@@ -455,6 +465,11 @@ impl ActorField {
             ActorField::DashPattern => PropertyValue::F32List(Vec::new()),
             ActorField::DashOffset => PropertyValue::F32(0.0),
             ActorField::Blend => PropertyValue::String("normal".to_string()),
+            ActorField::FillGradient | ActorField::StrokeGradient => {
+                PropertyValue::Gradient(Default::default())
+            },
+            ActorField::GradientExtend => PropertyValue::String("pad".to_string()),
+            ActorField::GradientSpace => PropertyValue::String("oklab".to_string()),
             ActorField::LineJoin => PropertyValue::U32(0),
             ActorField::VectorPaths => return None,
 
@@ -761,6 +776,13 @@ static BINDINGS: &[PropertyBinding] = &[
         super::property_engine::PropertyValue::String("vertical".to_string())
     }),
     binding!(
+        "fill_gradient",
+        ValueType::Gradient,
+        F::ASSIGNABLE_AI,
+        ActorField::FillGradient,
+        |_| super::property_engine::PropertyValue::Gradient(Default::default())
+    ),
+    binding!(
         "fill_opacity",
         ValueType::F32,
         F::ASSIGNABLE_AI,
@@ -802,6 +824,20 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("gap", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
+    binding!(
+        "gradient_extend",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::GradientExtend,
+        |_| super::property_engine::PropertyValue::String("pad".to_string())
+    ),
+    binding!(
+        "gradient_space",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::GradientSpace,
+        |_| super::property_engine::PropertyValue::String("oklab".to_string())
+    ),
     binding!("grid", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())
     }),
@@ -1006,6 +1042,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("stroke", ValueType::Color, F::ASSIGNABLE_AI, ActorField::StrokeColor, |_| {
         super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     }),
+    binding!(
+        "stroke_gradient",
+        ValueType::Gradient,
+        F::ASSIGNABLE_AI,
+        ActorField::StrokeGradient,
+        |_| super::property_engine::PropertyValue::Gradient(Default::default())
+    ),
     binding!(
         "stroke_progress",
         ValueType::F32,
@@ -1415,6 +1458,7 @@ mod tests {
                 | ValueType::CalloutPlace
                 | ValueType::CommandList
                 | ValueType::BuildTimeOnly
+                | ValueType::Gradient
                 | ValueType::Enum(_)
                 | ValueType::Union(_)
                 | ValueType::Sum(_)

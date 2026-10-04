@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 // Re-export easing types so track.rs and other modules can get them from here.
 pub use crate::easing::{Easing, apply_easing};
+use crate::renderer::types::{GradientShape, GradientSpec, GradientStop};
 use crate::timeline::morph::MorphOptions;
 
 /// Extension trait for lazy property track access.
@@ -148,6 +149,77 @@ impl Interpolate for Vec<f32> {
             if t < 0.5 { self.clone() } else { other.clone() }
         } else {
             self.iter().zip(other.iter()).map(|(a, b)| a + (b - a) * t).collect()
+        }
+    }
+}
+
+impl Interpolate for GradientSpec {
+    /// Cross-fades two ramps: matching shape kinds and stop counts lerp their
+    /// geometry and colors, anything else swaps over at the midpoint.
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        let lerp = |a: f32, b: f32| a + (b - a) * t;
+        let shape = match (self.shape, other.shape) {
+            (GradientShape::Linear { angle: a }, GradientShape::Linear { angle: b }) => {
+                GradientShape::Linear { angle: lerp(a, b) }
+            },
+            (
+                GradientShape::Radial {
+                    center: c0,
+                    radius: r0,
+                },
+                GradientShape::Radial {
+                    center: c1,
+                    radius: r1,
+                },
+            ) => GradientShape::Radial {
+                center: [lerp(c0[0], c1[0]), lerp(c0[1], c1[1])],
+                radius: lerp(r0, r1),
+            },
+            (
+                GradientShape::Sweep {
+                    center: c0,
+                    angle: a,
+                },
+                GradientShape::Sweep {
+                    center: c1,
+                    angle: b,
+                },
+            ) => GradientShape::Sweep {
+                center: [lerp(c0[0], c1[0]), lerp(c0[1], c1[1])],
+                angle: lerp(a, b),
+            },
+            // Different kinds: swap at the midpoint rather than inventing a
+            // mapping between ramp geometries.
+            (a, _) if t < 0.5 => a,
+            (_, b) => b,
+        };
+        let stops = if self.stops.len() != other.stops.len() {
+            if t < 0.5 {
+                self.stops.clone()
+            } else {
+                other.stops.clone()
+            }
+        } else {
+            self.stops
+                .iter()
+                .zip(other.stops.iter())
+                .map(|(a, b)| GradientStop {
+                    offset: lerp(a.offset, b.offset),
+                    color: [
+                        lerp(a.color[0], b.color[0]),
+                        lerp(a.color[1], b.color[1]),
+                        lerp(a.color[2], b.color[2]),
+                        lerp(a.color[3], b.color[3]),
+                    ],
+                })
+                .collect()
+        };
+        Self {
+            shape,
+            stops,
+            // Discrete settings follow the earlier keyframe until the swap.
+            extend: if t < 0.5 { self.extend } else { other.extend },
+            space: if t < 0.5 { self.space } else { other.space },
         }
     }
 }

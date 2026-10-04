@@ -485,6 +485,7 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::StringList(v), _) => PropertyKind::Text(format!("[{} items]", v.len())),
         (PropertyValue::PointList(v), _) => PropertyKind::Text(format!("[{} pts]", v.len())),
         (PropertyValue::F32List(v), _) => PropertyKind::Text(format!("[{} vals]", v.len())),
+        (PropertyValue::Gradient(g), _) => PropertyKind::Text(format!("[{} stops]", g.stops.len())),
         (PropertyValue::CommandList(v), _) => PropertyKind::Text(v),
         (PropertyValue::Transform(v), _) => PropertyKind::Text(format!(
             "[{:.2}, {:.2}, {:.2}, {:.2}, {:.2}, {:.2}]",

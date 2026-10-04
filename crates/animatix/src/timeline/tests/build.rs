@@ -2989,3 +2989,340 @@ r.opacity = 0.0
         "the step did not take effect at its own stamp"
     );
 }
+
+#[test]
+fn gradient_paints_are_parsed_stamped_and_interpolated() {
+    // `fill_gradient:` / `stroke_gradient:` are registry-backed paints: the
+    // declaration seeds them, dated assignments interpolate, and the shared
+    // `gradient_extend:` / `gradient_space:` settings ride the stamp.
+    let source = r##"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+r: Rect, size: (200, 120), at: (320, 180), color: accent.primary,
+  fill_gradient: linear(135, {"#ff0000", "#00ff00"}),
+  gradient_extend: "reflect"
+s: Path, commands: {move_to(100, 300), line_to(500, 300)},
+  stroke: accent.warning, stroke_width: 6, fill_opacity: 0.0,
+  stroke_gradient: sweep(45, {"#ffffff", "#888888", "#000000"})
+
+#0s
+r.fill_gradient = radial((0.5, 0.5), 0.6, {(0%, "#ff0000"), (100%, "#0000ff")})
+#1s
+r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) [1s]
+    "##;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed),
+        "expected only never-revealed hints, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let paints_at = |time: f64| -> (
+        Option<crate::timeline::GradientSpec>,
+        Option<crate::timeline::GradientSpec>,
+    ) {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let mut found = (None, None);
+        for item in &program.items {
+            for command in &item.commands {
+                if let crate::primitives::RenderCommand::Paths { paths } = command {
+                    for vp in paths {
+                        if vp.fill_gradient.is_some() {
+                            found.0 = vp.fill_gradient.clone();
+                        }
+                        if vp.stroke_gradient.is_some() {
+                            found.1 = vp.stroke_gradient.clone();
+                        }
+                    }
+                }
+            }
+        }
+        found
+    };
+
+    // The `[1s]` ramp runs 1s..2s: it holds 0.6 before it starts and lands on
+    // 0.4 halfway through, which is what makes a painted ramp animatable.
+    let early = paints_at(0.5).0.expect("declared ramp must be stamped early");
+    match early.shape {
+        crate::timeline::GradientShape::Radial { radius, .. } => {
+            assert!((radius - 0.6).abs() < 1e-3, "ramp holds before its duration, got {radius}");
+        },
+        other => panic!("expected the radial ramp, got {other:?}"),
+    }
+    let (fill, stroke) = paints_at(1.5);
+    let fill = fill.expect("the dated ramp must be stamped on the fill");
+    match fill.shape {
+        crate::timeline::GradientShape::Radial { center, radius } => {
+            assert!((radius - 0.4).abs() < 1e-3, "ramp radius must lerp, got {radius}");
+            assert!(
+                (center[0] - 0.5).abs() < 1e-3 && (center[1] - 0.5).abs() < 1e-3,
+                "center must hold at (0.5, 0.5), got {center:?}"
+            );
+        },
+        other => panic!("expected the interpolated ramp to stay radial, got {other:?}"),
+    }
+    assert_eq!(fill.stops.len(), 2);
+    assert_eq!(
+        fill.stops[0].color,
+        [1.0, 0.0, 0.0, 1.0],
+        "a #rrggbb stop must resolve as a color, not fall back to gray"
+    );
+    assert_eq!(
+        fill.extend,
+        crate::timeline::GradientExtend::Reflect,
+        "gradient_extend: must ride the stamp"
+    );
+    assert_eq!(fill.space, crate::timeline::GradientSpace::Oklab);
+
+    // A three-color sweep spreads its stops evenly at 0, 0.5, 1.
+    let stroke = stroke.expect("stroke_gradient: must be stamped on the stroke");
+    let offsets: Vec<f32> = stroke.stops.iter().map(|s| s.offset).collect();
+    assert_eq!(stroke.stops[1].color, [0.533_333_36, 0.533_333_36, 0.533_333_36, 1.0]);
+    assert_eq!(offsets, vec![0.0, 0.5, 1.0], "unspaced stops spread evenly");
+    assert!(
+        matches!(
+            stroke.shape,
+            crate::timeline::GradientShape::Sweep { angle, .. } if (angle - 45.0).abs() < 1e-3
+        ),
+        "sweep angle must come through authored, got {:?}",
+        stroke.shape
+    );
+
+    // The brush actually materializes: positioned in the shape's bbox it keeps
+    // every stop, which is what the renderer hands to Vello.
+    let brush = stroke.to_peniko(kurbo::Rect::new(100.0, 297.0, 500.0, 303.0), 1.0);
+    assert_eq!(brush.stops.len(), 3);
+    assert!(matches!(brush.kind, vello::peniko::GradientKind::Sweep(_)));
+}
+
+#[test]
+fn seamless_loop_lints_values_that_do_not_wrap() {
+    // `config { seamless_loop: true }` asks the build to check the seam: a
+    // keyframed value that differs between the first and last frame jumps on
+    // every replay. A scene whose values do wrap must stay quiet.
+    let broken = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+
+box: Rect, size: (100, 100), at: (200, 180), color: accent.primary
+#0s
+fade-in box [200ms]
+box.at = (200, 180)
+#2s
+box.at = (440, 180)
+    "#;
+    // The fixed version of the same scene: no entrance (an actor that fades in
+    // is transparent at frame 0 and opaque at the end, which is itself a seam)
+    // and a position that returns to where it started.
+    let seamless = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+
+box: Rect, size: (100, 100), at: (200, 180), color: accent.primary, opacity: 1.0
+#0s
+box.at = (200, 180)
+#1s
+box.at = (440, 180)
+#2s
+box.at = (200, 180)
+    "#;
+
+    let codes = |source: &str| -> Vec<String> {
+        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+        assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            &ast.unwrap(),
+            &std::collections::HashMap::new(),
+        );
+        report.diagnostics.iter().map(|d| d.code.to_string()).collect()
+    };
+
+    let broken_codes = codes(broken);
+    assert!(
+        broken_codes.iter().any(|c| c == "loop-not-seamless"),
+        "a scene whose position does not wrap must warn, got {broken_codes:?}"
+    );
+    // The warning must name the offending property so the author can fix it.
+    let warning = report_message(broken);
+    assert!(
+        warning.contains("`box.position`"),
+        "warning should name `box.position`, got {warning}"
+    );
+
+    let seamless_codes = codes(seamless);
+    assert!(
+        !seamless_codes.iter().any(|c| c == "loop-not-seamless"),
+        "a scene that returns to its start must not warn, got {seamless_codes:?}"
+    );
+}
+
+/// The text of the first `loop-not-seamless` warning for `source`.
+fn report_message(source: &str) -> String {
+    let (ast, _) = animatix_syntax::parser::parse_source(source);
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        ast.as_ref().unwrap(),
+        &std::collections::HashMap::new(),
+    );
+    report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == crate::diagnostics::DiagnosticCode::LoopNotSeamless)
+        .map(|d| d.message.clone())
+        .unwrap_or_default()
+}
+
+#[test]
+fn settle_in_and_pop_in_ramp_scale_onto_the_authored_scale() {
+    // The entrance presets are a fade plus a scale ramp *onto* what the actor
+    // already authored, so `scale: 2` still ends at 2 instead of being
+    // flattened to 1 by the entrance.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+card: Rect, size: (120, 80), at: (200, 180), color: accent.primary
+chip: Ellipse, size: (60, 60), at: (420, 180), color: accent.warning
+
+#0.5s
+settle-in card [500ms]
+#1s
+pop-in chip [500ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected a clean build, got {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    use crate::timeline::property_registry::lookup_property;
+    use crate::timeline::read_property_value;
+
+    let read = |label: &str, prop: &str, ms: u64| {
+        let schema = lookup_property(prop).expect("property");
+        read_property_value(timeline.tracks.get(label).unwrap(), schema.field, ms)
+            .unwrap_or_else(|| (schema.default_value)(&timeline.tracks[label].caps))
+    };
+
+    // settle-in: 0.5s..1.0s, scale 0.92 -> 1.0 relative to the sampled scale,
+    // opacity 0 -> 1.
+    let crate::timeline::PropertyValue::F32(scale_start) = read("card", "scale", 500) else {
+        panic!("expected a numeric scale");
+    };
+    let crate::timeline::PropertyValue::F32(scale_end) = read("card", "scale", 1000) else {
+        panic!("expected a numeric scale");
+    };
+    assert!(
+        (scale_start - 0.92).abs() < 1e-3,
+        "settle-in must start 8% under its resting scale, got {scale_start}"
+    );
+    assert!(
+        (scale_end - 1.0).abs() < 1e-3,
+        "the ramp must land back on the resting scale, got {scale_end}"
+    );
+    let crate::timeline::PropertyValue::F32(opacity_mid) = read("card", "opacity", 750) else {
+        panic!("expected a numeric opacity");
+    };
+    assert!(
+        opacity_mid > 0.0 && opacity_mid < 1.0,
+        "settle-in must be mid-fade at the halfway point, got {opacity_mid}"
+    );
+
+    // pop-in: starts at 60% and overshoots past its target, which is what the
+    // `back` arrival buys.
+    let crate::timeline::PropertyValue::F32(pop_start) = read("chip", "scale", 1000) else {
+        panic!("expected a numeric scale");
+    };
+    assert!(
+        (pop_start - 0.6).abs() < 1e-3,
+        "pop-in must start at 60% scale, got {pop_start}"
+    );
+    let mut max_scale = 0.0_f32;
+    for ms in (1000..=1500).step_by(25) {
+        let crate::timeline::PropertyValue::F32(v) = read("chip", "scale", ms) else {
+            continue;
+        };
+        max_scale = max_scale.max(v);
+    }
+    assert!(max_scale > 1.0, "pop-in must overshoot past its target, peaked at {max_scale}");
+}
+
+#[test]
+fn anticipate_inserts_a_counter_move_before_the_travel() {
+    // `[anticipate: 100ms]` leans the actor back by 12% of its travel before
+    // the move starts, so the translation reads as intentional.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+dot: Ellipse, size: (40, 40), at: (200, 180), color: accent.primary
+
+#0s
+fade-in dot [200ms]
+#1s
+move dot [to: (200, 0), 500ms, anticipate: 100ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report.diagnostics.is_empty(),
+        "expected a clean build, got {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    use crate::timeline::property_registry::lookup_property;
+    use crate::timeline::read_property_value;
+
+    let offset_at = |ms: u64| -> [f32; 2] {
+        let schema = lookup_property("shift").expect("property");
+        match read_property_value(timeline.tracks.get("dot").unwrap(), schema.field, ms) {
+            Some(crate::timeline::PropertyValue::Vec2(v)) => v,
+            other => panic!("expected a Vec2 offset at {ms}ms, got {other:?}"),
+        }
+    };
+
+    let held = offset_at(900);
+    let leaned = offset_at(950);
+    let [hx, hy] = held;
+    let [lx, ly] = leaned;
+    assert!(
+        lx < hx - 1.0,
+        "the actor must lean back (negative x) before travelling +200: held {held:?}, leaned {leaned:?}"
+    );
+    assert!(
+        (ly - hy).abs() < 1e-3,
+        "the lean follows the travel axis only, got {held:?} -> {leaned:?}"
+    );
+    let at_start = offset_at(1000);
+    assert!(
+        at_start[0] < 0.0,
+        "the move must begin from the leaned position, got {at_start:?}"
+    );
+    let landed = offset_at(1500);
+    assert!(
+        (landed[0] - 200.0).abs() < 1.0 && landed[1].abs() < 1e-3,
+        "the travel must still land on the authored offset, got {landed:?}"
+    );
+}

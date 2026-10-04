@@ -29,6 +29,7 @@ use super::property_engine::PropertyValue;
 use super::{evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic};
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+use crate::renderer::types::{GradientSpec, GradientStop};
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::ValueType;
 
@@ -241,6 +242,25 @@ pub(crate) fn parse_value(
                 Some(PropertyValue::F32List(values))
             }
         },
+        ValueType::Gradient => {
+            let (kind_name, args) = match expr {
+                Expr::Call(name, args) => (name.as_str(), args.as_slice()),
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            "expected linear(…), radial(…) or sweep(…), e.g. \
+                             fill_gradient: linear(135, {\"#ff2d55\", \"#5e5ce6\"})"
+                                .to_string(),
+                        )
+                        .with_subject(subject),
+                    );
+                    return None;
+                },
+            };
+            parse_gradient(kind_name, args, env, diagnostics, subject).map(PropertyValue::Gradient)
+        },
         ValueType::PointList => {
             let items = match expr {
                 Expr::List(items) => items,
@@ -392,6 +412,173 @@ pub(crate) fn parse_value(
     }
 }
 
+/// Parse one `linear(…)` / `radial(…)` / `sweep(…)` gradient call.
+///
+/// Geometry arguments are positional and optional; the last argument is the
+/// stop list. A stop is either a color (ramps are spread evenly) or an
+/// `(offset, color)` pair, where `offset` is a 0..1 number or a percentage.
+fn parse_gradient(
+    kind_name: &str,
+    args: &[Expr],
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<GradientSpec> {
+    use crate::renderer::types::{GradientExtend as GExtend, GradientShape, GradientSpace};
+
+    let shape_kind = match kind_name {
+        "linear" | "radial" | "sweep" => kind_name,
+        other => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("unknown gradient '{other}' (expected linear, radial or sweep)"),
+                )
+                .with_subject(subject),
+            );
+            return None;
+        },
+    };
+    let Some((stops_expr, geometry)) = args.split_last() else {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                "a gradient needs a stop list".to_string(),
+            )
+            .with_subject(subject),
+        );
+        return None;
+    };
+
+    // Geometry: a `(cx, cy)` pair is the center, a bare number is the angle
+    // (linear/sweep) or the radius (radial, once a center is given).
+    let mut center = [0.5_f32, 0.5_f32];
+    let mut angle = 180.0_f32;
+    let mut radius = 0.5_f32;
+    let mut saw_center = false;
+    for arg in geometry {
+        match arg {
+            Expr::Tuple(items) if items.len() == 2 => {
+                let a = scalar_expr(&items[0], env, diagnostics, subject)?;
+                let b = scalar_expr(&items[1], env, diagnostics, subject)?;
+                center = [a as f32, b as f32];
+                saw_center = true;
+            },
+            other => {
+                let v = scalar_expr(other, env, diagnostics, subject)? as f32;
+                if shape_kind == "radial" && saw_center {
+                    radius = v;
+                } else {
+                    angle = v;
+                }
+            },
+        }
+    }
+
+    let shape = match shape_kind {
+        "linear" => GradientShape::Linear { angle },
+        "radial" => GradientShape::Radial { center, radius },
+        _ => GradientShape::Sweep { center, angle },
+    };
+
+    let Expr::List(items) = stops_expr else {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                "gradient stops must be a list, e.g. {\"#ff2d55\", \"#5e5ce6\"}".to_string(),
+            )
+            .with_subject(subject),
+        );
+        return None;
+    };
+
+    let mut parsed: Vec<(Option<f32>, [f32; 4])> = Vec::with_capacity(items.len());
+    for item in items {
+        if let Expr::Tuple(pair) = item
+            && pair.len() == 2
+        {
+            let offset = scalar_expr(&pair[0], env, diagnostics, subject)? as f32;
+            let color = parse_color_in_env_with_lookup_diagnostic(
+                "",
+                "color",
+                &pair[1],
+                env,
+                diagnostics,
+                subject,
+            )?;
+            parsed.push((Some(offset.clamp(0.0, 1.0)), color));
+            continue;
+        }
+        let color = parse_color_in_env_with_lookup_diagnostic(
+            "",
+            "color",
+            item,
+            env,
+            diagnostics,
+            subject,
+        )?;
+        parsed.push((None, color));
+    }
+    if parsed.len() < 2 {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                "a gradient needs at least two stops".to_string(),
+            )
+            .with_subject(subject),
+        );
+        return None;
+    }
+    // Even spread for the stops that did not name an offset.
+    let last = parsed.len() - 1;
+    let stops = parsed
+        .into_iter()
+        .enumerate()
+        .map(|(i, (offset, color))| GradientStop {
+            offset: offset.unwrap_or(i as f32 / last as f32),
+            color,
+        })
+        .collect();
+
+    Some(GradientSpec {
+        shape,
+        stops,
+        extend: GExtend::Pad,
+        space: GradientSpace::Oklab,
+    })
+}
+
+/// Evaluate a scalar position in a gradient call, accepting `50%` as 0.5.
+fn scalar_expr(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<f64> {
+    if let Expr::Percent(p) = expr {
+        return Some(*p / 100.0);
+    }
+    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
+        Some(Value::Num(n)) => Some(n),
+        Some(other) => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("gradient geometry expects a number, got {other:?}"),
+                )
+                .with_subject(subject),
+            );
+            None
+        },
+        None => None,
+    }
+}
+
 fn union_type_name(types: &[ValueType]) -> String {
     types.iter().map(|ty| value_type_name(*ty)).collect::<Vec<_>>().join(" | ")
 }
@@ -451,6 +638,7 @@ fn value_type_name(value_type: ValueType) -> &'static str {
         ValueType::CalloutPlace => "CalloutPlace",
         ValueType::PointList => "PointList",
         ValueType::F32List => "F32List",
+        ValueType::Gradient => "Gradient",
         ValueType::CommandList => "CommandList",
         ValueType::Transform => "Transform",
         ValueType::BuildTimeOnly => "BuildTimeOnly",

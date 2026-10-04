@@ -768,6 +768,8 @@ pub fn build_vello_path(
         line_join: 0,
         dash_pattern: None,
         dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
     }
 }
 
@@ -826,6 +828,8 @@ pub fn build_shape_vello_path(
                 line_join: 0,
                 dash_pattern: None,
                 dash_offset: 0.0,
+                fill_gradient: None,
+                stroke_gradient: None,
             };
         },
     };
@@ -851,6 +855,8 @@ pub fn build_shape_vello_path(
         line_join: 0,
         dash_pattern: None,
         dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
     })
 }
 

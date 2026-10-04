@@ -39,6 +39,7 @@ use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::extension_context::ExtensionContext;
+use crate::renderer::types::GradientSpec;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{AnimationTrack, Interpolate, PropertyTrack, ShapeType, TrackAccessor};
@@ -66,6 +67,8 @@ pub enum PropertyValue {
     PointList(Vec<[f32; 2]>),
     /// List of floats (stroke dash pattern, in scene pixels).
     F32List(Vec<f32>),
+    /// A color ramp painted by `fill_gradient:` / `stroke_gradient:`.
+    Gradient(GradientSpec),
     /// SVG path command string.
     CommandList(String),
     /// RGBA color.
@@ -162,6 +165,9 @@ impl Interpolate for PropertyValue {
             },
             (PropertyValue::F32List(a), PropertyValue::F32List(b)) => {
                 PropertyValue::F32List(a.interpolate(b, t))
+            },
+            (PropertyValue::Gradient(a), PropertyValue::Gradient(b)) => {
+                PropertyValue::Gradient(a.interpolate(b, t))
             },
             (PropertyValue::String(a), PropertyValue::String(b)) => {
                 PropertyValue::String(a.interpolate(b, t))
@@ -472,6 +478,22 @@ pub(crate) fn write_property_field(
                     _ => Vec::new(),
                 };
                 write_f32_list(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
+            TrackFieldMut::Gradient(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::Gradient(d)) => d,
+                    _ => GradientSpec::default(),
+                };
+                write_gradient(
                     f,
                     value,
                     t_start_ms,
@@ -891,6 +913,35 @@ pub(crate) fn write_f32_list(
     has_delay: bool,
 ) {
     let PropertyValue::F32List(v) = value else {
+        return;
+    };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    } else {
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    }
+}
+
+/// Write a gradient paint with the same keyframe semantics as
+/// [`write_f32_list`] (step when undated, interpolated when dated).
+pub(crate) fn write_gradient(
+    field: &mut Option<PropertyTrack<GradientSpec>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: GradientSpec,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::Gradient(v) = value else {
         return;
     };
     if has_duration {
