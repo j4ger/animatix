@@ -206,6 +206,22 @@ string in 3, 4, 6, or 8 digits (`"#f55"`, `"#ff2d55"`, `"#ff2d5580"`). An
 unresolvable color string falls back to the default gray and warns with
 `unknown-color-reference`.
 
+**Built-in schemes.** Six ship with the engine; a scene can also declare its own.
+
+| Scheme | Character | Reach for it when |
+|--------|-----------|-------------------|
+| `default-dark` | Dark, blue accents | Nothing specific |
+| `default-light` | Light, blue accents | Daytime docs, print-like output |
+| `editorial-dark` | Dark, refined contrast, restrained palette | Explainers, data, anything with long text |
+| `vivid` | High-energy saturated accents on near-black | Demos, trailers, launch material |
+| `paper` | Warm light, print-adjacent | Reports, essays, a KPI card that should feel like paper |
+| `neon-night` | Neon on charcoal | Glow, `screen`-blended light, gradient washes |
+
+The last three exist because the corpus had 76 of 87 `colorscheme` declarations
+choosing between two dark schemes. `neon-night` in particular is tuned for the
+light vocabulary: its background is dark enough that a `radial` ramp fading to a
+transparent stop reads as emitted light rather than a sticker.
+
 **Color precedence (lowest to highest):**
 1. Runtime hardcoded default (white)
 2. Colorscheme primitive-type defaults
