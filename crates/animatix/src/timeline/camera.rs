@@ -175,6 +175,52 @@ impl Camera {
         }
     }
 
+    /// The last stamp any axis carries, in ms.
+    ///
+    /// `Timeline::duration_seconds()` walks keyframe times to find the content
+    /// end, and the camera lives outside `tracks` — so without this a scene whose
+    /// only motion is a camera move measures zero length and stops at frame 0.
+    pub(crate) fn max_keyframe_time_ms(&self) -> u64 {
+        self.pan
+            .last_time()
+            .into_iter()
+            .chain(self.zoom.last_time())
+            .chain(self.spin.last_time())
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// The three axes sampled at two times, for the loop-seam check.
+    ///
+    /// Camera axes live outside `Timeline::tracks`, so the `seamless_loop` lint
+    /// cannot see them by walking actors — and a scene that ends pushed in and
+    /// restarts unzoomed jumps at every seam like any other un-wrapped value.
+    /// Identity values match [`Camera::affine`]'s fallbacks, so an axis that was
+    /// never written wraps trivially.
+    pub(crate) fn seam_pairs(
+        &self,
+        first_ms: u64,
+        last_ms: u64,
+    ) -> [(&'static str, PropertyValue, PropertyValue); 3] {
+        [
+            (
+                "camera.at",
+                PropertyValue::Vec2(self.pan.get(first_ms, [0.0, 0.0])),
+                PropertyValue::Vec2(self.pan.get(last_ms, [0.0, 0.0])),
+            ),
+            (
+                "camera.zoom",
+                PropertyValue::F32(self.zoom.get(first_ms, 1.0)),
+                PropertyValue::F32(self.zoom.get(last_ms, 1.0)),
+            ),
+            (
+                "camera.rotation",
+                PropertyValue::F32(self.spin.get(first_ms, 0.0)),
+                PropertyValue::F32(self.spin.get(last_ms, 0.0)),
+            ),
+        ]
+    }
+
     /// The frame's camera transform, in screen space.
     pub(crate) fn affine(
         &self,

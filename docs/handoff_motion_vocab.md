@@ -26,13 +26,17 @@
 
 ## Landed so far
 
-### Batch 5 (2026-10-04, fifth session) — five commits, local only
+### Batch 5 (2026-10-04, fifth session) — eight commits, local only
 
 | Commit | Item | Evidence it landed |
 |---|---|---|
 | `889c6149` | A delayed `camera.zoom` no longer zeroes the scene until its stamp | `a_delayed_camera_write_holds_its_identity_until_its_stamp` (IDENTITY at t=0 and t=999, the authored 2× at t=1500); the *general* fix is recorded in the message as not free — seeding `max_height`'s `INFINITY` identity makes the 1 ms preserve segment interpolate to `NaN`, which `test_write_read_roundtrip_max_height` catches |
 | `b329b19c` | **Authored `Filter` bounds follow the camera** (the gap batch 4 measured and left open) | `dogfood/probe_camera_scopes.amx`: authored vs the same scene with `bounds:` deleted went 73,512 differing pixels at t=1.6 → **0**, with the 9-pixel padding floor at t=0.2 unchanged; `filter_bounds_follow_the_camera` covers the mapping; the full 120-bench compare is quoted in the message |
 | `a8647000` | The analyzer's exemption vocabulary is built once per process, not per keystroke | 111 + 2 analyzer tests unchanged; measured **neutral** on the bench (129.4 → 129.2 µs) and kept on that basis, not as a perf claim |
+| `aee62252` | **`always-overrides-keyframes` no longer reads a declaration seed as animation** (item 4) | `is_property_animated` asks for ≥2 keyframes with differing values; three new source-level tests pin seeded-`dash_offset` silent, constant-declared-`size` silent, real `#1s b.size = (140, 80) [1s]` still warning; `check examples/animation/36_light_pack.amx` no longer mentions `dash_offset` |
+| this commit | The loop lint samples the camera axes, and a camera-only scene stops measuring zero length | `seamless_loop_lints_camera_axes`; `check` on a camera-only loop scene now names `camera.zoom`, and the same scene with the push returned to 1.0 stays silent |
+| `757b5b70` | Docs closeout: the six-scheme table, `architecture.md`'s stale scheme list, `roadmap.md`'s effects section, the plugin ABI's sixth binding | Swept for numbers and lists of vocabulary the tests cannot see; the roadmap now says what landed and why a chain `Mix` is deliberately not on the list |
+| `1105234a` | The handoff's claim that `animatix verify` checks ink in scene space was wrong | Settled from the code and from `b329b19c`'s 0-pixel agreement, not a new render |
 | `f65b497c` | The tour now teaches the round: new §06 "Light & camera", and §05's effects scene gets its bloom | Both scenes `check`-clean; four frames of the new scene rendered and measured (15% → 29% → 32% → 51% content as the layers land); the bloom beat moves the sphere's two unsaturated channels (255,214,13) → (255,255,28); `never-revealed` caught the first draft's invisible bulb |
 | this commit | Docs closeout: six-scheme table, `architecture.md`'s stale scheme list, `roadmap.md`'s effects section, the plugin ABI's binding note, and #24/#25 rescoped | See the notes below |
 
@@ -527,9 +531,16 @@ the order that makes sense to attempt it:
      `property_registry::lookup_property(…).field`; the three copies still want
      folding into one mapper.
 5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
-   for a HUD that must not move, the camera is not carried across scenes by
-   `persistent`/carry-bag, and the loop-perfect lint does not sample the camera
-   axes.
+   for a HUD that must not move, and the camera is not carried across scenes by
+   `persistent`/carry-bag.
+
+   Two more were on this list and are now closed. The loop-perfect lint samples
+   the camera axes (`Camera::seam_pairs`, named in the warning as `camera.zoom`);
+   wiring it turned up a worse bug sitting next to it — `duration_seconds()` finds
+   the content end by walking keyframe times over tracks, background and variable
+   tracks, and had never been told the camera is content, so **a scene whose only
+   motion is a push-in measured zero length** and the seam check skipped it
+   entirely. `Camera::max_keyframe_time_ms` is now folded into that max.
 
    One follow-up this handoff used to list is **not** a gap: it claimed
    `animatix verify`'s ink checks were "in scene rather than screen space". They

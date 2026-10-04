@@ -3247,6 +3247,45 @@ box.at = (200, 180)
     );
 }
 
+/// The camera is not a track, so the seam walk over `tracks` cannot see it. A
+/// scene that ends pushed in and restarts unzoomed jumps at every replay exactly
+/// like an un-wrapped `at`, so `Camera::seam_pairs` feeds the same check.
+#[test]
+fn seamless_loop_lints_camera_axes() {
+    let pushed = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+box: Rect, size: (100, 100), at: (320, 180), color: accent.primary, opacity: 1.0
+#0s
+camera.zoom = 1.0
+#1s
+camera.zoom = 1.8
+"#;
+    let wrapped = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360), seamless_loop: true }
+box: Rect, size: (100, 100), at: (320, 180), color: accent.primary, opacity: 1.0
+#0s
+camera.zoom = 1.0
+camera.at = (0, 0)
+#1s
+camera.zoom = 1.8
+camera.at = (60, 0)
+#2s
+camera.zoom = 1.0
+camera.at = (0, 0)
+"#;
+
+    let warning = report_message(pushed);
+    assert!(
+        warning.contains("`camera.zoom`"),
+        "a loop that ends pushed in must name the axis, got {warning}"
+    );
+    let quiet = report_message(wrapped);
+    assert!(
+        !quiet.contains("camera."),
+        "a camera that returns to its start must not warn, got {quiet}"
+    );
+}
+
 /// The text of the first `loop-not-seamless` warning for `source`.
 fn report_message(source: &str) -> String {
     let (ast, _) = animatix_syntax::parser::parse_source(source);

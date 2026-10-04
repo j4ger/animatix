@@ -737,6 +737,16 @@ impl Timeline {
                         }
                     }
                 }
+                // The camera is not a track, so the actor walk above cannot see
+                // it — and a scene that ends pushed in and restarts unzoomed
+                // jumps at the seam exactly like any other un-wrapped value.
+                if timeline.camera.is_authored() {
+                    for (axis, first, last) in timeline.camera.seam_pairs(0, end_ms) {
+                        if !crate::timeline::values_wrap(&first, &last) {
+                            broken.push(format!("`{axis}`"));
+                        }
+                    }
+                }
                 if !broken.is_empty() {
                     let shown = if broken.len() > 6 {
                         format!("{} ({} in total)", broken[..6].join(", "), broken.len())

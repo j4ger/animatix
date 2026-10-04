@@ -973,7 +973,10 @@ impl Timeline {
                     .map(|t| t.max_keyframe_time_ms())
                     .max()
                     .unwrap_or(0),
-            );
+            )
+            // The scene camera is not a track, but its stamps are content: a
+            // scene whose only motion is a push-in ends at the push, not at zero.
+            .max(self.camera.max_keyframe_time_ms());
         (max_ms as f64) / 1000.0
     }
 

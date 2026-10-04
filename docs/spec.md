@@ -2472,7 +2472,7 @@ config { colorscheme: "editorial-dark" }  // overrides prelude colorscheme
 | `duration` | Scene | ✅ Yes | Scene-only; sets explicit scene duration (overrides keyframe-inferred duration). A timeline never plays past it: keyframes beyond it are unreachable, and the build warns with `duration-shorter-than-content`. |
 | `export_preset` | Composition | ❌ No | Preset name the CLI video/GIF paths pick up (e.g. `"1080p30"`); set once in the prelude. |
 | `bpm` | Scene | ✅ Yes | Tempo in beats per minute. Resolves beat stamps (`#2b`, `[4b]`) to milliseconds; absent, beats run at 120 bpm. |
-| `seamless_loop` | Scene | ✅ Yes | Declares that the scene is replayed end-to-start. The build then samples every keyframed property at the first and last frame and warns with `loop-not-seamless` when a value does not wrap. Values driven by `always` blocks or plot `func` transitions are frame-time computations, not keyframes, so v1 cannot see them and does not lint them. |
+| `seamless_loop` | Scene | ✅ Yes | Declares that the scene is replayed end-to-start. The build then samples every keyframed property at the first and last frame and warns with `loop-not-seamless` when a value does not wrap — the scene camera's three axes included, since they live outside the actor tracks. Values driven by `always` blocks or plot `func` transitions are frame-time computations, not keyframes, so v1 cannot see them and does not lint them. |
 | `text_fast_path` | Program | ❌ No | Routes plain Latin `Text` through the fast shaping path (default on). |
 
 **Merge rules:**
