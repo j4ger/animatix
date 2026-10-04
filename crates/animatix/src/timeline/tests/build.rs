@@ -1797,13 +1797,57 @@ bg: Filter, bounds: (40, 30, 120, 80) {
 
     let (width, height) = timeline.resolution().expect("configured resolution");
     let region = timeline
-        .effect_scope_region(scope, crate::timeline::SceneDimensions { width, height }, 0)
+        .effect_scope_region(
+            scope,
+            crate::timeline::SceneDimensions { width, height },
+            0,
+            kurbo::Affine::IDENTITY,
+        )
         .expect("authored bounds must produce a region");
 
     // Worst-case support = blur radius (10), applied on every side.
     assert_eq!(region.origin, [30.0, 20.0]);
     assert_eq!(region.size.width, 140);
     assert_eq!(region.size.height, 100);
+}
+
+/// Authored bounds are scene coordinates, but the scope's sub-scene is rendered
+/// in world space, so a camera move has to carry the bounds with it — otherwise
+/// the scope filters the rectangle the author pointed at *before* the move.
+/// `dogfood/probe_camera_scopes.amx` measured the gap this test guards: 9
+/// differing pixels at camera identity, 73,512 after a 2x push.
+#[test]
+fn filter_bounds_follow_the_camera() {
+    let timeline = build_timeline(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (320, 180) }
+#0s
+bg: Filter, bounds: (40, 30, 120, 80) {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+#1s
+camera.zoom = 2.0
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    let (width, height) = timeline.resolution().expect("configured resolution");
+    let dims = crate::timeline::SceneDimensions { width, height };
+
+    let before = timeline
+        .effect_scope_region(scope, dims, 0, timeline.camera.affine(0, dims, None))
+        .expect("identity camera keeps the authored rectangle");
+    assert_eq!(before.origin, [30.0, 20.0]);
+
+    // 2x about the scene center (160, 90): (40, 30) -> (-80, -30) and
+    // (160, 110) -> (160, 130); the support then pads 10 px on every side and
+    // the region clips to the frame.
+    let after = timeline
+        .effect_scope_region(scope, dims, 2000, timeline.camera.affine(2000, dims, None))
+        .expect("the pushed scope still has a region");
+    assert_eq!(after.origin, [0.0, 0.0]);
+    assert_eq!(after.size.width, 170);
+    assert_eq!(after.size.height, 140);
 }
 
 /// Without authored bounds the scope keeps the full-scene path.
@@ -1823,7 +1867,12 @@ bg: Filter {
     let (width, height) = timeline.resolution().expect("configured resolution");
     assert!(
         timeline
-            .effect_scope_region(scope, crate::timeline::SceneDimensions { width, height }, 0)
+            .effect_scope_region(
+                scope,
+                crate::timeline::SceneDimensions { width, height },
+                0,
+                kurbo::Affine::IDENTITY
+            )
             .is_none()
     );
 }

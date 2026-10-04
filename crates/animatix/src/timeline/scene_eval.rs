@@ -1090,7 +1090,21 @@ impl Timeline {
         // 3. `None` — the historical full-scene path.
         // The GPU textures stay at full scene capacity in every case, so
         // varying regions never reallocate (PF-7).
-        let region = match self.effect_scope_region(track, scene_dimensions, time_ms) {
+        // Authored bounds are scene coordinates, and the camera moves the
+        // picture under them. Recompute the same affine the root subtrees were
+        // wrapped in (see the camera application in `evaluate_scene`) rather
+        // than the scope's own world transform: the authored numbers already
+        // account for the scope's placement.
+        let camera = if self.camera_used.get() {
+            self.camera.affine(
+                time_ms,
+                scene_dimensions,
+                frame.overrides.get(crate::timeline::camera::CAMERA_TARGET),
+            )
+        } else {
+            kurbo::Affine::IDENTITY
+        };
+        let region = match self.effect_scope_region(track, scene_dimensions, time_ms, camera) {
             Some(region) => Some(region),
             None => {
                 let mut content: Option<kurbo::Rect> = None;
@@ -1183,11 +1197,20 @@ impl Timeline {
     /// `bounds: (x, y, w, h)` (tagged `filter_bounds` storage). Returns `None`
     /// when no bounds are authored, the region is degenerate, or it already
     /// covers the whole scene (the historical full-scene path).
+    ///
+    /// The authored rect is in scene coordinates but the sub-scene is rendered
+    /// with the camera applied and the result blits back in that same space, so
+    /// the bounds have to be carried through the same affine — otherwise a camera
+    /// move leaves the scope filtering the rectangle the author pointed at
+    /// before the move. The derived-bounds branch at the call site needs no such
+    /// mapping: the subtree bounds it reads were recorded by that same
+    /// transformed evaluation.
     pub(crate) fn effect_scope_region(
         &self,
         track: &AnimationTrack,
         scene_dimensions: SceneDimensions,
         time_ms: u64,
+        camera: kurbo::Affine,
     ) -> Option<crate::timeline::effects::EffectRegion> {
         let value = crate::timeline::dispatch::read_property_value(
             track,
@@ -1201,7 +1224,11 @@ impl Timeline {
             return None;
         }
         let rect = kurbo::Rect::new(x as f64, y as f64, (x + w) as f64, (y + h) as f64);
-        Self::region_from_rect(rect, track.effects.worst_case_support(), scene_dimensions)
+        Self::region_from_rect(
+            camera.transform_rect_bbox(rect),
+            track.effects.worst_case_support(),
+            scene_dimensions,
+        )
     }
 
     /// Union the recorded world bounds of `label`'s content subtree into `out`.

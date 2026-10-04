@@ -1,23 +1,25 @@
 // probe_camera_scopes.amx — does the scene camera survive a `Filter` scope that
 // authors its `bounds:`?
 //
-// Expected from the code, and what this file checks rather than assumes:
-// a scope whose region is *derived* from its content is fine — `evaluate_node`
-// renders the sub-scene with the node's `global_transform` (camera included),
-// derives the region from the bounds that transform produced, and blits the
-// filtered result back at that same `region.origin`, so all three live in one
-// space. An authored `bounds: (x, y, w, h)` is in scene coordinates and the
-// camera never transforms it, so once the push-in starts the filtered
-// rectangle no longer covers what is drawn there.
+// The shape of the check, which still holds if the mapping regresses: a scope
+// whose region is *derived* from its content follows the camera for free —
+// `render_filter_children` renders the sub-scene with the node's
+// `global_transform`, derives the region from the bounds that transform
+// recorded, and blits back at that same `region.origin`, so all three live in
+// one space. An authored `bounds: (x, y, w, h)` is a scene rectangle, so it has
+// to be carried through the camera affine the root subtrees were wrapped in.
 //
-// Measured, not assumed: render this file and the same file with the
-// `bounds:` deleted, and count differing pixels.
+// Measured, not assumed: render this file and the same file with the `bounds:`
+// deleted, and count differing pixels.
 //
-//   t=0.2 (camera still identity)   9 pixels   — the two regions coincide
-//   t=1.6 (after push + pan)    73,512 pixels   — 32% of the frame
+//   before the fix   t=0.2      9 pixels  — the two regions coincide
+//                    t=1.6  73,512 pixels — 32% of the frame filtered the wrong
+//                                            rectangle after the push and pan
+//   after the fix    t=0.2      9 pixels  — unchanged
+//                    t=1.6      0 pixels  — authored and derived now agree
 //
-// So the derived region follows the camera and the authored one does not. The
-// gap is documented in `docs/spec.md`; this file is the check, not the fix.
+// The 9 at t=0.2 is the padding difference between a hand-written rect and the
+// tight derived one; it is the floor this check is measured against.
 
 config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3 }
 

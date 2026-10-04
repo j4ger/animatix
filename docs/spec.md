@@ -929,11 +929,12 @@ Limits worth knowing:
 - Authoring a camera turns off the static-subtree encoding cache for root
   subtrees (a cached encoding cannot be re-transformed when it is appended), so
   an otherwise fully static scene re-evaluates per frame.
-- A `Filter` scope moves with the camera when its region is derived from its own
-  content — the sub-scene, the region and the composite blit all share the
-  camera's space. An authored `bounds: (x, y, w, h)` is in scene coordinates and
-  the camera does not transform it, so a zoomed scope with authored bounds
-  filters the wrong rectangle.
+- A `Filter` scope moves with the camera either way. When its region is derived
+  from its own content the sub-scene, the region and the composite blit already
+  share the camera's space; an authored `bounds: (x, y, w, h)` is a scene
+  rectangle and is carried through the same affine the root subtrees were
+  wrapped in. `dogfood/probe_camera_scopes.amx` checks the two agree to the
+  pixel, before and after a push and pan.
 - The label `camera` is reserved: declaring `camera: Rect, …` draws the actor but
   warns (`reserved-label-prefix`), because every `camera.<axis> = …` write goes
   to the camera.
