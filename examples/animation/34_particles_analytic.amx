@@ -1,0 +1,38 @@
+config { colorscheme: "neon-night", resolution: (1280, 720), duration: 6 }
+
+glow: Ellipse, size: (620, 620), at: (640, 380), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a55"), (55%, "#ff2d5522"), (100%, "#ff2d5500")}), blend: "screen"
+
+origin: Ellipse, size: (14, 14), at: (640, 380), color: "#ffe9c7"
+
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
+  spark[i]: Ellipse, size: (7, 7), at: (640, 380), color: "#ffd60a", opacity: 1
+}
+
+for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  mote[j]: Ellipse, size: (4, 4), at: (640, 360), color: "#64d2ff", opacity: 1
+}
+
+#0s
+  fade-in glow [600ms]
+  pop-in origin [300ms]
+  always {
+      let age = clamp(t - 0.6, 0, 2.4)
+      for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
+            let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
+            let speed = 180 + seeded_noise(i * 2.11, 9) * 340
+            let reach = speed * age
+            spark[i].at = (640 + cos(dir) * reach, (380 + sin(dir) * reach) + (260 * age) * age)
+            spark[i].size = (7 * (1 - age / 2.8), 7 * (1 - age / 2.8))
+            spark[i].color = lerp_color_oklab("#ffe9c7", "#ff2d55", age / 2.4)
+            spark[i].opacity = clamp(1 - age / 2.4, 0, 1)
+          }
+      let period = 6
+      let phase = ((t % period) / period) * 6.28318
+      for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+            let seed = j * 3.71
+            let bx = 200 + seeded_noise(seed, 1) * 380
+            let by = 140 + seeded_noise(seed, 2) * 440
+            mote[j].at = (bx + fbm(cos(phase + seed) * 0.9 + 2, 3) * 90, by + fbm(sin(phase + seed) * 0.9 + 2, 3) * 90)
+            mote[j].opacity = 0.35 + 0.45 * (0.5 + 0.5 * sin(phase * 2 + seed))
+          }
+    }

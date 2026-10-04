@@ -1142,6 +1142,41 @@ Two things to know:
   them would ship visibly wrong curves.
 - An unknown name warns with the closest matches rather than drawing nothing.
 
+**Particles, without a state model.** A particle's position, size, tint and life
+are analytic functions of `(its seed, the elapsed time)`, so a burst needs no
+emitter, no integrator, and no per-frame accumulation — and it stays frame-exact
+under scrubbing and across platforms. The seeds come from the noise builtins,
+which are pure:
+
+```animatix
+for i in {0, 1, 2, 3, 4, 5, 6, 7} {
+  spark[i]: Ellipse, size: (7, 7), at: (640, 380), color: "#ffd60a", opacity: 1.0
+}
+
+always {
+  let age = clamp(t - 0.6, 0.0, 2.4)
+  for i in {0, 1, 2, 3, 4, 5, 6, 7} {
+    let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
+    let reach = (180.0 + seeded_noise(i * 2.11, 9.0) * 340.0) * age
+    spark[i].at = (640.0 + cos(dir) * reach,
+                   380.0 + sin(dir) * reach + 260.0 * age * age)
+    spark[i].opacity = clamp(1.0 - age / 2.4, 0.0, 1.0)
+    spark[i].color = lerp_color_oklab("#ffe9c7", "#ff2d55", age / 2.4)
+  }
+}
+```
+
+Gravity is `260 * age²` — the closed form of constant acceleration, not a
+stepped velocity — so it is exact at any frame time. Give the burst a light source
+(a `radial` ramp to a transparent stop with `blend: "screen"`) and it reads as
+emitted rather than as moving dots. See
+`examples/animation/34_particles_analytic.amx` for the full form, including
+ambient motes whose noise is sampled on a circle so the drift loops.
+
+> Generated actors are addressed as `spark__0`, `spark__1`, … internally, so an
+> entrance action cannot target the whole array — give them `opacity: 1.0` at
+> declaration and drive their life from the `always` block instead.
+
 **Seamless loop.** A scene that replays must end where it started. Build the
 motion out of `sin`/`cos` of `(t % period) / period * τ` (and integer multiples
 of it) and it wraps by construction; declare `config { seamless_loop: true }` and
