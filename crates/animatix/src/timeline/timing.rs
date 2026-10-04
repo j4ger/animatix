@@ -334,10 +334,19 @@ pub(crate) fn parse_stagger_interval_ms(
 /// decelerate, departures accelerate, and a move between two on-screen
 /// positions does both. An explicit `ease:` always wins — including
 /// `ease: linear`, which still means linear.
+///
+/// Assignments deliberately keep the old linear default: the verb is not
+/// available there and cannot be, because an action that expands into
+/// assignments hands them its own timing modifiers. Widening the default to
+/// assignments needs that expansion to carry the resolved easing, which is a
+/// separate change.
 fn default_easing_for(host: ModifierHost, subject: Option<&str>) -> Easing {
     if host != ModifierHost::Action {
-        // Assignments and declaration timing are repositioning by nature.
-        return Easing::EaseInOut;
+        // Assignments keep the linear default on purpose: an action that expands
+        // into them hands them its own timing modifiers, so easing the
+        // assignment path would double-ease effects that already bake their
+        // curve into keyframes (`bounce`). Write `ease:` to opt in.
+        return Easing::Linear;
     }
     match subject.unwrap_or_default() {
         "fade-in" | "wipe-in" | "reveal-in" | "draw-in" | "settle-in" | "pop-in" => Easing::ExpoOut,
@@ -715,7 +724,12 @@ mod tests {
         assert_eq!(default_easing_for(ModifierHost::Action, Some("fade-out")), Easing::EaseIn);
         assert_eq!(default_easing_for(ModifierHost::Action, Some("remove")), Easing::EaseIn);
         assert_eq!(default_easing_for(ModifierHost::Action, Some("move")), Easing::EaseInOut);
-        assert_eq!(default_easing_for(ModifierHost::Assignment, Some("x.y")), Easing::EaseInOut);
+        assert_eq!(
+            default_easing_for(ModifierHost::Assignment, Some("x.y")),
+            Easing::Linear,
+            "assignments keep the old default: an action that expands into them \
+             already carries its own timing"
+        );
         // Oscillating effects are continuous loops; easing them softens the
         // effect itself.
         assert_eq!(default_easing_for(ModifierHost::Action, Some("shake")), Easing::Linear);
@@ -768,7 +782,7 @@ mod tests {
             ModifierHost::Assignment,
             Some("box.at"),
         );
-        assert_eq!(expo.easing, Easing::ExpoInOut, "an authored curve beats the role default");
+        assert_eq!(expo.easing, Easing::ExpoInOut, "an authored curve always wins");
     }
 
     #[test]

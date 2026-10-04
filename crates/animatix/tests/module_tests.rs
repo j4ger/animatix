@@ -638,11 +638,14 @@ sequence {
         "Scale should be 1.375 at 250ms, got {}",
         scale.evaluate(250)
     );
-    // At 500ms, fade-in is 100ms into 300ms: opacity ~0.33
+    // At 500ms, fade-in is 100ms into 300ms. An uneased entrance now defaults
+    // to `expo-out` (it decelerates into place), so a third of the way through
+    // the segment is already ~90% opaque rather than the ~33% a linear ramp
+    // would give. See `default_easing_for`.
     let opacity = track.style.opacity.as_ref().expect("opacity should exist");
     assert!(
-        opacity.evaluate(500) > 0.2 && opacity.evaluate(500) < 0.5,
-        "Opacity should be fading in at 500ms, got {}",
+        opacity.evaluate(500) > 0.8 && opacity.evaluate(500) < 1.0,
+        "Opacity should have most of the way in at 500ms under expo-out, got {}",
         opacity.evaluate(500)
     );
 }
