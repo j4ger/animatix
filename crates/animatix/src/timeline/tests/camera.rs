@@ -53,6 +53,30 @@ camera.zoom = 2.0
     assert_eq!(affine * Point::new(420.0, 180.0), Point::new(520.0, 180.0));
 }
 
+/// A camera axis first addressed at a later stamp holds its identity until that
+/// stamp. The delayed-write path seeds the track with the value in effect
+/// before it, and for a track that did not exist that used to be `T::default()`
+/// — `0.0` for `zoom`, which collapsed the whole scene to its center point for
+/// every frame before the stamp.
+#[test]
+fn a_delayed_camera_write_holds_its_identity_until_its_stamp() {
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
+#1s
+camera.zoom = 2.0
+"#,
+    );
+    // Before the stamp: no transform at all, not a zero-scale collapse.
+    assert_eq!(timeline.camera.affine(0, scene(), None), Affine::IDENTITY);
+    assert_eq!(timeline.camera.affine(999, scene(), None), Affine::IDENTITY);
+    // After it: the authored zoom, about the same center.
+    let affine = timeline.camera.affine(1500, scene(), None);
+    assert_eq!(affine * Point::new(420.0, 180.0), Point::new(520.0, 180.0));
+}
+
 #[test]
 fn camera_pan_shifts_in_screen_pixels_after_the_zoom() {
     let timeline = build(

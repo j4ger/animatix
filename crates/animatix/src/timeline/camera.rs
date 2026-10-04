@@ -136,6 +136,14 @@ impl Camera {
             let Value::Num(zoom) = value else {
                 return false;
             };
+            // A delayed first write preserves the value in effect before its
+            // stamp, and for a track that does not exist yet the write helpers
+            // fall back to `T::default()` — `0.0` for zoom, which collapsed the
+            // whole scene to its center point until the stamp arrived. Camera
+            // axes have no declaration to seed their tracks, so the identity is
+            // stated here. `pan` and `spin` need no such seeding: their
+            // identity is `0.0`, which is what the fallback already yields.
+            self.zoom.ensure(1.0);
             write_f32(
                 &mut self.zoom,
                 PropertyValue::F32(*zoom as f32),
