@@ -165,6 +165,15 @@ impl Timeline {
                 continue;
             }
 
+            if setting.name == "seamless_loop" {
+                self.seamless_loop = match &setting.value {
+                    Expr::Bool(b) => *b,
+                    Expr::Str(s) => s.parse().unwrap_or(false),
+                    _ => false,
+                };
+                continue;
+            }
+
             if setting.name == "text_fast_path" {
                 let enabled = match &setting.value {
                     Expr::Bool(b) => *b,

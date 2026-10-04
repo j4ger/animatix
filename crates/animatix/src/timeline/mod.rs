@@ -77,6 +77,7 @@ pub use dispatch::{
     read_property_value_or_default,
 };
 pub use plan::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
+pub(crate) use property_engine::values_wrap;
 pub use property_engine::{PropertyValue, read_property_plan_slot, write_property_plan_slot};
 // Re-export property registry types for the GUI
 pub use property_registry::{
@@ -569,6 +570,9 @@ pub struct Timeline {
         std::cell::RefCell<std::collections::HashMap<String, Arc<Vec<ContainerLayoutChild>>>>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
+    /// Declared via `config { seamless_loop: true }`: the scene is replayed, so
+    /// the build checks that its keyframed values wrap at the seam.
+    pub(crate) seamless_loop: bool,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
     pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     /// Build quality level used during timeline construction (Phase 6.3).
@@ -850,6 +854,7 @@ impl Timeline {
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,
+            seamless_loop: false,
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
             build_quality: BuildQuality::Production,

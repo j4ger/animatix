@@ -90,6 +90,64 @@ pub enum PropertyValue {
     },
 }
 
+/// Tolerance for the loop-seam comparison: below this, a jump between the last
+/// and first frame of a replayed scene is not visible.
+const LOOP_SEAM_EPSILON: f32 = 1e-3;
+
+/// True when two sampled values are close enough that replaying a scene
+/// end-to-start shows no jump.
+pub(crate) fn values_wrap(a: &PropertyValue, b: &PropertyValue) -> bool {
+    let close = |x: f32, y: f32| (x - y).abs() <= LOOP_SEAM_EPSILON;
+    fn close_list(l: &[f32], r: &[f32]) -> bool {
+        l.len() == r.len() && l.iter().zip(r).all(|(a, b)| (a - b).abs() <= LOOP_SEAM_EPSILON)
+    }
+    match (a, b) {
+        (PropertyValue::F32(x), PropertyValue::F32(y)) => close(*x, *y),
+        (PropertyValue::U32(x), PropertyValue::U32(y)) => x == y,
+        (PropertyValue::Bool(x), PropertyValue::Bool(y)) => x == y,
+        (PropertyValue::Vec2(x), PropertyValue::Vec2(y)) => close(x[0], y[0]) && close(x[1], y[1]),
+        (PropertyValue::Vec4(x), PropertyValue::Vec4(y))
+        | (PropertyValue::Color(x), PropertyValue::Color(y)) => {
+            x.iter().zip(y).all(|(l, r)| close(*l, *r))
+        },
+        (PropertyValue::PointList(x), PropertyValue::PointList(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .zip(y)
+                    .all(|(l, r)| l.len() == r.len() && close_list(&[l[0], l[1]], &[r[0], r[1]]))
+        },
+        (PropertyValue::F32List(x), PropertyValue::F32List(y)) => {
+            x.len() == y.len() && close_list(x, y)
+        },
+        (PropertyValue::Gradient(x), PropertyValue::Gradient(y)) => {
+            x.stops.len() == y.stops.len()
+                && x.stops
+                    .iter()
+                    .zip(&y.stops)
+                    .all(|(l, r)| close(l.offset, r.offset) && l.color == r.color)
+        },
+        (PropertyValue::String(x), PropertyValue::String(y))
+        | (PropertyValue::CommandList(x), PropertyValue::CommandList(y))
+        | (PropertyValue::Enum(x), PropertyValue::Enum(y)) => x == y,
+        (PropertyValue::StringList(x), PropertyValue::StringList(y)) => x == y,
+        (PropertyValue::Transform(x), PropertyValue::Transform(y)) => {
+            x.iter().zip(y).all(|(l, r)| close(*l, *r))
+        },
+        (
+            PropertyValue::Variant {
+                name: n1,
+                value: v1,
+            },
+            PropertyValue::Variant {
+                name: n2,
+                value: v2,
+            },
+        ) => n1 == n2 && values_wrap(v1, v2),
+        // Different kinds at the two ends of a looping scene is itself a jump.
+        _ => false,
+    }
+}
+
 /// Stable boundary between typed internal enums and generic property values.
 ///
 /// Internal enums stay typed in their tracks, but any code that needs a

@@ -88,6 +88,12 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
         summary: "Strict type checking for the whole file.",
     },
     ConfigKeyInfo {
+        name: "seamless_loop",
+        scope: ConfigScope::Scene,
+        value: ConfigValueKind::Boolean,
+        summary: "Assert this scene is replayed as a loop; the build then checks the seam.",
+    },
+    ConfigKeyInfo {
         name: "text_fast_path",
         scope: ConfigScope::Program,
         value: ConfigValueKind::Boolean,

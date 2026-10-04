@@ -122,6 +122,10 @@ pub enum DiagnosticCode {
     /// `config { duration: N }` is shorter than the last keyframe, so the
     /// timeline ends before that animation is reached.
     DurationShorterThanContent,
+    /// A scene declared `config { seamless_loop: true }` but at least one
+    /// keyframed value differs between the first and last frame, so every
+    /// replay jumps at the seam.
+    LoopNotSeamless,
     /// A `config` block names a key the build does not recognise, so it is
     /// dropped: almost always a typo that silently does nothing.
     UnknownConfigKey,
@@ -239,6 +243,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::DurationShorterThanContent => {
                 write!(f, "duration-shorter-than-content")
             },
+            DiagnosticCode::LoopNotSeamless => write!(f, "loop-not-seamless"),
             DiagnosticCode::UnknownConfigKey => write!(f, "unknown-config-key"),
             DiagnosticCode::MissingGridCols => write!(f, "missing-grid-cols"),
             DiagnosticCode::OrphanScene => write!(f, "orphan-scene"),

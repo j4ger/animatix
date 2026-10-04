@@ -646,6 +646,66 @@ impl Timeline {
             }
         }
 
+        // Loop seam check. A scene that declares `config { seamless_loop: true }`
+        // is replayed end-to-start, so any keyframed value that differs between
+        // the first and last frame shows up as a jump every cycle — the single
+        // most common way a "looping" scene fails to loop.
+        //
+        // v1 scope, deliberately: only *keyframed* values are sampled. What an
+        // `always` block computes, and a plot `func` transition, are frame-time
+        // functions rather than tracks, so the build cannot see them and does
+        // not lint them (a sine of the frame time wraps by construction when the
+        // period divides the scene; only the author can know that).
+        if timeline.seamless_loop {
+            let end_ms = (timeline.duration_seconds() * 1000.0).round() as u64;
+            if end_ms > 0 {
+                let mut broken: Vec<String> = Vec::new();
+                for (label, track) in &timeline.tracks {
+                    for idx in crate::timeline::property_registry::allowed_property_indices(
+                        &track.caps,
+                        &track.actor_type,
+                    ) {
+                        let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
+                        if !crate::timeline::property_has_keyframes(track, schema.field) {
+                            continue;
+                        }
+                        let first = crate::timeline::read_property_value(track, schema.field, 0);
+                        let last =
+                            crate::timeline::read_property_value(track, schema.field, end_ms);
+                        let wraps = match (&first, &last) {
+                            (Some(a), Some(b)) => crate::timeline::values_wrap(a, b),
+                            // One side never sampled: the property is constant
+                            // across the scene, which wraps trivially.
+                            _ => true,
+                        };
+                        if !wraps {
+                            broken.push(format!("`{label}.{}`", schema.name));
+                        }
+                    }
+                }
+                if !broken.is_empty() {
+                    let shown = if broken.len() > 6 {
+                        format!("{} ({} in total)", broken[..6].join(", "), broken.len())
+                    } else {
+                        broken.join(", ")
+                    };
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::LoopNotSeamless,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "`config {{ seamless_loop: true }}` but these keyframed values \
+                                 differ between the first frame and the last ({shown}), so the \
+                                 replay jumps at the seam. Give each one the same value at both \
+                                 ends, or drop the declaration."
+                            ),
+                        )
+                        .with_subject("seamless_loop"),
+                    );
+                }
+            }
+        }
+
         // Every track's primitive identity must resolve. `actor_type` is
         // required at construction, so a miss means the declared primitive is
         // not registered (typically an extension whose plugin is not loaded).
