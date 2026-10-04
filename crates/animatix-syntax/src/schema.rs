@@ -404,11 +404,15 @@ pub fn common_property_names() -> &'static [&'static str] {
 /// property.
 fn raw_property_types() -> Vec<(&'static str, Type)> {
     vec![
+        // A color may be written as text (`color: "#ff2d55"`, `stroke: "red"`)
+        // since batch 2 taught `utils::color_from_text` to every color site, so
+        // the five color rows accept `Str` as well. Without this the type
+        // checker warns on source the engine renders correctly.
         ("align", Type::Str),
         ("anchor", Type::Any),
         ("ascent", Type::Num),
         ("at", Type::Vec2),
-        ("background_color", Type::Color),
+        ("background_color", Type::Union(vec![Type::Color, Type::Str])),
         ("bar_colors", Type::Any),
         // Both spellings of "auto" are read by the BarChart builder
         // (`Expr::Ident` or `Expr::Str`), and the docs say so; a bare `auto`
@@ -418,7 +422,7 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("bounds", Type::Vec4),
         ("char_progress", Type::Num),
         ("code", Type::Str),
-        ("color", Type::Color),
+        ("color", Type::Union(vec![Type::Color, Type::Str])),
         ("cols", Type::Num),
         ("commands", Type::Any),
         ("data", Type::Any),
@@ -441,14 +445,14 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("grid", Type::Str),
         ("head_size", Type::Num),
         ("height", Type::Num),
-        ("highlight_color", Type::Color),
+        ("highlight_color", Type::Union(vec![Type::Color, Type::Str])),
         ("highlight_opacity", Type::Num),
         ("highlight_padding", Type::Num),
         ("highlight_radius", Type::Num),
         ("kind", Type::Str),
         ("label", Type::Str),
         ("label_at", Type::Vec2),
-        ("label_color", Type::Color),
+        ("label_color", Type::Union(vec![Type::Color, Type::Str])),
         ("legend", Type::Str),
         ("letter_spacing", Type::Num),
         ("levels", Type::Any),
@@ -482,7 +486,7 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("solo", Type::Bool),
         ("source", Type::Str),
         ("standoff", Type::Num),
-        ("stroke", Type::Color),
+        ("stroke", Type::Union(vec![Type::Color, Type::Str])),
         ("stroke_progress", Type::Num),
         ("stroke_width", Type::Num),
         ("swatch_size", Type::Num),

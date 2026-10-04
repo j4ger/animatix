@@ -143,6 +143,9 @@ fn exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
         "tau",
         "self",
         "scene",
+        // The scene dimensions, readable from `always` and reactive expressions.
+        "scene_width",
+        "scene_height",
         // The scene camera — a reserved assignment target, not a declared actor.
         "camera",
         "auto",
