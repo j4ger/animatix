@@ -29,7 +29,8 @@ web/demos/                   demo hub (course-style cards + posters) and the dem
                              demos/matrix/       linear-transformations walkthrough (3 scenes)
                              demos/hash/         hash-table walkthrough (3 scenes)
                              demos/lib/          shared .amx library the demo scenes import
-                             demos/posters/      hub-card posters (1280x720 PNGs)
+                             demos/posters/      1280x720 stills, currently unreferenced:
+                             the hub cards play live `amx-player[data-hoverplay]` embeds instead
                              demos/multi-probe.html, demos/perf-probe.html, demos/svg-probe/
                                                  QA harnesses (multi-instance, frame cost, SVG/profile)
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page

@@ -63,8 +63,10 @@ Notes the next session will want from batch 3:
   the engine; the *type* row is where a widened value grammar has to follow, and
   nothing tests that a warning-free scene stays warning-free.
 - **Still open from batch 2's notes**: `docs/effects.md` / `docs/primitives.md`
-  now do cover dash/blend/gradient (done in `f00d3770`/`fc4dc879`), and the
-  `web/demos/posters/*.png` regeneration is still owed.
+  now do cover dash/blend/gradient (done in `f00d3770`/`fc4dc879`). The
+  `web/demos/posters/*.png` turned out not to need regenerating — nothing
+  references them (the hub plays live embeds), so `web/README.md` was wrong
+  rather than the images being stale.
 
 ### Batch 2 (2026-10-04, second session) — five commits, local only
 
@@ -363,8 +365,10 @@ the order that makes sense to attempt it:
    (check upstream #1558 first). All four are parked for a reason recorded in
    the inventory table; none is a quiet afternoon.
 3. **#13 closeout, partially done.** Still owed: the site content redo with the
-   new vocabulary beyond the review pass, `web/demos/posters/{gradient,sorting}.png`
-   (both stale — regenerate from the current scenes), the fast-path glyph-gap fix
+   new vocabulary beyond the review pass, `web/demos/posters/*.png` — eight
+   1280×720 stills that nothing references any more (the hub cards play live
+   `data-hoverplay` embeds, and `web/README.md` now says so). They are stale by
+   definition; **deleting them is the owner's call**, so they stay for now, the fast-path glyph-gap fix
    (`ᵀ`/`ₖ` tofu on the tour → ASCII math, an `animatix-text` change), the theme
    pack examples, then pruning this handoff into `docs/history.md` when the
    round closes.
