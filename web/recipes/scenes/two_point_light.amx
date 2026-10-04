@@ -1,0 +1,24 @@
+// two_point_light.amx — the cheapest move that separates a lit stage from a
+// black field with a shape on it: a warm key behind the subject, a cool fill
+// somewhere else, both on `screen` so they can only ever add light.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
+
+key: Ellipse, size: (420, 420), at: (250, 150), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (55%, "#f5b9420f"), (100%, "#f5b94200")})
+fill: Ellipse, size: (360, 360), at: (430, 260), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#64d2ff2b"), (55%, "#64d2ff0c"), (100%, "#64d2ff00")})
+
+subject: Rect, size: (190, 120), at: (320, 176), corner_radius: 16,
+  fill_gradient: linear(135, {"#1b2534", "#0c1118"}), stroke: stroke.default, stroke_width: 1
+label: Text, text: "the subject", font_size: 18, color: text.secondary, at: (320, 176)
+
+#0s
+settle-in subject [520ms]
+fade-in label [400ms, delay: 120ms]
+// The lights drift, so the plate is never fully still.
+always {
+  key.at = (250 + noise(t * 0.6) * 26.0, 150 + noise(t * 0.5, 3.0) * 18.0)
+  fill.at = (430 - noise(t * 0.55, 9.0) * 22.0, 260 + noise(t * 0.45, 5.0) * 16.0)
+}

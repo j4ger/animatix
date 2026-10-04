@@ -1,0 +1,14 @@
+// word_reveal.amx — `draw-in [by: word]` reveals a line of text word by word
+// instead of as one block, which is how a caption should arrive under a beat.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
+
+line1: Text, text: "Layout first, then timing.", font_size: 34,
+  color: text.primary, at: (320, 140)
+line2: Text, text: "Every word is an actor you can light, dash and move.",
+  font_size: 20, color: text.secondary, at: (320, 196)
+
+#0s
+draw-in line1 [1100ms, by: word]
+draw-in line2 [1400ms, by: word, delay: 400ms]

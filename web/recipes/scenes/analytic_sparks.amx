@@ -1,0 +1,30 @@
+// analytic_sparks.amx — particles with no state model. Each spark's position is
+// a function of its seed and its age, so the burst is deterministic frame by
+// frame and survives a scrub in either direction.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
+
+glow: Ellipse, size: (300, 300), at: (320, 190), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a55"), (55%, "#ff2d5522"), (100%, "#ff2d5500")})
+origin: Ellipse, size: (12, 12), at: (320, 190), color: "#ffe9c7", opacity: 1.0
+
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  spark[i]: Ellipse, size: (10, 10), at: (320, 190), color: "#ffd60a", opacity: 1
+}
+
+always {
+  let age = clamp(t - 0.4, 0, 2.2)
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+    let dir = seeded_noise(i * 1.37, 0.5) * 6.28318
+    let speed = 90 + seeded_noise(i * 2.11, 9) * 170
+    let reach = speed * age
+    spark[i].at = (320 + cos(dir) * reach, (190 + sin(dir) * reach) + (150 * age) * age)
+    spark[i].size = (10 * (1 - age / 2.6), 10 * (1 - age / 2.6))
+    spark[i].color = lerp_color_oklab("#ffe9c7", "#ff2d55", age / 2.2)
+    spark[i].opacity = clamp(1 - age / 2.2, 0, 1)
+  }
+}
+
+#0s
+fade-in glow [400ms]

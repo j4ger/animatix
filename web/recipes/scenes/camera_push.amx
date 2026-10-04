@@ -1,0 +1,32 @@
+// camera_push.amx — the scene camera: push in on the middle plate, then pan to
+// the one on the right. `camera.zoom` magnifies about the scene center and
+// `camera.at` slides the picture; both are ordinary timed assignments.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 7 }
+
+plate: Rect, size: (1400, 300), at: (320, 190), color: surface.secondary,
+  corner_radius: 20, opacity: 1.0, stroke: stroke.default, stroke_width: 2
+a: Rect, size: (110, 80), at: (90, 180), color: accent.danger, corner_radius: 10
+b: Rect, size: (110, 80), at: (320, 180), color: accent.warning, corner_radius: 10
+c: Rect, size: (110, 80), at: (550, 180), color: accent.info, corner_radius: 10
+title: Text, text: "the whole plate moves", font_size: 22, color: text.primary,
+  anchor: scene.top, offset: (0, 40)
+
+#0s
+stagger [70ms] {
+  pop-in a [380ms]
+  pop-in b [380ms]
+  pop-in c [380ms]
+}
+fade-in title [500ms]
+camera.zoom = 1.0
+#1s
+camera.zoom = 1.8 [900ms, ease: expo-out]
+#3s
+// `at` is applied after `zoom`, so centring a plate 230 px off-centre at 1.8×
+// takes 230 × 1.8 = 414 px of pan.
+camera.at = (-414, 0) [1100ms, ease: ease-in-out]
+#5.2s
+camera.zoom = 1.0 [900ms, ease: ease-in-out]
+camera.at = (0, 0) [900ms]

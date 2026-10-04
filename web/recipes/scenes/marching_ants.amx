@@ -1,0 +1,28 @@
+// marching_ants.amx — a dashed stroke whose offset animates. The rule is a
+// live edge: something that keeps moving after the entrances have landed.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 5 }
+
+rail: Path, commands: {move_to(70, 180), line_to(570, 180)},
+  stroke: accent.primary, stroke_width: 3, fill_opacity: 0.0, opacity: 1.0,
+  dash_pattern: {12, 8}
+frame: Rect, size: (300, 150), at: (320, 180), fill_opacity: 0.0,
+  stroke: stroke.default, stroke_width: 2, dash_pattern: {6, 6}, opacity: 1.0
+
+#0s
+draw-in rail [900ms]
+fade-in frame [500ms]
+// One full dash period (12 + 8) per second: a seamless loop, because the
+// offset wraps at exactly the pattern length.
+rail.dash_offset = 0
+frame.dash_offset = 0
+#0.2s
+rail.dash_offset = 20 [1s, ease: linear]
+frame.dash_offset = -12 [1s, ease: linear]
+#1.2s
+rail.dash_offset = 40 [1s, ease: linear]
+frame.dash_offset = -24 [1s, ease: linear]
+#2.2s
+rail.dash_offset = 60 [1s, ease: linear]
+frame.dash_offset = -36 [1s, ease: linear]

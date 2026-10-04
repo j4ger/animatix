@@ -35,6 +35,7 @@
     ["tour/", "Language", "tour"],
     ["demos/", "Demos", "demos"],
     ["gallery.html", "Gallery", "gallery"],
+    ["recipes/", "Recipes", "recipes"],
     [external, "GitHub ↗", "github"],
   ];
 
@@ -87,6 +88,7 @@
     ["tour/", "Language"],
     ["demos/", "Demos"],
     ["gallery.html", "Gallery"],
+    ["recipes/", "Recipes"],
   ];
   parts.forEach(([href, label], i) => {
     if (i > 0) right.append(" · ");

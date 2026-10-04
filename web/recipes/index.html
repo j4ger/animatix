@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recipes — Animatix</title>
+  <meta name="description" content="Seven small moves that make an Animatix scene look lit and alive — each one a figure you can play, scrub and read the source of.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix · recipes</p>
+      <h1>Seven moves, not seven features.</h1>
+      <p class="lede">
+        A scene reads as alive for reasons that are small and combinable: the
+        plate is lit rather than flat, something keeps moving after the
+        entrances land, durations are scaled to what travels, and a caption
+        arrives a word at a time. Each figure below is one move, isolated in a
+        scene of twenty-odd lines — hover to pause it, scrub to read it, open
+        the source to steal it.
+      </p>
+      <ul class="meta">
+        <li>7 recipes</li>
+        <li>plain text <code class="inline">.amx</code> scenes only</li>
+        <li>the same engine as the desktop app</li>
+      </ul>
+    </header>
+
+    <div class="gallery">
+      <figure>
+        <h3>Two-point light</h3>
+        <amx-player src="./scenes/two_point_light.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A warm key and a cool fill on screen blend"></amx-player>
+        <figcaption>
+          <span class="cap">One warm wash behind the subject and one cool wash
+            elsewhere, both fading to a transparent stop and both on
+            <code class="inline">blend: "screen"</code> so they can only ever
+            add light. The washes drift on <code class="inline">noise</code>,
+            which is why the plate is never quite still.</span>
+          <a class="src" href="./scenes/two_point_light.amx">two_point_light.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Marching ants</h3>
+        <amx-player src="./scenes/marching_ants.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="An animated dash offset on a rule and a frame"></amx-player>
+        <figcaption>
+          <span class="cap">A <code class="inline">dash_pattern</code> whose
+            <code class="inline">dash_offset</code> animates is the cheapest
+            live edge there is. Step the offset by exactly one dash period per
+            beat and the loop is seamless — the frame's dashes run the other
+            way for free.</span>
+          <a class="src" href="./scenes/marching_ants.amx">marching_ants.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Count-up ticker</h3>
+        <amx-player src="./scenes/count_up.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A number counting up, driven by an always block"></amx-player>
+        <figcaption>
+          <span class="cap">Text is a property like any other, so
+            <code class="inline">always { kpi.text = format(…) }</code>
+            recompiles the glyphs on the frames the string changes. Ease the
+            counter by hand — a number that arrives linearly reads as a
+            spreadsheet, not as a reveal.</span>
+          <a class="src" href="./scenes/count_up.amx">count_up.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Camera push and pan</h3>
+        <amx-player src="./scenes/camera_push.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A scene camera pushing in and panning across a wide plate"></amx-player>
+        <figcaption>
+          <span class="cap"><code class="inline">camera.zoom</code> magnifies
+            about the scene center and <code class="inline">camera.at</code>
+            slides the picture; both are ordinary timed assignments, so
+            <code class="inline">ease:</code> works as it does anywhere. Note
+            the pan: <code class="inline">at</code> is applied
+            <em>after</em> <code class="inline">zoom</code>, so centring a plate
+            230 px off-centre at 1.8× takes 414 px.</span>
+          <a class="src" href="./scenes/camera_push.amx">camera_push.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Word-by-word reveal</h3>
+        <amx-player src="./scenes/word_reveal.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A caption drawn in word by word"></amx-player>
+        <figcaption>
+          <span class="cap">A caption that appears as one block arrives as a
+            rectangle of text. <code class="inline">draw-in [by: word]</code>
+            walks it a word at a time, and a
+            <code class="inline">delay:</code> on the second line gives the two
+            a call-and-response instead of a chorus.</span>
+          <a class="src" href="./scenes/word_reveal.amx">word_reveal.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Analytic sparks</h3>
+        <amx-player src="./scenes/analytic_sparks.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A particle burst computed from seeds, not simulated"></amx-player>
+        <figcaption>
+          <span class="cap">No particle system: each spark's position is a
+            function of its seed and its age, with gravity as
+            <code class="inline">age²</code>. That is deterministic frame by
+            frame, so it scrubs backwards exactly as far as it scrubs forwards —
+            and <code class="inline">seeded_noise</code> is what makes the seeds
+            agree across platforms.</span>
+          <a class="src" href="./scenes/analytic_sparks.amx">analytic_sparks.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>Bloom, not blur</h3>
+        <amx-player src="./scenes/bloom_stage.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A blur and a bloom in one filter scope"></amx-player>
+        <figcaption>
+          <span class="cap">A filter pass can now read the frame as it looked
+            <em>before</em> the chain ran. <code class="inline">Blur</code> then
+            <code class="inline">Bloom</code> in one scope is a glow — the blur
+            smears, the bloom adds that smear back onto the untouched plate.
+            Blur alone is out of focus; bloom alone is an exposure bump; the pair
+            is a light source.</span>
+          <a class="src" href="./scenes/bloom_stage.amx">bloom_stage.amx ↗</a>
+        </figcaption>
+      </figure>
+    </div>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">—</span><h2>Steal the pack</h2></div>
+      <p>
+        The same moves are packaged as components in
+        <code class="inline">examples/lib/light.amx</code> —
+        <code class="inline">KeyLight</code>, <code class="inline">CoolLight</code>,
+        <code class="inline">MarchingRail</code>, <code class="inline">Ticker</code>
+        and <code class="inline">Breather</code> — so a lit stage is four
+        declarations. One rule comes with them: a component that writes a
+        property from <code class="inline">always</code> owns it, so enter those
+        actors with <code class="inline">fade-in</code>, never with
+        <code class="inline">settle-in</code> or <code class="inline">pop-in</code>.
+      </p>
+    </section>
+  </div>
+
+  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+  <script src="../site-chrome.js" data-root="../" data-section="recipes"></script>
+</body>
+</html>

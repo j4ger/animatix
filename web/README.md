@@ -21,6 +21,9 @@ web/tour/                    "The language" — a ten-section tour, 9 live scene
                              tour/lib/components.amx is the shared component library,
                              tour/stills/textmath.png the one non-live plate
 web/gallery.html             scene gallery — the seven transformer scenes as embeds
+web/recipes/                 the recipes gallery — seven single-move scenes (light, dash,
+                             ticker, camera, word reveal, sparks, bloom) as live embeds,
+                             each with its .amx one click away; recipes/scenes/ holds them
 web/demos/                   demo hub (course-style cards + posters) and the demos themselves:
                              demos/transformer/  the transformer walkthrough (7 scenes)
                              demos/epicycles/    Fourier epicycles walkthrough (5 scenes)

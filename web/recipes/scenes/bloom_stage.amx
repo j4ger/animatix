@@ -1,0 +1,35 @@
+// bloom_stage.amx — the ABI v2 second input, spent.
+//
+// `Blur` then `Bloom` in one scope is a glow: the chain hands the bloom the
+// blurred frame at binding 0 and the untouched frame at binding 5, so it adds
+// light back onto the plate instead of replacing it. Blur alone smears; bloom
+// alone brightens; the pair is what makes a bulb look like a bulb.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
+
+stage: Filter, anchor: scene.center {
+  soft: Blur, radius: 0
+  glow: Bloom, intensity: 0
+  art: Group, anchor: scene.center {
+    plate: Rect, size: (420, 240), color: "#0b1017", corner_radius: 18
+    bulb: Ellipse, size: (54, 54), at: (-120, 0), color: "#ffe9c7"
+    bulb2: Ellipse, size: (38, 38), at: (0, 30), color: "#ffd60a"
+    bulb3: Ellipse, size: (26, 26), at: (120, -26), color: "#ff9f0a"
+    rule: Path, commands: {move_to(-170, 80), line_to(170, 80)},
+      stroke: accent.info, stroke_width: 2, fill_opacity: 0.0, dash_pattern: {10, 7}
+  }
+}
+
+#0s
+fade-in stage [400ms]
+// The smear arrives first, then the bloom spends it. Radius and intensity
+// animate on the same beat so the frame never reads as merely out of focus.
+soft.radius = 0
+glow.intensity = 0
+#1s
+soft.radius = 16 [1200ms, ease: ease-in-out]
+glow.intensity = 0.9 [1200ms, ease: ease-in-out]
+#4s
+soft.radius = 6 [1000ms, ease: ease-in-out]
+glow.intensity = 0.55 [1000ms, ease: ease-in-out]
