@@ -1970,7 +1970,7 @@ func: (x) => {
 }
 ```
 
-**Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `atan2(y, x)`, `clamp(val, min, max)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `floor(x)`, `ceil(x)`, `lerp(a, b, t)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
+**Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `atan2(y, x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `pow(x, y)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `hypot(a, b)`, `floor(x)`, `ceil(x)`, `round(x)`, `fract(x)`, `rem(a, b)`, `signum(x)`, `step(edge, x)`, `clamp(val, min, max)`, `lerp(a, b, t)`, `deg(x)`, `rad(x)`, `sum(list)`, `factorial(n)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
 
 **Series helpers:**
 - `factorial(n)` — factorial of a non-negative integer (`170` max before overflow); non-integer or negative arguments are errors.
