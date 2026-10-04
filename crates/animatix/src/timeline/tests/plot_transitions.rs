@@ -165,7 +165,13 @@ fn basic_func_transition_cartesian() {
     let t = &track.func_transitions[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000 (2s)");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000 (2s + 1s)");
-    assert_eq!(t.easing, Easing::Linear, "default easing should be Linear");
+    // An uneased timed statement now defaults by role; a function swap is a
+    // transition between two on-screen states, so it eases in and out.
+    assert_eq!(
+        t.easing,
+        Easing::EaseInOut,
+        "default easing for an uneased transition should be the reposition curve"
+    );
     assert_eq!(t.blend_mode, FuncBlendMode::Output, "default blend should be Output");
 
     // from and to should both have arity 1.

@@ -13,7 +13,7 @@ Use these rules when generating `.amx` files:
 - Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`, `Callout`, `Legend`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
-- Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`.
+- Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`. Omitting `ease:` is usually right: the default is chosen by the statement's role (entrances decelerate, exits accelerate, repositions ease both ways) rather than linear.
 - `sequence`/`stagger` may contain actions, assignments, `let`, and nested `sequence`/`stagger`; actor declarations inside them are rejected.
 - Asset paths in examples should point to files that exist under `examples/assets/`.
 
@@ -291,6 +291,21 @@ config { colorscheme: "forest" }
 [path_arc: 1.57]         // Morph control (path-morphing only)
 [stretch: true]           // Bounds-normalized morph
 ```
+
+**Default easing is chosen by role.** A timed statement with no `ease:` is not
+linear any more — linear is the one curve the motion craft tables rule out for
+anything but a continuous loop, and "the eye forgives a slow start far less than
+a slow end":
+
+| The statement is | Default | Why |
+|------------------|---------|-----|
+| an entrance (`fade-in`, `wipe-in`, `reveal-in`, `draw-in`, `settle-in`, `pop-in`) | `expo-out` | arrivals decelerate into place |
+| an exit (`fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `remove`) | `ease-in` | departures accelerate away |
+| a reposition (any other action, or an assignment with a duration) | `ease-in-out` | it starts and ends at rest |
+| an oscillating effect (`shake`, `pulse`, `bounce`, `highlight`) | `linear` | the shape *is* the effect; easing it softens it |
+
+An explicit `ease:` always wins, and `ease: linear` still means linear. A
+statement with no duration has nothing to ease.
 
 ### Easing curves
 
