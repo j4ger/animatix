@@ -1,0 +1,90 @@
+// light_camera.amx — tour §06: the light vocabulary, then the camera that moves it.
+//
+// The point of the section is that "alive" is additive and each layer is one
+// line: a flat plate, then a warm key, then a cool fill, then a dash that keeps
+// travelling after the entrances have landed, then a bloom that turns the smear
+// into a light source — and only at the end does the camera push in, because a
+// camera move on a flat scene is just a zoom on a flat scene.
+//
+// The two washes are `blend: "screen"` with radial ramps that fade to a
+// transparent stop, so they can only ever add light: whatever they overlap stays
+// readable. The bulb sits inside the `Filter` scope with the blur, so the bloom
+// can read the frame as it looked before the chain ran (see §05).
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.6 }
+
+key: Ellipse, size: (760, 760), at: (470, 300), blend: "screen", opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (55%, "#f5b9420f"), (100%, "#f5b94200")})
+fill: Ellipse, size: (620, 620), at: (860, 470), blend: "screen", opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#64d2ff2b"), (55%, "#64d2ff0c"), (100%, "#64d2ff00")})
+
+stage: Filter, anchor: scene.center {
+  soft: Blur, radius: 0
+  glow: Bloom, intensity: 0
+  art: Group, anchor: scene.center {
+    plate: Rect, size: (560, 300), corner_radius: 24,
+      fill_gradient: linear(135, {"#1b2534", "#0b1017"}),
+      stroke: stroke.default, stroke_width: 2
+    bulb: Ellipse, size: (84, 84), at: (-160, -20), color: "#ffe9c7"
+    chip: Rect, size: (210, 26), at: (60, -40), corner_radius: 13,
+      fill_gradient: linear(90, {"#ff8666", "#8ab4f6"})
+    rail: Path, commands: {move_to(-220, 86), line_to(220, 86)},
+      stroke: accent.info, stroke_width: 2, fill_opacity: 0.0, dash_pattern: {12, 8}
+    cap: Text, text: "lit, not flat", font_size: 26, color: text.primary, at: (0, -108)
+  }
+}
+
+#0s
+fade-in cap [400ms, ease: expo-out]
+settle-in plate [500ms, ease: expo-out]
+pop-in bulb [460ms, ease: expo-out]
+pop-in chip [420ms, ease: expo-out]
+fade-in rail [400ms, ease: expo-out]
+camera.zoom = 1.0
+camera.at = (0, 0)
+
+// One warm key behind the subject. Everything above it gains a direction.
+#1.3s
+fade-in key [600ms, ease: ease-out]
+
+// …and the cool fill on the other side, so the dark is not the absence of light
+// but the shadow side of a lit stage.
+#2.2s
+fade-in fill [600ms, ease: ease-out]
+
+// A live edge: the dashes travel on their own beat and keep going. One full dash
+// period (12 + 8) per beat, so the loop is seamless.
+#3.0s
+rail.dash_offset = 0
+rail.dash_offset = 40 [1s, ease: linear]
+#4.0s
+rail.dash_offset = 80 [1s, ease: linear]
+
+// The smear arrives with the light that spends it, so no frame reads as merely
+// out of focus. `intensity` stops short of 1.0 on purpose: the chain acts on the
+// whole scope, and at 0.85 the bright chip's ramp blows out to white and the
+// caption grows a halo — the bulb is the thing that should be reading as a light
+// source.
+#4.4s
+soft.radius = 10 [900ms, ease: ease-in-out]
+glow.intensity = 0.5 [900ms, ease: ease-in-out]
+
+// Last, and only after the scene is worth looking at: the camera pushes in.
+#6.0s
+camera.zoom = 1.35 [1100ms, ease: expo-out]
+camera.at = (-60, 20) [1100ms, ease: expo-out]
+
+// Outro: the picture returns to where it started before the wrap.
+#7.6s
+stagger [80ms] {
+  fade-out cap [350ms, ease: ease-in]
+  fade-out bulb [350ms, ease: ease-in]
+  fade-out chip [350ms, ease: ease-in]
+  fade-out rail [350ms, ease: ease-in]
+  fade-out plate [400ms, ease: ease-in]
+}
+camera.zoom = 1.0 [900ms, ease: ease-in-out]
+camera.at = (0, 0) [900ms, ease: ease-in-out]
+soft.radius = 0 [700ms, ease: ease-in-out]
+glow.intensity = 0 [700ms, ease: ease-in-out]

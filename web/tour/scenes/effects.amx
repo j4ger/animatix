@@ -28,6 +28,11 @@ wash: Ellipse, size: (760, 760), at: (640, 360),
 
 panel: Filter, anchor: scene.center {
   soft: Blur, radius: 0
+  // Declared after the blur on purpose: a filter pass reads what the previous
+  // pass produced *and* the frame as it looked before the chain, so `Blur` then
+  // `Bloom` in one scope is a light source. Bloom alone would be an exposure
+  // bump; the pair is what makes the sphere read as lit.
+  glow: Bloom, intensity: 0, keep: 1.0
   grade: ColorGrade, brightness: 1.0
   vig: Vignette, amount: 0, radius: 0.55, softness: 0.7
   art: Group, anchor: scene.center {
@@ -47,7 +52,8 @@ panel: Filter, anchor: scene.center {
 label: Text, text: "filters are declared as children", font_size: 24,
   color: text.primary, at: (640, 168)
 
-capB: Text, text: "blur radius 0 -> 14", font_size: 22, color: text.secondary,
+capB: Text, text: "blur radius 0 -> 14, bloom 0 -> 1", font_size: 22,
+  color: text.secondary,
   at: (640, 660), opacity: 0.0
 capV: Text, text: "vignette 0.75", font_size: 22, color: text.secondary,
   at: (640, 660), opacity: 0.0
@@ -88,6 +94,12 @@ fade-in capB [200ms, ease: expo-out]
 #1.8s
 panel.soft.radius = 14 [1.2s, ease: ease-out]
 
+// The glow lands on the smeared frame. Bloom spends the second input — the
+// light comes from what the scene looked like *before* the chain ran, so the
+// sphere stays a sphere while everything around it keeps its softness.
+#2.3s
+panel.glow.intensity = 1.0 [0.5s, ease: ease-out]
+
 #2.9s
 fade-out capB [200ms, ease: ease-in]
 
@@ -100,6 +112,7 @@ panel.vig.amount = 0.75 [0.8s, ease: ease-in-out]
 
 #3.2s
 panel.soft.radius = 0 [1s, ease: ease-out]
+panel.glow.intensity = 0 [0.7s, ease: ease-out]
 
 #4.1s
 fade-out capV [200ms, ease: ease-in]

@@ -16,7 +16,8 @@ web/site.css                 shared dark "instrument" stylesheet for the whole s
 web/site-chrome.js           shared nav + footer + timeline chrome (scroll playhead,
                              keyframe stamps, hover-play, theater), injected per page
 web/index.html               project homepage — hero scene, features, demo entry points
-web/tour/                    "The language" — a ten-section tour, 9 live scenes + 1 still,
+web/tour/                    "The language" — an eleven-section tour with 10 live
+                             scenes and 1 still,
                              every live figure editable in place (tour/editor.js);
                              tour/lib/components.amx is the shared component library,
                              tour/stills/textmath.png the one non-live plate
