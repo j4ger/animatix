@@ -1,0 +1,14 @@
+config { colorscheme: "neon-night", resolution: (960, 540), duration: 4 }
+
+route: Path, commands: {move_to(120, 420), curve_to(320, 60, 640, 60, 840, 420)},
+  stroke: accent.info, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {6, 8}
+
+craft: Polygon, points: {(18, 0), (-12, 11), (-12, -11)}, at: (120, 420),
+  color: "#ffd60a", fill_opacity: 1.0
+
+#0s
+fade-in route [400ms]
+fade-in craft [300ms]
+#0.4s
+move craft [along: {move_to(120, 420), curve_to(320, 60, 640, 60, 840, 420)}, 3s, orient: true]

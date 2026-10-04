@@ -27,6 +27,20 @@ fn motion_timing_params() -> Vec<ActionParam> {
             type_info: "positive number".to_string(),
         },
         ActionParam {
+            name: "along".to_string(),
+            description: "Route to travel instead of a translation, as a list of path \
+                          commands sampled by arc length (e.g. [along: {move_to(100, 100), \
+                          line_to(500, 300)}]). Move verbs only."
+                .to_string(),
+            type_info: "path command list".to_string(),
+        },
+        ActionParam {
+            name: "orient".to_string(),
+            description: "With 'along', turn the actor to face its direction of travel."
+                .to_string(),
+            type_info: "bool".to_string(),
+        },
+        ActionParam {
             name: "anticipate".to_string(),
             description: "Counter-move window before the travel starts, e.g. [anticipate: 80ms]. \
                           The actor leans back by a fraction of its travel first."
@@ -197,11 +211,20 @@ impl BuiltinAction for Move {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        // `move target along: {…} [2s]` traces a route instead of translating:
+        // the path is sampled by arc length and baked into position (and, with
+        // `orient: true`, rotation) keyframes, so the motion is exact under
+        // scrubbing and needs no frame-time state.
+        if let Some(along) = action.modifiers.iter().find(|m| m.name.as_deref() == Some("along")) {
+            run_move_along(action, along, time_ms, timeline, diagnostics);
+            return;
+        }
         let Some(target_offset) = parse_vec2_modifier(
             &action.modifiers,
             timeline,
             "to",
-            "Move action requires a 'to' vec2 modifier such as [to: (140, -40)].",
+            "Move action requires a 'to' vec2 modifier such as [to: (140, -40)], \
+             or an 'along' path such as [along: {move_to(100, 100), line_to(500, 300)}].",
             diagnostics,
         ) else {
             return;
@@ -270,6 +293,152 @@ impl BuiltinAction for Move {
             );
         }
     }
+}
+
+/// Expand `move … [along: {…}]` into arc-length-sampled keyframes.
+fn run_move_along(
+    action: &Action,
+    along: &crate::ast::Modifier,
+    time_ms: f64,
+    timeline: &mut Timeline,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["along", "orient"]);
+    let parsed = parse_timing_modifiers(
+        &timing_modifiers,
+        ModifierHost::Action,
+        Some(&action.verb),
+        diagnostics,
+    );
+    if parsed.duration_ms <= 0.0 {
+        diagnostics.push(Diagnostic::warning(
+            DiagnosticCode::InvalidModifierValue,
+            DiagnosticPhase::Build,
+            "`move … [along: …]` needs a duration, e.g. [along: {…}, 2s].".to_string(),
+        ));
+        return;
+    }
+    let orient = action
+        .modifiers
+        .iter()
+        .find(|m| m.name.as_deref() == Some("orient"))
+        .is_some_and(|m| matches!(m.value, crate::ast::Expr::Bool(true)));
+
+    let t_start_ms = (time_ms + parsed.delay_ms) as u64;
+    let t_end_ms = (time_ms + parsed.delay_ms + parsed.duration_ms) as u64;
+    let span = t_end_ms.saturating_sub(t_start_ms);
+    let samples = (span / 40).clamp(8, 48) as usize;
+
+    for target in &action.targets {
+        if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
+            continue;
+        }
+
+        // Resolve and sample the route before touching any track: the path
+        // expression reads the build environment, and the keyframe writes below
+        // need `timeline` mutably.
+        let points = {
+            let env = &timeline.env;
+            match crate::timeline::shapes::parse_path_commands_expr(&along.value, env) {
+                Some(path) => sample_path_along(&path, samples).unwrap_or_default(),
+                None => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidModifierValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "`{target}`: 'along' expects a list of path commands, e.g. \
+                                 {{move_to(100, 100), line_to(500, 300)}}"
+                            ),
+                        )
+                        .with_subject(target),
+                    );
+                    Vec::new()
+                },
+            }
+        };
+        if points.is_empty() {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidModifierValue,
+                    DiagnosticPhase::Build,
+                    format!("`{target}`: the 'along' path has no length to travel"),
+                )
+                .with_subject(target),
+            );
+            continue;
+        }
+
+        let track = match timeline.tracks.get_mut(target) {
+            Some(t) => t,
+            None => continue,
+        };
+        // Positions are absolute scene coordinates: the route is drawn where the
+        // actor should go, so the authored `at` only matters before it starts.
+        // Intermediate samples are linear (equal arc-length spacing *is* the
+        // constant speed); the authored ease applies to the final segment.
+        for (i, (point, angle)) in points.iter().enumerate() {
+            let at = t_start_ms + (span as f64 * (i as f64 / samples as f64)) as u64;
+            let easing = if i == samples {
+                parsed.easing
+            } else {
+                Easing::Linear
+            };
+            track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                at.min(t_end_ms),
+                [point.x as f32, point.y as f32],
+                easing,
+            );
+            if orient {
+                track.geometry.rotation.ensure(0.0).add_keyframe(
+                    at.min(t_end_ms),
+                    *angle as f32,
+                    easing,
+                );
+            }
+        }
+    }
+}
+
+/// Sample `count + 1` points evenly spaced **by arc length** through `path`,
+/// each with the direction of travel there.
+///
+/// Arc length is what makes the travel read as constant speed: parameterizing by
+/// the bezier parameter would crawl through tight curves and sprint along long
+/// straights. The positions come from `trim_path_by_progress` — the same
+/// arc-length machinery `draw-in` uses — so a route and its trace cannot drift
+/// apart, and the direction is the chord between neighbours.
+fn sample_path_along(path: &kurbo::BezPath, count: usize) -> Option<Vec<(kurbo::Point, f64)>> {
+    // A zero-length trim yields an empty path with no current position, so the
+    // route's start is taken from the path itself rather than from sample 0.
+    let start = path.iter().find_map(|el| match el {
+        kurbo::PathEl::MoveTo(p) => Some(p),
+        _ => None,
+    })?;
+    let points: Vec<kurbo::Point> = (0..=count)
+        .map(|i| {
+            crate::timeline::path_progress::trim_path_by_progress(path, i as f64 / count as f64)
+                .current_position()
+                .unwrap_or(start)
+        })
+        .collect();
+    if points.len() < 2 {
+        return None;
+    }
+
+    let mut out = Vec::with_capacity(points.len());
+    for (i, point) in points.iter().enumerate() {
+        // The heading at a sample is the chord that reaches it; the first
+        // sample has no chord behind it, so it borrows the one ahead.
+        let (a, b) = if i == 0 {
+            (points[0], points[1])
+        } else {
+            (points[i - 1], *point)
+        };
+        let heading = (b.y - a.y).atan2(b.x - a.x);
+        out.push((*point, heading));
+    }
+    Some(out)
 }
 
 /// Fraction of the travel an `[anticipate: …]` counter-move leans back by.

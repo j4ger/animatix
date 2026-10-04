@@ -3552,3 +3552,58 @@ fade-in box [200ms]
         "an actor that never authors scale gets no track, and renders at the 1.0 default"
     );
 }
+
+#[test]
+fn move_along_bakes_arc_length_keyframes_onto_the_route() {
+    // `move … [along: {…}]` must land on the route at constant speed: sampling by
+    // arc length is the whole point, since the bezier parameter would crawl
+    // through the curve and sprint along the straight.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+dot: Ellipse, size: (20, 20), at: (100, 100), color: accent.primary, opacity: 1.0
+
+#0s
+dot.at = (100, 100)
+#0.5s
+move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "Parse errors: {errors:?}");
+    let report = crate::timeline::Timeline::build_with_diagnostics(
+        ast.as_ref().unwrap(),
+        &std::collections::HashMap::new(),
+    );
+    let offenders: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code != crate::diagnostics::DiagnosticCode::NeverRevealed)
+        .collect();
+    assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
+    let timeline = report.output;
+    use crate::timeline::read_property_value;
+    let schema = crate::timeline::property_registry::lookup_property("position").unwrap();
+    let track = timeline.tracks.get("dot").unwrap();
+    let at = |ms: u64| match read_property_value(track, schema.field, ms) {
+        Some(crate::timeline::PropertyValue::Vec2(v)) => v,
+        other => panic!("expected a position at {ms}ms, got {other:?}"),
+    };
+
+    // 2.5s is the far end of the 2s travel; 1.5s is the halfway mark, which on a
+    // 400-unit straight route must sit at x = 300 (arc length, not the parameter).
+    let mid = at(1500);
+    assert!(
+        (mid[0] - 300.0).abs() < 6.0,
+        "the halfway sample must sit at the half-length point, got {mid:?}"
+    );
+    let end = at(2500);
+    assert!(
+        (end[0] - 500.0).abs() < 2.0 && (end[1] - 100.0).abs() < 2.0,
+        "the route's end must be reached, got {end:?}"
+    );
+    // Keyframed densely enough that a curve route reads as smooth.
+    assert!(
+        track.geometry.position.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) > 8,
+        "the route must be baked into many samples"
+    );
+}

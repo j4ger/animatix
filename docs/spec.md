@@ -368,7 +368,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | `fade-in`, `fade-out`, `draw-in`, `draw-out`, `wipe-in`, `wipe-out`, `reveal-in`, `reveal-out` | `verb target [duration, delay, ease]` |
 | `settle-in` | `settle-in target [duration, delay, ease]` — fade plus a few percent of scale, so the actor arrives instead of appearing |
 | `pop-in` | `pop-in target [duration, delay, ease]` — fade plus a scale-up with a back overshoot |
-| `move` | `move target [to: Vec2, duration, ease, anticipate]` |
+| `move` | `move target [to: Vec2 \| along: {commands}, orient, duration, ease, anticipate]` |
 | `shift` | `shift target [by: Vec2, duration, ease, anticipate]` |
 | `rotate` | `rotate target [by: Num, duration, ease]` |
 | `scale` | `scale target [by: Num, duration, ease]` |
@@ -392,6 +392,27 @@ onto the actor's own authored scale, so an element comes to rest rather than
 being dialled up in opacity alone. `settle-in` starts at 92% size and arrives on
 `expo-out`; `pop-in` starts at 60% and arrives on `back` (one overshoot). An
 explicit `ease:` overrides the preset's arrival curve.
+
+**Motion along a path.** `move target [along: {…}, 2s]` travels a route instead
+of translating. The commands are the same list `Path, commands:` takes, sampled
+**by arc length** through the same machinery `draw-in` trims with — so the actor
+holds a constant speed instead of crawling through tight curves and sprinting
+along straights, and the route and its trace cannot drift apart. Add
+`orient: true` to turn the actor to face its direction of travel.
+
+```animatix
+craft: Polygon, points: {(18, 0), (-12, 11), (-12, -11)}, at: (120, 420),
+  color: "#ffd60a"
+#0.4s
+move craft [along: {move_to(120, 420), curve_to(320, 60, 640, 60, 840, 420)},
+            3s, orient: true]
+```
+
+Positions are absolute scene coordinates — the route is drawn where the actor
+should go, so its authored `at` only matters before the travel starts. The
+expansion happens at build time (48-odd keyframes, one per ~40 ms), which keeps
+the motion exact under scrubbing and costs nothing per frame. See
+`dogfood/probe_move_along.amx`.
 
 **Anticipation.** `move` and `shift` accept `[anticipate: 80ms]`: before the
 travel starts, the actor leans back by 12% of its distance over that window.
