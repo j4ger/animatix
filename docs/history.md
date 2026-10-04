@@ -925,7 +925,7 @@ into `main` (both branches appear in `git branch --merged main`). Source plan:
 | Phase | Deliverable | Outcome |
 |---|---|---|
 | 1 | Shared `lib/` design system + `theme_studio.amx` | Done; engine workarounds documented in the plan (positioned components wrapped in `Group`, Text wrapped in `Group` inside `Col`) |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | Done 2026-08-24; engine fixes landed with it (`docs/handoff_phase2.md`) |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | Done 2026-08-24; engine fixes landed with it (see "Resolved Engine Bugs (gallery-era)" above) |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | Done 2026-08-25; `sorting_theatre` uses `dynamic_layout`, build-time sort precomputation, and `swap` actions |
 | 4 | `brand_reel/` capstone | Done 2026-08-25; all six `play` transitions, `persist`, audio, cross-file scenes; multi-scene zero-duration bug fixed |
 | 5 | Tutorial refurbishment + README matrix + `scripts/check_examples.sh` | Done 2026-08-25; `animation/16_showcase.amx` and `composition/20_feature_reel.amx` superseded by the gallery |
@@ -1472,11 +1472,13 @@ than erroring.
 
 ## Phase 2 handoff — closed out (2026-10-03)
 
-`docs/handoff_phase2.md` left six candidates for "Phase 3". Five turned out to
-be already closed by later sessions; the sixth — `BarChart` missing from the
-`gap` applicability row — was still open and is now fixed. The handoff records,
-for each item, the commit and the test that fails if the fix is undone, rather
-than prose claiming it works.
+The phase-2 gallery handoff (removed 2026-10-04 as redundant with this section —
+recover it from git history if needed) left six candidates for "Phase 3". Five
+turned out to be already closed by later sessions; the sixth — `BarChart`
+missing from the `gap` applicability row — was still open and is now fixed. The
+handoff recorded, for each item, the commit and the test that fails if the fix
+is undone rather than prose claiming it works; that evidence lives in the
+commits and tests named below.
 
 ### The BarChart `gap` row
 

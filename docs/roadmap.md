@@ -342,8 +342,9 @@ scene then gets checked for the first time — expect a real wave of findings
 (`check_examples.sh` currently reports 19 allowed warnings; this could triple
 that) and duplicates to dedupe first. Worth doing, not a drive-by.
 
-This came out of closing the last open item in `docs/handoff_phase2.md`
-(`BarChart` missing from the `gap` applicability row), which also produced
+This came out of closing the last open item of the phase-2 gallery handoff
+(closure record in `docs/history.md`, "Phase 2 handoff — closed out";
+`BarChart` missing from the `gap` applicability row), which also produced
 `bar_chart_gap_is_applicable_to_bar_chart` in
 `crates/animatix/tests/applicability_table_agrees_with_reads.rs` — the generic
 test in that file cannot see BarChart, because the chart's properties are read by

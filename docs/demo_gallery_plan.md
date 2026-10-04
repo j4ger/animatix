@@ -121,8 +121,8 @@ Division of labor vs `dogfood/projects/sorting-visualizer`: dogfood stays the
 single-pass grammar probe; the gallery version is the polished multi-scene piece.
 
 ### G3 `dashboard_story.amx` — "One-Screen Data Story" (~50s, 5 scenes)
-**Status: implemented.** Five scenes render cleanly; see `docs/handoff_phase2.md`
-for the exact smoke times and engine workarounds used.
+**Status: implemented.** Five scenes render cleanly; engine workarounds used are
+recorded in `docs/history.md` ("Resolved Engine Bugs (gallery-era)").
 
 Beats: ① KPI row of `MetricCard` instances popping in with count-up text
 override; ② weekly bar chart built from `Rect` bars + coordinate `Callout` on
@@ -228,7 +228,7 @@ Constraint: teaching files stay single-purpose; polish must not bloat them.
 | Phase | Contents | Acceptance |
 |---|---|---|
 | 1 | rewrite `lib/` + bilingual render spike + `theme_studio.amx` | ✅ clean check + PNG smoke |
-| 2 | `motion_poster.amx` + `dashboard_story.amx` | ✅ both (2026-08-24, on `feat/demo-gallery-p2`; see `docs/handoff_phase2.md`) |
+| 2 | `motion_poster.amx` + `dashboard_story.amx` | ✅ both (2026-08-24, on `feat/demo-gallery-p2`) |
 | 3 | `epicycles.amx` + `sorting_theatre.amx` | ✅ both (2026-08-25; epicycles wave-reveal polish pending) |
 | 4 | `brand_reel/` capstone → delete 16/20 → README points to gallery | ✅ WIP complete (2026-08-25): all six transitions, persist chain, Audio, cross-file scenes; polish pending |
 | 5 | full tutorial-track refurbishment (§7) + README matrix + smoke-script extension | ✅ all (2026-08-25): full track on shared lib (basics/layout/animation/data/components/generation), 07_plots micro-story + 17_audio_reactive for-generation rewrites, README Gallery matrix, `scripts/render_smoke.sh` added — 42/42 check + render green |
