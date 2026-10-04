@@ -3326,3 +3326,64 @@ move dot [to: (200, 0), 500ms, anticipate: 100ms]
         "the travel must still land on the authored offset, got {landed:?}"
     );
 }
+
+#[test]
+fn cli_defines_shadow_the_authored_let_defaults() {
+    // `--set NAME=VALUE` is the template × data seam: the file declares its
+    // defaults with a top-level `let`, and the command line replaces them
+    // before anything resolves against the build environment.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+let label = "Default"
+let tint = (1.0, 0.0, 0.0, 1.0)
+
+t: Text, text: label, at: (200, 180), color: tint
+u: Text, text: label, at: (200, 240)
+
+#0s
+fade-in t [200ms]
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let ast = ast.expect("parsed AST");
+    let namespaces = std::collections::HashMap::new();
+
+    let defines = vec![
+        ("label".to_string(), "\"Overridden\"".to_string()),
+        ("tint".to_string(), "(0.0, 1.0, 0.0, 1.0)".to_string()),
+    ];
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics_and_defines(&ast, &namespaces, &defines);
+    let owned: Vec<String> = report.diagnostics.iter().map(|d| format!("{:?}", d.code)).collect();
+    assert!(
+        owned.iter().all(|c| c.contains("NeverRevealed")),
+        "the override must not introduce diagnostics, got {owned:?}"
+    );
+    let timeline = report.output;
+
+    // The override must reach the *resolved* properties, not just the
+    // environment — re-applying the values after the walk would leave every
+    // property that already resolved against them at its authored default.
+    use crate::timeline::read_property_value;
+    let sampled = |label: &str, prop: &str| {
+        let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
+        let track = timeline.tracks.get(label).unwrap();
+        read_property_value(track, schema.field, 0)
+            .unwrap_or_else(|| (schema.default_value)(&track.caps))
+    };
+    assert_eq!(
+        sampled("t", "text"),
+        crate::timeline::PropertyValue::String("Overridden".to_string()),
+        "`--set label` must reach text resolved during the walk"
+    );
+    assert_eq!(
+        sampled("u", "text"),
+        crate::timeline::PropertyValue::String("Overridden".to_string())
+    );
+    assert_eq!(
+        sampled("t", "color"),
+        crate::timeline::PropertyValue::Color([0.0, 1.0, 0.0, 1.0]),
+        "`--set tint` must reach the fill"
+    );
+}

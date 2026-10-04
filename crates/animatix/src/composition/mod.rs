@@ -197,8 +197,27 @@ impl BuildTarget {
         source_path: Option<&std::path::Path>,
         context: std::sync::Arc<crate::extension_context::ExtensionContext>,
     ) -> BuildReport<Self> {
+        Self::from_ast_with_context_and_defines(statements, namespaces, source_path, context, &[])
+    }
+
+    /// Build from AST with `--set NAME=VALUE` overrides applied to the build
+    /// environment. Overrides reach a single-scene program; a multi-scene
+    /// composition reports that they do not reach it yet rather than applying
+    /// them to some scenes only.
+    pub fn from_ast_with_context_and_defines(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+        source_path: Option<&std::path::Path>,
+        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
+        defines: &[(String, String)],
+    ) -> BuildReport<Self> {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
+        if has_scenes && !defines.is_empty() {
+            tracing::warn!(
+                "--set overrides are not applied to a multi-scene program; the composition builds each scene from its own source"
+            );
+        }
         let mut report = if has_scenes {
             let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
                 statements,
@@ -213,7 +232,7 @@ impl BuildTarget {
                 diagnostics: report.diagnostics,
             }
         } else {
-            let report =
+            let report = if defines.is_empty() {
                 Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
                     statements,
                     namespaces,
@@ -221,7 +240,10 @@ impl BuildTarget {
                     crate::timeline::BuildQuality::Production,
                     None,
                     context,
-                );
+                )
+            } else {
+                Timeline::build_with_diagnostics_and_defines(statements, namespaces, defines)
+            };
             let mut diags = report.diagnostics;
             for (label, &flag) in &report.output.persistence_flags {
                 if flag {

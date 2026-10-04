@@ -573,6 +573,10 @@ pub struct Timeline {
     /// Declared via `config { seamless_loop: true }`: the scene is replayed, so
     /// the build checks that its keyframed values wrap at the seam.
     pub(crate) seamless_loop: bool,
+    /// Names supplied on the command line via `--set NAME=VALUE`. They seed the
+    /// build environment before the walk and are re-applied after it, so a
+    /// template's own top-level `let` acts as a default rather than a blocker.
+    pub(crate) cli_defines: std::collections::HashSet<String>,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
     pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
     /// Build quality level used during timeline construction (Phase 6.3).
@@ -855,6 +859,7 @@ impl Timeline {
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,
             seamless_loop: false,
+            cli_defines: std::collections::HashSet::new(),
             asset_cache: std::sync::Arc::new(assets::AssetCache::new()),
             font_context,
             build_quality: BuildQuality::Production,

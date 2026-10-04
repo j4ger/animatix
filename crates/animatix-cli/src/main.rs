@@ -74,6 +74,12 @@ enum Commands {
     Image {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
+        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+        ///
+        /// The value is parsed as an Animatix expression, so a template's own
+        /// `let` is a default and the command line wins.
+        #[arg(long = "set", value_parser = parse_set_pair)]
+        set: Vec<(String, String)>,
 
         /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
         #[arg(long)]
@@ -100,6 +106,12 @@ enum Commands {
     Video {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
+        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+        ///
+        /// The value is parsed as an Animatix expression, so a template's own
+        /// `let` is a default and the command line wins.
+        #[arg(long = "set", value_parser = parse_set_pair)]
+        set: Vec<(String, String)>,
 
         /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
         #[arg(long)]
@@ -152,6 +164,12 @@ enum Commands {
     Gif {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
+        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+        ///
+        /// The value is parsed as an Animatix expression, so a template's own
+        /// `let` is a default and the command line wins.
+        #[arg(long = "set", value_parser = parse_set_pair)]
+        set: Vec<(String, String)>,
 
         /// Output GIF width (defaults to the file's `config { resolution: .. }`, else 640)
         #[arg(long)]
@@ -194,6 +212,12 @@ enum Commands {
     Check {
         /// Path to the .amx file (use "-" for stdin)
         file: String,
+        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+        ///
+        /// The value is parsed as an Animatix expression, so a template's own
+        /// `let` is a default and the command line wins.
+        #[arg(long = "set", value_parser = parse_set_pair)]
+        set: Vec<(String, String)>,
 
         /// Render one frame at time=0 to catch renderer bugs
         #[arg(long)]
@@ -213,6 +237,12 @@ enum Commands {
     Verify {
         /// Path to the .amx file
         input: PathBuf,
+        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+        ///
+        /// The value is parsed as an Animatix expression, so a template's own
+        /// `let` is a default and the command line wins.
+        #[arg(long = "set", value_parser = parse_set_pair)]
+        set: Vec<(String, String)>,
 
         /// Checks file (default: `verify.txt` in the input's directory)
         #[arg(long)]
@@ -473,12 +503,20 @@ fn is_native_library_path(path: &Path) -> bool {
     matches!(path.extension().and_then(|ext| ext.to_str()), Some("so" | "dylib" | "dll"))
 }
 
+/// Split a `--set NAME=VALUE` argument on the first `=`.
+fn parse_set_pair(raw: &str) -> Result<(String, String), String> {
+    let (name, value) =
+        raw.split_once('=').ok_or_else(|| format!("expected NAME=VALUE, got '{raw}'"))?;
+    Ok((name.trim().to_string(), value.trim().to_string()))
+}
+
 /// Loads an Animatix program from disk, expands components, and builds the
 /// appropriate target (single-scene `Timeline` or multi-scene `Composition`).
 /// Prints build diagnostics and exits on load failure.
 fn load_and_build(
     input: &Path,
     extensions: &CliExtensions,
+    defines: &[(String, String)],
 ) -> (BuildTarget, Vec<animatix_syntax::diagnostics::Diagnostic>) {
     let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
         Ok(mut program) => {
@@ -510,7 +548,13 @@ fn load_and_build(
         },
     };
     let context = std::sync::Arc::new(ctx);
-    let report = BuildTarget::from_ast_with_context(&ast, &namespaces, Some(input), context);
+    let report = BuildTarget::from_ast_with_context_and_defines(
+        &ast,
+        &namespaces,
+        Some(input),
+        context,
+        defines,
+    );
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);
     print_build_diagnostics(&all_diagnostics);
@@ -1050,6 +1094,7 @@ fn main() {
             debug_bounds,
             threads,
             export_preset,
+            set,
         } => {
             info!("Rendering Animatix GIF: {}", input.display());
             let (mut width, mut height, mut fps) = (width, height, fps);
@@ -1062,7 +1107,7 @@ fn main() {
                 height = Some(preset_values.height);
                 fps = preset_values.fps;
             }
-            let (target, _) = load_and_build(&input, &extensions);
+            let (target, _) = load_and_build(&input, &extensions, &set);
             if export_preset.is_none() {
                 let configured = match &target {
                     BuildTarget::SingleScene(timeline) => timeline.export_preset(),
@@ -1151,6 +1196,7 @@ fn main() {
             codec,
             preset,
             export_preset,
+            set,
         } => {
             info!("Rendering Animatix video: {}", input.display());
             let (mut width, mut height, mut fps, mut codec, mut preset) =
@@ -1166,7 +1212,7 @@ fn main() {
                 codec = preset_values.video_codec;
                 preset = preset_values.h264_preset;
             }
-            let (target, _) = load_and_build(&input, &extensions);
+            let (target, _) = load_and_build(&input, &extensions, &set);
             if export_preset.is_none() {
                 let configured = match &target {
                     BuildTarget::SingleScene(timeline) => timeline.export_preset(),
@@ -1348,9 +1394,10 @@ fn main() {
             time,
             output,
             debug_bounds,
+            set,
         } => {
             info!("Rendering Animatix image: {}", input.display());
-            let (target, _) = load_and_build(&input, &extensions);
+            let (target, _) = load_and_build(&input, &extensions, &set);
             let configured_resolution = configured_resolution(&target);
             let width = width.or(configured_resolution.map(|(w, _)| w)).unwrap_or(1280);
             let height = height.or(configured_resolution.map(|(_, h)| h)).unwrap_or(720);
@@ -1384,6 +1431,7 @@ fn main() {
             file,
             render_smoke,
             format,
+            set,
         } => {
             let (source, file_label) = if file == "-" {
                 let source = match std::io::read_to_string(std::io::stdin()) {
@@ -1444,7 +1492,7 @@ fn main() {
                 },
             };
             let context = std::sync::Arc::new(ctx);
-            let report = BuildTarget::from_ast_with_context(
+            let report = BuildTarget::from_ast_with_context_and_defines(
                 &ast,
                 &namespaces,
                 if file_label == "-" {
@@ -1453,6 +1501,7 @@ fn main() {
                     Some(std::path::Path::new(&file_label))
                 },
                 context,
+                &set,
             );
             let _disposers = disposers;
             let mut diagnostics = type_diagnostics;
@@ -1496,6 +1545,7 @@ fn main() {
             checks,
             width,
             height,
+            set,
             format,
         } => {
             let checks_path = checks.unwrap_or_else(|| {
@@ -1515,7 +1565,7 @@ fn main() {
                     std::process::exit(1);
                 },
             };
-            let (target, _) = load_and_build(&input, &extensions);
+            let (target, _) = load_and_build(&input, &extensions, &set);
             let configured = configured_resolution(&target);
             let dimensions = SceneDimensions {
                 width: width.or(configured.map(|(w, _)| w)).unwrap_or(1280),

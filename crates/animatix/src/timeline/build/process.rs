@@ -230,6 +230,17 @@ impl Timeline {
                     );
                 },
                 Stmt::LetDecl { name, value, .. } => {
+                    // A `--set NAME=…` override wins over the file's own
+                    // `let NAME = …`: the authored value is the template's
+                    // default, and the pre-walk injection already seeded the
+                    // override. Skipping the assignment is what makes the
+                    // override reach properties resolved during this walk.
+                    if self.cli_defines.contains(name) {
+                        tracing::debug!(
+                            "`let {name}` is overridden by --set; the authored default is ignored"
+                        );
+                        continue;
+                    }
                     // G5/G6 guard: Anchor-point refs (`n0.right`) are
                     // frame-time-resolved and cannot be used in build-time
                     // `let` constants (transforms/bounds not resolved at build).

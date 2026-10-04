@@ -1908,6 +1908,10 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 ## 16. Known Gaps & Limitations
 
 - **Media source assignment:** `Image.url` and `Svg.url` assignments support timed keyframe animation. Image sources and SVG path sets snap between sources at the midpoint of a timed assignment; SVG assignments also update measured size. Text/Typst/Code assignment recompiles glyph paths at timeline build/assignment time.
+- **`--set` scope:** build-time overrides reach a single-scene program only; a
+  multi-scene composition reports that they are not applied. Names that the file
+  never declares also resolve fine at build time, but the analyzer has no way to
+  know about them and may report `unresolved-variable`.
 - **Frame-time text bounds:** `always` text/content overrides recompile glyph paths and support explicit empty content, but do not remeasure `geometry.size`/layout size for the current frame.
 - ~~**Static Geometry:** Structural geometry inputs like `Polygon.points` and `Path.commands` are declaration-time only and cannot be animated dynamically frame-by-frame.~~ Both now support timed assignments with path morphing.
 
@@ -1941,6 +1945,21 @@ animatix gif examples/layout/12_reorder.amx -o out.gif --hold 2.0
 # Export explicit 3-second slice (hold is ignored when --duration is set)
 animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
 ```
+
+**Build-time overrides (`--set`).** `image`, `video`, `gif`, `check` and `verify`
+accept a repeatable `--set NAME=VALUE` that seeds a build-time variable, which is
+how one template renders many data variants:
+
+```bash
+animatix image reports/bar.amx --set title=\"Q3 Revenue\" --set rows=\"{4, 9, 6}\" -o q3.png
+```
+
+The value is parsed as an Animatix expression — the same grammar the file uses —
+so tuples, lists, colors and numbers all work, not just strings. A `let NAME = …`
+in the file is the template's **default**: an override shadows it, and the
+override reaches properties that resolve during the walk. Overrides apply to a
+single-scene program; a multi-scene composition warns that they are not applied
+rather than overriding some scenes.
 
 **Parallel rendering:** Video and GIF exports render frames in parallel using all available CPU cores. Each thread gets its own GPU context and a cloned Timeline, then renders a chunk of frames. Encoding (GIF quantization / video muxing) remains sequential to preserve frame order and codec state.
 

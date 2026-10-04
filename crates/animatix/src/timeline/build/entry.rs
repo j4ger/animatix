@@ -120,6 +120,26 @@ impl Timeline {
         )
     }
 
+    /// Build a `Timeline` from an AST with `--set NAME=VALUE` overrides applied
+    /// to the build environment.
+    pub fn build_with_diagnostics_and_defines(
+        ast: &[Stmt],
+        namespaces: &std::collections::HashMap<String, crate::module::Namespace>,
+        defines: &[(String, String)],
+    ) -> BuildReport<Self> {
+        Self::build_impl(
+            ast,
+            namespaces,
+            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
+            super::BuildQuality::Production,
+            None,
+            None,
+            None,
+            None,
+            defines,
+        )
+    }
+
     /// Build a `Timeline` from an AST with the default font context and an
     /// existing asset cache carried from a previous build.
     pub fn build_with_diagnostics_and_asset_cache(
@@ -230,6 +250,7 @@ impl Timeline {
             asset_cache,
             Some(primitive_registry),
             None,
+            &[],
         )
     }
 
@@ -253,6 +274,7 @@ impl Timeline {
             asset_cache,
             Some(primitive_registry),
             Some(context),
+            &[],
         )
     }
 
@@ -317,6 +339,7 @@ impl Timeline {
             asset_cache,
             None,
             None,
+            &[],
         )
     }
 
@@ -346,6 +369,7 @@ impl Timeline {
             asset_cache,
             Some(primitive_registry),
             Some(context),
+            &[],
         )
     }
 
@@ -360,6 +384,7 @@ impl Timeline {
         asset_cache: Option<std::sync::Arc<super::assets::AssetCache>>,
         primitive_registry: Option<std::sync::Arc<crate::primitives::PrimitiveRegistry>>,
         extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
+        defines: &[(String, String)],
     ) -> BuildReport<Self> {
         let _rebuild_stage = crate::perf::ScopedStage::new(crate::perf::stage::REBUILD);
         // Clear expression evaluation cache at the start of each build.
@@ -422,6 +447,34 @@ impl Timeline {
         // carried actors are visible to re-declarations and assignments.
         if let Some((carry, source_tl, source_dur_ms, dims)) = carry {
             timeline.inject_carry_bag(carry, source_tl, source_dur_ms, dims, &mut diagnostics);
+        }
+
+        // `--set NAME=VALUE` overrides. Seeded here — after the colorscheme,
+        // namespace exports and carry bag, so an override can reference them —
+        // and shadow every authored `let` of the same name (see
+        // `process_body`), so a template's own declaration reads as its
+        // default rather than blocking the override.
+        let cli_defines = super::defines::parse_defines(defines, &mut diagnostics);
+        for define in &cli_defines {
+            timeline.cli_defines.insert(define.name.clone());
+            match crate::timeline::evaluate_expr(&define.value, &timeline.env) {
+                Ok(value) => {
+                    timeline.env.set(&define.name, value);
+                },
+                Err(err) => {
+                    diagnostics.push(
+                        Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "`--set {}`: the value is not evaluable at build time ({err:?}).",
+                                define.name
+                            ),
+                        )
+                        .with_subject(define.name.as_str()),
+                    );
+                },
+            }
         }
 
         let mut has_seen_keyframe = false;

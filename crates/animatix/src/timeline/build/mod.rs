@@ -28,6 +28,7 @@ use crate::timeline::plot::PlotCurveKind;
 mod actor;
 mod colorscheme;
 mod container;
+mod defines;
 mod effect;
 mod entry;
 mod keyframe_utils;
