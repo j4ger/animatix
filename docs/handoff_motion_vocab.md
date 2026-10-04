@@ -501,8 +501,19 @@ the order that makes sense to attempt it:
    *animated*, and no lint should treat the two as the same question.
 5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
    for a HUD that must not move, the camera is not carried across scenes by
-   `persistent`/carry-bag, `animatix verify` ink checks are in scene rather than
-   screen space, and the loop-perfect lint does not sample the camera axes.
+   `persistent`/carry-bag, and the loop-perfect lint does not sample the camera
+   axes.
+
+   One follow-up this handoff used to list is **not** a gap: it claimed
+   `animatix verify`'s ink checks were "in scene rather than screen space". They
+   are not. `verify::bounds_map` reads `SceneProgram::precise_bounds`, which is
+   documented and used as *world*-space, and its own doc line requires the
+   observable renderer "so the bounds and the pixels come from the same
+   evaluation" — so bounds and pixels are the same, camera-included space, and an
+   actor the camera pushes off-frame clamps to an empty region and reads
+   invisible, which is the right answer. The independent proof is the bounds work
+   below: the derived filter region is built from those same subtree bounds, and
+   it agreed with a camera-mapped authored rectangle to **0 pixels** at t=1.6.
 
    A `Filter` scope is correct under all three axes now, authored bounds
    included. A derived region never was a problem: the sub-scene renders with the
