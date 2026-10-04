@@ -366,6 +366,7 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | Action | Shape |
 |---|---|
 | `fade-in`, `fade-out`, `draw-in`, `draw-out`, `wipe-in`, `wipe-out`, `reveal-in`, `reveal-out` | `verb target [duration, delay, ease]` |
+| `draw-in` on text | `draw-in target [duration, ease]` (typewriter) or `draw-in target [by: word, duration]` (word by word) |
 | `settle-in` | `settle-in target [duration, delay, ease]` — fade plus a few percent of scale, so the actor arrives instead of appearing |
 | `pop-in` | `pop-in target [duration, delay, ease]` — fade plus a scale-up with a back overshoot |
 | `move` | `move target [to: Vec2 \| along: {commands}, orient, duration, ease, anticipate]` |
@@ -413,6 +414,21 @@ should go, so its authored `at` only matters before the travel starts. The
 expansion happens at build time (48-odd keyframes, one per ~40 ms), which keeps
 the motion exact under scrubbing and costs nothing per frame. See
 `dogfood/probe_move_along.amx`.
+
+**Reveal granularity.** `draw-in` on a `Text`/`Code`/`Typst`/`Math` target is a
+typewriter — it animates `char_progress` from 0 to 1, so characters appear in
+reading order. `by: word` steps it instead: each word lands at the start of its
+slot and holds until the next one arrives, which is what makes a caption read as
+kinetic typography rather than as a slow keystroke.
+
+```animatix
+line: Text, text: "one word at a time", at: (640, 360), font_size: 64
+#0.4s
+draw-in line [by: word, 2.4s]
+```
+
+The word boundaries come from the actor's own text at build time, so the reveal
+stays exact under scrubbing and needs no per-frame work.
 
 **Anticipation.** `move` and `shift` accept `[anticipate: 80ms]`: before the
 travel starts, the actor leans back by 12% of its distance over that window.

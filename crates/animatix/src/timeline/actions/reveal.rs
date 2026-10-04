@@ -1,4 +1,5 @@
-use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
+use super::motion::timing_modifiers_without_keys;
+use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
@@ -36,6 +37,33 @@ fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) ->
 /// Draws in vector targets by animating stroke progress first, then revealing fill.
 pub struct DrawIn;
 
+/// Cumulative character progress after each whole word of `text`, as fractions
+/// of its length. `"a bb ccc"` gives `[1/6, 3/6, 6/6]`.
+fn word_progress_steps(text: &str) -> Vec<f32> {
+    let total = text.chars().count().max(1);
+    let mut out = Vec::new();
+    let mut consumed = 0usize;
+    for word in text.split_whitespace() {
+        consumed += word.chars().count() + 1; // the separating space too
+        out.push(((consumed.min(total)) as f32) / total as f32);
+    }
+    if let Some(last) = out.last_mut() {
+        *last = 1.0;
+    }
+    out
+}
+
+/// Read the `by:` modifier, if the action carries one.
+fn reveal_granularity(modifiers: &[crate::ast::Modifier]) -> Option<String> {
+    modifiers
+        .iter()
+        .find(|m| m.name.as_deref() == Some("by"))
+        .map(|m| match &m.value {
+            crate::ast::Expr::Ident(name) | crate::ast::Expr::Str(name) => name.clone(),
+            _ => String::new(),
+        })
+}
+
 impl BuiltinAction for DrawIn {
     fn signature(&self) -> ActionSignature {
         ActionSignature {
@@ -45,7 +73,20 @@ impl BuiltinAction for DrawIn {
                 "Draws in vector targets by animating stroke progress first, then revealing fill at the end."
                     .to_string(),
             params: vec![],
-            modifiers: base_timing_params(),
+            // `by` is a reveal control, not timing: it is stripped before the
+            // timing modifiers are parsed, the same way `to` and `along` are.
+            modifiers: {
+                let mut mods = base_timing_params();
+                mods.push(ActionParam {
+                    name: "by".to_string(),
+                    description: "Reveal granularity for text targets: `by: char` (the \
+                                  default typewriter) or `by: word`, which brings each \
+                                  word in as a step."
+                        .to_string(),
+                    type_info: "char | word".to_string(),
+                });
+                mods
+            },
         }
     }
 
@@ -57,7 +98,7 @@ impl BuiltinAction for DrawIn {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let parsed = parse_timing_modifiers(
-            &action.modifiers,
+            &timing_modifiers_without_keys(&action.modifiers, &["by"]),
             ModifierHost::Action,
             Some(&action.verb),
             diagnostics,
@@ -99,18 +140,53 @@ impl BuiltinAction for DrawIn {
             }
 
             if is_text {
-                // Typewriter effect: animate char_progress 0→1
+                // Typewriter effect: animate char_progress 0→1, or in whole-word
+                // steps when the author asks for `by: word`.
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
                     super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
                 }
 
-                track
-                    .text
-                    .char_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                let by_word = matches!(
+                    reveal_granularity(&action.modifiers).as_deref(),
+                    Some("word") | Some("words")
+                );
+                let steps = by_word.then(|| {
+                    let text = track.text.text_content.get(t_start_ms, String::new());
+                    word_progress_steps(&text)
+                });
+
+                match steps {
+                    Some(fractions) if fractions.len() > 1 => {
+                        let span = t_end_ms.saturating_sub(t_start_ms);
+                        // Each word gets an equal slice of the duration, and the
+                        // ramp inside a slice is one frame long so the word
+                        // arrives rather than being typed.
+                        let n = fractions.len();
+                        for (i, fraction) in fractions.iter().enumerate() {
+                            let at = t_start_ms + (span as f64 * (i as f64 / n as f64)) as u64;
+                            let settle = (at + span / (n as u64 * 4).max(1)).min(t_end_ms);
+                            track.text.char_progress.ensure(1.0).add_keyframe(
+                                at,
+                                if i == 0 { 0.0 } else { fractions[i - 1] },
+                                Easing::Linear,
+                            );
+                            track.text.char_progress.ensure(1.0).add_keyframe(
+                                settle,
+                                *fraction,
+                                Easing::Linear,
+                            );
+                        }
+                    },
+                    _ => {
+                        track.text.char_progress.ensure(1.0).add_keyframe(
+                            t_start_ms,
+                            0.0,
+                            Easing::Linear,
+                        );
+                        track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                    },
+                }
             } else {
                 ensure_reveal_stroke(track, t_start_ms);
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {

@@ -178,7 +178,10 @@ fn parse_positive_num_modifier(
     Some(value)
 }
 
-fn timing_modifiers_without_keys(modifiers: &[Modifier], excluded_keys: &[&str]) -> Vec<Modifier> {
+pub(crate) fn timing_modifiers_without_keys(
+    modifiers: &[Modifier],
+    excluded_keys: &[&str],
+) -> Vec<Modifier> {
     modifiers
         .iter()
         .filter(|modifier| {

@@ -3607,3 +3607,75 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
         "the route must be baked into many samples"
     );
 }
+
+#[test]
+fn draw_in_by_word_steps_through_the_words() {
+    // `draw-in` on text is a typewriter by default; `by: word` brings each word
+    // in as a step, which is the difference between a caption typing out
+    // letter-by-letter and a line of kinetic typography landing in phrases.
+    let build = |extra: &str| {
+        let source = format!(
+            r#"
+config {{ colorscheme: "editorial-dark", resolution: (640, 360) }}
+
+line: Text, text: "aa bb cc dd", at: (320, 180), font_size: 40
+#0s
+draw-in line [4s{extra}]
+"#
+        );
+        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
+        assert!(errors.is_empty(), "Parse errors: {errors:?}");
+        let report = crate::timeline::Timeline::build_with_diagnostics(
+            ast.as_ref().unwrap(),
+            &std::collections::HashMap::new(),
+        );
+        let offenders: Vec<_> = report
+            .diagnostics
+            .iter()
+            .filter(|d| d.code != crate::diagnostics::DiagnosticCode::NeverRevealed)
+            .collect();
+        assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
+        report.output
+    };
+    let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
+        timeline.tracks.get("line").unwrap().text.char_progress.get(ms, 1.0)
+    };
+
+    let words = build(", by: word");
+    // Four words over 4s: at 1.5s the second word has landed (6 of 11 chars) and
+    // the third has not, so progress sits at the word boundary, not mid-word.
+    let at_1500 = progress_at(&words, 1500);
+    assert!(
+        (at_1500 - 6.0 / 11.0).abs() < 0.06,
+        "expected the second word boundary (~{:.3}), got {at_1500:.3}",
+        6.0 / 11.0
+    );
+    // Each word lands at the start of its slot and holds: 2.5s is inside the
+    // third slot, so the third boundary (9 of 11 chars) must still be holding.
+    assert!(
+        (progress_at(&words, 2500) - 9.0 / 11.0).abs() < 0.02,
+        "the third boundary must hold until the fourth word, got {}",
+        progress_at(&words, 2500)
+    );
+    assert!(
+        progress_at(&words, 1600) > 0.5 && progress_at(&words, 1600) < 0.6,
+        "a word must hold its boundary rather than creep, got {}",
+        progress_at(&words, 1600)
+    );
+    assert!((progress_at(&words, 4000) - 1.0).abs() < 1e-3, "must finish full");
+
+    // The default stays a smooth typewriter, and it inherits the role default
+    // for entrances: `expo-out` puts a quarter of the *time* at ~82% of the
+    // characters, which is why the reveal reads as arriving rather than ticking.
+    let chars = build("");
+    let mid = progress_at(&chars, 1000);
+    assert!(
+        mid > 0.7 && mid < 0.95,
+        "the default reveal is a smooth ramp under expo-out, got {mid}"
+    );
+    assert!(
+        progress_at(&chars, 200) < 0.35,
+        "and it must still start sparse, got {}",
+        progress_at(&chars, 200)
+    );
+}
