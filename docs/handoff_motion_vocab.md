@@ -1,9 +1,12 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04, second session). M1 is complete** — every
-> item in it is landed (see ["Landed so far"](#landed-so-far)). Of M2, items
-> #14/#15/#16 landed and #12 is in flight; the remaining work is #8 (default
-> easing) plus all of M3/M4 and the content/docs closeout, listed in
+> **STATUS: IN PROGRESS (2026-10-04, third session).** M1 (#1-#11) and M2
+> (#12-#16) are complete, and M3 (#17-#20) is complete with the scene camera
+> landed last. What remains is M4 — the second-input-texture ABI bump (#21) and
+> the items parked behind it (#22 glass, #23 BarChart race, #24 font weights,
+> #25 the vello pin, which is an upstream gate) — plus the #13 content closeout
+> and the `web/` review pass's three engine gaps, which are now fixed. See
+> ["Landed so far"](#landed-so-far) and
 > ["Remaining work, next-session order"](#remaining-work-next-session-order).
 > The decision questions at the bottom were resolved by the owner's go-ahead to
 > execute the whole handoff ("做完handoff里的所有项目"); only implementation
@@ -18,6 +21,50 @@
 > first — see ["`draw-in` does not draw"](#found-while-probing-draw-in-does-not-draw-on-non-plot-shapes).
 
 ## Landed so far
+
+### Batch 3 (2026-10-04, third session) — four commits, local only
+
+| Commit | Item | Evidence it landed |
+|---|---|---|
+| `44bdba93` | The review pass's three engine gaps: plot decorations, `always`-block `size` doubling, `always`-block color text | `plot_actor_declarations_seed_dash_and_gradient`, `size_override_is_authored_in_full_extents`, `text_color_override_reaches_shape_style`; rendered probes measured to the pixel — `always { l.stroke = "#30d158" }` now paints (48,209,88), `always { r.size = (100.0, 60.0) }` now paints 100×60, and a `PlotCurve` with `stroke_gradient` shows the ramp it was dropping |
+| `a0960f98` | **#17 scene camera** — `camera.at` / `camera.zoom` / `camera.rotation` | Eight tests in `timeline/tests/camera.rs` (identity when untouched, zoom about the center, pan-after-zoom, interpolation across a timed write, `always`-driven engagement, both diagnostic paths, the reserved label); `examples/animation/35_camera_moves.amx` verified by pixel position at t=2.6/4.6/9.0 |
+| `6c40c243` | The `web/` visual review pass — 11 scenes re-lit | Rendered and read back: hero at t=4.6s, the tour's word reveal at t=1.3s, the `along` route at t=2.2s |
+| `1727d558` | The reactive-frame cost batch 2 flagged and never dispositioned | `reactive_evaluate_100frames` +16.7% → **+5.0%** in isolation; `vello_path_stays_small_enough_to_clone_per_frame` pins the struct size |
+| `9f344cdb` | The type table catching up with hex color strings, and two missing analyzer exemptions | `check` is silent on `color: "#ffe9c7"` in `34_particles_analytic.amx`, which it used to warn `type-mismatch` about |
+| `e7d0b3ac` | Three scenes re-tuned after the `size` fix | The particles example reads as sparks again; `04_motion`'s orbit is centred on the plate rather than the origin (`scene.center.x` is an anchor, not an expression value); the tour's reticle breathes on `size` again |
+
+Notes the next session will want from batch 3:
+
+- **The three gaps were all the same bug shape**: the language declares a
+  property as applicable to an actor, and one of the three write paths
+  (declaration, keyframe assignment, frame-time override) or one of the two
+  read paths (the generic shape renderer, the plot primitive) did not honor
+  it. When adding vocabulary, the check to run is not "does my probe scene
+  look right" but "does every actor × every write path × every read path
+  carry it" — `animatix check` reported nothing for all three.
+- **`geometry.size` is half-extents everywhere.** Declarations halve in
+  `build/shape.rs`, keyframe assignments in `handle_size_assignment`, and now
+  frame overrides in `primitives::override_size`. A new shape that reads
+  `geometry.size` must treat it as half, and a new write path must halve.
+- **`inject_property_into_env` is the hot path nobody watches.** It walks every
+  INJECTABLE registry row for every actor every frame an env is built, and each
+  row costs a read, an env write and an `animating_flag` key allocation. Adding
+  a property with `F::ASSIGNABLE_AI` therefore costs real frame time on scenes
+  that never use it — the reason six of batch 1/2's rows are now
+  `ASSIGNABLE_A`. `dash_offset` stays injectable on purpose.
+- **Camera semantics, in one line each:** pan is applied *after* zoom (so
+  centring a station 400 px off-center at 1.7× takes 680), scene-anchored
+  actors move with it, the background does not, and authoring a camera
+  bypasses the static-subtree cache.
+- **Tooling drifts behind a vocabulary addition in three places, not one.** When
+  batch 2 made color strings resolve everywhere, `raw_property_types()` still
+  said `Color` only, so `check` and the editor warned on source that rendered
+  correctly (`9f344cdb`). The property-addition checklist covers the parser and
+  the engine; the *type* row is where a widened value grammar has to follow, and
+  nothing tests that a warning-free scene stays warning-free.
+- **Still open from batch 2's notes**: `docs/effects.md` / `docs/primitives.md`
+  now do cover dash/blend/gradient (done in `f00d3770`/`fc4dc879`), and the
+  `web/demos/posters/*.png` regeneration is still owed.
 
 ### Batch 2 (2026-10-04, second session) — five commits, local only
 
@@ -268,7 +315,7 @@ each non-trivial. Verified 2026-10-04.
 | 5 | Count-up tickers | **NOTHING TO BUILD** | `format("{}", …)` already exists (`eval_shared.rs:510-548`, `spec.md:938`) and `always { label.text = … }` recompiles glyphs per frame (`dispatch.rs:449-457`) | Deliverable is a recipe + example. Caveat to document: `geometry.size` is not remeasured from frame-time overrides, so a growing counter does not reflow its box |
 | 6 | **Fix: `draw-in` trims non-plot shapes** | ~~SMALL-MEDIUM~~ **DONE** `385f6e5d` (plus the arc-length trim upgrade the first probe forced) | see implementation notes | Closed/filled shapes keep the `8e244595` fill-reveal semantics; hero re-probed |
 | 7 | Preset actions + `anticipate:` / settle params | SMALL | New action = trait impl + `get_builtin_actions()` (`actions/mod.rs:367`) + syntax `ACTIONS` row (`builtins.rs:55-77`) + `action_documentation` (`:164-181`); a pinned test enforces runtime==syntax so drift fails the build | Pre-keyframes are established mechanics: `ensure_guard_keyframe` at `t-1` (`entrance.rs:59-62`), the plan-slot fence (`property_engine.rs:527-558`) — anticipation is the same move at `t-offset` (saturating at 0) |
-| 8 | Default easing for un-eased statements | SMALL code, LARGE blast radius | the no-ease default site in timing parse/build | Requires the noise-floor discipline (same-binary + positive control; see `handoff_silent_drops.md` §Verification), corpus review, spec/golden updates |
+| 8 | Default easing for un-eased statements | ~~SMALL code, LARGE blast radius~~ **DONE** `90285df1` + `ef3b400b` | the role-based default now lives in `default_easing_for` (`timeline/timing.rs`) | Landed narrower than proposed: entrances get `expo-out`, exits `ease-in`, reposition `ease-in-out`, oscillators stay linear — and **assignments stay linear**, because an action expands into assignments that inherit its timing modifiers and would double-ease a pre-baked curve (`bounce` regressed to scale 1.4375 against a 1.375 baseline). Corpus A/B run with two builds and a positive control |
 | 9 | `settle` entrance (fade + slight scale) | SMALL | new action (preferred over changing `fade-in` semantics) | — |
 | 10 | `lerp_color_oklab` | ~~TRIVIAL~~ **DONE** `6cb18912` (new name; `lerp_color` untouched; morph path deliberately not switched — decide separately if it should be) | — | — |
 | 11 | New built-in colorschemes (incl. a vivid set) | ~~TRIVIAL data~~ **DONE** `ef6a0c00` (`vivid`/`paper`/`neon-night`) | — | GUI picker list updated in the same commit |
@@ -277,7 +324,7 @@ each non-trivial. Verified 2026-10-04.
 
 | # | Item | Verdict | Where the work is | Non-trivial part |
 |---|---|---|---|---|
-| 12 | Bundled stroke-icon set (Lucide-derived, ISC) | MEDIUM | **Cheapest route**: a name→`commands` data table expanding to `Path` actors — zero engine/primitive changes, inherits reveal once #6 lands. The new-primitive route costs a CATALOG row (`animatix-std/catalog.rs:188+`) + ShapeKind dispatch (`shapes/mod.rs:390`) + registry (`primitives/registry.rs:57`) | Blocked on #6 (otherwise icons fade, not draw). Subset size + attribution is a decision |
+| 12 | Bundled stroke-icon set (Lucide-derived, ISC) | ~~MEDIUM~~ **DONE** `719d0c77` | the data-table route: `animatix-core::stroke_icons` (25 Lucide ISC paths) + an `icon:` property that expands into `Path` geometry | Landed with two real parser fixes in `svg_import::parse_svg_path_data` (compact numbers `7-7`/`.53.53`; implicit `line_to` after `M`/`m`) and the authored-`scale:` fix that makes an icon sizeable at all |
 | 13 | Theme/vivid pack, display font, fast-path glyph gaps (ᵀ/ₖ tofu → ASCII math on the tour), site content redo, outro variety | content/web | `docs/ai_agent_animation_quality.md`-adjacent authoring work | Pure content, but the glyph gap is an `animatix-text` fix |
 | 14 | Loop-perfect lint (`check` warns when a loop does not wrap) | SMALL | `animatix check` already builds the full Timeline (`main.rs:1383-1465`); scalar/style tracks + plan slots are sampleable at any t (`read_property_plan_slot`, `property_engine.rs:561-566`) | v1 policy: skip `always`/plot-`func`-driven values (document it); define the loop boundary (scene end vs `play` loop point). Shares the facts exporter with `ai_agent_animation_quality.md` |
 | 15 | CLI `--set name=value` (template × data batching) | SMALL engine + plumbing | inject `env.set` at the pre-walk seam (`build/entry.rs:399-407`) | ~10 build entry points thread a defines map (or canonicalize one); the analyzer needs the defines or false `unresolved` fires |
@@ -287,10 +334,10 @@ each non-trivial. Verified 2026-10-04.
 
 | # | Item | Verdict | Where the work is | Non-trivial part |
 |---|---|---|---|---|
-| 17 | Scene camera (pan/zoom/shake, keyframable) | MEDIUM | the transform threading exists; roots are seeded `Affine::IDENTITY` at exactly two sites (`scene_eval.rs:1931, :1968`), composing in `evaluate_node_transform` (`:96-160`) | Landmines: static-subtree cache key (`scene_eval.rs:1875-1905`), effect regions in world coords (`:1036`, blit translate `:1092-1098`), screen-anchored actors need an un-camerad parent transform (`:143`), `verify.rs` hit regions, background fill stays un-camerad (`:1841`) |
-| 18 | Per-letter/word reveal (`draw-in [by: letter]`) | MEDIUM | `RenderCommand::Text` draws glyphs one by one already (`primitives/mod.rs:972-990`) but `TextPath` carries no per-glyph transform (`animatix-text/src/lib.rs:20-28`); `char_progress` truncation (`dispatch.rs:469-476`) and Code per-glyph recolor are the precedents | Per-frame glyph lists are cloned/mutated, not `Arc`ed (`translate_text_glyphs`, `:893-898`) — needs a perf look via `scripts/perf-bench.sh compare` |
-| 19 | Particles (`burst` / `ambient`) | MEDIUM | **No state model needed**: with a seed, each particle's position/tint is an analytic function of `(seed_i, spawn, t)` — the same stateless philosophy as `always`, and `bounce` already pre-bakes physics into keyframes (`actions/effects.rs:216-290`) | **Decision 3**: primitive vs builtin-driven declarative actors; determinism must hold across platforms (no `rand()` unseeded) |
-| 20 | Motion-along-path (`move [along: …]`) | MEDIUM (unverified) | building blocks: `trim_path_by_progress`, the `always` fallback exists today | Needs a scoping pass (orientation, arc-length parameterization) before committing |
+| 17 | Scene camera (pan/zoom/shake, keyframable) | ~~MEDIUM~~ **DONE** (batch 3) | `timeline/camera.rs`: `camera.at` / `camera.zoom` / `camera.rotation`, routed in `assignments` before target resolution and applied as the parent transform of every root node | Landmines resolved as: the static-subtree cache is bypassed while `camera_used` (a cached encoding cannot be re-transformed on append), the background fill deliberately stays un-camerad, hit regions come out in screen space for free because the camera is in the node transform, and **scene-anchored actors do move** — documented as a limit, with no per-actor opt-out yet |
+| 18 | Per-letter/word reveal (`draw-in [by: letter]`) | ~~MEDIUM~~ **DONE** at word granularity `bf820fef` | `draw-in [by: word]` reveals a text actor word by word through the existing per-`TextPath` command list | Per-*letter* still needs the `TextPath` per-glyph transform this row named (`animatix-text/src/lib.rs:20-28`); `by: letter` is deliberately rejected rather than silently doing the word thing |
+| 19 | Particles (`burst` / `ambient`) | ~~MEDIUM~~ **DONE** `fdbdc5c0` | decision 3 went the analytic way: `examples/animation/34_particles_analytic.amx` is seeded `always` math (`seeded_noise(i, …)` for direction and speed, gravity as `age²`) — no new primitive, no state model | Determinism holds because there is no unseeded `rand()`. Follow-up this exposed: a `range(n)` builtin, so the index list is generated instead of spelled out |
+| 20 | Motion-along-path (`move [along: …]`) | ~~MEDIUM (unverified)~~ **DONE** `00441684` | `run_move_along` samples the route with `trim_path_by_progress` (`sample_path_along`) and keys ~48 positions at one per 40 ms | Scoping-pass result: arc-length parameterisation was already there (from the #6 trim upgrade); `orient: true` turns the actor along the local tangent, and the sampler must be seeded from the first `MoveTo` because `trim_path_by_progress(path, 0.0)` yields an empty path with no current position |
 
 ### M4 — glow (the ABI bump) and the parked items
 
@@ -304,37 +351,33 @@ each non-trivial. Verified 2026-10-04.
 
 ## Remaining work, next-session order
 
-M1 (#1-#11) is complete. In M2, #14/#15/#16 are done and #12 (icon set) is in
-flight. What is left, in the order that makes sense to attempt it:
+M1 (#1-#11) and M2 (#12-#16) are complete, as is M3 (#17-#20). What is left, in
+the order that makes sense to attempt it:
 
-1. **#8 default easing** — the last M2 item that changes what scenes look like.
-   Needs the noise-floor A/B discipline (same-binary + positive control, per
-   `handoff_silent_drops.md` §Verification), a corpus review, and spec/golden
-   updates, on its own commit. Note that `settle-in`/`pop-in` already give
-   authors a one-word way off the flat-fade default; #8 is about moving the
-   default itself.
-2. **#18 per-letter reveal** (`draw-in [by: letter]`) — `RenderCommand::Text`
-   already draws glyphs one by one; `TextPath` carries no per-glyph transform,
-   so this needs a glyph-list representation change plus a
-   `scripts/perf-bench.sh compare` run.
-3. **#17 scene camera** — the transform threading exists and roots are seeded
-   `Affine::IDENTITY` at two sites; the cost is the landmine list in the
-   inventory table (static-subtree cache key, effect regions in world coords,
-   screen-anchored actors, `verify.rs` hit regions, un-camerad background).
-4. **#19 particles** (seeded-analytic form, decision 3 approved) and
-   **#20 move-along-path** (needs a scoping pass first).
-5. **#21 the second-input ABI bump** → bloom/soft shadow; **#22 glass** after
-   it (shared machinery); **#23 BarChart race**; **#24 font weights**; **#25
-   vello pin lift** (check upstream state first).
-6. **#13 closeout, partially done in batch 2.** Still owed: `docs/effects.md`
-   and `docs/primitives.md` for dash/blend/gradient, the `vivid`/`paper`/
-   `neon-night` scheme descriptions, the theme-pack examples, the fast-path
-   glyph-gap fix (`ᵀ`/`ₖ` tofu on the tour → ASCII math), the site content redo
-   with the new vocabulary, then pruning this handoff into `docs/history.md`
-   when the round closes.
-7. **The sub-agent visual review pass** the owner asked for: re-review every
-   `web/` page's rendered output with the new vocabulary available, fix what
-   it finds.
+1. **#21 the second-input-texture ABI bump** → Bloom, a soft DropShadow, chain
+   Mix. Already scoped in `docs/effects.md` §4.1-4.2: the bind group gains an
+   input binding so a pass can read the pre-chain original. This is the last
+   item in the round that adds capability rather than content.
+2. **#22 glass** after it (shared machinery), **#23 BarChart race**, **#24 font
+   weights** (needs a variable face in the slim bundle), **#25 vello pin lift**
+   (check upstream #1558 first). All four are parked for a reason recorded in
+   the inventory table; none is a quiet afternoon.
+3. **#13 closeout, partially done.** Still owed: the site content redo with the
+   new vocabulary beyond the review pass, `web/demos/posters/{gradient,sorting}.png`
+   (both stale — regenerate from the current scenes), the fast-path glyph-gap fix
+   (`ᵀ`/`ₖ` tofu on the tour → ASCII math, an `animatix-text` change), the theme
+   pack examples, then pruning this handoff into `docs/history.md` when the
+   round closes.
+4. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
+   for a HUD that must not move, the camera is not carried across scenes by
+   `persistent`/carry-bag, `animatix verify` ink checks are in scene rather than
+   screen space, and the loop-perfect lint does not sample the camera axes.
+5. **The residual reactive-frame cost.** See the perf note under batch 3: the
+   gradient rows were the recoverable half, `dash_pattern` / `dash_offset` /
+   `blend` are the remaining ~8%, and the mechanism is the same
+   (`inject_property_into_env` walks every INJECTABLE row of every actor every
+   frame). De-injecting them is the same one-line-per-row change, at the cost of
+   `&actor.blend`-style references.
 
 Milestones as originally proposed: M1 = items 1-11 (**complete**),
 M2 = 12-16 (14/15/16 done, 12 in flight, 8 open), M3 = 17-20, M4 = 21-22.
