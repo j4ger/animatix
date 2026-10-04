@@ -521,14 +521,28 @@ the order that makes sense to attempt it:
    to put it. If that case ever matters, add provenance to `add_keyframe`; do not
    add another value heuristic.
 
-   Two related things this surfaced, both **still open**:
-   - `check examples/animation/36_light_pack.amx` reports
+   Two related things this surfaced. One is **fixed in batch 6**; the other stays:
+   - `check examples/animation/36_light_pack.amx` reported
      `unused-label: Unused binding: 'p'` at `36_light_pack.amx:1:1` — but `p` is
      `let p = clamp(t / 0.9, 0, 1)` inside `Ticker`'s `always` in
-     `examples/lib/light.amx:69`, and it is used on the very next line. The check
-     is running over the expanded component body while attributing it to the
-     importing file, and its usage scan misses the use: wrong subject, wrong
-     span, wrong answer.
+     `examples/lib/light.amx:69`, and it is used on the very next line. The guess
+     recorded above was wrong twice: nothing runs over an expanded body (the
+     analyzer and the module graph both collect references from the *same*
+     statement list they take labels from — `symbol_table.rs:509` walks
+     `Stmt::Always`/`Block`/`ComponentDef` bodies, and `Stmt::Assignment` collects
+     its right-hand side), and the expander deliberately leaves `let` names alone
+     (`module/expand.rs:641` excludes them from `known_labels`, with a comment
+     saying so). The cause is one call away from the lint: **`SymbolTable::merge`
+     copies `labels` and not the three sets the unused-label pass reads beside
+     them**. A direct import flattens every private name in the library into the
+     host's table, while `referenced_labels` stays the host's own — so the host is
+     told the library's internals are dead code, attributed to its first line.
+     `merge` now unions `referenced_labels`, `component_internal_labels` and
+     `array_labels` as well. Measured: that one warning is gone, the same file's
+     folded hint count drops 6 → 1 (five leaked library actors), and a sweep of
+     every `.amx` under `examples/`, `web/` and `dogfood/` reports **no**
+     `unused-label` at all. `resolve_symbols_carries_the_references_of_what_it_flattens`
+     fails without the fix — checked by reverting it and re-running.
    - The `property → ActorField` table is duplicated **three** times in
      `timeline/dispatch.rs` (`has_keyframe_at`, `has_keyframes_for`,
      `list_keyframes`) — verified identical but for the fall-through arm. The new

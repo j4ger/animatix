@@ -1257,4 +1257,37 @@ mod tests {
         assert!(resolved.namespaces.contains_key("lib"));
         assert!(resolved.namespaces.get("lib").is_some_and(|ns| ns.labels.contains_key("x")));
     }
+
+    /// A direct import flattens the library's **labels** into the host table, so
+    /// the bookkeeping that makes those labels intelligible has to travel with
+    /// them. Without `referenced_labels` and the component/array exemptions, every
+    /// private name inside an imported library looks unused *in the importing
+    /// file* — which is how `check examples/animation/36_light_pack.amx` came to
+    /// report `unused-label: Unused binding: 'p'` at `1:1` for a `let` inside
+    /// `Ticker` that the very next line reads.
+    #[test]
+    fn resolve_symbols_carries_the_references_of_what_it_flattens() {
+        let mut graph = ModuleGraph::new();
+        graph.upsert_source(
+            PathBuf::from("/virtual/lib.amx"),
+            "pub component Ticker(to: Num = 100) {\n  value: Text, text: \"0\"\n  always {\n    let p = clamp(t / 0.9, 0, 1)\n    self.value.text = format(\"{}\", floor(to * p))\n  }\n}\n"
+                .to_string(),
+        );
+        graph.upsert_source(
+            PathBuf::from("/virtual/main.amx"),
+            "import \"./lib.amx\"\nticker: Ticker, to: 42, at: (10, 10)\n".to_string(),
+        );
+        graph.load_program(Path::new("/virtual/main.amx")).expect("load");
+
+        let resolved = graph.resolve_symbols(Path::new("/virtual/main.amx"));
+        assert!(resolved.labels.contains_key("p"), "the library's `let` is flattened in");
+        assert!(
+            resolved.referenced_labels.contains("p"),
+            "so its references must be flattened too, or `p` reads as dead code"
+        );
+        assert!(
+            resolved.component_internal_labels.contains("value"),
+            "a component's internal actor is not a scene actor in either file"
+        );
+    }
 }

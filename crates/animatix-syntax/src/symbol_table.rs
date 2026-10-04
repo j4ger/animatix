@@ -894,6 +894,24 @@ impl SymbolTable {
         for name in &other.actions {
             self.actions.insert(name.clone());
         }
+        // The unused-label pass reads three sets besides `labels`, and a
+        // direct import flattens `labels` without them, which made every
+        // private name in an imported library look unused *in the importing
+        // file* — `check examples/animation/36_light_pack.amx` reported
+        // `Unused binding: 'p'` for a `let` inside `Ticker`'s `always` block
+        // that the very next line reads, at the importer's 1:1. References
+        // belong to the table that declares the name, and the component/array
+        // exemptions are not scene actors in either file, so all three travel
+        // with the labels they describe.
+        for name in &other.referenced_labels {
+            self.referenced_labels.insert(name.clone());
+        }
+        for name in &other.component_internal_labels {
+            self.component_internal_labels.insert(name.clone());
+        }
+        for name in &other.array_labels {
+            self.array_labels.insert(name.clone());
+        }
     }
 
     /// Return a table containing only exports visible through an aliased
