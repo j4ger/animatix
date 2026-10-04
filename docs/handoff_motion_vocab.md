@@ -499,6 +499,33 @@ the order that makes sense to attempt it:
    its default `0.0`. Nothing animates. That is the same root cause batch 2 noted
    for `size` on a `Rect`: a non-zero keyframe count says *declared*, not
    *animated*, and no lint should treat the two as the same question.
+
+   **Fixed in batch 5.** `AnimationTrack::is_property_animated` asks whether the
+   track holds at least two keyframes that do not all carry the same value, and
+   the lint asks it; `examples/animation/36_light_pack.amx` is now silent about
+   `dash_offset`. What is given up: a *single* authored keyframe of a constant
+   value can no longer be flagged, because it is bit-for-bit what declaration
+   seeding leaves — the seeder writes the **declared** value, not the registry
+   default (measured: `size: (100, 60)` yields one keyframe at `(50.0, 30.0)`,
+   halved as `geometry.size` requires). Separating them needs keyframe
+   provenance, and the storage is a bare `BTreeMap<u64, (T, Easing)>` with nowhere
+   to put it. If that case ever matters, add provenance to `add_keyframe`; do not
+   add another value heuristic.
+
+   Two related things this surfaced, both **still open**:
+   - `check examples/animation/36_light_pack.amx` reports
+     `unused-label: Unused binding: 'p'` at `36_light_pack.amx:1:1` — but `p` is
+     `let p = clamp(t / 0.9, 0, 1)` inside `Ticker`'s `always` in
+     `examples/lib/light.amx:69`, and it is used on the very next line. The check
+     is running over the expanded component body while attributing it to the
+     importing file, and its usage scan misses the use: wrong subject, wrong
+     span, wrong answer.
+   - The `property → ActorField` table is duplicated **three** times in
+     `timeline/dispatch.rs` (`has_keyframe_at`, `has_keyframes_for`,
+     `list_keyframes`) — verified identical but for the fall-through arm. The new
+     method avoided a fourth copy by resolving through the runtime
+     `property_registry::lookup_property(…).field`; the three copies still want
+     folding into one mapper.
 5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
    for a HUD that must not move, the camera is not carried across scenes by
    `persistent`/carry-bag, and the loop-perfect lint does not sample the camera

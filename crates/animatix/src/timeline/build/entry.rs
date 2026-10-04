@@ -818,7 +818,11 @@ impl Timeline {
                             )
                             .with_subject(property),
                         );
-                    } else if track.has_keyframes_for(property) {
+                    } else if track.is_property_animated(property) {
+                        // Only a property that actually *moves* is worth warning
+                        // about: the build seeds a constant keyframe for most
+                        // declared properties, and a frame-time write over a
+                        // value that never changes silently overrides nothing.
                         diagnostics.push(
                             Diagnostic::warning(
                                 DiagnosticCode::AlwaysOverridesKeyframes,

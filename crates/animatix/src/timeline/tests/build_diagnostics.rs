@@ -2,9 +2,16 @@ use super::*;
 
 #[test]
 fn always_overrides_keyframes_warning() {
-    // Keyframe at 0s with an Assignment for box1.opacity = 1.0 creates
-    // a keyframe in the opacity track.  Then the always block also writes
-    // to box1.opacity, which should trigger the warning.
+    // A keyframe assignment for box1.opacity = 0.8 puts an authored value in
+    // the opacity track; the always block then writes 0.5 every frame, which
+    // must be reported.
+    //
+    // The authored values have to differ from each other. A single keyframe is
+    // bit-for-bit what declaration seeding leaves behind — the seeder writes the
+    // *declared* value, not the registry default, so even a value that is not
+    // any default looks exactly like a seed — and `is_property_animated` cannot
+    // tell the two apart. One keyframe here would silently stop testing
+    // anything.
     let ast = vec![
         Stmt::Keyframe {
             time: crate::ast::Time::Seconds(0.0),
@@ -28,13 +35,29 @@ fn always_overrides_keyframes_warning() {
                 Stmt::Assignment {
                     target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
                     property: "opacity".to_string(),
-                    value: Expr::Num(1.0),
+                    value: Expr::Num(0.8),
                     modifiers: vec![],
                     easing: None,
                     value_span: None,
                     span: None,
                 },
             ],
+            span: None,
+        },
+        // A second beat at a different value: one keyframe alone is what the
+        // build's declaration seeding also produces, and the two cannot be told
+        // apart by looking at the track.
+        Stmt::Keyframe {
+            time: crate::ast::Time::Seconds(2.0),
+            body: vec![Stmt::Assignment {
+                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
+                property: "opacity".to_string(),
+                value: Expr::Num(0.3),
+                modifiers: vec![],
+                easing: None,
+                value_span: None,
+                span: None,
+            }],
             span: None,
         },
         Stmt::Always {
@@ -356,4 +379,70 @@ l: Legend, at: (160, 150), title: "Series", text_max_width: 200
 "#,
     );
     assert!(warnings.is_empty(), "text wrap width warned on both hosts: {warnings:?}");
+}
+
+/// Build `source` and report whether the always/keyframe conflict fired.
+fn trips_always_override(source: &str) -> bool {
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    report
+        .diagnostics
+        .iter()
+        .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes)
+}
+
+/// The shape that made the lint lie: a *declaration* seeds a constant keyframe,
+/// and an `always` writing the same property was reported as overriding keyframe
+/// animation the author never wrote. `MarchingRail` in `examples/lib/light.amx`
+/// is the real instance — `dash_pattern: {10, gap}` seeds `dash_offset` at its
+/// default, and the component's `always` owns it by design.
+#[test]
+fn a_seeded_dash_offset_declaration_does_not_trip_the_lint() {
+    assert!(!trips_always_override(
+        r#"
+config { resolution: (320, 180), duration: 4 }
+rail: Path, commands: {move_to(20, 90), line_to(300, 90)}, stroke: accent.primary,
+  stroke_width: 2, fill_opacity: 0.0, dash_pattern: {10, 7}, opacity: 1.0
+always {
+  rail.dash_offset = (rail.dash_offset + t * 34.0) % 17.0
+}
+"#
+    ));
+}
+
+/// The same bug in its other guise, noted in batch 2: writing a property the
+/// primitive merely *defaults* from `always`. The declaration seeds the same
+/// value at both ends of the scene, so nothing moves and nothing is overridden.
+#[test]
+fn a_constant_declared_size_does_not_trip_the_lint() {
+    assert!(!trips_always_override(
+        r#"
+config { resolution: (320, 180), duration: 4 }
+b: Rect, size: (100, 60), at: (160, 90), color: accent.primary, opacity: 1.0
+always {
+  b.size = (100.0, 60.0)
+}
+"#
+    ));
+}
+
+/// …and the lint still fires when the author really did keyframe the property
+/// the `always` block wins every frame.
+#[test]
+fn a_keyframed_value_still_trips_the_lint() {
+    assert!(trips_always_override(
+        r#"
+config { resolution: (320, 180), duration: 4 }
+b: Rect, size: (100, 60), at: (160, 90), color: accent.primary, opacity: 1.0
+#1s
+b.size = (140, 80) [1s]
+always {
+  b.size = (100.0, 60.0)
+}
+"#
+    ));
 }

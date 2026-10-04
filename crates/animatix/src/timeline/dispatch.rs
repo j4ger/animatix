@@ -1333,6 +1333,47 @@ impl AnimationTrack {
         self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
     }
 
+    /// True when the author animated `property`: the track holds at least two
+    /// keyframes that do not all carry the same value.
+    ///
+    /// [`Self::has_keyframes_for`] cannot answer this. The build stamps a
+    /// keyframe for most *declared* properties (`insert_end_keyframes`, plus a
+    /// start keyframe when the scene has a duration), so a non-zero keyframe
+    /// count says the property was written down, not that anything moves. That
+    /// is why `always-overrides-keyframes` fired on scenes that animate nothing:
+    /// a `dash_pattern` in a declaration seeds a constant `dash_offset`, and an
+    /// `always` writing it was reported as overriding "keyframe animation".
+    ///
+    /// A single keyframe is treated as not-animated, and that is a deliberate
+    /// loss. It would be nice to keep warning on `#1s box.opacity = 0.8` beside
+    /// an `always` writing opacity, but a lone keyframe is bit-for-bit what
+    /// declaration seeding produces — the seeder writes the *declared* value, not
+    /// the registry default, so even `size: (100, 60)` lands as one keyframe at a
+    /// value no default matches. Telling the two apart needs keyframe provenance,
+    /// which tracks do not carry (the storage is `BTreeMap<u64, (T, Easing)>`).
+    /// A constant value costs nothing to override, so the false positives cost
+    /// more than the case is worth.
+    pub(crate) fn is_property_animated(&self, property: &str) -> bool {
+        let times = self.list_keyframes(property);
+        if times.len() < 2 {
+            return false;
+        }
+        let Some(schema) = crate::timeline::property_registry::lookup_property(property) else {
+            return true;
+        };
+        // Fields whose tracks cannot be sampled as values (path, image and
+        // binding tracks) keep the coarser rule: two keyframes is animation.
+        let Some(field) = self.field_ref(schema.field) else {
+            return true;
+        };
+        let Some(base) = field.evaluate_value(times[0]) else {
+            return true;
+        };
+        times[1..]
+            .iter()
+            .any(|time_ms| field.evaluate_value(*time_ms).is_none_or(|value| value != base))
+    }
+
     /// List all keyframe times (in ms) for the given property.
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     /// Returns a sorted, deduplicated list of timestamps.
