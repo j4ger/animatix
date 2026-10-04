@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Recipes — Animatix</title>
-  <meta name="description" content="Seven small moves that make an Animatix scene look lit and alive — each one a figure you can play, scrub and read the source of.">
+  <meta name="description" content="Eight small moves that make an Animatix scene look lit and alive — each one a figure you can play, scrub and read the source of.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
 </head>
@@ -13,7 +13,7 @@
   <div class="wrap">
     <header>
       <p class="kicker">Animatix · recipes</p>
-      <h1>Seven moves, not seven features.</h1>
+      <h1>Eight moves, not eight features.</h1>
       <p class="lede">
         A scene reads as alive for reasons that are small and combinable: the
         plate is lit rather than flat, something keeps moving after the
@@ -23,7 +23,7 @@
         the source to steal it.
       </p>
       <ul class="meta">
-        <li>7 recipes</li>
+        <li>8 recipes</li>
         <li>plain text <code class="inline">.amx</code> scenes only</li>
         <li>the same engine as the desktop app</li>
       </ul>
@@ -136,6 +136,25 @@
             Blur alone is out of focus; bloom alone is an exposure bump; the pair
             is a light source.</span>
           <a class="src" href="./scenes/bloom_stage.amx">bloom_stage.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>The bar race</h3>
+        <amx-player src="./scenes/bar_race.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A bar chart swapping datasets, bars matched by label"></amx-player>
+        <figcaption>
+          <span class="cap">A chart's <code class="inline">data</code> is a
+            keyframable property now: <code class="inline">chart.data =
+            {("api", 61), …}</code> records a transition and every bar travels
+            to <em>its own</em> new value, matched by label — the heights
+            animate and the slots do not. Two limits come with it: the captions
+            are compiled at build, so a dataset that changes its labels
+            <em>or their order</em> warns rather than quietly mislabelling its
+            bars, and <code class="inline">max_value: auto</code> normalises the
+            tallest bar every frame, which hides a growing maximum.</span>
+          <a class="src" href="./scenes/bar_race.amx">bar_race.amx ↗</a>
         </figcaption>
       </figure>
     </div>

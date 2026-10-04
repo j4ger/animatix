@@ -485,8 +485,9 @@ the order that makes sense to attempt it:
    `missing-glyph` naming each uncovered character (`declarations_text.rs:523`,
    pinned by `build_diagnostics.rs:260`) and the tour's formula scenes are
    written in ASCII, so no tofu ships, and the third preset layer —
-   `web/recipes/` (`7d568e64`), seven single-idea scenes with the source beside
-   each, so `docs/spec.md`'s Recipes section and the site now point at the same
+   `web/recipes/` (`7d568e64`), single-idea scenes with the source beside each —
+   eight now that `bar_race` joined them for #23 — so `docs/spec.md`'s Recipes
+   section and the site now point at the same
    vocabulary. Still owed: the site content redo beyond the review pass,
    a decision on `web/demos/posters/*.png` (eight 1280×720 stills nothing
    references any more — the hub plays live `data-hoverplay` embeds, and

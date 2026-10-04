@@ -1353,7 +1353,7 @@ frame, so the entrance would do nothing.
 **Where to watch them move.** Every recipe in this section has a running version
 in the browser. `web/recipes/` plays one move per figure — `two_point_light`,
 `marching_ants`, `count_up`, `camera_push`, `word_reveal`, `analytic_sparks`,
-`bloom_stage` — and tour §06 (`web/tour/scenes/light_camera.amx`) stacks them
+`bloom_stage`, `bar_race` — and tour §06 (`web/tour/scenes/light_camera.amx`) stacks them
 into a single scene so the *order* is visible: light first, then a live edge,
 then bloom, and the camera push last. The sources are ordinary `.amx` under
 `web/recipes/scenes/` and `web/tour/scenes/`, so each one can be copied whole.
