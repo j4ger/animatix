@@ -71,7 +71,14 @@
 `dash_pattern` takes a brace list of alternating segment and gap lengths in scene
 pixels (`dash_pattern: {8, 6}`); animating `dash_offset` gives marching ants.
 `blend` names a CSS mix-blend mode (`"screen"`, `"multiply"`, …) and composites
-the actor's whole subtree against what is behind it.
+the actor's whole subtree against what is behind it. "All stroke paths" includes
+the plot actors — a `PlotCurve` accepts `dash_pattern` and the gradients just
+like a `Path` does, and the ramp survives a `stroke_progress` trace.
+
+These properties also accept their text form inside a frame-time override:
+`always { r.stroke = "#ff2d55" }` reads the same as `always { r.stroke =
+(1.0, 0.18, 0.33, 1.0) }`. A `size` written there is authored in full width and
+height, like the declaration is, not in the half-extents the shape state stores.
 
 ### Gradients
 

@@ -108,7 +108,19 @@ impl Primitive for PlotCurvePrimitive {
             ctx.vector_paths.to_vec()
         };
 
-        Ok(Some(vec![RenderCommand::Paths { paths }]))
+        let mut commands = vec![RenderCommand::Paths { paths }];
+        // Only ask for the decorations this actor actually authored: the stamp
+        // samples five style tracks per call. `dash_pattern` gets an emptiness
+        // probe because `insert_end_keyframes` creates that track for every
+        // actor; the gradient tracks are created only when authored, so
+        // `is_some` is enough and avoids cloning a ramp's stop list.
+        let wants_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
+        let wants_gradient = ctx.track.style.fill_gradient.is_some()
+            || ctx.track.style.stroke_gradient.is_some();
+        if wants_dash || wants_gradient {
+            crate::primitives::stamp_stroke_decoration(&mut commands, ctx);
+        }
+        Ok(Some(commands))
     }
 
     fn build(

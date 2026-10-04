@@ -105,9 +105,8 @@ impl Primitive for ImagePrimitive {
         if let Some(image) = ctx.track.image.get(ctx.time_ms, None) {
             let mut half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
             if let Some(overrides) = ctx.overrides {
-                if let Some(crate::timeline::Value::Vec2(s)) = overrides.get("size") {
-                    half_size[0] = s[0] as f32;
-                    half_size[1] = s[1] as f32;
+                if let Some(s) = crate::primitives::override_size(overrides) {
+                    half_size = s;
                 }
             }
             let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];

@@ -901,7 +901,22 @@ pub(crate) fn write_vec4(
     let v = match value {
         PropertyValue::Vec4(v) => v,
         PropertyValue::Color(v) => v,
-        _ => return,
+        // A color written as text (`stroke = "#ff2d55"`) is as valid as one
+        // written as a tuple: hex and named colors resolve everywhere a color is
+        // accepted, including frame-time overrides.
+        PropertyValue::String(text) => match crate::timeline::utils::color_from_text(&text) {
+            Some(color) => color,
+            None => {
+                tracing::warn!("write_vec4: '{text}' is not a color; the assignment is dropped");
+                return;
+            },
+        },
+        other => {
+            tracing::warn!(
+                "write_vec4: expected a color, got {other:?}; the assignment is dropped"
+            );
+            return;
+        },
     };
     if has_duration {
         let start_val = field.get(t_start_ms, default);

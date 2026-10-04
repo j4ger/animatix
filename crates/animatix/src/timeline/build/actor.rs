@@ -1342,6 +1342,62 @@ impl Timeline {
         }
     }
 
+    /// Seed the decoration properties the plot pipeline does not carry: the dash
+    /// pair and the four gradient properties.
+    ///
+    /// `process_plot_actor` reports back only the style values it understands, and
+    /// the plot keyframe insertion writes exactly those, so a plot actor's
+    /// declaration could never land these on its track — even though both groups
+    /// are declared `Applicable::AllStrokePaths`, which includes `PlotCurve`.
+    /// Frame time samples them off the track (`stamp_stroke_decoration`), so the
+    /// declaration has to be routed through the generic engine here.
+    fn insert_plot_decoration_keyframes(
+        track: &mut AnimationTrack,
+        props: &[Property],
+        eval_env: &Environment,
+        label: &str,
+        t_start_ms: u64,
+        t_end_ms: u64,
+        easing: Easing,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        const PLOT_DECORATIONS: [&str; 6] = [
+            "dash_pattern",
+            "dash_offset",
+            "fill_gradient",
+            "stroke_gradient",
+            "gradient_extend",
+            "gradient_space",
+        ];
+        for prop in props {
+            if !PLOT_DECORATIONS.contains(&prop.name.as_str()) {
+                continue;
+            }
+            let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
+            else {
+                continue;
+            };
+            let subject = format!("{label}.{}", prop.name);
+            if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                schema.value_type,
+                &prop.value,
+                eval_env,
+                diagnostics,
+                &subject,
+            ) {
+                crate::timeline::property_engine::write_property_field(
+                    track,
+                    schema.field,
+                    pv,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    diagnostics,
+                );
+            }
+        }
+    }
+
     // === ActorKind Dispatch Methods ===
 
     /// Dispatch method for plot actor kinds (called from ActorKind trait impl)
@@ -1567,6 +1623,17 @@ impl Timeline {
                 track.style.dash_offset.last(0.0),
                 vello_paths,
                 easing,
+            );
+
+            Self::insert_plot_decoration_keyframes(
+                track,
+                props,
+                &eval_env,
+                label,
+                t_start_ms,
+                t_end_ms,
+                easing,
+                diagnostics,
             );
 
             // === Tick Labels ===

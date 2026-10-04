@@ -238,6 +238,57 @@ pub fn evaluate_text_paths(
     }
 }
 
+/// Read a color from an `always`-block override map.
+///
+/// A color written as text (`stroke = "#ff2d55"`) is as valid as one written as
+/// a tuple: hex and named colors are accepted everywhere a color is, overrides
+/// included.
+fn override_color(
+    overrides: &std::collections::HashMap<String, Value>,
+    key: &str,
+) -> Option<[f32; 4]> {
+    match overrides.get(key) {
+        Some(Value::Color(c) | Value::Vec4(c)) => {
+            Some([c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32])
+        },
+        Some(Value::Str(text)) => crate::timeline::utils::color_from_text(text),
+        // A non-color under a color key is an authoring error, but this runs for
+        // every shape every frame, so `warn!` here would flood the log. The key-
+        // framed value stands, which is what the old silent drop did as well.
+        Some(other) => {
+            tracing::debug!("`{key}` override is not a color: {other:?}; keeping keyframed value");
+            None
+        },
+        None => None,
+    }
+}
+
+/// Read a `size` override written by an `always` block.
+///
+/// The authored value is a full width/height, but every geometry track stores
+/// half-extents — so this halves, matching the declaration path
+/// (`timeline/build/shape.rs`) and the keyframe path
+/// (`assignments::rebuild::handle_size_assignment`). Without it
+/// `always { r.size = (100.0, 60.0) }` paints a 200×120 box where
+/// `size: (100, 60)` paints a 100×60 one.
+pub(crate) fn override_size(
+    overrides: &std::collections::HashMap<String, Value>,
+) -> Option<[f32; 2]> {
+    match overrides.get("size") {
+        Some(Value::Vec2([w, h])) => Some([*w as f32 / 2.0, *h as f32 / 2.0]),
+        // A wrongly-typed override keeps the keyframed size. This runs for every
+        // shape every frame, so the drop is logged at debug rather than warn,
+        // which would repeat the same message 60 times a second.
+        Some(other) => {
+            tracing::debug!(
+                "`size` override is not a (w, h) pair: {other:?}; keeping keyframed size"
+            );
+            None
+        },
+        None => None,
+    }
+}
+
 /// Sample shape style (color, stroke_width, stroke_color, fill_opacity) from a track
 /// at the given time, applying property overrides when present.
 pub fn sample_shape_style(
@@ -254,11 +305,11 @@ pub fn sample_shape_style(
     let mut line_join = track.style.line_join.get(time_ms, 0);
 
     if let Some(node_overrides) = overrides {
-        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("color") {
-            color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        if let Some(c) = override_color(node_overrides, "color") {
+            color = c;
         }
-        if let Some(Value::Color(c) | Value::Vec4(c)) = node_overrides.get("stroke") {
-            stroke_color = [c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32];
+        if let Some(c) = override_color(node_overrides, "stroke") {
+            stroke_color = c;
         }
         if let Some(Value::Num(width)) =
             node_overrides.get("stroke_width").or_else(|| node_overrides.get("width"))
@@ -516,6 +567,17 @@ pub(crate) fn evaluate_shape_render(
     ctx.track
         .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)
         .map(Some)
+}
+
+/// Stamp the shared stroke decorations (dash, gradient) onto a plot's commands.
+///
+/// `PlotCurve` assembles its own `RenderCommand` instead of going through
+/// `evaluate_shape_render`, so it has to ask for the decorations the vector
+/// shapes get by hand: `dash_pattern:` and `stroke_gradient:` are declared
+/// `Applicable::AllStrokePaths`, which includes `PlotCurve`.
+pub(crate) fn stamp_stroke_decoration(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
+    stamp_shape_dash(commands, ctx);
+    stamp_shape_gradient(commands, ctx);
 }
 
 /// Stamp the sampled dash pattern/offset onto every path in `commands`.
@@ -1660,6 +1722,38 @@ mod tests {
             let name = entry.behavior.type_name();
             assert!(seen.insert(name), "Duplicate type_name: {:?}", name);
         }
+    }
+
+    #[test]
+    fn size_override_is_authored_in_full_extents() {
+        // Shape state stores half-extents, so the frame override has to halve
+        // exactly like the declaration path does.
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("size".to_string(), Value::Vec2([100.0, 60.0]));
+        assert_eq!(override_size(&overrides), Some([50.0, 30.0]));
+    }
+
+    #[test]
+    fn text_color_override_reaches_shape_style() {
+        // `always { l.stroke = "#30d158" }` arrives in the frame override map as a
+        // `Value::Str`. Hex text has to land the same way a tuple does, and a
+        // non-color under a color key has to leave the keyframed value alone.
+        let track = AnimationTrack::new("l".to_string(), "Line");
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
+        overrides.insert("stroke".to_string(), Value::Num(0.5));
+        let style = sample_shape_style(&track, 0, Some(&overrides));
+        let near = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
+        assert!(
+            near(style.color, [1.0, 45.0 / 255.0, 85.0 / 255.0, 1.0]),
+            "hex override: {:?}",
+            style.color
+        );
+        assert!(
+            near(style.stroke_color, DEFAULT_WHITE),
+            "non-color override must not clobber: {:?}",
+            style.stroke_color
+        );
     }
 
     #[test]

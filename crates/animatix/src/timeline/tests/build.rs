@@ -1649,6 +1649,33 @@ a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, 
 }
 
 #[test]
+fn plot_actor_declarations_seed_dash_and_gradient() {
+    // The plot pipeline consumes its own children's declarations, so the dash
+    // pair and the gradient properties — both declared for every
+    // `AllStrokePaths` actor, which includes `PlotCurve` — need an explicit
+    // route onto the track. Without it the frame-time stamp samples an empty
+    // ramp and the curve silently draws its default solid stroke.
+    let timeline = build_timeline(
+        r##"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
+  c: PlotCurve, kind: "cartesian", func: (x) => x, stroke: red, dash_pattern: {10, 7},
+    stroke_gradient: linear(0, {(0%, "#ff0000"), (100%, "#0000ff")})
+}
+"##,
+    );
+    let track = timeline.tracks.get("c").expect("plot curve track");
+    assert_eq!(
+        track.style.dash_pattern.get(0, Vec::new()),
+        vec![10.0, 7.0],
+        "dash_pattern should land on the plot track"
+    );
+    let ramp = track.style.stroke_gradient.get(0, Default::default());
+    assert_eq!(ramp.stops.len(), 2, "stroke_gradient should land on the plot track");
+}
+
+#[test]
 fn draw_in_adds_visible_stroke_to_filled_shape() {
     let timeline = build_timeline(
         r#"

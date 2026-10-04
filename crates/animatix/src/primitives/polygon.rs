@@ -106,9 +106,8 @@ impl Primitive for PolygonPrimitive {
         };
 
         if let Some(overrides) = ctx.overrides {
-            if let Some(crate::timeline::Value::Vec2(s)) = overrides.get("size") {
-                state.size[0] = s[0] as f32;
-                state.size[1] = s[1] as f32;
+            if let Some(s) = crate::primitives::override_size(overrides) {
+                state.size = s;
             }
             if let Some(crate::timeline::Value::Num(r)) = overrides.get("rotation") {
                 state.rotation = *r as f32;
