@@ -1,0 +1,31 @@
+config { colorscheme: "vivid", resolution: (640, 360), duration: 3 }
+
+bg: Rect, size: (640, 360), at: (320, 180), color: (0.07, 0.07, 0.1, 1.0)
+
+// A diagonal linear ramp across a rounded bar.
+bar: Rect, size: (400, 70), at: (320, 90), corner_radius: 16,
+  fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+
+// A radial spotlight that fades out to transparent.
+spot: Ellipse, size: (300, 300), at: (180, 240),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")})
+
+// A sweep ramp painted on a stroke.
+ring: Path, commands: {move_to(420, 240), curve_to(460, 180, 540, 180, 580, 240), curve_to(540, 300, 460, 300, 420, 240)},
+  stroke_width: 10, fill_opacity: 0.0,
+  stroke_gradient: sweep(0, {"#30d158", "#ffd60a", "#ff2d55", "#30d158"}),
+  gradient_extend: "reflect"
+
+// The same ramp, animated: the angle turns through the second half.
+turn: Rect, size: (140, 40), at: (320, 330), corner_radius: 8,
+  fill_gradient: linear(0, {"#64d2ff", "#ff2d55"})
+
+#0s
+fade-in bg [300ms]
+fade-in bar [300ms]
+fade-in spot [300ms]
+fade-in ring [300ms]
+fade-in turn [300ms]
+
+#1.2s
+turn.fill_gradient = linear(180, {"#64d2ff", "#ff2d55"}) [1.4s, ease: ease-in-out]

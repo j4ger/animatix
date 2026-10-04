@@ -1,9 +1,10 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04). Wave 1 partially landed — five items
-> shipped in four commits; the rest of M1 and everything after is queued for
-> the next session** (see ["Landed so far"](#landed-so-far) and
-> ["Remaining work, next-session order"](#remaining-work-next-session-order)).
+> **STATUS: IN PROGRESS (2026-10-04, second session). M1 is complete** — every
+> item in it is landed (see ["Landed so far"](#landed-so-far)). Of M2, items
+> #14/#15/#16 landed and #12 is in flight; the remaining work is #8 (default
+> easing) plus all of M3/M4 and the content/docs closeout, listed in
+> ["Remaining work, next-session order"](#remaining-work-next-session-order).
 > The decision questions at the bottom were resolved by the owner's go-ahead to
 > execute the whole handoff ("做完handoff里的所有项目"); only implementation
 > order remains open. This is a new track alongside the silent-drops remainder
@@ -17,6 +18,71 @@
 > first — see ["`draw-in` does not draw"](#found-while-probing-draw-in-does-not-draw-on-non-plot-shapes).
 
 ## Landed so far
+
+### Batch 2 (2026-10-04, second session) — five commits, local only
+
+| Commit | Item | Evidence it landed |
+|---|---|---|
+| `26665289` | #1 gradient fills/strokes, SVG ramp import, hex colors | `gradient_paints_are_parsed_stamped_and_interpolated`; three rewritten `svg_import` tests now assert the ramp survives import; rendered probe of all four forms in `dogfood/probe_gradient.amx` |
+| `b4d8e0ac` | #7 + #9 `settle-in`, `pop-in`, `[anticipate: …]` | `settle_in_and_pop_in_ramp_scale_onto_the_authored_scale`, `anticipate_inserts_a_counter_move_before_the_travel` |
+| `f69650d5` | #14 loop-perfect lint (`config { seamless_loop: true }` → `loop-not-seamless`) | `seamless_loop_lints_values_that_do_not_wrap` (both directions) |
+| `adf0fcbc` | #15 CLI `--set NAME=VALUE` | `cli_defines_shadow_the_authored_let_defaults`; end-to-end render of a template with overridden text and color |
+| `a05210b7` | #16 `#2b` beat stamps + `config { bpm }` | `beat_stamps_resolve_against_the_declared_tempo` (60/120/absent tempo) |
+
+Notes the next session will want from batch 2:
+
+- **Gradients are keyframable**, not static: two `linear()` values of the same
+  kind and stop count interpolate geometry and colors. `gradient_extend:` and
+  `gradient_space:` are separate scalar properties (default `pad` / `oklab`)
+  applied by the stamp, so they are not per-ramp arguments.
+- Ramps ride **outside** the shape-command memo, exactly like dash — an animated
+  ramp would otherwise be served stale from a cached encoding.
+- **Hex color strings now resolve anywhere a color is accepted**
+  (`utils::color_from_text`). They previously fell through to the silent
+  `[0.8, 0.8, 0.8, 1.0]` default, which is how the first gradient probe rendered
+  gray. `lerp_color_oklab` also accepts color strings (frame-time `Value::Str`).
+- **`pop-in`'s overshoot is an explicit intermediate keyframe**, not
+  `Easing::Back`: the easing layer clamps a segment curve at its end, so a
+  back-eased ramp peaks exactly at its target and never pops. Verified by test.
+- **`anticipate:` is declared on the motion verbs' signatures**, not added to the
+  universal `TIMING_KEYS` whitelist, so using it on another action reports
+  `unsupported-modifier-key` instead of doing nothing silently.
+- **`--set` shadows the authored `let`.** The first version re-applied the values
+  *after* the statement walk and a `color: tint` fill stayed red — properties
+  resolved during the walk never saw it. `process_body` now skips the authored
+  assignment for a shadowed name.
+- **`seamless_loop` is spelled that way** because `loop` is a reserved keyword.
+  The lint is an engine post-build check (alongside `never-revealed`), so
+  `check`, the GUI and the LSP all get it; only *keyframed* values are sampled —
+  `always`-driven and plot-`func` values are frame-time functions and are the
+  documented v1 skip.
+- **Beat durations (`[2b]`) are not resolved** — only stamps. The modifier path
+  has no scene tempo in scope; it reports `invalid-modifier-value` rather than
+  guessing. Every non-build consumer (formatter, outline, analyzer, web marker
+  strip, editor keyframe shift) resolves beats at the documented default 120 bpm.
+- **Perf for #1** (`scripts/perf-bench.sh compare`, gradient-only tree, 120
+  benches): `mixed_scene_evaluate` +5.03%, `reactive_evaluate_100frames` +13.55%,
+  `stage__build_frame_env` +12.02% flagged — the same machine-drift families
+  batch 1 flagged and cleared under isolation. `VelloPath` grew two
+  `Option<GradientSpec>` fields, the plausible real cost. **Not dispositioned by
+  an isolation re-run**; do that on a quiet machine before trusting it.
+- **Docs debt partially paid**: `docs/properties.md` has the dash/blend rows plus
+  a gradients section; `docs/spec.md` has the hex-color contract, the corrected
+  "do not use hex strings" checklist line, the entrance-preset and anticipation
+  prose, the `seamless_loop` and `bpm` config rows, a
+  "Built-in Functions for Motion" table (noise family, `lerp_color_oklab`,
+  `format`) and a Recipes section (count-up, seamless loop, light vocabulary).
+  Still owed: `docs/effects.md` and `docs/primitives.md` for dash/blend/gradient,
+  and the `vivid`/`paper`/`neon-night` scheme descriptions.
+- **New examples**: `examples/animation/32_light_vocabulary.amx` (radial
+  screen-blend wash, lit gradient bar, swept stroke, marching dashes, `fbm`
+  drift, both new presets, anticipated move) and
+  `examples/animation/33_count_up_ticker.amx`. Both render-verified. Note the
+  trap found while writing them: an `always` block that writes a property the
+  primitive *defaults* (e.g. `size` on a `Rect`) trips
+  `always-overrides-keyframes` even though the author never animated it.
+
+### Batch 1 (2026-10-04, first session)
 
 Four commits on `main` (local only, unpushed as of 2026-10-04 evening):
 
@@ -238,34 +304,40 @@ each non-trivial. Verified 2026-10-04.
 
 ## Remaining work, next-session order
 
-M1 items 2/3/4/6/10/11 are done (see "Landed so far"). What is left, in the
-order that makes sense to attempt it:
+M1 (#1-#11) is complete. In M2, #14/#15/#16 are done and #12 (icon set) is in
+flight. What is left, in the order that makes sense to attempt it:
 
-1. **#1 gradients** — the biggest remaining M1 visual item. Static first
-   (params in `RenderCommand::Paths` as an optional brush), DSL properties
-   appended after `blend`; un-flatten SVG gradients as a rider.
-2. **#7 + #9 preset actions** (`settle-in`, `pop-in`, `anticipate:`) — small,
-   independent, and they make the new vocabulary usable in one line.
-3. **#8 default easing** — the noise-floor A/B discipline, on its own commit.
-4. **#14 loop-perfect lint**, **#15 CLI `--set`**, **#16 beat timestamps** —
-   verification/authoring tooling, independent of each other.
-5. **#12 icon set** (unblocked by #6), **#18 per-letter reveal**,
-   **#17 camera**, **#19 particles**, **#20 move-along-path**.
-6. **#21 the second-input ABI bump** → bloom/soft shadow; **#22 glass** after
+1. **#8 default easing** — the last M2 item that changes what scenes look like.
+   Needs the noise-floor A/B discipline (same-binary + positive control, per
+   `handoff_silent_drops.md` §Verification), a corpus review, and spec/golden
+   updates, on its own commit. Note that `settle-in`/`pop-in` already give
+   authors a one-word way off the flat-fade default; #8 is about moving the
+   default itself.
+2. **#18 per-letter reveal** (`draw-in [by: letter]`) — `RenderCommand::Text`
+   already draws glyphs one by one; `TextPath` carries no per-glyph transform,
+   so this needs a glyph-list representation change plus a
+   `scripts/perf-bench.sh compare` run.
+3. **#17 scene camera** — the transform threading exists and roots are seeded
+   `Affine::IDENTITY` at two sites; the cost is the landmine list in the
+   inventory table (static-subtree cache key, effect regions in world coords,
+   screen-anchored actors, `verify.rs` hit regions, un-camerad background).
+4. **#19 particles** (seeded-analytic form, decision 3 approved) and
+   **#20 move-along-path** (needs a scoping pass first).
+5. **#21 the second-input ABI bump** → bloom/soft shadow; **#22 glass** after
    it (shared machinery); **#23 BarChart race**; **#24 font weights**; **#25
    vello pin lift** (check upstream state first).
-7. **#5 + #13 content/docs closeout** — count-up recipe, example theme packs,
-   glyph-gap fix (`ᵀ`/`ₖ` tofu), site content redo with the new vocabulary,
-   and the docs updates this round still owes: `docs/spec.md` (new properties:
-   `dash_pattern`/`dash_offset`/`blend`, new colorschemes, new builtins),
-   `docs/primitives.md`, `docs/effects.md`, then prune this handoff into
-   `docs/history.md` when the round closes.
-8. **The sub-agent visual review pass** the owner asked for: re-review every
+6. **#13 closeout, partially done in batch 2.** Still owed: `docs/effects.md`
+   and `docs/primitives.md` for dash/blend/gradient, the `vivid`/`paper`/
+   `neon-night` scheme descriptions, the theme-pack examples, the fast-path
+   glyph-gap fix (`ᵀ`/`ₖ` tofu on the tour → ASCII math), the site content redo
+   with the new vocabulary, then pruning this handoff into `docs/history.md`
+   when the round closes.
+7. **The sub-agent visual review pass** the owner asked for: re-review every
    `web/` page's rendered output with the new vocabulary available, fix what
    it finds.
 
-Milestones as originally proposed: M1 = items 1-11 (now 6 of 8 done),
-M2 = 12-16, M3 = 17-20, M4 = 21-22.
+Milestones as originally proposed: M1 = items 1-11 (**complete**),
+M2 = 12-16 (14/15/16 done, 12 in flight, 8 open), M3 = 17-20, M4 = 21-22.
 
 ## Relationship to other documents
 

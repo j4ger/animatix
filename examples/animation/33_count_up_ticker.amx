@@ -1,0 +1,18 @@
+config { colorscheme: "paper", resolution: (960, 540), duration: 4 }
+
+label: Text, text: "ships this quarter", at: (480, 350), font_size: 26
+
+kpi: Text, text: "0%", at: (480, 250), font_size: 132
+
+rule: Rect, size: (320, 4), at: (480, 312), corner_radius: 2, fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+
+always {
+  let p = clamp((t - 0.4) / 1.8, 0, 1)
+  let eased = (p * p) * (3 - 2 * p)
+  kpi.text = format("{:.0}%", eased * 87)
+}
+
+#0s
+  fade-in label [400ms]
+  settle-in kpi [500ms]
+  fade-in rule [400ms]

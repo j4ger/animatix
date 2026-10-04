@@ -555,7 +555,32 @@ as a `clip_shape` warns and falls back to a rectangular clip.
 # 4. Common Animated Properties
 
 Runtime supports explicit assignment for: `color`, `stroke`, `stroke_width`, `stroke_progress`,
-`fill_opacity`, `size`, `at`/`position`, `radius_x`, `radius_y`, `from`, `to`, `scene.background_color`.
+`fill_opacity`, `size`, `at`/`position`, `radius_x`, `radius_y`, `from`, `to`, `scene.background_color`,
+and the paint/compositing set below.
+
+**Stroke and compositing vocabulary** (see [`properties.md`](properties.md#style) for the full
+rows):
+
+| Property | Applies to | What it does |
+|----------|-----------|--------------|
+| `dash_pattern` | stroke paths | Brace list of alternating segment/gap lengths in scene pixels — `dash_pattern: {8, 6}` |
+| `dash_offset` | stroke paths | Phase into the pattern; animating it is the marching-ants idiom |
+| `blend` | everything | CSS mix-blend mode name (`"screen"`, `"multiply"`, …); composites the actor's whole subtree against what is behind it |
+| `fill_gradient` | shapes except `Line` | Ramp replacing the solid fill: `linear(angle, stops)`, `radial(center, radius, stops)`, `sweep(angle, stops)` |
+| `stroke_gradient` | stroke paths | Same, on the stroke |
+| `gradient_extend` | shapes and stroke paths | `"pad"` (default), `"repeat"`, `"reflect"` |
+| `gradient_space` | shapes and stroke paths | `"oklab"` (default — no dark band across saturated hue ramps) or `"srgb"` |
+
+Gradient geometry is normalized to the painted shape's bounding box, so a ramp
+follows an actor that resizes. Ramps interpolate between keyframes when the two
+values share a kind and stop count, so a gradient can turn or stretch over time.
+Both dash and gradient ride *outside* the shape-command memo — an animated dash
+offset or ramp would otherwise be served stale from a cached encoding, which is
+why a scene that uses neither pays nothing for them.
+
+`stroke_progress` (what `draw-in` writes) trims stroke-only geometry by arc
+length on any shape, not just plots; closed and filled shapes keep the
+fill-reveal semantics instead.
 
 Text/Typst/Code use text-path keyframes; shapes use vector-path keyframes.
 

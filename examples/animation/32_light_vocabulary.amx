@@ -1,0 +1,44 @@
+config { colorscheme: "neon-night", resolution: (1280, 720), duration: 8 }
+
+wash: Ellipse, size: (900, 900), at: (420, 300), fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (60%, "#5e5ce633"), (100%, "#5e5ce600")}), blend: "screen"
+
+bar: Rect, size: (760, 88), at: (640, 220), corner_radius: 22, fill_gradient: linear(120, {"#ff2d55", "#ff9f0a"})
+
+arc: Path, commands: {move_to(320, 520), curve_to(480, 380, 800, 380, 960, 520)}, stroke_width: 10, fill_opacity: 0, stroke_gradient: sweep(0, {"#30d158", "#ffd60a", "#ff2d55", "#30d158"}), gradient_extend: "reflect"
+
+wire: Path, commands: {move_to(240, 620), line_to(1040, 620)}, stroke: accent.info, stroke_width: 2, fill_opacity: 0, dash_pattern: {10, 7}
+
+title: Text, text: "made of light", at: (640, 220), font_size: 54
+
+mote: Ellipse, size: (14, 14), at: (640, 400), color: lerp_color_oklab("#30d158", "#ff2d55", 0.5)
+
+#0s
+  fade-in wash [900ms]
+  settle-in bar [700ms]
+  pop-in title [600ms]
+  draw-in arc [1200ms, ease: expo-out]
+  fade-in wire [400ms]
+  pop-in mote [500ms]
+  wire.dash_offset = 0
+
+#0.9s
+  bar.shift = (0, 0)
+
+#2.2s
+  bar.shift = (0, -14) [1.3s, ease: ease-in-out]
+
+#2.4s
+  wire.dash_offset = 340 [2.6s]
+  always {
+      let wobble = fbm(t * 0.5, 4)
+      mote.at = (640 + wobble * 220, 400 + seeded_noise(7, t * 0.8) * 60)
+    }
+
+#5s
+  move bar [to: (0, 30), 1.2s, anticipate: 90ms]
+
+#6.4s
+  fade-out wash [1.2s]
+  fade-out bar [900ms]
+  fade-out title [900ms]
+  wipe-out arc [900ms]

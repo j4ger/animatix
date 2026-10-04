@@ -1036,6 +1036,76 @@ always {
 
 > **Note:** `always` is stateless — variables do not persist between frames. Physics-style integration should use analytical expressions of `t` (e.g., `position = p0 + v0*t + 0.5*a*t²`) or keyframe tracks. Per-actor stateful updaters are not planned. See the Icebox notes on interactive step control and eval-path unification in `docs/history.md`.
 
+### Built-in Functions for Motion
+
+The functions that matter for lively motion, beyond the arithmetic and
+trigonometry you would expect:
+
+| Function | Signature | What it is for |
+|----------|-----------|----------------|
+| `noise` | `noise(x) -> Num` | 1-D value noise in `-1..1` at a fixed seed — the organic wobble that a sine wave does not give you |
+| `noise2` | `noise2(x, y) -> Num` | 2-D value noise, for drift and texture that varies across a surface |
+| `seeded_noise` / `seeded_noise2` | `(seed, x[, y]) -> Num` | The same, with the seed as an argument, so each actor in a group gets its own independent wobble |
+| `fbm` | `fbm(x, octaves) -> Num` | Fractal Brownian motion: several octaves of noise summed, for cloud/aurora/terrain-style motion |
+| `seeded_fbm` | `(seed, x, octaves) -> Num` | `fbm` with an explicit seed |
+| `lerp_color` | `(from, to, t) -> Color` | Channel-wise sRGB mix — the historical default |
+| `lerp_color_oklab` | `(from, to, t) -> Color` | The same ramp interpolated perceptually: no dark band between two saturated hues, and the midpoint of red→green keeps its brightness instead of dropping |
+| `format` | `(template, …) -> Str` | `{}`-style interpolation, the string half of a count-up ticker |
+
+Noise is deterministic and pure: the same arguments always give the same value,
+on every platform and every frame, which is what keeps `always`-driven motion
+reproducible. Never reach for an unseeded random.
+
+```animatix
+// A group of dots that each drift on their own, without any keyframes.
+always {
+  dot[i].at = dot[i].at + (fbm(i * 3.7 + t * 0.4, 4) * 6, seeded_noise(i, t) * 4)
+}
+```
+
+### Recipes
+
+**Count-up ticker.** `format` plus an `always` override is the whole trick — the
+glyphs recompile per frame, so the number counts.
+
+```animatix
+kpi: Text, text: "0", at: (480, 270), font_size: 96
+
+always {
+  let p = clamp((t - 0.4) / 1.6, 0, 1)
+  kpi.text = format("{:.0}%", p * p * (3.0 - 2.0 * p) * 100)
+}
+```
+
+> Caveat worth knowing: `geometry.size` is **not** remeasured from a frame-time
+> `text` override, so a counter that grows from `"9"` to `"100"` does not reflow
+> its box. Anchor it at the right edge (or center it in a fixed-width container)
+> when the digit count changes.
+
+**Seamless loop.** A scene that replays must end where it started. Build the
+motion out of `sin`/`cos` of `(t % period) / period * τ` (and integer multiples
+of it) and it wraps by construction; declare `config { seamless_loop: true }` and
+the build checks the keyframed half of that claim for you (see
+`loop-not-seamless`).
+
+**Light vocabulary in one line.** The combination that turns a flat dark scene
+into a lit one: a `radial` gradient fading to a transparent stop, `blend:
+"screen"` on the glowing actor, and a `dash_pattern` with an animated
+`dash_offset` for a live edge.
+
+```animatix
+glow: Ellipse, size: (420, 420), at: (640, 360),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")}),
+  blend: "screen"
+wire: Path, commands: {move_to(200, 500), line_to(1080, 500)},
+  stroke: accent.primary, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {8, 6}
+#0s
+wire.dash_offset = 0
+#2s
+wire.dash_offset = 140 [2s]
+```
+
 ### Property References & State Queries
 
 The `&` operator packages a property **slot** (not its value) into a

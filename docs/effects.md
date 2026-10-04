@@ -258,6 +258,27 @@ evidence.
   cache is per-device and lives with the backend. Dimension changes recreate
   targets but must not recreate pipelines whose key is unchanged.
 
+**Adjacent caches outside the effect pipeline.** Two other per-frame caches share
+the same staleness hazard, and both are deliberately bypassed rather than keyed:
+
+- The shape-command memo is keyed on `(epoch, style, state)`. A `dash_offset` or
+  a gradient ramp that animates would be served stale from it, so dash and
+  gradient paints are *stamped onto freshly built commands* instead of being
+  folded into the key. Scenes that author neither take the memo fast path
+  untouched.
+- The static-subtree cache holds a whole encoded scene per root. An actor that
+  carries dash, a gradient or a `blend:` always has keyframes, so it is excluded
+  from that cache by the existing rule rather than needing its own carve-out.
+
+**Per-actor `blend:` is not the effect pipeline.** It is a Vello node-level
+`push_layer` in `evaluate_node`, so it composites the actor's whole subtree
+against whatever is behind it in the scene, with no offscreen texture and no GPU
+pass. Known limits worth revisiting: the layer is full-surface rather than the
+node's bounds, `blend` on `Filter`/`Mask` scopes is untested, and there is no
+per-actor `Compose` control (only `Mix` names are parsed). A true backdrop blur
+(`glass`) still needs mid-frame scene splitting — see §4.1-§4.2 and the parked
+item in `handoff_motion_vocab.md`.
+
 ## 7. Plugin authoring (implemented, ABI snapshot 9)
 
 A plugin supplies **WGSL source text and a parameter schema, never a GPU
