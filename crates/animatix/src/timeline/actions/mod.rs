@@ -10,6 +10,7 @@ pub mod highlight;
 pub mod motion;
 /// Persistence actions (persist, remove) for multi-scene carry-forward.
 pub mod persistence;
+mod presets;
 /// Action registry types: signatures, parameters, and the [`BuiltinAction`] trait.
 pub mod registry;
 /// Reorder actions that change container child order (swap, reorder).
@@ -24,6 +25,7 @@ use exit::FadeOut;
 use highlight::{Highlight, Unhighlight};
 use motion::{Move, Rotate, Scale, Shift};
 use persistence::{Persist, Remove};
+use presets::{PopIn, SettleIn};
 use registry::{ActionSignature, BuiltinAction};
 use reorder::{Reorder, Swap};
 use reveal::{DrawIn, DrawOut, RevealIn, RevealOut, WipeOut};
@@ -383,6 +385,8 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
         Box::new(Shake),
         Box::new(Pulse),
         Box::new(Bounce),
+        Box::new(SettleIn),
+        Box::new(PopIn),
         Box::new(Highlight),
         Box::new(Unhighlight),
         Box::new(Swap),

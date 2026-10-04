@@ -85,6 +85,12 @@ pub(crate) struct ParsedTimingModifiers {
     pub duration_ms: f64,
     pub delay_ms: f64,
     pub easing: Easing,
+    /// True when the author passed `ease:` explicitly. Preset entrances carry
+    /// their own arrival curve and only fall back to it when this is false.
+    pub ease_authored: bool,
+    /// Length of the counter-move a motion verb should insert before its
+    /// action (`[anticipate: 80ms]`); 0 = no anticipation.
+    pub anticipate_ms: f64,
     pub morph_options: MorphOptions,
     pub func_blend_mode: FuncBlendMode,
 }
@@ -329,6 +335,8 @@ pub(crate) fn parse_timing_modifiers(
         duration_ms: 0.0,
         delay_ms: 0.0,
         easing: Easing::Linear,
+        ease_authored: false,
+        anticipate_ms: 0.0,
         morph_options: MorphOptions::default(),
         func_blend_mode: FuncBlendMode::Output,
     };
@@ -378,12 +386,36 @@ pub(crate) fn parse_timing_modifiers(
                     subject,
                 ),
             },
+            Some("anticipate") => match &modifier.value {
+                Expr::Ident(raw) => match parse_duration_literal(raw) {
+                    Some(ms) => parsed.anticipate_ms = ms,
+                    None => push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported anticipate value '{raw}' on {}; expected a time literal such as 80ms or 0.1s.",
+                            host.display_name()
+                        ),
+                        subject,
+                    ),
+                },
+                other => push_modifier_diagnostic(
+                    diagnostics,
+                    DiagnosticCode::InvalidModifierValue,
+                    format!(
+                        "Unsupported anticipate modifier value {other:?} on {}; expected a time literal such as 80ms or 0.1s.",
+                        host.display_name()
+                    ),
+                    subject,
+                ),
+            },
             Some("ease") => {
                 if let Some(easing) = parse_easing_expr(&modifier.value) {
                     if saw_ease {
                         push_conflicting_modifier_diagnostic(diagnostics, "ease", host, subject);
                     }
                     parsed.easing = easing;
+                    parsed.ease_authored = true;
                     saw_ease = true;
                 } else {
                     push_modifier_diagnostic(

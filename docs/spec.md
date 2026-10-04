@@ -253,6 +253,7 @@ config { colorscheme: "forest" }
 [ease: expo-out]         // Easing only (instant change)
 [ease: cubic-bezier(0.16, 1, 0.3, 1)]  // Parameterized curve
 [delay: 250ms, 0s]       // Delayed instant change
+[anticipate: 80ms]       // Counter-move before a `move`/`shift` (Motion verbs only)
 [path_arc: 1.57]         // Morph control (path-morphing only)
 [stretch: true]           // Bounds-normalized morph
 ```
@@ -316,8 +317,10 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | Action | Shape |
 |---|---|
 | `fade-in`, `fade-out`, `draw-in`, `draw-out`, `wipe-in`, `wipe-out`, `reveal-in`, `reveal-out` | `verb target [duration, delay, ease]` |
-| `move` | `move target [to: Vec2, duration, ease]` |
-| `shift` | `shift target [by: Vec2, duration, ease]` |
+| `settle-in` | `settle-in target [duration, delay, ease]` — fade plus a few percent of scale, so the actor arrives instead of appearing |
+| `pop-in` | `pop-in target [duration, delay, ease]` — fade plus a scale-up with a back overshoot |
+| `move` | `move target [to: Vec2, duration, ease, anticipate]` |
+| `shift` | `shift target [by: Vec2, duration, ease, anticipate]` |
 | `rotate` | `rotate target [by: Num, duration, ease]` |
 | `scale` | `scale target [by: Num, duration, ease]` |
 | `shake`, `pulse` | `verb target [duration, intensity: Num]` |
@@ -334,6 +337,19 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 > Rotation values are in radians by default. Use the `deg()` helper to convert: `deg(90)` equals ≈1.5708 radians.
 
 Vector reveal actions (`draw-in`, `reveal-in`, `wipe-in`, `wipe-out`, `reveal-out`, `draw-out`) are **leaf-only**; containers/groups report diagnostics.
+
+**Entrance presets.** `settle-in` and `pop-in` are a `fade-in` plus a scale ramp
+onto the actor's own authored scale, so an element comes to rest rather than
+being dialled up in opacity alone. `settle-in` starts at 92% size and arrives on
+`expo-out`; `pop-in` starts at 60% and arrives on `back` (one overshoot). An
+explicit `ease:` overrides the preset's arrival curve.
+
+**Anticipation.** `move` and `shift` accept `[anticipate: 80ms]`: before the
+travel starts, the actor leans back by 12% of its distance over that window.
+This is the counter-move that makes a translation read as intentional; without
+it, eased motion still reads as a value being interpolated. The window is
+clipped at `t = 0`, so an action at the very start of a scene simply has no
+room to anticipate.
 
 **Effects actions** add emphasis and attention animations:
 - `shake [intensity: N]` - Rapid oscillating horizontal motion

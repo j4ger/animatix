@@ -27,6 +27,13 @@ fn motion_timing_params() -> Vec<ActionParam> {
             type_info: "positive number".to_string(),
         },
         ActionParam {
+            name: "anticipate".to_string(),
+            description: "Counter-move window before the travel starts, e.g. [anticipate: 80ms]. \
+                          The actor leans back by a fraction of its travel first."
+                .to_string(),
+            type_info: "time literal".to_string(),
+        },
+        ActionParam {
             name: "by".to_string(),
             description: "Relative translation delta for the shift action (e.g. [by: (40, -24)])."
                 .to_string(),
@@ -224,11 +231,18 @@ impl BuiltinAction for Move {
                 None => continue,
             };
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let travel = [
+                target_offset[0] - start_offset[0],
+                target_offset[1] - start_offset[1],
+            ];
+            let from_offset =
+                anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, travel)
+                    .unwrap_or(start_offset);
 
             if duration_ms > 0.0 {
                 track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                     t_start_ms,
-                    start_offset,
+                    from_offset,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
@@ -256,6 +270,43 @@ impl BuiltinAction for Move {
             );
         }
     }
+}
+
+/// Fraction of the travel an `[anticipate: …]` counter-move leans back by.
+const ANTICIPATION_LEAN: f32 = 0.12;
+
+/// Insert the counter-move that precedes a translation: the actor leans *back*
+/// by a fraction of its travel across the anticipation window, then starts the
+/// real move from that leaned position. This is the anticipation beat the motion
+/// craft tables put at 60–120 ms — without it a translation reads as a value
+/// being dialled rather than an object deciding to go.
+///
+/// Returns the value the `t_start` keyframe should hold, or `None` when there is
+/// nothing to anticipate from (no window, or the action starts at t=0).
+fn anticipation_start(
+    track: &mut crate::timeline::AnimationTrack,
+    anticipate_ms: f64,
+    t_start_ms: u64,
+    start_offset: [f32; 2],
+    travel: [f32; 2],
+) -> Option<[f32; 2]> {
+    if anticipate_ms <= 0.0 || t_start_ms == 0 {
+        return None;
+    }
+    let t_anti = t_start_ms.saturating_sub(anticipate_ms as u64);
+    if t_anti >= t_start_ms {
+        return None;
+    }
+    let leaned = [
+        start_offset[0] - travel[0] * ANTICIPATION_LEAN,
+        start_offset[1] - travel[1] * ANTICIPATION_LEAN,
+    ];
+    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+        t_anti,
+        start_offset,
+        Easing::EaseInOut,
+    );
+    Some(leaned)
 }
 
 /// Applies a relative local translation delta to the target.
@@ -316,11 +367,14 @@ impl BuiltinAction for Shift {
             };
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
+            let from_offset =
+                anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, shift_by)
+                    .unwrap_or(start_offset);
 
             if duration_ms > 0.0 {
                 track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                     t_start_ms,
-                    start_offset,
+                    from_offset,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
