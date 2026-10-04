@@ -163,6 +163,8 @@ impl Timeline {
         stroke_color: [f32; 4],
         stroke_progress: f32,
         fill_opacity: f32,
+        dash_pattern: Vec<f32>,
+        dash_offset: f32,
         vello_paths: Vec<VelloPath>,
         easing: Easing,
         duration_ms: f64,
@@ -199,6 +201,8 @@ impl Timeline {
             stroke_color,
             stroke_progress,
             fill_opacity,
+            dash_pattern,
+            dash_offset,
             vello_paths,
             easing,
         );
@@ -507,6 +511,8 @@ impl Timeline {
         let legend_color = existing_track.legend.color;
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
         let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
+        let mut dash_pattern = existing_track.style.dash_pattern.last(Vec::new());
+        let mut dash_offset = existing_track.style.dash_offset.last(0.0);
 
         let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
         let vector_shape = primitive_registry.info_of(ty).filter(|info| info.capabilities.is_shape);
@@ -668,6 +674,53 @@ impl Timeline {
                     )
                     .unwrap_or(Value::Num(0.0));
                     fill_opacity = v.as_num() as f32;
+                },
+                "dash_pattern" => {
+                    match evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    ) {
+                        Some(Value::List(items)) => {
+                            let mut values = Vec::with_capacity(items.len());
+                            for item in items.iter() {
+                                match item {
+                                    Value::Num(n) => values.push(*n as f32),
+                                    other => diagnostics.push(
+                                        Diagnostic::warning(
+                                            DiagnosticCode::InvalidPropertyValue,
+                                            DiagnosticPhase::Build,
+                                            format!("dash_pattern expects numbers, got {other:?}"),
+                                        )
+                                        .with_subject(&prop_subject),
+                                    ),
+                                }
+                            }
+                            if !values.is_empty() {
+                                dash_pattern = values;
+                            }
+                        },
+                        Some(other) => diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                format!("dash_pattern expects a list of numbers, got {other:?}"),
+                            )
+                            .with_subject(&prop_subject),
+                        ),
+                        None => {}, // eval error already reported as a diagnostic
+                    }
+                },
+                "dash_offset" => {
+                    let v = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .unwrap_or(Value::Num(0.0));
+                    dash_offset = v.as_num() as f32;
                 },
                 _ if vector_shape.is_some()
                     && apply_vector_shape_property(
@@ -868,7 +921,10 @@ impl Timeline {
         // per-primitive build loop, so write them through the generic engine.
         for prop in props {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
-                && let crate::timeline::ActorField::Tagged(_) = schema.field
+                && matches!(
+                    schema.field,
+                    crate::timeline::ActorField::Tagged(_) | crate::timeline::ActorField::Blend
+                )
             {
                 let prop_subject = format!("{label}.{}", prop.name);
                 if let Some(pv) = crate::timeline::property_engine::parse_property_value(
@@ -1076,6 +1132,8 @@ impl Timeline {
             stroke_color,
             stroke_progress,
             fill_opacity,
+            dash_pattern,
+            dash_offset,
             vello_paths,
             easing,
             duration_ms,
@@ -1496,6 +1554,8 @@ impl Timeline {
                 stroke_color,
                 stroke_progress,
                 fill_opacity,
+                track.style.dash_pattern.last(Vec::new()),
+                track.style.dash_offset.last(0.0),
                 vello_paths,
                 easing,
             );

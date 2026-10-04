@@ -123,6 +123,8 @@ impl Primitive for ArrowPrimitive {
             }),
             line_cap: 0,
             line_join: 0,
+            dash_pattern: None,
+            dash_offset: 0.0,
         }])
     }
 

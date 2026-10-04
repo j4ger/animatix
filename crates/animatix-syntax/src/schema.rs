@@ -372,6 +372,7 @@ pub fn common_property_names() -> &'static [&'static str] {
     &[
         "anchor",
         "at",
+        "blend",
         "color",
         "height",
         "legend",
@@ -512,6 +513,9 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         // and new descriptors go at the end (the row index is `PropertyId`).
         ("corner_radius", Type::Num),
         ("language", Type::Str),
+        ("dash_offset", Type::Num),
+        ("dash_pattern", Type::List(Box::new(Type::Num))),
+        ("blend", Type::Str),
     ]
 }
 
@@ -560,7 +564,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            97,
+            100,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

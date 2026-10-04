@@ -385,6 +385,8 @@ impl Primitive for LegendPrimitive {
                     stroke: None,
                     line_cap: 0,
                     line_join: 0,
+                    dash_pattern: None,
+                    dash_offset: 0.0,
                 }],
             });
 
@@ -425,6 +427,8 @@ impl Primitive for LegendPrimitive {
                         stroke: None,
                         line_cap: 0,
                         line_join: 0,
+                        dash_pattern: None,
+                        dash_offset: 0.0,
                     }],
                 });
             }

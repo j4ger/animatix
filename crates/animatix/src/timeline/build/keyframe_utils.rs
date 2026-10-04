@@ -137,6 +137,8 @@ pub(crate) fn insert_end_keyframes(
     stroke_color: [f32; 4],
     stroke_progress: f32,
     fill_opacity: f32,
+    dash_pattern: Vec<f32>,
+    dash_offset: f32,
     vello_paths: Vec<VelloPath>,
     easing: Easing,
 ) {
@@ -178,6 +180,12 @@ pub(crate) fn insert_end_keyframes(
         .ensure(ShapeType::Rect)
         .add_keyframe(t_end_ms, shape_type, easing);
     track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
+    track
+        .style
+        .dash_pattern
+        .ensure(Vec::new())
+        .add_keyframe(t_end_ms, dash_pattern, easing);
+    track.style.dash_offset.ensure(0.0).add_keyframe(t_end_ms, dash_offset, easing);
     track
         .style
         .stroke_width

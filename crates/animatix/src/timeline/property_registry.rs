@@ -68,6 +68,8 @@ pub enum ValueType {
     CalloutPlace,
     /// List of 2D points.
     PointList,
+    /// List of floats (stroke dash pattern).
+    F32List,
     /// List of drawing commands.
     CommandList,
     /// 2D affine transform.
@@ -303,6 +305,12 @@ pub enum ActorField {
     LineCap,
     /// Line join style (miter = 0, round = 1, bevel = 2).
     LineJoin,
+    /// Stroke dash pattern (segment/gap lengths in scene pixels).
+    DashPattern,
+    /// Phase offset into the dash pattern.
+    DashOffset,
+    /// Compositing blend mode for the node's subtree ("normal", "screen", …).
+    Blend,
 
     // ── Text payload ──
     /// Raw text content.
@@ -444,6 +452,9 @@ impl ActorField {
             ActorField::Commands => PropertyValue::CommandList(String::new()),
             ActorField::HeadSize => PropertyValue::F32(10.0),
             ActorField::LineCap => PropertyValue::U32(0),
+            ActorField::DashPattern => PropertyValue::F32List(Vec::new()),
+            ActorField::DashOffset => PropertyValue::F32(0.0),
+            ActorField::Blend => PropertyValue::String("normal".to_string()),
             ActorField::LineJoin => PropertyValue::U32(0),
             ActorField::VectorPaths => return None,
 
@@ -687,6 +698,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("baseline", ValueType::F32, F::ANIMATED, ActorField::Baseline, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
+    binding!("blend", ValueType::String, F::ASSIGNABLE_AI, ActorField::Blend, |_| {
+        super::property_engine::PropertyValue::String("normal".to_string())
+    }),
     binding!(
         "bounds",
         ValueType::Vec4,
@@ -723,6 +737,16 @@ static BINDINGS: &[PropertyBinding] = &[
         F::ASSIGNABLE_AI,
         ActorField::CornerRadius,
         |_| super::property_engine::PropertyValue::F32(0.0)
+    ),
+    binding!("dash_offset", ValueType::F32, F::ASSIGNABLE_AI, ActorField::DashOffset, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!(
+        "dash_pattern",
+        ValueType::F32List,
+        F::ASSIGNABLE_AI,
+        ActorField::DashPattern,
+        |_| super::property_engine::PropertyValue::F32List(Vec::new())
     ),
     binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())
@@ -1382,6 +1406,7 @@ mod tests {
                 ValueType::String => Kind::String,
                 ValueType::Bool => Kind::Bool,
                 ValueType::PointList => Kind::PointList,
+                ValueType::F32List => Kind::Generic,
                 ValueType::ShapeType
                 | ValueType::PlacementMode
                 | ValueType::SceneAnchor

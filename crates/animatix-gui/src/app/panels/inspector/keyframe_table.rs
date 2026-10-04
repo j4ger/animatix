@@ -492,6 +492,7 @@ fn format_value(value: &PropertyValue, name: &str) -> String {
         },
         PropertyValue::StringList(v) => format!("[{} items]", v.len()),
         PropertyValue::PointList(v) => format!("[{} pts]", v.len()),
+        PropertyValue::F32List(v) => format!("[{} vals]", v.len()),
         PropertyValue::CommandList(v) => {
             if v.len() > 24 {
                 format!("{}…", &v[..24])

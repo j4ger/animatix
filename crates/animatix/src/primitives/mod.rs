@@ -484,7 +484,22 @@ pub(crate) fn evaluate_shape_render(
     let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
     if progress < 1.0 {
         let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
-        return Ok(Some(trim_shape_stroke_progress(&built, progress)));
+        let mut trimmed = trim_shape_stroke_progress(&built, progress);
+        stamp_shape_dash(&mut trimmed, ctx);
+        return Ok(Some(trimmed));
+    }
+
+    // A dash pattern rides *outside* the shape-command memo (its key is
+    // `(epoch, style, state)`), because an animated `dash_offset` — the
+    // marching-ants case — would otherwise be served from a cached encoding.
+    // Dash-bearing frames build fresh and stamp clones; every other frame
+    // takes the memo fast path untouched.
+    let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
+    if has_dash {
+        let mut built =
+            ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
+        stamp_shape_dash(&mut built, ctx);
+        return Ok(Some(built));
     }
 
     if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
@@ -494,6 +509,29 @@ pub(crate) fn evaluate_shape_render(
     ctx.track
         .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)
         .map(Some)
+}
+
+/// Stamp the sampled dash pattern/offset onto every path in `commands`.
+///
+/// Called only while a dash pattern is authored. During a `draw-in` the trim
+/// is applied first, so a dashed stroke draws in with its (fixed-length)
+/// dashes appearing as the path grows.
+fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
+    use crate::timeline::TrackAccessor;
+
+    let pattern = ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new());
+    if pattern.is_empty() {
+        return;
+    }
+    let offset = ctx.track.style.dash_offset.get(ctx.time_ms, 0.0);
+    for cmd in commands.iter_mut() {
+        if let RenderCommand::Paths { paths } = cmd {
+            for vp in paths.iter_mut() {
+                vp.dash_pattern = Some(pattern.clone());
+                vp.dash_offset = offset;
+            }
+        }
+    }
 }
 
 /// Apply `draw-in`'s stroke trim to built shape commands: stroke-only paths
@@ -1007,14 +1045,19 @@ impl RenderCommand {
                             2 => vello::kurbo::Join::Bevel,
                             _ => vello::kurbo::Join::Miter,
                         };
+                        let dash: vello::kurbo::Dashes = path
+                            .dash_pattern
+                            .as_ref()
+                            .map(|p| p.iter().map(|f| f64::from(*f)).collect())
+                            .unwrap_or_default();
                         let stroke = vello::kurbo::Stroke {
                             width: sw as f64,
                             join,
                             miter_limit: 10.0,
                             start_cap: cap,
                             end_cap: cap,
-                            dash_pattern: Default::default(),
-                            dash_offset: 0.0,
+                            dash_pattern: dash,
+                            dash_offset: f64::from(path.dash_offset),
                         };
                         scene.stroke(&stroke, *transform, sc, None, path.path.as_ref());
                     }

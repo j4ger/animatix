@@ -664,6 +664,8 @@ pub enum TrackFieldRef<'a> {
     U32(&'a Option<PropertyTrack<u32>>),
     /// List of 2D points property track.
     PointList(&'a Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// List of floats property track (stroke dash pattern).
+    F32List(&'a Option<PropertyTrack<Vec<f32>>>),
     /// Command string property track.
     CommandList(&'a Option<PropertyTrack<String>>),
     /// Shape type property track.
@@ -702,6 +704,8 @@ pub enum TrackFieldMut<'a> {
     U32(&'a mut Option<PropertyTrack<u32>>),
     /// List of 2D points property track.
     PointList(&'a mut Option<PropertyTrack<Vec<[f32; 2]>>>),
+    /// List of floats property track (stroke dash pattern).
+    F32List(&'a mut Option<PropertyTrack<Vec<f32>>>),
     /// Command string property track.
     CommandList(&'a mut Option<PropertyTrack<String>>),
     /// Shape type property track.
@@ -760,6 +764,9 @@ impl<'a> TrackFieldRef<'a> {
             Self::PointList(opt) => {
                 opt.as_ref().map(|pt| PropertyValue::PointList(pt.evaluate(time_ms)))
             },
+            Self::F32List(opt) => {
+                opt.as_ref().map(|pt| PropertyValue::F32List(pt.evaluate(time_ms)))
+            },
             Self::CommandList(opt) => {
                 opt.as_ref().map(|pt| PropertyValue::CommandList(pt.evaluate(time_ms)))
             },
@@ -781,6 +788,9 @@ impl<'a> TrackFieldRef<'a> {
             Self::String(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::U32(opt) => opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms)),
             Self::PointList(opt) => {
+                opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
+            },
+            Self::F32List(opt) => {
                 opt.as_ref().is_some_and(|pt| pt.keyframes.contains_key(&time_ms))
             },
             Self::CommandList(opt) => {
@@ -824,6 +834,7 @@ impl<'a> TrackFieldRef<'a> {
             Self::String(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::U32(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PointList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
+            Self::F32List(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::CommandList(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::ShapeType(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
             Self::PlacementMode(opt) => opt.as_ref().map_or(0, |pt| pt.keyframes.len()),
@@ -859,6 +870,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
             Self::PointList(opt) => {
+                opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
+            },
+            Self::F32List(opt) => {
                 opt.as_ref().map_or(Vec::new(), |pt| pt.keyframes.keys().copied().collect())
             },
             Self::CommandList(opt) => {
@@ -916,6 +930,9 @@ impl<'a> TrackFieldRef<'a> {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
             Self::PointList(opt) => {
+                opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
+            },
+            Self::F32List(opt) => {
                 opt.as_ref().and_then(|pt| pt.keyframes.get(&time_ms).map(|(_, e)| *e))
             },
             Self::CommandList(opt) => {
@@ -979,6 +996,9 @@ impl AnimationTrack {
             ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
             CornerRadius => TrackFieldRef::F32(&self.shape.corner_radius),
             Points => TrackFieldRef::PointList(&self.shape.points),
+            DashPattern => TrackFieldRef::F32List(&self.style.dash_pattern),
+            DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
+            Blend => TrackFieldRef::String(&self.style.blend),
             Commands => TrackFieldRef::CommandList(&self.shape.commands),
             TextContent => TrackFieldRef::String(&self.text.text_content),
             TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
@@ -1058,6 +1078,9 @@ impl AnimationTrack {
             ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
             CornerRadius => TrackFieldMut::F32(&mut self.shape.corner_radius),
             Points => TrackFieldMut::PointList(&mut self.shape.points),
+            DashPattern => TrackFieldMut::F32List(&mut self.style.dash_pattern),
+            DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
+            Blend => TrackFieldMut::String(&mut self.style.blend),
             Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
             TextContent => TrackFieldMut::String(&mut self.text.text_content),
             TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
@@ -1124,6 +1147,9 @@ impl AnimationTrack {
             TrackFieldRef::U32(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
+            TrackFieldRef::F32List(opt) => {
+                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
+            },
             TrackFieldRef::PointList(opt) => {
                 opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
             },
@@ -1176,6 +1202,9 @@ impl AnimationTrack {
             "opacity" => Opacity,
             "stroke_width" => StrokeWidth,
             "stroke_progress" => StrokeProgress,
+            "dash_offset" => DashOffset,
+            "dash_pattern" => DashPattern,
+            "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,
@@ -1230,6 +1259,9 @@ impl AnimationTrack {
             "opacity" => Opacity,
             "stroke_width" => StrokeWidth,
             "stroke_progress" => StrokeProgress,
+            "dash_offset" => DashOffset,
+            "dash_pattern" => DashPattern,
+            "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,
@@ -1282,6 +1314,9 @@ impl AnimationTrack {
             "opacity" => Opacity,
             "stroke_width" => StrokeWidth,
             "stroke_progress" => StrokeProgress,
+            "dash_offset" => DashOffset,
+            "dash_pattern" => DashPattern,
+            "blend" => Blend,
             "fill_opacity" => FillOpacity,
             "shape_type" => ShapeType,
             "line_from" => LineFrom,

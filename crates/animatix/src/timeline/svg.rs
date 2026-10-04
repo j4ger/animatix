@@ -139,6 +139,8 @@ pub fn parse_svg(svg_data: &str) -> Result<Vec<VelloPath>, String> {
                         stroke: stroke_opts,
                         line_cap: 0,
                         line_join: 0,
+                        dash_pattern: None,
+                        dash_offset: 0.0,
                     });
                 },
                 Node::Image(_) => {},

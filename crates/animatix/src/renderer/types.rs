@@ -23,6 +23,11 @@ pub struct VelloPath {
     pub line_cap: u32,
     /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
     pub line_join: u32,
+    /// Stroke dash pattern (segment/gap lengths in scene pixels); `None` or
+    /// empty renders a solid stroke.
+    pub dash_pattern: Option<Vec<f32>>,
+    /// Phase offset into the dash pattern, in scene pixels.
+    pub dash_offset: f32,
 }
 
 impl Default for VelloPath {
@@ -33,6 +38,8 @@ impl Default for VelloPath {
             stroke: None,
             line_cap: 0,
             line_join: 0,
+            dash_pattern: None,
+            dash_offset: 0.0,
         }
     }
 }

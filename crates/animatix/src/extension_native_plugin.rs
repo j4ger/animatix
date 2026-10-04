@@ -1871,6 +1871,8 @@ fn native_path_to_vello(command: &NativePathCommand) -> Option<crate::timeline::
         stroke,
         line_cap: command.line_cap,
         line_join: command.line_join,
+        dash_pattern: None,
+        dash_offset: 0.0,
     })
 }
 
@@ -2351,6 +2353,23 @@ fn property_value_to_native(value: &PropertyValue, arena: &mut NativeValueArena)
             let (list, list_len) = arena.list(values);
             NativeValue {
                 tag: NATIVE_VALUE_POINT_LIST,
+                list,
+                list_len,
+                ..NativeValue::default()
+            }
+        },
+        PropertyValue::F32List(values) => {
+            let natives = values
+                .iter()
+                .map(|value| NativeValue {
+                    tag: NATIVE_VALUE_NUM,
+                    num: f64::from(*value),
+                    ..NativeValue::default()
+                })
+                .collect();
+            let (list, list_len) = arena.list(natives);
+            NativeValue {
+                tag: NATIVE_VALUE_LIST,
                 list,
                 list_len,
                 ..NativeValue::default()

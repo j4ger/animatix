@@ -344,6 +344,9 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // at the end rather than into name order.
     PropertyDescriptor::new("corner_radius", Applicable::Actors(&["Rect"]), PropertyValueKind::F32),
     PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
+    PropertyDescriptor::new("dash_offset", Applicable::AllStrokePaths, PropertyValueKind::F32),
+    PropertyDescriptor::new("dash_pattern", Applicable::AllStrokePaths, PropertyValueKind::Generic),
+    PropertyDescriptor::new("blend", Applicable::Everything, PropertyValueKind::String),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

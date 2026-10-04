@@ -214,6 +214,33 @@ pub(crate) fn parse_value(
                 _ => None,
             }
         },
+        ValueType::F32List => {
+            let items = match expr {
+                Expr::List(items) => items,
+                _ => return None,
+            };
+            let mut values = Vec::with_capacity(items.len());
+            for item in items {
+                match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject) {
+                    Some(Value::Num(n)) => values.push(n as f32),
+                    _ => {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                "dash_pattern expects a list of numbers".to_string(),
+                            )
+                            .with_subject(subject),
+                        );
+                    },
+                }
+            }
+            if values.is_empty() {
+                None
+            } else {
+                Some(PropertyValue::F32List(values))
+            }
+        },
         ValueType::PointList => {
             let items = match expr {
                 Expr::List(items) => items,
@@ -423,6 +450,7 @@ fn value_type_name(value_type: ValueType) -> &'static str {
         ValueType::MorphOptions => "MorphOptions",
         ValueType::CalloutPlace => "CalloutPlace",
         ValueType::PointList => "PointList",
+        ValueType::F32List => "F32List",
         ValueType::CommandList => "CommandList",
         ValueType::Transform => "Transform",
         ValueType::BuildTimeOnly => "BuildTimeOnly",

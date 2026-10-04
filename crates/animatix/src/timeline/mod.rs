@@ -589,6 +589,10 @@ pub struct Timeline {
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Per-frame evaluation caches and transient state. Reset on clone.
     pub(crate) eval_caches: EvalCaches,
+    /// True once any track carries a `blend:` value. The frame path checks
+    /// this before its per-node blend lookup, so scenes that never author a
+    /// blend pay one bool read instead of a track probe per node.
+    pub(crate) blend_used: std::cell::Cell<bool>,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -854,6 +858,7 @@ impl Timeline {
             persistence_flags: BTreeMap::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             eval_caches: EvalCaches::default(),
+            blend_used: std::cell::Cell::new(false),
             variable_tracks: BTreeMap::new(),
             referenced_roots: None,
             audio_segments: Vec::new(),
@@ -1420,6 +1425,14 @@ impl Timeline {
         self.eval_caches.precise_bounds.borrow_mut().write(slot, rect);
     }
 
+    /// Recompute [`Timeline::blend_used`] from the tracks. Called from
+    /// `invalidate_frame_cache` (every public mutation funnels through it)
+    /// and once at the end of the build walk.
+    pub(crate) fn refresh_blend_used(&self) {
+        let any = self.tracks.values().any(|t| t.style.blend.is_some());
+        self.blend_used.set(any);
+    }
+
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
         // Memoized: `compute_static_subtree` walks the property registry and the
         // whole subtree, and the frame path asks once per root *per frame*. That
@@ -1467,6 +1480,7 @@ impl Timeline {
     /// of returning a stale cached one. Public mutable track/metadata/env
     /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
+        self.refresh_blend_used();
         // Recycle the invalidated entry's encoded scene into the scene buffer
         // so the next evaluation reuses its allocation instead of starting
         // from an empty encoding (PF-4: every GUI edit calls this).

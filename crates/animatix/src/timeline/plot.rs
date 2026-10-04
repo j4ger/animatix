@@ -1360,6 +1360,8 @@ fn sample_curve_plot_source(
             },
             line_cap: 0,
             line_join: 0,
+            dash_pattern: None,
+            dash_offset: 0.0,
         });
         return vello_paths;
     }
@@ -1508,6 +1510,8 @@ fn sample_curve_plot_source(
         },
         line_cap: 0,
         line_join: 0,
+        dash_pattern: None,
+        dash_offset: 0.0,
     });
 
     vello_paths

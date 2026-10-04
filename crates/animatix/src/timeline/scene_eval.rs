@@ -428,6 +428,23 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        // A non-"normal" `blend:` composites the node's whole subtree (own
+        // commands and children alike) into a full-surface layer with the
+        // requested mix, so `screen` on a Group blends the *composited* group
+        // against what is behind it — the semantics that make light effects
+        // (glows, light sweeps, color washes) one-liners.
+        let blend = self.node_blend_mode(node_label, frame.time_ms);
+        if let Some(mix) = blend {
+            let unbounded = kurbo::Rect::new(-1.0e9, -1.0e9, 1.0e9, 1.0e9);
+            out.scene.push_layer(
+                vello::peniko::Fill::NonZero,
+                vello::peniko::BlendMode::new(mix, vello::peniko::Compose::SrcOver),
+                1.0,
+                parent_transform,
+                &unbounded,
+            );
+        }
+
         let (global_transform, global_opacity) = self.render_actor_node(
             node_label,
             parent_transform,
@@ -446,6 +463,46 @@ impl Timeline {
             frame,
             out,
         );
+
+        if blend.is_some() {
+            out.scene.pop_layer();
+        }
+    }
+
+    /// Sample the node's `blend:` track; `None` when it is absent or
+    /// "normal" (the source-over default, no layer).
+    fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
+        use crate::timeline::TrackAccessor;
+
+        if !self.blend_used.get() {
+            return None;
+        }
+        let track = self.tracks.get(node_label)?;
+        let mode = track.style.blend.get(time_ms, "normal".to_string());
+        match mode.as_str() {
+            "normal" | "" => None,
+            "multiply" => Some(vello::peniko::Mix::Multiply),
+            "screen" => Some(vello::peniko::Mix::Screen),
+            "overlay" => Some(vello::peniko::Mix::Overlay),
+            "darken" => Some(vello::peniko::Mix::Darken),
+            "lighten" => Some(vello::peniko::Mix::Lighten),
+            "color-dodge" => Some(vello::peniko::Mix::ColorDodge),
+            "color-burn" => Some(vello::peniko::Mix::ColorBurn),
+            "hard-light" => Some(vello::peniko::Mix::HardLight),
+            "soft-light" => Some(vello::peniko::Mix::SoftLight),
+            "difference" => Some(vello::peniko::Mix::Difference),
+            "exclusion" => Some(vello::peniko::Mix::Exclusion),
+            "hue" => Some(vello::peniko::Mix::Hue),
+            "saturation" => Some(vello::peniko::Mix::Saturation),
+            "color" => Some(vello::peniko::Mix::Color),
+            "luminosity" => Some(vello::peniko::Mix::Luminosity),
+            other => {
+                tracing::warn!(
+                    "{node_label}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal"
+                );
+                None
+            },
+        }
     }
 
     /// Evaluate a single actor node and render it to the scene.

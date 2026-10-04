@@ -613,6 +613,111 @@ draw-in underline [1s, ease: linear]
 }
 
 #[test]
+fn dash_pattern_stamps_paths_and_dash_offset_animates() {
+    // `dash_pattern`/`dash_offset` ride outside the shape-command memo, so a
+    // static pattern is stamped on every frame and an animated offset (the
+    // marching-ants idiom) is never served from a cached encoding.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+p: Path, commands: {move_to(0, 0), line_to(300, 0)},
+  stroke: accent.primary, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {8, 6}
+
+#0s
+p.dash_offset = 0
+#0.5s
+p.dash_offset = 40
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    // The `never-revealed` content hint fires on a fixture with no entrance
+    // action; it is about the fixture, not the feature under test.
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed),
+        "expected only never-revealed hints, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    let dash_at = |time: f64| -> (Option<Vec<f32>>, f32) {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time,
+            crate::timeline::SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let mut found = (None, 0.0);
+        for item in &program.items {
+            for command in &item.commands {
+                if let crate::primitives::RenderCommand::Paths { paths } = command {
+                    for vp in paths {
+                        if vp.stroke.is_some() {
+                            found = (vp.dash_pattern.clone(), vp.dash_offset);
+                        }
+                    }
+                }
+            }
+        }
+        found
+    };
+
+    let (pattern, offset_early) = dash_at(0.25);
+    assert_eq!(pattern.as_deref(), Some(&[8.0_f32, 6.0][..]), "pattern must be stamped");
+    assert_eq!(offset_early, 0.0, "undated assignment holds until its stamp");
+
+    let (pattern_again, offset_late) = dash_at(0.75);
+    assert_eq!(pattern_again.as_deref(), Some(&[8.0_f32, 6.0][..]));
+    assert_eq!(offset_late, 40.0, "the offset step lands at its stamp");
+}
+
+#[test]
+fn blend_mode_is_bound_and_sampled() {
+    // `blend:` rides the registry-backed declaration path; the sampled track
+    // must carry the authored mode and default to "normal" elsewhere.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+base: Rect, size: (200, 200), color: accent.primary, at: (200, 180)
+glow: Ellipse, size: (200, 200), color: accent.warning, at: (380, 180),
+  blend: "screen"
+plain: Rect, size: (50, 50), color: text.primary, at: (600, 320)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    // `never-revealed` content hints are about the entrance-less fixture, not
+    // the feature under test.
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed),
+        "expected only never-revealed hints, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+
+    use crate::timeline::TrackAccessor;
+    let glow = timeline.tracks.get("glow").expect("glow track");
+    assert_eq!(glow.style.blend.get(0, "normal".to_string()), "screen");
+    let plain = timeline.tracks.get("plain").expect("plain track");
+    assert_eq!(plain.style.blend.get(0, "normal".to_string()), "normal");
+}
+
+#[test]
 fn sum_range_computes_series_at_build_and_frame_time() {
     // Build time: `let` precompute inside a keyframe. 1! + 2! + 3! = 9 and
     // an arithmetic series 0+1+2+3+4 = 10.

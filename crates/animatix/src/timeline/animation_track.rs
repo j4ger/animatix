@@ -515,6 +515,13 @@ pub struct StyleTracks {
     pub line_cap: Option<PropertyTrack<u32>>,
     /// Stroke line join (0=Miter, 1=Round, 2=Bevel).
     pub line_join: Option<PropertyTrack<u32>>,
+    /// Stroke dash pattern (alternating segment/gap lengths in scene pixels;
+    /// empty = solid stroke).
+    pub dash_pattern: Option<PropertyTrack<Vec<f32>>>,
+    /// Phase offset into the dash pattern (animatable: marching ants).
+    pub dash_offset: Option<PropertyTrack<f32>>,
+    /// Compositing blend mode for the node's subtree; "normal" = source-over.
+    pub blend: Option<PropertyTrack<String>>,
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 }

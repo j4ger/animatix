@@ -64,6 +64,8 @@ pub enum PropertyValue {
     Vec4([f32; 4]),
     /// List of 2D points.
     PointList(Vec<[f32; 2]>),
+    /// List of floats (stroke dash pattern, in scene pixels).
+    F32List(Vec<f32>),
     /// SVG path command string.
     CommandList(String),
     /// RGBA color.
@@ -157,6 +159,9 @@ impl Interpolate for PropertyValue {
             },
             (PropertyValue::PointList(a), PropertyValue::PointList(b)) => {
                 PropertyValue::PointList(a.interpolate(b, t))
+            },
+            (PropertyValue::F32List(a), PropertyValue::F32List(b)) => {
+                PropertyValue::F32List(a.interpolate(b, t))
             },
             (PropertyValue::String(a), PropertyValue::String(b)) => {
                 PropertyValue::String(a.interpolate(b, t))
@@ -461,6 +466,22 @@ pub(crate) fn write_property_field(
                     has_delay,
                 );
             },
+            TrackFieldMut::F32List(f) => {
+                let default = match pv_default {
+                    Some(PropertyValue::F32List(d)) => d,
+                    _ => Vec::new(),
+                };
+                write_f32_list(
+                    f,
+                    value,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
+                    default,
+                    has_duration,
+                    has_delay,
+                );
+            },
             TrackFieldMut::Tagged(_name, f) => {
                 let default = tagged_default.clone().unwrap_or(PropertyValue::Bool(true));
                 write_tagged(
@@ -671,7 +692,19 @@ fn property_value_from_value(value: Value) -> Option<PropertyValue> {
             PropertyValue::Color([v[0] as f32, v[1] as f32, v[2] as f32, v[3] as f32])
         },
         Value::List(items) => {
-            if items.iter().all(|item| matches!(item, Value::Vec2(_))) {
+            if items.iter().all(|item| matches!(item, Value::Num(_))) {
+                PropertyValue::F32List(
+                    items
+                        .iter()
+                        .map(|item| {
+                            let Value::Num(n) = item else {
+                                unreachable!("filtered above");
+                            };
+                            *n as f32
+                        })
+                        .collect(),
+                )
+            } else if items.iter().all(|item| matches!(item, Value::Vec2(_))) {
                 PropertyValue::PointList(
                     items
                         .iter()
@@ -843,6 +876,35 @@ pub(crate) fn write_point_list(
         preserve_instant_delayed_value(field, t_start_ms);
     }
     field.ensure(default).add_keyframe(t_end_ms, v, easing);
+}
+
+/// Write a float-list property with the same keyframe semantics as
+/// [`write_point_list`] (step when undated, lerp when dated).
+pub(crate) fn write_f32_list(
+    field: &mut Option<PropertyTrack<Vec<f32>>>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    default: Vec<f32>,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    let PropertyValue::F32List(v) = value else {
+        return;
+    };
+    if has_duration {
+        let start_val = field.get(t_start_ms, default.clone());
+        field
+            .ensure(default.clone())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    } else if has_delay {
+        preserve_instant_delayed_value(field, t_start_ms);
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    } else {
+        field.ensure(default).add_keyframe(t_end_ms, v, easing);
+    }
 }
 
 pub(crate) fn write_command_list(

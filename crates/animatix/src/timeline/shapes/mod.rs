@@ -766,6 +766,8 @@ pub fn build_vello_path(
         }),
         line_cap: 0,
         line_join: 0,
+        dash_pattern: None,
+        dash_offset: 0.0,
     }
 }
 
@@ -822,6 +824,8 @@ pub fn build_shape_vello_path(
                 stroke: shape_stroke(stroke_color, stroke_width),
                 line_cap: 0,
                 line_join: 0,
+                dash_pattern: None,
+                dash_offset: 0.0,
             };
         },
     };
@@ -845,6 +849,8 @@ pub fn build_shape_vello_path(
         stroke: shape_stroke(stroke_color, stroke_width),
         line_cap: 0,
         line_join: 0,
+        dash_pattern: None,
+        dash_offset: 0.0,
     })
 }
 
