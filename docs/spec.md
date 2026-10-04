@@ -887,6 +887,53 @@ Shorthand forms are accepted:
 - `transform: (a, b, c, d)` → `[a, b, c, d, 0, 0]` (linear map only)
 - `transform: (a, b, c, d, tx, ty)` → full affine matrix
 
+### Scene Camera
+
+`camera` is a reserved assignment target — not an actor — naming one scene-wide
+transform applied to every root node. It has three axes, each keyframable, each
+defaulting to the identity:
+
+| Write | Meaning | Unit |
+|---|---|---|
+| `camera.at` / `camera.position` / `camera.pan` | pan the frame | screen pixels |
+| `camera.zoom` / `camera.scale` | magnify about the scene center | multiplier (`1` is no change) |
+| `camera.rotation` / `camera.spin` | turn about the scene center | radians, like every actor's `rotation` |
+
+```amx
+#0.5s
+camera.zoom = 1.6 [800ms, ease: expo-out]
+camera.at = (60, -20) [800ms]
+#3s
+camera.zoom = 1.0 [700ms]
+```
+
+These are ordinary timed assignments, so everything that works on an actor
+property works here: `[delay:]`, `ease:`, re-assignment in a later keyframe —
+and `always`, which is how a handheld shake is written:
+
+```amx
+always {
+  camera.at = (noise(t * 1.7) * 5.0, noise(t * 2.3, 9.0) * 5.0)
+}
+```
+
+Limits worth knowing:
+
+- `at` is applied *after* `zoom`, so centring something `d` px off the scene
+  center while magnified `z`× takes `camera.at = (d * z, …)`. Panning 400 px at
+  `zoom: 1.7` lands 680 px away from where it would at `zoom: 1`.
+
+- The background fill stays put: a camera move carries the plate, not the paper.
+- Everything in the scene graph moves with it, including scene-anchored actors
+  (`anchor: scene.top`) — the transform composes outside every node. There is no
+  per-actor opt-out yet, so a HUD that must not move cannot be pinned today.
+- Authoring a camera turns off the static-subtree encoding cache for root
+  subtrees (a cached encoding cannot be re-transformed when it is appended), so
+  an otherwise fully static scene re-evaluates per frame.
+- The label `camera` is reserved: declaring `camera: Rect, …` draws the actor but
+  warns (`reserved-label-prefix`), because every `camera.<axis> = …` write goes
+  to the camera.
+
 ### Legend
 
 `Legend` is an **annotation primitive** that auto-generates a color-coded legend from scene content.

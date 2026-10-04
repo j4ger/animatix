@@ -40,6 +40,7 @@ mod assignments;
 mod build;
 mod builtins;
 pub mod callout_geometry;
+pub(crate) mod camera;
 pub mod colorscheme;
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
@@ -607,6 +608,14 @@ pub struct Timeline {
     /// this before its per-node blend lookup, so scenes that never author a
     /// blend pay one bool read instead of a track probe per node.
     pub(crate) blend_used: std::cell::Cell<bool>,
+    /// The scene camera — the transform applied to every root node. Written by
+    /// `camera.at` / `camera.zoom` / `camera.rotation` assignments.
+    pub(crate) camera: camera::Camera,
+    /// True once the scene addresses the camera from a keyframe **or** a
+    /// modifier block. Gates the per-frame camera sampling and forces the
+    /// static-subtree encoding cache off (a cached encoding cannot be
+    /// re-transformed when it is appended).
+    pub(crate) camera_used: std::cell::Cell<bool>,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -876,6 +885,8 @@ impl Timeline {
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             eval_caches: EvalCaches::default(),
             blend_used: std::cell::Cell::new(false),
+            camera: camera::Camera::default(),
+            camera_used: std::cell::Cell::new(false),
             variable_tracks: BTreeMap::new(),
             referenced_roots: None,
             audio_segments: Vec::new(),
@@ -1457,6 +1468,30 @@ impl Timeline {
         self.blend_used.set(any);
     }
 
+    /// Recompute [`Timeline::camera_used`].
+    ///
+    /// A keyframed `camera.zoom = …` shows up on the camera tracks, but an
+    /// `always { camera.at = … }` never touches them — it writes the frame
+    /// override map — so the modifier statements have to be asked as well.
+    pub(crate) fn refresh_camera_used(&self) {
+        self.camera_used
+            .set(self.camera.is_authored() || Self::stmts_address_camera(&self.modifiers));
+    }
+
+    fn stmts_address_camera(stmts: &[crate::ast::Stmt]) -> bool {
+        use crate::ast::Stmt;
+        stmts.iter().any(|stmt| match stmt {
+            Stmt::Assignment { target, .. } => target
+                .first()
+                .is_some_and(|segment| segment.label_str() == camera::CAMERA_TARGET),
+            Stmt::Always { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            | Stmt::Block { body, .. } => Self::stmts_address_camera(body),
+            _ => false, // Every other statement form is a leaf for camera purposes.
+        })
+    }
+
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
         // Memoized: `compute_static_subtree` walks the property registry and the
         // whole subtree, and the frame path asks once per root *per frame*. That
@@ -1505,6 +1540,7 @@ impl Timeline {
     /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
         self.refresh_blend_used();
+        self.refresh_camera_used();
         // Recycle the invalidated entry's encoded scene into the scene buffer
         // so the next evaluation reuses its allocation instead of starting
         // from an empty encoding (PF-4: every GUI edit calls this).

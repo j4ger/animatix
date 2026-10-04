@@ -395,7 +395,10 @@ fn check_stmt(
 
             if let Some(seg) = target.first() {
                 let label = seg.label_str();
-                let is_defined = symbols.labels.contains_key(label)
+                // `camera` is the reserved scene-camera target, never a declared
+                // actor; the engine routes its assignments without a track.
+                let is_defined = label == animatix_core::property::CAMERA_TARGET
+                    || symbols.labels.contains_key(label)
                     || is_array_member_label(label)
                         .is_some_and(|base| symbols.array_labels.contains(base))
                     || is_component_array_member(symbols, label);

@@ -1,0 +1,82 @@
+// 35_camera_moves.amx — the scene camera: a push-in, a pan across a wide
+// plate, a slow turn, and a pull-back to re-frame the title.
+//
+// `camera` is a reserved target, not an actor: `camera.zoom` magnifies about
+// the scene center, `camera.at` slides the picture in screen pixels,
+// `camera.rotation` turns about the center. They are ordinary timed
+// assignments, so `ease:` and `[delay:]` behave exactly as on any actor
+// property — and they compose outside every node, which means the scene-anchored
+// title rides along too. The background fill is the one thing that stays put.
+//
+// Note on `always`: an `always` write wins every frame, so a procedural shake
+// (`always { camera.at = (noise(t * 1.7) * 5.0, 0.0) }`) belongs on a scene that
+// does *not* keyframe the same axis — otherwise `check` reports
+// `always-overrides-keyframes` and the choreography below never happens.
+
+config { colorscheme: "vivid", resolution: (1280, 720), duration: 9.5 }
+
+// ── The plate ───────────────────────────────────────────────────────────────
+// A board wider than the frame, so the pan has somewhere to go. Stations sit at
+// x = 240, 640 and 1040; the middle one is already under the zoom center.
+
+plate: Rect, size: (2600, 470), at: (640, 400), color: surface.primary,
+  corner_radius: 28, opacity: 1.0, stroke: stroke.default, stroke_width: 2
+
+rail: Path, commands: {move_to(60, 400), line_to(1220, 400)},
+  stroke: accent.info, stroke_width: 2, fill_opacity: 0.0, opacity: 1.0,
+  dash_pattern: {10, 7}
+
+// Three stations, each lit by a radial wash behind it.
+washA: Ellipse, size: (520, 520), at: (240, 370), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#ff9f0a33"), (60%, "#ff9f0a10"), (100%, "#ff9f0a00")})
+washB: Ellipse, size: (520, 520), at: (640, 370), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15833"), (60%, "#30d15810"), (100%, "#30d15800")})
+washC: Ellipse, size: (520, 520), at: (1040, 370), opacity: 1.0, blend: "screen",
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce633"), (60%, "#5e5ce610"), (100%, "#5e5ce600")})
+
+cardA: Rect, size: (220, 150), at: (240, 330), color: accent.warning, corner_radius: 14
+cardB: Rect, size: (220, 150), at: (640, 330), color: accent.success, corner_radius: 14
+cardC: Rect, size: (220, 150), at: (1040, 330), color: accent.secondary, corner_radius: 14
+
+labelA: Text, text: "one", font_size: 30, color: text.primary, at: (240, 330)
+labelB: Text, text: "two", font_size: 30, color: text.primary, at: (640, 330)
+labelC: Text, text: "three", font_size: 30, color: text.primary, at: (1040, 330)
+
+title: Text, text: "THE CAMERA MOVES THE PLATE", font_size: 46,
+  color: text.primary, anchor: scene.top, offset: (0, 96)
+
+// ── The moves ───────────────────────────────────────────────────────────────
+
+#0s
+fade-in title [600ms]
+// The stations arrive on a stagger so the plate is busy before the push starts.
+stagger [90ms] {
+  pop-in cardA [420ms]
+  pop-in cardB [420ms]
+  pop-in cardC [420ms]
+  fade-in labelA [400ms]
+  fade-in labelB [400ms]
+  fade-in labelC [400ms]
+  draw-in rail [900ms]
+}
+camera.zoom = 1.0
+// 1. Push in on the middle card — it sits under the zoom center, so it grows in
+//    place while the plate's edges leave the frame.
+camera.zoom = 1.7 [800ms, ease: expo-out]
+#1.6s
+// 2. Slide left to station one. The pan is in *screen* pixels and the zoom is
+//    applied before it, so centring a station 400 px off-centre while magnified
+//    1.7× takes 400 × 1.7 = 680.
+camera.at = (680, 0) [900ms, ease: ease-in-out]
+#3.2s
+// 3. Sweep past centre out to station three — a long travel gets a long beat.
+camera.at = (-680, 0) [1200ms, ease: expo-out]
+#5.2s
+// 4. Tip the whole plate, then bring it level again.
+camera.rotation = 0.16 [700ms, ease: ease-in-out]
+#6.6s
+camera.rotation = 0.0 [700ms]
+#7.4s
+// 5. Pull out and re-frame the title.
+camera.zoom = 1.0 [900ms, ease: ease-in-out]
+camera.at = (0, 0) [900ms]

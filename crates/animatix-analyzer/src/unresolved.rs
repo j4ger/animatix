@@ -143,6 +143,8 @@ fn exempt_names(stmts: &[Stmt], symbols: &SymbolTable) -> HashSet<String> {
         "tau",
         "self",
         "scene",
+        // The scene camera — a reserved assignment target, not a declared actor.
+        "camera",
         "auto",
         "step",
         // Action particles (`move target to (x, y)`, `rotate target by 90`).

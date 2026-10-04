@@ -11,6 +11,14 @@
 
 use crate::caps::Applicable;
 
+/// The reserved assignment target that addresses the scene camera.
+///
+/// `camera` is not an actor: `camera.at` / `camera.zoom` / `camera.rotation`
+/// write a scene-wide transform. It lives here because both the parser's
+/// label check and the engine's assignment routing need the same name, and
+/// `animatix-core` is the only crate below both of them.
+pub const CAMERA_TARGET: &str = "camera";
+
 /// Stable property identifier used by runtime plans and schema consumers.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

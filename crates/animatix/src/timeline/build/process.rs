@@ -85,6 +85,21 @@ impl Timeline {
                             ),
                         ));
                     }
+                    // `camera` is the reserved target for the scene camera
+                    // (`timeline::camera`), so an actor with that label could be
+                    // drawn but never addressed: every `camera.<prop> = …` write
+                    // goes to the camera.
+                    if *label == crate::timeline::camera::CAMERA_TARGET {
+                        diagnostics.push(Diagnostic::warning(
+                            DiagnosticCode::ReservedLabelPrefix,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor label '{label}' is reserved: `camera.at` / `camera.zoom` \
+                                     / `camera.rotation` address the scene camera, so this actor \
+                                     could be drawn but never assigned to"
+                            ),
+                        ));
+                    }
                     let resolved_label = resolve_array_index(
                         label,
                         array_index,

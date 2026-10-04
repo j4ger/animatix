@@ -897,6 +897,7 @@ impl Timeline {
         timeline.has_effect_scopes =
             timeline.tracks.values().any(|track| track.caps.is_effect_scope());
         timeline.refresh_blend_used();
+        timeline.refresh_camera_used();
 
         BuildReport::new(timeline, diagnostics)
     }

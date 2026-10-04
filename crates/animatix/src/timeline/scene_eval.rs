@@ -1929,6 +1929,19 @@ impl Timeline {
                 program_items: &mut program_items,
                 filter_backend: &mut *filter_backend,
             };
+            // The scene camera wraps every root subtree (see `timeline::camera`).
+            // It is read *after* the modifier pass above, so an
+            // `always { camera.at = … }` write is already in the override map.
+            // The background fill deliberately stays un-camerad.
+            let camera_affine = if self.camera_used.get() {
+                self.camera.affine(
+                    time_ms,
+                    scene_dimensions,
+                    overrides.get(crate::timeline::camera::CAMERA_TARGET),
+                )
+            } else {
+                kurbo::Affine::IDENTITY
+            };
             for root in &self.root_nodes {
                 // P2.17: Static subtree cache — fully-static subtrees are evaluated once
                 // and their vello encoding is reused on subsequent frames. Dimensions
@@ -1938,7 +1951,13 @@ impl Timeline {
                 // subtree's (label, rect) pairs once and restores them on hits, so
                 // the GUI (which always requests `compute_hit_regions` for picking)
                 // keeps its static-subtree reuse.
-                if !self.backend_can_run(out.filter_backend) && self.is_static_subtree(root) {
+                // A camera move invalidates it: the cached encoding is appended
+                // verbatim and cannot be re-transformed, so the frame must
+                // re-evaluate the subtree instead.
+                if !self.backend_can_run(out.filter_backend)
+                    && !self.camera_used.get()
+                    && self.is_static_subtree(root)
+                {
                     let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
                     let cache = self.eval_caches.static_subtree_cache.borrow_mut();
                     if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
@@ -1985,7 +2004,7 @@ impl Timeline {
                             |temp_out| {
                                 self.evaluate_node(
                                     root,
-                                    kurbo::Affine::IDENTITY,
+                                    camera_affine,
                                     1.0,
                                     &crate::timeline::layout::LayoutPositions::new(),
                                     true,
@@ -2022,7 +2041,7 @@ impl Timeline {
                     let allow_pending = self.can_post_composite_filter(root);
                     self.evaluate_node(
                         root,
-                        kurbo::Affine::IDENTITY,
+                        camera_affine,
                         1.0,
                         &crate::timeline::layout::LayoutPositions::new(), // empty for roots
                         allow_pending,

@@ -299,6 +299,60 @@ impl Timeline {
             }
         }
 
+        // The scene camera is addressed by a reserved name, not by a track, so
+        // it is matched before target resolution — there is no actor called
+        // `camera` to look up. See `timeline::camera`.
+        if target
+            .first()
+            .is_some_and(|segment| segment.label_str() == crate::timeline::camera::CAMERA_TARGET)
+        {
+            let Some(evaluated) = evaluate_expr_with_lookup_diagnostic(
+                value,
+                &eval_env,
+                diagnostics,
+                &assignment_subject,
+            ) else {
+                // The expression itself failed; that diagnostic is already filed.
+                return;
+            };
+            if !crate::timeline::camera::is_camera_property(property) {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "`camera` has no property '{property}'; it takes {}",
+                            crate::timeline::camera::CAMERA_PROPERTIES
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+            } else if !self.camera.assign(
+                property,
+                &evaluated,
+                t_start_ms,
+                t_end_ms,
+                easing,
+            ) {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "`camera.{property}` expects {}, got {evaluated:?}",
+                            if crate::timeline::camera::is_pan(property) {
+                                "an (x, y) pan in pixels"
+                            } else {
+                                "a number"
+                            }
+                        ),
+                    )
+                    .with_subject(&assignment_subject),
+                );
+            }
+            return;
+        }
+
         let target_key = match self.resolve_hierarchical_target(&target) {
             Some(key) => key,
             None => {
