@@ -1,11 +1,12 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04, third session).** M1 (#1-#11) and M2
-> (#12-#16) are complete, and M3 (#17-#20) is complete with the scene camera
-> landed last. What remains is M4 — the second-input-texture ABI bump (#21) and
-> the items parked behind it (#22 glass, #23 BarChart race, #24 font weights,
-> #25 the vello pin, which is an upstream gate) — plus the #13 content closeout
-> and the `web/` review pass's three engine gaps, which are now fixed. See
+> **STATUS: IN PROGRESS (2026-10-04, fourth session).** M1 (#1-#11) and M2
+> (#12-#16) are complete, M3 (#17-#20) is complete with the scene camera landed
+> last, and M4's #21 — the second-input-texture ABI bump with `Bloom` and a soft
+> `DropShadow` — is landed *and committed*, along with the site's recipes
+> gallery. What remains is the rest of M4 (#22 glass, #23 BarChart race, #24
+> font weights, #25 the vello pin, which is an upstream gate) plus the #13
+> content closeout. See
 > ["Landed so far"](#landed-so-far) and
 > ["Remaining work, next-session order"](#remaining-work-next-session-order).
 > The decision questions at the bottom were resolved by the owner's go-ahead to
@@ -21,6 +22,50 @@
 > first — see ["`draw-in` does not draw"](#found-while-probing-draw-in-does-not-draw-on-non-plot-shapes).
 
 ## Landed so far
+
+### Batch 4 (2026-10-04, fourth session) — five commits, local only
+
+| Commit | Item | Evidence it landed |
+|---|---|---|
+| `b27ca5e5` | **#21 ABI v2** — effect passes get the pre-chain original at `binding: 5` — plus `Bloom` as its first consumer | Built the CLI with and without the bump (`strings` confirms only the new binary carries the `Animatix Filter Original` texture label) and rendered nine filter-bearing frames: every PNG byte-identical, and the 35 pixel-asserting GPU tests in `filter_backend::tests` pass against the v2 layout unchanged. `dogfood/probe_bloom.amx` measures the payoff: the bulb goes (167,142,15) → (255,255,24) and 32 px away the plate lifts (11,16,23) → (21,30,44) |
+| `a046cbf6` | `DropShadow.softness` — sixteen golden-angle taps over a disc, hard case kept structurally | `examples/animation/30_effects_catalog.amx` md5-identical across the change (`53af058e0f0013f7ee09f427215693de`); `drop_shadow_softness_spreads_the_silhouette` reads alpha 0 at x=12 with `softness: 0` and 20..200 with `softness: 6` |
+| `455f403b` | Eleven builtins the engine answered and the language never declared, plus `LIST_FUNCTIONS` | `git show HEAD~:crates/animatix-syntax/src/builtins.rs` matches none of the thirteen names; `check` on a scene calling all thirteen now reports no `unresolved-variable` at all |
+| `e7fa1a1b` | `docs/spec.md`'s built-in math line rewritten to match the declaration table | The docs listed a subset, which is how the undeclared names stayed unnoticed |
+| `7d568e64` | The site's recipes gallery — decision 8's third preset layer | `web/recipes/index.html` + seven scenes, all `check`-clean and all rendered at t=2.6 s with content measured (0.97% of frame for a dashed rule, 43.6% for the bloom stage) |
+
+Notes the next session will want from batch 4:
+
+- **The perf guard cannot see the GPU filter path.** Every bench in the suite
+  times parse, build and scene evaluation; `render_scene_to_image_gpu_filtered`
+  is not in any of them. So an ABI change that adds a whole-region copy per scope
+  per frame is invisible to `scripts/perf-bench.sh compare`, and the honest
+  statement in that commit is read off the shader. If the filter path ever needs
+  a real guard, that bench has to be written first.
+- **Two analyzer flags were measurement contention, not regressions.** The full
+  120-bench run flagged `analyzer_diagnostics/dogfood` (+7.10%) and
+  `analyzer_update/small` (+15.64%); re-run with the machine to themselves the
+  family reads 9 compared, 0 regressions (+2.82% and +17.89% against a 44.48%
+  bound). Two lessons: never trust a flag from a run that overlapped a build or a
+  render, and `analyzer_update/small` measures a 1 KB file so its own noise bound
+  has ranged 44-85% — it is a weak guard, not a sensitive one.
+- **`EffectParams.values` is index-aligned with `params()`, not name-keyed.**
+  Inserting a parameter in the middle of a declared list shifts every later
+  `values.get(n)` in `pack`, and `sample_params` hides that for authored scenes
+  while a hand-built chain (a test) breaks loudly. The next parameter added to an
+  existing effect should be appended, or every `get(n)` in that file re-checked.
+- **`format` has two placeholder forms and the spec used a third.** Measured by
+  rendering: `{}` substitutes, `{.N}` substitutes at N decimals, and everything
+  else — `{x}`, `{:.1f}`, `{:,}` — is emitted *literally* (deliberately, so an
+  unsupported spec shows instead of guessing). `docs/spec.md`'s reactive-system
+  example was `format("y = {x}", x)`, which has never worked; it now reads
+  `{:.2}` and the grammar is written down where a reader will hit it. Worth a
+  grep after any doc round: `format("[^"]*{[a-zA-Z_.]` finds the class in one
+  pass, and it found nothing else in the corpus.
+- **Premultiplication is not a detail in this backend.** The first `Bloom`
+  composite raised colour while freezing alpha at the original's, which fringes
+  at a scope's semi-transparent edge and caps a glow's coverage at what was
+  already there; the shipped version grows `out_alpha` with the glow and clamps
+  colour to it. Same trap as `DropShadow`: keep `rgb <= a`.
 
 ### Batch 3 (2026-10-04, third session) — four commits, local only
 
@@ -57,6 +102,18 @@ Notes the next session will want from batch 3:
   centring a station 400 px off-center at 1.7× takes 680), scene-anchored
   actors move with it, the background does not, and authoring a camera
   bypasses the static-subtree cache.
+- **Eleven builtins the engine implemented and the language never declared.**
+  Diffing `eval_shared`'s dispatch against `animatix-syntax::builtins` turned up
+  `atan2, fract, hypot, ln, pow, rem, round, signum, step, deg_to_rad,
+  rad_to_deg` absent from `MATH_FUNCTIONS`, and `list_set`/`list_swap` absent
+  from every list. Those names resolve at runtime — `check` on a scene using
+  them is silent — but the analyzer's `unresolved-variable` pass exempts only
+  what `MATH_FUNCTIONS` declares, so the editor flags working, documented code
+  (`ln(x)` and `list_swap(…)` are both in `docs/spec.md`) and completion never
+  offers them. All eleven are declared now, `list_set`/`list_swap` in a new
+  `LIST_FUNCTIONS` because they return a list and typing them `Num` would break
+  the assignment the docs show. The diff is worth re-running after any builtin
+  is added; nothing else catches it.
 - **Tooling drifts behind a vocabulary addition in three places, not one.** When
   batch 2 made color strings resolve everywhere, `raw_property_types()` still
   said `Color` only, so `check` and the editor warned on source that rendered
@@ -328,7 +385,7 @@ each non-trivial. Verified 2026-10-04.
 | # | Item | Verdict | Where the work is | Non-trivial part |
 |---|---|---|---|---|
 | 12 | Bundled stroke-icon set (Lucide-derived, ISC) | ~~MEDIUM~~ **DONE** `719d0c77` | the data-table route: `animatix-core::stroke_icons` (25 Lucide ISC paths) + an `icon:` property that expands into `Path` geometry | Landed with two real parser fixes in `svg_import::parse_svg_path_data` (compact numbers `7-7`/`.53.53`; implicit `line_to` after `M`/`m`) and the authored-`scale:` fix that makes an icon sizeable at all |
-| 13 | Theme/vivid pack, display font, fast-path glyph gaps (ᵀ/ₖ tofu → ASCII math on the tour), site content redo, outro variety | content/web | `docs/ai_agent_animation_quality.md`-adjacent authoring work | Pure content, but the glyph gap is an `animatix-text` fix |
+| 13 | Theme/vivid pack, display font, fast-path glyph gaps (ᵀ/ₖ tofu → ASCII math on the tour), site content redo, outro variety | content/web — **mostly landed**: schemes `ef6a0c00`, genre pack `2e170adf`, glyph gaps already closed by the `missing-glyph` warning + ASCII formulae | `docs/ai_agent_animation_quality.md`-adjacent authoring work | Pure content, but the glyph gap is an `animatix-text` fix |
 | 14 | Loop-perfect lint (`check` warns when a loop does not wrap) | SMALL | `animatix check` already builds the full Timeline (`main.rs:1383-1465`); scalar/style tracks + plan slots are sampleable at any t (`read_property_plan_slot`, `property_engine.rs:561-566`) | v1 policy: skip `always`/plot-`func`-driven values (document it); define the loop boundary (scene end vs `play` loop point). Shares the facts exporter with `ai_agent_animation_quality.md` |
 | 15 | CLI `--set name=value` (template × data batching) | SMALL engine + plumbing | inject `env.set` at the pre-walk seam (`build/entry.rs:399-407`) | ~10 build entry points thread a defines map (or canonicalize one); the analyzer needs the defines or false `unresolved` fires |
 | 16 | Beat timestamps `#2b` + `config { bpm }` | SMALL-MEDIUM | lexing site `token.rs:380-387`; **ordering is a non-problem** (config pre-pass precedes stamp resolution, `entry.rs:421-443`; scene configs hoisted, `composition/build.rs:238-240`) | a new `ast::Time::Beats` fans out to exhaustive matches (`walk.rs:317`, analyzer `duplicates.rs:232`, GUI `ast_utils.rs:271-275`, formatter); bpm threads to `time_to_ms` (`utils.rs:839`) via builder state; `config_keys.rs` is test-pinned against spec.md (`:128-163`) so docs move in lockstep |
@@ -346,49 +403,42 @@ each non-trivial. Verified 2026-10-04.
 
 | # | Item | Verdict | Notes |
 |---|---|---|---|
-| 21 | Second-input-texture ABI bump → Bloom, soft DropShadow, chain Mix | MEDIUM-LARGE, already scoped | `docs/effects.md` §4.1-4.2: bind group gains an input binding so a pass can read the pre-chain original |
+| 21 | Second-input-texture ABI bump → Bloom, soft DropShadow, chain Mix | **DONE** `b27ca5e5` + `a046cbf6` | ABI v2 binds the pre-chain original at `binding: 5` (`filter_backend.rs`), copied once per scope before pass 0. `Bloom` is its first consumer (`animatix-std/src/effects/bloom.rs`) and `DropShadow.softness` the second. "chain Mix" needed no new effect: `Bloom`'s `keep` parameter *is* a linear mix of the chain result with the original, so a second effect over the same math would be a duplicate |
 | 22 | `glass` / backdrop-blur | LARGE, **parked** | The main vello target is never an input texture (`offscreen.rs:267-294`; the filter backend renders its own sub-scenes, `filter_backend.rs:54-67`). Needs mid-frame scene splitting + rounded-rect regions (`EffectRegion` is a plain rect) + compositing *below* children. Revisit after #21 — shared machinery |
-| 23 | BarChart race | MEDIUM-LARGE, parked | `data` is static and deliberately non-keyframeable (`build/plot.rs:969,1119-1134`); PlotCurve's `FuncTransition` side channel (`timeline/plot.rs:99-260`) is the pattern to copy; bar identity-matching is genuinely new logic |
+| 23 | BarChart race | MEDIUM-LARGE, parked — **scoped in batch 3** | `data` is static and deliberately non-keyframeable (`build/plot.rs:1154` lists it among the properties the generic path skips; `parse_bar_chart_data` at `:2043` returns a build-time `Vec<(String, f32)>` baked into paths). Five steps, in order: (1) a `data_transitions` side channel mirroring `FuncTransition` (`timeline/plot.rs:183`, whose module doc at `:11-200` is the worked explanation of why it lives beside the track rather than in it); (2) bar identity matching by label between the two datasets — the genuinely new logic, with unmatched bars entering from height 0 and exiting to it; (3) a frame-time sampler beside `sample_procedural_plot_at` that lerps matched values; (4) rebuilding bar geometry per frame, which is the hot-path part (bars are built once today), so it needs `scripts/perf-bench.sh compare` and probably a memo keyed on `(t, data_epoch)`; (5) removing `data` from the non-keyframeable list, which the analyzer and `warn_inapplicable_declaration_properties` both read |
 | 24 | Variable-font weight animation | NOT feasible today | slim builds bundle Open Sans **Regular only** (`animatix-text/src/lib.rs:594-657`, `:200-201`); `font_weight` snaps Regular\|Bold (rich-text only). Needs a variable font or 9 static faces — parked |
-| 25 | Vello pin lift | external gate | unchanged: upstream #1558, then the `vello_img_probe` matrix |
+| 25 | Vello pin lift | external gate | unchanged: upstream #1558, then the `vello_img_probe` matrix. Attempted in batch 3 and not answerable from here: no `gh` on PATH and the web-fetch tool refused `api.github.com`, so the upstream state is unverified. The pin's own comment (`crates/animatix-render/Cargo.toml:29-33`) is the record of what to look for: atlas residency making image draws vanish between non-image renders, fatal for the multi-scope filter pipeline |
 
 ## Remaining work, next-session order
 
 M1 (#1-#11) and M2 (#12-#16) are complete, as is M3 (#17-#20). What is left, in
 the order that makes sense to attempt it:
 
-1. **#21 the second-input-texture ABI bump** → Bloom, a soft DropShadow, chain
-   Mix. Already scoped in `docs/effects.md` §4.1-4.2: the bind group gains an
-   input binding so a pass can read the pre-chain original. This is the last
-   item in the round that adds capability rather than content.
+1. ~~**#21 the second-input-texture ABI bump**~~ — **done** (`b27ca5e5`,
+   `a046cbf6`). `web/recipes/scenes/bloom_stage.amx` demonstrates the pair on the
+   site; the tour's own `effects` scene still does not show a bloom, which is the
+   obvious content follow-up.
 
-   The concrete site list, verified against the code in batch 3: a third texture
-   beside the ping-pong pair in the `FilterScratch` struct
-   (`filter_backend.rs:119`, built at `:206-240`) and its twin in the
-   region-scoped path (`:746`); a `binding: 5` entry in the shared layout
-   (`:250-310`); the `original` view threaded into
-   `effect_bind_group_for_slot` (`:398-435`) and its call site in the chain loop
-   (`:629-670`); one more `copy_texture_to_texture` beside the `pp_a` seed
-   (`:572-590`) so the original is the *pre-chain* pixels of the same region;
-   and the §4.2 table in `docs/effects.md`. Two costs to benchmark before
-   landing it: a third full-size texture per scope, and one extra whole-region
-   copy per effect scope per frame — both paid by every scene with a filter,
-   whether or not it uses a second input.
-2. **#22 glass** after it (shared machinery), **#23 BarChart race**, **#24 font
-   weights** (needs a variable face in the slim bundle), **#25 vello pin lift**
-   (check upstream #1558 first). All four are parked for a reason recorded in
-   the inventory table; none is a quiet afternoon.
-3. **#13 closeout, partially done.** The `examples/lib` genre pack landed in
-   batch 3 (`examples/lib/light.amx` + `examples/animation/36_light_pack.amx`);
-   still owed is the third preset layer — a recipes gallery on the site — plus
-   the site content redo beyond the review pass, and the `web/demos/posters/*.png`
-   question: eight
-   1280×720 stills that nothing references any more (the hub cards play live
-   `data-hoverplay` embeds, and `web/README.md` now says so). They are stale by
-   definition; **deleting them is the owner's call**, so they stay for now, the fast-path glyph-gap fix
-   (`ᵀ`/`ₖ` tofu on the tour → ASCII math, an `animatix-text` change), the theme
-   pack examples, then pruning this handoff into `docs/history.md` when the
-   round closes.
+2. **#22 glass** (needs mid-frame scene splitting that ABI v2 does *not*
+   provide — the main vello target is still never an input texture), **#23
+   BarChart race** (now scoped to five ordered steps), **#24 font weights**
+   (needs a variable face in the slim bundle), **#25 vello pin lift** (an
+   upstream check this session could not make — see the inventory row). None is
+   a quiet afternoon.
+3. **#13 closeout, mostly done.** Landed across the round: the theme/vivid pack
+   (`ef6a0c00` schemes, `2e170adf` `examples/lib/light.amx` genre pack), the
+   glyph-gap item — which turned out to be closed already: the build warns
+   `missing-glyph` naming each uncovered character (`declarations_text.rs:523`,
+   pinned by `build_diagnostics.rs:260`) and the tour's formula scenes are
+   written in ASCII, so no tofu ships, and the third preset layer —
+   `web/recipes/` (`7d568e64`), seven single-idea scenes with the source beside
+   each, so `docs/spec.md`'s Recipes section and the site now point at the same
+   vocabulary. Still owed: the site content redo beyond the review pass,
+   a decision on `web/demos/posters/*.png` (eight 1280×720 stills nothing
+   references any more — the hub plays live `data-hoverplay` embeds, and
+   `web/README.md` now says so; **deleting them is the owner's call**), and
+   pruning this handoff into `docs/history.md` when the round closes.
+
 4. **A suspected `always-overrides-keyframes` false positive on component
    internals.** `examples/animation/36_light_pack.amx` warns that the `always`
    inside `MarchingRail` writes `dash_offset` on actor `rail`, which "also has
@@ -400,6 +450,24 @@ the order that makes sense to attempt it:
    for a HUD that must not move, the camera is not carried across scenes by
    `persistent`/carry-bag, `animatix verify` ink checks are in scene rather than
    screen space, and the loop-perfect lint does not sample the camera axes.
+   A `Filter` scope survives it for the reason in the code rather than by
+   luck: the sub-scene is rendered with the node's `global_transform`
+   (`scene_eval.rs:1061-1075`), the region is derived from the subtree bounds
+   that transform produced, and the composite blits back at that same
+   `region.origin` — all three in the same camerad space. What breaks is an
+   **authored `bounds: (x, y, w, h)`** on a scope: those numbers are scene
+   coords and the camera does not move them, so a zoomed scope filters the
+   wrong rectangle. **Confirmed by measurement** in
+   `dogfood/probe_camera_scopes.amx`: the same scene with and without its
+   `bounds:` differs in 9 pixels at t=0.2 (camera identity — the two regions
+   coincide) and 73,512 pixels — a third of the frame — at t=1.6 after a push
+   and pan. The fix is to transform authored bounds by the camera affine — not
+   the one-liner it first looked like: `effect_scope_region`
+   (`scene_eval.rs:1186-1205`) has no frame context, and threading the camera
+   affine to it means a field on `RenderFrame` plus its five construction sites
+   (`primitives/mod.rs:990`, `scene_eval.rs:1554/1585/1616/1913`), three of
+   which are container adapters that would have to carry it rather than derive
+   it. Worth doing; scoped, not started.
 6. **The residual reactive-frame cost is closed** (`1727d558`): the mechanism
    was `inject_property_into_env` walking every INJECTABLE row of every actor
    every frame, and six of batch 1/2's rows are now `ASSIGNABLE_A`. What is
@@ -444,8 +512,9 @@ recorded with what was actually chosen so they are not re-litigated:
    (#14 pending).
 8. **Presets** — all three layers: engine verbs (`b4d8e0ac`), `examples/lib`
    genre packs (`examples/lib/light.amx` + `examples/animation/36_light_pack.amx`,
-   batch 3), site recipes gallery (still open — the tour's Recipes section in
-   `docs/spec.md` points at the pack, the web page does not yet).
+   batch 3), site recipes gallery (`web/recipes/`, batch 4). All three layers
+   exist; the tour's Recipes section in `docs/spec.md` and the page now name the
+   same moves.
 9. **Sequencing** — this round runs after the silent-drops gates each session;
    both tracks stay unpushed per the standing rule until the owner says push.
 

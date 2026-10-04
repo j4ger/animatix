@@ -922,7 +922,6 @@ Limits worth knowing:
 - `at` is applied *after* `zoom`, so centring something `d` px off the scene
   center while magnified `z`× takes `camera.at = (d * z, …)`. Panning 400 px at
   `zoom: 1.7` lands 680 px away from where it would at `zoom: 1`.
-
 - The background fill stays put: a camera move carries the plate, not the paper.
 - Everything in the scene graph moves with it, including scene-anchored actors
   (`anchor: scene.top`) — the transform composes outside every node. There is no
@@ -930,6 +929,11 @@ Limits worth knowing:
 - Authoring a camera turns off the static-subtree encoding cache for root
   subtrees (a cached encoding cannot be re-transformed when it is appended), so
   an otherwise fully static scene re-evaluates per frame.
+- A `Filter` scope moves with the camera when its region is derived from its own
+  content — the sub-scene, the region and the composite blit all share the
+  camera's space. An authored `bounds: (x, y, w, h)` is in scene coordinates and
+  the camera does not transform it, so a zoomed scope with authored bounds
+  filters the wrong rectangle.
 - The label `camera` is reserved: declaring `camera: Rect, …` draws the actor but
   warns (`reserved-label-prefix`), because every `camera.<axis> = …` write goes
   to the camera.

@@ -1,0 +1,44 @@
+// probe_camera_scopes.amx — does the scene camera survive a `Filter` scope that
+// authors its `bounds:`?
+//
+// Expected from the code, and what this file checks rather than assumes:
+// a scope whose region is *derived* from its content is fine — `evaluate_node`
+// renders the sub-scene with the node's `global_transform` (camera included),
+// derives the region from the bounds that transform produced, and blits the
+// filtered result back at that same `region.origin`, so all three live in one
+// space. An authored `bounds: (x, y, w, h)` is in scene coordinates and the
+// camera never transforms it, so once the push-in starts the filtered
+// rectangle no longer covers what is drawn there.
+//
+// Measured, not assumed: render this file and the same file with the
+// `bounds:` deleted, and count differing pixels.
+//
+//   t=0.2 (camera still identity)   9 pixels   — the two regions coincide
+//   t=1.6 (after push + pan)    73,512 pixels   — 32% of the frame
+//
+// So the derived region follows the camera and the authored one does not. The
+// gap is documented in `docs/spec.md`; this file is the check, not the fix.
+
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 3 }
+
+// Background the mis-placed region can be seen against.
+b1: Rect, size: (60, 300), at: (90, 180), color: accent.info, opacity: 1.0
+b2: Rect, size: (60, 300), at: (230, 180), color: accent.success, opacity: 1.0
+b3: Rect, size: (60, 300), at: (370, 180), color: accent.warning, opacity: 1.0
+b4: Rect, size: (60, 300), at: (510, 180), color: accent.danger, opacity: 1.0
+
+scope: Filter, at: (320, 180), bounds: (170, 90, 300, 180) {
+  soft: Blur, radius: 10
+  plate: Rect, size: (260, 140), color: "#0b1017", corner_radius: 16, opacity: 1.0
+  // Children of a scope are managed layout children, so a visual offset is a
+  // `transform`, not an `at`.
+  bulb: Ellipse, size: (56, 56), transform: (1, 0, 0, 1, -70, 0), color: "#ffd60a", opacity: 1.0
+  bar: Rect, size: (140, 16), transform: (1, 0, 0, 1, 40, 0), color: "#ff2d55", opacity: 1.0
+}
+
+#0s
+camera.zoom = 1.0
+camera.at = (0, 0)
+#0.4s
+camera.zoom = 2.0 [900ms, ease: expo-out]
+camera.at = (150, 0) [900ms, ease: expo-out]
