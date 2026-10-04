@@ -1,0 +1,91 @@
+// light.amx — the "light vocabulary" genre pack.
+//
+// Decision 8 of the motion-vocabulary round asked for the new motion verbs to
+// reach authors in three layers: engine actions (done — `settle-in`, `pop-in`,
+// `anticipate:`), a reusable pack in `examples/lib` (this file), and the site's
+// recipes gallery. Each component here is one of the moves that makes a plate
+// look lit rather than flat, packaged so an author writes a declaration instead
+// of a gradient expression.
+//
+// Import and instantiate like any component:
+//
+//     import "../lib/light.amx"
+//
+//     stage: KeyLight, radius: 420, at: (640, 300)
+//     rail:  MarchingRail, length: 900, at: (640, 620)
+//     kpi:   Ticker, to: 128, at: (640, 360)
+
+// ── KeyLight ────────────────────────────────────────────────────────────────
+// A warm radial wash that adds light without covering what it lights: the ramp
+// fades to transparent and `blend: "screen"` means it can only ever brighten.
+// Put one behind the subject of every plate; this is the difference between a
+// black field with a shape on it and a lit stage.
+
+pub component KeyLight(radius: Num = 340) {
+  halo: Ellipse, size: (radius * 2.0, radius * 2.0),
+    fill_gradient: radial((0.5, 0.5), 0.5, {
+      (0%, "#ff9f0a40"), (45%, "#ff9f0a18"), (100%, "#ff9f0a00")
+    }),
+    blend: "screen", opacity: 1.0
+}
+
+// ── CoolLight ───────────────────────────────────────────────────────────────
+// The fill side of a two-point light. Warm key plus cool fill is the pairing
+// the corpus never used: every shipped plate had one flat accent.
+
+pub component CoolLight(radius: Num = 260) {
+  fill: Ellipse, size: (radius * 2.0, radius * 2.0),
+    fill_gradient: radial((0.5, 0.5), 0.5, {
+      (0%, "#5e5ce638"), (50%, "#64d2ff14"), (100%, "#64d2ff00")
+    }),
+    blend: "screen", opacity: 1.0
+}
+
+// ── MarchingRail ────────────────────────────────────────────────────────────
+// A dashed rule whose dashes travel. A rail that keeps moving after the
+// entrances land is what stops a scene reading as a static slide with a
+// transition on it; `dash_offset` is the only property that buys motion this
+// cheaply.
+
+pub component MarchingRail(length: Num = 600, gap: Num = 7.0, speed: Num = 34.0) {
+  line: Path, commands: {move_to(-length / 2.0, 0), line_to(length / 2.0, 0)},
+    stroke: accent.info, stroke_width: 2, fill_opacity: 0.0,
+    dash_pattern: {10, gap}, opacity: 1.0
+
+  always {
+    self.line.dash_offset = (self.line.dash_offset + t * speed) % (10.0 + gap)
+  }
+}
+
+// ── Ticker ──────────────────────────────────────────────────────────────────
+// Count-up text. `format` re-renders the glyphs every frame an `always` writes
+// it, so the number climbs instead of appearing.
+
+pub component Ticker(to: Num = 100, size: Num = 64, suffix: Str = "") {
+  value: Text, text: "0", font_size: size, color: text.primary
+
+  always {
+    // First 900 ms of the scene, then it holds on the target value.
+    let p = clamp(t / 0.9, 0, 1)
+    self.value.text = format("{}{}", floor(to * p), suffix)
+  }
+}
+
+// A note on `always` and entrances: `MarchingRail`, `Ticker` and `Breather`
+// write a property every frame, and a frame-time write wins over keyframes (see
+// `always-overrides-keyframes` in `check`). Enter those actors with `fade-in`
+// (opacity), never with `settle-in` / `pop-in` (scale) or `draw-in` (stroke
+// progress on a dashed rail), or the entrance does nothing.
+
+// ── Breather ────────────────────────────────────────────────────────────────
+// The idle motion a plate needs once everything has entered: a slow scale on a
+// sine, so nothing is ever quite frozen. `gain` is the fraction of scale, so
+// 0.04 is a whisper and 0.12 is a heartbeat.
+
+pub component Breather(gain: Num = 0.05, rate: Num = 1.6) {
+  plate: Rect, size: (180, 120), color: accent.primary, corner_radius: 16, opacity: 1.0
+
+  always {
+    self.plate.scale = 1.0 + gain * sin(t * rate)
+  }
+}

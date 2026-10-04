@@ -1285,6 +1285,26 @@ wire.dash_offset = 0
 wire.dash_offset = 140 [2s]
 ```
 
+**The light pack.** The same moves are packaged as components in
+`examples/lib/light.amx` — `KeyLight` / `CoolLight` (a two-point radial wash on
+`screen`), `MarchingRail` (a dashed rule that keeps travelling), `Ticker`
+(count-up text) and `Breather` (idle scale on a sine) — so a lit stage is four
+declarations:
+
+```animatix
+import "../lib/light.amx"
+
+key:  KeyLight,    radius: 400, at: (560, 300)
+fill: CoolLight,   radius: 300, at: (900, 470)
+kpi:  Ticker,      to: 1284, suffix: "×", at: (560, 300)
+rail: MarchingRail, length: 900, speed: 40, at: (640, 600)
+```
+
+One rule comes with them: a component that writes a property from `always`
+owns it. Enter those actors with `fade-in` (opacity), not `settle-in` /
+`pop-in` (scale) or `draw-in` (stroke progress) — a frame-time write wins every
+frame, so the entrance would do nothing.
+
 ### Property References & State Queries
 
 The `&` operator packages a property **slot** (not its value) into a
