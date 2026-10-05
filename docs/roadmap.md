@@ -403,23 +403,11 @@ the language is missing:
   primitive gets no such protection automatically. Deriving "this actor paints no
   surface" from the caps (one flag, consulted by the paint predicates) is the
   follow-up that would make it structural.
-- **The `property → ActorField` table is still copied three times** in
-  `timeline/dispatch.rs` (`has_keyframe_at` :1247, `has_keyframes_for` :1308,
-  `list_keyframes` :1408), verified identical apart from the fall-through arm.
-  The fold is specified and deliberately left undone: extract
-  `fn field_for_property(&str) -> Option<ActorField>` from the first body, then
-  rewrite the other two as `let Some(field) = field_for_property(property) else {
-  return <that function's own fall-through>; };` — keeping each fall-through is the
-  whole risk, so diff the three tails before touching anything, and the guard is
-  `scripts/perf-bench.sh compare` on a quiet machine (`sample`, `scrub`, `static`,
-  `stage__sample`, `property_plan` families) plus the existing
-  `is_property_animated`/`always-overrides-keyframes` tests, because this is the
-  keyframe query path.
-  `is_property_animated` avoided a fourth copy by resolving through the runtime
-  `property_registry::lookup_property(…).field`, which is the shape all three
-  should fold into. Deferred rather than dropped: these sit on the keyframe query
-  path, so the fold needs the frame benches, and the round's remaining budget went
-  to features a user can see.
+- **The keyframe query path has one property table now** (`Self::field_for_property`,
+  `f79099c1`), but the same copy-until-one-path-stops-honoring-it shape still lives
+  in the read side: `read_property_value*` / `apply_property_to_field` resolve by
+  name independently of it. Auditing those against the mapper is the follow-up — the
+  fold itself is the pattern, not the last instance.
 - **`web/demos/posters/*.png`.** Eight 1280×720 stills nothing references since the
   hub switched to live `data-hoverplay` embeds; `web/README.md` says so. Deleting
   them is the owner's call, so they stay.
