@@ -406,6 +406,15 @@ the language is missing:
 - **The `property → ActorField` table is still copied three times** in
   `timeline/dispatch.rs` (`has_keyframe_at` :1247, `has_keyframes_for` :1308,
   `list_keyframes` :1408), verified identical apart from the fall-through arm.
+  The fold is specified and deliberately left undone: extract
+  `fn field_for_property(&str) -> Option<ActorField>` from the first body, then
+  rewrite the other two as `let Some(field) = field_for_property(property) else {
+  return <that function's own fall-through>; };` — keeping each fall-through is the
+  whole risk, so diff the three tails before touching anything, and the guard is
+  `scripts/perf-bench.sh compare` on a quiet machine (`sample`, `scrub`, `static`,
+  `stage__sample`, `property_plan` families) plus the existing
+  `is_property_animated`/`always-overrides-keyframes` tests, because this is the
+  keyframe query path.
   `is_property_animated` avoided a fourth copy by resolving through the runtime
   `property_registry::lookup_property(…).field`, which is the shape all three
   should fold into. Deferred rather than dropped: these sit on the keyframe query
