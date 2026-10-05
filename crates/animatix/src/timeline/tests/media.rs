@@ -17,6 +17,8 @@ fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
     path
 }
 
+/// only used by the `image-decode` test below
+#[cfg(feature = "image-decode")]
 fn write_test_png(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join("animatix_image_usage_tests");
     std::fs::create_dir_all(&dir).unwrap();
@@ -139,6 +141,8 @@ icon.url = "/nonexistent/animatix-missing.svg"
     );
 }
 
+/// needs the `image-decode` feature: it writes a real PNG through the `image` crate
+#[cfg(feature = "image-decode")]
 #[test]
 fn asset_usage_tracks_svg_image_and_audio_actors() {
     let svg = write_test_svg("asset_usage.svg", 40, 10);

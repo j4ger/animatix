@@ -79,7 +79,7 @@ impl AssetCache {
         #[cfg(not(feature = "svg"))]
         {
             let _ = (path, actor_label);
-            return Err("SVG assets require the 'svg' feature (disabled in this build)".to_string());
+            Err("SVG assets require the 'svg' feature (disabled in this build)".to_string())
         }
 
         #[cfg(feature = "svg")]
@@ -105,10 +105,10 @@ impl AssetCache {
         #[cfg(not(feature = "image-decode"))]
         {
             let _ = (path, actor_label);
-            return Err(
+            Err(
                 "raster image assets require the 'image-decode' feature (disabled in this build)"
                     .to_string(),
-            );
+            )
         }
 
         #[cfg(feature = "image-decode")]

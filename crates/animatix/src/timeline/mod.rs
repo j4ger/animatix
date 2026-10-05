@@ -104,6 +104,7 @@ pub mod scene_program;
 mod sequence;
 pub use legend::{LegendMode, LegendTracks};
 
+pub mod path_data;
 /// Vector shape definitions and rendering.
 pub mod shapes;
 /// SVG parsing and manipulation utilities.

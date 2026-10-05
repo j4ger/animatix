@@ -1,3 +1,4 @@
+#![cfg(feature = "svg")]
 //! Tests for SVG import functionality.
 
 use std::path::PathBuf;

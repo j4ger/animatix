@@ -2980,7 +2980,10 @@ pub fn compile_typst_grouped_cached(
             "left",
             "visible",
         )?;
-        let ranges = vec![0..compiled.glyphs.len()];
+        // One range covering the whole group. Written as a collect rather than
+        // `vec![a..b]`, which clippy reads as an attempt to build the values in
+        // the range.
+        let ranges: Vec<_> = std::iter::once(0..compiled.glyphs.len()).collect();
         let entry = std::sync::Arc::new(CachedGroupedText {
             glyphs: compiled.glyphs.into(),
             ranges: ranges.into(),
@@ -3536,6 +3539,7 @@ mod tests {
         .expect("Code compiles")
     }
 
+    #[cfg(feature = "rich-text")]
     fn glyph_hexes(cached: &CachedText) -> Vec<String> {
         cached
             .paths

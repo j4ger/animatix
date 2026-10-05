@@ -1,7 +1,7 @@
 //! Bundled stroke icons for the `icon:` build-time property on `Path` actors.
 //!
 //! This is a plain data table — name → SVG path data — that the engine expands
-//! into `Path` geometry (see `animatix::timeline::svg_import::parse_svg_path_data`,
+//! into `Path` geometry (see `animatix::timeline::path_data::parse_svg_path_data`,
 //! the single path-data parser; there is deliberately no second one here). It is
 //! *not* a primitive and has no catalog row: `icon:` is sugar for an authored
 //! `commands:` list, so tracing the stroke with `draw-in` works exactly as it

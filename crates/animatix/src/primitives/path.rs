@@ -3,8 +3,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::timeline::path_data::parse_svg_path_data;
 use crate::timeline::shapes::parse_path_commands_expr;
-use crate::timeline::svg_import::parse_svg_path_data;
 use crate::timeline::{
     Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
 };
