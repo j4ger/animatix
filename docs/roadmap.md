@@ -415,3 +415,34 @@ the language is missing:
 - **`web/demos/posters/*.png`.** Eight 1280×720 stills nothing references since the
   hub switched to live `data-hoverplay` embeds; `web/README.md` says so. Deleting
   them is the owner's call, so they stay.
+
+## Web delivery — the two claims a real browser still owes (2026-10-06)
+
+Batch 7 (`history.md`) fixed the engine fault behind the site's page errors and
+made every delivered page verifiable headless. Two claims cannot be closed on
+this box, and the next session should not pretend the harness covers them:
+
+- **`Glass` frost pixels in the web player.** Headless Chromium cannot make a
+  readable RGBA texture (`Could not find SharedImageBackingFactory … RGBA_8888 …
+  WebgpuRead`) — the readback path loses the device the moment it allocates — and
+  `--screenshot` returns byte-identical frames for a looping scene, so canvas
+  contents are not in the capture either. What *is* proven in the browser: the
+  scene builds under the shipped profile, the engine initialises, and the figure
+  renders through the same scale-aware `drain_pending_layers` the native path
+  uses. The pixel behaviour of the frost rests on the native measurement
+  (`(93,27,32)` frosted vs `(255,0,0)` unfrosted on a 4 px border). A machine with
+  working WebGPU in a browser can settle it: open `/tour/` §05b and read the panel
+  interior at `t=1.0` (radius 0) against `t=3.0` (radius 22) — the scene is built
+  as its own A/B — via `<amx-player>`'s `debug_readback_rgba`.
+- **One page mixing both engine profiles.** `demos/svg-probe/profiles.html` loads
+  slim and full in the same document; headless hands the second engine no adapter
+  (`No suitable graphics adapter found`), so the probe reports one scene error
+  here that says nothing about the page. `web/README.md` claims a mixed page
+  downloads each profile once and holds one device per profile — that claim is
+  untested against a real browser.
+
+Then the maintenance item this batch made cheap: `cargo test -p animatix-web
+--test site_scenes` in both feature sets is now the content gate, and the Pages
+job runs it plus an embed-bundle drift check. If a future scene needs the full
+profile, the fix is `profile="full"` on the element that plays it — the gate names
+the page, not just the scene.

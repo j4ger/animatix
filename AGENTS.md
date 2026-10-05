@@ -65,9 +65,18 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    (`env -i` if your shell already loaded a dev shell — see the `.#web-build`
    PATH note in `flake.nix`: the outer `rustc` wins and reports no wasm32 std.)
 
-   The slim feature set deserves the same treatment: `cargo clippy -p animatix \
-   --no-default-features --all-targets -D warnings` is the only thing that looks at
-   the profile the web playback build uses.
+   The slim feature set deserves the same treatment: `cargo clippy -p animatix --no-default-features --all-targets -D warnings`
+   is the only thing that looks at the profile the web playback build uses.
+
+   And the site's own content needs both profiles, not just a compile:
+   `cargo test -p animatix-web --test site_scenes` (full) and the same command
+   with `--no-default-features` (slim) build every scene an `<amx-player>` on
+   the site references, through the embed's fetch protocol, in the profile that
+   player asks for. A scene that only the full engine can build, or an
+   import/asset URL that resolves to nothing next to its page, is a "Scene
+   error" veil in the browser and invisible to every other gate. Run both after
+   touching `web/`, `web/embed/`, or the profile features in
+   `crates/animatix-web/Cargo.toml`.
    Do not commit with build errors or test failures.
 
    > **Why `--workspace --all-targets`?** Ensures all crates (including GUI, analyzer, LSP) and all targets compile. Prevents silent drift between core and tooling crates. **Why clippy here?** `cargo check` does not surface lint-level problems, and the CI `clippy` job fails the build on warnings — running it locally keeps that job green instead of discovering lints after the push. **Run the `--workspace` commands inside `nix develop`** — the GUI's audio stack builds against system ALSA headers the dev shell provides (see Common Pitfalls).
@@ -168,6 +177,7 @@ and sentinel ids).
 ### Commit-Time Guards Beyond `cargo test`
 - **Hot-path changes need a benchmark.** Anything touching the per-frame render, scene-evaluation, or export loops must ship with the result of `scripts/perf-bench.sh compare` in the commit message. A committed investigation probe once added an unconditional full-canvas GPU readback to every filter scope, every frame; no test and no lint could see it, and the perf harness was not part of the checklist.
 - **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_STAGES`, `ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders, encodes, or how many threads it uses. If a probe needs a behavioural change to reach the bug, make that change a separate commit with its own justification.
+  Gating the *output* is not enough — the measurement has to be conditional too. `std::time::Instant::now()` traps on `wasm32-unknown-unknown` ("time not implemented on this platform"), so a probe that starts its clock unconditionally panics the web player: an `ANIMATIX_FILTER_TIMING` timer on the filter-scope path once killed every `Filter`/`Mask`/`Glass` figure in the browser while looking entirely correct on the desktop. Use `filter_backend::timing_probe()` there, and treat any new `Instant::now()` in a crate the wasm build reaches (`animatix-render`, the engine) as a bug in the same way.
 - **Pinned dependencies carry their reason.** Every git/rev pin in a `Cargo.toml` needs a comment naming what the pin protects against and what would lift it (see the `vello` pin), plus a test at the dependency boundary where one is feasible (`crates/animatix-render/tests/vello_img_probe.rs`).
 
 ### Never Silently Drop Values

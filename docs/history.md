@@ -2317,3 +2317,62 @@ build` did emit both as warnings, and the bench build printed them — but a war
 survivable and `-D warnings` is not, which is the whole point of the CI rule. The lesson is
 the one this round keeps re-learning: the checklist only counts when it runs *after* the
 last change, and a tree that was green an hour ago is not evidence.
+
+### Batch 7 (2026-10-05 into 10-06, the web delivery pass) — 7 commits, local only
+
+Opened by the owner's report: `localhost:8124` showed an error on the homepage
+animation. That turned out to be a stack of four separate faults, only the first
+of which was visible, and finding the rest needed a browser — which is why this
+batch is mostly about making the browser's state inspectable at all.
+
+| Commit | What it fixed | Evidence |
+|---|---|---|
+| `afcc7eab` | the slim feature set had not compiled for days | `svg_import` is `#[cfg(feature = "svg")]`-gated, but it also held `parse_svg_path_data` — which the **bundled stroke icons** need, because their shapes are path-data strings. The slim profile is what CI's Pages job builds, so this was a deploy-level failure, not a theoretical one. The parser moved to `timeline/path_data.rs` (ungated), the asset stubs' `return Err(..)` became function-tail `Err(..)`, and two tests gained the feature gate they were supposed to have. `cargo clippy -p animatix --no-default-features --all-targets -D warnings` → 0 issues |
+| `e8923887` | the web player never drained the pending layer queue | `Glass`'s frame split put backdrop/composite layers in a queue the wasm driver ignored, so the region it copied stayed stale. The drain became one scale-aware `drain_pending_layers` shared by offscreen, GUI and web (the web canvas renders at an adaptive `render_scale`, so regions, clips and corner radii all scale together). Guard: `scripts/perf-bench.sh compare demo_frame` → 43 benches, 0 regressions |
+| `bf244125` | four stale bundle-size claims in `web/README.md` | re-measured against the rebuilt profiles: slim ~5.5 MB raw / ~1.7 MB brotli, full ~29.1 MB / ~8.5 MB |
+| `d35ef16e` | **the gate the site content needed** | `crates/animatix-web/tests/site_scenes.rs` reads every `<amx-player>` under `web/`, takes the `profile` each element asks for, and builds that scene through `animatix_web::host` using the embed's own fetch protocol — `missing_imports` keys resolved against the scene, assets seeded relative to the declaring source, 24 retry rounds like `_loadScene`. Measured: 56 scenes referenced, 56 build with the full feature set, 54 build in slim and 2 skipped because every player referencing them says `profile="full"`. The slim run could not exist before this commit: `host.rs`'s two pre-seed tests call `AssetCache` methods that are feature-gated, so `cargo test -p animatix-web --no-default-features` failed to *compile* — the slim profile of the web crate had never been exercised natively |
+| `d35ef16e` | the SVG probes probed nothing | `scene.amx` / `scene_rect.amx` are `Svg` actors and the primitive is registered only under the `svg` feature (`primitives/mod.rs:1642`), yet both pages played them through the default slim profile — so the probe pages showed a "Scene error" veil instead of the thing they exist to look at. They name `profile="full"` now, and `index.html`'s `?profile=slim` switch moves the element as well as the runtime directory |
+| `f0757786` | three deploy defects | (1) the assemble step overwrote `web/demos/transformer/lib/components.amx` with `examples/lib/components.amx` — written for a symlink that no longer exists anywhere in the repo (`git ls-files -s web` finds none), and the two copies are **not** interchangeable: the site's opens with `import "../../lib/theme.amx"`, so the deploy shipped a library that cannot resolve its own colours to four transformer scenes and three gallery figures. (2) `on.push.paths` watched only `web/**` and `crates/animatix-web/**`, so an engine fix — the whole content of this batch — would not redeploy. (3) nothing checked content or the embed bundle before deploying; the job now regenerates `web/embed/amx-player.js` and fails on `git diff --exit-code`, then runs the scene gate in both profiles |
+| `afaefc11` | **the engine fault behind the page errors** | five `ANIMATIX_FILTER_TIMING` probes gated their *printing* but not their *clock*: `let t = Instant::now()` ran unconditionally, and `std::time::Instant::now()` traps on wasm32-unknown-unknown (`unsupported/time.rs:13`, "time not implemented on this platform"). `GpuFilterBackend::render_and_filter_scene_to_view` is the path the web player takes for every `Filter`/`Mask`/`Glass` scope, so a browser frame with a backdrop scope panicked inside the engine and the page then reported `RefCell already borrowed` and `recursive use of an object detected which would lead to unsafe aliasing in rust` for as long as it lived. `web/recipes/` went from 4 scene errors + 464 console messages to 9/9 figures ready + 0 messages |
+| `afaefc11` | the embed's own flood | `_renderScene` caught and `console.warn`ed every failed frame from the shared rAF loop — that is how one panic became 464 messages. One warning per failure run now |
+
+**Gating the output is not gating the probe.** The rule "debug instrumentation
+is additive or it does not land" was already in `AGENTS.md`, and every one of
+these five sites obeyed it in the sense of *only printing when asked* — which
+is why four code reviews' worth of gates missed it. What made this a browser-only
+fault is that a probe also *acquires* something, and on this target the
+acquisition itself traps. The probe clock is now `timing_probe() -> Option<Instant>`,
+`None` on wasm and when the knob is off, with the decision in a `LazyLock` — so
+the per-scope path does one static read where it used to take the environment
+lock once per scope, i.e. the fix is cheaper *and* conditional. `AGENTS.md` states
+the generalised rule.
+
+**What the browser harness here can and cannot prove.** Every figure-level claim
+in this batch rests on a headless Chromium driven over CDP, one fresh process per
+page: a shared browser exhausts Dawn after a handful of navigations and every
+later page reports `No suitable graphics adapter found`, which is a property of
+the harness, not the site. With that fixed, the four content pages are clean —
+`tour/` 11 figures, `recipes/` 9, `gallery/` 7, `demos/transformer/` 7, all
+`ready`, zero messages. Two things remain unprovable on this box and are recorded
+as such rather than claimed:
+
+- **`Glass` frost pixels in the browser.** The engine's own readback cannot run
+  headless: `Could not find SharedImageBackingFactory with params: … format:
+  RGBA_8888 … WebgpuRead`, and the device is lost as soon as the readback texture
+  is created. The compositor route is no better — two `--screenshot` captures of
+  the looping homepage at different `--virtual-time-budget` came back
+  **byte-identical** (`sha256 1143c7be…` for both), so canvas contents are not
+  in the capture. The frost's measured behaviour therefore stays native-only (the
+  4 px border reading `(93,27,32)` frosted vs `(255,0,0)` unfrosted); the browser
+  side proves the scene builds, the engine initialises, and the figure renders
+  through the same `drain_pending_layers` the native path uses.
+- **A page mixing both profiles.** `demos/svg-probe/profiles.html` deliberately
+  loads slim and full in one document; headless grants the second engine no
+  adapter, so that probe reports one scene error here and needs a real browser to
+  judge. Every delivered page uses one profile.
+
+The remaining browser-console noise is by design, and worth naming so the next
+pass does not chase it: `amx-player: <scene> built with N diagnostic(s)` is the
+embed surfacing *warning*-severity diagnostics (the scene gate proves none of
+them is an error), and the bare probe pages 404 on `/favicon.ico` because they
+deliberately carry no site skin.
