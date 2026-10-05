@@ -286,6 +286,7 @@ class AmxPlayerElement extends HTMLElement {
     this._fade = 0;
     this._restTime = 0; // frame shown while paused
     this._lastAlpha = 1;
+    this._renderFailures = 0; // consecutive _renderScene failures; see below
     this._visible = false;
     this._observer = null;
     this._renderScaleObserver = null;
@@ -1279,13 +1280,18 @@ class AmxPlayerElement extends HTMLElement {
       const t = this._playing ? Math.min(this._time, this._duration) : this._restTime;
       if (this._playing) this._restTime = t;
       this._player.render_frame(t);
+      this._renderFailures = 0;
       const alpha = this._loopAlpha();
       if (alpha !== this._lastAlpha) {
         this._canvas.style.opacity = String(alpha);
         this._lastAlpha = alpha;
       }
     } catch (err) {
-      console.warn("amx-player: render failed", err);
+      // One warning per failure run. This is the shared rAF loop: a persistent
+      // fault (a lost device, an engine that trapped mid-frame) would otherwise
+      // print at frame rate and bury everything else on the page.
+      this._renderFailures += 1;
+      if (this._renderFailures === 1) console.warn("amx-player: render failed", err);
     }
   }
 }

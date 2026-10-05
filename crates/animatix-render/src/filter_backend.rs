@@ -22,6 +22,39 @@ use animatix::timeline::effects::{
 };
 use animatix::timeline::image::SceneImage;
 
+// ── `ANIMATIX_FILTER_TIMING` probe clock ────────────────────────────────────
+
+/// Whether this process asked for the probe. Read once: these calls sit on the
+/// per-scope render path, and `std::env::var_os` locks the environment on every
+/// lookup, so deciding per frame would put a mutex on the hot path for a knob
+/// that cannot change after start-up.
+static TIMING_ON: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    !cfg!(target_arch = "wasm32") && std::env::var_os("ANIMATIX_FILTER_TIMING").is_some()
+});
+
+/// Start a probe timer, or return `None` when the probe cannot run.
+///
+/// The printing at every call site was env-gated, but the *clock* was not:
+/// `std::time::Instant::now()` traps on wasm32-unknown-unknown with "time not
+/// implemented on this platform", and the scopes these probes sit on —
+/// `Filter`, `Mask`, `Glass` — are exactly the ones the web player renders, so
+/// a browser frame with a backdrop scope panicked inside the engine and left
+/// the player unable to render for the rest of the page's life. A probe is
+/// additive or it does not land: the clock is now as conditional as the output.
+pub(crate) fn timing_probe() -> Option<std::time::Instant> {
+    if *TIMING_ON {
+        Some(std::time::Instant::now())
+    } else {
+        None
+    }
+}
+
+/// Milliseconds since a [`timing_probe`] start; `0.0` for a probe that was off,
+/// which is never printed.
+pub(crate) fn probe_ms(start: Option<std::time::Instant>) -> f64 {
+    start.map(|t| t.elapsed().as_secs_f64() * 1000.0).unwrap_or(0.0)
+}
+
 // ── Uniform structs ─────────────────────────────────────────────────────────
 
 /// Host-owned per-pass context (bind group 0, binding 3).
@@ -591,8 +624,7 @@ impl GpuFilterBackend {
         };
 
         // TEMPORARY perf probe (env-gated): per-stage cost of one scope.
-        let timing = std::env::var_os("ANIMATIX_FILTER_TIMING").is_some();
-        let t_all = std::time::Instant::now();
+        let t_all = timing_probe();
 
         self.core
             .render_vello_scene_with_background(
@@ -605,7 +637,7 @@ impl GpuFilterBackend {
                 vello::peniko::Color::TRANSPARENT,
             )
             .map_err(|e| e.to_string())?;
-        let t_render = t_all.elapsed();
+        let t_render_ms = probe_ms(t_all);
 
         self.dump_stage("render_view", &seed_texture, dispatch_dims);
 
@@ -637,14 +669,14 @@ impl GpuFilterBackend {
             pp_original_view: pp_original_view.clone(),
         };
         let view = self.run_chain_passes(seed, dispatch_dims, chain, region.is_some())?;
-        if timing {
+        if t_all.is_some() {
             eprintln!(
                 "[filter-timing] dims={}x{} stages={} render={:.2}ms seed+passes={:.2}ms",
                 dispatch_dims.width,
                 dispatch_dims.height,
                 chain.instances.len(),
-                t_render.as_secs_f64() * 1000.0,
-                (t_all.elapsed() - t_render).as_secs_f64() * 1000.0,
+                t_render_ms,
+                probe_ms(t_all) - t_render_ms,
             );
         }
         Ok(view)
@@ -1063,18 +1095,18 @@ impl FilterBackend for GpuFilterBackend {
         if let Some((texture, _)) = &self.last_region_pp {
             // Region-scoped result: contents cover `last_effect_dims` from
             // (0, 0) inside the scratch texture.
-            let t = std::time::Instant::now();
+            let t = timing_probe();
             let image = self.readback_to_scene_image_at(
                 texture,
                 wgpu::Origin3d::ZERO,
                 self.last_effect_dims,
             );
-            if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+            if t.is_some() {
                 eprintln!(
                     "[filter-timing] readback dims={}x{} took={:.2}ms",
                     self.last_effect_dims.width,
                     self.last_effect_dims.height,
-                    t.elapsed().as_secs_f64() * 1000.0,
+                    probe_ms(t),
                 );
             }
             return image;
@@ -1108,9 +1140,9 @@ impl FilterBackend for GpuFilterBackend {
         alpha: f32,
     ) -> Result<(), String> {
         let origin = region.map_or([0.0, 0.0], |region| region.origin);
-        let t_copy = std::time::Instant::now();
+        let t_copy = timing_probe();
         self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
-        let t_after_render = t_copy.elapsed();
+        let t_after_render_ms = probe_ms(t_copy);
         let harvest = self.last_effect_dims;
         let (source, source_origin) = if let Some((texture, _)) = &self.last_region_pp {
             // Region-scoped result: the scratch ping-pong covers
@@ -1134,13 +1166,13 @@ impl FilterBackend for GpuFilterBackend {
         };
         let composite =
             self.copy_last_filtered_to_pending(harvest, alpha, origin, source, source_origin)?;
-        if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+        if t_copy.is_some() {
             eprintln!(
                 "[filter-timing] pending dims={}x{} render+chain={:.2}ms copy_alloc={:.2}ms",
                 harvest.width,
                 harvest.height,
-                t_after_render.as_secs_f64() * 1000.0,
-                (t_copy.elapsed() - t_after_render).as_secs_f64() * 1000.0,
+                t_after_render_ms,
+                probe_ms(t_copy) - t_after_render_ms,
             );
         }
         self.pending_composites.push(PendingLayer::Composite(composite));

@@ -151,18 +151,17 @@ impl OffscreenRenderer {
         debug_options: DebugRenderOptions,
     ) -> Result<RenderedFrame, String> {
         // TEMPORARY perf probe (env-gated): evaluate vs render vs readback.
-        let timing = std::env::var_os("ANIMATIX_FILTER_TIMING").is_some();
-        let t0 = std::time::Instant::now();
+        let t0 = crate::filter_backend::timing_probe();
         self.render_to_output_texture(timeline, time_s, dimensions, debug_options)?;
-        let t_eval_render = t0.elapsed();
+        let t_eval_render_ms = crate::filter_backend::probe_ms(t0);
         let frame = self.readback_output(dimensions)?;
-        if timing {
+        if t0.is_some() {
             eprintln!(
                 "[frame-timing] {}x{} evaluate+render={:.2}ms readback={:.2}ms",
                 dimensions.width,
                 dimensions.height,
-                t_eval_render.as_secs_f64() * 1000.0,
-                t0.elapsed().as_secs_f64() * 1000.0 - t_eval_render.as_secs_f64() * 1000.0,
+                t_eval_render_ms,
+                crate::filter_backend::probe_ms(t0) - t_eval_render_ms,
             );
         }
         Ok(frame)
@@ -295,7 +294,7 @@ impl OffscreenRenderer {
         let filter_backend = self.filter_backend.as_mut().unwrap();
         let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
             Some(filter_backend);
-        let t_eval = std::time::Instant::now();
+        let t_eval = crate::filter_backend::timing_probe();
         // Always take the zero-readback (pending) evaluate path: scopes record
         // GPU composites that are blitted after the main render (below), so
         // per-scope GPU->CPU readback stalls never enter the frame.
@@ -313,7 +312,7 @@ impl OffscreenRenderer {
                 &scene_owned
             },
         };
-        let probe_eval = t_eval.elapsed();
+        let probe_eval_ms = crate::filter_backend::probe_ms(t_eval);
 
         let output_view = self
             .output_view
@@ -330,11 +329,11 @@ impl OffscreenRenderer {
                 scene,
             )
             .map_err(|e| e.to_string())?;
-        if std::env::var_os("ANIMATIX_FILTER_TIMING").is_some() {
+        if t_eval.is_some() {
             eprintln!(
                 "[frame-phases] evaluate={:.2}ms main_render={:.2}ms",
-                probe_eval.as_secs_f64() * 1000.0,
-                (t_eval.elapsed() - probe_eval).as_secs_f64() * 1000.0,
+                probe_eval_ms,
+                crate::filter_backend::probe_ms(t_eval) - probe_eval_ms,
             );
         }
 
