@@ -229,14 +229,19 @@ rail.dash_offset = <span class="num">40</span> [<span class="num">1s</span>, eas
 
 <span class="at">#6.0s</span>
 camera.zoom = <span class="num">1.35</span> [<span class="num">1100ms</span>, ease: <span class="str">expo-out</span>]
-camera.at = (<span class="num">-60</span>, <span class="num">20</span>) [<span class="num">1100ms</span>, ease: <span class="str">expo-out</span>]</pre>
+camera.at = (<span class="num">-60</span>, <span class="num">20</span>) [<span class="num">1100ms</span>, ease: <span class="str">expo-out</span>]
+
+<span class="prop">badge</span>: <span class="prop">Text</span>, text: <span class="str">"06 · LIGHT &amp; CAMERA"</span>, camera_follow: <span class="kw">false</span></pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/light_camera.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="A lit stage, a live edge, then the camera"></amx-player>
         <figcaption>
           <span class="cap">Flat plate &rarr; key &rarr; fill &rarr; marching rail
             &rarr; bloom &rarr; push-in. The camera moves last because a camera move
-            on a flat scene is just a zoom on a flat scene.</span>
+            on a flat scene is just a zoom on a flat scene — and watch the corner
+            badge while it does: <code class="inline">camera_follow: false</code>
+            pins an actor outside the camera, so the overlay is the one thing that
+            stays where it was authored.</span>
           <a class="src" href="scenes/light_camera.amx">scenes/light_camera.amx ↗</a>
         </figcaption>
       </figure>

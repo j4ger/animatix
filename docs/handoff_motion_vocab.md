@@ -557,9 +557,42 @@ the order that makes sense to attempt it:
      method avoided a fourth copy by resolving through the runtime
      `property_registry::lookup_property(…).field`; the three copies still want
      folding into one mapper.
-5. **The camera's known limits** (follow-ups, not blockers): no per-actor opt-out
-   for a HUD that must not move, and the camera is not carried across scenes by
-   `persistent`/carry-bag.
+5. ~~**The camera's known limits**~~ — one of the two is **closed in batch 6**.
+   `camera_follow: false` pins a root actor outside the scene camera (the HUD
+   that must not move), documented in `docs/spec.md`'s Scene Camera section and
+   `docs/properties.md`, with `examples/animation/37_hud_overlay.amx` as the
+   worked scene. The remaining limit is that the camera is not carried across
+   scenes by `persistent`/carry-bag.
+
+   Two things the implementation learned the hard way, both worth repeating:
+
+   - **A declaration read in the generic property walk does not reach every
+     actor.** Text, Media, Audio, the plot primitives and extensions build
+     through their own `process_*_decl` and return before that walk — the first
+     version worked on a `Rect` and silently ignored the same flag on a `Text`,
+     which is precisely the actor that wants it. The read now lives in
+     `process_body`'s actor arm (`Timeline::apply_camera_follow_decl`), the one
+     place every family passes through with its props in hand, and
+     `camera_follow_reaches_the_actor_families_that_build_their_own_declaration`
+     pins a `Text`, not a `Rect`. Any future build-only property should go there
+     for the same reason.
+   - **Only a render would have caught it.** The unit tests written first all
+     passed while the feature was broken: they measured a `Rect`'s bounds. The
+     example's first render showed the text overlay gone entirely — culled,
+     because it had been camera'd to `y = -39` off the top of the frame. The
+     measurement that now backs the feature: the pinned band (hud text plus its
+     rule, 11,520 px) is **byte-identical** between t=0.6 s and t=2.6 s with 591
+     ink pixels in both, while the plate band under the camera changes in
+     101,165 of 195,000 pixels.
+
+   A nested `camera_follow: false` is reported (`inapplicable-property`) instead
+   of doing nothing quietly, and an opted-out `Filter` scope keeps its authored
+   `bounds:` as screen coordinates — the rule sits inside
+   `effect_scope_region`, which consults the track it is given, so it is unit
+   tested rather than eyeballed.
+
+   The other follow-up was already on this list and is still open: the camera is
+   not carried across scenes by `persistent`/carry-bag.
 
    Two more were on this list and are now closed. The loop-perfect lint samples
    the camera axes (`Camera::seam_pairs`, named in the warning as `camera.zoom`);
