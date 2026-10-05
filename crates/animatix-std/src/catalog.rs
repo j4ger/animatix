@@ -80,10 +80,12 @@ const PLOT_CAPS: PrimitiveCapabilities =
     caps(false, true, false, false, true, true, true, false, false, false);
 const CONTAINER_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, false, false, true, false);
-/// `Glass` is a container with a rectangular *region*, not a rectangular
-/// surface: `layout_container` and the shape bits are what keep `size` and
-/// `corner_radius` (the frosted clip) applicable, while `vector_paths` stays
-/// false because the scope itself draws nothing — the card is its child.
+/// `Glass` is a container with a rectangular *region*, not a surface. It carries
+/// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
+/// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
+/// and do not invite a scope that paints nothing; `corner_radius` stays applicable
+/// through its own actor list because it is the frost's clip, and `is_shape` stays
+/// set because the region and its anchors need a bounded actor.
 const GLASS_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, false, false, true, true);
 const GROUP_CAPS: PrimitiveCapabilities =
@@ -331,7 +333,6 @@ pub static GLASS: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Container,
     GLASS_CAPS,
 )
-.with_shape(ShapeKind::Rect)
 .with_child_processing(ChildProcessingKind::Glass);
 pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     "Equation",

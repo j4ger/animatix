@@ -389,13 +389,13 @@ the language is missing:
   count sweep that re-derived every vocabulary number on the pages from the source
   tables. Still open is the larger design question — `docs/handoff_web_redesign.md`
   is the locked direction — not a missing feature.
-- **Scope containers that paint nothing still accept paint properties.** `color`
-  is `Applicable::Everything` and `fill_opacity` is `AllShapesExceptLine`, so a
-  `Glass` (or `Filter`) scope that sets them compiles clean and draws nothing —
-  a silent drop of exactly the kind batch 3 warned about, arriving from the other
-  direction. The fix is an exclusion predicate on `Applicable` (there is no
-  `Except(&[…])` today) plus rows that use it; `stroke_width` already lists
-  actors by name and dropped `Glass` cleanly when the surface went.
+- **`color` is still `Applicable::Everything`, so a scope that paints nothing can
+  be told a colour silently.** `Glass`/`Filter`/`Mask` carry no `ShapeKind`, which
+  is what makes the shape predicates (`fill_opacity`, `stroke*`, the gradients)
+  report the drop; `color` and `solo` bypass every predicate. Making it report
+  needs an exclusion variant on `Applicable` (there is no `Except(&[…])` today) —
+  and the decision of which scopes belong on that list, since `Filter` sits in the
+  same hole today.
 - **The `property → ActorField` table is still copied three times** in
   `timeline/dispatch.rs` (`has_keyframe_at` :1247, `has_keyframes_for` :1308,
   `list_keyframes` :1408), verified identical apart from the fall-through arm.

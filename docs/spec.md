@@ -1144,12 +1144,13 @@ frost.radius = 18 [900ms, ease: ease-in-out]
   the scope itself would land *inside* the pixels that get blurred. As a child
   it lands on top of the blur, crisp.
 
-  One limit to know: `color` and `fill_opacity` are still declared applicable to
-  every actor (`Applicable::Everything`, `AllShapesExceptLine`), so a `Glass`
-  scope that sets them compiles quietly and paints nothing — the checker does
-  **not** warn. `stroke_width` is per-actor and correctly excludes `Glass`.
-  Narrowing the universal rows needs an exclusion predicate on `Applicable`,
-  recorded as remaining work in `docs/roadmap.md`.
+  A `Glass` scope carries no `ShapeKind` (like `Filter` and `Mask`), so
+  `fill_opacity`, `stroke`, `stroke_width` and the gradient paints are reported:
+  `inapplicable-property — Glass never reads it, so the value is dropped`.
+  `corner_radius` is not, because the frost clip consumes it. One hole remains:
+  `color` is `Applicable::Everything`, so a scope-level `color:` still compiles
+  quietly and paints nothing — closing it needs an exclusion predicate on
+  `Applicable`, which `docs/roadmap.md` carries.
 - The chain is the scope's declared stages, so `frost.radius = 18` animates the
   frost exactly like a `Filter` stage, and a scope with no stages costs nothing
   (the backdrop is skipped when the chain is empty).
