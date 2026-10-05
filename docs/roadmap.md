@@ -379,11 +379,19 @@ the language is missing:
   then the slim web embed steps, and `docs/spec.md` says so.
 - **Two analyzer/engine perf residuals** against the 2026-10-02 baseline:
   `analyzer_update__small` +10.4% (116.8 → 129.0 µs, tight within-run spread) and
-  `property_plan_lookup_and_sample` +17.3% on a 9.8 ns bench, reproduced in
-  isolation. Both are small-input fixed costs; `analyzer_update/large` (-15.3%)
-  and `/dogfood` (-11.8%) got *faster* on the same code. The next probe is an
-  env-gated stage timer inside `Analyzer::update` for a `00_hello.amx`-sized
-  fixture — no profiler exists on this box (`perf`/`valgrind` both absent).
+  `property_plan_lookup_and_sample` at 9.98 ns against a stored 8.3 ns. Both are
+  small-input fixed costs; `analyzer_update/large` (-15.3%) and `/dogfood`
+  (-11.8%) got *faster* on the same code.
+  **Attributed, partly: neither comes from this round's features.** Measured A/B on
+  this machine with the same command, `property_plan_lookup_and_sample` is
+  9.9453/9.9853/10.050 ns at `ded1b17d` (before `Glass`, the continuous weight, the
+  applicability fixes) and 9.8812/9.9827/10.166 ns at HEAD — the same number, so the
+  +17% predates every feature commit in batch 6 and merely *surfaced* there, because
+  the earlier compares were run while concurrent builds polluted them. The regression
+  therefore lives somewhere in batches 1-5; the next probe is an env-gated stage timer
+  inside `Analyzer::update` for a `00_hello.amx`-sized fixture plus a two-point
+  re-measure at the batch boundaries, since no profiler exists on this box
+  (`perf`/`valgrind` both absent).
 - **The site content redo beyond the review pass.** Landed so far: the tour's
   §05 `Glass` figure, §06 "Light & camera", the nine-scene recipes gallery, and a
   count sweep that re-derived every vocabulary number on the pages from the source
