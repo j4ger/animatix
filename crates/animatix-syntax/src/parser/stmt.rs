@@ -513,7 +513,16 @@ pub(crate) fn parser<'src>(
                         targets.extend(rest);
                         targets
                     })
-                    .or(action_target.clone().repeated().at_least(1).collect::<Vec<_>>())
+                    // A comma-less target list is exactly one target. It used to
+                    // be an unbounded `action_target.repeated()`, and because the
+                    // grammar has no newline tokens that repeat ran on into the
+                    // *next* statement: `persist t` followed by
+                    // `t.opacity = 0.5 [200ms]` parsed `t.opacity` as a second
+                    // target and then failed on the `=`, while `rotate t by 90`
+                    // invented a target named `by`. Multiple targets are written
+                    // with commas — the documented form, and every `.amx` in this
+                    // repo that uses one.
+                    .or(action_target.clone().map(|target| vec![target]))
                     .or_not()
                     .map(|opt| opt.unwrap_or_default()),
             )
@@ -524,7 +533,18 @@ pub(crate) fn parser<'src>(
                 lparen()
                     .ignore_then(expr.clone().separated_by(comma()).collect::<Vec<_>>())
                     .then_ignore(rparen())
-                    .or(expr.clone().repeated().collect::<Vec<_>>()),
+                    // The same boundary rule for the args slot: an expression
+                    // followed by an assignment operator is the next statement's
+                    // left-hand side, not an argument. `rewind` keeps that
+                    // lookahead zero-width, so `repeated` stops without eating the
+                    // token it was only looking at.
+                    .or(expr
+                        .clone()
+                        .then_ignore(
+                            choice((assign(), reactive_assign())).rewind().not(),
+                        )
+                        .repeated()
+                        .collect::<Vec<_>>()),
             )
             .then(modifiers.clone())
             .map_with(

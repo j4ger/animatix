@@ -1,0 +1,41 @@
+// Probe: a bare action statement must not swallow the line after it.
+//
+// This file is the canary for a parser bug found while writing `persist camera`
+// (see docs/handoff_motion_vocab.md). The grammar has no newline tokens, and an
+// action statement is `verb targets? args modifiers` with `args` an unbounded
+// expression list — so `persist t` used to parse the *next* statement's
+// left-hand side as one of its arguments and then fail on the `=`:
+//
+//     error[parse:parse-error] expected expression, …, found '='  (line 24)
+//
+// `repo_content_parses_clean` in crates/animatix-analyzer/tests/broken_corpus.rs
+// lints every `.amx` in the repo, so this file parses only while the guard in
+// parser/stmt.rs holds. The same shape is pinned at the unit level by
+// a_bare_action_does_not_swallow_the_next_lines_assignment.
+
+config {
+    colorscheme: "editorial-dark",
+    resolution: (640, 360),
+}
+
+# A
+
+t: Text, text: "A", at: (320, 180)
+
+#0s
+fade-in t [300ms]
+
+#1s
+persist t
+t.opacity = 0.5 [200ms]
+
+#2s
+play B [fade, 200ms]
+
+# B
+
+u: Text, text: "B", at: (320, 240)
+
+#0s
+fade-in u [300ms]
+u.at = (420, 240) [800ms]

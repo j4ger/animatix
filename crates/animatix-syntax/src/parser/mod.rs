@@ -972,6 +972,65 @@ mod tests {
     }
 
     #[test]
+    fn a_bare_action_does_not_swallow_the_next_lines_assignment() {
+        // Regression: the grammar has no newline tokens, and an action statement
+        // used to read *both* its target list and its argument list as unbounded
+        // repeats. So `persist t` swallowed the next statement's left-hand side —
+        // as a second target, or as an argument — and the `=` then failed to
+        // parse. Measured before the fix: targets ["t", "t.opacity"], then
+        // `expected expression, modifier list, statement, …, found '='`.
+        let action_and_assignment = |source: &str| {
+            let (stmts, errs) = parse_source(source);
+            assert!(errs.is_empty(), "{source:?} should parse: {errs:?}");
+            let stmts = stmts.expect("statements");
+            let body = match &stmts[0] {
+                Stmt::Keyframe { body, .. } => body,
+                other => panic!("expected a keyframe, got {other:?}"),
+            };
+            assert_eq!(body.len(), 2, "expected the action and the assignment");
+            match &body[0] {
+                Stmt::Action(action, _) => {
+                    assert!(
+                        !action.targets.iter().any(|t| t.contains('.')),
+                        "the next line's left-hand side became a target: {:?}",
+                        action.targets
+                    );
+                    assert!(
+                        action.args.is_empty(),
+                        "the next line's left-hand side became an argument: {:?}",
+                        action.args
+                    );
+                },
+                other => panic!("expected an Action, got {other:?}"),
+            }
+            assert!(matches!(&body[1], Stmt::Assignment { .. }));
+        };
+
+        // One target, no comma; then a comma-separated list.
+        action_and_assignment("#0s\npersist t\nt.opacity = 0.5 [200ms]");
+        action_and_assignment("#0s\npersist a, b\na.opacity = 0.5 [200ms]");
+
+        // The bound is on the statement boundary, not on the action: a target
+        // with its own `to`/`by` particle still reaches the argument list, which
+        // is where the engine's extension actions read it.
+        let (stmts, errs) = parse_source("#0s\nrotate t by 90 [500ms]");
+        assert!(errs.is_empty(), "`rotate` with bare args should parse: {errs:?}");
+        let stmts = stmts.expect("statements");
+        let body = match &stmts[0] {
+            Stmt::Keyframe { body, .. } => body,
+            other => panic!("expected a keyframe, got {other:?}"),
+        };
+        match &body[0] {
+            Stmt::Action(action, _) => {
+                assert_eq!(action.verb, "rotate");
+                assert_eq!(action.targets, vec!["t"], "`by` is not an actor");
+                assert_eq!(action.args.len(), 2, "`by` and `90` are arguments");
+            },
+            other => panic!("expected an Action, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn test_method_call_with_args() {
         // Parse an always block with a method call: graph.map(mx, my)
         let input = "always { ball.at = descent_graph.map(mx, my) }";
