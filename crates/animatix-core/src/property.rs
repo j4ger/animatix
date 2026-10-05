@@ -380,6 +380,12 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // track, so it is declared `Generic` to match its `BuildTimeOnly` runtime
     // binding (mirrors how `data`/`bar_width` are handled).
     PropertyDescriptor::new("icon", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
+    // The scene camera's per-actor opt-out. `Applicable::Everything` because the
+    // camera wraps every root subtree, so any actor may need to sit outside it
+    // (a HUD, a watermark, a caption pinned to the viewport). Declared `Generic`
+    // to match its `BuildTimeOnly` runtime binding, exactly as `icon` does: the
+    // value is read once at build into a plain track field and never keyframed.
+    PropertyDescriptor::new("camera_follow", Applicable::Everything, PropertyValueKind::Generic),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

@@ -879,6 +879,28 @@ impl Timeline {
             }
         }
 
+        // `camera_follow` is applied where the camera is applied — once, to each
+        // root subtree (see the camera block in `evaluate_scene`). On a nested
+        // actor it would read as a HUD that keeps moving, so say now that the
+        // declaration has no effect instead of leaving it to be discovered in a
+        // render.
+        for (label, track) in &timeline.tracks {
+            if !track.camera_follow && !timeline.root_nodes.contains(label) {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InapplicableProperty,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "'{label}' declares `camera_follow: false` but is not a root actor, so \
+                             the scene camera still moves it with its parent; move it to the top \
+                             level of the scene to pin it to the viewport."
+                        ),
+                    )
+                    .with_subject(label),
+                );
+            }
+        }
+
         // Populate Legend entries after every actor is built so generated and
         // forward-declared actors participate in the same scan.
         let legend_labels = timeline

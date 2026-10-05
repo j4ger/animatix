@@ -229,6 +229,16 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `background_color` | Color | ✓ | ✓ | Scene (via `scene.background_color`) |
+| `camera_follow` | Bool | — | — | Everything (declaration only; read on root actors) |
+
+> **Note on `camera_follow`:** the scene camera wraps every root subtree, and
+> `camera_follow: false` takes one of them back out — the HUD, watermark or
+> corner label that must stay pinned to the viewport while the plate pushes in.
+> It is a build-time declaration like `icon` (never keyframed, never assignable),
+> it is read where the camera is applied — at the root — so declaring it on a
+> nested actor is reported rather than ignored, and an opted-out `Filter` scope
+> keeps its authored `bounds:` as screen coordinates. See
+> [`spec.md`](spec.md)'s Scene Camera section.
 
 ---
 

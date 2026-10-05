@@ -373,6 +373,7 @@ pub fn common_property_names() -> &'static [&'static str] {
         "anchor",
         "at",
         "blend",
+        "camera_follow",
         "color",
         "height",
         "legend",
@@ -528,6 +529,10 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         // `Generic` via the `BuildTimeOnly` engine binding, so the declared
         // expression type only guides the analyzer (a string literal).
         ("icon", Type::Str),
+        // The scene camera's per-actor opt-out (`hud: Text, camera_follow:
+        // false`). Build-time only, stored on a plain track field; the declared
+        // type guides the analyzer and the assignment path, which rejects it.
+        ("camera_follow", Type::Bool),
     ]
 }
 
@@ -576,7 +581,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            105,
+            106,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

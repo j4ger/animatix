@@ -195,3 +195,200 @@ camera: Rect, size: (100, 100), at: (200, 100)
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+/// World-space bounds centre of `label` after evaluating the frame at `time_s`.
+/// `precise_bounds` is camera-included world space — the same space `verify`
+/// reads — so it is where an opt-out has to show up.
+fn bounds_centre(timeline: &Timeline, time_s: f64, label: &str) -> Point {
+    let dims = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+    let mut backend: Option<&mut dyn crate::timeline::effects::FilterBackend> = None;
+    let program = timeline.evaluate_program_with_debug(
+        time_s,
+        dims,
+        DebugRenderOptions::default(),
+        &mut backend,
+    );
+    let rect = *program
+        .precise_bounds
+        .get(label)
+        .unwrap_or_else(|| panic!("{label} has no bounds at {time_s}s"));
+    Point::new((rect.x0 + rect.x1) / 2.0, (rect.y0 + rect.y1) / 2.0)
+}
+
+/// `camera_follow: false` is the HUD case: the scene pushes in, the overlay does
+/// not move. Measured against an identical actor that stays camera'd, in the same
+/// scene, so the control cannot drift.
+#[test]
+fn a_camera_follow_false_root_stays_put_under_a_push_in() {
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+scrolled: Rect, size: (40, 40), at: (420, 180), color: accent.primary
+hud: Rect, size: (40, 40), at: (420, 180), color: accent.secondary, camera_follow: false
+#1s
+camera.zoom = 2.0
+"#,
+    );
+    assert!(timeline.camera_used.get());
+    // Before the push both are where they were authored.
+    assert_eq!(bounds_centre(&timeline, 0.0, "scrolled"), Point::new(420.0, 180.0));
+    assert_eq!(bounds_centre(&timeline, 0.0, "hud"), Point::new(420.0, 180.0));
+
+    // At 2x about the scene center (320, 180) the camera'd actor's x travels
+    // 320 + (420 - 320) * 2 = 520. The HUD keeps its authored 420 — y is the
+    // center line, so it moves for neither.
+    assert_eq!(bounds_centre(&timeline, 2.0, "scrolled"), Point::new(520.0, 180.0));
+    assert_eq!(bounds_centre(&timeline, 2.0, "hud"), Point::new(420.0, 180.0));
+}
+
+/// The flag is read once at build: a frame-time toggle would need a plan slot and
+/// a track, which the opt-out does not ask for. Say so rather than accept an
+/// assignment that quietly does nothing.
+#[test]
+fn camera_follow_cannot_be_assigned_at_frame_time() {
+    let diagnostics = build_report(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+hud: Rect, size: (40, 40), at: (420, 180), camera_follow: false
+#1s
+hud.camera_follow = true [300ms]
+"#,
+    );
+    assert!(
+        diagnostics.iter().any(|d| {
+            d.message.contains("camera_follow")
+                && (d.message.contains("not part of the current runtime assignment surface")
+                    || d.message.contains("not assignable"))
+        }),
+        "a frame-time `camera_follow` write must be reported, got {:?}",
+        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+/// A declaration that is not a bool is the type layer's business, and `check`
+/// reports it with a span — measured on the CLI:
+/// `type-mismatch: Type mismatch for 'Rect.camera_follow': expected Bool, found Str`.
+/// What the engine has to guarantee is that a rejected value cannot reach the
+/// frame: `value_parser`'s Bool arm returns `None` for anything but a bool, so
+/// the flag keeps its default and the actor stays camera'd.
+#[test]
+fn a_non_bool_camera_follow_declaration_keeps_the_default() {
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
+"#,
+    );
+    let track = timeline.tracks.get("hud").expect("hud track");
+    assert!(track.camera_follow, "a value the bool parser rejects must not flip the flag");
+}
+
+/// The opt-out applies where the camera applies — once, to a root subtree. On a
+/// nested actor it would read as a HUD that keeps moving, so the declaration is
+/// reported instead of left to be discovered in a render.
+#[test]
+fn a_nested_camera_follow_false_warns() {
+    let diagnostics = build_report(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+deck: Col, at: (320, 180) {
+  hud: Rect, size: (40, 40), camera_follow: false
+}
+"#,
+    );
+    assert!(
+        diagnostics.iter().any(|d| d.message.contains("not a root actor")),
+        "a nested opt-out must be reported, got {:?}",
+        diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+}
+
+/// A `Filter` scope that opts out keeps its authored `bounds:` as screen
+/// coordinates. The rule lives inside `effect_scope_region` (it consults the
+/// track it is given), so it is pinned here instead of through a render.
+#[test]
+fn a_camera_follow_false_scope_keeps_its_authored_region() {
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+#0s
+bg: Filter, bounds: (40, 30, 120, 80), camera_follow: false {
+  soft: Blur, radius: 10
+  img: Rect, size: (100, 100)
+}
+#1s
+camera.zoom = 2.0
+"#,
+    );
+    let scope = timeline.tracks.get("bg").expect("filter scope");
+    let dims = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+    let camera = timeline.camera.affine(2000, dims, None);
+    assert_ne!(camera, Affine::IDENTITY, "the scene is pushed in");
+
+    let region = timeline
+        .effect_scope_region(scope, dims, 2000, camera)
+        .expect("the scope has a region");
+    // Exactly what the identity camera gives the same authored rectangle:
+    // (40, 30)-(160, 110), padded by the blur's 10 px support on each side.
+    assert_eq!(region.origin, [30.0, 20.0]);
+    assert_eq!(region.size.width, 140);
+    assert_eq!(region.size.height, 100);
+}
+
+/// The flag has to reach **every** actor family. Text builds through
+/// `process_text_actor_decl`, which returns before the generic property walk, so
+/// a declaration read placed in the generic path is honoured on a `Rect` and
+/// silently ignored on a `Text` — the first version of this feature did exactly
+/// that, and the pinned overlay in `examples/animation/37_hud_overlay.amx` still
+/// moved (and was then culled off-screen by the camera it should not have seen).
+#[test]
+fn camera_follow_reaches_the_actor_families_that_build_their_own_declaration() {
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+#0s
+plate: Rect, size: (300, 200), at: (400, 400), color: accent.primary
+hud: Text, text: "LIVE", font_size: 24, color: accent.secondary, at: (1088, 84), camera_follow: false
+#1s
+camera.zoom = 1.45
+"#,
+    );
+    assert!(!timeline.tracks.get("hud").expect("hud track").camera_follow);
+    assert!(timeline.tracks.get("plate").expect("plate track").camera_follow);
+
+    let dims = SceneDimensions {
+        width: 1280,
+        height: 720,
+    };
+    let mut backend: Option<&mut dyn crate::timeline::effects::FilterBackend> = None;
+    let program = timeline.evaluate_program_with_debug(
+        2.6,
+        dims,
+        DebugRenderOptions::default(),
+        &mut backend,
+    );
+    // 1.45x about (640, 360): the plate's own width grows from 300 to 435 and
+    // its centre slides from 400 to 292.
+    let plate = program.precise_bounds.get("plate").expect("plate bounds");
+    assert!(
+        (plate.x1 - plate.x0 - 435.0).abs() < 1.0,
+        "the camera'd plate must be magnified 1.45x: {plate:?}"
+    );
+    assert!(plate.x0 < 100.0, "and pushed left of its authored edge: {plate:?}");
+    let hud = program.precise_bounds.get("hud").expect("hud bounds");
+    let centre = Point::new((hud.x0 + hud.x1) / 2.0, (hud.y0 + hud.y1) / 2.0);
+    assert!(
+        (centre.x - 1088.0).abs() < 1.0 && (centre.y - 84.0).abs() < 1.0,
+        "a pinned Text overlay must stay at its authored position, got {hud:?}"
+    );
+}

@@ -618,6 +618,12 @@ pub struct Timeline {
     /// static-subtree encoding cache off (a cached encoding cannot be
     /// re-transformed when it is appended).
     pub(crate) camera_used: std::cell::Cell<bool>,
+    /// Whether **any** actor declares `camera_follow: false`. The root loop
+    /// asks this before it looks anything up, so the common scene pays nothing
+    /// per frame for the opt-out existing. A scene that pins a non-root actor
+    /// finds nothing here — that declaration is reported at build
+    /// (`inapplicable-property`) rather than silently accepted.
+    pub(crate) camera_exempt_present: std::cell::Cell<bool>,
     /// Keyframe-scoped variable tracks.
     /// Variables declared via `let` inside keyframes are stored here as
     /// piecewise-constant functions of time, injected into the frame environment
@@ -889,6 +895,7 @@ impl Timeline {
             blend_used: std::cell::Cell::new(false),
             camera: camera::Camera::default(),
             camera_used: std::cell::Cell::new(false),
+            camera_exempt_present: std::cell::Cell::new(false),
             variable_tracks: BTreeMap::new(),
             referenced_roots: None,
             audio_segments: Vec::new(),
@@ -1481,6 +1488,8 @@ impl Timeline {
     pub(crate) fn refresh_camera_used(&self) {
         self.camera_used
             .set(self.camera.is_authored() || Self::stmts_address_camera(&self.modifiers));
+        self.camera_exempt_present
+            .set(self.tracks.values().any(|track| !track.camera_follow));
     }
 
     fn stmts_address_camera(stmts: &[crate::ast::Stmt]) -> bool {

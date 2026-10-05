@@ -937,8 +937,25 @@ Limits worth knowing:
   `zoom: 1.7` lands 680 px away from where it would at `zoom: 1`.
 - The background fill stays put: a camera move carries the plate, not the paper.
 - Everything in the scene graph moves with it, including scene-anchored actors
-  (`anchor: scene.top`) — the transform composes outside every node. There is no
-  per-actor opt-out yet, so a HUD that must not move cannot be pinned today.
+  (`anchor: scene.top`) — the transform composes outside every node. To pin one
+  to the viewport instead, declare `camera_follow: false` on a **root** actor:
+  the camera wraps each root subtree once, at the root, so that is where the
+  opt-out is read and a nested declaration is reported
+  (`inapplicable-property`) rather than doing nothing quietly.
+
+  ```amx
+  hud: Text, text: "04 / 12", camera_follow: false, at: (1150, 60)
+  #0.5s
+  camera.zoom = 1.6 [800ms, ease: expo-out]   // the plate pushes in, the HUD stays
+  ```
+
+  It is a build-time declaration like `icon`, not a keyframed property: an
+  `always` or a timed write cannot toggle it (`unsupported-assignment-property`).
+  An opted-out actor keeps its *authored* coordinates — it is outside the
+  camera, not compensating for it — and if it is a `Filter` scope, its authored
+  `bounds:` are read as screen coordinates like everything else it authors.
+  `examples/animation/37_hud_overlay.amx` is the worked scene: a plate that
+  pushes in under a badge and rule that never move.
 - Authoring a camera turns off the static-subtree encoding cache for root
   subtrees (a cached encoding cannot be re-transformed when it is appended), so
   an otherwise fully static scene re-evaluates per frame.

@@ -319,6 +319,42 @@ impl Timeline {
     }
 
     #[allow(clippy::too_many_arguments)]
+    /// Read the build-time `camera_follow` declaration onto the track.
+    ///
+    /// Called from `process_body`'s actor arm rather than from
+    /// [`Self::process_actor_decl`], because the actor families that build
+    /// through their own `process_*_decl` — Text, Media, Audio, plot
+    /// primitives, extensions — return before the generic property walk gets
+    /// there. A read placed there would work on a `Rect` and be silently ignored
+    /// on a `Text`, which is the actor that most wants a HUD pinned to the
+    /// viewport. (Measured: the first version of this did exactly that, and the
+    /// text overlay in `examples/animation/37_hud_overlay.amx` still moved.)
+    pub(crate) fn apply_camera_follow_decl(
+        &mut self,
+        label: &str,
+        props: &[Property],
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let Some(prop) = props.iter().find(|p| p.name == "camera_follow") else {
+            return;
+        };
+        let subject = format!("{label}.camera_follow");
+        let parsed = crate::timeline::property_engine::parse_property_value(
+            crate::timeline::property_registry::ValueType::Bool,
+            &prop.value,
+            &self.env,
+            diagnostics,
+            &subject,
+        );
+        // A value the bool parser rejects is already reported by it; the flag
+        // keeps its default, so the actor stays camera'd rather than guessing.
+        if let Some(crate::timeline::property_engine::PropertyValue::Bool(follow)) = parsed {
+            if let Some(track) = self.tracks.get_mut(label) {
+                track.camera_follow = follow;
+            }
+        }
+    }
+
     pub(super) fn process_actor_decl(
         &mut self,
         label: &str,

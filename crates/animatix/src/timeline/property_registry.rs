@@ -728,6 +728,13 @@ static BINDINGS: &[PropertyBinding] = &[
         |_| super::property_engine::PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0])
     ),
     binding!(
+        "camera_follow",
+        ValueType::BuildTimeOnly,
+        F::empty(),
+        ActorField::NoStorage,
+        |_| super::property_engine::PropertyValue::Bool(true)
+    ),
+    binding!(
         "char_progress",
         ValueType::F32,
         F::ASSIGNABLE_AI,

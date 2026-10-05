@@ -1,0 +1,66 @@
+// 37_hud_overlay.amx — `camera_follow: false`: the overlay that stays put.
+//
+// The scene pushes in and pans, and everything in the plate travels with it —
+// except the two things pinned to the viewport, which declared
+// `camera_follow: false`. That flag is read where the camera is applied (once, at
+// each root subtree), so the opted-out actors keep their *authored* coordinates:
+// they are outside the transform, not compensating for it.
+//
+// Two things worth noticing:
+//
+//   - The opt-out belongs on a root actor. On a child it would read as a HUD that
+//     keeps moving with its parent, and `check` says so (`inapplicable-property`).
+//   - It is a declaration, like `icon` — not a keyframed property. A scene that
+//     wants the overlay to arrive *with* the camera can simply declare it after
+//     the push instead.
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6.6 }
+
+plate: Rect, size: (400, 220), at: (600, 450), color: surface.secondary,
+  corner_radius: 20, stroke: text.muted, stroke_width: 2, opacity: 1.0
+
+rows: Col, at: (600, 450), gap: 26 {
+  r1: Rect, size: (330, 16), color: accent.primary, opacity: 1.0
+  r2: Rect, size: (260, 16), color: accent.secondary, opacity: 1.0
+  r3: Rect, size: (390, 16), color: text.muted, opacity: 1.0
+}
+
+heading: Text, text: "the plate travels", font_size: 34, color: text.primary,
+  at: (600, 320), opacity: 1.0
+
+// Pinned to the viewport: a live badge and the rule it sits on.
+hud: Text, text: "LIVE · 04 / 12", font_size: 24, color: accent.primary,
+  at: (1088, 84), camera_follow: false, opacity: 1.0
+
+tick: Rect, size: (150, 3), at: (1088, 112), color: text.secondary,
+  camera_follow: false, opacity: 1.0
+
+#0s
+fade-in heading [420ms, ease: expo-out]
+settle-in plate [520ms, ease: expo-out]
+// The rows arrive one after another so the card reads as content, not a block.
+stagger [90ms] {
+  fade-in r1 [260ms, ease: ease-out]
+  fade-in r2 [260ms, ease: ease-out]
+  fade-in r3 [260ms, ease: ease-out]
+}
+pop-in hud [420ms, ease: expo-out, delay: 140ms]
+fade-in tick [300ms, ease: expo-out, delay: 260ms]
+
+#1.1s
+camera.zoom = 1.45 [1.2s, ease: expo-out]
+camera.at = (-52, 26) [1.2s, ease: expo-out]
+
+#4.2s
+camera.zoom = 1.0 [900ms, ease: ease-in-out]
+camera.at = (0, 0) [900ms, ease: ease-in-out]
+
+// Outro: the plate leaves first and the pinned overlay last, so the overlay is
+// the final thing on screen — which only reads as deliberate because it never
+// moved.
+#5.6s
+fade-out heading [300ms, ease: ease-in]
+fade-out rows [300ms, ease: ease-in, delay: 40ms]
+fade-out plate [300ms, ease: ease-in, delay: 80ms]
+fade-out hud [320ms, ease: ease-in, delay: 220ms]
+fade-out tick [320ms, ease: ease-in, delay: 220ms]

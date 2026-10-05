@@ -117,6 +117,11 @@ impl Timeline {
                         parent_label,
                         diagnostics,
                     );
+                    // Every actor family passes through here with its props still
+                    // in hand, including the ones whose `process_*_decl` returns
+                    // before the generic property walk. See
+                    // `Timeline::apply_camera_follow_decl`.
+                    self.apply_camera_follow_decl(&resolved_label, props, diagnostics);
                 },
                 Stmt::Assignment {
                     target,

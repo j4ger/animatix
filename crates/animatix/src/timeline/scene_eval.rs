@@ -1238,6 +1238,16 @@ impl Timeline {
             return None;
         }
         let rect = kurbo::Rect::new(x as f64, y as f64, (x + w) as f64, (y + h) as f64);
+        // The rule lives here rather than at the caller so it can be tested
+        // directly: authored bounds are scene coordinates, and the camera moves
+        // the picture under them — unless this scope opted the camera out, in
+        // which case its subtree was evaluated untransformed and its authored
+        // numbers are already screen coordinates.
+        let camera = if track.camera_follow {
+            camera
+        } else {
+            kurbo::Affine::IDENTITY
+        };
         Self::region_from_rect(
             camera.transform_rect_bbox(rect),
             track.effects.worst_case_support(),
@@ -1983,7 +1993,21 @@ impl Timeline {
             } else {
                 kurbo::Affine::IDENTITY
             };
+            let camera_exempt = self.camera_used.get() && self.camera_exempt_present.get();
             for root in &self.root_nodes {
+                // `camera_follow: false` keeps a root subtree out of the camera
+                // entirely — the HUD that must not move while the scene pushes
+                // in. Only roots are consulted: the camera is applied here, once,
+                // and a nested actor inherits its container's transform, so an
+                // opt-out deeper in the tree would have nothing to undo (and is
+                // reported at build). Short-circuited on `camera_exempt` so a
+                // scene that never uses the flag does no track lookup per root.
+                let root_affine =
+                    if camera_exempt && self.tracks.get(root).is_some_and(|t| !t.camera_follow) {
+                        kurbo::Affine::IDENTITY
+                    } else {
+                        camera_affine
+                    };
                 // P2.17: Static subtree cache — fully-static subtrees are evaluated once
                 // and their vello encoding is reused on subsequent frames. Dimensions
                 // and item collection are part of the key so different canvas sizes or
@@ -2045,7 +2069,7 @@ impl Timeline {
                             |temp_out| {
                                 self.evaluate_node(
                                     root,
-                                    camera_affine,
+                                    root_affine,
                                     1.0,
                                     &crate::timeline::layout::LayoutPositions::new(),
                                     true,
@@ -2082,7 +2106,7 @@ impl Timeline {
                     let allow_pending = self.can_post_composite_filter(root);
                     self.evaluate_node(
                         root,
-                        camera_affine,
+                        root_affine,
                         1.0,
                         &crate::timeline::layout::LayoutPositions::new(), // empty for roots
                         allow_pending,
