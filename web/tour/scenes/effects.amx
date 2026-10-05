@@ -142,15 +142,18 @@ pulse chip [400ms]
 shake chip_icon [500ms]
 pulse chip_icon [400ms]
 
-// Outro: quiet the plate before the wrap (reverse order).
+// Outro: the scene closes the way a `Filter` scope works — it loses detail
+// before it loses existence. The chain swallows the plate (blur up, vignette to
+// full, brightness to a dusk) while only the chip and the caption actually leave,
+// so the frame empties from the inside rather than by a reverse-order wipe.
 #6.4s
+panel.soft.radius = 30 [700ms, ease: ease-in]
+panel.vig.amount = 1.0 [700ms, ease: ease-in]
+panel.grade.brightness = 0.3 [600ms, ease: ease-in]
 stagger [70ms] {
   fade-out chip_icon [350ms, ease: ease-in]
   fade-out chip [350ms, ease: ease-in]
-  fade-out label [350ms, ease: ease-in]
-  fade-out rim [350ms, ease: ease-in]
-  fade-out bar [350ms, ease: ease-in]
-  fade-out ring [350ms, ease: ease-in]
+  fade-out label [450ms, ease: ease-in]
   fade-out plate [350ms, ease: ease-in]
 }
 

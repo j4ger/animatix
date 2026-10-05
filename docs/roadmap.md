@@ -392,11 +392,15 @@ the language is missing:
   inside `Analyzer::update` for a `00_hello.amx`-sized fixture plus a two-point
   re-measure at the batch boundaries, since no profiler exists on this box
   (`perf`/`valgrind` both absent).
-- **The site content redo beyond the review pass.** Landed so far: the tour's
-  §05 `Glass` figure, §06 "Light & camera", the nine-scene recipes gallery, and a
-  count sweep that re-derived every vocabulary number on the pages from the source
-  tables. Still open is the larger design question — `docs/handoff_web_redesign.md`
-  is the locked direction — not a missing feature.
+- **The rest of the site content pass.** Four tour sections now close differently,
+  each with a measured signature rather than a taste claim (see `f79099c1`'s
+  successor): `effects` loses detail before existence (edge energy −91.6% while
+  3.8% of the frame is still content), `plots` exits positionally by `shift`
+  (content 56.8% → 12.6%, edges only −64.6% — the data leaves, the type stays
+  crisp to the end), `glass` fogs over, `light_camera` ends on the light itself.
+  The remaining sections deliberately keep the shared reverse-order wipe; the
+  larger design question — palette, chrome, page structure — is owned by
+  `handoff_web_redesign.md`, and the demo-poster deletion is the owner's call.
 - **The scope-property rule is now a convention, not a mechanism.** `color`
   carries an explicit `Applicable::Except(&["Glass", "Filter", "Mask"])` list and
   the scopes have no `ShapeKind`, so today they report — but a *new* container

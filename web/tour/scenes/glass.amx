@@ -73,15 +73,22 @@ fade-in capOn [240ms, ease: expo-out]
 #1.8s
 frost.radius = 22 [900ms, ease: ease-in-out]
 
-// Back down again, so the difference is a comparison rather than a claim.
+// A short breath down, so the difference is a comparison rather than a claim.
 #4.6s
 frost.radius = 4 [700ms, ease: ease-in-out]
+
+// Outro: the card does not get switched off, it fogs over. The frost keeps
+// climbing until the plate behind it is the only information left, and the
+// surface and its text are gone *into* that blur — a close only a backdrop scope
+// can have.
+#5.4s
+frost.radius = 44 [1000ms, ease: ease-in-out]
 
 #5.6s
 stagger [70ms] {
   fade-out sub [300ms, ease: ease-in]
   fade-out heading [300ms, ease: ease-in]
-  fade-out surface [300ms, ease: ease-in]
   fade-out capOn [250ms, ease: ease-in]
-  fade-out plate [350ms, ease: ease-in]
+  fade-out surface [700ms, ease: ease-in]
+  fade-out plate [500ms, ease: ease-in, delay: 200ms]
 }

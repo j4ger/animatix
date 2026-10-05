@@ -87,12 +87,17 @@ camera.at = (-60, 20) [1100ms, ease: expo-out]
 #7.6s
 stagger [80ms] {
   fade-out cap [350ms, ease: ease-in]
-  fade-out bulb [350ms, ease: ease-in]
   fade-out chip [350ms, ease: ease-in]
   fade-out rail [350ms, ease: ease-in]
-  fade-out plate [400ms, ease: ease-in]
   fade-out badge [350ms, ease: ease-in]
+  fade-out plate [400ms, ease: ease-in]
 }
+
+// A section about light should end on light: the key and the fill are the last
+// two things standing, and they leave by going dim rather than by being wiped off
+// in list order. Both finish inside the declared 8.6 s.
+fade-out key [700ms, ease: ease-in]
+fade-out fill [800ms, ease: ease-in]
 camera.zoom = 1.0 [900ms, ease: ease-in-out]
 camera.at = (0, 0) [900ms, ease: ease-in-out]
 soft.radius = 0 [700ms, ease: ease-in-out]
