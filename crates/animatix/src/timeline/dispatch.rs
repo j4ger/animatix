@@ -1242,11 +1242,16 @@ impl AnimationTrack {
         })
     }
 
-    /// Check if a keyframe exists for the given property at exactly `time_ms`.
-    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
-    pub fn has_keyframe_at(&self, property: &str, time_ms: u64) -> bool {
+    /// The one `property name → ActorField` table.
+    ///
+    /// Three introspection queries (`has_keyframe_at`, `has_keyframes_for`,
+    /// `list_keyframes`) each carried a copy of this mapping, verified identical
+    /// apart from the fall-through arm — which is what each caller keeps for itself
+    /// below. A fourth copy is how a property ends up answering one query and not
+    /// another.
+    fn field_for_property(property: &str) -> Option<ActorField> {
         use ActorField::*;
-        let field = match property {
+        Some(match property {
             "position" => Position,
             "motion_offset" => MotionOffset,
             "size" => Size,
@@ -1290,7 +1295,16 @@ impl AnimationTrack {
             "morph_options" => MorphOptions,
             "legend" => Tagged("legend"),
             "url" => ImageData,
-            _ => return false,
+            _ => return None,
+        })
+    }
+
+    /// Check if a keyframe exists for the given property at exactly `time_ms`.
+    /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
+    pub fn has_keyframe_at(&self, property: &str, time_ms: u64) -> bool {
+        use ActorField::*;
+        let Some(field) = Self::field_for_property(property) else {
+            return false;
         };
 
         if field == ImageData && self.actor_type == "Svg" {
@@ -1307,51 +1321,8 @@ impl AnimationTrack {
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     pub fn has_keyframes_for(&self, property: &str) -> bool {
         use ActorField::*;
-        let field = match property {
-            "position" => Position,
-            "motion_offset" => MotionOffset,
-            "size" => Size,
-            "layout_size" => LayoutSize,
-            "rotation" => Rotation,
-            "scale" => Scale,
-            "transform" => Transform,
-            "color" => Color,
-            "opacity" => Opacity,
-            "stroke_width" => StrokeWidth,
-            "stroke_progress" => StrokeProgress,
-            "dash_offset" => DashOffset,
-            "dash_pattern" => DashPattern,
-            "fill_gradient" => FillGradient,
-            "stroke_gradient" => StrokeGradient,
-            "gradient_extend" => GradientExtend,
-            "gradient_space" => GradientSpace,
-            "blend" => Blend,
-            "fill_opacity" => FillOpacity,
-            "shape_type" => ShapeType,
-            "line_from" => LineFrom,
-            "line_to" => LineTo,
-            "arc_angles" => ArcAngles,
-            "corner_radius" => CornerRadius,
-            "points" => Points,
-            "commands" => Commands,
-            "head_size" => HeadSize,
-            "text_content" => TextContent,
-            "font_family" => FontFamily,
-            "font_size" => FontSize,
-            "font_weight" => FontWeight,
-            "font_style" => FontStyle,
-            "line_height" => LineHeight,
-            "letter_spacing" => LetterSpacing,
-            "word_spacing" => WordSpacing,
-            "max_width" => TextMaxWidth,
-            "text_align" => TextAlign,
-            "overflow" => Overflow,
-            "language" => Language,
-            "placement_mode" => PlacementMode,
-            "morph_options" => MorphOptions,
-            "legend" => Tagged("legend"),
-            "url" => ImageData,
-            _ => return false,
+        let Some(field) = Self::field_for_property(property) else {
+            return false;
         };
 
         if field == ImageData && self.actor_type == "Svg" {
@@ -1407,51 +1378,8 @@ impl AnimationTrack {
     /// Returns a sorted, deduplicated list of timestamps.
     pub fn list_keyframes(&self, property: &str) -> Vec<u64> {
         use ActorField::*;
-        let field = match property {
-            "position" => Position,
-            "motion_offset" => MotionOffset,
-            "size" => Size,
-            "layout_size" => LayoutSize,
-            "rotation" => Rotation,
-            "scale" => Scale,
-            "transform" => Transform,
-            "color" => Color,
-            "opacity" => Opacity,
-            "stroke_width" => StrokeWidth,
-            "stroke_progress" => StrokeProgress,
-            "dash_offset" => DashOffset,
-            "dash_pattern" => DashPattern,
-            "fill_gradient" => FillGradient,
-            "stroke_gradient" => StrokeGradient,
-            "gradient_extend" => GradientExtend,
-            "gradient_space" => GradientSpace,
-            "blend" => Blend,
-            "fill_opacity" => FillOpacity,
-            "shape_type" => ShapeType,
-            "line_from" => LineFrom,
-            "line_to" => LineTo,
-            "arc_angles" => ArcAngles,
-            "corner_radius" => CornerRadius,
-            "points" => Points,
-            "commands" => Commands,
-            "head_size" => HeadSize,
-            "text_content" => TextContent,
-            "font_family" => FontFamily,
-            "font_size" => FontSize,
-            "font_weight" => FontWeight,
-            "font_style" => FontStyle,
-            "line_height" => LineHeight,
-            "letter_spacing" => LetterSpacing,
-            "word_spacing" => WordSpacing,
-            "max_width" => TextMaxWidth,
-            "text_align" => TextAlign,
-            "overflow" => Overflow,
-            "language" => Language,
-            "placement_mode" => PlacementMode,
-            "morph_options" => MorphOptions,
-            "legend" => Tagged("legend"),
-            "url" => ImageData,
-            _ => return Vec::new(),
+        let Some(field) = Self::field_for_property(property) else {
+            return Vec::new();
         };
 
         let mut times: Vec<u64> = if field == ImageData && self.actor_type == "Svg" {
