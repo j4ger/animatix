@@ -980,6 +980,11 @@ Limits worth knowing:
   rectangle and is carried through the same affine the root subtrees were
   wrapped in. `dogfood/probe_camera_scopes.amx` checks the two agree to the
   pixel, before and after a push and pan.
+- The transform can be handed to the next scene: `persist camera` carries `pan`,
+  `zoom` and `spin` across a `play` edge, so a push-in continues instead of
+  snapping back to identity at the boundary (§19, "Camera Carry"). Seeding those
+  axes means the receiving scene *authors* a camera, so it inherits the cost in
+  the bullet above: the carried scene loses the static-subtree encoding cache.
 - The label `camera` is reserved: declaring `camera: Rect, …` draws the actor but
   warns (`reserved-label-prefix`), because every `camera.<axis> = …` write goes
   to the camera.
@@ -2560,6 +2565,8 @@ Actors can persist across scene transitions using `persist` and `remove` actions
 ```animatix
 persist actor1, actor2, ...
 remove actor1, actor2, ... [duration]
+persist camera
+remove camera
 ```
 
 ### Semantics
@@ -2569,6 +2576,7 @@ remove actor1, actor2, ... [duration]
 - Persisted actors appear in the next scene at their final state; if the next scene re-declares the same label, it morphs from the carried state.
 - Persistence is **sticky**: once an actor is persisted, it propagates through every subsequent scene automatically until an explicit `remove`.
 - Persisting a container carries its entire subtree (all children) automatically.
+- `persist camera` carries the scene camera instead of an actor — see [Camera Carry](#camera-carry).
 
 ### Examples
 
@@ -2609,6 +2617,39 @@ remove title [1s]
 
 When an actor uses `color: auto`, its auto-color slot is preserved across the carry. The actor keeps the same auto-cycle color in the destination scene even if the colorschemes differ.
 
+### Camera Carry
+
+`persist camera` carries the scene camera rather than an actor. It exists because a
+scene that ends mid-push-in otherwise hands the next scene an identity camera, and
+the transform snaps back at the boundary.
+
+```animatix
+# Intro
+#1s
+camera.zoom = 1.4 [1s, ease: ease-out]
+persist camera
+
+#2s
+play Main [fade, 500ms]
+
+# Main
+// Starts at 1.4x: the push continues instead of resetting.
+```
+
+- The camera owns no track, so the carry is three numbers — `pan`, `zoom` and
+  `spin` — sampled where the source scene ends, not a snapshot of keyframes.
+- They are seeded at `t = 0` of the receiving scene, so that scene's own
+  `camera.*` writes still take over from their own stamps.
+- Axes already at identity are skipped, so a scene that inherits nothing never
+  enters the per-frame camera path.
+- The carry is sticky like any other persisted target: a scene that never
+  mentions the camera keeps handing it on. `remove camera` ends the chain — it
+  clears the flag without fading, since the camera has no opacity (a timing
+  modifier on it is ignored, with a `PersistIgnoresDuration` warning).
+- The camera is a reserved target, exactly like `camera.zoom` on the left of an
+  assignment: it is never a declared actor, so `persist camera` needs no label
+  and writes no track. Each scene carries its own camera flag.
+
 ### Layout-Managed Children
 
 Actors managed by layout containers (e.g. children of `Row`, `Col`, `Stack`) have their world-space position resolved at the scene exit time. The carried actor is re-rooted to its absolute world position in the destination scene, decoupling it from the source layout.
@@ -2629,7 +2670,7 @@ persist row  // carries row + a + b together
 
 | Code | Meaning |
 |------|---------|
-| `PersistIgnoresDuration` | `persist` was given a duration argument (ignored) |
+| `PersistIgnoresDuration` | `persist` (or `remove camera`) was given a duration argument (ignored) |
 | `PersistLayoutManagedChild` | `persist` targets a layout-managed leaf child directly (persist the container instead) |
 | `PersistTargetNotCarried` | `persist` used in the last scene or a single-scene file (no successor to receive the carry) |
 | `CarryAmbiguousPredecessor` | Scene has multiple predecessors in the play graph (only walk-order predecessor is used) |

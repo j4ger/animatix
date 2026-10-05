@@ -41,6 +41,23 @@ use crate::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimen
 pub struct CarryBag {
     /// Persistent actor entries, keyed by actor label.
     pub entries: BTreeMap<String, CarryEntry>,
+    /// The scene camera's axes, when the scene wrote `persist camera`.
+    ///
+    /// The camera is not an actor and owns no track, so it cannot ride in
+    /// `entries`; a scene that ends mid-push hands over three numbers instead.
+    pub camera: Option<CarriedCamera>,
+}
+
+/// The three camera axes as one scene left them.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct CarriedCamera {
+    /// `camera.at` / `camera.position` / `camera.pan`, in screen pixels.
+    pub pan: [f32; 2],
+    /// `camera.zoom` / `camera.scale`; 1.0 is no magnification.
+    pub zoom: f32,
+    /// `camera.rotation` / `camera.spin`, in radians.
+    pub spin: f32,
 }
 
 /// A single actor to carry, with its snapshot and recursive subtree.
@@ -129,11 +146,27 @@ impl Timeline {
             .map(|(label, _)| label.clone())
             .collect();
 
+        // `persist camera` is the camera's own entry: no track to snapshot, so
+        // the axes are sampled where the scene ends.
+        let camera = persistent_labels
+            .iter()
+            .any(|label| label == crate::timeline::camera::CAMERA_TARGET)
+            .then(|| {
+                let (pan, zoom, spin) = self.camera.values_at(time_ms);
+                Some(CarriedCamera { pan, zoom, spin })
+            })
+            .flatten();
+
         for label in persistent_labels {
+            if label == crate::timeline::camera::CAMERA_TARGET {
+                // Not an actor: handled above, and `collect_persistent_entries`
+                // would only warn that the track is missing.
+                continue;
+            }
             collect_persistent_entries(self, &label, time_ms, false, &mut entries);
         }
 
-        CarryBag { entries }
+        CarryBag { entries, camera }
     }
 }
 
@@ -290,6 +323,18 @@ impl Timeline {
                 dims,
                 diagnostics,
             );
+        }
+        // The camera starts where the previous scene left it. Seeded at t=0, so
+        // this scene's own `camera.*` writes still take over from their stamps;
+        // identity axes are skipped, which keeps a scene that inherited nothing
+        // meaningful out of the per-frame camera path entirely.
+        if let Some(camera) = carry.camera {
+            self.camera.seed_from(camera.pan, camera.zoom, camera.spin, 0);
+            // Sticky, like every other carried target: the flag propagates so a
+            // pushed-in camera stays pushed through a chain of scenes until an
+            // explicit `remove camera`.
+            self.persistence_flags
+                .insert(crate::timeline::camera::CAMERA_TARGET.to_string(), true);
         }
     }
 }

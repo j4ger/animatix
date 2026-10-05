@@ -334,6 +334,35 @@ mod tests {
         assert!(undefined[0].message.contains("nonexistent"));
     }
 
+    /// `camera` is a reserved target, never a declared actor — but only the two
+    /// persistence actions have an engine path for it, so the exemption is
+    /// verb-gated and `move camera` stays the mistake it looks like.
+    #[test]
+    fn the_reserved_camera_is_a_target_only_for_persistence_actions() {
+        let undefined_for = |verb: &str| {
+            let stmts = vec![Stmt::Action(
+                Action {
+                    verb: verb.to_string(),
+                    targets: vec!["camera".to_string()],
+                    args: vec![],
+                    modifiers: vec![],
+                    byte_span: None,
+                    target_index: vec![],
+                },
+                None,
+            )];
+            let symbols = SymbolTable::build_from_ast(&[]);
+            collect_diagnostics("", &[], &symbols, Some(&stmts), &[])
+                .into_iter()
+                .filter(|d| d.code.as_deref() == Some("undefined-label"))
+                .count()
+        };
+
+        assert_eq!(undefined_for("persist"), 0, "`persist camera` is how the carry is written");
+        assert_eq!(undefined_for("remove"), 0, "`remove camera` is how the carry ends");
+        assert_eq!(undefined_for("move"), 1, "no other action routes the camera target");
+    }
+
     #[test]
     fn unknown_type_detected() {
         let stmts = vec![Stmt::ActorDecl {

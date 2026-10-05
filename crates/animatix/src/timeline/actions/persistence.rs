@@ -2,7 +2,9 @@
 //! boundaries in multi-scene compositions.
 //!
 //! **`persist`** marks actor targets to be carried forward; **`remove`**
-//! fades them out and clears their persistence flag.
+//! fades them out and clears their persistence flag. Both also accept the
+//! reserved `camera` target, which carries the scene camera's transform
+//! instead of a track (and therefore has nothing to fade).
 
 use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
@@ -59,7 +61,8 @@ impl BuiltinAction for Persist {
             name: "persist".to_string(),
             category: "Persistence".to_string(),
             description: "Marks the target actor(s) to be carried forward across \
-                          scene boundaries in multi-scene compositions. \
+                          scene boundaries in multi-scene compositions. `persist camera` \
+                          carries the scene camera's transform instead of an actor. \
                           Timing modifiers are ignored."
                 .to_string(),
             params: vec![],
@@ -97,6 +100,14 @@ impl BuiltinAction for Persist {
         }
 
         for target in &action.targets {
+            // `persist camera` is the scene-camera carry: the camera is not an
+            // actor, so it has no track to snapshot, but a scene that ends
+            // mid-push has a transform worth handing over. The bag carries it as
+            // its own entry (see `CarryBag::camera`).
+            if target == crate::timeline::camera::CAMERA_TARGET {
+                timeline.persistence_flags.insert(target.clone(), true);
+                continue;
+            }
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
@@ -141,7 +152,8 @@ impl BuiltinAction for Remove {
             category: "Persistence".to_string(),
             description: "Fades out the target actor and clears its persistence flag, \
                           preventing it from being carried to the next scene. \
-                          Optional duration controls the fade-out speed."
+                          Optional duration controls the fade-out speed. \
+                          `remove camera` only clears the flag: the camera has no opacity."
                 .to_string(),
             params: vec![],
             modifiers: base_timing_params(),
@@ -169,6 +181,26 @@ impl BuiltinAction for Remove {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         for target in &action.targets {
+            // `remove camera` is the escape hatch for a sticky camera carry. The
+            // camera has no opacity, so there is nothing to fade — the flag is
+            // cleared and a duration is deliberately ignored (the fade it would
+            // time is the thing the camera does not have).
+            if target == crate::timeline::camera::CAMERA_TARGET {
+                if duration_ms > 0.0 || delay_ms > 0.0 {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistIgnoresDuration,
+                            DiagnosticPhase::Build,
+                            "The scene camera has no opacity to fade; \
+                             timing modifiers on `remove camera` will be ignored.",
+                        )
+                        .with_subject(&action.verb)
+                        .with_ast_span(None),
+                    );
+                }
+                timeline.persistence_flags.insert(target.clone(), false);
+                continue;
+            }
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }

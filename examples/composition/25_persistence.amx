@@ -5,6 +5,9 @@
 //   - remove: fade out and stop persisting
 //   - Container carry: persisting a Row carries its children too
 //   - Auto-color carry: color: auto slots are preserved across scenes
+//   - Camera carry: `persist camera` hands the scene camera's transform to the
+//     next scene, so a push-in does not snap back to identity at the boundary
+//     (`remove camera` stops the carry again)
 
 config {
     colorscheme: "editorial-dark",
@@ -23,7 +26,8 @@ fade-in title [800ms]
 fade-in badge [600ms]
 
 #1s
-persist title, badge
+persist title, badge, camera
+camera.zoom = 1.4 [1s, ease: ease-out]
 
 #2s
 play Main [fade, 500ms]
@@ -33,6 +37,9 @@ play Main [fade, 500ms]
 # Main
 
 // title and badge are carried from Intro — they appear without redeclaration.
+// So is the camera: Intro ended at 1.4x, and this scene starts there. Like every
+// other persisted target the carry is sticky, so it would keep going into Outro
+// unless `remove camera` below ends it.
 
 #0s
 title.text = "Main Scene" [800ms]
@@ -56,6 +63,7 @@ remove subtitle [800ms] // subtitle is local to this scene
 
 #4s
 remove title, container [1s]  // clean up carried actors
+remove camera                 // end the camera carry before the last scene
 
 #5s
 play Outro [fade, 500ms]

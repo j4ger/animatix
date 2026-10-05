@@ -364,7 +364,13 @@ fn check_stmt(
                 // the root label needs to be defined here — mirroring the
                 // assignment-target check.
                 let check_label = target.split('.').next().unwrap_or(target);
-                let is_defined = symbols.labels.contains_key(check_label)
+                // `persist camera` / `remove camera` address the reserved scene
+                // camera, which is never a declared actor. Gated on the verb
+                // because no other action has an engine path for it.
+                let is_persisted_camera = check_label == animatix_core::property::CAMERA_TARGET
+                    && matches!(action.verb.as_str(), "persist" | "remove");
+                let is_defined = is_persisted_camera
+                    || symbols.labels.contains_key(check_label)
                     || is_array_member_label(check_label)
                         .is_some_and(|base| symbols.array_labels.contains(base))
                     || is_component_array_member(symbols, check_label);

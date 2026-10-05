@@ -554,8 +554,11 @@ impl Composition {
                     };
                     let ms = (pred.duration_s * 1000.0) as u64;
                     let bag = pred.timeline.compute_carry_bag(ms, has_successor);
-                    // Clone only when there are entries to carry.
-                    if bag.entries.is_empty() {
+                    // Clone only when there is something to carry. The camera is
+                    // not an entry, so `persist camera` alone has to count here
+                    // too — otherwise a scene that carries only the transform
+                    // keeps the timeline built without it.
+                    if bag.entries.is_empty() && bag.camera.is_none() {
                         continue; // nothing to carry — keep existing timeline
                     }
                     (bag, ms, pred.timeline.clone())
@@ -614,14 +617,21 @@ impl Composition {
                         // Only warn if this scene really has no outgoing edge.
                         let has_outgoing = edges.contains_key(last_scene_name);
                         if !has_outgoing {
+                            // The camera is not an actor, so the warning must not
+                            // call it one — `persist camera` is a reserved target.
+                            let subject = if label == animatix_core::property::CAMERA_TARGET {
+                                "The scene camera".to_string()
+                            } else {
+                                format!("Actor '{}'", label)
+                            };
                             diagnostics.push(
                                 Diagnostic::warning(
                                     DiagnosticCode::PersistTargetNotCarried,
                                     DiagnosticPhase::Build,
                                     format!(
-                                        "Actor '{}' is persisted in scene '{}' but has no \
+                                        "{} is persisted in scene '{}' but has no \
                                          successor scene to carry into.",
-                                        label, last_scene_name,
+                                        subject, last_scene_name,
                                     ),
                                 )
                                 .with_subject(last_scene_name),

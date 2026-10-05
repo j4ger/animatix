@@ -1224,3 +1224,145 @@ fn a_scene_config_written_after_an_import_still_sets_the_scene_duration() {
         report.diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
 }
+
+/// `persist camera` hands the scene camera's axes to the next scene, so a
+/// push-in that ends at a scene boundary does not snap back to identity.
+#[test]
+fn persist_camera_carries_the_transform() {
+    let source = concat!(
+        "# SceneA\n",
+        "#0s\n",
+        "a: Rect, size: (100, 100), at: (200, 200), color: (1, 0, 0, 1)\n",
+        "#0.5s\n",
+        "camera.zoom = 1.6\n",
+        "camera.at = (40, -20) [500ms]\n",
+        "persist camera\n",
+        "\n",
+        "# SceneB\n",
+        "#0s\n",
+        "b: Rect, size: (100, 100), at: (200, 200), color: (0, 1, 0, 1)\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "errors: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    let scene_a = report.output.scenes.get("SceneA").expect("SceneA");
+    assert_eq!(
+        scene_a.timeline.persistence_flags.get(crate::timeline::camera::CAMERA_TARGET),
+        Some(&true),
+        "SceneA must record the camera as persistent"
+    );
+    // Sample the source where it actually ends: the pan is written *at* 500 ms
+    // with a 500 ms tween, so 500 ms is still the identity and the boundary the
+    // bag snapshots is the scene's own end.
+    let boundary_ms = (scene_a.timeline.duration_seconds() * 1000.0) as u64;
+    let (pan_a, zoom_a, _) = scene_a.timeline.camera.values_at(boundary_ms);
+    assert_eq!(zoom_a, 1.6, "source zoom at its boundary");
+    assert_eq!(pan_a, [40.0, -20.0], "source pan at its boundary");
+    let bag = scene_a.timeline.compute_carry_bag(boundary_ms, true);
+    assert!(bag.camera.is_some(), "the bag must carry the camera");
+    let scene_b = report.output.scenes.get("SceneB").expect("SceneB");
+    assert!(
+        scene_b.timeline.camera.is_authored(),
+        "the carried camera must count as authored in the receiving scene"
+    );
+    let (pan, zoom, spin) = scene_b.timeline.camera.values_at(0);
+    assert_eq!(zoom, zoom_a, "zoom carries");
+    assert_eq!(pan, pan_a, "the pan carries as the source scene left it");
+    assert_eq!(spin, 0.0, "an untouched axis stays identity");
+}
+
+/// Without `persist camera` the behaviour is unchanged: the receiving scene
+/// starts at identity, which is what every existing composition relies on.
+#[test]
+fn a_scene_without_persist_camera_starts_at_identity() {
+    let source =
+        concat!("# SceneA\n", "#0s\n", "camera.zoom = 2.0\n", "\n", "# SceneB\n", "#0s\n",);
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let scene_b = report.output.scenes.get("SceneB").expect("SceneB");
+    assert!(!scene_b.timeline.camera.is_authored());
+    assert_eq!(scene_b.timeline.camera.values_at(0), ([0.0, 0.0], 1.0, 0.0));
+}
+
+/// The camera carry is sticky, like every other persisted target: a scene that
+/// inherits the transform keeps handing it on, so a push-in does not snap back
+/// at the *second* boundary in a three-scene run.
+#[test]
+fn a_carried_camera_keeps_being_carried_until_it_is_removed() {
+    let source = concat!(
+        "# SceneA\n",
+        "#0s\n",
+        "camera.zoom = 1.8\n",
+        "persist camera\n",
+        "\n",
+        "# SceneB\n",
+        "#0s\n",
+        "b: Rect, size: (100, 100), at: (200, 200), color: (0, 1, 0, 1)\n",
+        "\n",
+        "# SceneC\n",
+        "#0s\n",
+        "c: Rect, size: (100, 100), at: (200, 200), color: (0, 0, 1, 1)\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let zoom_of =
+        |name: &str| report.output.scenes.get(name).expect(name).timeline.camera.values_at(0).1;
+    assert_eq!(zoom_of("SceneB"), 1.8, "the first boundary carries");
+    assert_eq!(zoom_of("SceneC"), 1.8, "the carry must survive a scene that never mentions it");
+}
+
+/// …and `remove camera` is the way to stop it: the scene still receives the
+/// transform, but its own successor starts at identity again.
+#[test]
+fn remove_camera_stops_the_carry_without_fading_anything() {
+    let source = concat!(
+        "# SceneA\n",
+        "#0s\n",
+        "camera.zoom = 1.8\n",
+        "persist camera\n",
+        "\n",
+        "# SceneB\n",
+        "#0s\n",
+        "remove camera\n",
+        "\n",
+        "# SceneC\n",
+        "#0s\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "errors: {:?}",
+        errors.iter().map(|d| &d.message).collect::<Vec<_>>()
+    );
+
+    let scene_b = report.output.scenes.get("SceneB").expect("SceneB");
+    assert_eq!(
+        scene_b.timeline.camera.values_at(0).1,
+        1.8,
+        "the receiving scene keeps the push"
+    );
+    assert_eq!(
+        scene_b.timeline.persistence_flags.get(crate::timeline::camera::CAMERA_TARGET),
+        Some(&false),
+        "`remove camera` clears the flag"
+    );
+    let scene_c = report.output.scenes.get("SceneC").expect("SceneC");
+    assert!(!scene_c.timeline.camera.is_authored(), "the chain stops here");
+    assert_eq!(scene_c.timeline.camera.values_at(0), ([0.0, 0.0], 1.0, 0.0));
+}

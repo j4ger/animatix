@@ -175,6 +175,40 @@ impl Camera {
         }
     }
 
+    /// The value each axis holds at `time_ms`, identity where unwritten.
+    ///
+    /// This is what a scene hands to its successor by `persist camera`; an
+    /// `always`-driven axis is deliberately not included, because its value is
+    /// per-frame state that no track holds (see `Timeline::refresh_camera_used`
+    /// for the same distinction).
+    pub(crate) fn values_at(&self, time_ms: u64) -> ([f32; 2], f32, f32) {
+        // `TrackAccessor` is implemented on the `Option`, so an axis that was
+        // never written answers with its identity.
+        (
+            self.pan.get(time_ms, [0.0, 0.0]),
+            self.zoom.get(time_ms, 1.0),
+            self.spin.get(time_ms, 0.0),
+        )
+    }
+
+    /// Start this camera from a value another scene ended on.
+    ///
+    /// Written as the `time_ms` stamp rather than t=0 so the receiving scene's
+    /// own authored writes still win from their own stamps onward; identity
+    /// axes are skipped, which keeps a scene that only ever inherited an
+    /// identity camera out of the frame path entirely.
+    pub(crate) fn seed_from(&mut self, pan: [f32; 2], zoom: f32, spin: f32, time_ms: u64) {
+        if pan != [0.0, 0.0] {
+            self.pan.ensure([0.0, 0.0]).add_keyframe(time_ms, pan, Easing::Linear);
+        }
+        if zoom != 1.0 {
+            self.zoom.ensure(1.0).add_keyframe(time_ms, zoom, Easing::Linear);
+        }
+        if spin != 0.0 {
+            self.spin.ensure(0.0).add_keyframe(time_ms, spin, Easing::Linear);
+        }
+    }
+
     /// The last stamp any axis carries, in ms.
     ///
     /// `Timeline::duration_seconds()` walks keyframe times to find the content
