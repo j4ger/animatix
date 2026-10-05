@@ -15,8 +15,16 @@ on:
   push:
     branches: [main]
     paths:
+      # The deployed bundles embed the whole engine and the scenes import
+      # `examples/lib/*`, so any change there can change what the site renders.
+      # A filter that only watched `web/**` left the deployed site running an
+      # engine that no longer matches the source it plays.
       - "web/**"
-      - "crates/animatix-web/**"
+      - "crates/**"
+      - "examples/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "flake.nix"
       - "scripts/build-web.sh"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
@@ -57,6 +65,27 @@ jobs:
       - name: Install wasm-opt and brotli
         run: sudo apt-get update && sudo apt-get install -y binaryen brotli
 
+      - name: Check the embed distributable matches its source
+        # `web/embed/amx-player.js` is the committed esbuild output of
+        # `web/embed/src/amx-player.js` (`npm run build:embed`), and Pages
+        # ships the committed copy — so a src change that skipped the rebuild
+        # would deploy the previous player while the repo looked fixed.
+        run: |
+          npm --prefix web/tools ci
+          npm --prefix web/tools run build:embed
+          git diff --exit-code web/embed/amx-player.js
+
+      - name: Check every scene the site plays (both profiles)
+        # The deploy gate the browser-only failures need: a scene only the full
+        # engine can build, or an import/asset url that resolves to nothing
+        # next to its page, shows up as a "Scene error" veil on the deployed
+        # site and is invisible to the engine's own suite. `--slim` is exactly
+        # `--no-default-features` (see scripts/build-web.sh), so these two runs
+        # cover both shipped bundles.
+        run: |
+          cargo test -p animatix-web --test site_scenes
+          cargo test -p animatix-web --test site_scenes --no-default-features
+
       - name: Build engines (slim + full)
         run: |
           scripts/build-web.sh --slim
@@ -67,9 +96,6 @@ jobs:
           mkdir -p _site
           cp -r web/. _site/
           find _site -name '*.br' -delete
-          # the transformer lib symlink points outside web/; ship a real copy
-          rm _site/demos/transformer/lib/components.amx
-          cp examples/lib/components.amx _site/demos/transformer/lib/components.amx
           touch _site/.nojekyll
           du -sh _site
 
