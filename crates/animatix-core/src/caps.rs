@@ -221,6 +221,10 @@ pub enum Applicable {
     ShapeKinds(&'static [ShapeKind]),
     /// Applies to the listed authored actor type names.
     Actors(&'static [&'static str]),
+    /// Applies to every actor *except* the listed type names — for a property the
+    /// universal `Everything` is too broad for, because these actors have no code
+    /// path that reads it at all (`color` on a scope that paints no surface).
+    Except(&'static [&'static str]),
     /// Applies to text-engine actors (Text, Code, Typst, Math).
     TextLike,
     /// Applies to every actor except text-engine actors.
@@ -255,6 +259,7 @@ impl Applicable {
             },
             Applicable::ShapeKinds(kinds) => caps.shape.is_some_and(|sk| kinds.contains(&sk)),
             Applicable::Actors(actors) => actors.contains(&actor_type),
+            Applicable::Except(actors) => !actors.contains(&actor_type),
             Applicable::TextLike => caps.text.is_some(),
             Applicable::ExceptTextLike => caps.text.is_none(),
             Applicable::PlotGeometry => caps.plot_geometry,

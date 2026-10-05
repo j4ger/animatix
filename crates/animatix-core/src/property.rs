@@ -104,7 +104,15 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("bounds", Applicable::Actors(&["Filter"]), PropertyValueKind::Vec4),
     PropertyDescriptor::new("char_progress", Applicable::TextLike, PropertyValueKind::F32),
     PropertyDescriptor::new("code", Applicable::Actors(&["Code"]), PropertyValueKind::String),
-    PropertyDescriptor::new("color", Applicable::Everything, PropertyValueKind::Vec4),
+    // Not `Everything`: `Glass`, `Filter` and `Mask` draw no surface of their
+    // own, so a scope-level `color:` had nowhere to go — the value was dropped in
+    // silence, which is what the "never silently drop" rule is for. Verified
+    // against the primitives: none of the three reads a style colour.
+    PropertyDescriptor::new(
+        "color",
+        Applicable::Except(&["Glass", "Filter", "Mask"]),
+        PropertyValueKind::Vec4,
+    ),
     PropertyDescriptor::new("cols", Applicable::Actors(&["Grid"]), PropertyValueKind::U32),
     PropertyDescriptor::new("commands", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
     PropertyDescriptor::new("data", Applicable::Actors(&["BarChart"]), PropertyValueKind::Generic),

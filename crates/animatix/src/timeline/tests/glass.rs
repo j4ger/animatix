@@ -219,7 +219,7 @@ plain: Glass, at: (320, 180), size: (200, 100) {
 fn a_glass_scope_names_the_surface_properties_it_cannot_use() {
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (320, 200) }
-c: Glass, at: (160, 100), size: (120, 60), fill_opacity: 0.5, stroke_width: 3 {
+c: Glass, at: (160, 100), size: (120, 60), color: rgb(255, 0, 0), fill_opacity: 0.5, stroke_width: 3 {
     f: Blur, radius: 10
 }
 "#;
@@ -234,17 +234,18 @@ c: Glass, at: (160, 100), size: (120, 60), fill_opacity: 0.5, stroke_width: 3 {
         .map(|d| d.message.clone())
         .collect();
     let joined = named.join("\n");
-    for dropped in ["fill_opacity", "stroke_width"] {
+    for dropped in ["color", "fill_opacity", "stroke_width"] {
         assert!(
             joined.contains(dropped) && joined.contains("Glass"),
             "`Glass` must name the surface property it drops ({dropped}): {named:?}"
         );
     }
-    assert_eq!(named.len(), 2, "exactly the two surface properties: {named:?}");
+    assert_eq!(named.len(), 3, "exactly the three surface properties: {named:?}");
 
     // And the property it *does* consume stays quiet: `corner_radius` is the
     // frost's clip, not a paint.
-    let rounded = source.replace("fill_opacity: 0.5, stroke_width: 3", "corner_radius: 12");
+    let rounded = source
+        .replace("color: rgb(255, 0, 0), fill_opacity: 0.5, stroke_width: 3", "corner_radius: 12");
     let (rast, rerr) = animatix_syntax::parser::parse_source(&rounded);
     assert!(rerr.is_empty(), "parse errors: {rerr:?}");
     let rrep =

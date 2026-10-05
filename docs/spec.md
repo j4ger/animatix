@@ -1144,30 +1144,11 @@ frost.radius = 18 [900ms, ease: ease-in-out]
   the scope itself would land *inside* the pixels that get blurred. As a child
   it lands on top of the blur, crisp.
 
-  A `Glass` scope carries no `ShapeKind` (like `Filter` and `Mask`), so
-  `fill_opacity`, `stroke`, `stroke_width` and the gradient paints are reported:
-  `inapplicable-property — Glass never reads it, so the value is dropped`.
-  `corner_radius` is not, because the frost clip consumes it. One hole remains:
-  `color` is `Applicable::Everything`, so a scope-level `color:` still compiles
-  quietly and paints nothing — closing it needs an exclusion predicate on
-  `Applicable`, which `docs/roadmap.md` carries.
-- The chain is the scope's declared stages, so `frost.radius = 18` animates the
-  frost exactly like a `Filter` stage, and a scope with no stages costs nothing
-  (the backdrop is skipped when the chain is empty).
-- Children of a `Glass` scope composite **above** the blur, so text sitting on a
-  glass card stays sharp. That is the whole reason the frame is split: a single
-  `vello::Scene` cannot express "blur this, then draw that over it", because the
-  pinned vello build always clears the target it renders into.
-- The blur reads a region *larger* than the panel (padded by the chain's support)
-  and paints back only the panel's rect, so its edges blur against real pixels
-  rather than against the edge of the region.
-- **Order rule:** the frost is a copy of the render target taken *after the whole
-  frame is drawn*, so it contains every actor under the panel's rect — earlier or
-  later in paint order makes no difference. Anything that must stay sharp on top
-  of a frosted panel is a child of the scope; nothing outside it can be.
-- Cost: each `Glass` scope adds one render-target region copy, one chain run and
-  two composites to the frame, so `n` panels cost `n+1` passes over their own
-  regions. `examples/animation/38_glass_panel.amx` is the worked scene.
+    A `Glass` scope carries no `ShapeKind` (like `Filter` and `Mask`), and `color`
+  lists those three as exceptions, so every surface property — `color`,
+  `fill_opacity`, `stroke`, `stroke_width`, the gradient paints — is reported as
+  `inapplicable-property` on a scope that paints nothing, instead of being dropped
+  in silence. `corner_radius` is not reported: the frost's clip consumes it.
 
 ### Audio
 
