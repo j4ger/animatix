@@ -2193,7 +2193,7 @@ without the owner. Round-specific additions:
 <!-- Draft: batch-6 record section for docs/handoff_motion_vocab.md. Insert right
  before "### Batch 5 (2026-10-04, fifth session)". Fill __PERF__ after the gates. -->
 
-### Batch 6 (2026-10-04 into 10-05, sixth and seventh sessions) — 12 commits, local only
+### Batch 6 (2026-10-04 into 10-05, sixth and seventh sessions) — 13 commits, local only
 
 Begins with what #23 made possible; `f12295ca` (the race itself) is in the
 Batch 5 table above.
@@ -2215,6 +2215,7 @@ Batch 5 table above.
 | `288e6250` | #24 | `TypeEnv::with_stdlib()` copied ~60 `String` keys per construction, and `SymbolTable` builds one per annotation and per inferred expression; `analyzer_update/small` 137.38 → 129.57 µs |
 | `fdb0f783` | **#22 `Glass`** | a container whose chain runs on a copy of the finished frame behind its rect; measured the way the round does everything else — a 4 px border authored on the scope reads (255,0,0) unfrosted and (93,27,32) frosted, which is why the scope paints nothing and the card is its child. Also found by the same probe: a `Glass` that was not the scene's **last root actor frosted nothing at all, silently**, because it inherited `can_post_composite_filter`'s last-position rule; `a_glass_scope_still_frosts_when_something_renders_after_it` fails without the fix (checked by reverting) |
 | `1f44a217` | **#24's other half** — continuous `font_weight` | the nine-keyword collapse in `font_weight_to_typst` is gone (Typst takes an integer), and the Open Sans variable pair is registered so its `wght` axis gets instanced: compiled ink for one 64 pt line runs 510.67 / 516.35 / 522.05 / 527.73 / 533.35 / 544.63 / 555.88 px across 400…700 in 50 steps, pinned by `compile_text_instances_a_weight_no_static_face_ships`. Registering the pair only for non-canonical weights was tried first and the same ramp rejected it (450 drew heavier than 500; 599/600/601 = 533.2/553.8/533.5). Cost measured too: 496 of 921,600 pixels in `examples/layout/27_layout_text.amx`, no line rewrapped |
+| `4ff90b68` | #22's applicability follow-through | the `ShapeKind::Rect` left on the catalog card was still telling `Applicable::AllShapes*` that a `Glass` scope takes `fill_opacity` and the gradient paints — on an actor that paints nothing, so the value vanished quietly. Without it the checker says so (`Glass never reads it, so the value is dropped`), pinned by `a_glass_scope_names_the_surface_properties_it_cannot_use`; `corner_radius` stays silent because the frost clip consumes it, and the re-rendered probe matches the earlier frame pixel for pixel, rounded corner included. `color` (`Applicable::Everything`) is the remaining hole, named in `docs/roadmap.md` with `Filter`/`Mask` sharing it |
 
 **A bare action statement ate the next line** (found writing `persist camera`, fixed
 in `43722523`). An action is `verb targets? args modifiers` and the grammar has no
