@@ -1010,11 +1010,15 @@ mod tests {
         action_and_assignment("#0s\npersist t\nt.opacity = 0.5 [200ms]");
         action_and_assignment("#0s\npersist a, b\na.opacity = 0.5 [200ms]");
 
-        // The bound is on the statement boundary, not on the action: a target
-        // with its own `to`/`by` particle still reaches the argument list, which
-        // is where the engine's extension actions read it.
-        let (stmts, errs) = parse_source("#0s\nrotate t by 90 [500ms]");
-        assert!(errs.is_empty(), "`rotate` with bare args should parse: {errs:?}");
+        // The guard is on the statement boundary only. A space-separated target
+        // list still runs on (`swap bar1 bar2`, pinned by
+        // `test_swap_action_space_separated_targets`), so a bare particle like
+        // `by` still lands in the target list rather than the argument list —
+        // which is why `builtins.rs` advertises `rotate target [by: 90]`
+        // instead. Pinning both halves keeps the fix from widening into a
+        // language change.
+        let (stmts, errs) = parse_source("#0s\nswap bar1 bar2 [500ms]");
+        assert!(errs.is_empty(), "`swap` with a space-separated list: {errs:?}");
         let stmts = stmts.expect("statements");
         let body = match &stmts[0] {
             Stmt::Keyframe { body, .. } => body,
@@ -1022,9 +1026,9 @@ mod tests {
         };
         match &body[0] {
             Stmt::Action(action, _) => {
-                assert_eq!(action.verb, "rotate");
-                assert_eq!(action.targets, vec!["t"], "`by` is not an actor");
-                assert_eq!(action.args.len(), 2, "`by` and `90` are arguments");
+                assert_eq!(action.verb, "swap");
+                assert_eq!(action.targets, vec!["bar1", "bar2"]);
+                assert!(action.args.is_empty());
             },
             other => panic!("expected an Action, got {other:?}"),
         }

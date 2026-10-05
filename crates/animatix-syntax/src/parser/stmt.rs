@@ -502,6 +502,14 @@ pub(crate) fn parser<'src>(
                 Ok((key.join("."), index))
             });
 
+        /// A zero-width check that the parser is not standing on the head of the
+        /// next statement. `rewind` keeps the matched token in place, so this
+        /// costs one lookahead and no input.
+        fn not_a_statement_head<'src>(
+        ) -> impl Parser<'src, StrInput<'src>, (), ParserExtra<'src>> + Clone {
+            choice((assign(), reactive_assign(), colon())).rewind().not()
+        }
+
         let action = common::ident_occ(OccurrenceKind::Action)
             .clone()
             .then(
@@ -513,16 +521,23 @@ pub(crate) fn parser<'src>(
                         targets.extend(rest);
                         targets
                     })
-                    // A comma-less target list is exactly one target. It used to
-                    // be an unbounded `action_target.repeated()`, and because the
-                    // grammar has no newline tokens that repeat ran on into the
-                    // *next* statement: `persist t` followed by
-                    // `t.opacity = 0.5 [200ms]` parsed `t.opacity` as a second
-                    // target and then failed on the `=`, while `rotate t by 90`
-                    // invented a target named `by`. Multiple targets are written
-                    // with commas — the documented form, and every `.amx` in this
-                    // repo that uses one.
-                    .or(action_target.clone().map(|target| vec![target]))
+                    // A comma-less list may still hold several targets
+                    // (`swap bar1 bar2`), but each item has to stop at a
+                    // statement boundary. The grammar has no newline tokens, so
+                    // the unguarded repeat used to run on into the *next*
+                    // statement: `persist t` followed by `t.opacity = 0.5` read
+                    // `t.opacity` as a second target and then failed on the `=`.
+                    // A dotted path followed by an assignment or a colon is that
+                    // next statement's head — an assignment target, or an actor
+                    // declaration's label — never another action target.
+                    .or(
+                        action_target
+                            .clone()
+                            .then_ignore(not_a_statement_head())
+                            .repeated()
+                            .at_least(1)
+                            .collect::<Vec<_>>(),
+                    )
                     .or_not()
                     .map(|opt| opt.unwrap_or_default()),
             )
@@ -540,9 +555,7 @@ pub(crate) fn parser<'src>(
                     // token it was only looking at.
                     .or(expr
                         .clone()
-                        .then_ignore(
-                            choice((assign(), reactive_assign())).rewind().not(),
-                        )
+                        .then_ignore(not_a_statement_head())
                         .repeated()
                         .collect::<Vec<_>>()),
             )
