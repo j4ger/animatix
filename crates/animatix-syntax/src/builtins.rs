@@ -207,12 +207,16 @@ pub fn action_documentation(name: &str) -> &'static str {
         "wipe-out" => "Wipe out to edge.",
         "reveal-out" => "Reveal out (reverse draw).",
         "draw-out" => "Draw out (reverse handwriting).",
-        "move" => "Move to position: `move target to (x, y)`",
-        "shift" => "Shift by offset: `shift target by (dx, dy)`",
-        "rotate" => "Rotate: `rotate target by 90`",
-        "scale" => "Scale: `scale target to 2`",
-        "persist" => "Mark actor(s) to carry into the next scene: `persist actor1, actor2`",
-        "remove" => "Fade out and stop persisting: `remove actor [500ms]`",
+        "move" => "Move to position: `move target [to: (x, y), 1s]`",
+        "shift" => "Shift by offset: `shift target [by: (dx, dy), 1s]`",
+        "rotate" => "Rotate: `rotate target [by: 1.5708, 1s]`",
+        "scale" => "Scale: `scale target [by: 2, 1s]`",
+        "persist" => {
+            "Mark actor(s) to carry into the next scene: `persist actor1, actor2`. `persist camera` also hands over the camera transform."
+        },
+        "remove" => {
+            "Fade out and stop persisting: `remove actor [500ms]`. `remove camera` stops the camera carry (no fade)."
+        },
         _ => "Unknown action.",
     }
 }
