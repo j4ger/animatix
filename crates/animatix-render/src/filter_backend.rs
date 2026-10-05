@@ -17,7 +17,8 @@ use std::collections::HashMap;
 use crate::core::RendererCore;
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::effects::{
-    Effect, EffectChain, EffectRegion, FilterBackend, PendingComposite, effect,
+    Effect, EffectChain, EffectRegion, FilterBackend, PendingBackdrop, PendingComposite,
+    PendingLayer, effect,
 };
 use animatix::timeline::image::SceneImage;
 
@@ -104,7 +105,7 @@ pub struct GpuFilterBackend {
     /// always runs over the full canvas, this only scopes the readback/copy.
     last_region: Option<EffectRegion>,
     /// Pending zero-readback filter textures to be composited after scene render.
-    pending_composites: Vec<PendingComposite>,
+    pending_composites: Vec<PendingLayer>,
     /// Region-scoped scratch targets, keyed by quantized size. Region paths
     /// render, seed, ping-pong, and harvest entirely inside these textures so
     /// per-scope cost scales with the scope, not the canvas (PF-7's
@@ -121,6 +122,20 @@ pub struct GpuFilterBackend {
 struct RegionScratch {
     render_texture: wgpu::Texture,
     render_view: wgpu::TextureView,
+    pp_a: wgpu::Texture,
+    pp_a_view: wgpu::TextureView,
+    pp_b: wgpu::Texture,
+    pp_b_view: wgpu::TextureView,
+    pp_original: wgpu::Texture,
+    pp_original_view: wgpu::TextureView,
+}
+
+/// The textures one chain run reads and writes.
+///
+/// `seed_texture` is whatever the chain starts from: the rendered sub-scene of a
+/// `Filter` scope, or a copy of the render target behind a `Glass` panel.
+struct ChainSeed {
+    seed_texture: wgpu::Texture,
     pp_a: wgpu::Texture,
     pp_a_view: wgpu::TextureView,
     pp_b: wgpu::Texture,
@@ -612,13 +627,58 @@ impl GpuFilterBackend {
             return Ok(render_view);
         }
 
-        // Seed the ping-pong with the rendered frame, then run every pass —
-        // all in ONE command encoder and ONE submit. Same-queue submissions are
-        // ordered, and each pass reads its own context through a dynamic
-        // offset, so the batch is correct and the chain costs one submit
-        // instead of one per stage.
+        let seed = ChainSeed {
+            seed_texture: seed_texture.clone(),
+            pp_a: pp_a.clone(),
+            pp_a_view: pp_a_view.clone(),
+            pp_b: pp_b.clone(),
+            pp_b_view: pp_b_view.clone(),
+            pp_original: pp_original.clone(),
+            pp_original_view: pp_original_view.clone(),
+        };
+        let view = self.run_chain_passes(seed, dispatch_dims, chain, region.is_some())?;
+        if timing {
+            eprintln!(
+                "[filter-timing] dims={}x{} stages={} render={:.2}ms seed+passes={:.2}ms",
+                dispatch_dims.width,
+                dispatch_dims.height,
+                chain.instances.len(),
+                t_render.as_secs_f64() * 1000.0,
+                (t_all.elapsed() - t_render).as_secs_f64() * 1000.0,
+            );
+        }
+        Ok(view)
+    }
+
+    /// Copy the rendered seed into the ping-pong and run every chain pass —
+    /// all in ONE command encoder and ONE submit. Same-queue submissions are
+    /// ordered, and each pass reads its own context through a dynamic offset,
+    /// so the batch is correct and the chain costs one submit instead of one
+    /// per stage.
+    ///
+    /// Shared by the scene-rendered path and the `Glass` backdrop path: what a
+    /// chain sees is always "a texture that has been seeded", and only the
+    /// caller knows whether that texture came from vello or from the render
+    /// target behind a panel.
+    fn run_chain_passes(
+        &mut self,
+        seed: ChainSeed,
+        dispatch_dims: SceneDimensions,
+        chain: &EffectChain,
+        region_scoped: bool,
+    ) -> Result<wgpu::TextureView, String> {
+        let ChainSeed {
+            seed_texture,
+            pp_a,
+            pp_a_view,
+            pp_b,
+            pp_b_view,
+            pp_original,
+            pp_original_view,
+        } = seed;
         let width = dispatch_dims.width.max(1);
         let height = dispatch_dims.height.max(1);
+
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Effect Chain Encoder"),
         });
@@ -664,7 +724,6 @@ impl GpuFilterBackend {
                 depth_or_array_layers: 1,
             },
         );
-        let t_seed = t_all.elapsed() - t_render;
 
         // Plan the passes, write every context once (one slot per pass), then
         // encode seed + passes into a single encoder.
@@ -753,24 +812,12 @@ impl GpuFilterBackend {
             FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
         };
         self.dump_stage("tex_b_fx", &result_texture, dispatch_dims);
-        let t_passes = t_all.elapsed() - t_seed - t_render;
-        if timing {
-            eprintln!(
-                "[filter-timing] dims={}x{} stages={} render={:.2}ms seed={:.2}ms passes={:.2}ms",
-                dispatch_dims.width,
-                dispatch_dims.height,
-                chain.instances.len(),
-                t_render.as_secs_f64() * 1000.0,
-                t_seed.as_secs_f64() * 1000.0,
-                t_passes.as_secs_f64() * 1000.0,
-            );
-        }
 
         self.last_filtered_source = current;
-        if region.is_some() {
+        if region_scoped {
             // Region results live in the region scratch ping-pong, covering
             // `last_effect_dims` from (0, 0).
-            self.last_region_pp = Some((result_texture.clone(), result_view.clone()));
+            self.last_region_pp = Some((result_texture, result_view.clone()));
         }
         Ok(result_view)
     }
@@ -996,6 +1043,9 @@ impl GpuFilterBackend {
             view,
             alpha,
             origin,
+            corner_radius: 0.0,
+            src_rect: None,
+            clip_rect: None,
         })
     }
 }
@@ -1093,12 +1143,165 @@ impl FilterBackend for GpuFilterBackend {
                 (t_copy.elapsed() - t_after_render).as_secs_f64() * 1000.0,
             );
         }
-        self.pending_composites.push(composite);
+        self.pending_composites.push(PendingLayer::Composite(composite));
         Ok(())
     }
 
-    fn take_pending_composites(&mut self) -> Vec<PendingComposite> {
+    fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
         std::mem::take(&mut self.pending_composites)
+    }
+
+    /// Queue the panel's own children as a plain composite: the scene renders
+    /// into the region scratch with a transparent clear and an empty chain, then
+    /// the copy is queued. It lands *after* whatever is already in the queue, so
+    /// a `Glass` scope's children composite above its backdrop.
+    fn enqueue_scene_composite(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        origin: [f32; 2],
+        alpha: f32,
+    ) -> Result<(), String> {
+        let view =
+            self.render_and_filter_scene_to_view(scene, dimensions, None, &EffectChain::default())?;
+        let harvest = self.last_effect_dims;
+        let source = match self.last_filtered_source {
+            FilteredSource::Render => &self.render_texture,
+            FilteredSource::TexA => &self.tex_a,
+            FilteredSource::TexB => &self.tex_b,
+        };
+        let composite = self.copy_last_filtered_to_pending(
+            harvest,
+            alpha,
+            origin,
+            source,
+            wgpu::Origin3d::ZERO,
+        )?;
+        let _ = view;
+        self.pending_composites.push(PendingLayer::Composite(composite));
+        Ok(())
+    }
+
+    fn enqueue_backdrop(&mut self, backdrop: &PendingBackdrop) -> Result<(), String> {
+        self.pending_composites.push(PendingLayer::Backdrop(backdrop.clone()));
+        Ok(())
+    }
+
+    /// Blur the panel's own slice of the finished frame.
+    ///
+    /// Runs at drain time because the pixels only exist after the main scene
+    /// render: the target's contents are copied into the region scratch (which
+    /// `Filter` scopes already own and reuse), run through the scope's chain, and
+    /// handed back as a composite clipped to the panel's rect and corners.
+    fn run_backdrop(
+        &mut self,
+        target: &wgpu::Texture,
+        backdrop: &PendingBackdrop,
+    ) -> Result<PendingComposite, String> {
+        let size = target.size();
+        let canvas = SceneDimensions {
+            width: size.width,
+            height: size.height,
+        };
+        let region = backdrop.region;
+        let (w, h) = Self::quantize_region_size(region.size, canvas);
+        let dispatch = SceneDimensions {
+            width: w,
+            height: h,
+        };
+        let scratch = self.region_scratch_for(w, h);
+
+        // Clear the seed first. The copy below writes only the panel's rect; the
+        // quantized padding ring would otherwise hold the previous frame's
+        // texels, and a blur reaching into them smears that garbage inward.
+        self.core
+            .render_vello_scene_with_background(
+                &self.device,
+                &self.queue,
+                &scratch.render_view,
+                w,
+                h,
+                &vello::Scene::new(),
+                vello::peniko::Color::TRANSPARENT,
+            )
+            .map_err(|e| e.to_string())?;
+
+        // The copy has to stay inside both textures. The region is already
+        // clamped to the canvas by `region_from_rect`, but its quantized dispatch
+        // size is rounded *up*, so the padded region can hang off the right or
+        // bottom edge.
+        let ox = (region.origin[0].max(0.0).round() as u32).min(canvas.width);
+        let oy = (region.origin[1].max(0.0).round() as u32).min(canvas.height);
+        let copy_w = region.size.width.min(w).min(canvas.width - ox).max(1);
+        let copy_h = region.size.height.min(h).min(canvas.height - oy).max(1);
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Backdrop Copy Encoder"),
+        });
+        encoder.copy_texture_to_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: target,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: ox, y: oy, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyTextureInfo {
+                texture: &scratch.render_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::Extent3d {
+                width: copy_w.max(1),
+                height: copy_h.max(1),
+                depth_or_array_layers: 1,
+            },
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        let seed = ChainSeed {
+            seed_texture: scratch.render_texture.clone(),
+            pp_a: scratch.pp_a.clone(),
+            pp_a_view: scratch.pp_a_view.clone(),
+            pp_b: scratch.pp_b.clone(),
+            pp_b_view: scratch.pp_b_view.clone(),
+            pp_original: scratch.pp_original.clone(),
+            pp_original_view: scratch.pp_original_view.clone(),
+        };
+        self.last_effect_dims = region.size;
+        self.last_region = Some(region);
+        self.last_region_pp = None;
+        let view = self.run_chain_passes(seed, dispatch, &backdrop.chain, true)?;
+
+        let (source, source_view) = self
+            .last_region_pp
+            .clone()
+            .ok_or_else(|| "backdrop chain produced no region result".to_string())?;
+        let _ = view;
+
+        // The panel rect lives *inside* the padded result: the composite samples
+        // just that window and paints it back where it came from, shaped by the
+        // panel's own corners.
+        let px0 = (backdrop.clip.origin[0] - region.origin[0]).max(0.0);
+        let py0 = (backdrop.clip.origin[1] - region.origin[1]).max(0.0);
+        let px1 = px0 + backdrop.clip.size.width as f32;
+        let py1 = py0 + backdrop.clip.size.height as f32;
+        let mut composite = self.copy_last_filtered_to_pending(
+            region.size,
+            backdrop.alpha,
+            backdrop.clip.origin,
+            &source,
+            wgpu::Origin3d::ZERO,
+        )?;
+        composite.src_rect = Some([px0, py0, px1, py1]);
+        composite.clip_rect = Some([
+            backdrop.clip.origin[0],
+            backdrop.clip.origin[1],
+            backdrop.clip.origin[0] + backdrop.clip.size.width as f32,
+            backdrop.clip.origin[1] + backdrop.clip.size.height as f32,
+        ]);
+        composite.corner_radius = backdrop.corner_radius;
+        let _ = source_view;
+        Ok(composite)
     }
 }
 

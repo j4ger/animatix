@@ -1,0 +1,75 @@
+// 38 — Glass: a backdrop-blur panel over a moving plate
+//
+// Demonstrates:
+//   - Glass: a container that blurs what the frame holds behind it
+//   - The blur is a chain of the scope's own stages (`frost: Blur, radius:`),
+//     so a glass panel can ramp its frost like any other effect
+//   - Children of a Glass scope stay sharp: they composite above the blur, so
+//     text sitting on the panel is never swallowed by it
+//   - corner_radius shapes both the panel and the blurred region inside it
+//
+// One rule to know: the frost is a copy of the frame taken after the whole frame
+// is drawn, so *everything* under the panel's rect is inside it, whenever it was
+// declared. What must stay sharp on top of the blur is a child of the scope.
+
+config {
+    colorscheme: "editorial-dark",
+    resolution: (1280, 720),
+}
+
+// The plate: dense, moving detail is what makes a blur legible.
+stripes: Group, at: (640, 360) {
+    s1: Rect, size: (1180, 26), at: (-560, -240), color: accent.primary, corner_radius: 6
+    s2: Rect, size: (1180, 26), at: (-560, -160), color: accent.info, corner_radius: 6
+    s3: Rect, size: (1180, 26), at: (-560, -80), color: accent.warning, corner_radius: 6
+    s4: Rect, size: (1180, 26), at: (-560, 0), color: accent.primary, corner_radius: 6
+    s5: Rect, size: (1180, 26), at: (-560, 80), color: accent.info, corner_radius: 6
+    s6: Rect, size: (1180, 26), at: (-560, 160), color: accent.warning, corner_radius: 6
+    s7: Rect, size: (1180, 26), at: (-560, 240), color: accent.primary, corner_radius: 6
+}
+
+dots: Group, at: (640, 360) {
+    d1: Ellipse, size: (34, 34), at: (-420, -60), color: text.primary
+    d2: Ellipse, size: (34, 34), at: (-280, 60), color: text.primary
+    d3: Ellipse, size: (34, 34), at: (-140, -60), color: text.primary
+    d4: Ellipse, size: (34, 34), at: (0, 60), color: text.primary
+    d5: Ellipse, size: (34, 34), at: (140, -60), color: text.primary
+    d6: Ellipse, size: (34, 34), at: (280, 60), color: text.primary
+}
+
+// The glass panel. `frost` is the backdrop chain; the surface and the two texts
+// are children, so they ride above the blur.
+//
+// The card's *surface* is a child Rect on purpose: the frost is a copy of the
+// frame taken after the frame is drawn, so a fill or border on the scope itself
+// is inside the pixels that get blurred — a hairline border at radius 18 is
+// gone. A child lands on top of the blur, crisp.
+card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
+    frost: Blur, radius: 0
+    surface: Rect, size: (560, 240), corner_radius: 24,
+      color: "#ffffff1a", stroke: "#ffffff40", stroke_width: 1.5
+    heading: Text, text: "Backdrop blur", font_size: 40, at: (-180, -34), color: text.primary
+    body: Text, text: "sharp text over a frosted plate", font_size: 20,
+      at: (-150, 30), color: text.secondary
+}
+
+#0s
+fade-in stripes [600ms, ease: expo-out]
+fade-in dots [600ms, ease: expo-out, delay: 120ms]
+settle-in card [520ms, ease: expo-out, delay: 240ms]
+
+// The plate slides under the panel: the frost is only legible because the
+// content behind it keeps moving.
+#1s
+shift stripes [by: (240, 0), 2.4s, ease: ease-in-out]
+shift dots [by: (-240, 0), 2.4s, ease: ease-in-out]
+
+// The frost ramps in, and a translucent panel gets *more* translucent as it
+// gets frostier — the two together are what reads as glass.
+#1.2s
+frost.radius = 18 [900ms, ease: ease-in-out]
+surface.color = "#ffffff0f" [900ms, ease: ease-in-out]
+
+#4s
+frost.radius = 6 [900ms, ease: ease-in-out]
+shift stripes [by: (-240, 0), 1.4s, ease: ease-in-out]

@@ -43,6 +43,10 @@ pub enum ChildProcessingKind {
     Generic,
     /// Render children to an offscreen texture and apply an effect chain.
     Filter,
+    /// Blur what the render target already holds behind the scope, then render
+    /// the scope's own surface and everything after it above that blur. The
+    /// `Glass` container; see `docs/spec.md` ("Glass").
+    Glass,
     /// Clip children to a mask shape.
     Mask,
     /// Aggregate typst fragments with highlight ranges.
@@ -179,7 +183,7 @@ impl ActorCaps {
     /// `true` when this actor renders its children to an offscreen texture and
     /// applies an effect chain (a `Filter` compositing scope).
     pub fn is_effect_scope(&self) -> bool {
-        self.child_processing == ChildProcessingKind::Filter
+        matches!(self.child_processing, ChildProcessingKind::Filter | ChildProcessingKind::Glass)
     }
 
     /// `true` when the GUI should offer to nest new actors inside this

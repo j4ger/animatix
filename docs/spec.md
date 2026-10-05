@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`, `Callout`, `Legend`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`. Omitting `ease:` on an *action* is usually right — the default is chosen by the verb's role (entrances decelerate, exits accelerate, repositions ease both ways). A plain assignment still defaults to linear; write `ease:` on it when you want a settle.
@@ -1097,6 +1097,54 @@ restricts effect harvesting to that region — the filtered result is read back
 only inside `bounds` expanded by the chain's worst-case effect support (e.g.
 the blur radius), so padding never clips, and composited back at the region
 origin. Without `bounds`, the whole scene is processed.
+
+### Glass (Backdrop Blur)
+
+`Glass` is a compositing scope that blurs **what the frame already holds behind
+it** and then draws its children above that blur. It is a container rather than
+an effect because its input is the render target, which no effect chain can
+bind: a `Filter` chain's two inputs are its own sub-scene (binding 0, the
+previous pass) and that same sub-scene before the chain ran (binding 5) — never
+the picture underneath the scope.
+
+```animatix
+stripes: Group, …          // content behind the panel, moving
+
+card: Glass, at: (640, 360), size: (560, 240), corner_radius: 24 {
+    frost: Blur, radius: 0     // the backdrop chain, declared like a Filter's
+    surface: Rect, size: (560, 240), corner_radius: 24,
+        color: "#ffffff1a", stroke: "#ffffff40", stroke_width: 1.5
+    heading: Text, text: "Backdrop blur", font_size: 40, at: (-180, -34)
+}
+
+#1.2s
+frost.radius = 18 [900ms, ease: ease-in-out]
+```
+
+- Like every other container (`Group`, `Filter`, `Mask`), a `Glass` scope paints
+  nothing of its own. Its `size` and `corner_radius` define the frosted region —
+  the blur is clipped to the scope's rounded rect, not to its bounding box — and
+  the panel you see is its first child. That is not a stylistic choice: the
+  frost is a copy of the finished frame, so a fill or hairline border drawn by
+  the scope itself would land *inside* the pixels that get blurred. As a child
+  it lands on top of the blur, crisp.
+- The chain is the scope's declared stages, so `frost.radius = 18` animates the
+  frost exactly like a `Filter` stage, and a scope with no stages costs nothing
+  (the backdrop is skipped when the chain is empty).
+- Children of a `Glass` scope composite **above** the blur, so text sitting on a
+  glass card stays sharp. That is the whole reason the frame is split: a single
+  `vello::Scene` cannot express "blur this, then draw that over it", because the
+  pinned vello build always clears the target it renders into.
+- The blur reads a region *larger* than the panel (padded by the chain's support)
+  and paints back only the panel's rect, so its edges blur against real pixels
+  rather than against the edge of the region.
+- **Order rule:** the frost is a copy of the render target taken *after the whole
+  frame is drawn*, so it contains every actor under the panel's rect — earlier or
+  later in paint order makes no difference. Anything that must stay sharp on top
+  of a frosted panel is a child of the scope; nothing outside it can be.
+- Cost: each `Glass` scope adds one render-target region copy, one chain run and
+  two composites to the frame, so `n` panels cost `n+1` passes over their own
+  regions. `examples/animation/38_glass_panel.amx` is the worked scene.
 
 ### Audio
 

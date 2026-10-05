@@ -76,17 +76,17 @@
       <div class="sec-head"><span class="sec-num">02</span><h2>What's inside</h2></div>
       <div class="ledger">
         <div class="row">
-          <p class="stat">31</p>
+          <p class="stat">32</p>
           <div>
             <h3>Primitives</h3>
-            <p>Shapes, text, plots, containers — from <code class="inline">Rect</code> and bezier <code class="inline">Path</code> to <code class="inline">PlotCurve</code>, <code class="inline">NumberPlane</code> and <code class="inline">Heatmap</code>, all with layout anchors.</p>
+            <p>Shapes, text, plots, containers — from <code class="inline">Rect</code> and bezier <code class="inline">Path</code> to <code class="inline">PlotCurve</code>, <code class="inline">NumberPlane</code>, <code class="inline">Heatmap</code> and <code class="inline">Glass</code>, all with layout anchors.</p>
           </div>
         </div>
         <div class="row">
           <p class="stat">14</p>
           <div>
             <h3>GPU effects</h3>
-            <p><code class="inline">Blur</code>, <code class="inline">Bloom</code>, <code class="inline">MotionBlur</code>, <code class="inline">Vignette</code>, <code class="inline">ColorGrade</code>… declared as labelled chains in a <code class="inline">Filter</code> scope — keyframeable, nestable, and a pass can read the frame as it looked before the chain ran.</p>
+            <p><code class="inline">Blur</code>, <code class="inline">Bloom</code>, <code class="inline">MotionBlur</code>, <code class="inline">Vignette</code>, <code class="inline">ColorGrade</code>… declared as labelled chains in a <code class="inline">Filter</code> scope — keyframeable, nestable, and a pass can read the frame as it looked before the chain ran. What no chain can reach is the picture <em>underneath</em> a panel: that is the job of the <a href="tour/#s5"><code class="inline">Glass</code></a> scope.</p>
           </div>
         </div>
         <div class="row">
@@ -171,7 +171,7 @@
             <span class="demo-kicker">Hands-on · hover to play</span>
             <span class="hub-title">The language tour</span>
             <span class="hub-blurb">
-              Ten short sections from actors to components — every figure
+              Eleven short sections, from a first actor to imported components — every figure
               editable, so you can change the code and watch the scene take it.
             </span>
             <span class="open">Take the tour</span>
@@ -225,7 +225,7 @@ cargo run -p animatix-gui</pre>
             <a href="https://github.com/j4ger/animatix/blob/main/docs/spec.md">docs/spec.md</a> — the full specification,
             <a href="https://github.com/j4ger/animatix/blob/main/docs/primitives.md">docs/primitives.md</a> — the actor catalog.</p>
           <p><strong>Learn by example:</strong>
-            <a href="https://github.com/j4ger/animatix/tree/main/examples">62 runnable .amx files</a>, from a hello card to a Fourier-epicycles story.</p>
+            <a href="https://github.com/j4ger/animatix/tree/main/examples">59 runnable .amx scenes</a> (plus twelve shared modules), from a hello card to a Fourier-epicycles story.</p>
           <p><strong>Embed on the web:</strong>
             <a href="./README.md">web/README.md</a> — the <code class="inline">&lt;amx-player&gt;</code> attribute reference and hosting notes.</p>
         </div>

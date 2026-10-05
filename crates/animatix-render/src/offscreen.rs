@@ -345,16 +345,16 @@ impl OffscreenRenderer {
             .map(|fb| fb.take_pending_composites())
             .unwrap_or_default();
 
-        for composite in pending {
-            let size = composite.texture.size();
-            self.core.blit_texture_rect(
+        if let Some(backend) = self.filter_backend.as_mut() {
+            let output_texture = self.output_texture.as_ref();
+            drain_pending_layers(
+                &self.core,
                 &self.device,
                 &self.queue,
-                &composite.view,
+                backend,
+                pending,
+                output_texture,
                 output_view,
-                composite.origin,
-                [size.width, size.height],
-                composite.alpha,
             );
         }
         Ok(program)
@@ -382,6 +382,7 @@ impl OffscreenRenderer {
                 queue,
                 filter_backend,
                 view_a,
+                texture_a,
                 ..
             } = self;
             render_timeline_into_view(
@@ -394,6 +395,7 @@ impl OffscreenRenderer {
                 debug_options,
                 filter_backend,
                 view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
+                texture_a.as_ref(),
             )?;
         }
 
@@ -422,6 +424,7 @@ impl OffscreenRenderer {
                 queue,
                 filter_backend_b,
                 view_b,
+                texture_b,
                 ..
             } = self;
             render_timeline_into_view(
@@ -434,6 +437,7 @@ impl OffscreenRenderer {
                 debug_options,
                 filter_backend_b,
                 view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
+                texture_b.as_ref(),
             )?;
         }
 
@@ -519,6 +523,7 @@ impl OffscreenRenderer {
                 queue,
                 filter_backend,
                 view_a,
+                texture_a,
                 ..
             } = self;
             render_timeline_into_view(
@@ -531,6 +536,7 @@ impl OffscreenRenderer {
                 debug_options,
                 filter_backend,
                 view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
+                texture_a.as_ref(),
             )?;
         }
 
@@ -542,6 +548,7 @@ impl OffscreenRenderer {
                 queue,
                 filter_backend_b,
                 view_b,
+                texture_b,
                 ..
             } = self;
             render_timeline_into_view(
@@ -554,6 +561,7 @@ impl OffscreenRenderer {
                 debug_options,
                 filter_backend_b,
                 view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
+                texture_b.as_ref(),
             )?;
         }
 
@@ -815,6 +823,61 @@ impl OffscreenRenderer {
 /// (`render_to_output_texture_inner`), shared with the transition path so
 /// both scenes of a blend keep their `Filter` scopes. Free-standing so a
 /// call site can borrow the core and one backend slot off `self` disjointly.
+/// Composite every queued layer onto `view`, in queue order.
+///
+/// A `Backdrop` layer is served here rather than during evaluation: its input is
+/// the frame that has just been rendered into `target`, and that frame did not
+/// exist while the scene was being built. Order is what keeps a `Glass` panel's
+/// children above its blur — the queue is append-only, so the depth the walk
+/// produced survives the split into separate renders.
+pub fn drain_pending_layers(
+    core: &RendererCore,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    backend: &mut dyn animatix::timeline::effects::FilterBackend,
+    layers: Vec<animatix::timeline::effects::PendingLayer>,
+    target: Option<&wgpu::Texture>,
+    view: &wgpu::TextureView,
+) {
+    use animatix::timeline::effects::PendingLayer;
+    for layer in layers {
+        let composite = match layer {
+            PendingLayer::Composite(composite) => composite,
+            PendingLayer::Backdrop(backdrop) => {
+                let Some(target) = target else {
+                    tracing::warn!("backdrop queued with no render target to read");
+                    continue;
+                };
+                match backend.run_backdrop(target, &backdrop) {
+                    Ok(composite) => composite,
+                    Err(e) => {
+                        tracing::warn!("backdrop pass failed: {e}");
+                        continue;
+                    },
+                }
+            },
+        };
+        let tex = composite.texture.size();
+        let (origin, size) = match composite.clip_rect {
+            Some([x0, y0, x1, y1]) => {
+                ([x0, y0], [(x1 - x0).max(1.0) as u32, (y1 - y0).max(1.0) as u32])
+            },
+            None => (composite.origin, [tex.width, tex.height]),
+        };
+        core.blit_texture_rect_masked(
+            device,
+            queue,
+            &composite.view,
+            view,
+            origin,
+            size,
+            composite.alpha,
+            (composite.corner_radius > 0.0).then_some(composite.corner_radius),
+            composite.src_rect,
+        );
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_timeline_into_view(
     core: &mut RendererCore,
@@ -826,6 +889,7 @@ fn render_timeline_into_view(
     debug_options: DebugRenderOptions,
     backend: &mut Option<GpuFilterBackend>,
     view: &wgpu::TextureView,
+    backdrop_target: Option<&wgpu::Texture>,
 ) -> Result<(), String> {
     if backend.is_none() {
         *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
@@ -840,17 +904,8 @@ fn render_timeline_into_view(
         .map_err(|e| e.to_string())?;
 
     let pending = backend.as_mut().map(|fb| fb.take_pending_composites()).unwrap_or_default();
-    for composite in pending {
-        let size = composite.texture.size();
-        core.blit_texture_rect(
-            device,
-            queue,
-            &composite.view,
-            view,
-            composite.origin,
-            [size.width, size.height],
-            composite.alpha,
-        );
+    if let (Some(backend), Some(target)) = (backend.as_mut(), backdrop_target) {
+        drain_pending_layers(core, device, queue, backend, pending, Some(target), view);
     }
     Ok(())
 }

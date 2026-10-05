@@ -1142,7 +1142,7 @@ impl Primitive for NativePrimitiveAdapter {
 
     /// Native primitives cannot implement the built-in child pipelines, so they
     /// reuse the host's strategy selected by their declared `child_processing`.
-    /// Without this, a plugin declaring `Filter`/`Mask`/`Equation` would fall
+    /// Without this, a plugin declaring `Filter`/`Glass`/`Mask`/`Equation` would fall
     /// back to the generic recursion and silently change behavior.
     fn render_children(
         &self,
@@ -1152,6 +1152,7 @@ impl Primitive for NativePrimitiveAdapter {
         let timeline = ctx.timeline;
         match self.child_processing {
             ChildProcessing::Filter => timeline.render_filter_children_ctx(ctx),
+            ChildProcessing::Glass => timeline.render_glass_children_ctx(ctx),
             ChildProcessing::Mask => timeline.render_mask_children_ctx(ctx),
             ChildProcessing::Equation => timeline.render_equation_children_ctx(ctx),
             ChildProcessing::Generic => ctx.render_children_default(children),

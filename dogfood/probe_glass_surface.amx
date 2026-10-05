@@ -1,0 +1,67 @@
+// probe_glass_surface.amx — what a Glass panel's own surface does inside the frost
+//
+// The frost is a copy of the render target's region, taken *after* the whole
+// main scene is drawn, so the panel's own fill and hairline stroke are inside
+// the pixels that get blurred unless something keeps them out. This scene
+// answers that with numbers rather than opinions, and checks three more things
+// the unit tests cannot see:
+//
+//   A. centre panel (x 360..920, y 240..480), corner_radius 0, a 4 px red
+//      stroke on a child Rect that covers its edge (y 238..242). A crisp red
+//      line proves the child-surface pattern survives the frost; the same
+//      border authored on the scope itself measures (93,27,32). Stripe pitch 80 px / 26 px tall, so contrast at the panel
+//      centre drops measurably when frosted and must NOT drop at (100,100).
+//   B. a solid white child Rect at the centre — must read exactly (255,255,255).
+//   C. a panel flush with the canvas' top-left corner, where the padded sample
+//      region is clamped by the canvas: a dark fringe there is the
+//      transparent-ring artifact, not a design choice.
+//   D. a rounded panel (corner_radius 60) — the pixel just outside the corner
+//      arc must be unblurred stripes.
+//
+// The plate is one full-canvas opaque Rect, so every sampled pixel carries
+// alpha 1 and no transparent-black can bleed into the blur.
+
+config {
+    colorscheme: "ink",
+    resolution: (1280, 720),
+    duration: 6,
+}
+
+plate: Rect, at: (640, 360), size: (1280, 720), color: "#101018", opacity: 1.0
+
+stripes: Group, at: (640, 360) {
+    s1: Rect, size: (1280, 26), at: (0, -240), color: "#ffe600"
+    s2: Rect, size: (1280, 26), at: (0, -160), color: "#ffe600"
+    s3: Rect, size: (1280, 26), at: (0, -80), color: "#ffe600"
+    s4: Rect, size: (1280, 26), at: (0, 0), color: "#ffe600"
+    s5: Rect, size: (1280, 26), at: (0, 80), color: "#ffe600"
+    s6: Rect, size: (1280, 26), at: (0, 160), color: "#ffe600"
+    s7: Rect, size: (1280, 26), at: (0, 240), color: "#ffe600"
+}
+
+card: Glass, at: (640, 360), size: (560, 240), corner_radius: 0 {
+    frost: Blur, radius: 18
+    // The surface is a child, so it composites above the blur: the border must
+    // read as authored red (255,0,0), not the (93,27,32) a scope-level border
+    // smears to (measured 2026-10-05, `git` history's pre-design-B form of this
+    // file is /tmp/probe_glass_surface_scope_surface.amx).
+    edge: Rect, size: (560, 240), color: "#ffffff28",
+      stroke: "#ff0000", stroke_width: 4
+    chip: Rect, size: (60, 20), at: (0, 0), color: "#ffffff"
+}
+
+cornerCard: Glass, at: (0, 0), size: (200, 140), corner_radius: 0, opacity: 1.0 {
+    frostB: Blur, radius: 18
+    veil: Rect, size: (200, 140), color: "#ffffff28"
+}
+
+roundCard: Glass, at: (1080, 600), size: (260, 200), corner_radius: 60, opacity: 1.0 {
+    frostC: Blur, radius: 18
+    veil: Rect, size: (260, 200), corner_radius: 60, color: "#ffffff28"
+}
+
+#0s
+fade-in stripes [1ms, ease: linear]
+fade-in card [1ms, ease: linear]
+fade-in cornerCard [1ms, ease: linear]
+fade-in roundCard [1ms, ease: linear]

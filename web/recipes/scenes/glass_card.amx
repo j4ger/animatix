@@ -1,0 +1,46 @@
+// glass_card.amx — backdrop blur, the one effect that reads as material.
+//
+// A `Filter` scope blurs its own content; nothing in an effect chain can see the
+// picture *underneath* a panel. `Glass` is a container for exactly that: it
+// blurs what the frame already holds behind its rect, then composites its own
+// children above the blur — so a label on the card stays sharp while the plate
+// under it frosts over. The stage that does the frosting is declared like any
+// other effect stage, which means the frost can ramp on a beat.
+import "../../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (640, 360), duration: 6 }
+
+ticker: Group, anchor: scene.center {
+    t1: Rect, size: (280, 9), at: (-260, -70), color: accent.info, corner_radius: 5
+    t2: Rect, size: (280, 9), at: (-260, -35), color: accent.warning, corner_radius: 5
+    t3: Rect, size: (280, 9), at: (-260, 0), color: accent.primary, corner_radius: 5
+    t4: Rect, size: (280, 9), at: (-260, 35), color: accent.info, corner_radius: 5
+    t5: Rect, size: (280, 9), at: (-260, 70), color: accent.warning, corner_radius: 5
+    dot: Ellipse, size: (14, 14), at: (-150, 0), color: text.primary
+}
+
+card: Glass, at: (320, 180), size: (190, 78), corner_radius: 16 {
+    frost: Blur, radius: 0
+    // The card's surface is a child, not the scope's own fill: the frost copies
+    // the finished frame, so a border painted on the scope is inside the blur.
+    surface: Rect, size: (190, 78), corner_radius: 16,
+      color: "#ffffff1f", stroke: "#ffffff33", stroke_width: 1
+    num: Text, text: "1,284", font_size: 30, at: (-70, -12), color: text.primary
+    cap: Text, text: "requests / sec", font_size: 11, at: (-84, 20),
+      color: text.secondary
+}
+
+#0s
+fade-in ticker [400ms, ease: expo-out]
+settle-in card [420ms, ease: expo-out, delay: 120ms]
+
+// The plate keeps moving underneath, which is the only way a backdrop blur
+// reads as blur rather than as a grey rectangle.
+#0.6s
+shift ticker [by: (520, 0), 4.6s, ease: linear]
+
+#1s
+frost.radius = 20 [900ms, ease: ease-in-out]
+
+#4.4s
+frost.radius = 4 [900ms, ease: ease-in-out]

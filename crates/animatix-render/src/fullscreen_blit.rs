@@ -26,17 +26,62 @@ fn main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 }
 "#;
 
+/// Fragment params, 48 bytes, written by [`FullscreenBlitPipeline::write_params`].
+///
+/// A plain composite only uses `alpha`; a backdrop composite also samples a
+/// sub-rectangle of its texture and clips the result to a rounded rect. Both
+/// live in one uniform so the plain path costs nothing extra (its `radius` and
+/// `use_src_rect` stay zero, and the shader then behaves exactly as before).
+const FULLSCREEN_BLIT_PARAMS_WGSL: &str = r#"
+struct BlitParams {
+    alpha: f32,
+    radius: f32,
+    dst_size: vec2<f32>,
+    src_rect: vec4<f32>,
+    use_src_rect: f32,
+};
+"#;
+
 const FULLSCREEN_BLIT_FS: &str = r#"
 @group(0) @binding(0) var src_sampler: sampler;
 @group(0) @binding(1) var src_texture: texture_2d<f32>;
-@group(0) @binding(2) var<uniform> alpha: f32;
+@group(0) @binding(2) var<uniform> params: BlitParams;
 
 @fragment
 fn fs_main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
-    let color = textureSample(src_texture, src_sampler, tex_coord);
-    return vec4<f32>(color.rgb, color.a * alpha);
+    // Sample window: the whole texture by default, or the caller's sub-rect.
+    let dims = vec2<f32>(textureDimensions(src_texture));
+    let full = vec4<f32>(0.0, 0.0, dims.x, dims.y);
+    let rect = select(full, params.src_rect, params.use_src_rect > 0.5);
+    let uv = mix(rect.xy, rect.zw, tex_coord) / dims;
+    let color = textureSample(src_texture, src_sampler, uv);
+
+    var coverage = 1.0;
+    if (params.radius > 0.0) {
+        // Signed distance to a rounded box, in destination pixels. `tex_coord`
+        // spans the render viewport, which is the composite's rect.
+        let half = params.dst_size * 0.5;
+        let r = min(params.radius, min(half.x, half.y));
+        let q = abs(tex_coord * params.dst_size - half) - half + vec2<f32>(r);
+        let d = length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - r;
+        coverage = 1.0 - smoothstep(0.0, 1.0, d);
+    }
+    return vec4<f32>(color.rgb, color.a * params.alpha * coverage);
 }
 "#;
+
+/// How a composite is clipped and which part of its texture it samples.
+///
+/// Both halves exist for the backdrop pass: the blurred texture covers a region
+/// *larger* than the panel (the blur needs pixels from outside the edge), while
+/// only the panel rect is painted, in the panel's own rounded shape.
+pub struct BlitMask {
+    /// Sub-rectangle of the source texture to sample, in texture pixels
+    /// `[x0, y0, x1, y1]`.
+    pub src_rect: [f32; 4],
+    /// Corner radius of the destination rect, in destination pixels.
+    pub corner_radius: f32,
+}
 
 /// GPU state for a fullscreen texture blit.
 pub struct FullscreenBlitPipeline {
@@ -92,7 +137,7 @@ impl FullscreenBlitPipeline {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: Some(std::num::NonZero::new(4).unwrap()),
+                        min_binding_size: Some(std::num::NonZero::new(48).unwrap()),
                     },
                     count: None,
                 },
@@ -109,7 +154,8 @@ impl FullscreenBlitPipeline {
             label: Some("Animatix Fullscreen Blit Shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(format!(
                 "{}\n{}",
-                FULLSCREEN_BLIT_VS, FULLSCREEN_BLIT_FS
+                FULLSCREEN_BLIT_VS,
+                &format!("{FULLSCREEN_BLIT_PARAMS_WGSL}{FULLSCREEN_BLIT_FS}")
             ))),
         });
 
@@ -149,7 +195,7 @@ impl FullscreenBlitPipeline {
 
         let alpha_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Animatix Blit Alpha Uniform"),
-            size: 4, // sizeof(f32)
+            size: 48, // sizeof(BlitParams), padded to the uniform alignment
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -187,6 +233,35 @@ impl FullscreenBlitPipeline {
         );
     }
 
+    /// Write the 48-byte fragment params.
+    ///
+    /// Layout is `alpha, radius, dst_size, src_rect, use_src_rect` — a
+    /// `[f32; 12]` written verbatim, so the WGSL struct and this array must stay
+    /// in the same order.
+    fn write_params(
+        &self,
+        queue: &wgpu::Queue,
+        alpha: f32,
+        mask: Option<&BlitMask>,
+        dst_size: Option<[u32; 2]>,
+    ) {
+        let mut p = [0f32; 12];
+        p[0] = alpha;
+        if let Some(m) = mask {
+            p[1] = m.corner_radius;
+            if let Some([w, h]) = dst_size {
+                p[2] = w as f32;
+                p[3] = h as f32;
+            }
+            p[4] = m.src_rect[0];
+            p[5] = m.src_rect[1];
+            p[6] = m.src_rect[2];
+            p[7] = m.src_rect[3];
+            p[8] = 1.0;
+        }
+        queue.write_buffer(&self.alpha_buffer, 0, bytemuck::cast_slice(&p));
+    }
+
     /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`
     /// pixels (defaults to the full target when `None`). The quad is clipped
     /// and mapped through a render-pass viewport, so no shader change is
@@ -202,7 +277,29 @@ impl FullscreenBlitPipeline {
         dst_size: Option<[u32; 2]>,
         alpha: f32,
     ) {
-        queue.write_buffer(&self.alpha_buffer, 0, bytemuck::bytes_of(&alpha));
+        self.blit_rect_masked_with_encoder(
+            device, queue, encoder, src_view, dst_view, dst_origin, dst_size, alpha, None,
+        );
+    }
+
+    /// Like [`Self::blit_rect_with_encoder`], with an optional rounded-rect
+    /// clip and a sub-rectangle of the source texture to sample. A `Glass`
+    /// backdrop uses both: its texture covers a padded region while only the
+    /// panel's own rect is painted, and the panel's `corner_radius` shapes the
+    /// result.
+    pub fn blit_rect_masked_with_encoder(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: Option<[u32; 2]>,
+        alpha: f32,
+        mask: Option<&BlitMask>,
+    ) {
+        self.write_params(queue, alpha, mask, dst_size);
 
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Animatix Fullscreen Blit Bind Group"),
@@ -248,6 +345,37 @@ impl FullscreenBlitPipeline {
             pass.set_bind_group(0, &bind_group, &[]);
             pass.draw(0..4, 0..1);
         }
+    }
+
+    /// Blit with a rounded-clip and an optional source sub-rect, creating its own
+    /// encoder and submitting immediately. See
+    /// [`Self::blit_rect_masked_with_encoder`].
+    pub fn blit_rect_masked(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: [u32; 2],
+        alpha: f32,
+        mask: Option<&BlitMask>,
+    ) {
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Masked Blit Encoder"),
+        });
+        self.blit_rect_masked_with_encoder(
+            device,
+            queue,
+            &mut encoder,
+            src_view,
+            dst_view,
+            dst_origin,
+            Some(dst_size),
+            alpha,
+            mask,
+        );
+        queue.submit(std::iter::once(encoder.finish()));
     }
 
     /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`.

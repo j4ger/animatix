@@ -350,7 +350,13 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("y_scale", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
     // Appended last on purpose: `PropertyId` is the row index, so new rows go
     // at the end rather than into name order.
-    PropertyDescriptor::new("corner_radius", Applicable::Actors(&["Rect"]), PropertyValueKind::F32),
+    // `Glass` paints no surface, but its radius is not decorative: it is the
+    // rounded clip the backdrop is blitted through.
+    PropertyDescriptor::new(
+        "corner_radius",
+        Applicable::Actors(&["Rect", "Glass"]),
+        PropertyValueKind::F32,
+    ),
     PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
     PropertyDescriptor::new("dash_offset", Applicable::AllStrokePaths, PropertyValueKind::F32),
     PropertyDescriptor::new("dash_pattern", Applicable::AllStrokePaths, PropertyValueKind::Generic),

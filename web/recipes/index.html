@@ -13,7 +13,7 @@
   <div class="wrap">
     <header>
       <p class="kicker">Animatix · recipes</p>
-      <h1>Eight moves, not eight features.</h1>
+      <h1>Nine moves, not nine features.</h1>
       <p class="lede">
         A scene reads as alive for reasons that are small and combinable: the
         plate is lit rather than flat, something keeps moving after the
@@ -155,6 +155,25 @@
             bars, and <code class="inline">max_value: auto</code> normalises the
             tallest bar every frame, which hides a growing maximum.</span>
           <a class="src" href="./scenes/bar_race.amx">bar_race.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <figure>
+        <h3>The glass card</h3>
+        <amx-player src="./scenes/glass_card.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="A panel that frosts the moving plate behind it, not its own label"></amx-player>
+        <figcaption>
+          <span class="cap"><code class="inline">Filter</code> can only blur what
+            is <em>inside</em> the scope; a card that frosts the picture behind it
+            needs <code class="inline">Glass</code>, a container whose chain reads
+            the render target. The panel's own children composite above the blur,
+            so the number on the card stays sharp while the plate under it smears
+            — and <code class="inline">corner_radius</code> shapes the frost, not
+            just the fill. One limit comes with it: anything declared
+            <em>after</em> the panel that overlaps it is inside the blurred copy,
+            so what must stay sharp goes inside the scope.</span>
+          <a class="src" href="./scenes/glass_card.amx">glass_card.amx ↗</a>
         </figcaption>
       </figure>
     </div>

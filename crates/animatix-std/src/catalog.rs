@@ -80,6 +80,12 @@ const PLOT_CAPS: PrimitiveCapabilities =
     caps(false, true, false, false, true, true, true, false, false, false);
 const CONTAINER_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, false, false, true, false);
+/// `Glass` is a container with a rectangular *region*, not a rectangular
+/// surface: `layout_container` and the shape bits are what keep `size` and
+/// `corner_radius` (the frosted clip) applicable, while `vector_paths` stays
+/// false because the scope itself draws nothing — the card is its child.
+const GLASS_CAPS: PrimitiveCapabilities =
+    caps(false, false, false, true, false, false, false, false, true, true);
 const GROUP_CAPS: PrimitiveCapabilities =
     caps(false, false, false, false, false, false, false, false, true, false);
 const NO_CAPS: PrimitiveCapabilities =
@@ -177,6 +183,13 @@ impl PrimitiveInfo {
     /// Override the child-processing strategy (`Mask`/`Filter`/`Equation`).
     pub const fn with_child_processing(mut self, kind: ChildProcessingKind) -> Self {
         self.child_processing = kind;
+        self
+    }
+
+    /// Attach a shape geometry variant to a card that is not declared through
+    /// [`PrimitiveInfo::shape`], so a container can draw a surface of its own.
+    pub const fn with_shape(mut self, kind: ShapeKind) -> Self {
+        self.shape = Some(kind);
         self
     }
 }
@@ -306,6 +319,20 @@ pub static FILTER: PrimitiveInfo = PrimitiveInfo::new(
     CONTAINER_CAPS,
 )
 .with_child_processing(ChildProcessingKind::Filter);
+/// A backdrop-blur scope: whatever the frame holds behind its rect is blurred
+/// and the scope's children composite above that blur. It draws no surface of
+/// its own — the frost samples the finished frame, so a fill or border on the
+/// scope itself would be inside the pixels that get blurred. Its `size` is the
+/// frosted region and its `corner_radius` is what that region is clipped to.
+pub static GLASS: PrimitiveInfo = PrimitiveInfo::new(
+    "Glass",
+    "Glass",
+    icon_glyphs::SQUARES_FOUR,
+    ActorCategory::Container,
+    GLASS_CAPS,
+)
+.with_shape(ShapeKind::Rect)
+.with_child_processing(ChildProcessingKind::Glass);
 pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     "Equation",
     "Equation",
@@ -380,6 +407,7 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     &GROUP,
     &MASK,
     &FILTER,
+    &GLASS,
     &EQUATION,
     // Equation fragment sub-item
     &FRAGMENT,

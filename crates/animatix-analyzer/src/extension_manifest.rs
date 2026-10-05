@@ -710,6 +710,7 @@ fn parse_child_processing(value: &str) -> Option<ChildProcessingKind> {
     match value.trim() {
         "Generic" => Some(ChildProcessingKind::Generic),
         "Filter" => Some(ChildProcessingKind::Filter),
+        "Glass" => Some(ChildProcessingKind::Glass),
         "Mask" => Some(ChildProcessingKind::Mask),
         "Equation" => Some(ChildProcessingKind::Equation),
         _ => None,
@@ -761,6 +762,7 @@ fn output_child_processing(kind: ChildProcessingKind) -> Option<&'static str> {
     match kind {
         ChildProcessingKind::Generic => None,
         ChildProcessingKind::Filter => Some("Filter"),
+        ChildProcessingKind::Glass => Some("Glass"),
         ChildProcessingKind::Mask => Some("Mask"),
         ChildProcessingKind::Equation => Some("Equation"),
     }

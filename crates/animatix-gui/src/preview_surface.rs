@@ -207,16 +207,17 @@ impl PreviewSurface {
             .map(|fb| fb.take_pending_composites())
             .unwrap_or_default();
 
-        for composite in pending {
-            let size = composite.texture.size();
-            self.renderer.blit_texture_rect(
+        if let (Some(backend), Some(target)) =
+            (self.filter_backend.as_mut(), self.render_texture.as_ref())
+        {
+            animatix_render::offscreen::drain_pending_layers(
+                &self.renderer,
                 device,
                 queue,
-                &composite.view,
+                backend,
+                pending,
+                Some(target),
                 render_view,
-                composite.origin,
-                [size.width, size.height],
-                composite.alpha,
             );
         }
 

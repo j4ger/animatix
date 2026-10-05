@@ -21,7 +21,10 @@ pub use animatix_std::{
     effect_for_type, pack_generic, plugin_effects, register_extension_effect,
     unregister_extension_effect,
 };
-pub use chain::{EffectChain, EffectInstance, EffectRegion, FilterBackend, PendingComposite};
+pub use chain::{
+    EffectChain, EffectInstance, EffectRegion, FilterBackend, PendingBackdrop, PendingComposite,
+    PendingLayer,
+};
 pub use track::{
     EffectChainTrack, EffectStage, effect_property_kind, identity_to_property, sample_params,
     value_to_property,

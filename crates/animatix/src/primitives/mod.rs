@@ -747,6 +747,8 @@ mod mask;
 pub use mask::MASK;
 mod filter;
 pub use filter::FILTER;
+mod glass;
+pub use glass::GLASS;
 mod registry;
 pub use registry::{PrimitiveRegistrationError, PrimitiveRegistry};
 
@@ -1655,6 +1657,7 @@ pub static BUILT_INS: &[BuiltIn] = &[
     BuiltIn::new(&animatix_std::catalog::GROUP, &GROUP),
     BuiltIn::new(&animatix_std::catalog::MASK, &MASK),
     BuiltIn::new(&animatix_std::catalog::FILTER, &FILTER),
+    BuiltIn::new(&animatix_std::catalog::GLASS, &GLASS),
     BuiltIn::new(&animatix_std::catalog::EQUATION, &EQUATION),
     // Equation / Fragment
     BuiltIn::new(&animatix_std::catalog::FRAGMENT, &FRAGMENT),

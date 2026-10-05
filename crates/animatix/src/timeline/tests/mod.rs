@@ -27,6 +27,8 @@ mod colorscheme;
 #[cfg(test)]
 mod container_helpers;
 #[cfg(test)]
+mod glass;
+#[cfg(test)]
 mod keyframe_times;
 #[cfg(test)]
 mod layout;

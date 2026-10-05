@@ -102,8 +102,44 @@ impl RendererCore {
         dst_size: [u32; 2],
         alpha: f32,
     ) {
+        self.blit_texture_rect_masked(
+            device, queue, src_view, dst_view, dst_origin, dst_size, alpha, None, None,
+        );
+    }
+
+    /// Blit a rect with an optional rounded clip and an optional sub-rectangle
+    /// of the source texture to sample. A `Glass` backdrop composite needs both:
+    /// its texture covers a padded region while only the panel rect is painted.
+    pub fn blit_texture_rect_masked(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        src_view: &wgpu::TextureView,
+        dst_view: &wgpu::TextureView,
+        dst_origin: [f32; 2],
+        dst_size: [u32; 2],
+        alpha: f32,
+        corner_radius: Option<f32>,
+        src_rect: Option<[f32; 4]>,
+    ) {
+        let mask = match (corner_radius, src_rect) {
+            (None, None) => None,
+            _ => Some(crate::fullscreen_blit::BlitMask {
+                src_rect: src_rect.unwrap_or([0.0, 0.0, 0.0, 0.0]),
+                corner_radius: corner_radius.unwrap_or(0.0),
+            }),
+        };
         if let Some(ref blit) = self.blit {
-            blit.blit_rect(device, queue, src_view, dst_view, dst_origin, dst_size, alpha);
+            blit.blit_rect_masked(
+                device,
+                queue,
+                src_view,
+                dst_view,
+                dst_origin,
+                dst_size,
+                alpha,
+                mask.as_ref(),
+            );
         }
     }
 

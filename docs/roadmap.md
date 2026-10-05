@@ -164,11 +164,17 @@ original, so a second effect over the same math would be a duplicate — an N-wa
 mix would need named intermediate chain outputs, which is a chain-model change
 rather than another input texture.
 
-What is left in this family is **`glass` / backdrop-blur**, still not scheduled:
-it needs the main vello target as an input source, which ABI v2 does not provide
-(the filter backend renders its own sub-scenes; `offscreen.rs` never feeds the
-live target back), plus mid-frame scene splitting and non-rectangular regions
-(`EffectRegion` is a plain rect), and compositing *below* the scope's children.
+What is left in this family after `Glass` shipped (2026-10-05,
+`docs/spec.md` "Glass"): the backdrop pass reads the live render target, so a
+scope's children can only ever composite **above** the frost — there is no way to
+put content *underneath* it — and every `Glass` scope costs its own region copy +
+chain run + two composites, with no merging between scopes (`n` panels are `n+1`
+passes over their regions). `EffectRegion` is still a plain rect; the rounded
+panel clip is a signed-distance term in the blit shader, so any other
+non-rectangular scope shape still wants real region masks. And the root loop's
+`can_post_composite_filter` rule ("nothing may render after me") still forces
+`Filter` scopes that are not last onto the inline readback path — `Glass` no
+longer inherits that restriction, but the filter side of it is unchanged.
 
 ## Morph: `strategy: fade` has no cross-fade for state shapes
 

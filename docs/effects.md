@@ -248,6 +248,36 @@ the next pass on every driver (probe 009); a submit boundary is a portable
 synchronisation point. Do not merge passes into one encoder without driver
 evidence.
 
+### 4.7 The backdrop seed (`Glass`)
+
+Every pass contract above assumes the chain's seed is the scope's *own* content:
+the sub-scene rendered into the backend's targets, optionally re-read at binding 5
+as it looked before the chain. A backdrop blur needs the opposite seed — the
+pixels the frame already put under the scope's rect — and no binding can carry
+them, because during evaluation the main target has not been rendered yet.
+
+So the split happens *after* the frame. `ChildProcessingKind::Glass` records two
+layers in declaration order (`FilterBackend::enqueue_backdrop`, then
+`enqueue_scene_composite` for the scope's children), and the renderer's
+`drain_pending_layers` runs them once the main scene is on the output texture:
+
+1. `run_backdrop(target, backdrop)` clears a region-sized scratch, copies the
+   scope's **padded** region out of the finished target into it, and hands that
+   copy to the ordinary chain machinery (`run_chain_passes`) — the chain itself
+   does not know its seed came from outside the scope.
+2. The result is blitted back through `take_pending_composites`, clipped to the
+   panel's rect and rounded by the blit shader's signed-distance `coverage`, and
+   sampling only the panel's window of the padded texture (`src_rect`) — which is
+   why the padding exists: the blur reads real pixels at the edges instead of the
+   region border.
+3. The children's composite follows immediately, so they sit above the frost.
+
+Consequences worth naming: the frost therefore contains *everything* under the
+rect regardless of paint order (the only way to be above it is to be a child of
+the scope), a `Glass` scope paints no surface of its own for exactly that reason,
+and each scope costs one region copy plus one chain run plus two composites. The
+copy, the clear and each chain pass keep their own submit boundaries, per §4.6.
+
 ## 5. Failure policy
 
 - **No GPU backend:** effects are skipped, the content children render
@@ -287,9 +317,10 @@ the same staleness hazard, and both are deliberately bypassed rather than keyed:
 against whatever is behind it in the scene, with no offscreen texture and no GPU
 pass. Known limits worth revisiting: the layer is full-surface rather than the
 node's bounds, `blend` on `Filter`/`Mask` scopes is untested, and there is no
-per-actor `Compose` control (only `Mix` names are parsed). A true backdrop blur
-(`glass`) still needs mid-frame scene splitting — see §4.1-§4.2 and the parked
-item in `handoff_motion_vocab.md`.
+per-actor `Compose` control (only `Mix` names are parsed). A backdrop blur is not
+part of the effect pipeline either: it is the `Glass` scope, whose chain runs on a
+copy of the live render target rather than on the scope's own sub-scene (§4.7), so
+no chain input can ever express it — see `docs/spec.md` ("Glass").
 
 ## 7. Plugin authoring (implemented, ABI snapshot 9)
 

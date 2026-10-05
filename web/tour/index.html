@@ -13,7 +13,7 @@
   <div class="wrap">
     <header>
       <p class="kicker">Animatix · the language</p>
-      <h1>Ten scenes, start to finish</h1>
+      <h1>Eleven scenes, start to finish</h1>
       <p class="lede">
         Every capability of <code class="inline">.amx</code>, one short section
         at a time. Each figure is a live scene compiling in your browser as you
@@ -203,6 +203,36 @@ panel.glow.intensity = <span class="num">1.0</span> [<span class="num">0.5s</spa
             parameters, plus
             <code class="inline">shake</code>/<code class="inline">pulse</code> on the chip.</span>
           <a class="src" href="scenes/effects.amx">scenes/effects.amx ↗</a>
+        </figcaption>
+      </figure>
+
+      <p>
+        One thing no chain can reach is the picture <em>underneath</em> the
+        scope: an effect reads its own content, never the plate behind it.
+        <code class="inline">Glass</code> is the scope for that — it copies the
+        region of the finished frame behind its own rect, runs a chain on the
+        copy, and paints it back inside the panel's rounded corners. It paints
+        nothing itself, so the card you see is its first child and the label on
+        it stays sharp.
+      </p>
+      <pre>card: <span class="prop">Glass</span>, at: (<span class="num">640</span>, <span class="num">360</span>), size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span> {
+  frost: <span class="prop">Blur</span>, radius: <span class="num">0</span>
+  surface: <span class="prop">Rect</span>, size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span>,
+    color: <span class="str">"#ffffff1f"</span>, stroke: <span class="str">"#ffffff59"</span>, stroke_width: <span class="num">1.5</span>
+  heading: <span class="prop">Text</span>, text: <span class="str">"Backdrop blur"</span>, font_size: <span class="num">46</span>
+}
+
+<span class="at">#1.8s</span>
+frost.radius = <span class="num">22</span> [<span class="num">900ms</span>, ease: <span class="str">ease-in-out</span>]</pre>
+      <figure class="tour-embed" data-editable>
+        <amx-player src="scenes/glass.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="A Glass scope frosting the plate behind it"></amx-player>
+        <figcaption>
+          <span class="cap">The bars travel under the panel while
+            <code class="inline">frost.radius</code> ramps to 22 and back — the
+            blur eats the plate, never the card's border or its text, because
+            both are children of the scope.</span>
+          <a class="src" href="scenes/glass.amx">scenes/glass.amx ↗</a>
         </figcaption>
       </figure>
     </section>
