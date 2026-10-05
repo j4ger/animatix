@@ -363,3 +363,47 @@ This came out of closing the last open item of the phase-2 gallery handoff
 `crates/animatix/tests/applicability_table_agrees_with_reads.rs` — the generic
 test in that file cannot see BarChart, because the chart's properties are read by
 the shared plot builder rather than by a file in `src/primitives/`.
+
+## Motion-vocabulary round — what it left open (2026-10-05)
+
+The round itself is recorded in [`history.md`](history.md) ("The Motion-Vocabulary
+Round — Landed Work"). Four things are still owed, and none of them is a feature
+the language is missing:
+
+- **Continuous `font_weight` on the plain-text fast path.** The Typst path instances
+  the Open Sans `wght` axis; the fast path resolves a static face, because
+  `ttf-parser` reads `fvar`/`gvar` and never applies the deltas. Doing it means
+  either pre-instancing N static weights offline (the axis range is 300–800, so
+  `Regular`/`Medium`/`Bold` would cover what authors ask for) or moving the fast
+  path's outline extraction onto `skrifa`, which owns variation instances. Until
+  then the slim web embed steps, and `docs/spec.md` says so.
+- **Two analyzer/engine perf residuals** against the 2026-10-02 baseline:
+  `analyzer_update__small` +10.4% (116.8 → 129.0 µs, tight within-run spread) and
+  `property_plan_lookup_and_sample` +17.3% on a 9.8 ns bench, reproduced in
+  isolation. Both are small-input fixed costs; `analyzer_update/large` (-15.3%)
+  and `/dogfood` (-11.8%) got *faster* on the same code. The next probe is an
+  env-gated stage timer inside `Analyzer::update` for a `00_hello.amx`-sized
+  fixture — no profiler exists on this box (`perf`/`valgrind` both absent).
+- **The site content redo beyond the review pass.** Landed so far: the tour's
+  §05 `Glass` figure, §06 "Light & camera", the nine-scene recipes gallery, and a
+  count sweep that re-derived every vocabulary number on the pages from the source
+  tables. Still open is the larger design question — `docs/handoff_web_redesign.md`
+  is the locked direction — not a missing feature.
+- **Scope containers that paint nothing still accept paint properties.** `color`
+  is `Applicable::Everything` and `fill_opacity` is `AllShapesExceptLine`, so a
+  `Glass` (or `Filter`) scope that sets them compiles clean and draws nothing —
+  a silent drop of exactly the kind batch 3 warned about, arriving from the other
+  direction. The fix is an exclusion predicate on `Applicable` (there is no
+  `Except(&[…])` today) plus rows that use it; `stroke_width` already lists
+  actors by name and dropped `Glass` cleanly when the surface went.
+- **The `property → ActorField` table is still copied three times** in
+  `timeline/dispatch.rs` (`has_keyframe_at` :1247, `has_keyframes_for` :1308,
+  `list_keyframes` :1408), verified identical apart from the fall-through arm.
+  `is_property_animated` avoided a fourth copy by resolving through the runtime
+  `property_registry::lookup_property(…).field`, which is the shape all three
+  should fold into. Deferred rather than dropped: these sit on the keyframe query
+  path, so the fold needs the frame benches, and the round's remaining budget went
+  to features a user can see.
+- **`web/demos/posters/*.png`.** Eight 1280×720 stills nothing references since the
+  hub switched to live `data-hoverplay` embeds; `web/README.md` says so. Deleting
+  them is the owner's call, so they stay.
