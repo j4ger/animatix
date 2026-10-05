@@ -65,8 +65,8 @@ the page.
 The demo pages serve the playback-only profile, so build **both** or just slim:
 
 ```bash
-scripts/build-web.sh --slim          # playback-only (~5.0 MB raw / 1.6 MB brotli)
-scripts/build-web.sh                 # full profile  (~29.0 MB raw / 8.2 MB brotli)
+scripts/build-web.sh --slim          # playback-only (~5.5 MB raw / ~1.7 MB brotli)
+scripts/build-web.sh                 # full profile  (~29.1 MB raw / ~8.5 MB brotli)
 python3 scripts/serve-web.py 8124    # serves web/ with application/wasm + .br
 # open http://127.0.0.1:8124/
 ```
@@ -118,7 +118,7 @@ time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
 The seven demo scenes use plain text only, so they run on the slim engine —
-1.6 MB over the wire instead of 8.2 MB. The transformer and gallery pages
+~1.7 MB over the wire instead of ~8.5 MB. The transformer and gallery pages
 still point `data-runtime-base` at `pkg-slim` (the legacy exact-directory
 form) and the other demo pages rely on the default; new pages don't need the
 attribute at all — an embed without `profile` uses slim. The
@@ -137,7 +137,7 @@ Deploying is the same story: run the build script, copy `web/` (plus the
 touches `web/`, the wasm crate, or the build script: it builds **both** engine
 profiles, assembles `web/` + `pkg-slim/` + `pkg/` into the artifact (dropping
 the `.br` twins — Pages does not negotiate brotli, so the raw wasm is what
-gets served; slim is ~5 MB, which is why the site's live figures all play on
+gets served; slim is ~5.5 MB, which is why the site's live figures all play on
 the slim profile), and deploys via `actions/deploy-pages`. The wasm-bindgen-cli
 version CI installs is read from the pin in `crates/animatix-web/Cargo.toml`,
 so bumping that pin is the only version bump needed. Pages itself must be
@@ -439,7 +439,7 @@ The default build carries the full feature set (Typst rich text, raster
 decoding, SVG). A playback-only profile compiles those out — Text falls back
 to the plain fast path (no markup/Code highlighting/Math, non-Latin scripts
 need a system font), image/SVG assets report diagnostics, and the wasm drops
-from **29.0 MB to 5.0 MB raw / 8.2 MB to 1.6 MB brotli** (the build script
+from **29.1 MB to 5.5 MB raw / 8.5 MB to 1.7 MB brotli** (the build script
 prints the sizes it actually produced; the numbers here move whenever the
 player gains features):
 
