@@ -44,6 +44,10 @@ web/pkg/, web/pkg-slim/      build output (gitignored)
 scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
 scripts/serve-web.py         local static server with brotli negotiation
 .github/workflows/pages.yml  deploys web/ + both engine builds to GitHub Pages
+crates/animatix-web/tests/site_scenes.rs
+                             builds every scene an <amx-player> on these pages
+                             references, through the embed's own fetch protocol,
+                             in the profile that player asks for (both profiles)
 ```
 
 ### Live figure editors

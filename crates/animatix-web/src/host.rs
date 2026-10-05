@@ -375,6 +375,7 @@ mod tests {
     /// A web build that pre-seeds the asset cache must satisfy an `Image`
     /// actor's build-time load from memory: the sandbox has no filesystem, so
     /// without the pre-seed this same scene fails with `MediaLoadFailure`.
+    #[cfg(feature = "image-decode")]
     #[test]
     fn preseeded_asset_cache_satisfies_build_time_loads() {
         let png: &[u8] = include_bytes!("../../../examples/assets/checker.png");
@@ -408,6 +409,7 @@ fade-in pic [300ms]
 
     /// Same for an `Svg` actor: the pre-registered source must satisfy the
     /// build-time parse.
+    #[cfg(feature = "svg")]
     #[test]
     fn preseeded_svg_source_satisfies_build_time_parse() {
         let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><circle cx="40" cy="40" r="30" fill="tomato"/></svg>"#;

@@ -12,12 +12,16 @@
 <body>
   <h1>SVG probe (<span id="profile">?</span> profile)</h1>
   <pre id="report">waiting…</pre>
-  <amx-player src="scene.amx" autoplay loop title="SVG probe"></amx-player>
+  <amx-player src="scene.amx" profile="full" autoplay loop title="SVG probe"></amx-player>
 
   <!-- ?profile=slim switches to the slim runtime; default is full -->
   <script>
     const slim = new URLSearchParams(location.search).get("profile") === "slim";
     document.getElementById("profile").textContent = slim ? "slim" : "full";
+    // The element names the profile it plays under, so the switch moves both
+    // the runtime directory and the element: an `Svg` actor is not registered
+    // in the slim build at all, and asking for it is what this probe checks.
+    if (slim) document.querySelector("amx-player").removeAttribute("profile");
     const loader = document.createElement("script");
     loader.type = "module";
     loader.src = "../../embed/amx-player.js";
