@@ -23,6 +23,7 @@ use animatix_syntax::parser::parse_source;
 
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
+use animatix_render::offscreen::drain_pending_layers;
 use animatix_render::transition::TransitionCompositor;
 
 use crate::host;
@@ -1063,6 +1064,7 @@ fn render_document(
                     device,
                     queue,
                     &from.view,
+                    &from.texture,
                     timeline,
                     local_time_s,
                     dims,
@@ -1103,6 +1105,7 @@ fn render_document(
                 device,
                 queue,
                 &from.view,
+                &from.texture,
                 from_timeline,
                 blend.from_local,
                 dims,
@@ -1115,6 +1118,7 @@ fn render_document(
                 device,
                 queue,
                 &to.view,
+                &to.texture,
                 to_timeline,
                 to_local,
                 dims,
@@ -1143,6 +1147,7 @@ fn render_document(
                 device,
                 queue,
                 &from.view,
+                &from.texture,
                 timeline,
                 time_s,
                 dims,
@@ -1338,6 +1343,7 @@ fn render_timeline(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     view: &wgpu::TextureView,
+    target: &wgpu::Texture,
     timeline: &Timeline,
     time_s: f64,
     dims: SceneDimensions,
@@ -1358,23 +1364,15 @@ fn render_timeline(
         .as_mut()
         .map(|fb| fb.take_pending_composites())
         .unwrap_or_default();
+    // The same tail the GUI and the export path run: filter composites, plus a
+    // `Glass` scope's backdrop (read out of `target`) and its children above it.
+    // The web target is rasterised at `dims * scale` while the timeline evaluated
+    // against `dims`, so the drain is what applies the scale — including to the
+    // backdrop region, which is why it receives `scale` rather than being
+    // pre-scaled here.
     let s = scale.clamp(MIN_RENDER_SCALE, 1.0);
-    for composite in pending {
-        let size = composite.texture.size();
-        let origin = [composite.origin[0] * s, composite.origin[1] * s];
-        let scaled = [
-            ((size.width as f32 * s).round() as u32).max(1),
-            ((size.height as f32 * s).round() as u32).max(1),
-        ];
-        core.blit_texture_rect(
-            device,
-            queue,
-            &composite.view,
-            view,
-            origin,
-            scaled,
-            composite.alpha,
-        );
+    if let Some(fb) = filter_backend.as_mut() {
+        drain_pending_layers(core, device, queue, fb, pending, Some(target), view, s);
     }
     Ok(())
 }

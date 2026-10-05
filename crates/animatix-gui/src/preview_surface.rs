@@ -218,6 +218,7 @@ impl PreviewSurface {
                 pending,
                 Some(target),
                 render_view,
+                1.0,
             );
         }
 

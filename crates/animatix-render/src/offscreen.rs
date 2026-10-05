@@ -355,6 +355,7 @@ impl OffscreenRenderer {
                 pending,
                 output_texture,
                 output_view,
+                1.0,
             );
         }
         Ok(program)
@@ -838,18 +839,40 @@ pub fn drain_pending_layers(
     layers: Vec<animatix::timeline::effects::PendingLayer>,
     target: Option<&wgpu::Texture>,
     view: &wgpu::TextureView,
+    scale: f32,
 ) {
-    use animatix::timeline::effects::PendingLayer;
+    use animatix::timeline::effects::{EffectRegion, PendingLayer};
+    let scale_region = |r: EffectRegion, s: f32| EffectRegion {
+        origin: [r.origin[0] * s, r.origin[1] * s],
+        size: SceneDimensions {
+            width: ((r.size.width as f32 * s).round() as u32).max(1),
+            height: ((r.size.height as f32 * s).round() as u32).max(1),
+        },
+    };
     for layer in layers {
-        let composite = match layer {
-            PendingLayer::Composite(composite) => composite,
+        // `s` is the factor still to apply when the composite is blitted. A
+        // backdrop is scaled *before* its pass runs — the region is read out of
+        // the target at the target's own resolution — so its result already
+        // speaks target pixels and must not be scaled twice.
+        let (composite, s) = match layer {
+            PendingLayer::Composite(composite) => (composite, scale),
             PendingLayer::Backdrop(backdrop) => {
                 let Some(target) = target else {
                     tracing::warn!("backdrop queued with no render target to read");
                     continue;
                 };
+                let backdrop = if (scale - 1.0).abs() > f32::EPSILON {
+                    animatix::timeline::effects::PendingBackdrop {
+                        region: scale_region(backdrop.region, scale),
+                        clip: scale_region(backdrop.clip, scale),
+                        corner_radius: backdrop.corner_radius * scale,
+                        ..backdrop
+                    }
+                } else {
+                    backdrop
+                };
                 match backend.run_backdrop(target, &backdrop) {
-                    Ok(composite) => composite,
+                    Ok(composite) => (composite, 1.0),
                     Err(e) => {
                         tracing::warn!("backdrop pass failed: {e}");
                         continue;
@@ -859,11 +882,23 @@ pub fn drain_pending_layers(
         };
         let tex = composite.texture.size();
         let (origin, size) = match composite.clip_rect {
-            Some([x0, y0, x1, y1]) => {
-                ([x0, y0], [(x1 - x0).max(1.0) as u32, (y1 - y0).max(1.0) as u32])
-            },
-            None => (composite.origin, [tex.width, tex.height]),
+            Some([x0, y0, x1, y1]) => (
+                [x0 * s, y0 * s],
+                [
+                    (((x1 - x0) * s).round() as u32).max(1),
+                    (((y1 - y0) * s).round() as u32).max(1),
+                ],
+            ),
+            None => (
+                [composite.origin[0] * s, composite.origin[1] * s],
+                [
+                    ((tex.width as f32 * s).round() as u32).max(1),
+                    ((tex.height as f32 * s).round() as u32).max(1),
+                ],
+            ),
         };
+        let src_rect = composite.src_rect.map(|[x0, y0, x1, y1]| [x0 * s, y0 * s, x1 * s, y1 * s]);
+        let radius = composite.corner_radius * s;
         core.blit_texture_rect_masked(
             device,
             queue,
@@ -872,8 +907,8 @@ pub fn drain_pending_layers(
             origin,
             size,
             composite.alpha,
-            (composite.corner_radius > 0.0).then_some(composite.corner_radius),
-            composite.src_rect,
+            (radius > 0.0).then_some(radius),
+            src_rect,
         );
     }
 }
@@ -905,7 +940,7 @@ fn render_timeline_into_view(
 
     let pending = backend.as_mut().map(|fb| fb.take_pending_composites()).unwrap_or_default();
     if let (Some(backend), Some(target)) = (backend.as_mut(), backdrop_target) {
-        drain_pending_layers(core, device, queue, backend, pending, Some(target), view);
+        drain_pending_layers(core, device, queue, backend, pending, Some(target), view, 1.0);
     }
     Ok(())
 }

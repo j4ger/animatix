@@ -52,6 +52,22 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    cargo test -p animatix --lib -- --test-threads=1   # Core library tests pass (serial avoids WGPU teardown SIGSEGV)
    cargo test --no-fail-fast -- --test-threads=1      # All tests across workspace
    ```
+   The `--workspace` commands do not cover the wasm player: `animatix-web`'s render
+   module is `#[cfg(target_arch = "wasm32")]`, so a change to the frame-presenting
+   path can compile everywhere and still break the site. Check it too whenever
+   `FilterBackend`, `RendererCore`, `offscreen.rs` or `animatix-web` changes:
+
+   ```bash
+   nix develop .#web-build --command \
+     cargo check -p animatix-web --target wasm32-unknown-unknown
+   ```
+
+   (`env -i` if your shell already loaded a dev shell — see the `.#web-build`
+   PATH note in `flake.nix`: the outer `rustc` wins and reports no wasm32 std.)
+
+   The slim feature set deserves the same treatment: `cargo clippy -p animatix \
+   --no-default-features --all-targets -D warnings` is the only thing that looks at
+   the profile the web playback build uses.
    Do not commit with build errors or test failures.
 
    > **Why `--workspace --all-targets`?** Ensures all crates (including GUI, analyzer, LSP) and all targets compile. Prevents silent drift between core and tooling crates. **Why clippy here?** `cargo check` does not surface lint-level problems, and the CI `clippy` job fails the build on warnings — running it locally keeps that job green instead of discovering lints after the push. **Run the `--workspace` commands inside `nix develop`** — the GUI's audio stack builds against system ALSA headers the dev shell provides (see Common Pitfalls).
