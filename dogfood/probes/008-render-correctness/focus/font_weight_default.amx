@@ -1,11 +1,18 @@
 // focus: verify bold renders with the DEFAULT bundled Open Sans (pixel-diff A/B)
+//
+// The Typst actors cover the typst path; the Text actors below cover the
+// plain-text fast path, which resolved a bundled family by taking its first
+// face and so drew regular for every weight until 2026-10-05.
 config { resolution: (1280, 720) }
 
 #0s
+treg: Text, text: "BOLDCHECK", at: (300, 100), font_size: 64, color: (1, 1, 1, 1)
+tbol: Text, text: "BOLDCHECK", at: (780, 100), font_size: 64, font_weight: 700, color: (1, 1, 1, 1)
+
 reg: Typst, at: (300, 240), text: "BOLDCHECK", font_size: 64, color: (1, 1, 1, 1)
 bol: Typst, at: (780, 240), text: "BOLDCHECK", font_size: 64, font_weight: 700, color: (1, 1, 1, 1)
 ital: Typst, at: (300, 480), text: "ITALCHECK", font_size: 64, font_style: "italic", color: (1, 1, 1, 1)
 reg2: Typst, at: (780, 480), text: "ITALCHECK", font_size: 64, color: (1, 1, 1, 1)
 
 #0s
-stagger [50ms] { fade-in reg [100ms] fade-in bol [100ms] fade-in ital [100ms] fade-in reg2 [100ms] }
+stagger [50ms] { fade-in reg [100ms] fade-in bol [100ms] fade-in ital [100ms] fade-in reg2 [100ms] fade-in treg [100ms] fade-in tbol [100ms] }

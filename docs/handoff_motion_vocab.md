@@ -1,18 +1,22 @@
 # Handoff — the motion-vocabulary round
 
-> **STATUS: IN PROGRESS (2026-10-04, sixth session).** M1 (#1-#11), M2 (#12-#16)
-> and M3 (#17-#20) are complete, and M4 is now down to one item: #21 (the
-> second-input-texture ABI bump, `Bloom`, soft `DropShadow`) and #23 (the BarChart
-> race) have both landed. So have the site's recipes gallery (now eight scenes —
-> `bar_race` is the newest), the tour's new "Light & camera" section, the
-> authored-bounds camera gap, a delayed `camera.zoom` bug the new tests surfaced,
-> the `always-overrides-keyframes` false positive, and the `unused-label` false
-> positive that batch 5 left open (cause: `SymbolTable::merge` flattens an
-> import's labels but not its references). **#25 is answered rather than open**:
-> the vello pin cannot move until wgpu moves 29→30 workspace-wide, and the probe
-> that guards it asserts now instead of printing numbers to be read. What remains
-> is #22 (glass) and #24 (variable weights — three changes, not one; see its
-> row), the camera's two real follow-ups, an open +10.7% on one analyzer bench,
+> **STATUS: IN PROGRESS (sixth session, 2026-10-04 into 10-05).** M1 (#1-#11),
+> M2 (#12-#16) and M3 (#17-#20) are complete, and M4 is down to one item: #21
+> (the second-input-texture ABI bump, `Bloom`, soft `DropShadow`) and #23 (the
+> BarChart race) have both landed. So have the site's recipes gallery (now eight
+> scenes — `bar_race` is the newest), the tour's new "Light & camera" section,
+> the authored-bounds camera gap, a delayed `camera.zoom` bug the new tests
+> surfaced, the `always-overrides-keyframes` false positive, and the
+> `unused-label` false positive that batch 5 left open (cause:
+> `SymbolTable::merge` flattens an import's labels but not its references).
+> **#25 is answered rather than open**: the vello pin cannot move until wgpu
+> moves 29→30 workspace-wide, and the probe that guards it asserts now instead
+> of printing numbers to be read. So has the camera's per-actor opt-out
+> (`camera_follow: false`), and **#24 turned out to be two things**: the
+> plain-text fast path silently ignored `font_weight`/`font_style` for bundled
+> families — fixed, with measurements — while *continuous* weight needs
+> variable-axis instancing the font stack does not have. What remains is #22
+> (glass), the camera's cross-scene carry, an open +10.7% on one analyzer bench,
 > and the #13 content leftovers.
 > See
 > ["Landed so far"](#landed-so-far) and
@@ -90,37 +94,19 @@ Notes the next session will want from batch 5:
 
 Notes the next session will want from batch 4:
 
-- **The perf guard cannot see the GPU filter path.** Every bench in the suite
-  times parse, build and scene evaluation; `render_scene_to_image_gpu_filtered`
-  is not in any of them. So an ABI change that adds a whole-region copy per scope
-  per frame is invisible to `scripts/perf-bench.sh compare`, and the honest
-  statement in that commit is read off the shader. If the filter path ever needs
-  a real guard, that bench has to be written first.
-- **Two analyzer flags were measurement contention, not regressions.** The full
-  120-bench run flagged `analyzer_diagnostics/dogfood` (+7.10%) and
-  `analyzer_update/small` (+15.64%); re-run with the machine to themselves the
-  family reads 9 compared, 0 regressions (+2.82% and +17.89% against a 44.48%
-  bound). Two lessons: never trust a flag from a run that overlapped a build or a
-  render, and `analyzer_update/small` measures a 1 KB file so its own noise bound
-  has ranged 44-85% — it is a weak guard, not a sensitive one.
-- **`EffectParams.values` is index-aligned with `params()`, not name-keyed.**
-  Inserting a parameter in the middle of a declared list shifts every later
-  `values.get(n)` in `pack`, and `sample_params` hides that for authored scenes
-  while a hand-built chain (a test) breaks loudly. The next parameter added to an
-  existing effect should be appended, or every `get(n)` in that file re-checked.
-- **`format` has two placeholder forms and the spec used a third.** Measured by
-  rendering: `{}` substitutes, `{.N}` substitutes at N decimals, and everything
-  else — `{x}`, `{:.1f}`, `{:,}` — is emitted *literally* (deliberately, so an
-  unsupported spec shows instead of guessing). `docs/spec.md`'s reactive-system
-  example was `format("y = {x}", x)`, which has never worked; it now reads
-  `{:.2}` and the grammar is written down where a reader will hit it. Worth a
-  grep after any doc round: `format("[^"]*{[a-zA-Z_.]` finds the class in one
-  pass, and it found nothing else in the corpus.
-- **Premultiplication is not a detail in this backend.** The first `Bloom`
-  composite raised colour while freezing alpha at the original's, which fringes
-  at a scope's semi-transparent edge and caps a glow's coverage at what was
-  already there; the shipped version grows `out_alpha` with the glow and clamps
-  colour to it. Same trap as `DropShadow`: keep `rgb <= a`.
+- **Correction (batch 6): the perf guard DOES see the GPU path.** This note said
+  the opposite — that every bench stops at parse/build/scene evaluation and
+  `render_scene_to_image_gpu_filtered` is in none of them. It is wrong:
+  `crates/animatix/benches/demos_frame_cost.rs` is a criterion group
+  (`demo_frame`) whose each sample runs
+  `OffscreenRenderer::render_timeline` — evaluate → vello rasterize → **effect
+  chains** → readback — and the last full compare carried 43 `demo_frame__*`
+  rows. The real gap is narrower: the *engine* benches never construct a
+  `GpuFilterBackend`, so an ABI change costs nothing there, while
+  `demo_frame__*` does pay for scope count (and is exactly the family that
+  inflated 2-4× under desktop load). Anyone adding a filter-path guard should
+  extend `demos_frame_cost` with a multi-scope scene rather than write a new
+  harness — the pipeline, the loader and the readback are already there.
 
 ### Batch 3 (2026-10-04, third session) — four commits, local only
 
@@ -459,9 +445,11 @@ each non-trivial. Verified 2026-10-04.
 | # | Item | Verdict | Notes |
 |---|---|---|---|
 | 21 | Second-input-texture ABI bump → Bloom, soft DropShadow, chain Mix | **DONE** `b27ca5e5` + `a046cbf6` | ABI v2 binds the pre-chain original at `binding: 5` (`filter_backend.rs`), copied once per scope before pass 0. `Bloom` is its first consumer (`animatix-std/src/effects/bloom.rs`) and `DropShadow.softness` the second. "chain Mix" needed no new effect: `Bloom`'s `keep` parameter *is* a linear mix of the chain result with the original, so a second effect over the same math would be a duplicate |
-| 22 | `glass` / backdrop-blur | LARGE, **parked, but now decision-ready** | Re-scoped in batch 6 against the pipeline rather than the summary. ABI v2 does **not** help: binding 5 is the *scope's own* pre-chain sub-scene, and glass needs the main target's pixels *below* the scope in z, which nothing in the frame ever exposes as a texture (`offscreen.rs:267-294` renders the whole scene in one pass; `filter_backend.rs:54-67` renders only sub-scenes into the backend's own targets). And the obvious shortcut — render the frame, sample the region, blit the above-glass content afterwards — is wrong for the common case, because a label sitting *on* a glass card would be swallowed by the composite. The shape that is correct: evaluate once, emit **two** vello scenes pivoted at the glass scope, render below→texA, copy texA's region as the chain's second input, render above→texB with a transparent `base_color`, blit texA then the glass result then texB. Two hard facts to design around: (a) `RendererCore` only ever hands vello a `RenderParams { base_color, .. }` (`core.rs:151-170`), i.e. every render clears its target, so "draw a second scene over the first in the same texture" does not exist here — the split must go to separate textures and be composited; (b) `EffectRegion` is a plain rect, so a rounded glass panel needs either a mask pass or rounded-region support. Cost: N glass scopes = N+1 vello renders per frame, and **the filter path has no bench guard at all** (batch 4's note — every bench in the suite stops at scene evaluation), so that guard has to be written before this lands. Still also owed: compositing *below* children, and a decision on whether glass is one effect or a `Filter` variant |
+| 22 | `glass` / backdrop-blur | LARGE, **parked, but now decision-ready** | Re-scoped in batch 6 against the pipeline rather than the summary. ABI v2 does **not** help: binding 5 is the *scope's own* pre-chain sub-scene, and glass needs the main target's pixels *below* the scope in z, which nothing in the frame ever exposes as a texture (`offscreen.rs:267-294` renders the whole scene in one pass; `filter_backend.rs:54-67` renders only sub-scenes into the backend's own targets). And the obvious shortcut — render the frame, sample the region, blit the above-glass content afterwards — is wrong for the common case, because a label sitting *on* a glass card would be swallowed by the composite. The shape that is correct: evaluate once, emit **two** vello scenes pivoted at the glass scope, render below→texA, copy texA's region as the chain's second input, render above→texB with a transparent `base_color`, blit texA then the glass result then texB. Two hard facts to design around: (a) `RendererCore` only ever hands vello a `RenderParams { base_color, .. }` (`core.rs:151-170`), i.e. every render clears its target, so "draw a second scene over the first in the same texture" does not exist here — the split must go to separate textures and be composited; (b) `EffectRegion` is a plain rect, so a rounded glass panel needs either a mask pass or rounded-region support. Cost: N glass scopes = N+1 vello renders per frame, and the cost has a guard already: `demos_frame_cost`'s `demo_frame__*` group renders
+evaluate → rasterize → effect chains → readback per sample (batch 4's note claiming
+the opposite is corrected above). Still also owed: compositing *below* children, and a decision on whether glass is one effect or a `Filter` variant |
 | 23 | BarChart race | ~~MEDIUM-LARGE~~ **DONE** (batch 5) | Landed along the five steps as scoped — `BarDataTransition` beside `FuncTransition` (`timeline/plot.rs`), label matching in `interpolate_bar_data`, the frame-time sampler `bar_data_at` called from `evaluate_node`, and the layout kept on the track so a rebuild never re-parses properties — with **two corrections to the plan**. Step 4's memo is unnecessary: the rebuild is gated on `bar_data_transitions` being non-empty, so a chart that never animates its data pays one `is_empty()` per frame. And step 5 was a no-op — the `data` entry in `build/plot.rs:1160`'s skip list is the *declaration* walk, not the assignment path; removing it would have broken the builder. The assignment hooks in through `Primitive::handle_assignment`, the extension point that already existed for exactly this (eight primitives use it). Two documented limits: a changed label set **or order** warns, because captions are compiled at build into the declaration's slots, and `max_value: auto` normalises the tallest bar every frame, which hides the race unless the author pins it. A third branch the plan assumed turned out to be **dead**: `build/plot.rs` resolves the layout for every `BarChart` whether or not `data:` was declared, so assigning without a declaration is not an error — it is an empty `from`, bars entering from 0, with its own warning that there were no captions to compile. And it is the render, not the test suite, that proves label matching: bar tops read back from three frames of `examples/data/27_bars_race.amx` land on the interpolated values, with `api` overtaking `web` inside the first window and losing it inside the second.
-| 24 | Variable-font weight animation | NOT feasible today — **three changes, not one** | Scoped in batch 5 against the code rather than the summary: (1) the bundle ships four *static* Open Sans faces (`animatix-text/src/lib.rs:600-646` — Regular/Bold/Italic/BoldItalic) plus Noto Sans SC and Fira Math, so a variable face has to be added (asset + licence); (2) `font_weight_to_typst` (`:960`) quantizes the numeric axis to nine *named* CSS weights as a `&'static str`, and typst then picks a face by name — six of those nine names have no face in the bundle and fall back, so the path needs typst's numeric `("family", weight: 640)` form rather than a keyword; (3) weight changes recompile glyphs every frame, which is the `count_up` cost path, so it needs the same frame-time memo question answered. Parked |
+| 24 | Variable-font weight animation | **half of it was never about the font** — the fast-path bug is fixed, the axis is blocked | Probing the premise (2026-10-05) found the visible defect one layer under the three changes this row listed: `compile_text_fast` (and its two siblings) resolved a bundled family by taking `BUNDLED_FONTS.iter().find(family == …)` — the family's **first entry**, always Regular — so `font_weight` and `font_style` were silent no-ops on plain Latin text, which is most of the repo's titles. `web/demos/epicycles/*.amx` ask for `font_weight: "bold"` and were drawing regular. Fixed by giving `BundledFont` its own `weight`/`style` and choosing style-first-then-nearest-weight like a font database (`bundled_face`), measured end to end: rendered ink for one 64pt line goes 8,975 at 400 → 14,363 at 700 (and at `"bold"`, and at 900, which lands on the nearest face), 8,613 for italic, 13,815 for bold-italic, with `fc-list` confirming this box has **no** Open Sans installed — so the bold is the bundled face. Two tests pin it, one of them through the compiler (`compile_text_fast_honours_weight_for_a_bundled_family`), and `Bold` is no longer `rich-text`-gated so the slim embed gets it too (+220 KB of face; the wasm was not rebuilt from this shell, so the bundle size in `web/README.md` is still the pre-change figure). What still blocks *continuous* weight: the stack cannot instance a variable axis at all. `fontdb` 0.23 exposes no variation API, so a VF registers as its default instance for both paths — verified by rendering an installed variable family (`Noto Sans CJK JP`) at 400/600/800: identical ink, 4,881 px. The candidate asset was fetched and examined rather than assumed (`OpenSans[wdth,wght].ttf` 532,636 B + italic 583,992 B, `wght 300–800`, `wdth 75–100`, 14 named instances) and is deliberately **not** committed: it would be larger than the four statics and still render one weight. Reopen when a dependency can set axis coordinates (or when instancing offline into named instances is acceptable — that trades one file for nine) |
 | 25 | Vello pin lift | **attempted and answered — the blocker is a wgpu major, not upstream** | Batch 5 said this was not answerable from here because `gh` is absent, `WebFetch` is quota-blocked and search returns no status. True, and irrelevant: the probe is the gate, and the revision to probe for is `git ls-remote` away. Batch 6 did it. Upstream `main` is **`f3000c8d`**; this box's cargo cache tops out at `17166312`, whose parent is `c55a2b5e` "vello: Keep image atlas residency across renders (#1558)" — the change the pin avoids, sitting directly on the pinned `d8686d52`. Bumping all three `vello` entries to `f3000c8d` **does not compile**: `Renderer::new(device, …)` reports `expected vello::wgpu::Device, found wgpu::Device`, because that vello builds against wgpu 30 while the workspace pins `wgpu = "29.0.0"`. So lifting the pin needs a coordinated wgpu 29→30 bump first, and whether #1558's regression is fixed upstream remains unmeasured — the probe could not run on the new rev. While there: `tests/vello_img_probe.rs` **asserts** its A–H matrix now (it used to only `eprintln!` the counts, so the "gate" depended on a human reading numbers), passes on the pin under both GPU and `ANIMATIX_CPU_RENDER=1`, and was checked to fail with "only 0 of 921_600 canvas pixels have ink" when a draw is forced empty. Pin comments, `core.rs`'s dependency invariant and `docs/roadmap.md` all say what would actually lift it |
 
 ## Remaining work, next-session order
@@ -480,9 +468,11 @@ the order that makes sense to attempt it:
    provide — the main vello target is still never an input texture; batch 6
    turned the row into a design: two vello scenes pivoted at the glass scope,
    because `render_to_texture` clears its target and cannot draw over an
-   existing one), and **#24 font weights** (three changes, not the one it was
-   described as: asset, a numeric-weight path into typst, per-frame glyph
-   recompile — see its row). ~~#23 BarChart race~~ landed in batch 5.
+   existing one). ~~#23 BarChart race~~ landed in batch 5, and **#24 font
+   weights** split in batch 6 into a shipped bug fix (the plain-text fast path
+   ignored `font_weight`/`font_style` for bundled families, so bold titles drew
+   regular) and a blocked feature (continuous weight needs variable-axis
+   instancing, which `fontdb` 0.23 cannot do — see its row).
    ~~#25 vello pin lift~~ was **attempted in batch 6 and answered**: the pin
    cannot move until wgpu moves 29→30 workspace-wide, which is a different job
    than this round's and now named in the pin, `core.rs` and `docs/roadmap.md`.

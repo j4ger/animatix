@@ -585,9 +585,32 @@ fn pick_glyph(
 }
 
 /// A font entry in the bundled font set.
+///
+/// `weight`/`style` are the face's own CSS values, recorded so the plain-text
+/// fast path can choose among a family's faces the way fontdb's query does for
+/// system fonts. Without them the fast path could only ever take the first entry
+/// of a family, which made `font_weight: 700` and `font_style: "italic"` no-ops
+/// on bundled text.
 struct BundledFont {
     family: &'static str,
     data: &'static [u8],
+    weight: f32,
+    style: &'static str,
+}
+
+/// The bundled face of `family` that answers a weight/style query, chosen the
+/// way a font database chooses: style is a different shape and so decides first,
+/// then the nearest available weight. A family that ships one face — every
+/// family in a slim build — therefore gets that face for any query, which is
+/// what it got before this existed.
+fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'static BundledFont> {
+    let want_italic = style == "italic" || style == "oblique";
+    BUNDLED_FONTS.iter().filter(|bf| bf.family == family).min_by_key(|bf| {
+        let has_italic = bf.style == "italic" || bf.style == "oblique";
+        let style_cost = u32::from(has_italic != want_italic);
+        let weight_cost = (bf.weight - weight).abs().round() as u32;
+        (style_cost, weight_cost)
+    })
 }
 
 /// Fonts embedded at compile time. Add new fonts here.
@@ -601,6 +624,8 @@ static BUNDLED_FONTS: &[BundledFont] = &[
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
+        weight: 400.0,
+        style: "normal",
     },
     // Noto Sans SC subset (SIL OFL 1.1; see assets/fonts/README.md for
     // provenance + SHA-256): the 3755 GB2312 level-1 common hanzi plus CJK
@@ -612,38 +637,50 @@ static BUNDLED_FONTS: &[BundledFont] = &[
     BundledFont {
         family: "Noto Sans SC",
         data: include_bytes!("../assets/fonts/NotoSansSC-Common.ttf"),
+        weight: 400.0,
+        style: "normal",
     },
-    // Only reachable through the Typst world (markup emphasis / math): the
-    // plain fast path always picks the first face of a family, so slim builds
-    // carry Regular alone.
-    #[cfg(feature = "rich-text")]
+    // Not gated: `font_weight: "bold"` is asked for by plain-Latin titles that
+    // run on the slim embed (every `web/demos/epicycles/*` scene), and the fast
+    // path can only answer it if the face is in the binary. Costs ~220 KB. The
+    // two italic faces stay gated: the only italic in the corpus is
+    // `examples/layout/27_layout_text.amx`, which no site page embeds — on a
+    // slim build that line draws regular, and the desktop build draws italic.
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Bold.ttf"),
+        weight: 700.0,
+        style: "normal",
     },
-    // Only reachable through the Typst world (markup emphasis / math): the
-    // plain fast path always picks the first face of a family, so slim builds
-    // carry Regular alone.
+    // Gated because the plain fast path cannot reach it in a slim build, which
+    // ships Regular alone for this family; `bundled_face` then answers every
+    // weight and style query with that one face.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Italic.ttf"),
+        weight: 400.0,
+        style: "italic",
     },
-    // Only reachable through the Typst world (markup emphasis / math): the
-    // plain fast path always picks the first face of a family, so slim builds
-    // carry Regular alone.
+    // Gated because the plain fast path cannot reach it in a slim build, which
+    // ships Regular alone for this family; `bundled_face` then answers every
+    // weight and style query with that one face.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-BoldItalic.ttf"),
+        weight: 700.0,
+        style: "italic",
     },
-    // Only reachable through the Typst world (markup emphasis / math): the
-    // plain fast path always picks the first face of a family, so slim builds
-    // carry Regular alone.
+    // Gated because the plain fast path cannot reach it in a slim build, which
+    // ships Regular alone for this family; `bundled_face` then answers every
+    // weight and style query with that one face.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Fira Math",
         data: include_bytes!("../assets/fonts/FiraMath-Regular.otf"),
+        weight: 400.0,
+        style: "normal",
     },
 ];
 
@@ -1830,7 +1867,7 @@ pub fn missing_text_glyphs(
         // bundled face as the per-char fallback set.
         let resolved_family = resolve_font_family(family, font_ctx);
         let mut faces: Vec<ttf_parser::Face<'static>> = Vec::new();
-        if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
+        if let Some(bf) = bundled_face(&resolved_family, weight, style) {
             if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
                 faces.push(face);
             }
@@ -1914,7 +1951,7 @@ pub fn compile_text_fast(
     // Fall back to system font if not bundled.
     let resolved_family = resolve_font_family(family, font_ctx);
     let face: ttf_parser::Face<'static> = 'font: {
-        if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
+        if let Some(bf) = bundled_face(&resolved_family, weight, style) {
             // Bundled data is `include_bytes!`, so it is already `'static`.
             if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
                 break 'font face;
@@ -2063,7 +2100,7 @@ pub fn compile_text_fast_wrapped(
     let resolved_family = resolve_font_family(family, font_ctx);
     // Try to load font data from bundled fonts first for consistency with Typst path.
     let face: ttf_parser::Face<'static> = 'font: {
-        if let Some(bf) = BUNDLED_FONTS.iter().find(|bf| bf.family == resolved_family) {
+        if let Some(bf) = bundled_face(&resolved_family, weight, style) {
             // Bundled data is `include_bytes!`, so it is already `'static`.
             if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
                 break 'font face;
@@ -2996,6 +3033,77 @@ impl TextCompiler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The fast path chooses a bundled face the way a font database chooses a
+    /// system one: style first (an italic is a different shape), then the
+    /// nearest available weight. Before this existed the fast path took a
+    /// family's *first* entry, so `font_weight: 700` and `font_style: "italic"`
+    /// were no-ops on bundled text — measured as identical rendered ink for
+    /// 400/600/800, and `web/demos/epicycles/*.amx` titles that ask for
+    /// `font_weight: "bold"` drew regular.
+    #[test]
+    fn bundled_face_answers_a_weight_and_style_query() {
+        let regular = bundled_face("Open Sans", 400.0, "normal").expect("Open Sans");
+        assert_eq!((regular.weight, regular.style), (400.0, "normal"));
+
+        // Style wins over weight: asking for bold-italic must not hand back a
+        // roman face just because its weight is nearer.
+        let bold_italic = bundled_face("Open Sans", 700.0, "italic").expect("Open Sans");
+        assert_eq!((bold_italic.weight, bold_italic.style), (700.0, "italic"));
+        let italic = bundled_face("Open Sans", 500.0, "italic").expect("Open Sans");
+        assert_eq!((italic.weight, italic.style), (400.0, "italic"));
+
+        // Out-of-range weights clamp to the nearest shipped face: 900 has no
+        // face in this bundle, so 700 is the honest answer.
+        assert_eq!(bundled_face("Open Sans", 900.0, "normal").unwrap().weight, 700.0);
+        assert_eq!(bundled_face("Open Sans", 100.0, "normal").unwrap().weight, 400.0);
+
+        // A one-face family answers every query — what a slim build has.
+        assert_eq!(bundled_face("Noto Sans SC", 700.0, "italic").unwrap().weight, 400.0);
+        assert!(bundled_face("Times New Roman", 700.0, "normal").is_none());
+    }
+
+    /// The same query, proven through the compiler: bold text is wider than
+    /// regular at the same size, and a weight the bundle has no face for lands
+    /// on the nearest one rather than silently on Regular.
+    #[cfg(feature = "rich-text")]
+    #[test]
+    fn compile_text_fast_honours_weight_for_a_bundled_family() {
+        let width_of = |weight: f32| {
+            let compiled = compile_text_fast(
+                "Weight makes the ink",
+                "Open Sans",
+                weight,
+                "normal",
+                64.0,
+                [1.0, 1.0, 1.0, 1.0],
+                0.0,
+                0.0,
+                &FontContext::new(),
+            )
+            .expect("compile");
+            let mut box_: Option<kurbo::Rect> = None;
+            for tp in &compiled.glyphs {
+                let at_hand = tp.path.bounding_box();
+                box_ = Some(match box_ {
+                    Some(acc) => acc.union(at_hand),
+                    None => at_hand,
+                });
+            }
+            let width = box_.map(|r| r.width() as f32).unwrap_or(0.0_f32);
+            assert!(width > 0.0, "the line has no extent");
+            (width, compiled.glyphs.len())
+        };
+        let (regular, count): (f32, usize) = width_of(400.0);
+        let (bold, bold_count): (f32, usize) = width_of(700.0);
+        assert_eq!(count, bold_count, "the same text must shape the same glyph count");
+        assert!(bold > regular + 1.0, "weight 700 must be wider than 400: {bold} vs {regular}");
+        // 900 has no face: it must land on 700, not fall back to regular.
+        assert!(
+            (width_of(900.0).0 - bold).abs() < 0.01,
+            "weight 900 should resolve to the nearest shipped weight"
+        );
+    }
 
     /// `load_font_bytes` must grow the database: the embed's `add_font` path
     /// depends on it (the web sandbox has no system fonts, so a runtime font is

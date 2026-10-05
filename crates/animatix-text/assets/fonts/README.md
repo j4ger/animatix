@@ -7,19 +7,35 @@ fonts are still used as glyph fallback for scripts the bundled set cannot cover
 
 ## Open Sans (default family)
 
-`OpenSans-Regular.ttf`, `OpenSans-Bold.ttf`, `OpenSans-Italic.ttf`,
-`OpenSans-BoldItalic.ttf` — four static faces.
+`OpenSans-Regular.ttf` (400 normal), `OpenSans-Bold.ttf` (700 normal),
+`OpenSans-Italic.ttf` (400 italic), `OpenSans-BoldItalic.ttf` (700 italic) — four
+static faces, each carrying its own weight/style into `BUNDLED_FONTS`. Bold ships in
+every build (the slim web embed too); the two italics are `rich-text` only.
 
 - **License**: Apache License 2.0 (`LICENSE-OpenSans.txt`). This is the
   license of the packaged Open Sans these faces came from. (Upstream releases
   have also been distributed under SIL OFL 1.1; either license permits
   redistribution with attribution.)
-- **Why static faces, not variable**: typst 0.15 (the version this crate pins)
-  does support variable font axes, but the upstream Open Sans variable pair
-  (`OpenSans[wdth,wght].ttf` + italic, ≈1.1 MB) is *larger* than the four
-  static faces (≈850 KB), and the static set is proven and simpler. If a future
-  default wants one file per weight-range, the variable pair can be swapped in
-  (update these hashes + `BUNDLED_FONTS`).
+- **Why the fast path can pick among them**: `BundledFont` records each face's
+  own `weight`/`style`, and `bundled_face()` chooses the way a font database
+  does — style first, then nearest weight. Before that metadata existed the
+  plain-text fast path took the family's *first* entry, so `font_weight` and
+  `font_style` drew nothing for bundled text on a machine without the family
+  installed (measured: identical ink at weights 400/600/800, and `fc-match
+  "Open Sans"` on this box falls back to Noto Sans CJK — the bold that renders
+  now is the bundled face, not a system one).
+- **Why static faces, not variable**: the axis is not reachable in this stack.
+  `fontdb` 0.23 has no variation API (no `variation`-named item in its source),
+  so a variable face registers as its default instance for both text paths —
+  measured with the system `Noto Sans CJK JP` VF: identical ink at
+  `font_weight` 400, 600 and 800. The variable pair
+  (`OpenSans[wdth,wght].ttf` + italic, 532,636 + 583,992 bytes, axes
+  `wght 300–800`, `wdth 75–100`, 14 named instances — vendored to
+  `/tmp` during the 2026-10-05 probe, deliberately **not** committed) is
+  therefore larger *and* no better until something can instance it. Swap it in
+  when the font stack gains that: it would replace all four statics and update
+  these hashes + `BUNDLED_FONTS`.
+
 - **SHA-256** (verify with `scripts/refresh-fonts.sh`):
 
   | File | SHA-256 |

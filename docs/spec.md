@@ -831,6 +831,21 @@ label: Text, text: "Typography", font_size: 48,
 - `"normal"`: equivalent to `400`
 - `"bold"`: equivalent to `700`
 
+How a weight becomes a drawing — measured on this repo, not inferred:
+
+- Text that takes the plain-text fast path resolves a **face**, not an axis: the
+  nearest weight among the faces that family has, with style (`normal`/`italic`)
+  deciding first. So `font_weight: 900` on the default family draws its 700 face,
+  and animating a weight moves in steps where the chosen face changes.
+- The default family ships `Regular` and `Bold` in every build, including the
+  slim web embed. The italic faces are `rich-text` only, because no shipped
+  scene asks for an italic default-family title.
+- Continuous weight on one face needs variable-font instancing, which the stack
+  cannot do today: `fontdb` 0.23 exposes no variation API, so a variable face
+  reaches both text paths as its default instance. Measured with an installed
+  variable family (`Noto Sans CJK JP`) — identical rendered ink at 400, 600 and
+  800.
+
 All typography properties are animatable via keyframes:
 
 ```animatix
