@@ -12,6 +12,8 @@ FONTS_DIR="$SCRIPT_DIR/../crates/animatix-text/assets/fonts"
 # file → expected sha256 (keep in sync with assets/fonts/README.md)
 declare -A EXPECTED=(
     ["OpenSans-Regular.ttf"]="8ab4aa561e7db0eb3e1af8b0bed2a315e0a33fe2ed3070e645d1b89f8efc1d5c"
+    ["OpenSans-Variable.ttf"]="36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878"
+    ["OpenSans-Italic-Variable.ttf"]="fe269381e992f32e135801740998544d6235061e37c93ec067ad2be3edd5b17b"
     ["OpenSans-Bold.ttf"]="1a6bc6775358bfed0e4191b6f2c4d7d75d122f0c6e5a255f264ab455c67237b7"
     ["OpenSans-Italic.ttf"]="e5178be12cd740aeafebea15ec563fe577bbb4fab42d9e40500bd49ec8c9ce16"
     ["OpenSans-BoldItalic.ttf"]="b5c44af3cb55f65fadb2f1b20edc38e1008bb71388d04ad127c5ad340c9329f2"

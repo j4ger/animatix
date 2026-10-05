@@ -833,27 +833,42 @@ label: Text, text: "Typography", font_size: 48,
 
 How a weight becomes a drawing — measured on this repo, not inferred:
 
-- Text that takes the plain-text fast path resolves a **face**, not an axis: the
-  nearest weight among the faces that family has, with style (`normal`/`italic`)
-  deciding first. So `font_weight: 900` on the default family draws its 700 face,
-  and animating a weight moves in steps where the chosen face changes.
-- The default family ships `Regular` and `Bold` in every build, including the
-  slim web embed. The italic faces are `rich-text` only, because no shipped
-  scene asks for an italic default-family title.
-- Continuous weight on one face needs variable-font instancing, which the stack
-  cannot do today: `fontdb` 0.23 exposes no variation API, so a variable face
-  reaches both text paths as its default instance. Measured with an installed
-  variable family (`Noto Sans CJK JP`) — identical rendered ink at 400, 600 and
-  800.
+- Text on the **Typst path is continuous**: the default family ships a variable
+  pair (`OpenSans-Variable.ttf`, italic) alongside its static faces, Typst reads
+  the `wght` axis off them and instances it while shaping, and its face selection
+  scores an axis-capable face at distance 0 for any in-range request. So
+  `font_weight: 625` draws 625. Measured as compiled ink width for one 64 pt
+  line: 400 → 510.7 px, 450 → 516.4, 500 → 522.1, 550 → 527.7, 600 → 533.4,
+  650 → 544.6, 700 → 555.9 — monotone through the canonical values, which is the
+  part that matters for animation (`compile_text_instances_a_weight_no_static_face_ships`).
+  The axis spans `wght 300–800`; a request outside it clamps to the end.
+- Text on the **plain-text fast path resolves a face, not an axis**: the nearest
+  weight among the statics that family has, style (`normal`/`italic`) deciding
+  first. So `font_weight: 900` draws the 700 face, and animating a weight there
+  moves in steps. That is a real limit of the slim build, not a preference:
+  `ttf-parser` reads `fvar`/`gvar` but never applies the deltas to outlines.
+- Numbers reach the font stack as authored. The keyword form (`"bold"`,
+  `"medium"`, …) is still accepted at the property and maps to its CSS value;
+  what used to happen *after* that — collapsing every number to one of nine
+  keywords before Typst saw it — is gone, and it was the whole reason continuous
+  weight was unreachable.
+- The default family ships `Regular` and `Bold` statics in every build, including
+  the slim web embed, plus the variable pair on the rich path. The static italics
+  are `rich-text` only.
+- Trading place: the variable pair answers weights the statics could not, at the
+  cost of slightly different advance widths for the ones they could. Measured on
+  `examples/layout/27_layout_text.amx`, the same frame before and after differs in
+  496 of 921,600 pixels (0.054%) — glyph-edge antialiasing, no line rewrapped.
 
-All typography properties are animatable via keyframes:
+All typography properties are animatable via keyframes, and `font_weight` is a
+number in the registry, so a weight can tween:
 
 ```animatix
 #0s
-label: Text, text: "Hello", font_weight: "normal"
+label: Text, text: "Hello", font_weight: 400
 
 #2s
-label.font_weight = "bold" [1s]
+label.font_weight = 700 [1s]
 label.letter_spacing = 4.0 [1s]
 ```
 
@@ -1128,6 +1143,13 @@ frost.radius = 18 [900ms, ease: ease-in-out]
   frost is a copy of the finished frame, so a fill or hairline border drawn by
   the scope itself would land *inside* the pixels that get blurred. As a child
   it lands on top of the blur, crisp.
+
+  One limit to know: `color` and `fill_opacity` are still declared applicable to
+  every actor (`Applicable::Everything`, `AllShapesExceptLine`), so a `Glass`
+  scope that sets them compiles quietly and paints nothing — the checker does
+  **not** warn. `stroke_width` is per-actor and correctly excludes `Glass`.
+  Narrowing the universal rows needs an exclusion predicate on `Applicable`,
+  recorded as remaining work in `docs/roadmap.md`.
 - The chain is the scope's declared stages, so `frost.radius = 18` animates the
   frost exactly like a `Filter` stage, and a scope with no stages costs nothing
   (the backdrop is skipped when the chain is empty).

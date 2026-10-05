@@ -616,11 +616,12 @@ fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'static Bundl
 /// Fonts embedded at compile time. Add new fonts here.
 static BUNDLED_FONTS: &[BundledFont] = &[
     // Open Sans static faces (Apache-2.0; see assets/fonts/README.md for
-    // provenance + SHA-256). Static faces are bundled rather than variable
-    // because typst 0.14 loads one face per weight/style and does not consume
-    // variable font axes (variable-font support landed in typst 0.15). Having
-    // the full regular/bold/italic/bold-italic set bundled makes bold/italic
-    // and font_weight work out of the box for the default family.
+    // provenance + SHA-256). These are what the plain-text fast path can use —
+    // it shapes with `ttf-parser`, which reads `fvar` but never applies the
+    // deltas — so the set has to cover the weights authors ask for by name, and
+    // `bundled_face` chooses among them the way a font database does. The rich
+    // path gets the variable pair as well (see `VARIABLE_FONTS`) and can answer
+    // any weight in the axis range.
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
@@ -688,8 +689,63 @@ static BUNDLED_FONTS: &[BundledFont] = &[
 pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 /// Default math font family used for math rendering.
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
+/// The weight a caller that never says otherwise compiles at.
+pub const DEFAULT_FONT_WEIGHT: f32 = 400.0;
+/// The Open Sans variable pair, registered into the Typst font book *in
+/// addition to* the static faces — but only for a weight the statics cannot
+/// answer (see `wants_variable_faces`). Typst reads the `wght` axis off these
+/// faces and instances it during shaping (`Font::instantiate` →
+/// `FontVariations::resolve`), and its face selection scores an axis-capable
+/// face at distance 0 for any in-range request, so registering them is enough to
+/// make `font_weight: 625` draw 625 rather than the nearest keyword.
+///
+/// They are deliberately absent from [`BUNDLED_FONTS`]: the plain-text fast path
+/// shapes with `ttf-parser`, which reads `fvar`/`gvar` but never applies the
+/// deltas to outlines, so a variable face there would render only its default
+/// instance — the statics are what that path needs.
+/// The parsed variable pair, built once per process.
+///
+/// `build_world` runs per text compile, and parsing a 530 KB variable face every
+/// time showed up as +8.3% on `scrub_layout_scene_100frames` — a cost the static
+/// faces already pay, but which adding two more faces made worth fixing rather
+/// than absorbing. `typst::Font` is refcounted internally, so the clone per
+/// world is an `Arc` bump; the `FontInfo` still gets cloned into the book because
+/// the book owns its entries.
 #[cfg(feature = "rich-text")]
+static VARIABLE_FONT_FACES: std::sync::LazyLock<Vec<Font>> = std::sync::LazyLock::new(|| {
+    VARIABLE_FONTS
+        .iter()
+        .filter_map(|bf| {
+            let font = Font::new(Bytes::new(bf.data), 0);
+            if font.is_none() {
+                tracing::error!(
+                    "variable face {} failed to parse; continuous font_weight falls back to the static faces",
+                    bf.family
+                );
+            }
+            font
+        })
+        .collect()
+});
+
+#[cfg(feature = "rich-text")]
+static VARIABLE_FONTS: &[BundledFont] = &[
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../assets/fonts/OpenSans-Variable.ttf"),
+        weight: 400.0,
+        style: "normal",
+    },
+    BundledFont {
+        family: "Open Sans",
+        data: include_bytes!("../assets/fonts/OpenSans-Italic-Variable.ttf"),
+        weight: 400.0,
+        style: "italic",
+    },
+];
+
 /// Build a TypstWorld with bundled fonts + any requested system fonts loaded.
+#[cfg(feature = "rich-text")]
 fn build_world(
     source: Source,
     extra_fonts: &[&str],
@@ -706,6 +762,19 @@ fn build_world(
         })?;
         book.push(font.info().clone());
         fonts.push(font);
+    }
+
+    // The variable pair, always. Serving only the weights the statics have faces
+    // for is tempting and wrong: measured on the compiled-ink ramp, a face swap
+    // at each canonical value makes the axis non-monotone — `font_weight: 450`
+    // drew *heavier* (516.3 px) than `500` (508.8 px), and 599 / 600 / 601 came
+    // out 533.2 / 553.8 / 533.5. Typst scores an axis-capable face at distance 0
+    // for any in-range request (`FontBook::distance`), so registering these faces
+    // makes it the one that answers, and the ramp becomes monotone; the statics
+    // stay in the book as the fallback the request would land on anyway.
+    for font in VARIABLE_FONT_FACES.iter() {
+        book.push(font.info().clone());
+        fonts.push(font.clone());
     }
 
     // Load requested extra fonts via persistent FontContext.
@@ -898,10 +967,12 @@ fn typst_text_set_rules(
 ) -> String {
     let mut parts: Vec<String> = Vec::new();
 
-    // Weight: map numeric (100-900) to Typst weight strings
-    let weight_str = font_weight_to_typst(font_weight);
-    if weight_str != "regular" {
-        parts.push(format!("weight: \"{}\"", weight_str));
+    // Weight: Typst accepts a CSS keyword *or* an integer. The number goes
+    // through as authored, because the keyword form is a nine-value ladder and
+    // mapping to it threw away every weight between the rungs — which is what
+    // made `font_weight` un-animatable even where a face could answer it.
+    if (font_weight - DEFAULT_FONT_WEIGHT).abs() > f32::EPSILON {
+        parts.push(format!("weight: {}", font_weight.round() as i32));
     }
 
     // Style
@@ -992,28 +1063,6 @@ fn typst_wrapping_preamble(
         inner
     }
 }
-#[cfg(feature = "rich-text")]
-/// Map a numeric font weight (100-900) to a Typst weight string.
-pub fn font_weight_to_typst(weight: f32) -> &'static str {
-    let w = weight.round() as i32;
-    match w {
-        100 => "thin",
-        200 => "extralight",
-        300 => "light",
-        400 => "regular",
-        500 => "medium",
-        600 => "semibold",
-        700 => "bold",
-        800 => "extrabold",
-        900 => "black",
-        _ if w < 300 => "light",
-        _ if w < 500 => "regular",
-        _ if w < 700 => "medium",
-        _ if w < 800 => "bold",
-        _ => "black",
-    }
-}
-
 /// Parse a font weight value (numeric or string alias) to f32.
 pub fn parse_font_weight(value: &str) -> f32 {
     match value {
@@ -3102,6 +3151,79 @@ mod tests {
         assert!(
             (width_of(900.0).0 - bold).abs() < 0.01,
             "weight 900 should resolve to the nearest shipped weight"
+        );
+    }
+
+    /// A weight the four static faces cannot answer is drawn by instancing the
+    /// variable pair's `wght` axis.
+    ///
+    /// The proof is the *middle* value: 550 must differ from both 400 and 700.
+    /// Two endpoints alone cannot tell face selection apart from axis
+    /// instancing — a nearest-static pick would also grow from 400 to 700 — so
+    /// the interior width is what shows the number reached the font, which is
+    /// exactly the step the old keyword mapping removed (`625` became
+    /// `"medium"`, i.e. 500).
+    #[cfg(feature = "rich-text")]
+    #[test]
+    fn compile_text_instances_a_weight_no_static_face_ships() {
+        let font_ctx = test_font_ctx();
+        let ink_width = |weight: f32| -> (f32, usize) {
+            let frame = compile_text(
+                "Weight makes the ink",
+                64.0,
+                typst::visualize::Color::from_u8(255, 255, 255, 255),
+                "Open Sans",
+                &font_ctx,
+                weight,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                0.0,
+                "left",
+                "visible",
+            )
+            .expect("compile");
+            let glyphs = extract_glyphs(&frame);
+            let mut box_: Option<kurbo::Rect> = None;
+            for tp in &glyphs {
+                let at_hand = tp.path.bounding_box();
+                box_ = Some(match box_ {
+                    Some(acc) => acc.union(at_hand),
+                    None => at_hand,
+                });
+            }
+            let width = box_.map(|r| r.width() as f32).unwrap_or(0.0_f32);
+            assert!(width > 0.0, "weight {weight} produced no ink");
+            (width, glyphs.len())
+        };
+
+        let (w400, count) = ink_width(400.0);
+        let (w550, mid_count) = ink_width(550.0);
+        let (w700, bold_count) = ink_width(700.0);
+        assert_eq!(count, mid_count, "the same text must shape the same glyph count");
+        assert_eq!(count, bold_count);
+        assert!(w550 > w400 + 1.0, "550 must be heavier than 400: {w550} vs {w400}");
+        assert!(w700 > w550 + 1.0, "700 must be heavier than 550: {w700} vs {w550}");
+
+        // The whole ramp, including the canonical values the static faces used to
+        // answer alone: strictly increasing, with no step at a canonical weight.
+        // This is what the conditional registration measured in 2026-10-05 got
+        // wrong (450 drew heavier than 500, and 599 / 600 / 601 came out
+        // 533.2 / 553.8 / 533.5).
+        let ramp: Vec<f32> = [400.0, 450.0, 500.0, 550.0, 600.0, 650.0, 700.0]
+            .iter()
+            .map(|w| ink_width(*w).0)
+            .collect();
+        for pair in ramp.windows(2) {
+            assert!(pair[1] > pair[0] + 0.5, "weight ramp must grow monotonically, got {ramp:?}");
+        }
+        let (w599, _) = ink_width(599.0);
+        let (w601, _) = ink_width(601.0);
+        let (w600, _) = ink_width(600.0);
+        assert!(
+            (w600 - w599).abs() < 2.0 && (w601 - w600).abs() < 2.0,
+            "crossing a canonical weight must not jump the layout: {w599} / {w600} / {w601}"
         );
     }
 
