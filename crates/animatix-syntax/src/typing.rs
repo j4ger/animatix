@@ -6,6 +6,7 @@
 //! internal `Type` used during inference.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
 use crate::schema::property_specs;
@@ -236,17 +237,59 @@ pub struct TypeEnv {
     construct_types: HashMap<String, Type>,
 }
 
+/// The language's built-in bare identifiers, keyed by borrowed names.
+///
+/// Consulted by [`TypeEnv::lookup_ident`] *after* the environment's own
+/// `builtins` map, so a user binding still shadows a built-in. Built once per
+/// process; see [`TypeEnv::with_stdlib`] for why this is not copied into every
+/// environment.
+static STDLIB_BUILTINS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
+    let mut table: HashMap<&'static str, Type> =
+        NAMED_COLOR_NAMES.iter().map(|name| (*name, Type::Color)).collect();
+    // Numeric constants used as bare identifiers, plus the frame-time variable.
+    table.extend([
+        ("pi", Type::Num),
+        ("tau", Type::Num),
+        ("e", Type::Num),
+        ("t", Type::Num),
+    ]);
+    table
+});
+
+/// The language's built-in functions and their return types.
+static STDLIB_FUNCTIONS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
+    let mut table: HashMap<&'static str, Type> =
+        COLOR_CONSTRUCTOR_FNS.iter().map(|name| (*name, Type::Color)).collect();
+    table.extend(MATH_FUNCTION_NAMES.iter().map(|name| (*name, Type::Num)));
+    table.insert("format", Type::Str);
+    table
+});
+
+/// The language's built-in construct types.
+static STDLIB_CONSTRUCTS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(|| {
+    HashMap::from([
+        ("Color", Type::Color),
+        ("Point", Type::Tuple(vec![Type::Num, Type::Num])),
+    ])
+});
+
 impl TypeEnv {
     /// Create an empty type environment.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Create an environment seeded with built-in literals and functions.
+    /// Create an environment seeded with the language's built-in vocabulary.
+    ///
+    /// The built-ins are **not** copied into this environment: they live in the
+    /// `STDLIB_*` tables below and are consulted by the lookups after the
+    /// environment's own maps. Seeding per environment used to insert ~60
+    /// `String` keys, and a keystroke rebuild constructs one per annotation
+    /// (`SymbolTable::typed_resolve_annotation`) and per inferred expression
+    /// (`SymbolTable::infer_expr_type`), so the copy was a fixed cost on every
+    /// analyzer update rather than a one-time one.
     pub fn with_stdlib() -> Self {
-        let mut env = Self::new();
-        env.register_stdlib();
-        env
+        Self::new()
     }
 
     /// Register a user-facing type alias, resolving it lazily so aliases may
@@ -320,29 +363,6 @@ impl TypeEnv {
         result
     }
 
-    /// Seed built-in named colors, color constructors, numeric functions, and
-    /// known construct types.
-    pub fn register_stdlib(&mut self) {
-        for name in NAMED_COLOR_NAMES {
-            self.builtins.insert((*name).to_string(), Type::Color);
-        }
-        for name in COLOR_CONSTRUCTOR_FNS {
-            self.functions.insert((*name).to_string(), Type::Color);
-        }
-        self.functions.insert("format".to_string(), Type::Str);
-        for name in MATH_FUNCTION_NAMES {
-            self.functions.insert((*name).to_string(), Type::Num);
-        }
-        // Built-in numeric constants used as bare identifiers, plus the
-        // frame-time variable `t` (seconds).
-        for name in ["pi", "tau", "e", "t"] {
-            self.builtins.insert(name.to_string(), Type::Num);
-        }
-        self.construct_types.insert("Color".to_string(), Type::Color);
-        self.construct_types
-            .insert("Point".to_string(), Type::Tuple(vec![Type::Num, Type::Num]));
-    }
-
     /// Push a lexical scope.
     pub fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
@@ -399,7 +419,10 @@ impl TypeEnv {
         if let Some(ty) = self.arrays.get(name) {
             return Some(ty.clone());
         }
-        self.builtins.get(name).cloned()
+        if let Some(ty) = self.builtins.get(name) {
+            return Some(ty.clone());
+        }
+        STDLIB_BUILTINS.get(name).cloned()
     }
 
     /// Register a concrete value in an aliased namespace.
@@ -513,12 +536,18 @@ impl TypeEnv {
 
     /// Look up a function return type.
     pub fn function_type(&self, name: &str) -> Option<Type> {
-        self.functions.get(name).cloned()
+        if let Some(ty) = self.functions.get(name) {
+            return Some(ty.clone());
+        }
+        STDLIB_FUNCTIONS.get(name).cloned()
     }
 
     /// Look up a construct type.
     pub fn construct_type(&self, name: &str) -> Option<Type> {
-        self.construct_types.get(name).cloned()
+        if let Some(ty) = self.construct_types.get(name) {
+            return Some(ty.clone());
+        }
+        STDLIB_CONSTRUCTS.get(name).cloned()
     }
 }
 
