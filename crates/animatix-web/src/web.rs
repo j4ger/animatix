@@ -1026,18 +1026,23 @@ impl AmxPlayer {
         }
 
         // Vello draws its final pass through a compute pipeline that needs
-        // STORAGE_BINDING on its target, and a canvas configured the default way
-        // is not given it: measured `GPUTextureUsage` on a configured canvas is
-        // RENDER_ATTACHMENT only (16), for rgba8unorm and bgra8unorm,
-        // opaque and premultiplied, at 64x64 and 1100x619 alike. Whether asking
-        // for more changes that is unprobed (`SurfaceConfiguration::usage`
-        // exists; the WebGPU spec's canvas configuration has no such member, so
-        // a browser may accept and ignore it) — but it does not matter, because
-        // the blit this would delete measures 0.003 ms (`performance_evaluation.md`
-        // §3.7) and *is* the upscaling step: rendering into the surface means
-        // always rasterizing at canvas resolution, which gives back the whole
-        // adaptive-quality mechanism, including the filter-chain-follows-raster
-        // win. Mirror the GUI's PreviewSurface instead: render into an offscreen
+        // STORAGE_BINDING on its target. A canvas configured the default way is
+        // not given that usage (measured `GPUTextureUsage` = 16,
+        // RENDER_ATTACHMENT only, for rgba8unorm and bgra8unorm, opaque and
+        // premultiplied, at 64x64 and 1100x619 alike) — but *asking* works in
+        // Chromium: passing a non-spec `usage` member to
+        // `GPUCanvasContext.configure` yields a surface texture reporting 24, and
+        // asking for more yields 30. So rendering straight into the canvas is
+        // possible, and we still do not: the blit it would delete measures
+        // 0.003 ms (`performance_evaluation.md` §3.7), and it is not overhead —
+        // it *is* the upscaling step. Drawing into the surface means rasterizing
+        // at canvas resolution every frame, which forfeits `set_render_scale`
+        // and the adaptive quality controller, and Firefox/Safari are unverified
+        // for the `usage` member (an ignored dictionary key reads as "accepts",
+        // so a probe plus a blit fallback is mandatory, most sensibly as
+        // "direct only when scale == 1").
+        //
+        // Mirror the GUI's PreviewSurface instead: render into an offscreen
         // texture we own at scene resolution (vello draws scene units 1:1 — no
         // camera scaling), then blit it scaled onto the surface view. During a
         // multi-scene transition the outgoing and incoming scenes render into two
