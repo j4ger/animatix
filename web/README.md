@@ -258,6 +258,25 @@ A `play()` issued from the poster/finished frame restarts at 0 rather than
 continuing the rest — a loop kicked off by a card hover or a scroll gesture
 always begins with the build-up, not the hold.
 
+### When a scene arrives
+
+A figure loads when it comes within 200 px of the viewport, and its arrival is a
+burst of main-thread work: fetch the `.amx` (plus imports and assets), one or two
+*synchronous* wasm builds (23–54 ms for a tour scene, measured), then the first
+render. Starting that while the reader is still scrolling puts a long task inside
+the frames they are using to move — which is what a "choppy" page is made of,
+since a steady frame on real hardware is ~4 ms.
+
+So arrivals go through one page-wide queue: nothing starts until the scroll has
+settled for 140 ms, and only one figure builds at a time. A figure scrolled past
+before its turn is dropped and re-queued if it comes back. Both rules are capped:
+a queue head waits at most 900 ms even on a page that never stops scrolling, and a
+`src`/`profile` change re-enters the queue immediately. The visible cost is that a
+scene you stop on appears ~150 ms later than it used to, covered by its skeleton;
+the cost avoided was a 40–170 ms hitch in the middle of every scroll. A grid of
+figures fills in one at a time rather than all at once — the same total work, but
+never stacked into the same frames.
+
 ### Page-driven playback (`sealed`, `fit`, `amxready`)
 
 The homepage and tour drive the players from the page's own JS instead of

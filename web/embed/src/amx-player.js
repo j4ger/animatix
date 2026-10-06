@@ -248,6 +248,81 @@ function ensureLoop() {
   }
 }
 
+// ── arrival scheduling ──────────────────────────────────────────────
+// A player's first frame is a burst of main-thread work: fetch, one or two
+// *synchronous* wasm builds (23–54 ms per tour scene, measured), then the first
+// render. Starting that mid-scroll puts a long task inside the frames the reader
+// is using to move, and that is the shape of "the site is choppy" — a steady
+// frame on real hardware is ~4 ms. So arrivals go through one queue: a page that
+// is still scrolling starts nothing, and only one load runs at a time.
+// `LOAD_MAX_DEFER_MS` is the safety valve: a page that never stops scrolling
+// still loads its figures rather than starving them.
+const SCROLL_SETTLE_MS = 140;
+const LOAD_MAX_DEFER_MS = 900;
+const LOAD_RETRY_MS = 50;
+// Serialising arrivals is also a single point of failure, so one wedged load —
+// a request that neither resolves nor rejects — must not hold every later
+// figure behind it. Well past any honest arrival on a slow connection.
+const LOAD_STALL_MS = 8000;
+const loadQueue = [];
+let arriving = null;
+let loadTimer = 0;
+let lastScrollAt = -Infinity;
+
+addEventListener(
+  "scroll",
+  () => {
+    // Capture, not bubble: an element scroller's `scroll` event does not bubble,
+    // but it still passes window on the way down.
+    lastScrollAt = performance.now();
+  },
+  { capture: true, passive: true },
+);
+
+function pumpLoads() {
+  clearTimeout(loadTimer);
+  loadTimer = 0;
+  if (arriving || !loadQueue.length) return;
+  const inst = loadQueue[0];
+  if (!inst._visible) {
+    // Scrolled past before its turn came. The visibility observer queues it
+    // again if it comes back, so this is work the reader never waited for.
+    loadQueue.shift();
+    pumpLoads();
+    return;
+  }
+  const now = performance.now();
+  const scrolling = now - lastScrollAt < SCROLL_SETTLE_MS;
+  const overdue = now - inst._loadWantedAt > LOAD_MAX_DEFER_MS;
+  if (scrolling && !overdue) {
+    loadTimer = setTimeout(pumpLoads, LOAD_RETRY_MS);
+    return;
+  }
+  loadQueue.shift();
+  arriving = inst;
+  let stall = 0;
+  const release = () => {
+    clearTimeout(stall);
+    if (arriving !== inst) return; // a stall already handed the queue on
+    arriving = null;
+    pumpLoads();
+  };
+  stall = setTimeout(release, LOAD_STALL_MS);
+  Promise.resolve(inst._startLoad()).then(release, release);
+}
+
+function enqueueLoad(inst) {
+  if (loadQueue.includes(inst)) return;
+  inst._loadWantedAt = performance.now();
+  loadQueue.push(inst);
+  pumpLoads();
+}
+
+function dequeueLoad(inst) {
+  const i = loadQueue.indexOf(inst);
+  if (i >= 0) loadQueue.splice(i, 1);
+}
+
 // ── the element ─────────────────────────────────────────────────────
 
 const ASPECTS = {
@@ -301,6 +376,7 @@ class AmxPlayerElement extends HTMLElement {
     this._rate = 1;
     this._markers = [];
     this._marks = null;
+    this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
   }
 
   connectedCallback() {
@@ -328,9 +404,12 @@ class AmxPlayerElement extends HTMLElement {
     this._renderScaleObserver?.disconnect();
     clearTimeout(this._renderScaleRetry);
     instances.delete(this);
+    dequeueLoad(this);
     // `_playing` is deliberately left as-is: connectedCallback re-adds a
     // still-playing embed to the shared loop after a DOM move. Clearing it
     // here would make that re-arm dead code and silently freeze the figure.
+    // A re-attached player re-arms the visibility observer, which re-queues the
+    // load if it had not started yet.
   }
 
   attributeChangedCallback(name) {
@@ -799,7 +878,14 @@ class AmxPlayerElement extends HTMLElement {
     return diags;
   }
 
-  async _maybeStartLoading() {
+  /// Queue the scene load. Everything that could make a player start on its own
+  /// — becoming visible, a `src`/`profile` change — goes through the scheduler.
+  _maybeStartLoading() {
+    if (!this.getAttribute("src") || this._state !== "idle") return;
+    enqueueLoad(this);
+  }
+
+  async _startLoad() {
     const src = this.getAttribute("src");
     if (!src || this._state !== "idle") return;
     this._state = "loading";
