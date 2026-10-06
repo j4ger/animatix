@@ -40,6 +40,11 @@ gradient_eq: Text,
   font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
 
 #0.5s
+// The backdrop the declaration promises: `scene.amx` fades both in here, and the
+// slice lost that beat, so `never-revealed` was right — the contours and the field
+// were declared, styled and never drawn.
+fade-in contours_bg [600ms, ease: expo-out]
+fade-in field_bg [600ms, ease: expo-out]
 fade-in step2_title [500ms, ease: expo-out]
 fade-in ball [400ms, ease: expo-out]
 
