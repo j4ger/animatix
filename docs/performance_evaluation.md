@@ -926,6 +926,28 @@ of a blurred edge's alpha ramp in scene pixels at `1.0` and at `0.5` and require
 them to agree within 3 px, and then renders the naive variant (reduced texture,
 scene-pixel radius) to prove the test can tell them apart.
 
+**What the CPU guard says about it.** The change is GPU-side plus one
+`set_raster_scale` call in the wasm frame path, so the Layer-1 guard only has to
+prove it did not *cost* anything. Comparing the criterion estimates taken just
+before the engine edit against the same suite after it: 51 `demo_frame` benches,
+median **−2.8%** (faster). The new code is `scale_pixel_params`, called once per
+effect dispatch inside the GPU backend, and one enum field on `EffectParamSpec`;
+neither is reachable from a Layer-1 bench, because none of them constructs a
+backend.
+
+The full `compare` run reports four rows over the 5% floor against the 2026-10-02
+baseline: `analyzer_diagnostics_configured__small`, `evaluate_10_actors`,
+`full_pipeline__reactive_full`, `property_plan_lookup_and_sample`. They are not
+this change's, for a checkable reason — the bench files defining them reference no
+`FilterBackend`, `RendererCore` or `animatix_render` at all (grepped, not
+inferred), and the canary's measured loop is `PropertyPlan::get` plus
+`PropertyTrack::sample`, from which neither the scale call nor the new field is
+reachable. What did move them is drift accumulated over the 145 commits since that
+baseline; I did not bisect it, and the point is that a stale baseline is not
+evidence about the last change. Refresh it with `perf-bench.sh save` before using
+`compare` as a per-commit verdict. The absolute guardrail is unaffected: CI asks
+`--max-plan-ns 10000` and the leaf measures 9.9 ns.
+
 ---
 
 ## 4. How regressions are caught (gates)
