@@ -2438,3 +2438,48 @@ asserted at a floor the sampler cannot honour. And `visible` was kept only
 where its `invisible` partner also held, because a region that already carries
 another actor's ink passes `visible` for the wrong reason — 16 of attention's
 23 candidate actors are checkable that way, 6 of feedforward's 18.
+
+### Batch 9 (2026-10-06, the demo and feature-page review) — local only
+
+The same ask as Batch 8, aimed at everything that is not the transformer page:
+the five demo pages, the eleven-figure tour, the nine recipes, the gallery and
+the home page — no typographic errors, elegant and lively, **checked keyframe by
+keyframe**. Method: sweep every scene the site plays with `animatix verify`
+(ink at every `#Ns` stamp plus the held frame), then look at the fullest frame of
+each figure, then fix what the numbers could not see.
+
+| Commit | What it fixed | Evidence |
+|---|---|---|
+| `459a35c3` | seven figures that ended on an empty plate | held ink 0.26→34.0%, 0→46.6%, 0→39.3%, 0.36→28.9% (tour syntax/timing/actions/morph) and 0.46→2.1%, 0→2.8%, 0.38→6.8% (onecircle/losssurface/collision) |
+| `04da60ac` | the remaining fourteen, and the rule | components 0.0→33.7%, reactive 0.0→15.8%, plots 9.4→37.4%, effects 3.7→20.4%, light_camera 0.6→54.1%, rotation 0.6→2.4%, sort 0.4→11.8%, plus the five `scene.amx` plates and the epicycles hero. **An outro may animate parameters, but it may not erase the cast** — the embed dissolves the finished frame into the next cycle (`_fade` in `web/embed/src/amx-player.js`), so the cascade only added a blank. effects and light_camera keep their closing gesture (the chain swallowing the plate; the camera pulling back) with the fades removed and effects' blur/vignette/grade stopped at 18/0.5/0.62 instead of running the frame to black |
+| `2e8b7c27` | copy that contradicted its own figure | tour: "10 live scenes" (there are eleven players + one still), "a ten-section tour" (eleven), §01 promising `ease: bounce` that `syntax.amx` does not contain, §02 calling the five-ease race "the same recolor", §03 cross-referencing `always` to §08 (it is §09), §05's glass "ramps to 22 and back" (22 → 4 → 44), and five code sketches quoting values absent from the scenes they illustrate (140/400,440/210,90; `fade-in square[0]`; `ring.color`/`ring.size = (50 - p*10)`; `width: 180`; `brightness: 0.6`). recipes: "Eight small moves" over nine, and the glass limit stated as paint-order when it is geometric |
+| `7c141efa` | three defects the sweep could not see | see the narrative below |
+
+**The three the numbers missed.** (1) `glass.amx`'s close faded the card's own
+surface, heading, sub-label and caption out under a `frost.radius = 44` — the
+held frame was a frosted rectangle with no card in it, and frame ink stayed high
+because the *plate behind* carries it. Fixed by the parameter-only rule; the
+figure now rests on the shot it exists to demonstrate. (2) The same scene's
+46px title sat at `at: (-150, -28)` and ran from x=325 to x=655 — 55px outside
+the card's own left edge at 380 — so the label of a panel hung off the panel.
+Centred, and its caption's "22" removed because the caption outlives that value.
+(3) `hash/lookup.amx`'s second and third query chips were **never on screen at
+all**: an authored `opacity: 0.0` on a component *instance* stops `fade-in`
+lifting it, so the chips rendered zero pixels and their `shift` beats measured as
+"dead beats". Two identical `LabeledBox` declarations, one with the authored 0 and
+one without, isolate it: 11 168 px of travel versus 0.
+
+**What the sweep's own limits turned out to be.** A `DEAD-BEAT` flag is only
+evidence when the change is aperiodic: `marching_ants` and `light_camera`'s rail
+both step the dash offset by exactly one period per beat — which is the recipe —
+so frames one period apart are pixel-identical and a midpoint sample lands on the
+pattern's own symmetry. Sampling at 0.1 s shows both marching (0.52% and 0.28% per
+step). In a multi-scene plate the `#Ns` stamps are scene-local, so the plate
+"dead beats" were measured at the wrong moments entirely — `hash/scene.amx`'s q3
+shift moves 9 831 px at the time the sweep called dead. The committed
+`scripts/site-rest-check.py` therefore asserts only the resting-composition rule,
+states in its own docstring what it cannot see (a single actor vanishing over busy
+pixels — `visible <t> <label>` measures the coverage of an actor's *bounds*, not
+its own pixels), and was checked with a negative control: re-adding an erase
+cascade to `syntax.amx` fails it at "0.1% against a 34.2% plateau", restoring the
+scene passes.

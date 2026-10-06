@@ -472,3 +472,65 @@ the page, not just the scene.
   the alternative (a colour lift or the `pulse` action) changes the figure's
   register, and this pass had no way to judge "more vivid" except by measuring
   the change, which is exactly the metric that says the current pulse is small.
+
+## Found by the demo and feature-page review, left open (2026-10-06)
+
+Measured by A/B rendering (same scene with and without one beat) and counting
+changed pixels, so each item below is a reproduced dead end rather than a
+reading of the code.
+
+- **An authored `opacity: 0.0` on a component *instance* makes every entrance on
+  it a no-op.** Two identical `LabeledBox` declarations, one with `opacity: 0.0`
+  and one without, both with `fade-in` then `shift`: the plain one reveals and
+  travels (11 168 px changed across the shift), the authored-zero one contributes
+  **0 pixels in its whole band** — it never appears, so nothing can move.
+  `AGENTS.md` ("Entrance opacity and declared duration") documents the opposite
+  rule for built-in primitives: an explicit `0` is a seed any entrance lifts to
+  1.0. Component instances do not get that lift. `web/demos/hash/lookup.amx` hit
+  this: query chips 2 and 3 were invisible for the whole figure, which the sweep
+  could only report as two "dead beats". Worked around in content by hoisting the
+  declarations above the first keyframe (where the automatic seed already hides
+  them) and dropping the authored `0.0`; the real fix is to make the instance path
+  honour the same entrance-opacity rule as the primitives, and then to warn when an
+  entrance targets an actor whose opacity track it cannot lift — nothing in
+  `animatix check` said a word about a chip that never rendered.
+- **`highlight` / `unhighlight` paint on nothing but a `Typst` actor, and the
+  per-fragment path is unreachable in practice.** `Highlight` writes
+  `track.highlight.*` for any target and the signature promises a rectangle
+  "behind equation fragments", but `examples/projects/fft_explain.amx` renders
+  byte-identical frames with its three `highlight decomp_eq.fN` beats deleted
+  (1 px of 921 600 at the peak, 0 px four frames later), and a minimal
+  `Equation { Fragment, Fragment }` scene shows the same for both `highlight` and
+  `reveal-in` on a fragment — per-fragment *actions* record, and never draw.
+  `scene_eval.rs:1670` does build `HighlightLayer` commands from `frags`, so the
+  question is why the Equation branch is not the one that renders these scenes
+  (`primitives/equation.rs` has no highlight code at all, only a doc comment
+  promising it). Needs a rendered-frame test at the boundary — the existing
+  `highlight.rs` tests assert keyframes land on the track, which is exactly the
+  half that works.
+- **The raw/dotted label asymmetry in those actions is worth a look but is not a
+  demonstrated bug.** Both highlight actions validate a dotted target with
+  `ensure_target_exists` (which resolves `eq.f1` → `f1`) and then look the *raw*
+  string up in `tracks`. Routing every lookup through the resolved label changed
+  no rendered frame and no test could be written that failed without it, so the
+  change was reverted rather than shipped as a "fix" — the leaf label evidently
+  reaches the map either way. If the paint gap above gets a rendered-frame test,
+  start there and settle this at the same time.
+- **`differs`/`DEAD-BEAT` sampling is meaningless for a multi-scene plate.** The
+  per-keyframe sweep samples `#Ns` stamps as absolute times, but in a file with
+  `# Scene` sections those stamps are scene-local — `demos/hash/scene.amx` was
+  flagged at "10.5s→11.2s" while its q3 shift at that label moves 9 831 px. The
+  sweep now restricts per-beat checks to single-scene files and keeps only the
+  held-frame check for plates; a plate needs its beats resolved through
+  `animatix timeline` before it can be swept beat by beat.
+
+## Graph tick labels collide at the origin (2026-10-06)
+
+`web/tour/scenes/plots.amx` draws `0.0` (the y-axis label) and `0` (the x-axis
+label) at the crossing of the two axes, with the axis rule running through both.
+It is the `Graph` primitive's tick layout, not that scene's authoring — every
+`Graph` with both axes labelled and a zero in both domains gets the same
+overprint. The fix belongs in the tick-label pass: skip the zero tick on one
+axis when both axes are drawn, or offset the pair, which is what most plotting
+libraries do. Left alone in this pass because the only content-side workaround is
+to move the domains off zero, which changes what the figure teaches.
