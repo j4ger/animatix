@@ -45,15 +45,19 @@ card: Glass, at: (640, 360), size: (520, 250), corner_radius: 26 {
     // hairline border — the two pixels that make it read as glass.
     surface: Rect, size: (520, 250), corner_radius: 26,
       color: "#ffffff1f", stroke: "#ffffff59", stroke_width: 1.5
+    // Centred inside the 520x250 panel: at (-150, -28) the 46px title ran from
+    // x=325 to x=655 and hung 55px outside the card's own left edge at 380.
     heading: Text, text: "Backdrop blur", font_size: 46, font_weight: 700,
-      color: text.primary, at: (-150, -28)
+      color: text.primary, at: (0, -28)
     sub: Text, text: "a scope that reads the frame behind it", font_size: 21,
-      color: text.secondary, at: (-118, 30)
+      color: text.secondary, at: (0, 30)
 }
 
 capOff: Text, text: "frost radius 0", font_size: 20, color: text.secondary,
   at: (640, 640), opacity: 0.0
-capOn: Text, text: "frost.radius = 22 — and the text stays sharp",
+// The caption outlives its own number: the close ramps the frost to 44, so it
+// names the property, not a value that is only true for part of the shot.
+capOn: Text, text: "frost.radius climbs — and the text stays sharp",
   font_size: 20, color: text.secondary, at: (640, 640), opacity: 0.0
 
 #0s
@@ -77,18 +81,11 @@ frost.radius = 22 [900ms, ease: ease-in-out]
 #4.6s
 frost.radius = 4 [700ms, ease: ease-in-out]
 
-// Outro: the card does not get switched off, it fogs over. The frost keeps
-// climbing until the plate behind it is the only information left, and the
-// surface and its text are gone *into* that blur — a close only a backdrop scope
-// can have.
+// The close is a parameter move, not an erase: the frost keeps climbing until the
+// plate behind the panel is unreadable, and the card's own surface, heading and
+// caption stay exactly as sharp as they were — which *is* the lesson of the
+// figure, and the frame it should rest on. (An earlier outro faded the surface and
+// its text out too, so the held frame showed a frosted rectangle with no card in
+// it; total frame ink could not see that, because the plate behind carries it.)
 #5.4s
 frost.radius = 44 [1000ms, ease: ease-in-out]
-
-#5.6s
-stagger [70ms] {
-  fade-out sub [300ms, ease: ease-in]
-  fade-out heading [300ms, ease: ease-in]
-  fade-out capOn [250ms, ease: ease-in]
-  fade-out surface [700ms, ease: ease-in]
-  fade-out plate [500ms, ease: ease-in, delay: 200ms]
-}

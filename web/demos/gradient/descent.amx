@@ -62,7 +62,7 @@ fade-in trail [400ms, ease: expo-out]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
 
 #5.7s
-highlight ball [600ms]
+pulse ball [500ms]
 
 #6.5s
 fade-in takeaway [600ms, ease: expo-out]

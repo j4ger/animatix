@@ -167,6 +167,13 @@ circle.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 rect.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 poly.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 
+// Narration-only exit: every other caption hands off inside its own beat, and
+// this one was being taken away by the erase cascade that used to close the
+// scene. Without it the figure rests labelled `stretch: true` — the strategy of
+// one earlier beat, printed under three shapes that have just unified.
+#10.4s
+fade-out capS [300ms, ease: ease-in]
+
 // No erase cascade: the embed dissolves the finished frame into the next cycle
 // itself, so clearing the plate only blanked the figure through the `hold` at the
 // end of the loop. The composition now rests complete.

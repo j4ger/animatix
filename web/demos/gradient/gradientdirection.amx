@@ -55,7 +55,7 @@ fade-in down_arrow [800ms, ease: expo-out]
 fade-in down_label [800ms, ease: expo-out]
 
 #3.5s
-highlight ball [600ms]
+pulse ball [500ms]
 
 // Scene 4: Roll the ball to the minimum along the descent trail
 
