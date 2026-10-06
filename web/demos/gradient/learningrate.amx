@@ -1,6 +1,5 @@
 import "../lib/theme.amx"
 
-
 config { resolution: (1280, 720) }
 
 # LearningRate
@@ -67,7 +66,7 @@ fade-in label_big [400ms, ease: expo-out]
 #5.0s
 fade-in lesson [600ms, ease: expo-out]
 
-
-// =============================================================================
 // Scene 6: Outro — the goal of gradient descent
-// =============================================================================
+
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

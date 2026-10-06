@@ -88,15 +88,6 @@ stagger [80ms] {
 #1.2s
 insertion_sort(bars, {42, 17, 93, 5, 68, 31, 76, 12}, comp_ticks, swap_ticks)
 
-// Outro: quiet plate before the loop wrap.
-#18.2s
-stagger [60ms] {
-  fade-out sort_caption [280ms, ease: ease-in]
-  fade-out swap_ticks [280ms, ease: ease-in]
-  fade-out swap_label [280ms, ease: ease-in]
-  fade-out comp_ticks [280ms, ease: ease-in]
-  fade-out comp_label [280ms, ease: ease-in]
-  fade-out key_note [280ms, ease: ease-in]
-  fade-out bars [280ms, ease: ease-in]
-  fade-out sort_title [280ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

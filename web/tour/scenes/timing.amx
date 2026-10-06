@@ -114,8 +114,6 @@ move drop[2] [to: (0, 105), 900ms, ease: ease-out]
 move drop[3] [to: (0, 105), 900ms, ease: ease-in-out]
 move drop[4] [to: (0, 105), 900ms, ease: bounce]
 
-// Outro: quiet plate before the wrap.
-
 // No erase cascade: the embed dissolves the finished frame into the next cycle
 // itself, so clearing the plate only blanked the figure through the `hold` at the
 // end of the loop. The composition now rests complete.

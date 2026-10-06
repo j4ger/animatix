@@ -31,7 +31,7 @@ goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
 #5.2s
 fade-in goal_hint [500ms, ease: expo-out]
 
-#9.2s
-
 // ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

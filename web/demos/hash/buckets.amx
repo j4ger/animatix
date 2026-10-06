@@ -74,6 +74,7 @@ fade-out f_sun [220ms, ease: ease-in]
 bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
   font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 1.0
 
-
 // ── Scene 2: Collision — two keys, one bucket ────────────────────────────────
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

@@ -34,7 +34,7 @@ fade-in spec_eq [500ms, delay: 200ms, ease: expo-out]
 fade-in spectrum [800ms, ease: expo-out]
 fade-in spec_note [500ms, delay: 500ms, ease: expo-out]
 
-#9.8s
-
 // ── Scene 5: Complex Plane — e^{i theta} ────────────────────────────────────
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

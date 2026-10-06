@@ -208,14 +208,6 @@ fade-in footnote [700ms, ease: expo-out]
 #3.2s
 fade-in endnote [600ms, ease: expo-out]
 
-// Outro: quiet plate before the document loops. The 40ms stagger keeps the
-// last exit inside the declared 5.5s duration.
-#5.0s
-stagger [40ms] {
-  fade-out endnote [280ms, ease: ease-in]
-  fade-out footnote [280ms, ease: ease-in]
-  fade-out finale_bars [280ms, ease: ease-in]
-  fade-out finale_title [280ms, ease: ease-in]
-  fade-out tick_mark [280ms, ease: ease-in]
-  fade-out finale_wash [280ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

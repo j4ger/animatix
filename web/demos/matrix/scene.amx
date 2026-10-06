@@ -319,28 +319,6 @@ always {
   // the color flips via a keyframed assignment at t = 5.0, when det crosses zero
 }
 
-// Outro: quiet plate before the loop wrap.
-#9.0s
-stagger [30ms] {
-  fade-out col_cap [280ms, ease: ease-in]
-  fade-out det3_t [280ms, ease: ease-in]
-  fade-out cj_hat [280ms, ease: ease-in]
-  fade-out ci_hat [280ms, ease: ease-in]
-  fade-out cv__4 [280ms, ease: ease-in]
-  fade-out cv__3 [280ms, ease: ease-in]
-  fade-out cv__2 [280ms, ease: ease-in]
-  fade-out cv__1 [280ms, ease: ease-in]
-  fade-out cv__0 [280ms, ease: ease-in]
-  fade-out ch__4 [280ms, ease: ease-in]
-  fade-out ch__3 [280ms, ease: ease-in]
-  fade-out ch__2 [280ms, ease: ease-in]
-  fade-out ch__1 [280ms, ease: ease-in]
-  fade-out ch__0 [280ms, ease: ease-in]
-  fade-out d3_t [280ms, ease: ease-in]
-  fade-out c3_t [280ms, ease: ease-in]
-  fade-out b3_t [280ms, ease: ease-in]
-  fade-out a3_t [280ms, ease: ease-in]
-  fade-out m3_brace [280ms, ease: ease-in]
-  fade-out col_sub [280ms, ease: ease-in]
-  fade-out col_title [280ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

@@ -110,6 +110,7 @@ always {
   det_t.text = format("det = {:.1}", a * d - b * c)
 }
 
-
 // ── Scene 2: Rotation — columns are where the hats land ─────────────────────
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

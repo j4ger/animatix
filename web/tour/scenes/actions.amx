@@ -102,8 +102,6 @@ always {
   sat_label.at = (px, py + 56)
 }
 
-// Outro: hold the settled composition a beat, then quiet the plate.
-
 // No erase cascade: the embed dissolves the finished frame into the next cycle
 // itself, so clearing the plate only blanked the figure through the `hold` at the
 // end of the loop. The composition now rests complete.

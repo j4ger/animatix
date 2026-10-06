@@ -1,4 +1,4 @@
-// scenes.amx — tour §10: one file, several scenes; the cuts are GPU
+// scenes.amx — tour §11: one file, several scenes; the cuts are GPU
 // transitions (fade, then wipe-left). Trimmed from
 // examples/composition/14_multiscene.amx.
 
@@ -62,9 +62,7 @@ tag: Text, text: "the cut is a GPU transition", font_size: 20, color: accent.pri
 fade-in thanks [600ms, ease: expo-out]
 fade-in tag [450ms, delay: 150ms, ease: expo-out]
 
-// Hold, then a quiet wrap so the loop does not cut from a bright plate.
-#2.6s
-fade-out tag [300ms, ease: ease-in]
-
-#2.8s
-fade-out thanks [350ms, ease: ease-in]
+// The card rests. Its own wrap used to fade it out "so the loop does not cut from
+// a bright plate" — but the embed already dissolves the finished frame into the
+// next cycle, and the erase only blanked the card through the `hold` at the end of
+// the loop (measured held ink was 0.6% against a 2.0% plateau).

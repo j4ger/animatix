@@ -245,22 +245,6 @@ shift q3 [by: (0, 250), 520ms, ease: ease-in]
 fade-out q_f3 [200ms, ease: ease-in]
 fade-in verdict_miss [260ms, ease: expo-out]
 
-// Outro: quiet plate before the loop wrap.
-#11.7s
-stagger [30ms] {
-  fade-out verdict_miss [260ms, ease: ease-in]
-  fade-out q3 [260ms, ease: ease-in]
-  fade-out lk_title [260ms, ease: ease-in]
-  fade-out r_owl [260ms, ease: ease-in]
-  fade-out r_chain [260ms, ease: ease-in]
-  fade-out r_dog [260ms, ease: ease-in]
-  fade-out r_sun [260ms, ease: ease-in]
-  fade-out b7l [260ms, ease: ease-in]
-  fade-out b6l [260ms, ease: ease-in]
-  fade-out b5l [260ms, ease: ease-in]
-  fade-out b4l [260ms, ease: ease-in]
-  fade-out b3l [260ms, ease: ease-in]
-  fade-out b2l [260ms, ease: ease-in]
-  fade-out b1l [260ms, ease: ease-in]
-  fade-out b0l [260ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

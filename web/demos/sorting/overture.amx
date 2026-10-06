@@ -19,7 +19,7 @@ fade-in title [700ms, ease: expo-out]
 fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
 fade-in hint [500ms, delay: 450ms, ease: expo-out]
 
-#5.4s
-
 // ── Scene 2: The Sort ───────────────────────────────────────────────────────
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

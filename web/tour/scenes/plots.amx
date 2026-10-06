@@ -1,4 +1,4 @@
-// plots.amx — tour §07: plots are actors; a curve traces itself with
+// plots.amx — tour §08: plots are actors; a curve traces itself with
 // stroke_progress, a vector field fades in beside it.
 //
 // The trace is lit: the curve carries a wider, screen-blended copy of itself
@@ -78,18 +78,6 @@ fade-in field_wash [700ms, ease: expo-out]
 pop-in field [600ms, ease: expo-out]
 settle-in cap2 [400ms, ease: expo-out]
 
-// Outro: a scene about data should end by taking the data away. The plot bodies
-// travel down out of frame (a `shift` is a real exit, and it reads as the values
-// leaving) while the wash and the text fade in place, so the two kinds of content
-// close differently instead of one wipe covering both.
-#6.7s
-stagger [80ms] {
-  shift field [by: (0, 300), 620ms, ease: ease-in]
-  shift main [by: (0, 300), 620ms, ease: ease-in]
-  shift field_wash [by: (0, 300), 620ms, ease: ease-in]
-}
-stagger [90ms] {
-  fade-out cap2 [350ms, ease: ease-in]
-  fade-out wash [400ms, ease: ease-in]
-  fade-out title [400ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

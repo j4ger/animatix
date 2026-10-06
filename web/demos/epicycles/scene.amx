@@ -331,15 +331,6 @@ fade-in cp_note [500ms, delay: 300ms, ease: expo-out]
 #4s
 fade-in endnote [600ms, ease: expo-out]
 
-// Outro: quiet plate before the document loops.
-#11.2s
-stagger [60ms] {
-  fade-out endnote [300ms, ease: ease-in]
-  fade-out cp_note [300ms, ease: ease-in]
-  fade-out cp_eq [300ms, ease: ease-in]
-  fade-out vec_tip [300ms, ease: ease-in]
-  fade-out vector [300ms, ease: ease-in]
-  fade-out unit_circle [300ms, ease: ease-in]
-  fade-out grid [300ms, ease: ease-in]
-  fade-out cp_title [300ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

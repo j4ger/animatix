@@ -348,7 +348,6 @@ fade-in thanks [700ms, ease: expo-out]
 #1.0s
 fade-in tag [500ms, ease: expo-out]
 
-#2.2s
-fade-out thanks [300ms, ease: ease-in]
-fade-out tag [300ms, ease: ease-in]
-fade-out wash [300ms, ease: ease-in]
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

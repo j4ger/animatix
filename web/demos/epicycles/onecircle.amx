@@ -59,7 +59,6 @@ always {
 #13.0s
 fade-in one_hint [400ms, ease: expo-out]
 
-
 // No erase cascade: the embed dissolves the finished frame into the next cycle
 // itself, so clearing the plate only blanked the figure through the `hold` at the
 // end of the loop. The composition now rests complete.

@@ -37,11 +37,10 @@ stagger [150ms] {
 #3.5s
 fade-in caption [500ms, ease: expo-out]
 
-
-// =============================================================================
 // Scene 3: Show which direction to step — against the gradient
-// =============================================================================
 
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.
 
 // No erase cascade: the embed dissolves the finished frame into the next cycle
 // itself, so clearing the plate only blanked the figure through the `hold` at the

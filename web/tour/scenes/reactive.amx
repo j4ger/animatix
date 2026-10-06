@@ -1,4 +1,4 @@
-// reactive.amx — tour §08: an always block re-evaluates every frame, and
+// reactive.amx — tour §09: an always block re-evaluates every frame, and
 // is_animating(&prop) lets actors react to the keyframe clock itself.
 // Adapted from examples/animation/06_reactive.amx.
 //
@@ -113,16 +113,6 @@ fade-in capB [300ms, ease: expo-out]
 #4.6s
 fade-out capB [200ms, ease: ease-in]
 
-// Outro: quiet the plate before the wrap (reverse order). The 60ms stagger
-// keeps the last exit inside the declared 6.8s duration.
-#5.9s
-stagger [60ms] {
-  fade-out status [350ms, ease: ease-in]
-  fade-out dot [350ms, ease: ease-in]
-  fade-out cross_v [350ms, ease: ease-in]
-  fade-out cross_h [350ms, ease: ease-in]
-  fade-out lock [350ms, ease: ease-in]
-  fade-out ring [350ms, ease: ease-in]
-  fade-out glow [350ms, ease: ease-in]
-  fade-out title [350ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

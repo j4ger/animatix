@@ -115,17 +115,6 @@ eq_7.color = accent.warning [400ms]
 #15.5s
 eq_7.color = text.secondary [400ms]
 
-// Outro: quiet plate before the loop wrap.
-#21.0s
-stagger [60ms] {
-  fade-out eq_row [300ms, ease: ease-in]
-  fade-out hero_link [300ms, ease: ease-in]
-  fade-out wave_tip [300ms, ease: ease-in]
-  fade-out hero_graph [300ms, ease: ease-in]
-  fade-out tip [300ms, ease: ease-in]
-  fade-out c4 [300ms, ease: ease-in]
-  fade-out c3 [300ms, ease: ease-in]
-  fade-out c2 [300ms, ease: ease-in]
-  fade-out c1 [300ms, ease: ease-in]
-  fade-out hero_title [300ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

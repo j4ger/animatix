@@ -57,7 +57,7 @@ fade-in down_label [800ms, ease: expo-out]
 #3.5s
 highlight ball [600ms]
 
-
-// =============================================================================
 // Scene 4: Roll the ball to the minimum along the descent trail
-// =============================================================================
+
+// Cut point: this divider belongs to the plate (./scene.amx). The section it names
+// is a later figure in its own file — nothing is missing from the scene above.

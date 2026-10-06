@@ -1,4 +1,4 @@
-// components.amx — tour §09: import a module, instantiate its components.
+// components.amx — tour §10: import a module, instantiate its components.
 // `lib/components.amx` is a copy of examples/lib/components.amx; the browser
 // fetches it relative to the scene, the CLI resolves it from disk.
 //
@@ -83,14 +83,6 @@ shift row [by: (0, -40), 500ms, ease: spring, anticipate: 80ms]
 #4.6s
 fade-out capX [200ms, ease: ease-in]
 
-// Outro: quiet the plate before the wrap (reverse order).
-#5.1s
-stagger [70ms] {
-  fade-out c3 [350ms, ease: ease-in]
-  fade-out c2 [350ms, ease: ease-in]
-  fade-out c1 [350ms, ease: ease-in]
-  fade-out heading [350ms, ease: ease-in]
-  fade-out rail_a [300ms, ease: ease-in]
-  fade-out rail_b [300ms, ease: ease-in]
-  fade-out wash [300ms, ease: ease-in]
-}
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.
