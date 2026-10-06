@@ -76,3 +76,12 @@ pub struct LoadResultDto {
     /// sorted by time — the scrubber draws them and snaps to them.
     pub markers: Vec<MarkerDto>,
 }
+
+/// Frame-dedup counters, for measuring the raster skip rather than assuming it:
+/// `drawn` ticks did the GPU work, `deduped` ticks found the same frame already
+/// on the canvas and returned without even acquiring a swapchain image.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct DedupStatsDto {
+    pub drawn: u64,
+    pub deduped: u64,
+}

@@ -51,6 +51,9 @@ pub mod env;
 pub(crate) mod env_keys;
 pub mod eval_shared;
 pub(crate) mod fn_eval;
+/// The key a presented frame is identified by, and the guard that skips a
+/// raster when the previous one is still on screen.
+pub mod frame_signature;
 /// Image loading utilities.
 pub mod image;
 pub mod kurbo_shapes;
@@ -680,6 +683,11 @@ pub(crate) struct FrameCacheEntry {
 #[derive(Default)]
 pub(crate) struct EvalCaches {
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
+    /// Bumped by `invalidate_frame_cache`, which every in-place mutation of the
+    /// document funnels through. Exported as `Timeline::content_epoch` so a
+    /// driver can put "has the document changed under this time?" into its
+    /// frame signature (`frame_signature`).
+    content_epoch: std::cell::Cell<u64>,
     transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
@@ -1554,6 +1562,11 @@ impl Timeline {
     /// of returning a stale cached one. Public mutable track/metadata/env
     /// accessors invoke this automatically.
     pub fn invalidate_frame_cache(&self) {
+        // Every in-place mutation of this document funnels through here, which
+        // makes this the one place a driver can learn that the pixels at a given
+        // time may now differ. `FrameSignature` carries the value so a raster
+        // dedup cannot serve a stale frame after an edit.
+        self.eval_caches.content_epoch.set(self.eval_caches.content_epoch.get() + 1);
         self.refresh_blend_used();
         self.refresh_camera_used();
         // Recycle the invalidated entry's encoded scene into the scene buffer
@@ -1592,6 +1605,18 @@ impl Timeline {
                 .set(track.shape.vector_paths_epoch.get().wrapping_add(1));
             track.shape.shape_type_switches.set(None);
         }
+    }
+
+    /// The document's mutation epoch, current for this timeline. Two reads with
+    /// no mutation between them return the same value; any edit that invalidates
+    /// the scene cache also moves this, which is what makes it safe to name a
+    /// rendered frame by it (`frame_signature::FrameSignature`).
+    ///
+    /// Note it is per-`Timeline`, not global: a newly built document restarts at
+    /// 0, so a driver that can swap documents needs its own generation counter
+    /// alongside it.
+    pub fn content_epoch(&self) -> u64 {
+        self.eval_caches.content_epoch.get()
     }
 
     /// Returns a reference to the audio segments collected during build.

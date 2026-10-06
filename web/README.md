@@ -277,6 +277,14 @@ the cost avoided was a 40–170 ms hitch in the middle of every scroll. A grid o
 figures fills in one at a time rather than all at once — the same total work, but
 never stacked into the same frames.
 
+A figure that has stopped changing does not redraw either. A loop rests on its
+finished frame for the whole `hold` window while the player keeps asking 60 times
+a second, so the engine compares what a frame depends on (time, scene and raster
+and surface size, document revision) against what is already on the canvas and
+does nothing when they match — measured at 13% of ticks on this site's own tour.
+See `docs/performance_evaluation.md`, "A frame already on the screen is not a
+frame to draw".
+
 ### Page-driven playback (`sealed`, `fit`, `amxready`)
 
 The homepage and tour drive the players from the page's own JS instead of

@@ -156,6 +156,22 @@ pub enum BuildTarget {
 }
 
 impl BuildTarget {
+    /// The mutation epoch of the whole document, for a driver keying rendered
+    /// frames by content (`timeline::frame_signature`).
+    ///
+    /// Summed across scenes rather than maxed: epochs only ever increase, so a
+    /// sum strictly increases when any scene is edited, while a max would keep
+    /// reporting the same number after an edit to a scene whose epoch is not the
+    /// largest — a multi-scene document whose dedup never noticed the change.
+    pub fn content_epoch(&self) -> u64 {
+        match self {
+            Self::SingleScene(timeline) => timeline.content_epoch(),
+            Self::MultiScene(composition) => {
+                composition.scenes.values().map(|scene| scene.timeline.content_epoch()).sum()
+            },
+        }
+    }
+
     /// Build the appropriate target from parsed AST statements.
     ///
     /// Detects `Stmt::Scene` markers to determine single vs multi-scene mode.

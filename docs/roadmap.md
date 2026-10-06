@@ -111,7 +111,7 @@ Remaining:
 | Item | Scope | Status |
 |---|---|---|
 | Attribute the GPU-side gap | Narrowed by a WebGPU microbenchmark (§3.7 "Where the gap is not"): not fill rate (a full-target colour write is 0.058 ms vs a 3.42 ms frame), not the present blit (0.003 ms), not pass count (pinned vello uses exactly two compute passes). It sits inside the execution of those passes in the browser — Dawn's dispatch/barrier handling, plus a per-frame encoding upload bounded at ~0.22 ms/MB. JS-side compute timing is unusable (it reports CPU submission), so the next step is a GPU capture: RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing via `--enable-dawn-features`. | Not started |
-| Render vello directly into the canvas surface | Would delete the offscreen target and the entire blit pass (~0.2 ms). Chromium accepts `RENDER_ATTACHMENT \| STORAGE_BINDING` in `GPUCanvasContext.configure` (probed 2026-09-30), contradicting the assumption the offscreen+blit workaround was built on — but a `Bgra8Unorm` swapchain may not be a legal vello target, and Firefox/Safari are unverified. Needs a capability probe plus a fallback. | Not started |
+| Render vello directly into the canvas surface | Closed without doing it. The blit this would delete measures 0.003 ms (§3.7), and it is the upscaling step: rendering into the surface means rasterizing at canvas resolution every frame, which forfeits `set_render_scale` and the adaptive quality controller. Whether Chromium grants a requested `STORAGE_BINDING` on a canvas texture is still unprobed (`SurfaceConfiguration::usage` exists; the spec's canvas configuration has no usage member, so "accepts" may mean "ignores") — see "The preview-lag round" for the measurement and the reasoning. | Closed, not worth it |
 | `wasm-opt` speed pass | Release builds are size-optimised (`-Oz`). The build-profile A/B says the whole wasm CPU slice is small and unmeasurable from JS, so this is unlikely to be where the gap is — but it is untested. | Not started |
 | Frame cache on the web path | **Resolved while doing the row below**: `restore_frame_cache` gates on `backend_can_run`, which asks whether the scene has effect scopes rather than whether a backend was passed, so unfiltered browser scenes already cache. The row was stale. | Done (was already done) |
 | Scale animated `Filter` scopes | Done: `FilterBackend::set_raster_scale`, with pixel-unit parameters declared as `EffectParamUnit::Pixel` so a radius shrinks with the raster. Measured, and pinned by a ramp-width test. Not yet re-measured in a browser after the change — see `docs/performance_evaluation.md` §The filter chain follows the raster. | Landed, needs the browser A/B |
@@ -568,9 +568,9 @@ this in the first place, verified by putting one scene's import back.
 
 ## The preview-lag round — what landed, what the measurements killed (2026-10-06)
 
-"预览比较卡" turned into two shipped fixes and three ideas killed before code.
-Both fixes came out of measuring first; the killed ideas are here so nobody
-re-sells them.
+"预览比较卡" turned into three shipped fixes and three ideas killed before code.
+Every one of them came out of measuring first; the killed ideas are here so
+nobody re-sells them.
 
 Landed:
 
@@ -579,6 +579,10 @@ Landed:
   at the bottom quality step, with the unfiltered control unchanged.
 - **Arrival scheduling** (`web/README.md`, "When a scene arrives"). Figures
   build when the page settles rather than mid-scroll.
+- **Raster-level frame dedup** (`performance_evaluation.md`, "A frame already on
+  the screen is not a frame to draw"). The engine's scene cache memoized the 1%
+  of a frame that is cheap; a repeated frame now skips the raster too. Measured
+  13% of tour ticks, and the CPU guard came back clean.
 
 Killed by measurement:
 
@@ -593,19 +597,24 @@ Killed by measurement:
   lag. The file's split (generated artifacts cache, scene sources revalidate) is
   deliberate and stays.
 - **Rendering vello straight into the canvas instead of offscreen + blit.**
-  Not a missing optimization — not possible. Vello's `render_to_texture` docs
-  list exactly two ways to hit a surface: an intermediate texture plus
-  `TextureBlitter` (what the player does), or calling it on the
-  `SurfaceTexture` "if it has the right usages". The browser never grants those
-  usages: a configured canvas texture reports `GPUTextureUsage` =
-  `RENDER_ATTACHMENT` and nothing else (measured `usage === 16` for rgba8unorm
-  and bgra8unorm, `opaque` and `premultiplied`, 64×64 and 1100×619 alike; no
-  format choice or alpha mode adds a bit, and `TEXTURE_BINDING`/`COPY_DST` are
-  absent too, so a copy or a read-back of the surface is equally out). That
-  measurement is Chrome's — Firefox and Safari are unmeasured here, and the
-  mask is browser policy rather than hardware, so treat them as at-least-as
-  restrictive. The blit is what the platform requires. Recorded at the decision
-  site (`animatix-web/src/web.rs`, `render_frame_inner`).
+  Rejected on cost, not on possibility. Vello's `render_to_texture` docs list two
+  ways to hit a surface: an intermediate texture plus `TextureBlitter` (what the
+  player does), or calling it on the `SurfaceTexture` "if it has the right
+  usages". A canvas configured the default way reports `GPUTextureUsage` =
+  `RENDER_ATTACHMENT` and nothing else (measured `usage === 16` for rgba8unorm and
+  bgra8unorm, `opaque` and `premultiplied`, 64×64 and 1100×619 alike), and whether
+  *asking* for more changes that is unprobed — `SurfaceConfiguration::usage`
+  exists in wgpu 29, while the WebGPU spec's canvas configuration has no such
+  member, so a browser may accept and ignore it (the likeliest reading of the
+  2026-09-30 "Chromium accepts `RENDER_ATTACHMENT | STORAGE_BINDING`" note in the
+  table above). It does not matter either way: the blit being removed measures
+  **0.003 ms** (§3.7), and it is not overhead — it *is* the upscaling step.
+  Rendering into the surface means always rasterizing at canvas resolution, which
+  forfeits `set_render_scale`, the adaptive quality controller, and the
+  filter-chain-follows-raster win that was this round's other landing. The
+  "~0.2 ms a frame" estimate for the blit still written in that table is
+  superseded by the measured 0.003 ms. Recorded at the decision site
+  (`animatix-web/src/web.rs`, `render_frame_inner`).
 
 Still owed, and it needs the owner's hardware because every number above came
 off a software raster (composition is the site's own, absolute ms are inflated):

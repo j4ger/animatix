@@ -948,6 +948,100 @@ evidence about the last change. Refresh it with `perf-bench.sh save` before usin
 `compare` as a per-commit verdict. The absolute guardrail is unaffected: CI asks
 `--max-plan-ns 10000` and the leaf measures 9.9 ns.
 
+### A frame already on the screen is not a frame to draw
+
+The engine has deduplicated frames for a while, at the wrong level.
+`EvalCaches::frame_cache` returns a previously encoded `vello::Scene` for a
+repeated `(time_ms, dimensions, …)`, and that is worth roughly nothing: the
+benches put `sample` at ~47 µs and `build_frame_env` at ~7.4 µs against a
+3.4–4.1 ms web raster. The scene build is the 1%; the raster is the 99%, and it
+is the part that repeats.
+
+How much it repeats is measurable from the shell without any engine change —
+wrap `_renderScene` and compare the time it passes against the time of the
+previous call. On the tour, over 944 rendered ticks, **119 (13%) asked for a
+moment that had just been drawn**. That is the loop's `hold` window: a cycle is
+`duration + hold`, the embed keeps asking 60 times a second, and for the whole
+rest the frame is finished. For a filtered figure at the bottom quality step
+(~49 ms a frame) it is about two seconds of GPU work per seven-second loop,
+producing pixels the canvas already has.
+
+So: `animatix::timeline::frame_signature`. `FrameSignature` names every input a
+presented frame's pixels are a function of, and `FrameDedup` remembers the last
+one that reached the screen. A tick whose signature matches does not acquire a
+swapchain image, does not encode, does not blit, and does not present.
+
+The claim "same signature, same pixels" is the whole risk, so its two supports
+are structural rather than hopeful:
+
+- **`Timeline::content_epoch`**, bumped inside `invalidate_frame_cache` — the
+  function whose own doc comment says every public mutable accessor funnels
+  through it. Any in-place edit therefore changes the key.
+- **A driver-side document generation**, because the epoch counts a document's
+  edits, not its identity: a freshly built timeline starts at 0 exactly as its
+  predecessor did, and the editor path rebuilds at the same playhead time. The
+  web player bumps it on every build and calls `invalidate` wherever content can
+  disappear without any input changing — a surface reconfigure, a `debug_fill`.
+
+One hazard surfaced while wiring it, and it was already in the code: the canvas
+path called `present()` even when the render had failed, presenting a swapchain
+image it never drew into. Alone that is a transient glitch; with the dedup it
+would be permanent — the failed tick records nothing, so every identical tick
+after it is skipped and the canvas never gets another present. Presenting is now
+inside the success branch, which is the invariant the dedup depends on.
+
+Two drivers deliberately do **not** use it:
+
+- **The GUI preview has no repeated frames to skip.** `preview_dirty` is set by
+  playback and edit handlers, not by every repaint, and a playing clock always
+  moves the quantised time. Wiring it there would be dead code by the repo's own
+  rule, so the type stays in the engine and the GUI keeps its dirty discipline.
+- **Export cannot skip the work, only move it.** The encoder needs a frame per
+  output frame, so a skipped raster would have to feed the *previous* buffer
+  instead — and `render_frames_streaming` already look-aheads across threads
+  with per-chunk targets, where "same as the previous frame" is not a
+  thread-local question. The look-ahead half of this idea is therefore already
+  built, in the one place it pays.
+
+`perf-bench.sh compare` is the CPU-side check that none of this costs anything,
+and `web/demos/perf-probe.html` now measures the skip directly: it renders one
+frame 30 times in a row (`rest_ms`) against its normal per-frame cost
+(`page_ms`), so a silently broken dedup shows up as those two numbers converging.
+
+**What the browser showed.** On the software raster (composition is the site's
+own; absolute ms are inflated): a filtered figure at scale 1 measured
+`page_ms` 314.56 against `rest_ms` **0.37**, and the player's own counter read
+19 of 20 repeated ticks deduped — the first draws, the rest do not. The
+correctness half matters more than the speed half, because the failure mode of a
+dedup is a frozen or blank stage:
+
+- A frame drawn at `t=2.0` and then asked for again produces a **byte-identical**
+  canvas capture, and a capture at another time differs — so the skip preserved
+  the image rather than clearing it.
+- Rebuilding the document (`applySource`) and seeking to the *same* time draws
+  rather than deduping, which is the document-generation field earning its keep.
+- The held frame is real content, not an empty stage: the readback summary at
+  `t=4.0` reports 65 distinct colours over 14 400 samples.
+
+One trap worth recording: none of that could be proven with `--screenshot`. The
+headless capture does not include WebGPU canvas contents (already noted in
+`roadmap.md`), so two screenshots of different scene times differed only in the
+DOM scrubber readout — which reads as a pass and proves nothing. `toDataURL()` on
+the live canvas does capture it, and that is what the identity check above uses.
+
+**What the CPU guard says about the dedup.** It should cost nothing on these
+benches, because none of them reaches the present path — and measuring that is
+worth doing anyway, since the change adds a field to `EvalCaches`, which every
+`Timeline` embeds. Run against a snapshot taken from the same tree minutes
+before the change: 128 benches, one row over the floor (`evaluate_25_actors`
++29.8%), and that row did not reproduce — 208.5 ns re-run in isolation against a
+214.4 ns baseline, i.e. within noise on the correct side. Its neighbours moved in
+both directions in the same run (`evaluate_50_actors` −11%, `sample_all_tracks`
+−13.5%, the same bench's own `_no_cache` twin −3%), which is what a long suite
+running under system load looks like. The lesson is the one the gate exists for:
+a single flagged row is a hypothesis, not a finding, and re-running the bench
+costs two minutes.
+
 ---
 
 ## 4. How regressions are caught (gates)

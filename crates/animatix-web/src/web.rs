@@ -17,6 +17,7 @@ use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
 use animatix::timeline::effects::FilterBackend;
+use animatix::timeline::frame_signature::FrameSignature;
 use animatix::timeline::{BuildQuality, DebugRenderOptions, SceneDimensions, Timeline};
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::parser::parse_source;
@@ -227,6 +228,10 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             target: None,
             render_scale: 1.0,
             scaled: vello::Scene::new(),
+            dedup: animatix::timeline::frame_signature::FrameDedup::new(),
+            document_generation: 0,
+            frames_drawn: 0,
+            frames_deduped: 0,
         })
     })
 }
@@ -280,6 +285,21 @@ pub struct AmxPlayer {
     /// Reusable re-encode buffer for [`scaled_scene`]; owned here so a scaled
     /// frame does not allocate a scene per render.
     scaled: vello::Scene,
+    /// Guards against re-rasterizing a frame the canvas already shows. A looping
+    /// embed spends its whole `hold` window drawing the same finished frame —
+    /// 13% of ticks on the tour, and tens of milliseconds each for a filtered
+    /// figure — and the raster, unlike evaluation, is the expensive part.
+    dedup: animatix::timeline::frame_signature::FrameDedup,
+    /// Bumped on every document build. The timeline's own epoch cannot tell a
+    /// rebuilt scene from an untouched one (both start at 0), and the editor path
+    /// rebuilds at the same playhead time.
+    document_generation: u64,
+    /// Diagnostics only: how many ticks the dedup absorbed and how many it drew,
+    /// so `debug_dedup_stats` can prove the skip is happening rather than
+    /// assuming it.
+    frames_drawn: u64,
+    /// See [`AmxPlayer::frames_drawn`].
+    frames_deduped: u64,
 }
 
 /// Smallest raster scale [`AmxPlayer::set_render_scale`] accepts. Below this a
@@ -546,6 +566,12 @@ impl AmxPlayer {
             // Filter targets are sized in scene space; rebuild for new dims.
             self.filter_backend = None;
             self.filter_backend_to = None;
+            // A rebuilt document is different content at the same playhead time,
+            // which the timeline epoch alone cannot see (both start at 0), so the
+            // frame the canvas is holding is no longer describable by the old
+            // signature.
+            self.document_generation += 1;
+            self.dedup.invalidate();
             self.target = Some(target);
         }
 
@@ -644,6 +670,11 @@ impl AmxPlayer {
         let mut cpu = Vec::with_capacity(frames as usize);
         for i in 0..frames {
             let t0 = now_ms();
+            // A benchmark that dedups measures nothing: this loop asks "what does
+            // drawing a frame cost", and two iterations at the same quantised
+            // time would otherwise answer "free". Clearing the remembered frame
+            // is a store of `None` — no GPU work — so it cannot bias the timing.
+            self.dedup.invalidate();
             self.render_frame(i as f64 * step)?;
             cpu.push(now_ms() - t0);
         }
@@ -679,6 +710,20 @@ impl AmxPlayer {
             self.render_frame(i as f64 / 60.0)?;
         }
         Ok(())
+    }
+
+    /// Frame-dedup counters: how many ticks drew and how many found the same
+    /// frame already on the canvas. Read-only, so a page can prove the skip is
+    /// happening rather than trust it (`web/demos/perf-probe.html`). Named in
+    /// snake_case like every other export here; a `js_name` rename would make
+    /// the probe's optional call read as zero forever.
+    pub fn debug_dedup_stats(&self) -> Result<JsValue, JsError> {
+        let stats = crate::dto::DedupStatsDto {
+            drawn: self.frames_drawn,
+            deduped: self.frames_deduped,
+        };
+        serde_wasm_bindgen::to_value(&stats)
+            .map_err(|e| JsError::new(&format!("failed to serialize dedup stats: {e}")))
     }
 
     pub fn scene_width(&self) -> u32 {
@@ -808,6 +853,9 @@ impl AmxPlayer {
         }
         ctx.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+        // The screen now holds a flat colour that no frame signature describes,
+        // so the next identical frame must draw rather than dedup.
+        self.dedup.invalidate();
         Ok(())
     }
 
@@ -924,6 +972,34 @@ impl AmxPlayer {
         with_engine(|ctx| self.render_frame_inner(ctx, time_s))
     }
 
+    /// What the frame about to be drawn at `time_s` depends on, in one
+    /// comparable value. See `animatix::timeline::frame_signature` for why each
+    /// member belongs there.
+    fn frame_signature(
+        &self,
+        time_s: f64,
+        surface_width: u32,
+        surface_height: u32,
+    ) -> FrameSignature {
+        let (raster_width, raster_height) = raster_dims(self.dims, self.render_scale);
+        FrameSignature {
+            // Quantised exactly like the engine's own scene cache: a difference
+            // the evaluator cannot see must not make the dedup redraw.
+            time_ms: (time_s * 1000.0) as u64,
+            scene_width: self.dims.width,
+            scene_height: self.dims.height,
+            raster_width,
+            raster_height,
+            surface_width,
+            surface_height,
+            document_generation: self.document_generation,
+            content_epoch: self.target.as_ref().map_or(0, BuildTarget::content_epoch),
+            // The web player has no debug overlays; a driver that can toggle
+            // them names them here instead.
+            debug_bits: 0,
+        }
+    }
+
     fn render_frame_inner(
         &mut self,
         ctx: Result<&EngineContext, String>,
@@ -938,18 +1014,34 @@ impl AmxPlayer {
             self.surface.configure(&ctx.device, &self.config);
         }
 
+        // A loop rests on its finished frame for the whole `hold` window, and the
+        // embed keeps asking for it 60 times a second. Evaluation is ~47 µs of
+        // that; the raster is the milliseconds — so the check is worth doing
+        // before anything is acquired, and a skipped tick does no GPU work at
+        // all: the canvas holds the last presented image.
+        let signature = self.frame_signature(time_s, width, height);
+        if self.dedup.is_presented(&signature) {
+            self.frames_deduped += 1;
+            return Ok(());
+        }
+
         // Vello draws its final pass through a compute pipeline that needs
-        // STORAGE_BINDING on its target, and a browser canvas texture is never
-        // given that usage: measured `GPUTextureUsage` on a configured canvas is
-        // RENDER_ATTACHMENT only (16), for rgba8unorm and bgra8unorm, opaque and
-        // premultiplied, at 64x64 and 1100x619 alike. So there is no
-        // render-straight-to-the-canvas path to take — vello's own docs name the
-        // intermediate-texture-plus-blit pattern the platform forces.
-        // Mirror the GUI's PreviewSurface: render into an offscreen texture we
-        // own at scene resolution (vello draws scene units 1:1 — no camera
-        // scaling), then blit it scaled onto the surface view. During a
-        // multi-scene transition the outgoing and incoming scenes render into
-        // two of those targets and the compositor blends them into a third.
+        // STORAGE_BINDING on its target, and a canvas configured the default way
+        // is not given it: measured `GPUTextureUsage` on a configured canvas is
+        // RENDER_ATTACHMENT only (16), for rgba8unorm and bgra8unorm,
+        // opaque and premultiplied, at 64x64 and 1100x619 alike. Whether asking
+        // for more changes that is unprobed (`SurfaceConfiguration::usage`
+        // exists; the WebGPU spec's canvas configuration has no such member, so
+        // a browser may accept and ignore it) — but it does not matter, because
+        // the blit this would delete measures 0.003 ms (`performance_evaluation.md`
+        // §3.7) and *is* the upscaling step: rendering into the surface means
+        // always rasterizing at canvas resolution, which gives back the whole
+        // adaptive-quality mechanism, including the filter-chain-follows-raster
+        // win. Mirror the GUI's PreviewSurface instead: render into an offscreen
+        // texture we own at scene resolution (vello draws scene units 1:1 — no
+        // camera scaling), then blit it scaled onto the surface view. During a
+        // multi-scene transition the outgoing and incoming scenes render into two
+        // of those targets and the compositor blends them into a third.
         let blending = matches!(self.target.as_ref(), Some(BuildTarget::MultiScene(_)));
         // The transition compositor compiles its WGSL pipeline on first use;
         // the player owns it so the lazy init has a home beside its targets.
@@ -963,9 +1055,12 @@ impl AmxPlayer {
                 frame
             },
             // The surface changed under us (e.g. canvas resize raced the
-            // frame) — reconfigure and let the next rAF tick retry.
+            // frame) — reconfigure and let the next rAF tick retry. A
+            // reconfigure can hand us a fresh swapchain, so forget what was on
+            // screen: the image the dedup is remembering may no longer exist.
             CurrentSurfaceTexture::Outdated => {
                 self.surface.configure(&ctx.device, &self.config);
+                self.dedup.invalidate();
                 return Ok(());
             },
             // Timeout/Occluded/Lost/Validation: skip this frame; the shell's
@@ -993,30 +1088,43 @@ impl AmxPlayer {
         );
 
         // Blit the rendered frame onto the swapchain view and present. The
-        // blit scales from the offscreen resolution to canvas pixels; on a
-        // render error the frame is dropped unpresented so the canvas keeps
-        // its last known-good content. The surface's format is the browser's
-        // choice (Firefox orders Bgra8Unorm first), so the blit runs through
-        // the per-format pipeline rather than the internal Rgba8Unorm one.
-        if let Ok(frame) = &frame_target {
+        // blit scales from the offscreen resolution to canvas pixels. The
+        // surface's format is the browser's choice (Firefox orders Bgra8Unorm
+        // first), so the blit runs through the per-format pipeline rather than
+        // the internal Rgba8Unorm one.
+        //
+        // Presenting is inside the success branch on purpose. A swapchain image
+        // acquired but never drawn into is not "the previous frame" — presenting
+        // it puts undefined content on screen, which with the dedup in place
+        // would turn one bad frame into a permanent blank: the failed tick
+        // records nothing, so every identical tick after it is skipped and the
+        // canvas never gets another present.
+        if let Ok(offscreen) = &frame_target {
             core.blit_texture_to_format(
                 &ctx.device,
                 &ctx.queue,
-                &frame.view,
+                &offscreen.view,
                 &surface_view,
                 width,
                 height,
                 1.0,
                 self.config.format,
             );
+            drop(surface_view);
+            frame.present();
+            self.frames_drawn += 1;
+            // Only now: this is the frame the canvas is showing, and the
+            // signature is the claim that redrawing it would change nothing.
+            self.dedup.record(signature);
+            Ok(())
+        } else {
+            // Never drawn into, never presented: the canvas keeps the last frame
+            // that did make it. Release the view before the texture goes.
+            drop(surface_view);
+            frame_target
+                .map(|_| ())
+                .map_err(|e| JsError::new(&format!("render failed: {e}")))
         }
-
-        drop(surface_view);
-        frame.present();
-        frame_target
-            .map(|_| ())
-            .map_err(|e| JsError::new(&format!("render failed: {e}")))?;
-        Ok(())
     }
 }
 

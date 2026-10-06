@@ -185,11 +185,27 @@
           }
         }
         const raster = players.map((p) => [p.raster_width(), p.raster_height()]);
+        // The rest case a looping embed lives in: one frame, asked for again and
+        // again. The raster dedup turns that into a signature compare, so this
+        // should fall to a small fraction of `page_ms` — and if it ever equals
+        // `page_ms`, the skip has silently stopped working.
+        window.__perf_progress = `scale ${scale}: rest`;
+        let restPerTick = Infinity;
+        for (let rep = 0; rep < reps; rep += 1) {
+          const t0 = performance.now();
+          for (let i = 0; i < frames; i += 1) {
+            for (const p of players) p.render_frame(0.5);
+          }
+          await drain();
+          restPerTick = Math.min(restPerTick, (performance.now() - t0) / frames);
+        }
         return {
           scale,
           raster,
           page_ms: round(wallPerTick),
           per_embed_ms: round(wallPerTick / count),
+          rest_ms: round(restPerTick),
+          deduped: players.reduce((a, p) => a + (p.debug_dedup_stats?.().deduped ?? 0), 0),
           cpu_ms: round(cpu.reduce((a, c) => a + c.cpu_ms, 0) / count),
           cpu_p90_ms: round(Math.max(...cpu.map((c) => c.cpu_p90_ms))),
           jitter: stats(ticks),
