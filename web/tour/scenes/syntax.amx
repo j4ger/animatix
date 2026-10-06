@@ -85,25 +85,8 @@ move dot [to: (-290, 0), 700ms, ease: ease-in-out, anticipate: 60ms]
 pop-in tick[4] [280ms]
 
 // Outro: empty the plate so the loop wraps from quiet, not from a full frame.
-#6.3s
-stagger [120ms] {
-  fade-out dot [350ms, ease: ease-in]
-  fade-out box [350ms, ease: ease-in]
-}
 
-#6.5s
-stagger [60ms] {
-  fade-out tick[0] [280ms, ease: ease-in]
-  fade-out tick[1] [280ms, ease: ease-in]
-  fade-out tick[2] [280ms, ease: ease-in]
-  fade-out tick[3] [280ms, ease: ease-in]
-  fade-out tick[4] [280ms, ease: ease-in]
-}
-
-#6.7s
-fade-out head [300ms, ease: ease-in]
-fade-out rail [350ms, ease: ease-in]
-fade-out wash [400ms, ease: ease-in]
-
-#6.8s
-fade-out title [400ms, ease: ease-in]
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete (measured: held ink was
+// 0%, peak 34-47%).

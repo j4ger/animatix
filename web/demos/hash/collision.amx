@@ -58,21 +58,7 @@ fade-in col_note [300ms, ease: expo-out]
 // ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
 
 
-// Outro: quiet plate before the loop wrap.
-#4.2s
-stagger [30ms] {
-  fade-out col_note [280ms, ease: ease-in]
-  fade-out chain [280ms, ease: ease-in]
-  fade-out chip_owl [280ms, ease: ease-in]
-  fade-out col_f [280ms, ease: ease-in]
-  fade-out resident [280ms, ease: ease-in]
-  fade-out b7c [280ms, ease: ease-in]
-  fade-out b6c [280ms, ease: ease-in]
-  fade-out b5c [280ms, ease: ease-in]
-  fade-out b4c [280ms, ease: ease-in]
-  fade-out b3c [280ms, ease: ease-in]
-  fade-out b2c [280ms, ease: ease-in]
-  fade-out b1c [280ms, ease: ease-in]
-  fade-out b0c [280ms, ease: ease-in]
-  fade-out col_title [280ms, ease: ease-in]
-}
+
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

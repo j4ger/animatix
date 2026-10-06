@@ -42,12 +42,7 @@ fade-in caption [500ms, ease: expo-out]
 // Scene 3: Show which direction to step — against the gradient
 // =============================================================================
 
-// Outro: quiet plate before the loop wrap.
-#4.4s
-stagger [60ms] {
-  fade-out caption [300ms, ease: ease-in]
-  fade-out min_dot [300ms, ease: ease-in]
-  fade-out field [300ms, ease: ease-in]
-  fade-out contours [300ms, ease: ease-in]
-  fade-out step_title [300ms, ease: ease-in]
-}
+
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

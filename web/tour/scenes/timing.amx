@@ -115,37 +115,7 @@ move drop[3] [to: (0, 105), 900ms, ease: ease-in-out]
 move drop[4] [to: (0, 105), 900ms, ease: bounce]
 
 // Outro: quiet plate before the wrap.
-#6.5s
-stagger [80ms] {
-  fade-out label_0 [300ms, ease: ease-in]
-  fade-out label_1 [300ms, ease: ease-in]
-  fade-out label_2 [300ms, ease: ease-in]
-  fade-out label_3 [300ms, ease: ease-in]
-  fade-out label_4 [300ms, ease: ease-in]
-}
 
-#6.6s
-stagger [60ms] {
-  fade-out drop[0] [280ms, ease: ease-in]
-  fade-out drop[1] [280ms, ease: ease-in]
-  fade-out drop[2] [280ms, ease: ease-in]
-  fade-out drop[3] [280ms, ease: ease-in]
-  fade-out drop[4] [280ms, ease: ease-in]
-}
-
-#6.7s
-fade-out rail_top [280ms, ease: ease-in]
-fade-out rail_bot [280ms, ease: ease-in]
-
-#6.9s
-stagger [80ms] {
-  fade-out square[0] [350ms, ease: ease-in]
-  fade-out square[1] [350ms, ease: ease-in]
-  fade-out square[2] [350ms, ease: ease-in]
-  fade-out square[3] [350ms, ease: ease-in]
-  fade-out square[4] [350ms, ease: ease-in]
-}
-
-#7.1s
-fade-out title [300ms, ease: ease-in]
-fade-out wash [400ms, ease: ease-in]
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

@@ -167,24 +167,6 @@ circle.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 rect.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 poly.fill_gradient = linear(135, {"#ffd60a", "#f5b942"}) [500ms]
 
-#10.4s
-fade-out capS [300ms, ease: ease-in]
-
-// Outro: quiet the plate before the wrap.
-#10.6s
-stagger [80ms] {
-  fade-out circle [350ms, ease: ease-in]
-  fade-out rect [350ms, ease: ease-in]
-  fade-out poly [350ms, ease: ease-in]
-}
-
-#10.9s
-fade-out bench [300ms, ease: ease-in]
-stagger [70ms] {
-  fade-out pool_a [300ms, ease: ease-in]
-  fade-out pool_b [300ms, ease: ease-in]
-  fade-out pool_c [300ms, ease: ease-in]
-}
-
-#11.1s
-fade-out title [300ms, ease: ease-in]
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

@@ -59,14 +59,7 @@ always {
 #13.0s
 fade-in one_hint [400ms, ease: expo-out]
 
-// Outro: quiet plate before the loop wrap.
-#14.2s
-stagger [60ms] {
-  fade-out one_hint [300ms, ease: ease-in]
-  fade-out link [300ms, ease: ease-in]
-  fade-out wave_dot [300ms, ease: ease-in]
-  fade-out one_graph [300ms, ease: ease-in]
-  fade-out pen [300ms, ease: ease-in]
-  fade-out one_circle [300ms, ease: ease-in]
-  fade-out one_title [300ms, ease: ease-in]
-}
+
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.

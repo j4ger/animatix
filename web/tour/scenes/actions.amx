@@ -103,17 +103,7 @@ always {
 }
 
 // Outro: hold the settled composition a beat, then quiet the plate.
-#8.6s
-fade-out actor [500ms, ease: ease-in]
 
-#9.0s
-fade-out sat_label [300ms, ease: ease-in]
-
-#9.1s
-fade-out halo [300ms, ease: ease-in]
-fade-out pulse [300ms, ease: ease-in]
-
-#9.25s
-fade-out title [300ms, ease: ease-in]
-fade-out orbit [300ms, ease: ease-in]
-fade-out wash [350ms, ease: ease-in]
+// No erase cascade: the embed dissolves the finished frame into the next cycle
+// itself, so clearing the plate only blanked the figure through the `hold` at the
+// end of the loop. The composition now rests complete.
