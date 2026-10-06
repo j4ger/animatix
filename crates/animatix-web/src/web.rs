@@ -1353,9 +1353,19 @@ fn render_timeline(
     if filter_backend.is_none() {
         *filter_backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dims)?);
     }
+    let (raster_w, raster_h) = raster_dims(dims, scale);
+    // Tell the chain what it is being drawn into. It used to allocate and
+    // dispatch at scene resolution whatever the raster ended up as, so the page's
+    // quality step bought nothing on a filtered figure — and the filtered figures
+    // are the ones that need it. Derived from the integer raster rather than from
+    // `scale` so the chain and the target cannot disagree by a rounding step.
+    if let Some(fb) = filter_backend.as_mut() {
+        let achieved = (raster_w as f32 / dims.width.max(1) as f32)
+            .min(raster_h as f32 / dims.height.max(1) as f32);
+        fb.set_raster_scale(achieved);
+    }
     let mut fb: Option<&mut dyn FilterBackend> = filter_backend.as_mut().map(|b| b as _);
     let scene = timeline.evaluate_with_debug(time_s, dims, DebugRenderOptions::default(), &mut fb);
-    let (raster_w, raster_h) = raster_dims(dims, scale);
     let scene = scaled_scene(scratch, &scene, scale);
     core.render_vello_scene(device, queue, view, raster_w, raster_h, scene)
         .map_err(|e| e.to_string())?;

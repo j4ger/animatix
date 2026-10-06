@@ -879,12 +879,52 @@ browser (RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing through
 - **`wasm-opt -Oz` still targets size** over speed. Untested as an A/B; the
   build-profile A/B above says the whole CPU slice is worth ~0.2 ms, so this is
   unlikely to be the gap.
-- **The frame cache never hits on the web path**: `restore_frame_cache` bails
-  whenever a filter backend is present, and the web player always passes one.
-- **Filter scopes do not scale.** `GpuFilterBackend` allocates at scene
-  resolution, so an animated `Filter` re-renders at full size under a reduced
-  raster scale and then composites down. Correct, but it keeps the full cost for
-  scenes that use filters.
+- ~~The frame cache never hits on the web path~~ — **no longer true.**
+  `restore_frame_cache` gates on `backend_can_run`, which asks whether the scene
+  has effect scopes at all rather than whether a backend was handed in
+  (`scene_eval.rs`), so an unfiltered browser scene caches like the desktop one.
+- ~~Filter scopes do not scale~~ — **fixed.** See
+  [The filter chain follows the raster](#the-filter-chain-follows-the-raster).
+
+### The filter chain follows the raster
+
+`GpuFilterBackend` used to allocate and dispatch at scene resolution whatever the
+caller ended up rasterizing, so the page's adaptive quality step bought nothing on
+exactly the figures that are expensive: a `Filter` scope with Blur/Bloom/Grade/
+Vignette. Measured with a controlled pair — `web/_perf_ab/chain_{on,off}.amx`,
+identical art and timing, the only difference being whether the scope carries the
+chain — on a software raster, so the ratios are the finding:
+
+| raster | chain off | chain on | the chain alone |
+|---|---|---|---|
+| 1280x720 | 114.4 ms | 169.3 ms | 54.9 ms |
+| 768x432 | 54.5 ms | 117.9 ms | 63.4 ms |
+| 448x252 | 30.5 ms | 97.2 ms | 66.7 ms |
+
+The unfiltered scene follows the raster; the chain's share did not shrink at all.
+
+The fix is a `FilterBackend::set_raster_scale(scale)` seam that the web player
+sets from the raster it actually got (`raster_dims`, so the integer extent and the
+chain cannot disagree by a rounding step). A backend that ignores it is unchanged,
+which is why the GUI and export paths still pass `1.0` implicitly. Inside the
+backend the dispatch extent, the encode of the scope's sub-scene and the harvest
+origins all take the factor, and `PendingComposite::texel_scale` carries it to the
+drain so a composite is not shrunk a second time.
+
+A radius is a distance in scene pixels, so shrinking the raster without shrinking
+it doubles the blur. That is declared, not assumed: `EffectParamUnit::Pixel` on the
+parameter spec, six of the catalog's parameters marked, and
+`pixel_unit_parameters_are_exactly_the_known_six` pinning the set while
+`normalized_lookalikes_are_not_marked_as_pixels` refuses `Vignette.radius` and
+`LensDistortion.amount` — fractions of the frame that only look like distances.
+The renderer scales whatever is marked, generically off the spec, so a new pixel
+parameter needs `.pixel()` and nothing else.
+
+Fidelity is asserted, not hoped for:
+`a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels` measures the width
+of a blurred edge's alpha ramp in scene pixels at `1.0` and at `0.5` and requires
+them to agree within 3 px, and then renders the naive variant (reduced texture,
+scene-pixel radius) to prove the test can tell them apart.
 
 ---
 

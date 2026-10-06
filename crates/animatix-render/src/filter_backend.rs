@@ -575,18 +575,41 @@ impl GpuFilterBackend {
         region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<wgpu::TextureView, String> {
+        // The chain follows the raster it is being drawn into. A radius is a
+        // distance in scene pixels, so the dispatch extent, the encode of the
+        // scope's own sub-scene and every `Pixel` parameter (see
+        // `scale_pixel_params`) shrink by the same factor — which is what makes
+        // the result *look* the same at a lower raster instead of blurrier.
+        let s = self.raster_scale;
         let mut wrapped;
         let (dispatch_dims, scene_ref, scratch) = match region {
             Some(r) => {
                 let (width, height) = Self::quantize_region_size(r.size, dimensions);
+                let (width, height) = (scaled_texels(width, s), scaled_texels(height, s));
                 wrapped = vello::Scene::new();
+                let shift = kurbo::Affine::translate(kurbo::Vec2::new(
+                    -f64::from(r.origin[0]),
+                    -f64::from(r.origin[1]),
+                ));
                 wrapped.append(
                     scene,
-                    Some(kurbo::Affine::translate(kurbo::Vec2::new(
-                        -f64::from(r.origin[0]),
-                        -f64::from(r.origin[1]),
-                    ))),
+                    Some(if s == 1.0 {
+                        shift
+                    } else {
+                        kurbo::Affine::scale(f64::from(s)) * shift
+                    }),
                 );
+                (
+                    SceneDimensions { width, height },
+                    &wrapped,
+                    Some(self.region_scratch_for(width, height)),
+                )
+            },
+            None if s != 1.0 => {
+                let width = scaled_texels(dimensions.width, s);
+                let height = scaled_texels(dimensions.height, s);
+                wrapped = vello::Scene::new();
+                wrapped.append(scene, Some(kurbo::Affine::scale(f64::from(s))));
                 (
                     SceneDimensions { width, height },
                     &wrapped,
@@ -648,9 +671,17 @@ impl GpuFilterBackend {
 
         // Harvest extent: the true region size (dispatch may be quantized
         // larger; the padding is never harvested).
+        // Texels, not scene pixels: everything that copies out of the textures
+        // just rendered reads this, and at a reduced raster they are smaller.
         self.last_effect_dims = match region {
-            Some(r) => r.size,
-            None => dimensions,
+            Some(r) => SceneDimensions {
+                width: scaled_texels(r.size.width, s),
+                height: scaled_texels(r.size.height, s),
+            },
+            None => SceneDimensions {
+                width: scaled_texels(dimensions.width, s),
+                height: scaled_texels(dimensions.height, s),
+            },
         };
         self.last_region = region;
         self.last_region_pp = None;
@@ -673,7 +704,10 @@ impl GpuFilterBackend {
             pp_original: pp_original.clone(),
             pp_original_view: pp_original_view.clone(),
         };
-        let view = self.run_chain_passes(seed, dispatch_dims, chain, region.is_some())?;
+        // "Region scoped" means "the result is in the scratch we were handed",
+        // which a reduced raster also is — the full-frame textures are not what
+        // the chain just wrote.
+        let view = self.run_chain_passes(seed, dispatch_dims, chain, scratch.is_some())?;
         if t_all.is_some() {
             eprintln!(
                 "[filter-timing] dims={}x{} stages={} render={:.2}ms seed+passes={:.2}ms",
@@ -1088,11 +1122,17 @@ impl GpuFilterBackend {
             view,
             alpha,
             origin,
+            texel_scale: self.raster_scale,
             corner_radius: 0.0,
             src_rect: None,
             clip_rect: None,
         })
     }
+}
+
+/// Texel count for a scene-pixel extent at raster scale `s`, never zero.
+fn scaled_texels(extent: u32, s: f32) -> u32 {
+    ((extent as f32 * s).round() as u32).max(1)
 }
 
 /// Multiply every `Pixel`-unit `f32` lane in a packed author uniform by `scale`.
@@ -1154,11 +1194,11 @@ impl FilterBackend for GpuFilterBackend {
         let (origin, dims) = match self.last_region {
             Some(region) => (
                 wgpu::Origin3d {
-                    x: region.origin[0].max(0.0) as u32,
-                    y: region.origin[1].max(0.0) as u32,
+                    x: scaled_texels(region.origin[0].max(0.0) as u32, self.raster_scale),
+                    y: scaled_texels(region.origin[1].max(0.0) as u32, self.raster_scale),
                     z: 0,
                 },
-                region.size,
+                self.last_effect_dims,
             ),
             None => (wgpu::Origin3d::ZERO, self.last_effect_dims),
         };
@@ -1173,7 +1213,16 @@ impl FilterBackend for GpuFilterBackend {
         chain: &EffectChain,
         alpha: f32,
     ) -> Result<(), String> {
-        let origin = region.map_or([0.0, 0.0], |region| region.origin);
+        // The composite is emitted in target pixels — origin included, because
+        // the texture it carries is `raster_scale` of a scene pixel wide. The
+        // drain divides its frame scale by `texel_scale` to land the whole thing
+        // without shrinking it a second time.
+        let origin = region.map_or([0.0, 0.0], |region| {
+            [
+                region.origin[0] * self.raster_scale,
+                region.origin[1] * self.raster_scale,
+            ]
+        });
         let t_copy = timing_probe();
         self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
         let t_after_render_ms = probe_ms(t_copy);
@@ -1192,8 +1241,8 @@ impl FilterBackend for GpuFilterBackend {
             (
                 texture,
                 wgpu::Origin3d {
-                    x: harvest_origin[0].max(0.0) as u32,
-                    y: harvest_origin[1].max(0.0) as u32,
+                    x: scaled_texels(harvest_origin[0].max(0.0) as u32, self.raster_scale),
+                    y: scaled_texels(harvest_origin[1].max(0.0) as u32, self.raster_scale),
                     z: 0,
                 },
             )
@@ -1374,7 +1423,9 @@ impl FilterBackend for GpuFilterBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use animatix::timeline::effects::{EffectId, EffectInstance, EffectParamValue, EffectParams};
+    use animatix::timeline::effects::{
+        EffectId, EffectInstance, EffectParamValue, EffectParams, EffectRegion, PendingLayer,
+    };
     use animatix_core::effect::EffectParamKind;
 
     fn pack_radius(radius: f32) -> [u8; 4] {
@@ -1673,6 +1724,163 @@ mod tests {
     /// textures in one encoder did not synchronise; the passes are now split by
     /// submit. This test reads pixels back and verifies a sharp black/white edge
     /// becomes a gradient (intermediate alpha) inside the blur radius.
+    /// Where an edge's half-alpha crossing sits, in scene pixels. A chain that
+    /// dispatches into a smaller texture has to put the result back where it came
+    /// from, so this is the origin arithmetic the harvest and the composite share.
+    fn edge_mid_scene_x(raw: &[u8], w: usize, y: usize, span: usize, scale_back: usize) -> usize {
+        (0..span).find(|&x| raw[(y * w + x) * 4 + 3] < 128).unwrap_or(span) * scale_back
+    }
+
+    /// How wide the alpha ramp across an edge is: the count of pixels that are
+    /// neither lit nor empty on a middle row.
+    fn soft_width(raw: &[u8], w: usize, y: usize, span: usize) -> usize {
+        (0..span)
+            .filter(|&x| {
+                let a = raw[(y * w + x) * 4 + 3];
+                a > 40 && a < 215
+            })
+            .count()
+    }
+
+    /// The point of `set_raster_scale`: a blur radius is a distance in scene
+    /// pixels, so drawing at half the raster has to halve it too. Measured as the
+    /// width of the edge ramp in *scene* pixels, the two must agree — and the
+    /// naive alternative (shrink the texture, keep the radius) visibly doubles it.
+    /// What the composite hands the drain, at a reduced raster: a texture that is
+    /// already in target pixels, an origin in the same space, and the factor that
+    /// tells the drain not to scale it twice. Getting `origin` wrong here puts a
+    /// frosted panel off to the bottom-right of where it was authored, which no
+    /// frame-cost measurement would notice.
+    #[test]
+    fn a_reduced_raster_composite_is_emitted_in_target_pixels() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let dims = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut scene = vello::Scene::new();
+        use kurbo::Shape;
+        scene.fill(
+            vello::peniko::Fill::NonZero,
+            kurbo::Affine::IDENTITY,
+            vello::peniko::Color::WHITE,
+            None,
+            &kurbo::Rect::new(0.0, 0.0, 64.0, 64.0).to_path(1e-3),
+        );
+        let mut backend =
+            GpuFilterBackend::new(device, queue, dims).expect("backend at scene resolution");
+        backend.set_raster_scale(0.5);
+        let region = EffectRegion {
+            origin: [16.0, 16.0],
+            size: SceneDimensions {
+                width: 32,
+                height: 32,
+            },
+        };
+        backend
+            .render_scene_to_pending_composite(&scene, dims, Some(region), &blur_chain(8.0), 1.0)
+            .expect("region composite at half raster");
+        let layers = backend.take_pending_composites();
+        let composite = match layers.first() {
+            Some(PendingLayer::Composite(composite)) => composite,
+            // `PendingLayer` holds wgpu resources, so it cannot be formatted.
+            Some(_) => panic!("expected a composite layer, got a backdrop"),
+            None => panic!("the scope queued no composite at all"),
+        };
+        let size = composite.texture.size();
+        assert_eq!(
+            (size.width, size.height),
+            (16, 16),
+            "32 scene px of region at half the raster is 16 texels"
+        );
+        assert_eq!(
+            composite.origin,
+            [8.0, 8.0],
+            "origin is in target pixels, not the scene-pixel 16 it was authored in"
+        );
+        assert_eq!(composite.texel_scale, 0.5);
+    }
+
+    #[test]
+    fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
+        let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+            return;
+        };
+        let full = SceneDimensions {
+            width: 64,
+            height: 64,
+        };
+        let mut scene = vello::Scene::new();
+        use kurbo::Shape;
+        let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
+        scene.fill(
+            vello::peniko::Fill::NonZero,
+            kurbo::Affine::IDENTITY,
+            vello::peniko::Color::WHITE,
+            None,
+            &rect,
+        );
+
+        // Reference: the whole frame at scene resolution, radius 8.
+        let mut reference = GpuFilterBackend::new(device.clone(), queue.clone(), full)
+            .expect("backend at scene resolution");
+        let ref_img = reference
+            .render_scene_to_image_gpu_filtered(&scene, full, None, &blur_chain(8.0))
+            .expect("reference blur");
+        let ref_w = ref_img.natural_size[0] as usize;
+        let ref_ramp = soft_width(ref_img.data.data.data(), ref_w, 32, 64);
+        assert!(ref_ramp > 2, "the reference blur should show a ramp, got {ref_ramp}");
+
+        // Same scene, same authored radius, half the raster.
+        let mut half = GpuFilterBackend::new(device.clone(), queue.clone(), full).expect("backend");
+        half.set_raster_scale(0.5);
+        let half_img = half
+            .render_scene_to_image_gpu_filtered(&scene, full, None, &blur_chain(8.0))
+            .expect("blurred at half raster");
+        assert_eq!(
+            half_img.natural_size,
+            [32.0, 32.0],
+            "the chain should have dispatched at the reduced raster"
+        );
+        let half_raw = half_img.data.data.data();
+        let half_ramp = soft_width(half_raw, 32, 16, 32) * 2;
+        assert!(
+            edge_mid_scene_x(ref_img.data.data.data(), 64, 32, 64, 1).abs_diff(32) <= 2,
+            "the reference edge should cross half-alpha at scene x=32"
+        );
+        let half_mid = edge_mid_scene_x(half_raw, 32, 16, 32, 2);
+        assert!(
+            half_mid.abs_diff(32) <= 3,
+            "a chain dispatched at half the raster must still land at scene x=32, got {half_mid}"
+        );
+        assert!(
+            half_ramp.abs_diff(ref_ramp) <= 3,
+            "radius 8 at half the raster should ramp like radius 4 did at full: \
+             {ref_ramp} scene px vs {half_ramp}"
+        );
+
+        // The failure mode this prevents: the reduced texture with the radius
+        // still expressed in scene pixels.
+        let small = SceneDimensions {
+            width: 32,
+            height: 32,
+        };
+        let mut unscaled = GpuFilterBackend::new(device, queue, small).expect("backend at 32x32");
+        let mut small_scene = vello::Scene::new();
+        small_scene.append(&scene, Some(kurbo::Affine::scale(0.5)));
+        let naive = unscaled
+            .render_scene_to_image_gpu_filtered(&small_scene, small, None, &blur_chain(8.0))
+            .expect("naive blur at reduced size");
+        let naive_ramp = soft_width(naive.data.data.data(), 32, 16, 32) * 2;
+        assert!(
+            naive_ramp > ref_ramp + 3,
+            "keeping a scene-pixel radius at half the raster must read as a wider \
+             blur ({ref_ramp} vs {naive_ramp}) — that is the bug the unit is for"
+        );
+    }
+
     #[test]
     fn gpu_filter_blur_softens_a_hard_boundary() {
         let maybe_device = pollster::block_on(create_headless_device());

@@ -632,6 +632,11 @@ unsafe extern "C" fn native_register_effect(
             identity,
             offset: raw.offset,
             size,
+            // The native ABI declares no units, so a plugin parameter stays
+            // normalized: correct at scene resolution, simply not auto-shrunk
+            // when a runtime lowers its raster. A `unit` field on
+            // `NativeEffectParam` is what would let plugins opt in.
+            unit: animatix_core::effect::EffectParamUnit::Normalized,
         });
     }
     // The uniform buffer must cover every declared parameter and stay a

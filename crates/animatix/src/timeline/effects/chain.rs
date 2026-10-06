@@ -20,10 +20,22 @@ pub struct PendingComposite {
     pub view: wgpu::TextureView,
     /// Opacity to apply during compositing.
     pub alpha: f32,
-    /// Destination top-left corner in render-target pixels. The composite
-    /// covers `origin` + the texture's own size (full render target when the
-    /// scope did not use a region of interest).
+    /// Destination top-left corner in **scene** pixels — see [`Self::texel_scale`]
+    /// for what the texture itself is measured in. The composite covers
+    /// `origin` plus the texture's own size scaled back into scene space (the
+    /// full render target when the scope did not use a region of interest).
     pub origin: [f32; 2],
+    /// Texels of `texture` per scene pixel.
+    ///
+    /// `1.0` means the filtered result was produced at scene resolution and both
+    /// `origin` and the texture's size still need the frame's raster scale
+    /// applied to land in target pixels. A backend that was told the raster
+    /// scale via [`FilterBackend::set_raster_scale`] filtered at that scale
+    /// instead, so its texture is already in target pixels and this carries that
+    /// factor — the drain divides the frame scale by it, which yields `1.0` for
+    /// the ordinary case of one scale per frame and keeps a pre-scaled backdrop
+    /// rect from being shrunk twice.
+    pub texel_scale: f32,
     /// Corner radius, in render-target pixels, to clip the composite to.
     /// `0.0` composites the whole rectangle, which is what an effect scope
     /// with a derived region wants; a `Glass` panel passes its own

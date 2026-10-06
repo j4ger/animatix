@@ -1,0 +1,21 @@
+// Controlled pair for the filter-cost question: identical art, identical
+// timing, the only difference is whether the scope carries a chain.
+import "../demos/lib/theme.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 4.0 }
+
+panel: Group, anchor: scene.center {
+  art: Group, anchor: scene.center {
+    plate: Rect, size: (560, 320), corner_radius: 22,
+      fill_gradient: linear(135, {"#1b2534", "#0b1017"})
+    ring: Ellipse, size: (180, 180),
+      fill_gradient: radial((0.36, 0.3), 0.62, {(0%, "#fff0c2"), (40%, "#ffd60a"), (100%, "#c98a00")})
+    rim: Ellipse, size: (232, 232), stroke: accent.primary, stroke_width: 2,
+      fill_opacity: 0.0, dash_pattern: {10, 8}
+    bar: Rect, size: (340, 24), at: (0, 140), corner_radius: 12,
+      fill_gradient: linear(90, {"#ff8666", "#8ab4f6"})
+  }
+}
+
+#0s
+fade-in panel [1ms]

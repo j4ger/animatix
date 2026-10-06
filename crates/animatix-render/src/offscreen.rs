@@ -853,7 +853,7 @@ pub fn drain_pending_layers(
         // backdrop is scaled *before* its pass runs — the region is read out of
         // the target at the target's own resolution — so its result already
         // speaks target pixels and must not be scaled twice.
-        let (composite, s) = match layer {
+        let (composite, layer_scale) = match layer {
             PendingLayer::Composite(composite) => (composite, scale),
             PendingLayer::Backdrop(backdrop) => {
                 let Some(target) = target else {
@@ -871,7 +871,14 @@ pub fn drain_pending_layers(
                     backdrop
                 };
                 match backend.run_backdrop(target, &backdrop) {
-                    Ok(composite) => (composite, 1.0),
+                    Ok(mut composite) => {
+                        // The rects handed to `run_backdrop` were already put in
+                        // target pixels above, so whatever it produced is in
+                        // target space and needs no factor — including the
+                        // `texel_scale` the backend stamped from its own raster.
+                        composite.texel_scale = 1.0;
+                        (composite, 1.0)
+                    },
                     Err(e) => {
                         tracing::warn!("backdrop pass failed: {e}");
                         continue;
@@ -879,6 +886,12 @@ pub fn drain_pending_layers(
                 }
             },
         };
+        // `texel_scale` is how many texture pixels stand for one scene pixel. A
+        // chain that was told the raster scale filtered at that scale, so its
+        // result is already in target pixels and the frame scale must not be
+        // applied a second time; `layer_scale` carries what the layer needs
+        // otherwise.
+        let s = layer_scale / composite.texel_scale.max(f32::EPSILON);
         let tex = composite.texture.size();
         let (origin, size) = match composite.clip_rect {
             Some([x0, y0, x1, y1]) => (
