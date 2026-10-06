@@ -565,3 +565,43 @@ safe one, and `site_scenes` now fails the build on any warning-or-worse
 diagnostic, naming the scene and the page — the assertion that would have caught
 this in the first place, verified by putting one scene's import back.
 
+
+## The preview-lag round — what landed, what the measurements killed (2026-10-06)
+
+"预览比较卡" turned into two shipped fixes, two ideas killed before code, and one
+still open as polish. Both fixes came out of measuring first; the killed ideas
+are here so nobody re-sells them.
+
+Landed:
+
+- **The filter chain follows the raster** (`performance_evaluation.md`,
+  "The filter chain follows the raster"). A filtered figure went 97.2 → 49.0 ms
+  at the bottom quality step, with the unfiltered control unchanged.
+- **Arrival scheduling** (`web/README.md`, "When a scene arrives"). Figures
+  build when the page settles rather than mid-scroll.
+
+Killed by measurement:
+
+- **Round-robin the per-tick renders across players.** Sampled every ~380 px of
+  a full sweep of two pages, counting figures with `_playing && _visible`: the
+  maximum was **1**, on the tour (11 figures) and on the transformer page (7
+  figures, all `autoplay`). A budget scheduler that skips players to cap the
+  tick trades framerate for nothing when one figure already owns the tick.
+- **`scripts/serve-web.py`'s `max-age=300` on the 1.79 MB wasm.** The cache
+  decision costs bytes on a localhost reload, and the browser re-instantiates
+  the module per document regardless of the header, so it cannot be the felt
+  lag. The file's split (generated artifacts cache, scene sources revalidate) is
+  deliberate and stays.
+
+Still owed, and it needs the owner's hardware because every number above came
+off a software raster (composition is the site's own, absolute ms are inflated):
+
+- An A/B of the arrival gate on real GPU: does scrolling the tour feel
+  different, and does a figure you stop on reach `ready` within ~150 ms.
+- One 28 s single main-thread stall appeared in the sandbox during a gated tour
+  sweep (`longtask` 28070 ms, with 3052 frames at ≤ 20 ms either side). Not
+  reproduced on the desktop, not reproduced a second time in the browser, and
+  every candidate explanation is SwiftShader. Worth a look only if it ever
+  appears on real hardware.
+- The remaining micro-win: vello direct-to-canvas, ~0.2 ms a frame, needing a
+  capability probe and a fallback. That is a polish item, not a fix for lag.
