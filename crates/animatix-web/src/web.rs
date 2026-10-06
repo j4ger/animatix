@@ -938,8 +938,13 @@ impl AmxPlayer {
             self.surface.configure(&ctx.device, &self.config);
         }
 
-        // Vello draws through a compute pipeline that needs STORAGE_BINDING
-        // on its target, which browser canvas contexts don't reliably expose.
+        // Vello draws its final pass through a compute pipeline that needs
+        // STORAGE_BINDING on its target, and a browser canvas texture is never
+        // given that usage: measured `GPUTextureUsage` on a configured canvas is
+        // RENDER_ATTACHMENT only (16), for rgba8unorm and bgra8unorm, opaque and
+        // premultiplied, at 64x64 and 1100x619 alike. So there is no
+        // render-straight-to-the-canvas path to take — vello's own docs name the
+        // intermediate-texture-plus-blit pattern the platform forces.
         // Mirror the GUI's PreviewSurface: render into an offscreen texture we
         // own at scene resolution (vello draws scene units 1:1 — no camera
         // scaling), then blit it scaled onto the surface view. During a

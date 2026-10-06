@@ -568,9 +568,9 @@ this in the first place, verified by putting one scene's import back.
 
 ## The preview-lag round — what landed, what the measurements killed (2026-10-06)
 
-"预览比较卡" turned into two shipped fixes, two ideas killed before code, and one
-still open as polish. Both fixes came out of measuring first; the killed ideas
-are here so nobody re-sells them.
+"预览比较卡" turned into two shipped fixes and three ideas killed before code.
+Both fixes came out of measuring first; the killed ideas are here so nobody
+re-sells them.
 
 Landed:
 
@@ -592,6 +592,20 @@ Killed by measurement:
   the module per document regardless of the header, so it cannot be the felt
   lag. The file's split (generated artifacts cache, scene sources revalidate) is
   deliberate and stays.
+- **Rendering vello straight into the canvas instead of offscreen + blit.**
+  Not a missing optimization — not possible. Vello's `render_to_texture` docs
+  list exactly two ways to hit a surface: an intermediate texture plus
+  `TextureBlitter` (what the player does), or calling it on the
+  `SurfaceTexture` "if it has the right usages". The browser never grants those
+  usages: a configured canvas texture reports `GPUTextureUsage` =
+  `RENDER_ATTACHMENT` and nothing else (measured `usage === 16` for rgba8unorm
+  and bgra8unorm, `opaque` and `premultiplied`, 64×64 and 1100×619 alike; no
+  format choice or alpha mode adds a bit, and `TEXTURE_BINDING`/`COPY_DST` are
+  absent too, so a copy or a read-back of the surface is equally out). That
+  measurement is Chrome's — Firefox and Safari are unmeasured here, and the
+  mask is browser policy rather than hardware, so treat them as at-least-as
+  restrictive. The blit is what the platform requires. Recorded at the decision
+  site (`animatix-web/src/web.rs`, `render_frame_inner`).
 
 Still owed, and it needs the owner's hardware because every number above came
 off a software raster (composition is the site's own, absolute ms are inflated):
@@ -603,5 +617,3 @@ off a software raster (composition is the site's own, absolute ms are inflated):
   reproduced on the desktop, not reproduced a second time in the browser, and
   every candidate explanation is SwiftShader. Worth a look only if it ever
   appears on real hardware.
-- The remaining micro-win: vello direct-to-canvas, ~0.2 ms a frame, needing a
-  capability probe and a fallback. That is a polish item, not a fix for lag.
