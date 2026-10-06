@@ -553,22 +553,25 @@ it asserts the build *succeeds*, not that it is quiet. So the only witness is a
 devtools console, and what it costs is the palette: background, text and accent
 tokens all come from `ink`, and the fallback is `default-dark`.
 
-The discriminator is the scene header, and it is exact across the whole site: a
-file with `# Section` headers logs one warning per section (`gradient/scene.amx`
-— 6 sections, 6 diagnostics; `hash/scene.amx` — 3, 3), while a file whose config
-is file-level and has no section header logs none (`tour/scenes/glass.amx`,
-`tour/scenes/components.amx`, and the nine recipes scenes, all importing the same
-theme and the same `colorscheme: "ink"`). Merging the section's
-`config { colorscheme: "ink" }` into the file-level `config` does **not** fix it —
-tested — so the palette registry, not the config placement, is what the section
-build does not see.
+The count is one per `# Section` header (`gradient/scene.amx` 6/6,
+`hash/scene.amx` 3/3) and one per single-section slice, while
+`tour/scenes/glass.amx`, `tour/scenes/components.amx` and the nine recipes scenes
+— same theme import, same `colorscheme: "ink"` — log nothing. Two hypotheses were
+tested on `descent.amx` and both are refuted: deleting its `# Descent` header (the
+warning stayed, only its subject moved from `scene 'Descent'` to `colorscheme`)
+and collapsing the file's two `config` blocks into one (same). So it is neither
+section handling nor config placement — the palette registry simply does not hold
+the imported `Colorscheme` for these files in the wasm build. Next step is the
+embed's module fetch: `LoadResultDto` already carries `missing_imports`, so check
+whether `../lib/theme.amx` resolves to the same cache key over HTTP as
+`../../demos/lib/theme.amx` does — that is the one structural difference between
+the files that warn and the files that do not.
 
-Where to look: the embed builds each section as its own timeline
-(`crates/animatix-web/src/web.rs` → the host's build path in
-`crates/animatix-web/src/host.rs`), and the module graph is handed over as
-fetched sources. The native single-source path evidently registers imported
-`Colorscheme` values before evaluating configs; the per-section path does not,
-or does it after the lookup. A regression test belongs in `site_scenes`: assert
+Where to look: `crates/animatix-web/src/host.rs` hands the engine a map of
+fetched sources, and the native single-source path evidently registers imported
+`Colorscheme` values before the config lookup while the embed's path does not —
+for the files that warn, and does for the ones that do not. A regression test
+belongs in `site_scenes`: assert
 **no warning-or-worse diagnostics** for each embedded scene, built through the
 same protocol the embed uses — that is the check that would have caught this, and
 it will fail until the fix lands, which is the point.
