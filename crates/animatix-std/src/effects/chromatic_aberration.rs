@@ -9,13 +9,11 @@ use animatix_core::effect::{
 };
 
 /// `ChromaticAberration` parameters.
-pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
-    "offset",
-    EffectParamKind::F32,
-    EffectParamValue::F32(0.0),
-    0,
-    4,
-)];
+pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] =
+    &[
+        EffectParamSpec::new("offset", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
+            .pixel(),
+    ];
 
 const CHROMATIC_ABERRATION_WGSL: &str = r#"
 struct ChromaOffsetParams {

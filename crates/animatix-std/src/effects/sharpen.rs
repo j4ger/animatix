@@ -13,7 +13,7 @@ use animatix_core::effect::{
 /// `amount` is how much of the residual (pixel − local average) is added back.
 pub const SHARPEN_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
-    EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4),
+    EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4).pixel(),
 ];
 
 /// Kernel radii beyond this are clamped: a (2·32+1)² box kernel is already far

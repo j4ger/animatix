@@ -13,7 +13,7 @@ use animatix_core::effect::{
 /// `length` is the smear extent in scene pixels; `angle` is measured in
 /// degrees, 0 = to the right, counter-clockwise (y-up scene convention).
 pub const MOTION_BLUR_PARAMS: &[EffectParamSpec] = &[
-    EffectParamSpec::new("length", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
+    EffectParamSpec::new("length", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4).pixel(),
     EffectParamSpec::new("angle", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4),
 ];
 

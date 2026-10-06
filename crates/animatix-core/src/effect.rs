@@ -75,6 +75,23 @@ pub enum EffectParamValue {
     Bool(bool),
 }
 
+/// What a parameter's number is *measured in*, which decides whether a runtime
+/// may shrink it along with the raster.
+///
+/// A `Pixel` parameter is a distance in scene pixels — a blur radius, a shadow
+/// offset — so rendering the chain at half resolution has to halve it too, or
+/// the effect visually doubles. `Normalized` parameters (an amount, a gamma, a
+/// radius expressed as a fraction of the frame) are resolution-independent and
+/// must be left alone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EffectParamUnit {
+    /// A dimensionless amount, or a distance already expressed as a fraction.
+    #[default]
+    Normalized,
+    /// A distance in scene pixels.
+    Pixel,
+}
+
 /// Declares one author parameter: its type, the identity value that means "no
 /// contribution", and where it lands in the author uniform buffer.
 #[derive(Clone, Debug)]
@@ -89,6 +106,8 @@ pub struct EffectParamSpec {
     pub offset: u32,
     /// Byte size in the author uniform buffer.
     pub size: u32,
+    /// Whether the number is a scene-pixel distance. See [`EffectParamUnit`].
+    pub unit: EffectParamUnit,
 }
 
 impl EffectParamSpec {
@@ -107,7 +126,19 @@ impl EffectParamSpec {
             identity,
             offset,
             size,
+            unit: EffectParamUnit::Normalized,
         }
+    }
+
+    /// Declare that this parameter is a distance in scene pixels.
+    pub const fn pixel(mut self) -> Self {
+        self.unit = EffectParamUnit::Pixel;
+        self
+    }
+
+    /// `true` when the number is a scene-pixel distance.
+    pub fn is_pixel(&self) -> bool {
+        matches!(self.unit, EffectParamUnit::Pixel)
     }
 }
 

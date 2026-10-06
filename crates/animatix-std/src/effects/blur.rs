@@ -9,13 +9,11 @@ use animatix_core::effect::{
 };
 
 /// `Blur` parameters.
-pub const BLUR_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
-    "radius",
-    EffectParamKind::F32,
-    EffectParamValue::F32(0.0),
-    0,
-    4,
-)];
+pub const BLUR_PARAMS: &[EffectParamSpec] =
+    &[
+        EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
+            .pixel(),
+    ];
 
 const BLUR_WGSL: &str = r#"
 struct BlurParams {

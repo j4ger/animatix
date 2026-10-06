@@ -20,10 +20,12 @@ use animatix_core::effect::{
 /// `color` carries the shadow colour *and* its strength in the alpha channel.
 /// A zero offset is the identity, so an unauthored stage contributes nothing.
 pub const DROP_SHADOW_PARAMS: &[EffectParamSpec] = &[
-    EffectParamSpec::new("offset", EffectParamKind::Vec2, EffectParamValue::Vec2([0.0, 0.0]), 0, 8),
+    EffectParamSpec::new("offset", EffectParamKind::Vec2, EffectParamValue::Vec2([0.0, 0.0]), 0, 8)
+        .pixel(),
     // Spread of the silhouette in scene px. Lands in the word the layout used
     // to pad, so `color` keeps its own 16-byte line.
-    EffectParamSpec::new("softness", EffectParamKind::F32, EffectParamValue::F32(0.0), 8, 4),
+    EffectParamSpec::new("softness", EffectParamKind::F32, EffectParamValue::F32(0.0), 8, 4)
+        .pixel(),
     // vec4 lands on its own 16-byte line per the host packing rule.
     EffectParamSpec::new(
         "color",

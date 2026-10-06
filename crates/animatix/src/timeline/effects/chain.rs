@@ -123,6 +123,20 @@ pub struct EffectRegion {
 /// chain reports an error and the timeline renders the children unfiltered with
 /// a diagnostic (`docs/effects.md` §5).
 pub trait FilterBackend: Send {
+    /// Declare that the frame is about to be rasterized at `scale` of the
+    /// scene's own resolution, so the chain can follow it.
+    ///
+    /// A runtime that always renders at scene resolution never calls this, and a
+    /// backend that cannot resize leaves it unimplemented: the default is a
+    /// no-op, which is the same as `1.0`. A backend that honours it has to
+    /// resize its targets *and* shrink every [`EffectParamUnit::Pixel`]
+    /// parameter by the same factor — a blur radius is a distance in scene
+    /// pixels, so halving the raster without halving the radius doubles the
+    /// blur.
+    ///
+    /// [`EffectParamUnit::Pixel`]: animatix_core::effect::EffectParamUnit::Pixel
+    fn set_raster_scale(&mut self, _scale: f32) {}
+
     /// Render `scene` (covering `dimensions`), apply `chain`, and read the
     /// result back as a [`SceneImage`].
     ///

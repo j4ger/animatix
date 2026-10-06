@@ -21,6 +21,7 @@ use animatix::timeline::effects::{
     PendingLayer, effect,
 };
 use animatix::timeline::image::SceneImage;
+use animatix_core::effect::EffectParamSpec;
 
 // ── `ANIMATIX_FILTER_TIMING` probe clock ────────────────────────────────────
 
@@ -117,6 +118,9 @@ pub struct GpuFilterBackend {
     output_buffer: wgpu::Buffer,
     bytes_per_row: u32,
     _dimensions: SceneDimensions,
+    /// What the caller told us the frame is rasterized at, as a fraction of
+    /// `_dimensions`. `1.0` until a runtime calls `set_raster_scale`.
+    raster_scale: f32,
     // Shared effect binding layout (bindings 0-4) and pipeline layout.
     bind_group_layout: wgpu::BindGroupLayout,
     pipeline_layout: wgpu::PipelineLayout,
@@ -424,6 +428,7 @@ impl GpuFilterBackend {
             output_buffer,
             bytes_per_row,
             _dimensions: dimensions,
+            raster_scale: 1.0,
             bind_group_layout,
             pipeline_layout,
             pipelines: HashMap::new(),
@@ -775,6 +780,14 @@ impl GpuFilterBackend {
 
             let mut uniforms = vec![0u8; effect.author_uniform_size() as usize];
             effect.pack(&instance.params, &mut uniforms);
+            // A scene-pixel parameter has to shrink with the raster or the
+            // effect visually grows as the frame gets smaller: half the pixels
+            // with the same radius is a twice-as-wide blur. Done generically off
+            // the declared unit rather than per effect, so a new pixel parameter
+            // needs only `.pixel()` on its spec to be covered.
+            if self.raster_scale != 1.0 {
+                scale_pixel_params(effect.params(), self.raster_scale, &mut uniforms);
+            }
             // Author-parameter writes land before the encoder's commands on
             // submit; each effect has its own uniform buffer, so writes cannot
             // collide across effects.
@@ -1082,7 +1095,28 @@ impl GpuFilterBackend {
     }
 }
 
+/// Multiply every `Pixel`-unit `f32` lane in a packed author uniform by `scale`.
+///
+/// `size` is the byte width the spec declared, so a `Vec2` offset covers two
+/// lanes. Non-`F32`-sized lanes cannot appear here: the only pixel parameters in
+/// the catalog are floats and float pairs.
+fn scale_pixel_params(params: &[EffectParamSpec], scale: f32, uniforms: &mut [u8]) {
+    for spec in params.iter().filter(|spec| spec.is_pixel()) {
+        let start = spec.offset as usize;
+        let end = (spec.offset as usize + spec.size as usize).min(uniforms.len());
+        for lane in uniforms[start..end].chunks_exact_mut(4) {
+            let arr: [u8; 4] = lane.try_into().expect("chunks_exact(4) yields 4 bytes");
+            let v = f32::from_le_bytes(arr) * scale;
+            lane.copy_from_slice(&v.to_le_bytes());
+        }
+    }
+}
+
 impl FilterBackend for GpuFilterBackend {
+    fn set_raster_scale(&mut self, scale: f32) {
+        self.raster_scale = scale.clamp(0.05, 1.0);
+    }
+
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,
@@ -1341,6 +1375,52 @@ impl FilterBackend for GpuFilterBackend {
 mod tests {
     use super::*;
     use animatix::timeline::effects::{EffectId, EffectInstance, EffectParamValue, EffectParams};
+    use animatix_core::effect::EffectParamKind;
+
+    fn pack_radius(radius: f32) -> [u8; 4] {
+        let spec =
+            EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
+                .pixel();
+        let mut buf = [0u8; 4];
+        let v = radius.to_le_bytes();
+        buf.copy_from_slice(&v);
+        scale_pixel_params(std::slice::from_ref(&spec), 0.5, &mut buf);
+        buf
+    }
+
+    #[test]
+    fn a_declared_pixel_parameter_shrinks_with_the_raster() {
+        assert_eq!(pack_radius(20.0), 10.0f32.to_le_bytes());
+    }
+
+    #[test]
+    fn an_undeclared_parameter_is_left_alone() {
+        // Same offset and size, no `.pixel()` — a radius expressed as a
+        // fraction of the frame must survive the raster change untouched.
+        let spec =
+            EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4);
+        let mut buf = 20.0f32.to_le_bytes();
+        scale_pixel_params(&[spec], 0.5, &mut buf);
+        assert_eq!(buf, 20.0f32.to_le_bytes());
+    }
+
+    #[test]
+    fn every_lane_of_a_vec2_offset_is_scaled() {
+        let spec = EffectParamSpec::new(
+            "offset",
+            EffectParamKind::Vec2,
+            EffectParamValue::Vec2([0.0, 0.0]),
+            0,
+            8,
+        )
+        .pixel();
+        let mut buf = [0u8; 8];
+        buf[0..4].copy_from_slice(&4.0f32.to_le_bytes());
+        buf[4..8].copy_from_slice(&(-8.0f32).to_le_bytes());
+        scale_pixel_params(&[spec], 0.25, &mut buf);
+        assert_eq!(&buf[0..4], &1.0f32.to_le_bytes());
+        assert_eq!(&buf[4..8], &(-2.0f32).to_le_bytes());
+    }
 
     fn blur_chain(radius: f32) -> EffectChain {
         EffectChain {
