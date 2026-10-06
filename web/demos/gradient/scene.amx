@@ -1,4 +1,4 @@
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 // Gradient Descent Animation
 // A visual walkthrough of gradient descent on a 2D loss surface:
 // loss surface → against the gradient → roll to the minimum → step size matters.

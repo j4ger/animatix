@@ -8,8 +8,8 @@
 //
 // Every drop-in is a keyframed shift; the formula line narrates each beat.
 
-import "../lib/theme.amx"
-import "../lib/components.amx"
+import "../../demos/lib/theme.amx"
+import "../../demos/lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720) }
 

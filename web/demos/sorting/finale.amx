@@ -1,5 +1,5 @@
-import "../lib/theme.amx"
-import "../lib/theme.amx" as theme
+import "../../demos/lib/theme.amx"
+import "../../demos/lib/theme.amx" as theme
 config { resolution: (1280, 720) }
 
 pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {

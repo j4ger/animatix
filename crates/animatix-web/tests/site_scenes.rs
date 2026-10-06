@@ -248,12 +248,18 @@ fn build_scene(scene: &Path) -> Result<(), Vec<String>> {
             }
         }
 
+        // Anything warning-or-worse is a failure, not just an error. The palette
+        // defect this catches is invisible to a "does it build" test: an imported
+        // `Colorscheme` that the embed's module path does not register still
+        // builds, and the page quietly renders in the fallback palette while
+        // `animatix check` on disk is clean. Only the browser console showed it,
+        // and only for the scenes whose import specifier escapes the entry dir.
         let errors: Vec<String> = built
             .result
             .diagnostics
             .iter()
-            .filter(|d| d.severity == "error")
-            .map(|d| format!("{} [{}] line {:?}", d.message, d.code, d.line))
+            .filter(|d| d.severity != "hint" && d.severity != "info")
+            .map(|d| format!("{} {} [{}] line {:?}", d.severity, d.message, d.code, d.line))
             .collect();
         return if !errors.is_empty() {
             Err(errors)
@@ -326,7 +332,7 @@ fn every_scene_the_site_plays_builds_in_its_profile() {
     );
     assert!(
         failures.is_empty(),
-        "scenes the site plays do not build:\n{}",
+        "scenes the site plays do not build cleanly (warning or worse):\n{}",
         failures.join("\n")
     );
     assert!(checked > 0, "no scene was exercised in this profile");

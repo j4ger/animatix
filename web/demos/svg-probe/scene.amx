@@ -1,7 +1,7 @@
 // SVG probe: one Svg actor over a light backdrop. `logo` is declared before the
 // first keyframe with no explicit opacity, so it is hidden by default and the
 // fade-in at 0.2s reveals it — sample at t >= 0.5s.
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 3.0 }
 

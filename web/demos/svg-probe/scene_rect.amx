@@ -1,5 +1,5 @@
 // SVG probe (rect variant): same actor shape, only the asset differs.
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 3.0 }
 

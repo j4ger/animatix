@@ -1,4 +1,4 @@
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 config { resolution: (1280, 720) }
 
 # GradientDirection

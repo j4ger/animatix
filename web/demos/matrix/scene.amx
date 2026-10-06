@@ -1,4 +1,4 @@
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 // matrix.amx — "A matrix is a machine" — a 2×2 matrix animated as three
 // transformations of the plane: shear, rotation, and the collapse/flip that
 // happens as the determinant crosses zero.

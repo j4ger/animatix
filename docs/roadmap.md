@@ -535,43 +535,33 @@ axis when both axes are drawn, or offset the pair, which is what most plotting
 libraries do. Left alone in this pass because the only content-side workaround is
 to move the domains off zero, which changes what the figure teaches.
 
-## Browser-only: an imported colorscheme is lost by every `# Scene` section (2026-10-06)
+## Imported palettes and the embed's module path (2026-10-06) — worked around, still open
 
-**The five demo pages and the home page render in the fallback palette in a real
-browser, and nothing native says so.** Each `<amx-player>` on those pages logs
+**Fixed in content, unfixed in the engine.** Every scene under `web/demos/`
+imported its palette as `import "../lib/theme.amx"`, and in the browser that
+specifier loses the import's `Colorscheme`: each such player logged
 
-    amx-player: descent.amx built with 1 diagnostic(s)
-    { severity: "warning", code: "unknown-colorscheme",
-      subject: "scene 'Descent'",
-      message: "Unknown colorscheme 'ink'; using the default-dark built-in scheme instead." }
+    warning unknown-colorscheme: Unknown colorscheme 'ink';
+      using the default-dark built-in scheme instead.
 
-`ink` is not built in — it is `pub let ink = Colorscheme { … }` in
-`web/demos/lib/theme.amx`, which every one of these files imports. The CLI
-resolves it (`animatix check web/demos/gradient/descent.amx` → OK, no
-diagnostics), the slim CLI agrees, and the wasm `site_scenes` gate passes because
-it asserts the build *succeeds*, not that it is quiet. So the only witness is a
-devtools console, and what it costs is the palette: background, text and accent
-tokens all come from `ink`, and the fallback is `default-dark`.
+so the figure rendered in `default-dark` — wrong background, text and stroke
+tokens — while `animatix check` on disk said nothing, because the CLI resolves
+the same import correctly from the real file path. Rewriting the specifier to
+`"../../demos/lib/theme.amx"` (the same file, reached by going up to `web/` and
+back down, which is what the tour and recipes scenes already wrote and why they
+never warned) cleared **27 scenes down to 0**, with no change to what the pages
+fetch.
 
-The count is one per `# Section` header (`gradient/scene.amx` 6/6,
-`hash/scene.amx` 3/3) and one per single-section slice, while
-`tour/scenes/glass.amx`, `tour/scenes/components.amx` and the nine recipes scenes
-— same theme import, same `colorscheme: "ink"` — log nothing. Two hypotheses were
-tested on `descent.amx` and both are refuted: deleting its `# Descent` header (the
-warning stayed, only its subject moved from `scene 'Descent'` to `colorscheme`)
-and collapsing the file's two `config` blocks into one (same). So it is neither
-section handling nor config placement — the palette registry simply does not hold
-the imported `Colorscheme` for these files in the wasm build. Next step is the
-embed's module fetch: `LoadResultDto` already carries `missing_imports`, so check
-whether `../lib/theme.amx` resolves to the same cache key over HTTP as
-`../../demos/lib/theme.amx` does — that is the one structural difference between
-the files that warn and the files that do not.
+The mechanism is still a bug, and the shape of it is this: `host.rs:29` builds
+every document from `ENTRY_PATH = "main.amx"` — a bare name with no directory —
+so a relative import that steps up from the entry has nothing to step up from,
+and the module ends up registered under a key whose exports the colorscheme
+lookup does not see. It is not section handling and not config placement (both
+tested on `descent.amx` and refuted), and it is not a fetch failure: there is no
+404, and `missing_imports` converges. The fix belongs in the module graph's
+normalization of `..` against a directory-less entry, or in giving the embed the
+scene's real path as its entry. Until then the working spelling is the only
+safe one, and `site_scenes` now fails the build on any warning-or-worse
+diagnostic, naming the scene and the page — the assertion that would have caught
+this in the first place, verified by putting one scene's import back.
 
-Where to look: `crates/animatix-web/src/host.rs` hands the engine a map of
-fetched sources, and the native single-source path evidently registers imported
-`Colorscheme` values before the config lookup while the embed's path does not —
-for the files that warn, and does for the ones that do not. A regression test
-belongs in `site_scenes`: assert
-**no warning-or-worse diagnostics** for each embedded scene, built through the
-same protocol the embed uses — that is the check that would have caught this, and
-it will fail until the fix lands, which is the point.

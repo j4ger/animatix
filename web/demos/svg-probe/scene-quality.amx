@@ -2,7 +2,7 @@
 // Draft builds plot families with 4× the sampling tolerance of Production, so
 // the two `quality` settings render measurably different geometry — the probe
 // page readbacks both and compares.
-import "../lib/theme.amx"
+import "../../demos/lib/theme.amx"
 
 config { colorscheme: "ink", resolution: (640, 360), duration: 3.0 }
 
