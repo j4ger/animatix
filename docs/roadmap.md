@@ -446,3 +446,29 @@ Then the maintenance item this batch made cheap: `cargo test -p animatix-web
 job runs it plus an embed-bundle drift check. If a future scene needs the full
 profile, the fix is `profile="full"` on the element that plays it — the gate names
 the page, not just the scene.
+
+## Found by the transformer review, left open on purpose (2026-10-06)
+
+- **String escapes keep their backslash in the value.** `lex_string`
+  (`crates/animatix-syntax/src/token.rs:421`) skips a `\x` pair so an escaped
+  quote cannot end the literal — and then takes the source slice verbatim, so
+  `text: "1 · \"it\" looks back"` renders the backslash. The transformer page
+  worked around it with typographic quotes; the grammar question is real and
+  unanswered: `\$` inside a `Typst` payload (`examples/gallery/sorting_theatre.amx`)
+  *depends* on backslashes surviving to the markup, so "unescape every `\x` in
+  the lexer" would silently change that scene. Any fix needs to say which
+  escapes are `.amx`'s and which belong to the payload — a per-property or
+  per-actor-kind rule, not a global one. `docs/spec.md` currently documents
+  neither, which is the smaller half of the problem.
+- **`differs` cannot see a thin rule.** The check samples the frame sparsely, so
+  a beat whose entire change is a 3px line (0.26% of a 1280×720 plate) reads
+  0.00% — three beats in the transformer set are like this and are recorded as
+  comments in the `*.verify.txt` files rather than asserted at a floor the
+  sampler cannot honour. A region-scoped `differs` (the same idea as `reveals`,
+  which already restricts to an actor's bounds) would close it.
+- **The block pulse in `pipeline.amx` is a whisper.** As the token climbs, each
+  block grows to 584×83 and settles back: 1.0% of that block's region changes,
+  which is legible as motion but not as an event. Left alone deliberately —
+  the alternative (a colour lift or the `pulse` action) changes the figure's
+  register, and this pass had no way to judge "more vivid" except by measuring
+  the change, which is exactly the metric that says the current pulse is small.

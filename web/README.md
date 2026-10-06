@@ -48,6 +48,9 @@ crates/animatix-web/tests/site_scenes.rs
                              builds every scene an <amx-player> on these pages
                              references, through the embed's own fetch protocol,
                              in the profile that player asks for (both profiles)
+scripts/transformer-verify.sh    keyframe checks for the transformer scenes
+                             (`animatix verify` per scene; needs a GPU, so it is a
+                             scripted gate like dogfood-verify, not a cargo test)
 ```
 
 ### Live figure editors

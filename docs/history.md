@@ -2376,3 +2376,65 @@ pass does not chase it: `amx-player: <scene> built with N diagnostic(s)` is the
 embed surfacing *warning*-severity diagnostics (the scene gate proves none of
 them is an error), and the bare probe pages 404 on `/favicon.ico` because they
 deliberately carry no site skin.
+
+### Batch 8 (2026-10-06, the transformer review pass) — 3 commits, local only
+
+The owner's ask was specific: re-review the transformer page, no typographic
+errors, elegant and lively, **checked keyframe by keyframe**. That last clause
+set the method — render all 80 keyframes of the seven scenes (plus t=0 and a
+settled frame each, 94 frames), measure them, and look at the busiest.
+
+| Commit | What it fixed | Evidence |
+|---|---|---|
+| `80f9da11` | one reading column for the article | `p` was 42em, `.lede` 44em, `ol.flow`/`p.outro`/`ul.reading` 46em, the hero caption 62em — em measures that resolve to a *different physical width per element* (714 / 924 / 782 / 868 px), so the column's right edge jumped block to block, and 42em at 17px runs 90+ characters. Replaced by `--col` 36rem and `--col-note` 30rem; `figcaption` and `.walk li` had no measure at all and ran to 133 characters. Browser audit (measure, size, leading, contrast, clipping, overflow, text overlap): transformer 32 findings → 0, tour 11 → 0, recipes 5 → 0, home 3 → 0 — with a negative control (62em columns make it report 6 blocks at 100–133 chars again), because a tool that says zero after you tune it has to be shown to still bite. `code.inline` also gets `white-space: nowrap`: a chip containing a space (`blend: "screen"`) wrapped between its words, drawing one bordered box split across two lines and colliding with the chip below — the three overlap findings on recipes disappeared with it |
+| `89f080b8` | five figure defects, all invisible to `check` | see the narrative below |
+| `test(web)` keyframe acceptance | 255 checks across seven `<name>.verify.txt` + `scripts/transformer-verify.sh` | `differs` per beat at a third of measured change, `visible`/`invisible` only where **both** halves hold, `ink` on the held frame at 85% of measured rest coverage |
+
+**The five figure defects.** (1) Fifteen times across the seven scenes the
+phase line printed **two labels on top of each other** for 60 ms: every swap
+was `fade-out phaseN [260ms]` plus `fade-in phaseN+1 [280ms, delay: 200ms]`,
+and the labels share the anchor (150, 96). Each delay now equals the outgoing
+duration; verified by measuring the label region across the swap in tokens —
+phase 1 present at 1.30/1.35/1.45, nothing at 1.55, phase 2 from 1.60.
+(2) **Every outro erased the figure**, 22–45 staggered `fade-out`s, so the
+frame the player holds for `hold="1.5"` was blank: tokens 0.00% ink, positional
+0.00%, overview 0.11%, multihead 2.0%, feedforward 2.7%. The embed already
+dissolves the finished frame into the next cycle, so the erase bought nothing
+and cost the whole rest. Outros now clear only the narration line, and the held
+frame keeps 97–99% of each scene's peak ink. (3) `\"it\"` in attention's phase
+1 rendered as `\"it\"` — the lexer lets an escaped quote through without ending
+the literal but never unescapes the value, so the backslash reaches the text;
+replaced with typographic quotes, after rendering `“ ” ‘ ’ « »` to confirm the
+fast-path face has them (the same check that caught the missing `⋮` in tokens).
+(4) attention's `base` rule was authored `opacity: 0.35` with a `draw-in` at
+1.40s, which is the exact mistake the scene family's own header comment warns
+about — draw-in trims the stroke, it does not gate visibility — so a lone grey
+rule sat on an empty plate for the first 1.4s. Seeded at 0.0 and lifted at its
+beat: no ink at 0.15s or 1.20s, drawn at 1.60s. (5) Three alignment slips,
+each measured rather than eyeballed: multihead's concat row (3×346 + gap 4)
+spanned 117..1162 against its panels' 130..1150, so the band summarising three
+heads overhung them and its rounded caps met in a pinch — now 3×320 at gap 30,
+measured 130..1149 with each segment under its own panel; feedforward's two
+sibling box titles sat 12px apart; overview's `residual stream` began 24px
+left of the rail it names.
+
+**feedforward's skip arcs ran through the boxes they were skipping.** `skip1`
+lifted off the rail at x=150 and landed on the Attention box's *right edge*
+(620, 390), which means it passed under the box's top border and travelled
+inside it — the crossing is visible in the rendered frame at the shallow angle
+where line meets rounded corner. Both arcs now run ring → add-point (210→648,
+740→1168) with the control at y=20, which clears the box top by ~23px at the
+corner and crosses the side border steeply where the skip rejoins the stream.
+
+**A check that passed the bug it was written for.** The first version of the
+rest-frame `ink` floor was half the measured coverage. Re-adding an outro that
+erases the chips and first cells left the check **passing** — 13.2% against a
+10.3% minimum — which means the file did not guard the very regression this
+batch fixed. At 85% the same edit fails both ink lines and the restored scene
+passes 23/23. Related: `differs` samples the frame sparsely, so a beat whose
+whole change is a 3px rule (0.26% of the plate) reads 0.00%; those beats are
+recorded in the checks file as comments naming what was measured rather than
+asserted at a floor the sampler cannot honour. And `visible` was kept only
+where its `invisible` partner also held, because a region that already carries
+another actor's ink passes `visible` for the wrong reason — 16 of attention's
+23 candidate actors are checkable that way, 6 of feedforward's 18.
