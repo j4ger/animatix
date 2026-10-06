@@ -16,6 +16,15 @@ pages embed, and fails when the held frame drops far below the plateau:
 `animatix verify` is the instrument, so the numbers are the same ones the
 transformer `*.verify.txt` files assert against.
 
+A scene may opt out with a marker in its own source, which the script prints
+rather than skipping silently, so an exemption stays auditable:
+
+    // rest-check: exempt - <why this one may rest on an empty plate>
+
+That is for figures whose resting frame is *meant* to be the page behind them
+(the home page's full-bleed hero), not for a bordered figure the reader is meant
+to take something away from.
+
 What this cannot see, on purpose: the measurement is whole-frame coverage, so it
 catches a closing beat that erases *the cast* (the defect it was written for) and
 is blind to one that erases a single actor sitting on busy pixels behind it — a
@@ -81,6 +90,12 @@ def measure(path: pathlib.Path, times: list[float]) -> dict[float, float]:
     }
 
 
+def exemption(path: pathlib.Path) -> str | None:
+    """The reason a scene is allowed to rest on an empty plate, if it declares one."""
+    m = re.search(r"(?m)^//\s*rest-check:\s*exempt\s+-\s+(.+)$", path.read_text())
+    return m.group(1).strip() if m else None
+
+
 def check(path: pathlib.Path) -> list[str]:
     rel = path.relative_to(ROOT.parent)
     duration = total_seconds(path)
@@ -113,11 +128,16 @@ def main() -> int:
         print("no scenes matched", file=sys.stderr)
         return 2
     failures: list[str] = []
+    exempt: list[str] = []
     for scene in scenes:
+        if why := exemption(scene):
+            exempt.append(f"{scene.relative_to(ROOT.parent)}: {why}")
+            continue
         for problem in check(scene):
             print(problem)
-            if "advisory" not in problem:
-                failures.append(problem)
+            failures.append(problem)
+    for note in exempt:
+        print(f"exempt (declared by the scene): {note}")
     status = "FAIL" if failures else "ok"
     print(
         f"\n{status}: {len(scenes)} embedded scenes checked, "

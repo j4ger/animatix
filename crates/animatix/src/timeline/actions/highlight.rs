@@ -507,18 +507,21 @@ mod tests {
         }
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        if let Some(track) = report.output.tracks.get("f1") {
-            // highlight_opacity should have keyframes
-            assert!(
-                track
-                    .highlight
-                    .highlight_opacity
-                    .as_ref()
-                    .map(|t| !t.keyframes.is_empty())
-                    .unwrap_or(false),
-                "highlight_opacity should have keyframes"
-            );
-        }
+        let track = report
+            .output
+            .tracks
+            .get("f1")
+            .expect("`f1` should have a track — the Equation's child was never registered");
+        // highlight_opacity should have keyframes
+        assert!(
+            track
+                .highlight
+                .highlight_opacity
+                .as_ref()
+                .map(|t| !t.keyframes.is_empty())
+                .unwrap_or(false),
+            "highlight_opacity should have keyframes"
+        );
         // No panics or critical errors
         assert!(
             report

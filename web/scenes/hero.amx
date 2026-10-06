@@ -1,3 +1,5 @@
+// rest-check: exempt - this plate is the page: full-bleed behind the copy (`sealed`,
+//   fit=cover, no frame), so its close clears back to the page's own ink.
 // hero.amx — the homepage plate: a title sequence, not a demo card.
 //
 // The page's ground and this scene's background are the same ink (#0b0e14,
