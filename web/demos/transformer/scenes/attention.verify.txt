@@ -1,0 +1,56 @@
+# attention.amx — keyframe acceptance (10 keyframes, duration 7.9s).
+# run: animatix verify attention.amx --checks attention.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.15 1.00 0.0151
+differs 1.00 1.40 0.0007
+differs 1.40 1.70 0.0006
+differs 1.70 2.45 0.0082
+differs 2.45 3.05 0.0007
+differs 3.05 3.55 0.0003
+differs 3.55 4.40 0.0015
+differs 4.40 5.00 0.0004
+# beat 5.00 -> 6.75: 0.00% changed, under the sampler's resolution — reviewed in the rendered frames instead
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 0.03 tok1
+visible 0.63 tok1
+invisible 0.03 tok2
+visible 0.63 tok2
+invisible 0.03 tok3
+visible 0.63 tok3
+invisible 0.03 tok4
+visible 0.63 tok4
+invisible 0.03 tok5
+visible 0.63 tok5
+invisible 1.10 query_tag
+visible 1.66 query_tag
+invisible 1.28 base
+visible 1.94 base
+invisible 2.33 w_the
+visible 2.81 w_the
+invisible 2.33 w_animal
+visible 2.81 w_animal
+invisible 2.33 w_didnt
+visible 2.81 w_didnt
+invisible 2.33 w_cross
+visible 2.81 w_cross
+invisible 2.33 w_self
+visible 2.81 w_self
+invisible 2.93 scan
+visible 3.69 scan
+invisible 3.19 scan_label
+visible 3.75 scan_label
+invisible 4.28 scale_label
+visible 4.90 scale_label
+invisible 4.42 formula
+visible 5.04 formula
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 7.35 0.068
+ink 7.85 0.068

@@ -1,0 +1,74 @@
+# overview.amx — keyframe acceptance (14 keyframes, duration 9.0s).
+# run: animatix verify overview.amx --checks overview.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.15 1.30 0.0112
+differs 1.30 2.30 0.0126
+differs 2.30 3.00 0.0703
+differs 3.00 3.40 0.0011
+differs 3.40 3.95 0.0023
+differs 3.95 4.35 0.0004
+differs 4.35 4.70 0.0008
+differs 4.70 5.25 0.0013
+differs 5.25 5.70 0.0003
+differs 5.70 6.30 0.0084
+differs 6.30 7.05 0.0022
+differs 7.05 7.55 0.0032
+differs 7.55 8.20 0.0004
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 0.03 in1
+visible 0.63 in1
+invisible 0.03 in2
+visible 0.63 in2
+invisible 0.03 in3
+visible 0.63 in3
+invisible 0.03 in4
+visible 0.63 in4
+invisible 0.03 in5
+visible 0.63 in5
+invisible 1.18 up1
+visible 1.68 up1
+invisible 1.18 plate
+visible 1.84 plate
+invisible 2.18 up2
+visible 2.70 up2
+invisible 2.18 blk
+visible 2.90 blk
+invisible 2.40 blk_title
+visible 2.98 blk_title
+invisible 2.60 tag_blk
+visible 3.14 tag_blk
+invisible 5.58 up3
+visible 6.10 up3
+invisible 5.58 lmh
+visible 6.24 lmh
+invisible 6.18 prob_cap
+visible 6.70 prob_cap
+invisible 6.18 pw0
+visible 6.68 pw0
+invisible 6.18 pw1
+visible 6.68 pw1
+invisible 6.18 pw2
+visible 6.68 pw2
+invisible 6.18 pb0
+visible 6.74 pb0
+invisible 6.18 pv0
+visible 6.66 pv0
+invisible 6.18 pv1
+visible 6.66 pv1
+invisible 6.18 pv2
+visible 6.66 pv2
+invisible 6.93 street
+visible 7.53 street
+invisible 6.93 loopback
+visible 7.77 loopback
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 8.80 0.27
+ink 8.95 0.27

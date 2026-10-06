@@ -1,0 +1,56 @@
+# pipeline.amx — keyframe acceptance (14 keyframes, duration 8.0s).
+# run: animatix verify pipeline.amx --checks pipeline.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.15 1.05 0.0091
+# beat 1.05 -> 1.25: 0.01% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 1.25 1.95 0.0168
+differs 1.95 2.65 0.0162
+differs 2.65 3.40 0.0162
+differs 3.40 4.35 0.0078
+# beat 4.35 -> 4.90: 0.02% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 4.90 5.12 0.0017
+differs 5.12 5.20 0.0003
+differs 5.20 5.42 0.0028
+differs 5.42 5.50 0.0003
+differs 5.50 5.72 0.0027
+differs 5.72 6.55 0.0016
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 0.03 in1
+visible 0.61 in1
+invisible 0.03 in2
+visible 0.61 in2
+invisible 0.03 in3
+visible 0.61 in3
+invisible 0.03 in4
+visible 0.61 in4
+invisible 0.93 up1
+visible 1.47 up1
+invisible 1.13 b1
+visible 1.79 b1
+invisible 1.75 up2
+visible 2.29 up2
+invisible 1.83 b2
+visible 2.49 b2
+invisible 2.45 up3
+visible 2.99 up3
+invisible 2.53 b3
+visible 3.19 b3
+invisible 3.28 up_lm
+visible 3.90 up_lm
+invisible 3.28 up_cls
+visible 3.90 up_cls
+invisible 3.54 out_lm
+visible 4.18 out_lm
+invisible 3.70 out_cls
+visible 4.34 out_cls
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 7.15 0.165
+ink 7.95 0.165

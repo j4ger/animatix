@@ -1,0 +1,40 @@
+# tokens.amx — keyframe acceptance (12 keyframes, duration 7.8s).
+# run: animatix verify tokens.amx --checks tokens.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+# beat 0.15 -> 0.40: 0.03% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 0.40 0.75 0.0105
+differs 0.75 1.30 0.0003
+differs 1.30 1.65 0.014
+differs 1.65 2.45 0.0107
+# beat 2.45 -> 2.85: 0.02% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 2.85 4.15 0.0546
+# beat 4.15 -> 4.55: 0.03% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 4.55 4.85 0.0005
+differs 4.85 5.35 0.0004
+# beat 5.35 -> 7.10: 0.00% changed, under the sampler's resolution — reviewed in the rendered frames instead
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 1.18 chip_the
+visible 1.80 chip_the
+invisible 1.18 chip_cat
+visible 1.80 chip_cat
+invisible 1.18 chip_sat
+visible 1.80 chip_sat
+invisible 4.43 brace_top
+visible 4.95 brace_top
+invisible 4.59 brace_mid
+visible 5.17 brace_mid
+invisible 4.73 brace_label
+visible 5.37 brace_label
+invisible 4.89 brace_bot
+visible 5.41 brace_bot
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 7.70 0.175
+ink 7.75 0.175

@@ -1,0 +1,38 @@
+# feedforward.amx — keyframe acceptance (12 keyframes, duration 8.3s).
+# run: animatix verify feedforward.amx --checks feedforward.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.15 0.90 0.002
+differs 0.90 1.35 0.0032
+differs 1.35 1.95 0.0222
+differs 1.95 2.30 0.0005
+differs 2.30 2.55 0.0008
+differs 2.55 3.00 0.0023
+differs 3.00 3.45 0.0222
+differs 3.45 4.05 0.0013
+differs 4.05 4.35 0.0004
+differs 4.35 4.85 0.001
+# beat 4.85 -> 6.95: 0.00% changed, under the sampler's resolution — reviewed in the rendered frames instead
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 0.03 rail
+visible 1.07 rail
+invisible 0.43 rail_label
+visible 1.09 rail_label
+invisible 1.39 attn_t
+visible 1.95 attn_t
+invisible 3.04 ffn_t
+visible 3.60 ffn_t
+invisible 4.23 plus1
+visible 4.77 plus1
+invisible 4.45 plus2
+visible 4.99 plus2
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 7.55 0.128
+ink 8.25 0.128

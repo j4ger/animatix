@@ -1,0 +1,54 @@
+# positional.amx — keyframe acceptance (6 keyframes, duration 7.1s).
+# run: animatix verify positional.amx --checks positional.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.10 1.35 0.063
+differs 1.35 1.70 0.0011
+differs 1.70 2.30 0.0006
+differs 2.30 3.00 0.0006
+differs 3.00 5.90 0.0006
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 1.23 lab0
+visible 1.75 lab0
+invisible 1.23 lab1
+visible 1.75 lab1
+invisible 1.23 lab2
+visible 1.75 lab2
+invisible 1.23 lab3
+visible 1.75 lab3
+invisible 1.58 p0
+visible 2.06 p0
+invisible 1.58 p1
+visible 2.06 p1
+invisible 1.58 p2
+visible 2.06 p2
+invisible 1.58 p3
+visible 2.06 p3
+invisible 1.58 p4
+visible 2.06 p4
+invisible 1.58 p5
+visible 2.06 p5
+invisible 1.58 p6
+visible 2.06 p6
+invisible 1.58 p7
+visible 2.06 p7
+invisible 1.90 axis
+visible 2.44 axis
+invisible 2.18 key_cap
+visible 2.74 key_cap
+invisible 2.18 key_lo_t
+visible 2.68 key_lo_t
+invisible 2.18 key_hi_t
+visible 2.68 key_hi_t
+invisible 2.18 key_zero
+visible 2.68 key_zero
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 6.50 0.163
+ink 7.05 0.163

@@ -1,0 +1,38 @@
+# multihead.amx — keyframe acceptance (12 keyframes, duration 6.9s).
+# run: animatix verify multihead.amx --checks multihead.verify.txt
+# Floors come from the rendered frames: each `differs` at a third of that
+# beat's measured change, `ink` at half the measured rest frame. Actors that
+# share an anchor (the phase line) or are component instances report no
+# observable bounds, so their beats are covered by `differs` — see
+# `dogfood/README.md`, "Choosing the right check".
+
+# Every beat after the opening must change the picture.
+differs 0.15 0.50 0.0349
+differs 0.50 0.95 0.0351
+differs 0.95 1.80 0.0138
+# beat 1.80 -> 1.85: 0.03% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 1.85 2.70 0.0133
+# beat 2.70 -> 2.75: 0.03% changed, under the sampler's resolution — reviewed in the rendered frames instead
+differs 2.75 3.60 0.0133
+differs 3.60 3.70 0.0004
+differs 3.70 4.10 0.0008
+differs 4.10 4.80 0.0196
+differs 4.80 5.80 0.0003
+
+# Actors that own their region: absent before their cue, on screen after.
+invisible 0.38 title_b
+visible 0.92 title_b
+invisible 0.38 title_c
+visible 0.92 title_c
+invisible 3.58 drop_a
+visible 4.14 drop_a
+invisible 3.58 drop_b
+visible 4.14 drop_b
+invisible 3.58 drop_c
+visible 4.14 drop_c
+invisible 4.68 mix_label
+visible 5.32 mix_label
+
+# The rest frame the player holds is the finished figure, not an empty plate.
+ink 6.40 0.315
+ink 6.85 0.315
