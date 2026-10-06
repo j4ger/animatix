@@ -43,6 +43,13 @@
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Consolas, monospace;
   --serif: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --measure: 1040px;
+  /* One reading column for prose and a narrower one for subordinate notes.
+   * The per-element `em` measures these replace (42em body, 44em lede, 46em
+   * lists, 62em hero caption) each resolved to a different physical width, so
+   * the column's right edge jumped from block to block — and at 17px a 42em
+   * line runs 90+ characters, well past the 45–75 the eye tracks back. */
+  --col: 36rem;
+  --col-note: 30rem;
   /* One motion vocabulary for the page and the scenes it embeds. The engine
    * grew `expo-out` and `spring` for exactly these shapes, so the DOM
    * furniture now shares the same arrival instead of running on CSS defaults.
@@ -164,9 +171,9 @@ h2 {
 h3 { font-family: var(--serif); color: var(--ink); }
 .lede {
   font-family: var(--serif); color: var(--dim); font-size: 21px;
-  line-height: 1.55; max-width: 44em; margin: 0 0 10px;
+  line-height: 1.55; max-width: var(--col); margin: 0 0 10px;
 }
-p { color: var(--dim); max-width: 42em; }
+p { color: var(--dim); max-width: var(--col); }
 p strong { color: var(--ink); font-weight: 560; }
 a { color: var(--accent-strong); text-decoration-color: var(--accent-dim); }
 a:hover { color: var(--accent); text-decoration-color: var(--accent); }
@@ -226,7 +233,7 @@ figure amx-player, figure img.plate {
 figure img.plate { width: 100%; height: auto; }
 figcaption {
   display: flex; flex-wrap: wrap; align-items: baseline;
-  gap: 8px 16px; margin-top: 12px;
+  gap: 8px 16px; margin-top: 12px; max-width: var(--col-note);
   font-size: 14px; color: var(--faint);
 }
 /* The caption is the only shrinkable item, so give it a floor: the player's
@@ -471,6 +478,10 @@ code.inline {
   background: var(--sunken); border: 1px solid var(--border-soft);
   border-radius: 5px; padding: 1px 6px; font-size: 13.5px;
   font-family: var(--mono); color: var(--ink);
+  /* A chip with a space inside (`blend: "screen"`) wrapped between the words,
+     drawing one bordered box split across two lines and colliding with the
+     chip on the next line. The token is one unit, so it breaks as one. */
+  white-space: nowrap;
 }
 
 /* Quickstart strip on the home page. */
@@ -489,7 +500,7 @@ code.inline {
 
 /* The opening map sits right under the header, before the contents box. */
 figure.hero { margin: 34px 0 0; }
-figure.hero figcaption { max-width: 62em; }
+figure.hero figcaption { max-width: var(--col-note); }
 
 /* "In a real model" facts — one strip of chips under each section's prose. */
 ul.facts {
@@ -518,6 +529,9 @@ ul.facts li b { color: var(--accent); font-weight: 560; }
 .walk li {
   position: relative; padding-left: 34px; margin-top: 7px;
   color: var(--dim); font-size: 14.5px; line-height: 1.6;
+  /* The step text is a note, so it takes the note column: uncapped it ran the
+   * full panel width (950px, 133 characters a line). */
+  max-width: var(--col-note);
 }
 .walk li .step {
   position: absolute; left: 0; top: 2px;
@@ -531,7 +545,7 @@ section .sub {
   font-family: var(--serif); font-size: 21px; font-weight: 600; color: var(--ink);
   margin: 34px 0 12px; letter-spacing: -0.005em;
 }
-ol.flow { max-width: 46em; color: var(--dim); margin: 14px 0 0; padding-left: 22px; }
+ol.flow { max-width: var(--col); color: var(--dim); margin: 14px 0 0; padding-left: 22px; }
 ol.flow li { margin-top: 6px; }
 ol.flow b { color: var(--ink); font-weight: 560; }
 
@@ -554,8 +568,8 @@ table.glossary td:first-child {
 table.glossary td:last-child { color: var(--dim); }
 table.glossary tr:last-child td { border-bottom: none; }
 
-p.outro { max-width: 46em; margin-top: 0; }
-ul.reading { max-width: 46em; color: var(--dim); margin: 8px 0 0; padding-left: 20px; }
+p.outro { max-width: var(--col); margin-top: 0; }
+ul.reading { max-width: var(--col); color: var(--dim); margin: 8px 0 0; padding-left: 20px; }
 ul.reading li { margin-top: 6px; }
 
 /* ── language tour ─────────────────────────────────────────────────── */
