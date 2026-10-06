@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Recipes — Animatix</title>
-  <meta name="description" content="Eight small moves that make an Animatix scene look lit and alive — each one a figure you can play, scrub and read the source of.">
+  <meta name="description" content="Nine small moves that make an Animatix scene look lit and alive — each one a figure you can play, scrub and read the source of.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
 </head>
@@ -23,7 +23,7 @@
         the source to steal it.
       </p>
       <ul class="meta">
-        <li>8 recipes</li>
+        <li>9 recipes</li>
         <li>plain text <code class="inline">.amx</code> scenes only</li>
         <li>the same engine as the desktop app</li>
       </ul>
@@ -170,9 +170,9 @@
             the render target. The panel's own children composite above the blur,
             so the number on the card stays sharp while the plate under it smears
             — and <code class="inline">corner_radius</code> shapes the frost, not
-            just the fill. One limit comes with it: anything declared
-            <em>after</em> the panel that overlaps it is inside the blurred copy,
-            so what must stay sharp goes inside the scope.</span>
+            just the fill. One limit comes with it: whatever sits under the panel
+            is inside the blurred copy, whatever its paint order, so anything that
+            must stay sharp goes inside the scope.</span>
           <a class="src" href="./scenes/glass_card.amx">glass_card.amx ↗</a>
         </figcaption>
       </figure>

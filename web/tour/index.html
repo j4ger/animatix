@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>The Language — an Animatix tour</title>
-  <meta name="description" content="A ten-section tour of the .amx language: actors and keyframes, timing and easing, motion actions, morphing, GPU filters, text and math, plots, reactive expressions, components and modules, scenes and tooling.">
+  <meta name="description" content="An eleven-section tour of the .amx language: actors and keyframes, timing and easing, motion actions, morphing, GPU filters and glass, light and camera, text and math, plots, reactive expressions, components and modules, scenes and tooling.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
 </head>
@@ -23,7 +23,7 @@
         are the same ones the LSP shows.
       </p>
       <ul class="meta">
-        <li>10 live scenes + 1 still</li>
+        <li>11 live figures + 1 still</li>
         <li>every live figure is editable</li>
         <li>one slim engine download for the whole page</li>
         <li>hover a figure to pause or scrub it</li>
@@ -57,19 +57,22 @@
         previous beat. Relative stamps (<code class="inline">#+1s</code>)
         chain off the last beat.
       </p>
-      <pre><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">140</span>, <span class="num">140</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">400</span>, <span class="num">440</span>)
+      <pre><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">240</span>, <span class="num">240</span>), at: (<span class="num">420</span>, <span class="num">390</span>), corner_radius: <span class="num">18</span>,
+  fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f5b942"</span>, <span class="str">"#ff8666"</span>})
 
 <span class="at">#1.6s</span>
-box.at = (<span class="num">640</span>, <span class="num">440</span>) [<span class="num">900ms</span>, ease: <span class="str">ease-in-out</span>]
+<span class="kw">move</span> box [to: (<span class="num">220</span>, <span class="num">0</span>), <span class="num">900ms</span>, ease: <span class="str">ease-in-out</span>, anticipate: <span class="num">80ms</span>]
 
 <span class="at">#2.9s</span>
-box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]</pre>
+box.size = (<span class="num">340</span>, <span class="num">130</span>) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]
+box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#ece7db"</span>, <span class="str">"#b9b3a6"</span>}) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/syntax.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Actors and keyframes"></amx-player>
         <figcaption>
-          <span class="cap">One rect: fades in, eases across, resizes and
-            recolors; a dot lands on it with <code class="inline">ease: bounce</code>.</span>
+          <span class="cap">One rect settles in, eases across, resizes and
+            recolours; the dashed rule below <em>is</em> the timeline — a tick
+            pops onto it at the moment each stamp fires.</span>
           <a class="src" href="scenes/syntax.amx">scenes/syntax.amx ↗</a>
         </figcaption>
       </figure>
@@ -86,26 +89,29 @@ box.size = (<span class="num">210</span>, <span class="num">90</span>) [<span cl
         container plus a compile-time <code class="inline">for</code> over an
         array of colors, instead of five copied lines.
       </p>
-      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span> {
+      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span>, offset: (<span class="num">0</span>, -<span class="num">40</span>) {
   <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">text.primary</span>, <span class="cmt">…</span>} {
-    square[i]: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: color
+    square[i]: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: color, corner_radius: <span class="num">14</span>
   }
 }
 
 <span class="at">#0.5s</span>
 <span class="kw">stagger</span> [<span class="num">120ms</span>] {
-  <span class="kw">fade-in</span> square[<span class="num">0</span>] [<span class="num">500ms</span>, ease: <span class="str">ease-out</span>]
+  <span class="kw">pop-in</span> square[<span class="num">0</span>] [<span class="num">500ms</span>, ease: <span class="str">expo-out</span>]
   <span class="cmt">… four more …</span>
 }
 
 <span class="at">#5s</span>
-square[<span class="num">4</span>].size = (<span class="num">120</span>, <span class="num">120</span>) [<span class="num">600ms</span>, ease: <span class="str">bounce</span>]</pre>
+<span class="kw">move</span> drop[<span class="num">0</span>] [to: (<span class="num">0</span>, <span class="num">105</span>), <span class="num">900ms</span>, ease: <span class="str">linear</span>]
+<span class="cmt">…</span>
+<span class="kw">move</span> drop[<span class="num">4</span>] [to: (<span class="num">0</span>, <span class="num">105</span>), <span class="num">900ms</span>, ease: <span class="str">bounce</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Sequence, stagger and easing"></amx-player>
         <figcaption>
-          <span class="cap">Five squares stagger in, grow in sequence, then the
-            same recolor plays five named eases — linear through bounce.</span>
+          <span class="cap">Five squares stagger in and grow back to back, then
+            five drops make one identical move under five named eases — linear
+            falls behind, bounce has already landed and is still wobbling.</span>
           <a class="src" href="scenes/timing.amx">scenes/timing.amx ↗</a>
         </figcaption>
       </figure>
@@ -124,20 +130,23 @@ square[<span class="num">4</span>].size = (<span class="num">120</span>, <span c
         twins) gate opacity, strokes and fills.
       </p>
       <pre><span class="at">#1.5s</span>
-<span class="kw">shift</span> actor [by: (<span class="num">180</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]
+<span class="kw">shift</span> actor [by: (<span class="num">160</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>, anticipate: <span class="num">90ms</span>]
 
 <span class="at">#2.5s</span>
 <span class="kw">rotate</span> actor [by: <span class="fn">deg</span>(<span class="num">90</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]
 
 <span class="at">#3.5s</span>
-<span class="kw">scale</span> actor [by: <span class="num">1.4</span>, <span class="num">800ms</span>, ease: <span class="str">bounce</span>]</pre>
+<span class="kw">scale</span> actor [by: <span class="num">1.4</span>, <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]
+
+<span class="at">#4.5s</span>
+actor.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#ff9f0a"</span>, <span class="str">"#ff5c5c"</span>}) [<span class="num">600ms</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/actions.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Motion actions and an always-driven satellite"></amx-player>
         <figcaption>
           <span class="cap">A square runs shift → rotate → scale → recolor while
             a satellite rides an <code class="inline">always</code> orbit — see
-            §08.</span>
+            §09.</span>
           <a class="src" href="scenes/actions.amx">scenes/actions.amx ↗</a>
         </figcaption>
       </figure>
@@ -154,7 +163,7 @@ square[<span class="num">4</span>].size = (<span class="num">120</span>, <span c
         through their control points.
       </p>
       <pre><span class="at">#2s</span>
-circle: <span class="prop">Polygon</span>, points: {(<span class="num">85</span>, <span class="num">0</span>), (<span class="num">85</span>, <span class="num">35</span>), <span class="cmt">… sixteen-point square …</span>}, color: <span class="prop">text.primary</span> [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
+circle: <span class="prop">Polygon</span>, points: {(<span class="num">85</span>, <span class="num">0</span>), (<span class="num">85</span>, <span class="num">35</span>), <span class="cmt">… sixteen-point square …</span>}, fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f2efe7"</span>, <span class="str">"#b9b3a6"</span>}) [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
 
 <span class="at">#5s</span>
 poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">95</span>), (<span class="num">24</span>, -<span class="num">30</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
@@ -186,7 +195,7 @@ poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -
       <pre>panel: <span class="prop">Filter</span>, anchor: scene.center {
   soft: <span class="prop">Blur</span>, radius: <span class="num">0</span>
   glow: <span class="prop">Bloom</span>, intensity: <span class="num">0</span>, keep: <span class="num">1.0</span>
-  grade: <span class="prop">ColorGrade</span>, brightness: <span class="num">0.6</span>
+  grade: <span class="prop">ColorGrade</span>, brightness: <span class="num">1.0</span>
   vig: <span class="prop">Vignette</span>, amount: <span class="num">0</span>, radius: <span class="num">0.55</span>, softness: <span class="num">0.7</span>
   art: <span class="prop">Group</span>, anchor: scene.center { <span class="cmt">…the framed content…</span> }
 }
@@ -229,9 +238,9 @@ frost.radius = <span class="num">22</span> [<span class="num">900ms</span>, ease
                     aspect="16:9" title="A Glass scope frosting the plate behind it"></amx-player>
         <figcaption>
           <span class="cap">The bars travel under the panel while
-            <code class="inline">frost.radius</code> ramps to 22 and back — the
-            blur eats the plate, never the card's border or its text, because
-            both are children of the scope.</span>
+            <code class="inline">frost.radius</code> ramps to 22, settles back to
+            4, then climbs to 44 — the blur eats the plate, never the card's
+            border or its text, because both are children of the scope.</span>
           <a class="src" href="scenes/glass.amx">scenes/glass.amx ↗</a>
         </figcaption>
       </figure>
@@ -349,14 +358,17 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
       <pre><span class="kw">always</span> {
   cross_h.at = ring.at
   dot.at = ring.at
+  <span class="cmt">… the other four follow the ring the same way …</span>
 
   <span class="kw">if</span> !<span class="fn">is_animating</span>(&amp;ring.at) {
     <span class="kw">let</span> p = <span class="num">0.5</span> + <span class="num">0.5</span> * <span class="fn">sin</span>(t * <span class="num">3</span>)
-    ring.color = <span class="prop">accent.success</span>
-    ring.size = (<span class="num">50</span> - p * <span class="num">10</span>, <span class="num">50</span> - p * <span class="num">10</span>)
+    ring.stroke = <span class="prop">accent.success</span>
+    ring.stroke_width = <span class="num">6.0</span> - p * <span class="num">2.4</span>
+    ring.size = (<span class="num">220</span> + p * <span class="num">18</span>, <span class="num">220</span> + p * <span class="num">18</span>)
     status.text = <span class="str">"IDLE — at rest"</span>
   } <span class="kw">else</span> {
-    ring.color = <span class="prop">accent.primary</span>
+    ring.stroke = <span class="prop">accent.primary</span>
+    ring.size = (<span class="num">220</span>, <span class="num">220</span>)
     status.text = <span class="str">"TRACKING — keyframe active"</span>
   }
 }</pre>
@@ -386,10 +398,14 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
       <pre><span class="kw">import</span> <span class="str">"../lib/components.amx"</span>
 
 row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">28</span>, align: <span class="str">"center"</span> {
-  c1: <span class="prop">LabeledBox</span>, label: <span class="str">"Query"</span>, width: <span class="num">180</span>
-  c2: <span class="prop">LabeledBox</span>, label: <span class="str">"Key"</span>, width: <span class="num">150</span>
-  c3: <span class="prop">LabeledBox</span>, label: <span class="str">"Value"</span>, width: <span class="num">170</span>
-}</pre>
+  c1: <span class="prop">LabeledBox</span>, label: <span class="str">"Query"</span>, width: <span class="num">240</span>, height: <span class="num">140</span>, text_size: <span class="num">30</span>
+  c2: <span class="prop">LabeledBox</span>, label: <span class="str">"Key"</span>, width: <span class="num">200</span>, height: <span class="num">140</span>, text_size: <span class="num">30</span>,
+    fill: <span class="prop">accent.primary</span>, text_color: (<span class="num">0.043</span>, <span class="num">0.055</span>, <span class="num">0.078</span>, <span class="num">1</span>)
+  c3: <span class="prop">LabeledBox</span>, label: <span class="str">"Value"</span>, width: <span class="num">230</span>, height: <span class="num">140</span>, text_size: <span class="num">30</span>
+}
+
+<span class="at">#3.2s</span>
+<span class="kw">shift</span> row [by: (<span class="num">0</span>, -<span class="num">40</span>), <span class="num">500ms</span>, ease: <span class="str">spring</span>, anticipate: <span class="num">80ms</span>]</pre>
       <figure class="tour-embed" data-editable>
         <amx-player src="scenes/components.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Imported components"></amx-player>
