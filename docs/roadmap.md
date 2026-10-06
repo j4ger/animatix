@@ -534,3 +534,41 @@ overprint. The fix belongs in the tick-label pass: skip the zero tick on one
 axis when both axes are drawn, or offset the pair, which is what most plotting
 libraries do. Left alone in this pass because the only content-side workaround is
 to move the domains off zero, which changes what the figure teaches.
+
+## Browser-only: an imported colorscheme is lost by every `# Scene` section (2026-10-06)
+
+**The five demo pages and the home page render in the fallback palette in a real
+browser, and nothing native says so.** Each `<amx-player>` on those pages logs
+
+    amx-player: descent.amx built with 1 diagnostic(s)
+    { severity: "warning", code: "unknown-colorscheme",
+      subject: "scene 'Descent'",
+      message: "Unknown colorscheme 'ink'; using the default-dark built-in scheme instead." }
+
+`ink` is not built in — it is `pub let ink = Colorscheme { … }` in
+`web/demos/lib/theme.amx`, which every one of these files imports. The CLI
+resolves it (`animatix check web/demos/gradient/descent.amx` → OK, no
+diagnostics), the slim CLI agrees, and the wasm `site_scenes` gate passes because
+it asserts the build *succeeds*, not that it is quiet. So the only witness is a
+devtools console, and what it costs is the palette: background, text and accent
+tokens all come from `ink`, and the fallback is `default-dark`.
+
+The discriminator is the scene header, and it is exact across the whole site: a
+file with `# Section` headers logs one warning per section (`gradient/scene.amx`
+— 6 sections, 6 diagnostics; `hash/scene.amx` — 3, 3), while a file whose config
+is file-level and has no section header logs none (`tour/scenes/glass.amx`,
+`tour/scenes/components.amx`, and the nine recipes scenes, all importing the same
+theme and the same `colorscheme: "ink"`). Merging the section's
+`config { colorscheme: "ink" }` into the file-level `config` does **not** fix it —
+tested — so the palette registry, not the config placement, is what the section
+build does not see.
+
+Where to look: the embed builds each section as its own timeline
+(`crates/animatix-web/src/web.rs` → the host's build path in
+`crates/animatix-web/src/host.rs`), and the module graph is handed over as
+fetched sources. The native single-source path evidently registers imported
+`Colorscheme` values before evaluating configs; the per-section path does not,
+or does it after the lookup. A regression test belongs in `site_scenes`: assert
+**no warning-or-worse diagnostics** for each embedded scene, built through the
+same protocol the embed uses — that is the check that would have caught this, and
+it will fail until the fix lands, which is the point.
