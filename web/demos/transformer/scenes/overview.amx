@@ -76,7 +76,7 @@ tag_blk: Text, text: "06", font_size: 14, color: accent.primary, at: (782, 174)
 
 rail: Rect, size: (620, 6), corner_radius: 3, color: text.muted, opacity: 0.0, at: (640, 330)
 rail_lab: Text, text: "residual stream", font_size: 12, color: text.muted,
-  text_max_width: 120, text_align: "left", at: (348, 386)
+  text_max_width: 120, text_align: "left", at: (372, 386)
 
 // Skip arcs climb to y=90 control (apex ~210) so they clear the box tops
 // (y=270) AND the section tags (y=212), and land on the LN rings — which
@@ -144,7 +144,7 @@ stagger [110ms] {
 
 #1.30s
 fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
 draw-in up1 [260ms, ease: expo-out]
 up1.opacity = 0.6 [240ms]
 wipe-in plate [420ms, ease: expo-out]
@@ -153,7 +153,7 @@ fade-in tag_e [300ms, delay: 380ms, ease: expo-out]
 
 #2.30s
 fade-out phase2 [260ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase3 [280ms, delay: 260ms, ease: expo-out]
 draw-in up2 [280ms, ease: expo-out]
 up2.opacity = 0.6 [260ms]
 wipe-in blk [480ms, ease: expo-out]
@@ -195,7 +195,7 @@ skip2.opacity = 0.55 [480ms]
 
 #5.70s
 fade-out phase3 [260ms, ease: ease-in]
-fade-in phase4 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase4 [280ms, delay: 260ms, ease: expo-out]
 draw-in up3 [280ms, ease: expo-out]
 up3.opacity = 0.6 [260ms]
 wipe-in lmh [420ms, ease: expo-out]
@@ -222,7 +222,7 @@ stagger [130ms] {
 // The closing beat: pick, append, loop.
 #7.05s
 fade-out phase4 [260ms, ease: ease-in]
-fade-in phase5 [300ms, delay: 200ms, ease: expo-out]
+fade-in phase5 [300ms, delay: 260ms, ease: expo-out]
 draw-in loopback [600ms, ease: expo-out]
 loopback.opacity = 0.9 [560ms]
 fade-in street [360ms, ease: expo-out]
@@ -233,50 +233,9 @@ pulse street [600ms, intensity: 0.04]
 // Outro: single-wave dissolve of the map (the cast is too wide to stagger)
 // so the loop wraps from a quiet plate.
 #8.20s
-stagger [10ms] {
-  fade-out street [240ms, ease: ease-in]
-  fade-out loopback [240ms, ease: ease-in]
-  fade-out phase5 [240ms, ease: ease-in]
-  fade-out pv0 [240ms, ease: ease-in]
-  fade-out pv1 [240ms, ease: ease-in]
-  fade-out pv2 [240ms, ease: ease-in]
-  fade-out pw0 [240ms, ease: ease-in]
-  fade-out pw1 [240ms, ease: ease-in]
-  fade-out pw2 [240ms, ease: ease-in]
-  fade-out pb0 [240ms, ease: ease-in]
-  fade-out pb1 [240ms, ease: ease-in]
-  fade-out pb2 [240ms, ease: ease-in]
-  fade-out prob_cap [240ms, ease: ease-in]
-  fade-out lmh [240ms, ease: ease-in]
-  fade-out lmh_t [240ms, ease: ease-in]
-  fade-out tag_blk [240ms, ease: ease-in]
-  fade-out blk_title [240ms, ease: ease-in]
-  fade-out up3 [240ms, ease: ease-in]
-  fade-out skip2 [240ms, ease: ease-in]
-  fade-out ffn [240ms, ease: ease-in]
-  fade-out ffn_t [240ms, ease: ease-in]
-  fade-out ffn_s [240ms, ease: ease-in]
-  fade-out tag_ffn [240ms, ease: ease-in]
-  fade-out ln2 [240ms, ease: ease-in]
-  fade-out ln2_t [240ms, ease: ease-in]
-  fade-out skip1 [240ms, ease: ease-in]
-  fade-out attn [240ms, ease: ease-in]
-  fade-out attn_t [240ms, ease: ease-in]
-  fade-out attn_s [240ms, ease: ease-in]
-  fade-out tag_attn [240ms, ease: ease-in]
-  fade-out rail_lab [240ms, ease: ease-in]
-  fade-out rail [240ms, ease: ease-in]
-  fade-out ln1 [240ms, ease: ease-in]
-  fade-out ln1_t [240ms, ease: ease-in]
-  fade-out blk [240ms, ease: ease-in]
-  fade-out up2 [240ms, ease: ease-in]
-  fade-out plate_t [240ms, ease: ease-in]
-  fade-out tag_e [240ms, ease: ease-in]
-  fade-out plate [240ms, ease: ease-in]
-  fade-out up1 [240ms, ease: ease-in]
-  fade-out in5 [240ms, ease: ease-in]
-  fade-out in4 [240ms, ease: ease-in]
-  fade-out in3 [240ms, ease: ease-in]
-  fade-out in2 [240ms, ease: ease-in]
-  fade-out in1 [240ms, ease: ease-in]
-}
+// The loop's rest frame is this composition, not an empty plate: the embed
+// holds the finished frame for `hold` seconds and dissolves it into the next
+// cycle itself, so erasing the figure here would only blank the screen during
+// the rest. The outro therefore clears the narration line and leaves the
+// diagram standing.
+fade-out phase5 [260ms, ease: ease-in]

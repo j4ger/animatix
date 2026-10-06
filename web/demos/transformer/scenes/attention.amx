@@ -21,7 +21,7 @@ import "../lib/components.amx"
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.9 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
-phase1: Text, text: "1 · \"it\" looks back", font_size: 15, color: text.muted,
+phase1: Text, text: "1 · “it” looks back", font_size: 15, color: text.muted,
   text_max_width: 300, text_align: "left", at: (150, 96)
 phase2: Text, text: "2 · score every token", font_size: 15, color: text.muted,
   text_max_width: 300, text_align: "left", at: (150, 96)
@@ -60,7 +60,10 @@ scan_label: Text, text: "attends to", font_size: 15, color: text.muted,
 // on that line. (A bottom-aligned Row was tried and reverted: align "end"
 // plants children on the CONTAINER bottom edge — center plus half the
 // tallest child — which is the same constant, one step removed.) ──────
-base: Line, from: (205, 560), to: (1075, 560), stroke_width: 2, color: text.muted, opacity: 0.35
+// Authored zero, then lifted at its beat: a non-zero authored opacity would
+// put this rule on an otherwise empty plate from frame 0 (draw-in only trims
+// the stroke, it does not gate visibility).
+base: Line, from: (205, 560), to: (1075, 560), stroke_width: 2, color: text.muted, opacity: 0.0
 
 bar_the: Rect, size: (56, 19), corner_radius: 5, color: accent.primary, at: (280, 550)
 bar_animal: Rect, size: (56, 240), corner_radius: 5, color: accent.primary, at: (460, 440)
@@ -95,11 +98,12 @@ fade-in halo [420ms, ease: expo-out]
 fade-in query_tag [320ms, delay: 220ms, ease: expo-out]
 
 #1.40s
+base.opacity = 0.35 [420ms]
 draw-in base [420ms, ease: expo-out]
 
 #1.70s
 fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
 stagger [90ms] {
   fade-in bar_the [380ms, ease: expo-out]
   fade-in bar_animal [380ms, ease: expo-out]
@@ -110,7 +114,7 @@ stagger [90ms] {
 
 #2.45s
 fade-out phase2 [260ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase3 [280ms, delay: 260ms, ease: expo-out]
 stagger [70ms] {
   fade-in w_the [240ms, ease: expo-out]
   fade-in w_animal [240ms, ease: expo-out]
@@ -139,29 +143,9 @@ pulse w_animal [700ms, intensity: 0.04]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #6.75s
-stagger [30ms] {
-  fade-out formula [260ms, ease: ease-in]
-  fade-out scale_label [260ms, ease: ease-in]
-  fade-out w_self [260ms, ease: ease-in]
-  fade-out w_cross [260ms, ease: ease-in]
-  fade-out w_didnt [260ms, ease: ease-in]
-  fade-out w_animal [260ms, ease: ease-in]
-  fade-out w_the [260ms, ease: ease-in]
-  fade-out bar_self [260ms, ease: ease-in]
-  fade-out bar_cross [260ms, ease: ease-in]
-  fade-out bar_didnt [260ms, ease: ease-in]
-  fade-out bar_animal [260ms, ease: ease-in]
-  fade-out bar_the [260ms, ease: ease-in]
-  fade-out base [260ms, ease: ease-in]
-  fade-out scan_label [260ms, ease: ease-in]
-  fade-out scan [260ms, ease: ease-in]
-  fade-out a_animal [260ms, ease: ease-in]
-  fade-out query_tag [260ms, ease: ease-in]
-  fade-out halo [260ms, ease: ease-in]
-  fade-out tok5 [260ms, ease: ease-in]
-  fade-out tok4 [260ms, ease: ease-in]
-  fade-out tok3 [260ms, ease: ease-in]
-  fade-out tok2 [260ms, ease: ease-in]
-  fade-out tok1 [260ms, ease: ease-in]
-  fade-out phase3 [260ms, ease: ease-in]
-}
+// The loop's rest frame is this composition, not an empty plate: the embed
+// holds the finished frame for `hold` seconds and dissolves it into the next
+// cycle itself, so erasing the figure here would only blank the screen during
+// the rest. The outro therefore clears the narration line and leaves the
+// diagram standing.
+fade-out phase3 [260ms, ease: ease-in]

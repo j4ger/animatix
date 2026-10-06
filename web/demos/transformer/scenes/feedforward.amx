@@ -41,10 +41,10 @@ rail_label: Text, text: "residual stream", font_size: 15, color: text.muted,
 // Skip connections leave the rail before the block and rejoin it after, arcing
 // clear of both the ring and the block.
 skip1: Path, commands: {
-  move_to(150, 390), quad_to(560, 60, 620, 390)
+  move_to(210, 390), quad_to(430, 20, 648, 390)
 }, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 skip2: Path, commands: {
-  move_to(640, 390), quad_to(1050, 60, 1140, 390)
+  move_to(740, 390), quad_to(954, 20, 1168, 390)
 }, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 
 // ── LayerNorm: rings standing in the gaps, not on the borders ───────
@@ -56,8 +56,8 @@ ln2_t: Text, text: "LN", font_size: 17, color: text.primary, at: (740, 390)
 // ── the two halves of a block ───────────────────────────────────────
 attn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
   stroke: accent.info, stroke_width: 2, at: (460, 390)
-attn_t: Text, text: "Attention", font_size: 24, color: text.primary, at: (460, 352)
-attn_s: Text, text: "across tokens", font_size: 15, color: text.muted, at: (460, 398)
+attn_t: Text, text: "Attention", font_size: 24, color: text.primary, at: (460, 340)
+attn_s: Text, text: "across tokens", font_size: 15, color: text.muted, at: (460, 386)
 
 ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
   stroke: accent.success, stroke_width: 2, at: (980, 390)
@@ -100,7 +100,7 @@ skip1.opacity = 0.55 [560ms]
 // Phase 2 opens as the first skip leaves the rail.
 #2.30s
 fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
 
 #2.55s
 wipe-in ln2 [400ms, ease: expo-out]
@@ -125,7 +125,7 @@ skip2.opacity = 0.55 [560ms]
 // Phase 3: the additions. Each "+" flashes where its arc rejoins the rail.
 #4.35s
 fade-out phase2 [260ms, ease: ease-in]
-fade-in phase3 [300ms, delay: 200ms, ease: expo-out]
+fade-in phase3 [300ms, delay: 260ms, ease: expo-out]
 fade-in plus1 [300ms, ease: expo-out]
 fade-in plus2 [300ms, delay: 220ms, ease: expo-out]
 
@@ -137,26 +137,9 @@ fade-out dot [300ms, delay: 1380ms, ease: ease-in]
 
 // Outro: quiet the plate before the wrap (reverse order).
 #6.95s
-stagger [40ms] {
-  fade-out plus2 [260ms, ease: ease-in]
-  fade-out plus1 [260ms, ease: ease-in]
-  fade-out dot [260ms, ease: ease-in]
-  fade-out ffn_s [260ms, ease: ease-in]
-  fade-out wide_c [260ms, ease: ease-in]
-  fade-out wide_b [260ms, ease: ease-in]
-  fade-out wide_a [260ms, ease: ease-in]
-  fade-out ffn_t [260ms, ease: ease-in]
-  fade-out ffn [260ms, ease: ease-in]
-  fade-out attn_s [260ms, ease: ease-in]
-  fade-out attn_t [260ms, ease: ease-in]
-  fade-out attn [260ms, ease: ease-in]
-  fade-out ln2_t [260ms, ease: ease-in]
-  fade-out ln2 [260ms, ease: ease-in]
-  fade-out ln1_t [260ms, ease: ease-in]
-  fade-out ln1 [260ms, ease: ease-in]
-  fade-out skip2 [260ms, ease: ease-in]
-  fade-out skip1 [260ms, ease: ease-in]
-  fade-out rail_label [260ms, ease: ease-in]
-  fade-out rail [260ms, ease: ease-in]
-  fade-out phase3 [260ms, ease: ease-in]
-}
+// The loop's rest frame is this composition, not an empty plate: the embed
+// holds the finished frame for `hold` seconds and dissolves it into the next
+// cycle itself, so erasing the figure here would only blank the screen during
+// the rest. The outro therefore clears the narration line and leaves the
+// diagram standing.
+fade-out phase3 [260ms, ease: ease-in]

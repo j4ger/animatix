@@ -154,7 +154,7 @@ stagger [30ms] {
 
 #1.35s
 fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
 stagger [70ms] {
   fade-in lab0 [280ms, ease: expo-out]
   fade-in lab1 [280ms, ease: expo-out]
@@ -209,27 +209,9 @@ fade-out cursor [300ms, delay: 2000ms, ease: ease-in]
 // ~0.9s, so the grid had vanished while the row/column labels were still
 // fully lit — a half-empty stage for the last beat of the loop.
 #5.90s
-stagger [12ms] {
-  fade-out matrix [260ms, ease: ease-in]
-  fade-out key_cap [260ms, ease: ease-in]
-  fade-out key_lo [260ms, ease: ease-in]
-  fade-out key_mid [260ms, ease: ease-in]
-  fade-out key_hi [260ms, ease: ease-in]
-  fade-out key_lo_t [260ms, ease: ease-in]
-  fade-out key_zero [260ms, ease: ease-in]
-  fade-out key_hi_t [260ms, ease: ease-in]
-  fade-out axis [260ms, ease: ease-in]
-  fade-out p7 [260ms, ease: ease-in]
-  fade-out p6 [260ms, ease: ease-in]
-  fade-out p5 [260ms, ease: ease-in]
-  fade-out p4 [260ms, ease: ease-in]
-  fade-out p3 [260ms, ease: ease-in]
-  fade-out p2 [260ms, ease: ease-in]
-  fade-out p1 [260ms, ease: ease-in]
-  fade-out p0 [260ms, ease: ease-in]
-  fade-out lab3 [260ms, ease: ease-in]
-  fade-out lab2 [260ms, ease: ease-in]
-  fade-out lab1 [260ms, ease: ease-in]
-  fade-out lab0 [260ms, ease: ease-in]
-  fade-out phase3 [260ms, ease: ease-in]
-}
+// The loop's rest frame is this composition, not an empty plate: the embed
+// holds the finished frame for `hold` seconds and dissolves it into the next
+// cycle itself, so erasing the figure here would only blank the screen during
+// the rest. The outro therefore clears the narration line and leaves the
+// diagram standing.
+fade-out phase3 [260ms, ease: ease-in]

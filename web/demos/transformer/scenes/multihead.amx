@@ -82,10 +82,10 @@ drop_b: Arrow, from: (640, 452), to: (640, 496), head_size: 12,
 drop_c: Arrow, from: (990, 452), to: (990, 496), head_size: 12,
   stroke_width: 2, stroke: accent.info, opacity: 0.0
 
-segs: Row, at: (640, 530), gap: 4 {
-  seg_a: Rect, size: (346, 56), corner_radius: 10, color: accent.primary, opacity: 0.0
-  seg_b: Rect, size: (346, 56), corner_radius: 10, color: accent.success, opacity: 0.0
-  seg_c: Rect, size: (346, 56), corner_radius: 10, color: accent.info, opacity: 0.0
+segs: Row, at: (640, 530), gap: 30 {
+  seg_a: Rect, size: (320, 56), corner_radius: 10, color: accent.primary, opacity: 0.0
+  seg_b: Rect, size: (320, 56), corner_radius: 10, color: accent.success, opacity: 0.0
+  seg_c: Rect, size: (320, 56), corner_radius: 10, color: accent.info, opacity: 0.0
 }
 
 mix_label: Text, text: "concat, then a linear mix", font_size: 16, color: text.muted, at: (640, 606)
@@ -109,7 +109,7 @@ stagger [130ms] {
 // Head by head, so each pattern can be compared with the one before it.
 #0.95s
 fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
 stagger [45ms] {
   h1_00.opacity = 0.95 [300ms]
   h1_01.opacity = 0.45 [300ms]
@@ -158,7 +158,7 @@ stagger [45ms] {
 
 #3.60s
 fade-out phase2 [260ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 200ms, ease: expo-out]
+fade-in phase3 [280ms, delay: 260ms, ease: expo-out]
 pulse h3_21 [560ms, intensity: 0.05]
 
 #3.70s
@@ -185,20 +185,9 @@ fade-in mix_label [400ms, ease: expo-out]
 
 // Outro: grids and the segment row fade as containers; quiet plate at the wrap.
 #5.80s
-stagger [50ms] {
-  fade-out mix_label [260ms, ease: ease-in]
-  fade-out segs [260ms, ease: ease-in]
-  fade-out drop_c [260ms, ease: ease-in]
-  fade-out drop_b [260ms, ease: ease-in]
-  fade-out drop_a [260ms, ease: ease-in]
-  fade-out head3_grid [260ms, ease: ease-in]
-  fade-out head2_grid [260ms, ease: ease-in]
-  fade-out head1_grid [260ms, ease: ease-in]
-  fade-out title_c [260ms, ease: ease-in]
-  fade-out title_b [260ms, ease: ease-in]
-  fade-out title_a [260ms, ease: ease-in]
-  fade-out panel_c [260ms, ease: ease-in]
-  fade-out panel_b [260ms, ease: ease-in]
-  fade-out panel_a [260ms, ease: ease-in]
-  fade-out phase3 [260ms, ease: ease-in]
-}
+// The loop's rest frame is this composition, not an empty plate: the embed
+// holds the finished frame for `hold` seconds and dissolves it into the next
+// cycle itself, so erasing the figure here would only blank the screen during
+// the rest. The outro therefore clears the narration line and leaves the
+// diagram standing.
+fade-out phase3 [260ms, ease: ease-in]
