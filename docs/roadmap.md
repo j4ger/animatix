@@ -711,3 +711,34 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   scrolling history (`sin(θ_now − x)`) with the marker pinned to the window's
   left edge, which has no leading edge to miss; a scene that genuinely wants a
   growing trace still cannot land a marker on its end.
+
+## Frame-time geometry writes disagree with their declarations (2026-10-07)
+
+Found while making the epicycles chain's circles grow in with their arms. All
+three findings are measured on rendered frames, one scene, `Ellipse`:
+
+| written | rendered |
+|---|---|
+| declaration `size: (100, 100)` | 101 × 101 px |
+| `always { e.size = (100, 100) }` | **201 × 201 px** |
+| declaration `radius_x: 50, radius_y: 50` | 101 × 101 px |
+| `always { e.radius_x = 100; e.radius_y = 100 }` | **101 × 101 px — the write does nothing** |
+
+- **`actor.size = (v, v)` in an `always` block is read as a radius; the
+  declaration `size: (v, v)` is a bounding box.** Same property, same value,
+  2× apart. `docs/primitives.md` documents `size` as "bounding box dimensions,
+  converted to radius_x = width / 2" with no caveat about the assignment path,
+  so content that sizes an actor per frame is quietly double. The fix is to
+  route both through the one conversion the declaration uses, and a test
+  asserting `declared size == frame-written size` for the same literal.
+- **`radius_x` / `radius_y` are declared-only.** A timed or per-frame write
+  lands nowhere, with no `always-write-not-animatable` and no
+  `invalid-property-value` — the actor simply keeps its declared radius. Either
+  make them animatable (they are the same geometry as `size`, so this is the
+  better half) or reject the write the way every other unwritable property is
+  rejected. Silent is the one outcome that cannot be debugged from the source.
+- **`scale` is the safe path today** and is what `web/demos/epicycles/hero.amx`
+  uses: `ring[i].scale = wts[i]` grows each epicycle to exactly the radius its
+  arm reaches, unambiguously, because a multiplier has no box-versus-radius
+  reading. It is a workaround, not a fix — nobody should have to know which of
+  three equivalent-looking writes the engine honours.

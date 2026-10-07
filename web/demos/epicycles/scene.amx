@@ -201,7 +201,7 @@ hero_hub: Ellipse, size: (9, 9), color: text.muted, at: (geo.pivot_x, geo.cy)
 
 for k, i in {1, 3, 5, 7} {
   ring[i]: Ellipse, size: (2 * geo.R / k, 2 * geo.R / k), stroke: cols[i],
-    fill_opacity: 0, stroke_width: 2, at: (geo.pivot_x, geo.cy)
+    fill_opacity: 0, stroke_width: 2, at: (geo.pivot_x, geo.cy)  // scaled per frame, see always
   arm[i]: Line, from: (geo.pivot_x, geo.cy), to: (geo.pivot_x, geo.cy),
     stroke: cols[i], stroke_width: 1.5, opacity: 0.5
 }
@@ -269,9 +269,15 @@ fade-in ring__2, arm__2, eqt__1 [450ms, ease: expo-out]
 fade-in ring__3, arm__3, eqt__2 [450ms, ease: expo-out]
 
 always {
-  g3 = clamp((t - 4.0) / 1.5, 0.0, 1.0)
-  g5 = clamp((t - 9.0) / 1.5, 0.0, 1.0)
-  g7 = clamp((t - 14.0) / 1.5, 0.0, 1.0)
+  let s3 = clamp((t - 4.0) / 1.5, 0.0, 1.0)
+  let s5 = clamp((t - 9.0) / 1.5, 0.0, 1.0)
+  let s7 = clamp((t - 14.0) / 1.5, 0.0, 1.0)
+  // Smoothstep, not the raw ramp. A linear clamp has a velocity kink at both
+  // ends, and the wave morphs at exactly that rate, so each gate started and
+  // stopped its reshape with a visible twitch.
+  g3 = s3 * s3 * (3 - 2 * s3)
+  g5 = s5 * s5 * (3 - 2 * s5)
+  g7 = s7 * s7 * (3 - 2 * s7)
 
   let u = clamp((t - 1.4) / 16.0, 0.0, 1.0)
   th_now = geo.span * u
@@ -292,6 +298,14 @@ always {
     let nx = cx + reach * cos(k * th)
     let ny = cy - reach * sin(k * th)
     arm[i].to = (nx, ny)
+    // The circle is scaled to its own weight, so its rim passes through the
+    // joint the arm reaches: radius (R/k)·wts[i] = reach, exactly. Declaring a
+    // constant radius while the arm ramped up from zero left the joint sitting
+    // at a fraction of the way to a full-size circle for the whole 1.5s.
+    // (Scale, not `size`: a frame-time `actor.size = (v, v)` is read as a
+    // radius while the declaration `size: (v, v)` is a bounding box, and
+    // `radius_x` writes are dropped outright — docs/roadmap.md.)
+    ring[i].scale = wts[i]
     let sum = sum + wts[i] * sin(k * th) / k
     let cx = nx
     let cy = ny
