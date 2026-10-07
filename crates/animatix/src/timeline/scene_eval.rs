@@ -104,7 +104,7 @@ impl Timeline {
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
     ) -> NodeTransform {
         use crate::timeline::property_engine::{
-            effective_f32_resolved, effective_transform, effective_vec2_resolved,
+            effective_f32_resolved, effective_half_size_resolved, effective_transform,
         };
 
         // ── Position: special handling for anchor/binding ──
@@ -158,11 +158,10 @@ impl Timeline {
                 as f64;
         let opacity =
             effective_f32_resolved(track, node_overrides, time_ms, "opacity", reads.opacity, 1.0);
-        let half_size = effective_vec2_resolved(
+        let half_size = effective_half_size_resolved(
             track,
             node_overrides,
             time_ms,
-            "size",
             reads.size,
             DEFAULT_LAYOUT_HALF_SIZE,
         );

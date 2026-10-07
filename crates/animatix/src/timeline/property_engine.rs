@@ -1368,26 +1368,26 @@ pub(crate) fn effective_f32_resolved(
     default
 }
 
-/// Read an effective Vec2 property value, preferring modifier overrides over
-/// track keyframes, with the registry entry pre-resolved by the caller.
-pub(crate) fn effective_vec2_resolved(
+/// Read a node's half-size (its radius) for this frame, delegating the unit
+/// reconciliation to [`crate::primitives::resolve_half_size`] so the node
+/// transform and the primitives cannot disagree about what an override means.
+/// See that helper for why the three sources need different handling.
+pub(crate) fn effective_half_size_resolved(
     track: &AnimationTrack,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
-    name: &str,
     resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 2],
 ) -> [f32; 2] {
-    if let Some(Value::Vec2(v)) = overrides.and_then(|ov| ov.get(name)) {
-        return [v[0] as f32, v[1] as f32];
-    }
-    if let Some((schema, slot)) = resolved
+    let track_half = if let Some((schema, slot)) = resolved
         && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
-        return v;
-    }
-    default
+        v
+    } else {
+        default
+    };
+    crate::primitives::resolve_half_size(track_half, overrides)
 }
 
 /// Read an effective Transform property value ([f32; 6]), preferring modifier

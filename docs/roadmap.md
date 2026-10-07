@@ -712,7 +712,7 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   left edge, which has no leading edge to miss; a scene that genuinely wants a
   growing trace still cannot land a marker on its end.
 
-## Frame-time geometry writes disagree with their declarations (2026-10-07)
+## Frame-time geometry writes disagreed with their declarations (2026-10-07) — fixed
 
 Found while making the epicycles chain's circles grow in with their arms. All
 three findings are measured on rendered frames, one scene, `Ellipse`:
@@ -724,21 +724,30 @@ three findings are measured on rendered frames, one scene, `Ellipse`:
 | declaration `radius_x: 50, radius_y: 50` | 101 × 101 px |
 | `always { e.radius_x = 100; e.radius_y = 100 }` | **101 × 101 px — the write does nothing** |
 
-- **`actor.size = (v, v)` in an `always` block is read as a radius; the
-  declaration `size: (v, v)` is a bounding box.** Same property, same value,
+- **Was: `actor.size = (v, v)` in an `always` block read as a radius while
+  the declaration `size: (v, v)` was a bounding box.** Same property, same value,
   2× apart. `docs/primitives.md` documents `size` as "bounding box dimensions,
   converted to radius_x = width / 2" with no caveat about the assignment path,
   so content that sizes an actor per frame is quietly double. The fix is to
   route both through the one conversion the declaration uses, and a test
   asserting `declared size == frame-written size` for the same literal.
-- **`radius_x` / `radius_y` are declared-only.** A timed or per-frame write
+- **Was: `radius_x` / `radius_y` were declared-only.** A timed or per-frame write
   lands nowhere, with no `always-write-not-animatable` and no
   `invalid-property-value` — the actor simply keeps its declared radius. Either
   make them animatable (they are the same geometry as `size`, so this is the
   better half) or reject the write the way every other unwritable property is
   rejected. Silent is the one outcome that cannot be debugged from the source.
-- **`scale` is the safe path today** and is what `web/demos/epicycles/hero.amx`
-  uses: `ring[i].scale = wts[i]` grows each epicycle to exactly the radius its
-  arm reaches, unambiguously, because a multiplier has no box-versus-radius
-  reading. It is a workaround, not a fix — nobody should have to know which of
-  three equivalent-looking writes the engine honours.
+**Fixed in `primitives::resolve_half_size`**, which every shape primitive now
+routes its frame-time geometry through, so the node transform and the
+primitives cannot disagree about what an override means; `radius_x`/`radius_y`
+are honoured there and compose over a `size` box one axis at a time. Covered by
+three unit tests and by rendered measurement: declared, timed and `always`
+writes of `size: (100, 100)` all render 101px, and `radius_x = 100` on a 100
+actor renders 201px.
+
+The bug was visible in shipped content and had been misattributed:
+`web/tour/scenes/reactive.amx` records that the reticle "turned into a 440px
+amber lollipop", blamed there on a solid fill — 440 is exactly 2× the authored
+220, i.e. this doubling. The scene's own comment states the intended semantics
+("`ring.size = (238, 238)` on a 220 actor grows it by 18 px, not 476"), which is
+what the fix now produces.

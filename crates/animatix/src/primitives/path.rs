@@ -89,11 +89,7 @@ impl Primitive for PathPrimitive {
             custom_path: vector_paths.first().map(|vp| vp.path.as_ref().clone()),
         };
 
-        if let Some(overrides) = ctx.overrides {
-            if let Some(s) = crate::primitives::override_size(overrides) {
-                state.size = s;
-            }
-        }
+        state.size = crate::primitives::resolve_half_size(state.size, ctx.overrides);
 
         evaluate_shape_render(self, ctx, &VectorShapeState::Path(state))
     }

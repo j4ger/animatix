@@ -112,16 +112,16 @@ impl Primitive for RectPrimitive {
         use crate::timeline::shapes::RectState;
         use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
 
-        let half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = crate::primitives::resolve_half_size(
+            ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+            ctx.overrides,
+        );
         let mut state = RectState {
             size: half_size,
             corner_radius: ctx.track.shape.corner_radius.get(ctx.time_ms, 0.0),
         };
 
         if let Some(overrides) = ctx.overrides {
-            if let Some(s) = crate::primitives::override_size(overrides) {
-                state.size = s;
-            }
             if let Some(crate::timeline::Value::Num(radius)) = overrides.get("corner_radius") {
                 state.corner_radius = *radius as f32;
             }

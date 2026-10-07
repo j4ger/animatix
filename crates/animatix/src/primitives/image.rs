@@ -103,12 +103,10 @@ impl Primitive for ImagePrimitive {
         use crate::timeline::DEFAULT_LAYOUT_HALF_SIZE;
 
         if let Some(image) = ctx.track.image.get(ctx.time_ms, None) {
-            let mut half_size = ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE);
-            if let Some(overrides) = ctx.overrides {
-                if let Some(s) = crate::primitives::override_size(overrides) {
-                    half_size = s;
-                }
-            }
+            let half_size = crate::primitives::resolve_half_size(
+                ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+                ctx.overrides,
+            );
             let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];
             // Actor local space is centered on the position (every geometry
             // track stores half-sizes), so shift the box back by half its

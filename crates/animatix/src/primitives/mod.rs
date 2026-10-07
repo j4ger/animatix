@@ -271,22 +271,47 @@ fn override_color(
 /// (`assignments::rebuild::handle_size_assignment`). Without it
 /// `always { r.size = (100.0, 60.0) }` paints a 200×120 box where
 /// `size: (100, 60)` paints a 100×60 one.
-pub(crate) fn override_size(
-    overrides: &std::collections::HashMap<String, Value>,
-) -> Option<[f32; 2]> {
+/// Resolve a shape's half-size (its radius) for this frame.
+///
+/// The three sources do not share units, and mixing them up made the same
+/// literal render twice as large per frame as declared:
+///
+/// - `track_half` comes from `geometry.size`, which **stores half-sizes** —
+///   both the declaration path and the timed-assignment path halve the authored
+///   bounding box before storing it.
+/// - a `size` override from an `always` block is the **raw authored bounding
+///   box**, so it is halved here.
+/// - `radius_x` / `radius_y` overrides are **half-size components** and each
+///   replace one axis. They are applied after `size`, so a scene can set the
+///   box and then nudge a single radius.
+///
+/// A wrongly-typed override keeps the keyframed size. This runs for every shape
+/// every frame, so the drop is logged at debug rather than warn, which would
+/// repeat the same message 60 times a second.
+pub(crate) fn resolve_half_size(
+    track_half: [f32; 2],
+    overrides: Option<&std::collections::HashMap<String, Value>>,
+) -> [f32; 2] {
+    let Some(overrides) = overrides else {
+        return track_half;
+    };
+    let mut half = track_half;
     match overrides.get("size") {
-        Some(Value::Vec2([w, h])) => Some([*w as f32 / 2.0, *h as f32 / 2.0]),
-        // A wrongly-typed override keeps the keyframed size. This runs for every
-        // shape every frame, so the drop is logged at debug rather than warn,
-        // which would repeat the same message 60 times a second.
+        Some(Value::Vec2([w, h])) => half = [*w as f32 / 2.0, *h as f32 / 2.0],
         Some(other) => {
             tracing::debug!(
                 "`size` override is not a (w, h) pair: {other:?}; keeping keyframed size"
             );
-            None
         },
-        None => None,
+        None => {},
     }
+    if let Some(Value::Num(r)) = overrides.get("radius_x") {
+        half[0] = *r as f32;
+    }
+    if let Some(Value::Num(r)) = overrides.get("radius_y") {
+        half[1] = *r as f32;
+    }
+    half
 }
 
 /// Sample shape style (color, stroke_width, stroke_color, fill_opacity) from a track
@@ -1727,7 +1752,33 @@ mod tests {
         // exactly like the declaration path does.
         let mut overrides = std::collections::HashMap::new();
         overrides.insert("size".to_string(), Value::Vec2([100.0, 60.0]));
-        assert_eq!(override_size(&overrides), Some([50.0, 30.0]));
+        assert_eq!(resolve_half_size([50.0, 50.0], Some(&overrides)), [50.0, 30.0]);
+    }
+
+    #[test]
+    fn radius_overrides_replace_one_axis_of_the_size_override() {
+        // `radius_x`/`radius_y` are half-size components, so they apply on top
+        // of a `size` box without the halving, and each touches only its axis.
+        let mut overrides = std::collections::HashMap::new();
+        overrides.insert("size".to_string(), Value::Vec2([100.0, 100.0]));
+        overrides.insert("radius_x".to_string(), Value::Num(20.0));
+        assert_eq!(resolve_half_size([70.0, 70.0], Some(&overrides)), [20.0, 50.0]);
+
+        // Without a `size` override the keyframed half-size survives on the
+        // axis no radius touched.
+        let mut only_y = std::collections::HashMap::new();
+        only_y.insert("radius_y".to_string(), Value::Num(25.0));
+        assert_eq!(resolve_half_size([50.0, 50.0], Some(&only_y)), [50.0, 25.0]);
+    }
+
+    #[test]
+    fn half_size_falls_back_to_the_track_without_usable_overrides() {
+        // No overrides at all, and a wrongly-typed `size`, both keep the
+        // keyframed value rather than collapsing the shape to zero.
+        assert_eq!(resolve_half_size([40.0, 30.0], None), [40.0, 30.0]);
+        let mut bad = std::collections::HashMap::new();
+        bad.insert("size".to_string(), Value::Num(100.0));
+        assert_eq!(resolve_half_size([40.0, 30.0], Some(&bad)), [40.0, 30.0]);
     }
 
     #[test]

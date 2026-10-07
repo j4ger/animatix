@@ -142,9 +142,8 @@ always {
     // joint the arm reaches: radius (R/k)·wts[i] = reach, exactly. Declaring a
     // constant radius while the arm ramped up from zero left the joint sitting
     // at a fraction of the way to a full-size circle for the whole 1.5s.
-    // (Scale, not `size`: a frame-time `actor.size = (v, v)` is read as a
-    // radius while the declaration `size: (v, v)` is a bounding box, and
-    // `radius_x` writes are dropped outright — docs/roadmap.md.)
+    // A multiplier says "this circle, shrunk by its weight" without restating
+    // the radius the declaration above already carries.
     ring[i].scale = wts[i]
     let sum = sum + wts[i] * sin(k * th) / k
     let cx = nx
