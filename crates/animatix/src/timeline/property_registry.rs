@@ -811,11 +811,17 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::FillOpacity,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    binding!("font_family", ValueType::String, F::ASSIGNABLE, ActorField::FontFamily, |_| {
-        super::property_engine::PropertyValue::String(
-            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string(),
-        )
-    }),
+    binding!(
+        "font_family",
+        ValueType::String,
+        F::ASSIGNABLE_A,
+        ActorField::FontFamily,
+        |_| {
+            super::property_engine::PropertyValue::String(
+                crate::renderer::text::DEFAULT_FONT_FAMILY.to_string(),
+            )
+        }
+    ),
     binding!("font_size", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontSize, |caps| {
         match caps.text {
             Some(crate::timeline::actor_caps::TextKind::Text) => {
@@ -827,10 +833,10 @@ static BINDINGS: &[PropertyBinding] = &[
             _ => super::property_engine::PropertyValue::F32(24.0),
         }
     }),
-    binding!("font_style", ValueType::String, F::ASSIGNABLE, ActorField::FontStyle, |_| {
+    binding!("font_style", ValueType::String, F::ASSIGNABLE_A, ActorField::FontStyle, |_| {
         super::property_engine::PropertyValue::String("normal".to_string())
     }),
-    binding!("font_weight", ValueType::F32, F::ASSIGNABLE, ActorField::FontWeight, |_| {
+    binding!("font_weight", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontWeight, |_| {
         super::property_engine::PropertyValue::F32(400.0)
     }),
     binding!("from", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LineFrom, |_| {
@@ -925,7 +931,7 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::Tagged("legend_label_color"),
         |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     ),
-    binding!("language", ValueType::String, F::ASSIGNABLE, ActorField::Language, |_| {
+    binding!("language", ValueType::String, F::ASSIGNABLE_A, ActorField::Language, |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),
     binding!(
@@ -938,7 +944,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "letter_spacing",
         ValueType::F32,
-        F::ASSIGNABLE,
+        F::ASSIGNABLE_A,
         ActorField::LetterSpacing,
         |_| super::property_engine::PropertyValue::F32(0.0)
     ),
@@ -948,7 +954,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("line_cap", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineCap, |_| {
         super::property_engine::PropertyValue::U32(0)
     }),
-    binding!("line_height", ValueType::F32, F::ASSIGNABLE, ActorField::LineHeight, |_| {
+    binding!("line_height", ValueType::F32, F::ASSIGNABLE_A, ActorField::LineHeight, |_| {
         super::property_engine::PropertyValue::F32(1.2)
     }),
     binding!("line_join", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineJoin, |_| {
@@ -963,7 +969,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("max_value", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("max_width", ValueType::F32, F::ASSIGNABLE, ActorField::TextMaxWidth, |_| {
+    binding!("max_width", ValueType::F32, F::ASSIGNABLE_A, ActorField::TextMaxWidth, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
     binding!("min_height", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MinHeight, |_| {
@@ -983,7 +989,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("opacity", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Opacity, |_| {
         super::property_engine::PropertyValue::F32(1.0)
     }),
-    binding!("overflow", ValueType::String, F::ASSIGNABLE, ActorField::Overflow, |_| {
+    binding!("overflow", ValueType::String, F::ASSIGNABLE_A, ActorField::Overflow, |_| {
         super::property_engine::PropertyValue::String("visible".to_string())
     }),
     binding!("padding", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
@@ -1108,7 +1114,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("text", ValueType::String, F::ASSIGNABLE_A, ActorField::TextContent, |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),
-    binding!("text_align", ValueType::String, F::ASSIGNABLE, ActorField::TextAlign, |_| {
+    binding!("text_align", ValueType::String, F::ASSIGNABLE_A, ActorField::TextAlign, |_| {
         super::property_engine::PropertyValue::String("left".to_string())
     }),
     binding!(
@@ -1176,7 +1182,7 @@ static BINDINGS: &[PropertyBinding] = &[
             scale: 2.0
         }
     ),
-    binding!("word_spacing", ValueType::F32, F::ASSIGNABLE, ActorField::WordSpacing, |_| {
+    binding!("word_spacing", ValueType::F32, F::ASSIGNABLE_A, ActorField::WordSpacing, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
     binding!("x_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
@@ -1436,6 +1442,66 @@ mod tests {
     /// `language`); they were removed from the table instead, so the analyzer
     /// rejects them with a clear "unknown property" rather than accepting a
     /// drop that never reaches the screen.
+    /// Properties the per-frame override path actually consumes.
+    ///
+    /// `primitives::apply_text_style_overrides` (and the shape equivalent) read
+    /// exactly these keys out of the frame override map an `always` block
+    /// writes. Each must therefore be flagged `ANIMATED`, or the engine tells
+    /// the author "the per-frame write is ignored" about a write that works —
+    /// which is what every entry here used to do, while `text_max_width` was
+    /// flagged ANIMATED but unread and so silently did nothing.
+    ///
+    /// Adding a key here without flagging it ANIMATED, or flagging a property
+    /// ANIMATED that no frame path reads, both fail this test.
+    #[test]
+    fn frame_consumed_properties_are_flagged_animated() {
+        const FRAME_READ: &[&str] = &[
+            "text",
+            "code",
+            "font_family",
+            "font_size",
+            "font_weight",
+            "font_style",
+            "line_height",
+            "letter_spacing",
+            "word_spacing",
+            "text_max_width",
+            "max_width",
+            "text_align",
+            "overflow",
+            "color",
+            "stroke",
+            "stroke_width",
+            "width",
+            "fill_opacity",
+            "language",
+            "at",
+            "position",
+            "shift",
+            "rotation",
+            "scale",
+            "opacity",
+            "size",
+            "radius_x",
+            "radius_y",
+            "transform",
+            "corner_radius",
+            "from",
+            "to",
+            "head_size",
+        ];
+        for name in FRAME_READ {
+            let schema = lookup_property(name).unwrap_or_else(|| {
+                panic!("`{name}` is read by a frame override path but has no binding")
+            });
+            assert!(
+                schema.flags.contains(PropertyFlags::ANIMATED),
+                "`{name}` is consumed by the per-frame override path but is not flagged \
+                 ANIMATED, so `always` writes to it are wrongly reported as ignored"
+            );
+        }
+    }
+
     const UNBOUND_DESCRIPTORS: &[&str] = &[];
 
     #[test]

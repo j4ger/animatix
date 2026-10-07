@@ -788,3 +788,99 @@ Two measurement traps on the way there, both worth remembering:
   range of `resolution` — and I reported "fineness is not the cause" on that
   evidence. The artifact is low-amplitude and high-contrast: a corner where a
   curve was. Deviation from the *analytic* function is what sees it.
+
+## Property-name / flag / default inversions found by the resolution-knob audit (2026-10-08)
+
+The `resolution` clamp was not a lone defect — it is one instance of a shape:
+**a property whose descriptor name, registry binding, frame-time consumer and
+documented default disagree.** Two sweeps over the registry found many more.
+One is fixed here; the rest are recorded rather than silently half-patched,
+because several would change shipped visuals.
+
+### Fixed in this pass — the text wrap width was inverted
+
+`text_max_width` is the canonical descriptor (`animatix-core/src/property.rs`),
+`max_width` the legacy alias, and both map to `ActorField::TextMaxWidth`. But
+the per-frame override path read only the key `"max_width"`, while the registry
+flagged the canonical `text_max_width` `ANIMATED` and the working `max_width`
+*not* `ANIMATED`. Rendered consequence, all three on one frame:
+
+| authored in `always` | before | warned |
+|---|---|---|
+| `t.letter_spacing = 8` | **worked** | "the per-frame write is ignored" |
+| `t.text_max_width = 60` | **did nothing** | nothing |
+| `t.max_width = 60` | **worked** | "the per-frame write is ignored" |
+
+So the one name that did nothing was the only one that did not complain. Fixed
+by reading the canonical key first with the alias as fallback (the same
+two-name handling `text`/`code` already used 25 lines earlier), and by flagging
+every property the frame path honours as `ANIMATED`: `font_family`,
+`font_style`, `font_weight`, `language`, `line_height`, `max_width`,
+`overflow`, `text_align`, `word_spacing`, `letter_spacing`.
+
+Pinned by `frame_consumed_properties_are_flagged_animated`, which lists the
+keys the override path consumes and asserts each is `ANIMATED` — verified to
+fail with "`max_width` is consumed by the per-frame override path but is not
+flagged ANIMATED" when the flag is reverted.
+
+Also found: `text_max_width`'s registry binding points at
+`ActorField::Tagged("legend_text_max_width")` — the **Legend** storage slot —
+because one descriptor row (`Applicable::Any(&[Legend, TextLike])`) serves two
+actors and a binding row can only name one field. The frame-path fix makes the
+canonical name work for `Text`, but reads through the registry (`is_animating`,
+the inspector) still resolve a `Text`'s wrap width against Legend's slot. The
+real fix is splitting the row or making bindings per-actor; that is a schema
+change, not a patch.
+
+### Confirmed silent frame-time no-ops (accepted, no diagnostic, no consumer)
+
+Each was checked by rendering and comparing frames. `always` writes to these
+change no pixels:
+
+`stroke_progress` (the reason §05's angle arc had to be deleted — see the
+`stroke_progress` overshoot entry above), `dash_pattern`, `dash_offset` (so
+"marching ants" are only reachable via a keyframe assignment, as
+`web/demos/sorting/scene.amx` does), `blend`, `char_progress`, `commands`,
+`points`, `head_size` on `Arrow`, `standoff` and `to_offset` on `Callout`,
+`corner_radius` on `Glass`, `min_width`/`min_height`/`max_height`, `height`,
+`anchor`/`offset`, `bounds` on `Filter`, the four `highlight_*` properties,
+`ascent`/`descent`/`baseline`, the five Legend properties, `volume` on `Audio`,
+and `background_color` on a non-`scene` actor.
+
+Also `Callout.label` is half-dead: `always { c.label = "" }` hides the text,
+but any replacement string keeps the old glyphs (`callout.rs` uses the value
+only as an empty/non-empty gate). And a hex *string* colour is accepted by
+`override_color()` for shapes but the text style path matches only
+`Value::Color | Value::Vec4`, so `always { t.color = "#00ff00" }` does nothing
+while the tuple form works.
+
+### Divergent defaults — same property, two answers
+
+The declaration extractor and the registry binding disagree on the starting
+value, so the number the render uses and the number the inspector/interpolator
+report differ for any scene that does not author the property explicitly:
+
+| property | extractor | registry |
+|---|---|---|
+| `resolution` | 96 | 48 |
+| `tolerance` | 0.5 | 2.0 |
+| `max_depth` | 10 | 12 |
+| `x_domain` / `y_domain` | ±10 | ±5 |
+| `t_domain` | `[0, tau]` | `[0, 1]` |
+| `stroke_width` | 2.0 (`default_stroke_width`) | 1.0 (binding) — and `ActorField::default_value` says 2.0 again |
+| `font_size` | 48 for Text/Typst/Math | 48 / 36 / 24 per kind; docs say 18 |
+| `bar_width` | 20 | 0 |
+| `gap` | 4 (BarChart), 8 (Legend) | 0 |
+| `cols` | 1 (`unwrap_or(1)` in layout) | 2 |
+| `from` / `to` | `[-50,0]` / `[50,0]` | `[0,0]` / `[100,0]` |
+| `size` (Graph parent fallback) | `[500,500]` | `[50,50]` half-size |
+
+`docs/primitives.md` also documents `resolution` 64 for Heatmap against 96 for
+curves, and `docs/spec.md` documents `place: "auto"` where both tables say
+`"right"`. The base-grid *floors* disagree too: `resolution.max(2)` for Heatmap,
+`.max(8)` for ContourSet, `.max(4)` and `.max(8)` elsewhere in the same function.
+
+The structural fix is one default per property — the extractor should read the
+registry's default rather than restating a literal, the way
+`PROPERTY_DESCRIPTORS` already pins the name list. Not done here because every
+row above is a live behaviour change and several would move shipped scenes.

@@ -133,7 +133,12 @@ pub fn evaluate_text_paths(
         if let Some(Value::Num(n)) = ov.get("word_spacing") {
             word_spacing = *n as f32;
         }
-        if let Some(Value::Num(n)) = ov.get("max_width") {
+        // `text_max_width` is the canonical descriptor name (animatix-core) and
+        // `max_width` the legacy alias; the frame path used to read only the
+        // alias, so `always { t.text_max_width = 60 }` wrote an override key
+        // nobody consumed — silently, because the canonical row is flagged
+        // ANIMATED. Same two-name handling as `text`/`code` above.
+        if let Some(Value::Num(n)) = ov.get("text_max_width").or_else(|| ov.get("max_width")) {
             max_width = *n as f32;
         }
         if let Some(Value::Str(s)) = ov.get("text_align") {
