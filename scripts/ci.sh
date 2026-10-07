@@ -364,9 +364,34 @@ gate_audit() {
 
 gate_commit() {
   want_nix_shell 'commit'
-  # cog is whatever flake.lock's nixpkgs revision says it is — the same binary the
-  # release act runs, which is the point. `nix flake update` is what moves it.
-  cog check
+  # `cog check` with no range verifies history from the latest tag, and this repo
+  # has no semver tag — so it walks from the beginning and fails on `Initial
+  # commit`, which predates the convention and always will. The range has to be
+  # anchored, in this order: what the event says changed, then the latest version
+  # tag once one exists, then how far HEAD is ahead of the default branch.
+  local base=""
+  if [ -n "${ANIMATIX_COMMIT_BASE:-}" ] &&
+     git rev-parse --verify -q "${ANIMATIX_COMMIT_BASE}^{commit}" >/dev/null &&
+     git merge-base --is-ancestor "$ANIMATIX_COMMIT_BASE" HEAD 2>/dev/null; then
+    # An arbitrary SHA from the event payload is only usable after both checks:
+    # it must name a commit, and it must be an ancestor of what we are testing.
+    base="$ANIMATIX_COMMIT_BASE"
+  elif git tag --list 'v*' | grep -q .; then
+    cog check --from-latest-tag
+    return
+  else
+    base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+    [ "$base" = "$(git rev-parse HEAD)" ] && base=""
+  fi
+
+  if [ -z "$base" ]; then
+    echo "note: nothing to check — no version tag yet, and HEAD is not ahead of a"
+    echo "      known base. The first \`cog bump\` creates v0.1.0 and this gate then"
+    echo "      checks every commit since it."
+    return 0
+  fi
+  echo "checking commits: $base..HEAD"
+  cog check "$base..HEAD"
 }
 
 # ── release-stage gates ───────────────────────────────────────────────────────

@@ -17,10 +17,17 @@ name: CI
 
 on:
   pull_request:
+  # This repo lands commits on main directly, so a PR-only trigger meant the
+  # gates below ran only when someone opened a pull request — which is often
+  # never. The commit gate takes the previous tip from the event to bound its
+  # range; see gate_commit in scripts/ci.sh.
+  push:
+    branches: [main]
   workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
+  ANIMATIX_COMMIT_BASE: ${{ github.event.before }}
 
 jobs:
   plan:
