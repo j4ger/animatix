@@ -34,8 +34,6 @@ web/demos/                   demo hub (course-style cards + posters) and the dem
                              demos/matrix/       linear-transformations walkthrough (3 scenes)
                              demos/hash/         hash-table walkthrough (3 scenes)
                              demos/lib/          shared .amx library the demo scenes import
-                             demos/posters/      1280x720 stills, currently unreferenced:
-                             the hub cards play live `amx-player[data-hoverplay]` embeds instead
                              demos/multi-probe.html, demos/perf-probe.html, demos/svg-probe/
                                                  QA harnesses (multi-instance, frame cost, SVG/profile)
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
@@ -102,13 +100,14 @@ ls "$(rustc --print sysroot)/lib/rustlib/"   # must list wasm32-unknown-unknown
 ```
 
 The script also wants `wasm-bindgen-cli` at **exactly** the version
-`crates/animatix-web/Cargo.toml` pins (`=0.2.128` as of writing;
-`wasm-bindgen-futures` releases in lockstep, so a mismatch is a hard failure
-at glue generation, several build minutes later). nixpkgs ships 0.2.114, which
-is why the CLI is not in the flake:
+`crates/animatix-web/Cargo.toml` pins (`wasm-bindgen-futures` releases in
+lockstep, so a mismatch is a hard failure at glue generation, several build
+minutes later). nixpkgs ships an older one, which is why the CLI is not in the
+flake. The pin is read from the manifest, never copied, by
+`scripts/wasm-tools.sh` — so do not write the number into a command or a doc:
 
 ```bash
-cargo install --version 0.2.128 --locked wasm-bindgen-cli
+scripts/ci.sh setup wasm-bindgen     # installs exactly the pinned version
 ```
 
 Nix users have a lighter option for *serving* — a single static-web-server
@@ -141,16 +140,35 @@ Deploying is the same story: run the build script, copy `web/` (plus the
 ### GitHub Pages
 
 `.github/workflows/pages.yml` deploys the site on every push to `main` that
-touches `web/`, the wasm crate, or the build script: it builds **both** engine
-profiles, assembles `web/` + `pkg-slim/` + `pkg/` into the artifact (dropping
-the `.br` twins — Pages does not negotiate brotli, so the raw wasm is what
-gets served; slim is ~5.5 MB, which is why the site's live figures all play on
-the slim profile), and deploys via `actions/deploy-pages`. The wasm-bindgen-cli
-version CI installs is read from the pin in `crates/animatix-web/Cargo.toml`,
-so bumping that pin is the only version bump needed. Pages itself must be
-enabled once in the repo settings (Source: "GitHub Actions"); the site lives
-at `https://<owner>.github.io/animatix/` and every page uses relative paths,
-so the subpath just works.
+touches `web/`, the engine, the examples' shared library, or the build scripts.
+It runs four gates from `scripts/ci.sh` and then one assembler:
+
+```
+embed-drift     the committed web/embed/amx-player.js matches its src
+site-scenes     every scene the pages embed builds, in both profiles
+web-build       both engine bundles, in the .#web-build shell
+site-artifact   scripts/site-artifact.sh assembles _site
+```
+
+`site-artifact` is the same script the release pipeline zips with, and it encodes
+the parts of "what the artifact is" that are easy to get wrong: both `pkg*`
+directories must exist (an empty one deploys pages whose embeds cannot load), the
+`.br` twins are dropped because Pages does not negotiate brotli — so the raw wasm
+is what gets served, and the slim profile's ~5.5 MB is why the site's live figures
+play on slim — and `.nojekyll` is written because otherwise Pages runs the tree
+through Jekyll, which silently drops any directory beginning with `_`.
+
+The wasm-bindgen-cli version CI installs is read from the pin in
+`crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`, so bumping that pin is
+the only version bump needed. Pages itself must be enabled once in the repo settings
+(Source: "GitHub Actions"); the site lives at
+`https://<owner>.github.io/animatix/` and every page uses relative paths, so the
+subpath just works.
+
+`release.yml`, triggered by a `vX.Y.Z` tag, runs the whole PR gate matrix as its
+blocker and then ships `_site` and both `pkg*` bundles as release assets too —
+same gates, same assembler, so a downloaded site and a deployed one cannot be two
+different layouts of one build.
 
 ## Embedding scenes in any page (`<amx-player>`)
 

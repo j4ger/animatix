@@ -1513,10 +1513,10 @@ silence the only signal that a `Row` dropped an unreadable `gap`.
 
 ## The Motion-Vocabulary Round — Landed Work (2026-10-04 → 10-05)
 
-> The round's remaining work and its item-by-item feasibility verdicts
-> live in [`handoff_motion_vocab.md`](handoff_motion_vocab.md); this is what
-> shipped. Batches are per session, all local and unpushed at the time of
-> writing.
+> The round's item-by-item feasibility verdicts are below, under "Item inventory
+> and feasibility"; what is still open moved to [`roadmap.md`](roadmap.md). This
+> section is what shipped. Batches are per session, all local and unpushed at the
+> time of writing.
 
 ### Batch 5 (2026-10-04, fifth session) — eleven commits, local only
 
@@ -2486,3 +2486,77 @@ pixels — `visible <t> <label>` measures the coverage of an actor's *bounds*, n
 its own pixels), and was checked with a negative control: re-adding an erase
 cascade to `syntax.amx` fails it at "0.1% against a 34.2% plateau", restoring the
 scene passes.
+
+## The unified build and release pipeline (2026-10-08)
+
+**What was wrong.** Three workflows each owned part of the truth and could not see
+each other. `ci.yml` ran ten jobs on PR and never built wasm, never ran
+`site_scenes`, never checked the embed bundle. `pages.yml` did all three, on push to
+`main` — so the gate that catches a stale `web/embed/amx-player.js` fired *after* the
+merge it was supposed to protect. `release.yml` was named "Release Nightly", ran only
+by hand, built Linux binaries with no version, no site, no changelog. The same build
+knowledge was typed 3-4 ways: the wasm-bindgen pin in a script *and* a workflow *and*
+a paragraph of prose; the `.amx` walk in two scripts; apt lines in six jobs. Fifteen
+manifests each hand-declared `version = "0.1.0"`, and the deployed wasm's only
+identity was `build_id() -> u32 { 54 }`.
+
+**One gate definition.** `scripts/ci.sh` names every check, and `ci.yml` builds its
+job matrix from `ci.sh --matrix` — so a gate cannot exist in CI and not locally. Each
+gate declares a **shell** (`native` / `nix` / `web` / `none`) and `ci.sh` never enters
+one: devshells prepend to PATH, so nesting them keeps the outer `rustc` first, which
+is the documented way to make a wasm build fail looking like a code fault. The pure
+gates stay on a native runner on purpose, because `Swatinem/rust-cache` only pays off
+outside nix.
+
+Four gates were added for defects that had already walked past the old ten jobs:
+`wasm-check`, `site-scenes`, `web-build`, `embed-drift`, plus `content-sync` for the
+pairs of files that must agree (the generated epicycles plate, `examples/lib` against
+`bundled_library()`, the two copies of the font SHA-256 table, the servable web-side
+library copies, the bundle sizes `web/README.md` quotes) and `workflows`, which fails
+any PR that types a `cargo`/`scripts/` command into YAML. Its first run enumerated
+exactly the 21 lines this work replaced.
+
+**Version and release.** `[workspace.package]` in the root manifest, 15 members on
+`version.workspace = true`, and a `meta-version` gate that reads `cargo metadata`
+rather than the files, so it catches a member that *resolves* differently. The bump
+hook is `scripts/bump-version.sh`: cog never edits a manifest, and with one line to
+change, `cargo set-version` became a second tool to pin for no benefit — the script
+validates the shape, rewrites the one line, lets `cargo metadata` refresh the lock,
+and runs the gate. `cog bump --auto --skip-ci` then tags, and pushing the tag starts
+`release.yml`: the whole PR matrix as the blocker, then site + both wasm profiles +
+Linux (`video`, from nix) + macOS/Windows (without) in parallel, notes from
+`cog changelog --at`. Nightlies moved to `nightly.yml` so the seven existing
+`nightly-*` tags keep meaning what they said.
+
+**Two design calls worth keeping.** `video` ships on Linux only: the tested feature
+set is the no-video one, and a macOS FFmpeg would be whatever major version brew
+ships. And no `post_bump_hooks` push — publishing a release stays a decision someone
+makes, not a side effect of a command run at a desk.
+
+**Build identity.** `build_id()` is now a compile-time FNV-1a over
+`CARGO_PKG_VERSION` and the text of every embedded `.amx`, no `build.rs` (reading
+`.git` would make `cargo test --workspace` non-hermetic and two identical checkouts
+produce different artifacts). A hand-typed number says nothing about an artifact; the
+failure it was meant to catch — a stale `web/pkg` served beside fresh scenes — is
+exactly the one it did not, because the literal was bumped in the same commit as the
+source. Now editing a bundled scene moves the digest. `engine_version()` and
+`engine_commit()` accompany it, and the `u32` signature means `perf-probe.html` is
+unchanged.
+
+**Toolchain honesty, found while wiring this.** cog has no `release` subcommand (the
+act is `cog bump`), `cog get-version` errors "No version yet" because every tag here
+is a nightly, `cog verify` does **not** enforce `cog.toml` scopes (so `web:` — used
+by 28 commits — was undeclared and is now declared), and `[changelog] template =
+"remote"` was set with no `remote`/`owner`/`repository`, so generated changelog links
+pointed nowhere. CI used to install cog by piping `install.sh` from `main`: the tool
+that writes the tag was whatever the day it was run. It now comes from nixpkgs via
+`flake.lock`, the same binary a developer runs.
+
+**Two bugs the new checks found immediately.** `examples/lib/light.amx` was not in
+`bundled_library()`, so any web scene importing it built on the desktop and could
+not resolve in the browser. And `cargo audit` failed on six advisories that had been
+invisible because the job had never been green enough to matter: `crossbeam-epoch`
+and `webbrowser` were lifted by `cargo update`, and the remaining two (`quick-xml`,
+two versions, pinned by `citationberg`/`plist`/`wayland-scanner`) are recorded with
+their reasons in `scripts/audit-allow.txt`, which the gate prints on every run and
+refuses to accept an unannotated line for.

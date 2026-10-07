@@ -194,9 +194,15 @@ require('lspconfig').animatix.setup {
 ## Testing
 
 ```bash
-cargo test --workspace
-cargo clippy --all-targets -- -D warnings
+scripts/ci.sh gate fmt lint check test   # in a shell that can build the workspace
+scripts/ci.sh gates                      # every gate and the shell each needs
 ```
+
+`scripts/ci.sh` is the single definition of "is this green": every check is a named
+gate there, PR CI generates its job matrix from that file, and `release.yml` runs
+the same gates as its release blocker. Adding a check means adding a gate — not
+editing a workflow. See `AGENTS.md` (Workflow §3) for the shell each gate needs and
+why running one in the wrong shell looks like a compile error.
 
 - **animatix**: Core timeline, parser, and rendering tests
 - **animatix-analyzer**: 48+ unit tests (symbol extraction, type inference, completions, diagnostics)
@@ -204,6 +210,41 @@ cargo clippy --all-targets -- -D warnings
 - **animatix-gui**: Integrated with workspace tests
 
 For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
+
+---
+
+## Releasing
+
+One command on `main`, with a clean tree:
+
+```bash
+cog bump --auto --skip-ci
+git push && git push origin v<version>
+```
+
+`cog bump` collects the commits since the last tag into `CHANGELOG.md`, commits
+that, and tags the commit. The version itself comes from
+`scripts/bump-version.sh`, wired as cog's `pre_bump_hook`: it rewrites the single
+`[workspace.package]` line, lets `cargo metadata` refresh `Cargo.lock`, and runs the
+`meta-version` gate, so a release cannot half-bump. `--skip-ci` keeps the bump
+commit from deploying Pages.
+
+Pushing the tag is what publishes. `release.yml` runs the whole PR gate matrix
+first, then builds the site, both wasm profiles and the per-OS binaries in
+parallel, and attaches them to one GitHub Release whose notes are
+`cog changelog --at v<version>`. It stays that way because the alternative — a
+`post_bump_hook` that pushes — publishes a release from a command run at a desk.
+
+Two files record a release and they are not interchangeable. `CHANGELOG.md` is
+generated, per-version, never hand-edited. `docs/history.md` is the hand-written
+evidence archive: the decision, the measurement, the post-mortem. A paragraph
+explaining *why* belongs in history.md; the commit line belongs to cog.
+
+Nightly builds are `nightly.yml` (`workflow_dispatch`), which tags
+`nightly-YYMMDD-HHMM` and names its files after that rather than pretending to be
+a version. `nix develop` provides cog at whatever version `flake.lock`'s nixpkgs
+revision pins, and CI runs the same shell for the `commit` gate — so the tool that
+checks a commit message locally is the tool that checks it in CI.
 
 ---
 

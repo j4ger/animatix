@@ -42,16 +42,46 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    self (`pgrep -f 'cargo bench' | grep -vx "$$"`).
 
 1. Read relevant docs before changing (`docs/spec.md`, `docs/architecture.md`, etc.).
-2. Keep tests green: run `cargo test -p animatix` and `cargo test -p animatix-gui` before finishing when relevant.
-3. **Before committing**: format first, then run these checks and ensure they pass:
+2. Keep tests green: run `scripts/ci.sh gate test` (or `cargo test -p animatix --lib -- --test-threads=1` and `cargo test -p animatix-gui` when working on one crate) before finishing.
+3. **Before committing**: run the gates. `scripts/ci.sh` is the single definition of
+   "is this green" — every check is a named gate in that file, PR CI generates its
+   job matrix from it, and `release.yml` runs the same gate list as its release
+   blocker. Do not type a cargo command into a workflow: the `workflows` gate fails
+   the build if you do.
+
    ```bash
-   cargo fmt --all                # Format the workspace; commit any resulting changes
-   cargo check --workspace --all-targets   # All crates and targets compile
-   cargo clippy --workspace --all-targets -- -D warnings  # CI enforces this; run it here too
-   cargo test -p animatix-syntax  # Parser tests pass
-   cargo test -p animatix --lib -- --test-threads=1   # Core library tests pass (serial avoids WGPU teardown SIGSEGV)
-   cargo test --no-fail-fast -- --test-threads=1      # All tests across workspace
+   scripts/ci.sh gates                 # every gate, with the shell it needs
+   scripts/ci.sh gate fmt lint check   # run some gates in this shell
    ```
+
+   Gates are split by **shell**, because the wrong environment fails in a way that
+   looks like a code fault. `ci.sh` never enters a shell itself: devshells *prepend*
+   to PATH, so entering one from inside another keeps the outer `rustc` first and
+   the wasm gates then die with "can't find crate for `std`" while wasm-opt and
+   brotli resolve correctly, which makes the shell look like it loaded.
+
+   | shell | run the gate as | provides |
+   | --- | --- | --- |
+   | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks; stays off nix so `rust-cache` still works |
+   | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, `cog`, `cargo-audit` |
+   | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | the only toolchain with a wasm32 std |
+   | `none` | anywhere | checks that need no toolchain (`content-sync`, `workflows`) |
+
+   Use `env -i` if your shell already loaded a dev shell (see the `.#web-build`
+   PATH note in `flake.nix`). A gate whose environment is missing says so and names
+   the shell, instead of reporting a build error.
+
+   The `fmt` gate needs nightly rustfmt: `rustfmt.toml` sets unstable options, and
+   a stable rustfmt warns, ignores them, and then reports correctly formatted files
+   as unformatted. The gate refuses to run rather than produce that noise.
+
+   These gates did not exist in PR CI before, and each one is for a defect that got
+   past the old ten jobs: `wasm-check`, `site-scenes`, `web-build`, `embed-drift`
+   (`web/embed/amx-player.js` is committed esbuild output — a src change that
+   skipped the rebuild deployed the previous player while the repo looked fixed),
+   `content-sync` (generated plates, bundled-library parity, the duplicated font
+   hash table, the bundle sizes `web/README.md` quotes) and `workflows`.
+
    A `.amx` scene that a page embeds also owes one content check: it must rest on
    a composition. `autoplay loop` cycles are `duration` + `hold`, so a closing
    beat that fades the cast out erases the figure for the whole rest of the loop —
@@ -61,38 +91,44 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    but it may not erase the cast**. It cannot see a single actor vanish over busy
    pixels behind it, so the fullest frame of a changed figure still needs an eye.
 
-   The `--workspace` commands do not cover the wasm player: `animatix-web`'s render
+   `wasm-check` is the gate that covers the wasm player: `animatix-web`'s render
    module is `#[cfg(target_arch = "wasm32")]`, so a change to the frame-presenting
-   path can compile everywhere and still break the site. Check it too whenever
-   `FilterBackend`, `RendererCore`, `offscreen.rs` or `animatix-web` changes:
+   path can compile everywhere, pass every native test, and still break the site.
+   Run it whenever `FilterBackend`, `RendererCore`, `offscreen.rs` or
+   `animatix-web` changes. It also carries the slim-profile clippy
+   (`-p animatix --no-default-features`), which is the only look the profile the
+   web playback build uses ever gets.
 
-   ```bash
-   nix develop .#web-build --command \
-     cargo check -p animatix-web --target wasm32-unknown-unknown
-   ```
-
-   (`env -i` if your shell already loaded a dev shell — see the `.#web-build`
-   PATH note in `flake.nix`: the outer `rustc` wins and reports no wasm32 std.)
-
-   The slim feature set deserves the same treatment: `cargo clippy -p animatix --no-default-features --all-targets -D warnings`
-   is the only thing that looks at the profile the web playback build uses.
-
-   And the site's own content needs both profiles, not just a compile:
-   `cargo test -p animatix-web --test site_scenes` (full) and the same command
-   with `--no-default-features` (slim) build every scene an `<amx-player>` on
-   the site references, through the embed's fetch protocol, in the profile that
-   player asks for. A scene that only the full engine can build, or an
-   import/asset URL that resolves to nothing next to its page, is a "Scene
-   error" veil in the browser and invisible to every other gate. Run both after
-   touching `web/`, `web/embed/`, or the profile features in
+   `site-scenes` builds every scene an `<amx-player>` on the site references, in
+   the profile that player asks for, both times. A scene that only the full engine
+   can build, or an import/asset URL that resolves to nothing next to its page, is
+   a "Scene error" veil in the browser and invisible to every other gate. Run it
+   after touching `web/`, `web/embed/`, or the profile features in
    `crates/animatix-web/Cargo.toml`.
-   Do not commit with build errors or test failures.
 
-   > **Why `--workspace --all-targets`?** Ensures all crates (including GUI, analyzer, LSP) and all targets compile. Prevents silent drift between core and tooling crates. **Why clippy here?** `cargo check` does not surface lint-level problems, and the CI `clippy` job fails the build on warnings — running it locally keeps that job green instead of discovering lints after the push. **Run the `--workspace` commands inside `nix develop`** — the GUI's audio stack builds against system ALSA headers the dev shell provides (see Common Pitfalls).
-4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items).
+   Do not commit with a failing gate.
+
+   > **Why the `check`/`lint`/`test` gates use `--workspace --all-targets`?** So the GUI, analyzer and LSP cannot accumulate errors silently — `cargo check -p animatix` does not compile them. **Why clippy as its own gate?** `cargo check` does not surface lint-level problems, and CI fails the build on warnings; running it locally finds them before the push instead of after.
+4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items). `CHANGELOG.md` is generated by `cog bump` and never hand-edited; `docs/history.md` is the hand-written evidence archive (decisions, post-mortems, measurements). A release note belongs in history.md, a commit line in CHANGELOG.md.
 5. Ask on unclear design choices and call out design flaws you notice.
 6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). `cog` is provided by the flake dev shell (cocogitto), so **run the commit while inside `nix develop`**; outside the shell it's not on `PATH`. Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is genuinely unavailable/blocked, and mention it.
 7. Conventional commit scopes come from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
+8. A release is one command on main, with the tree clean: `cog bump --auto --skip-ci`.
+   It writes the CHANGELOG entry, commits it, runs `scripts/bump-version.sh` (the
+   one `[workspace.package]` line, then `cargo metadata` to refresh `Cargo.lock`,
+   then the `meta-version` gate), and tags the result `v<version>`. Then push both,
+   which is what starts `release.yml`:
+
+   ```bash
+   git push && git push origin v<version>
+   ```
+
+   There are deliberately no `post_bump_hooks` that push — publishing is the step
+   that should stay a decision. `release.yml` runs the whole `pr` gate matrix as its
+   blocker, then builds site + both wasm profiles + Linux (`video`, from nix) +
+   macOS/Windows (no `video`) in parallel and publishes one GitHub Release whose
+   body is `cog changelog --at <tag>`. Nightlies moved to `nightly.yml`, so the
+   existing `nightly-*` tags keep their meaning and a version tag means a version.
 
 ## Common Pitfalls
 

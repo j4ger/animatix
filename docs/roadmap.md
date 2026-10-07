@@ -412,9 +412,6 @@ the language is missing:
   in the read side: `read_property_value*` / `apply_property_to_field` resolve by
   name independently of it. Auditing those against the mapper is the follow-up — the
   fold itself is the pattern, not the last instance.
-- **`web/demos/posters/*.png`.** Eight 1280×720 stills nothing references since the
-  hub switched to live `data-hoverplay` embeds; `web/README.md` says so. Deleting
-  them is the owner's call, so they stay.
 
 ## Web delivery — the two claims a real browser still owes (2026-10-06)
 
@@ -884,3 +881,42 @@ The structural fix is one default per property — the extractor should read the
 registry's default rather than restating a literal, the way
 `PROPERTY_DESCRIPTORS` already pins the name list. Not done here because every
 row above is a live behaviour change and several would move shipped scenes.
+
+## The unified pipeline: what is enforced, and what is only claimed (2026-10-08)
+
+`scripts/ci.sh` is now the single gate definition, `ci.yml` generates its matrix
+from it, `release.yml` runs it as a release blocker, and the `workflows` gate fails
+any PR that types a `cargo`/`scripts/` command into YAML. That part is tested — the
+gate caught the 21 pre-existing workflow lines, and each new check was seen failing
+before it was seen passing.
+
+Five claims in the same work are **not** yet evidence, and each needs a real run:
+
+- **`release.yml` has never executed.** It triggers on a `vX.Y.Z` tag, and the repo
+  has no semver tag yet — the first `cog bump --auto --skip-ci` is its first run.
+  Unknowns it will answer: whether a `macos-latest`/`windows-latest` runner can
+  build `eframe`/`wgpu` at all (nothing here has ever compiled those crates for a
+  release), and whether `cog changelog --at <tag>` resolves the tag correctly from
+  the publish job's `fetch-depth: 0` checkout.
+- **The `web`-shell gates have not run locally.** `wasm-check` and `web-build` need
+  `nix develop .#web-build`, and the nested-shell PATH trap makes a run from inside
+  `.#default` meaningless. CI is the first honest execution of both.
+- **cog's staging behaviour around `pre_bump_hooks` is assumed.**
+  `scripts/bump-version.sh` was tested on its own (it moved all 15 members to
+  `0.1.1` and refreshed `Cargo.lock`, then reverted), but not inside a bump commit.
+  If cog does not stage the hook's edits, the tag lands on a commit whose manifests
+  still say the old version — and `dist-package.sh` then refuses the build, which is
+  the correct outcome but a failed release. Check with `cog bump --patch --dry-run`
+  on a scratch branch first.
+- **The seven existing `nightly-*` assets have never been checked for portability.**
+  They are nix-built and carry `/nix/store` RPATHs, so they may only run on NixOS.
+  `patchelf --print-rpath` / `ldd` against a downloaded asset before trusting any
+  past release; the new `dist-linux` gate inherits that question.
+- **`_site` was never diffed against a real Pages build.** `scripts/site-artifact.sh`
+  runs the same four commands the old inline YAML did, and was tested against stub
+  bundles (including the negative: a 100% size drift fails the gate), but a
+  byte-for-byte comparison against a deployed artifact has not happened.
+
+Also open by choice: `docs/scene_stats.md` is a design note with no roadmap row yet,
+and `.zcodeignore` is an editor-generated mirror of `.gitignore` that should not be
+tracked.
