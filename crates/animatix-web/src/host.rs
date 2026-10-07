@@ -799,10 +799,7 @@ fade-in pic [300ms]
         let mut seen = std::collections::HashSet::new();
         for (key, _) in bundled_library() {
             assert!(key.starts_with("../lib/"), "unexpected key shape: {key}");
-            assert!(
-                seen.insert(*key),
-                "duplicate bundled library entry for {key}"
-            );
+            assert!(seen.insert(*key), "duplicate bundled library entry for {key}");
         }
     }
 }
