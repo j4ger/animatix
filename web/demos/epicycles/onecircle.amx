@@ -1,64 +1,102 @@
+// onecircle.amx — §02 a sine is rotation seen from the side.
+//
+// A pen rides the rim of a turning circle; its height over time traces a sine.
+// Nothing is precomputed and nothing is keyframed: one `always` block reads the
+// clock, and the pen, the dot on the curve and the projection line between them
+// are all analytic functions of t.
+//
+// The line is the figure's whole claim — "this height is that height" — so two
+// things hold it honest. The plot box is authored `2 * y_hi * pi * R / 4` tall
+// (see fourier.amx), which pins the two columns to one y-scale, and the dot is placed with
+// `Graph.map()` in the plot's own coordinates rather than a hand-rolled
+// px-per-radian pair that silently desyncs when the box moves.
+
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/theme.amx" as theme
+import "fourier.amx" as geo
+
 config { resolution: (1280, 720) }
 
 # OneCircle
-config { colorscheme: "ink", dynamic_layout: true, duration: 14.9 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 12.4 }
 
-one_title: Text, text: "1. One circle, one sine", font_size: 36, font_weight: "bold",
+one_title: Text, text: "One circle, one sine", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 52)
 
-one_circle: Ellipse, size: (280, 280), stroke: accent.info,
-  fill_opacity: 0, stroke_width: 2, at: (280, 400)
+one_circle: Ellipse, size: (2 * geo.R, 2 * geo.R), stroke: accent.info,
+  fill_opacity: 0, stroke_width: 2, at: (geo.pivot_x, geo.cy)
 
-pen: Ellipse, size: (18, 18), color: accent.primary, at: (420, 400)
+// The radius the pen sits on. Without it the circle is a decoration and the
+// pen is a dot that happens to be near it.
+one_spoke: Line, from: (geo.pivot_x, geo.cy), to: (geo.pivot_x + geo.R, geo.cy),
+  stroke: accent.info, stroke_width: 2, opacity: 0.55
 
-one_graph: Graph, at: (830, 400), size: (760, 440),
-  x_domain: (0, 12.566), y_domain: (-2, 2) {
-  sine: PlotCurve, kind: "parametric",
-    func: (s) => (s, (4 / pi) * sin(s)),
-    t_domain: (0, 12.566),
-    color: accent.primary, stroke_width: 3, stroke_progress: 0
+one_hub: Ellipse, size: (9, 9), color: accent.info, at: (geo.pivot_x, geo.cy)
+
+pen: Ellipse, size: (18, 18), color: accent.primary, at: (geo.pivot_x + geo.R, geo.cy)
+
+one_graph: Graph, at: (geo.graph_cx, geo.cy), size: (geo.graph_w, 2 * geo.y_hi * pi * geo.R / 4),
+  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), tick_labels: "y" {
+  hi: PlotCurve, kind: "cartesian", func: (x) => 1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
+  lo: PlotCurve, kind: "cartesian", func: (x) => -1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
+  sine: PlotCurve, kind: "cartesian",
+    func: (x) => (4 / pi) * sin(x),
+    color: accent.primary, stroke_width: 3.5, stroke_progress: 0
 }
 
-wave_dot: Ellipse, size: (14, 14), color: accent.primary, at: (830, 400)
+wave_dot: Ellipse, size: (14, 14), color: accent.primary, at: (geo.graph_cx, geo.cy)
 
-link: Line, from: (420, 400), to: (830, 400),
-  stroke: accent.primary, stroke_width: 1.5, opacity: 0.45
+// The projection line: thin and dim so it reads as a guide, not as a second
+// curve competing with the sine for the eye. (`Line` has no `dash_pattern` —
+// only stroke paths do — so weight and opacity carry the distinction.)
+link: Line, from: (geo.pivot_x + geo.R, geo.cy), to: (geo.graph_cx, geo.cy),
+  stroke: accent.secondary, stroke_width: 1.25, opacity: 0.26
 
-one_hint: Text, text: "the pen rides the rim — height over time is a sine",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+one_hint: Text, text: "the pen's height and the curve's height are the same number",
+  font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -44)
 
-#0.05s
-fade-in one_title [500ms, ease: expo-out]
-fade-in one_circle [500ms, ease: expo-out]
-fade-in pen [400ms, delay: 200ms, ease: expo-out]
-fade-in one_graph [500ms, delay: 300ms, ease: expo-out]
-fade-in wave_dot [400ms, delay: 400ms, ease: expo-out]
-fade-in link [400ms, delay: 400ms, ease: expo-out]
+#0.15s
+fade-in one_title [550ms, ease: expo-out]
+stagger [90ms] {
+  fade-in one_circle [500ms, ease: expo-out]
+  fade-in one_spoke [400ms, ease: expo-out]
+  fade-in one_hub [300ms, ease: expo-out]
+}
+fade-in one_graph [550ms, delay: 200ms, ease: expo-out]
 
-#1s
-sine.stroke_progress = 1.0 [12s, ease: linear]
+#0.95s
+stagger [90ms] {
+  fade-in pen [400ms, ease: expo-out]
+  fade-in wave_dot [400ms, ease: expo-out]
+  fade-in link [400ms, ease: expo-out]
+}
 
-// Two turns while the wave advances the full x_domain (4pi = 12.566). The
-// graph maps +y UP (screen y = 400 - 110 y), so both the pen and the dot
-// subtract sin — same screen height at the same phase, the tie-line is
-// horizontal AND lands on the curve's leading edge (the card's claim).
-// `sine` gets no own fade-in: the container lift already reveals it, and a
-// child entrance starting mid-lift settles at a fraction of full opacity.
+// The trace and the pen start on the same beat, so the leading edge of the
+// curve is always exactly where the pen's height says it should be.
+#1.4s
+fade-in hi, lo [400ms, ease: expo-out]
+fade-in sine [300ms, ease: expo-out]
+// The 9.2s here is the same span the always block clamps `u` over; the two
+// must move together or the pen outruns the curve it is supposed to be writing.
+sine.stroke_progress = 1.0 [9.2s, ease: linear]
+
 always {
-  let th = 4 * pi * clamp(t - 1.0, 0.0, 12.0) / 12.0
-  let px = 12.566 * clamp(t - 1.0, 0.0, 12.0) / 12.0
-  pen.at = (280 + 140 * cos(th), 400 - 140 * sin(th))
-  let wy = (4 / pi) * sin(px)
-  wave_dot.at = (450 + 60.5 * px, 400 - 110 * wy)
-  link.from = (280 + 140 * cos(th), 400 - 140 * sin(th))
-  link.to = (450 + 60.5 * px, 400 - 110 * wy)
+  let u = clamp((t - 1.4) / 9.2, 0.0, 1.0)
+  let th = geo.span * u
+  let px = geo.pivot_x + geo.R * cos(th)
+  let py = geo.cy - geo.R * sin(th)
+  // Bound to names because a path-call (`one_graph.map(…)`) rejects binary
+  // operators in its argument list — see docs/roadmap.md.
+  let mx = th
+  let my = (4 / pi) * sin(th)
+  let dp = one_graph.map(mx, my)
+  pen.at = (px, py)
+  one_spoke.to = (px, py)
+  wave_dot.at = dp
+  link.from = (px, py)
+  link.to = dp
 }
 
-#13.0s
-fade-in one_hint [400ms, ease: expo-out]
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.
+#11s
+fade-in one_hint [500ms, ease: expo-out]

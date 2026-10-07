@@ -1,37 +1,52 @@
+// goal.amx — §01 the destination.
+//
+// The finished curve traces itself once, so the goal is on screen before any
+// circle appears. It is one PlotCurve whose `stroke_progress` sweeps 0 → 1;
+// the two dashed rules are the ±1 the series is aiming at, authored as the
+// constant functions they are, which is what makes the corner overshoot
+// (Gibbs) visible rather than implied.
+//
+// The box is the same height and the same y-domain as the plot in §02/§03, so
+// the wipe between the scenes carries the wave across at an unchanged scale.
+
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/theme.amx" as theme
+import "fourier.amx" as geo
+
 config { resolution: (1280, 720) }
 
 # Goal
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6.8 }
 
-goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 44,
+goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 42,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
 
-goal_graph: Graph, at: (640, 400), size: (900, 380),
-  x_domain: (0, 12.566), y_domain: (-2, 2) {
+goal_graph: Graph, at: (640, geo.cy), size: (1000, 2 * geo.y_hi * pi * geo.R / 4),
+  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), tick_labels: "y" {
+  hi: PlotCurve, kind: "cartesian", func: (x) => 1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
+  lo: PlotCurve, kind: "cartesian", func: (x) => -1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
   goal_wave: PlotCurve, kind: "cartesian",
     func: (x) => (4 / pi) * (sin(x) + sin(3 * x) / 3 + sin(5 * x) / 5 + sin(7 * x) / 7),
-    color: accent.primary, stroke_width: 3, stroke_progress: 0
+    color: accent.primary, stroke_width: 3.5, stroke_progress: 0
 }
 
-goal_hint: Text, text: "the destination — a square wave built from circles",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+goal_axis: Text, text: "x — two full turns", font_size: 17, color: text.muted,
+  anchor: scene.center, offset: (0, 238)
 
-#0.5s
-fade-in goal_title [600ms, ease: expo-out]
-fade-in goal_graph [600ms, ease: expo-out]
+goal_hint: Text, text: "four sine waves added — frequencies 1, 3, 5, 7, amplitudes 1/k",
+  font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -44)
 
-#1.2s
-fade-in goal_wave [400ms, ease: expo-out]
+#0.15s
+fade-in goal_title [550ms, ease: expo-out]
+fade-in goal_graph [550ms, ease: expo-out]
 
-#1.5s
-goal_wave.stroke_progress = 1.0 [3s, ease: ease-in-out]
+#0.9s
+fade-in hi, lo [400ms, ease: expo-out]
 
-#5.2s
-fade-in goal_hint [500ms, ease: expo-out]
+#1.4s
+fade-in goal_wave [300ms, ease: expo-out]
+goal_wave.stroke_progress = 1.0 [3.2s, ease: ease-in-out]
 
-// ── Scene 2: One Circle — constant rotation traces a sine ───────────────────
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.
+#5s
+fade-in goal_hint, goal_axis [500ms, ease: expo-out]

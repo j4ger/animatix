@@ -22,7 +22,7 @@
         as you read, not a video.
       </p>
       <ul class="meta">
-        <li>5 scenes · one file</li>
+        <li>five figures · one plate</li>
         <li>one slim engine for the whole page</li>
         <li>hover a figure to pause or scrub it</li>
       </ul>
@@ -32,10 +32,10 @@
       <amx-player src="scene.amx" autoplay loop controls hold="2"
                   aspect="16:9" title="The full Fourier walkthrough, five scenes"></amx-player>
       <figcaption>
-        <span class="cap"><b>The whole story.</b> Five scenes in one file —
-          goal, one circle, the stack, the spectrum, the complex plane —
-          joined by GPU transitions. The figure you are watching compiled
-          from <a href="scene.amx">a single text file</a>.</span>
+        <span class="cap"><b>The whole story.</b> Five scenes — goal, one
+          circle, the stack, the spectrum, the complex plane — joined by GPU
+          wipes. The figure you are watching is assembled from the five files
+          linked below, so nothing here is a copy that can fall out of date.</span>
         <a class="src" href="scene.amx">scene.amx ↗</a>
       </figcaption>
     </figure>
@@ -84,8 +84,10 @@
         time</strong> traces a sine. In the figure the pen is driven by an
         <code class="inline">always</code> block — one cosine for x, one sine
         for y, evaluated every frame — while a line ties it to the point
-        being traced on the graph. Nothing is precomputed: stop the circle
-        and the pen stops writing.
+        being traced on the graph. That point is placed with the graph's own
+        <code class="inline">map()</code>, in radians and amplitudes rather
+        than pixels, so nothing has to be recomputed when the plot moves.
+        Nothing is precomputed: stop the circle and the pen stops writing.
       </p>
       <figure class="tour-embed" data-editable>
         <amx-player src="onecircle.amx" autoplay loop controls hold="1.5"
@@ -93,8 +95,9 @@
         <figcaption>
           <span class="cap"><b>Watch:</b> the pen laps the circle once per
             cycle; the traced height on the right is the sine it writes. The
-            dotted tail says the vector keeps going past five entries — and
-            past this figure.</span>
+            faint line between them is the figure's whole claim — and it stays
+            level, because the plot box is authored <code class="inline">pi * R</code>
+            tall, which is what makes the two columns share a y-scale.</span>
           <a class="src" href="onecircle.amx">onecircle.amx ↗</a>
         </figcaption>
       </figure>
@@ -116,10 +119,10 @@
                     aspect="16:9" title="Stacking odd harmonics into a square wave"></amx-player>
         <figcaption>
           <span class="cap"><b>Watch:</b> a new circle joins the chain exactly
-            when its term turns amber in the equation, and the wave on the
-            right re-forms through a live function transition —
-            <code class="inline">hero_wave.func = …</code> interpolating
-            between Fourier sums.</span>
+            when its term appears in the equation. The circles and the curve
+            cannot fall out of step here: one <code class="inline">always</code>
+            block ramps three gate variables, and the chain, the plotted
+            function and the equation's reveals all read those same numbers.</span>
           <a class="src" href="hero.amx">hero.amx ↗</a>
         </figcaption>
       </figure>
@@ -141,9 +144,10 @@
         <amx-player src="spectrum.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="The harmonic spectrum as a bar chart"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> the four radii from the previous
-            figure, as a <code class="inline">BarChart</code> — the whole
-            spectrum of the scene, one bar per circle.</span>
+          <span class="cap"><b>Watch:</b> the four amplitudes from the previous
+            figure as a <code class="inline">BarChart</code> — and the empty
+            columns at k = 2, 4, 6, 8, which is what "only odd" looks like when
+            you stop asserting it.</span>
           <a class="src" href="spectrum.amx">spectrum.amx ↗</a>
         </figcaption>
       </figure>
@@ -165,11 +169,13 @@
         <amx-player src="complexplane.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="The unit circle on the complex plane"></amx-player>
         <figcaption>
-          <span class="cap"><b>Watch:</b> one vector turning on the unit
-            circle — the <code class="inline">NumberPlane</code> grid behind
-            it is the complex plane; the vector is
-            <code class="inline">e^(iθ)</code>, and its height is the sine
-            from §02.</span>
+          <span class="cap"><b>Watch:</b> one vector turning
+            counter-clockwise on the unit circle — the
+            <code class="inline">NumberPlane</code> grid behind it is the
+            complex plane, the vector is <code class="inline">e^(iθ)</code>,
+            and its height is the sine from §02. The two pale drops are
+            <code class="inline">cos θ</code> and <code class="inline">sin θ</code>
+            read off the axes.</span>
           <a class="src" href="complexplane.amx">complexplane.amx ↗</a>
         </figcaption>
       </figure>
@@ -177,16 +183,22 @@
       <div class="howto">
         <h2>How this page works</h2>
         <p>
-          There is no video and no backend. The hero figure plays one
-          <code class="inline">.amx</code> file containing all five scenes
-          joined by <code class="inline">play</code> transitions
-          (<code class="inline">fade</code> and
-          <code class="inline">wipe-left</code>, 500ms); the five section figures
-          are single-scene extracts of the same source. The pen, the epicycle
-          chain and the complex-plane
-          vector are not keyframed — an
-          <code class="inline">always</code> block evaluates their positions
-          every frame from one clock.
+          There is no video and no backend. The hero figure plays the five acts
+          in order, joined by <code class="inline">play</code> wipes (500ms);
+          the five section figures are those same acts, each in its own file.
+          The plate is generated from them by
+          <code class="inline">scripts/epicycles-plate.py</code> — a
+          <code class="inline">play</code> statement can only live inside a
+          scene body, so an act that stays chain-free for its own embed cannot
+          be ordered from outside, and copying the text by hand is how the two
+          sets used to drift apart.
+        </p>
+        <p>
+          The pen, the epicycle chain and the complex-plane vector are not
+          keyframed — an <code class="inline">always</code> block evaluates
+          their positions every frame from one clock, and the plotted curves
+          read that same clock, so a paused figure is a consistent picture
+          rather than a frozen coincidence.
         </p>
         <p style="margin-bottom:0">
           Every scene source is plain text — open any

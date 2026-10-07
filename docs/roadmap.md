@@ -632,3 +632,64 @@ off a software raster (composition is the site's own, absolute ms are inflated):
   reproduced on the desktop, not reproduced a second time in the browser, and
   every candidate explanation is SwiftShader. Worth a look only if it ever
   appears on real hardware.
+
+## Found by the epicycles rewrite, left open (2026-10-07)
+
+Each of these was reproduced by rendering a minimal scene, and each is worked
+around in `web/demos/epicycles/` rather than fixed in the engine.
+
+- **A unary minus on a dotted module path evaluates to nothing, and the
+  property silently takes its default.** `y_domain: (-geo.y_hi, geo.y_hi)` on a
+  `Graph` whose `pub let y_hi = 1.75` renders the y-axis labelled ±10 —
+  `Graph`'s fallback domain — with no diagnostic from `animatix check`. The
+  positive half of the same tuple works, and so does `0 - geo.y_hi`. This is
+  exactly the class `AGENTS.md` ("Never silently drop values") says must either
+  log or fall back loudly: a plot whose scale is wrong by 6× is not a
+  degradation, it is a different figure. Content-side fix: export the negated
+  bound as its own literal (`y_lo`/`y_hi`). Engine-side, find where a
+  `Unary(Neg)` over `Expr::Path` loses its operand at build time and either
+  resolve it or report `invalid-property-value`.
+- **`BarChart` inside a `Graph` does not inherit the host's coordinates.**
+  `docs/primitives.md` ("Inside a Graph") shows exactly this usage; a minimal
+  chart of four bars in a `x_domain: (0, 8), y_domain: (0, 1.18)` graph draws
+  its bars hanging *below* the axis, with the k=1 bar reaching about a third of
+  the height the axis says it should. `docs/primitives.md` also claims
+  `BarChart` supports "`standalone` (pixel coordinates) and `Graph`-child (math
+  coordinates) modes" — only the first one renders. `web/demos/epicycles/spectrum.amx`
+  therefore stays standalone and loses the 1/k envelope curve that was the
+  point of nesting it.
+- **A method call rejects binary operators in its arguments.** `g.map(1.0 + 1.0,
+  2.0)` is `parse-error: unexpected '+'` while `max(1.0 + 1.0, 2.0)` and
+  `g.map(1.0, 2.0)` both parse, so the restriction is on path-call argument
+  position, not on the expression grammar. Worked around by `let`-binding the
+  arguments, which reads fine but is invisible tax on every `Graph.map()` call
+  site — and `map()` is the documented way to place a marker on a plot.
+- **The `#Xs` stamp in front of a `play` is parsed, threaded through the
+  builder, and thrown away.** `extract_play_stmt` returns
+  `(target, transition, Some(current_time))` and `composition/build.rs:443`
+  binds it as `_play_time`. Verified: a 10 s scene ending in `#8s play B
+  [fade, 500ms]` starts B at 9.50 s, i.e. at `duration − transition`. `docs/spec.md`
+  §18 documents the opposite ("The play's time comes from the keyframe marker
+  that precedes it") for this sibling form, and no warning fires — only the
+  *nested* form (`#4s { play Next }`) gets `play-inside-keyframe`. Either honour
+  the stamp or reject it; content currently writes stamps that look like
+  schedule and are decoration, which is how a 15 s act ended up with its
+  outgoing cascade tuned to 14.4 s.
+- **`fade-in` on a stroke-only actor animates `stroke_progress`, so it fights a
+  per-frame write to the same property.** An `Ellipse` with `fill_opacity: 0`
+  used as an angle arc, revealed by `fade-in` and driven by
+  `arc.stroke_progress = …` in `always`, renders as a closed ring and reports
+  `always-overrides-keyframes` even after the declaration drops its
+  `stroke_progress`. The warning is right that something is overriding, and
+  wrong that the `always` block wins. The arc was removed from
+  `web/demos/epicycles/complexplane.amx`; a `reveals`-style entrance that never
+  touches `stroke_progress`, or a dedicated `show` action, would let it come back.
+- **Re-check the `graph.map()` half-scale note.** `web/demos/gradient/descent.amx:44-47`
+  says "`graph.map()` runs at half the px/unit of the plotted curve — double the
+  math coords to land the ball on the drawn stroke". A fresh probe (a
+  `x_domain: (-2, 2), y_domain: (-1, 1)` graph, `size: (600, 300)`, `at: (640, 360)`)
+  put `g.map(1.0, 0.5)` exactly on `(790, 285)`, which is the correct
+  150 px/unit mapping. Either the comment describes a bug that has since been
+  fixed, or it describes something specific to that scene's graph — and if the
+  former, the doubling in `descent.amx` is now placing its ball one half-scale
+  off. Needs a rendered check on that scene before either is changed.

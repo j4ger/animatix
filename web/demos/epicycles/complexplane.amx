@@ -1,53 +1,112 @@
+// complexplane.amx — §05 why circles at all.
+//
+// The closing figure says what the previous three implied: a term of the
+// series is a *rotating vector*, and its imaginary part is the sine. So the
+// unit circle gets the two projections that make that visible — a drop to the
+// real axis (cos θ) and a run to the imaginary axis (sin θ) — plus a live
+// readout that names the angle the vector has swept.
+//
+// The rotation runs counter-clockwise, the same sense as §02 and §03: the
+// figure's claim is that this is the *same* pen, and a clockwise turn here
+// would contradict the sine the reader just watched it write.
+
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/theme.amx" as theme
+import "fourier.amx" as geo
+
 config { resolution: (1280, 720) }
 
 # ComplexPlane
-config { colorscheme: "ink", dynamic_layout: true, duration: 13 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 11.5 }
 
-cp_title: Text, text: "4. Why circles? Complex exponentials", font_size: 36,
+let plane_x = 400
+let plane_y = geo.cy
+// px per unit. The NumberPlane below is sized from this, so the circle of
+// radius `unit` really is the unit circle of the grid behind it — sizing the
+// two independently is how a "unit circle" ends up drawn at 1.23.
+let unit = 160
+
+cp_title: Text, text: "Why circles? Complex exponentials", font_size: 38,
   font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
 
-grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.2, 1.2),
-  size: (640, 480), at: (420, 400),
-  x_range: (-1, 1, 1), y_range: (-1, 1, 1),
-  color: stroke.default, stroke_width: 1.0
+grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.6, 1.6),
+  size: (3.2 * unit, 3.2 * unit), at: (plane_x, plane_y),
+  x_range: (-1, 1, 0.5), y_range: (-1, 1, 0.5),
+  stroke: surface.secondary, stroke_width: 1.0
 
-unit_circle: Ellipse, size: (400, 400), stroke: accent.info,
-  fill_opacity: 0, stroke_width: 2, at: (420, 400)
+unit_circle: Ellipse, size: (2 * unit, 2 * unit), stroke: accent.info,
+  fill_opacity: 0, stroke_width: 2, at: (plane_x, plane_y)
 
-vector: Line, from: (420, 400), to: (620, 400),
-  stroke: accent.warning, stroke_width: 3
+vector: Line, from: (plane_x, plane_y), to: (plane_x + unit, plane_y),
+  stroke: accent.primary, stroke_width: 3
 
-vec_tip: Ellipse, size: (14, 14), color: accent.primary, at: (620, 400)
+// The two projections: this is the sentence "e^(iθ) = cos θ + i sin θ" drawn
+// as geometry rather than written down.
+drop_v: Line, from: (plane_x + unit, plane_y), to: (plane_x + unit, plane_y),
+  stroke: accent.secondary, stroke_width: 1.25, opacity: 0.42
+drop_h: Line, from: (plane_x + unit, plane_y), to: (plane_x + unit, plane_y),
+  stroke: accent.secondary, stroke_width: 1.25, opacity: 0.42
 
-cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 26,
-  font_size: 26, color: accent.primary, anchor: scene.center, offset: (330, -60)
+vec_tip: Ellipse, size: (15, 15), color: accent.primary, at: (plane_x + unit, plane_y)
 
-cp_note: Text, text: "each circle is one term e^(i k theta) with radius a_k",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, 20)
+cp_re: Text, text: "Re", font_size: 19, color: text.muted,
+  at: (plane_x + 272, plane_y + 26)
+cp_im: Text, text: "Im", font_size: 19, color: text.muted,
+  at: (plane_x + 26, plane_y - 250)
+cp_read: Text, text: "theta = 0.00 rad", font_size: 21, color: accent.warning,
+  at: (plane_x, plane_y + 252)
+
+cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 27,
+  color: accent.primary, anchor: scene.center, offset: (330, -110)
+cp_note: Text, text: "one term of the series is one vector, turning at k times the base rate",
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, -44),
+  text_max_width: 380, text_align: "center"
+cp_note2: Text, text: "its radius is a(k), and its height is a(k) sin(k theta)",
+  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, 22),
+  text_max_width: 380, text_align: "center"
 
 endnote: Text, text: "sum enough circles and even a square wave is just rotation",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+  font_size: 20, color: text.muted, anchor: scene.center, offset: (330, 130),
+  text_max_width: 380, text_align: "center"
 
 always {
-  let th = 2 * pi * clamp(t - 0.8, 0.0, 10.0) / 10.0
-  vector.to = (420 + 200 * cos(th), 400 + 200 * sin(th))
-  vec_tip.at = (420 + 200 * cos(th), 400 + 200 * sin(th))
+  let u = clamp((t - 1.2) / 9.0, 0.0, 1.0)
+  let th = geo.span * u
+  let tx = plane_x + unit * cos(th)
+  let ty = plane_y - unit * sin(th)
+  vector.to = (tx, ty)
+  vec_tip.at = (tx, ty)
+  drop_v.from = (tx, ty)
+  drop_v.to = (tx, plane_y)
+  drop_h.from = (tx, ty)
+  drop_h.to = (plane_x, ty)
+  cp_read.text = format("theta = {:.2} rad", th)
 }
 
-#0.4s
-fade-in cp_title [500ms, ease: expo-out]
+#0.15s
+fade-in cp_title [550ms, ease: expo-out]
 fade-in grid [600ms, ease: expo-out]
 fade-in unit_circle [600ms, ease: expo-out]
 
 #1s
-fade-in vector [400ms, ease: expo-out]
-fade-in vec_tip [400ms, ease: expo-out]
+fade-in vector, vec_tip [400ms, ease: expo-out]
 
-#2s
+#1.6s
+stagger [110ms] {
+  fade-in drop_v [400ms, ease: expo-out]
+  fade-in drop_h [400ms, ease: expo-out]
+  fade-in cp_re [400ms, ease: expo-out]
+  fade-in cp_im [400ms, ease: expo-out]
+  fade-in cp_read [400ms, ease: expo-out]
+}
+
+#3.4s
 fade-in cp_eq [600ms, ease: expo-out]
-fade-in cp_note [500ms, delay: 300ms, ease: expo-out]
 
-#4s
+#4.6s
+fade-in cp_note [500ms, ease: expo-out]
+
+#5.8s
+fade-in cp_note2 [500ms, ease: expo-out]
+
+#8.4s
 fade-in endnote [600ms, ease: expo-out]

@@ -1,0 +1,39 @@
+// fourier.amx — the geometry every epicycles figure shares.
+//
+// One number drives the whole plate: `R`, the base epicycle radius. Each plot
+// box is authored `2 * y_hi * pi * R / 4` tall, so its y-scale is R·pi/4 px
+// per unit — exactly the factor that cancels the series' 4/pi prefactor. A pen
+// tip at height R·S(θ) and the plotted point at (4/pi)·S(θ) therefore land on
+// the same screen row, and the tie-line between them is horizontal *by
+// construction*.
+//
+// That is the load-bearing invariant of §02 and §03: the figure teaches "pen
+// height = wave height", and it must not rest on the coincidence that
+// 110 · 4/pi ≈ 140. Change `R` and both columns move together, and because §01
+// plots at the same scale the wipe into §02 carries the wave across at an
+// unchanged height.
+//
+// (Every export here is a literal or a stdlib expression — a module's `pub let`
+// cannot reference its own sibling bindings, since exports evaluate outside the
+// module scope.)
+
+// ── the pen ─────────────────────────────────────────────────────────
+pub let R = 128 // base epicycle radius, px
+pub let pivot_x = 240 // base circle centre; the chain reaches +215 from here
+pub let cy = 396 // the shared centre line of both columns
+
+// ── the plot ────────────────────────────────────────────────────────
+// Left edge 540 clears the chain's widest reach (455). The box height is not
+// a taste call: scenes write it as `2 * y_hi * pi * R / 4`, which is the
+// statement "one y-unit is R·pi/4 px" — the tie-line invariant above.
+//
+// y_lo/y_hi are two literals rather than `-y_hi` at the call site: a unary
+// minus applied to a dotted module path (`-geo.y_hi`) evaluates to nothing and
+// `y_domain` then silently falls back to its ±10 default, with no diagnostic.
+pub let graph_cx = 870
+pub let graph_w = 660
+pub let y_lo = -1.75 // the partial sums overshoot 1.5 at the corners
+pub let y_hi = 1.75
+
+// ── the clock ───────────────────────────────────────────────────────
+pub let span = 2 * tau // x-domain in radians: two full turns = 4 pi
