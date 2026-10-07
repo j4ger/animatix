@@ -1,0 +1,18 @@
+# The toolchain for everyone who is NOT in the nix shell.
+#
+# rustup reads this file; nix's `cargo` is a direct binary and ignores it, so
+# `devShells.default` (rust-bin) and `.#web-build` (rust-bin with a wasm32 target)
+# are unaffected. That asymmetry is why the file pins `stable` rather than an exact
+# version: CI's non-nix jobs install `dtolnay/rust-toolchain@stable`, and a point
+# release pinned here would put local builds, CI, and the nix shell three versions
+# apart — which is precisely the drift this repo's checks exist to prevent. The
+# exact pin lives in flake.lock.
+#
+# `targets` is the load-bearing line. Without the wasm32 std, a build of the web
+# player fails inside the first dependency with `can't find crate for 'std'` and a
+# misleading hint to run `rustup target add` — see the `.#web-build` PATH note in
+# flake.nix and `web/README.md`.
+[toolchain]
+channel = "stable"
+targets = ["wasm32-unknown-unknown"]
+components = ["rustfmt", "clippy"]

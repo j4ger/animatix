@@ -1,178 +1,104 @@
 name: CI
 
+# Every check this workflow runs is a gate in scripts/ci.sh, and the job matrix is
+# generated from that file (`scripts/ci.sh --list`). Adding a gate there adds it
+# here — there is no list in .github/ to forget to update.
+#
+# The old version of this file had ten hand-written jobs and could not see the
+# three checks that actually protect the site (wasm compile, site_scenes, embed
+# bundle drift), because those lived in pages.yml and only ran after merge. The
+# `workflows` gate now fails the build if any workflow types a cargo or scripts/
+# command directly instead of calling a gate, which is what keeps it from drifting
+# back.
+#
+# It is also callable: release.yml runs this whole matrix as its release blocker,
+# so "the tag is green" and "the PR is green" are the same set of checks rather
+# than a second list someone maintains next to the first.
+
 on:
   pull_request:
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-    name: Test
+  plan:
+    name: Plan
     runs-on: ubuntu-latest
-    env:
-      # Render tests need an adapter; without this they would silently skip and
-      # report green while exercising no pixels (see `animatix_render::testing`).
-      ANIMATIX_REQUIRE_GPU: "1"
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config mesa-vulkan-drivers
-      - name: Run tests
-        # Serialize GPU-backed core tests; headless Vello/WGPU teardown can SIGSEGV
-        # when renderer tests run concurrently on the same adapter.
-        run: cargo test --workspace -- --test-threads=1
+      - id: plan
+        # pr-stage only. The release-stage rows (dist-linux, dist-macos,
+        # dist-windows) build the shippable binaries — running them here would
+        # cost three full release builds on every pull request.
+        run: echo "matrix=$(scripts/ci.sh --matrix pr)" >> "$GITHUB_OUTPUT"
 
-  render-smoke:
-    name: Render Smoke
-    runs-on: ubuntu-latest
-    env:
-      ANIMATIX_REQUIRE_GPU: "1"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install system dependencies
-        # mesa provides the lavapipe software Vulkan driver, so this job really
-        # rasterizes all 42 examples instead of skipping.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config mesa-vulkan-drivers
-      - name: Render every example (non-blank frame gate)
-        run: bash scripts/render_smoke.sh
-
-  no-video:
-    name: Build without FFmpeg
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # Intentionally no FFmpeg system deps: the `video` feature must stay truly
-      # opt-in, which is verified by building the user-facing binaries that
-      # gate on it without enabling it.
-      - name: Build CLI and GUI without video
-        run: cargo build -p animatix-cli -p animatix-gui
-      - name: Test the engine with no optional features
-        run: cargo test -p animatix --lib --no-default-features -- --test-threads=1
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config
-      - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
-  extension-bench:
-    name: Extension Bench Gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Run extension benchmark gate
-        run: bash scripts/extension-bench.sh --quick --max-plan-ns 10000
-
-  fmt:
-    name: Format
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-  doc:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config
-      - name: Build documentation
-        run: cargo doc --workspace --no-deps
-        env:
-          RUSTDOCFLAGS: -D warnings
-      - name: Check docs links and roadmap status
-        run: bash scripts/check-docs.sh
-
-  audit:
-    name: Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-      - name: Run audit
-        run: cargo audit
-
-  examples:
-    name: Example Validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libffmpeg-dev pkg-config
-      - name: Build animatix CLI
-        run: cargo build --bin animatix
-      - name: Validate all examples
-        run: bash scripts/check_examples.sh
-
-  eparts-features:
-    name: eparts (${{ matrix.os }})
+  gate:
+    name: ${{ matrix.name }}
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Check eparts default surface
-        run: cargo check -p eparts --all-targets
-      - name: Check eparts theme-json + gallery
-        run: cargo check -p eparts --features theme-json --all-targets
-      - name: Test eparts default
-        run: cargo test -p eparts --lib
-      - name: Test eparts theme-json
-        run: cargo test -p eparts --lib --features theme-json
-
-  commit-check:
-    name: Conventional Commits
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
         with:
+          # `commit` walks the history since the last tag; the others do not care,
+          # and fetching it for all of them is cheaper than a conditional that a
+          # later gate has to remember to keep in sync.
           fetch-depth: 0
-      - name: Install cocogitto
+
+      # Gates that need nix (cog, cargo-audit, the wasm32 std) get their toolchain
+      # from the dev shell, so they must not install a rustup toolchain: PATH
+      # order would then decide which rustc runs, and the answer differs per job.
+      - name: Install Nix
+        if: matrix.shell == 'nix' || matrix.shell == 'web'
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Cache Nix store
+        if: matrix.shell == 'nix' || matrix.shell == 'web'
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Rust (nightly — rustfmt.toml sets unstable options)
+        if: matrix.shell == 'native' && contains(matrix.setup, 'rust-nightly')
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - name: Rust (stable)
+        if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        if: matrix.shell == 'native'
+        uses: Swatinem/rust-cache@v2
+
+      - name: Node
+        if: contains(matrix.setup, 'node')
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # apt packages and the pinned wasm-bindgen CLI. The toolchain hints in the
+      # setup column (rust-*, node, nix, none) are handled by the steps above and
+      # are no-ops here on purpose.
+      - name: Provision
+        shell: bash
+        env:
+          SETUP: ${{ matrix.setup }}
+        run: scripts/ci.sh setup $SETUP
+
+      - name: Gate
+        shell: bash
+        env:
+          GATE: ${{ matrix.gate }}
+          GATE_SHELL: ${{ matrix.shell }}
+        # ci.sh never enters a shell itself — devshells prepend to PATH, so an
+        # outer rustc wins and the wasm gate fails looking like a code fault.
+        # The matrix's shell column is what says which shell this job owes it.
         run: |
-          curl -L --proto '=https' --tlsv1.2 -sSf \
-            https://raw.githubusercontent.com/cocogitto/cocogitto/main/install.sh | sh
-      - name: Check commit messages
-        run: cog check
+          case "$GATE_SHELL" in
+            web) nix develop .#web-build --command scripts/ci.sh gate "$GATE" ;;
+            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
+            *)   scripts/ci.sh gate "$GATE" ;;
+          esac

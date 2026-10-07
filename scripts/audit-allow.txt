@@ -1,0 +1,16 @@
+# Advisories this repo knowingly carries, one per line:
+#
+#   RUSTSEC-id<TAB>why it is here, and what would lift it
+#
+# `scripts/ci.sh gate audit` passes each as `--ignore`, prints what it swallowed,
+# and still fails on any advisory NOT listed. That is the point of the file: the
+# alternative to an annotated allowlist is an audit gate that is red all the time,
+# which is indistinguishable from no audit gate — the 6 vulnerabilities this repo
+# shipped with were invisible exactly because nobody could get the job green.
+#
+# Everything here has to be a dependency some other crate pins, not ours to widen.
+# A transitive pin lifted by `cargo update` belongs in a commit, not in this file
+# (RUSTSEC-2026-0204/crossbeam-epoch and RUSTSEC-2026-0257/webbrowser were both
+# lifted that way when this list was written).
+RUSTSEC-2026-0194	quick-xml, two copies: 0.38.4 pinned by citationberg 0.7.0 + plist 1.8.0 (the typst text stack) and 0.39.2 pinned by wayland-scanner 0.31.10 (the eframe/Wayland build). The fix is 0.41.0; no requirement in this workspace can widen it, so it lifts when typst and the wayland stack move off 0.38/0.39. Re-check on every typst or eframe upgrade.
+RUSTSEC-2026-0195	quick-xml, same two transitive pins and the same 0.41.0 fix as RUSTSEC-2026-0194. Re-check on every typst or eframe upgrade.

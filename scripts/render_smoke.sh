@@ -5,16 +5,15 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+# The same scene walk check_examples.sh uses, so the parse gate and the render
+# gate can never disagree about which examples exist.
+# shellcheck source=scripts/lib-scenes.sh
+. "$SCRIPT_DIR/lib-scenes.sh"
 
 FAILED=0
 TOTAL=0
 
-for amx in $(find "$PROJECT_DIR/examples" -name '*.amx' -not -path '*/lib/*' -not -path '*/scenes/*' | sort); do
-    dir=$(dirname "$amx")
-    # Multi-file projects are smoked via their main.amx entry only.
-    if [ -f "$dir/main.amx" ] && [ "$(basename "$amx")" != "main.amx" ]; then
-        continue
-    fi
+while read -r amx; do
     TOTAL=$((TOTAL + 1))
     echo -n "Render-smoke $(basename "$amx")... "
     OK=0
@@ -38,7 +37,7 @@ for amx in $(find "$PROJECT_DIR/examples" -name '*.amx' -not -path '*/lib/*' -no
         echo "FAILED (no non-blank frame at t=1/3/6)"
         FAILED=$((FAILED + 1))
     fi
-done
+done < <(scene_files "$PROJECT_DIR/examples")
 
 if [ "$FAILED" -eq 0 ]; then
     echo "=== Render smoke passed for $TOTAL examples ==="

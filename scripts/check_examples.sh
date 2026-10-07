@@ -4,6 +4,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# The scene walk is shared with render_smoke.sh — an example visible to one gate
+# and not the other means one of them is green about a file it never looked at.
+# shellcheck source=scripts/lib-scenes.sh
+. "$SCRIPT_DIR/lib-scenes.sh"
+
 # The plugin showcase example needs the native demo plugin loaded; build it
 # so `check --plugin <manifest>` can install the library.
 echo "=== Building animatix-plugin-demo (needed by projects/plugin_pulse.amx) ==="
@@ -22,15 +27,7 @@ WARN_TOTAL=0
 #   unknown-type        — analyzer is single-file; imported/plugin types are unresolved
 ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type'
 
-for amx in $(find "$PROJECT_DIR/examples" -name '*.amx' -not -path '*/lib/*' -not -path '*/scenes/*' | sort); do
-    # Multi-file project directories (e.g. gallery/brand_reel/) are checked
-    # via their main.amx entry, which builds the whole composition — the
-    # scene fragments reference persisted actors and cross-file context that
-    # per-file checks cannot see.
-    dir=$(dirname "$amx")
-    if [ -f "$dir/main.amx" ] && [ "$(basename "$amx")" != "main.amx" ]; then
-        continue
-    fi
+while read -r amx; do
     TOTAL=$((TOTAL + 1))
     echo -n "Checking $(basename "$amx")... "
     PLUGIN_FLAGS=()
@@ -51,7 +48,7 @@ for amx in $(find "$PROJECT_DIR/examples" -name '*.amx' -not -path '*/lib/*' -no
         echo "OK"
     fi
     WARN_TOTAL=$((WARN_TOTAL + $(echo "$OUTPUT" | grep -cE 'warning|info' || true)))
-done
+done < <(scene_files "$PROJECT_DIR/examples")
 
 if [ $FAILED -eq 0 ]; then
     echo "=== All $TOTAL example files clean (warnings: $WARN_TOTAL, all allowed categories) ==="

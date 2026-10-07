@@ -6,6 +6,13 @@
 # precompression, so the .br twins are dropped from the artifact (the raw
 # .wasm files are what gets served).
 #
+# This workflow used to own three checks that PR CI did not run — the embed
+# bundle drift, the site scene build in both profiles, and the wasm compile —
+# which meant the gate that catches a stale `web/embed/amx-player.js` fired
+# *after* the merge it was supposed to protect. They are gates in scripts/ci.sh
+# now, so a PR runs exactly them; this file keeps the deploy and re-runs the
+# gates as the release blocker it always was.
+#
 # NOTE for maintainers: Pages must be enabled once in the repo settings
 # (Settings → Pages → Source: "GitHub Actions"); after that this workflow
 # owns deployments.
@@ -25,7 +32,7 @@ on:
       - "Cargo.lock"
       - "Cargo.toml"
       - "flake.nix"
-      - "scripts/build-web.sh"
+      - "scripts/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -45,59 +52,40 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
 
-      # wasm-bindgen-cli must match the version pinned in
-      # crates/animatix-web/Cargo.toml exactly — a mismatch fails glue
-      # generation — so the version is read from that file, not duplicated here.
-      - name: Install wasm-bindgen-cli (version from crates/animatix-web/Cargo.toml)
-        run: |
-          WBG="$(grep -oP 'wasm-bindgen = "=\\K[0-9.]+' crates/animatix-web/Cargo.toml)"
-          echo "wasm-bindgen-cli version: $WBG"
-          curl -sL "https://github.com/rustwasm/wasm-bindgen/releases/download/${WBG}/wasm-bindgen-${WBG}-x86_64-unknown-linux-musl.tar.gz" \
-            | tar -xz
-          install -m 0755 "wasm-bindgen-${WBG}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
-          wasm-bindgen --version
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Install wasm-opt and brotli
-        run: sudo apt-get update && sudo apt-get install -y binaryen brotli
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Check the embed distributable matches its source
-        # `web/embed/amx-player.js` is the committed esbuild output of
-        # `web/embed/src/amx-player.js` (`npm run build:embed`), and Pages
-        # ships the committed copy — so a src change that skipped the rebuild
-        # would deploy the previous player while the repo looked fixed.
-        run: |
-          npm --prefix web/tools ci
-          npm --prefix web/tools run build:embed
-          git diff --exit-code web/embed/amx-player.js
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
 
-      - name: Check every scene the site plays (both profiles)
-        # The deploy gate the browser-only failures need: a scene only the full
-        # engine can build, or an import/asset url that resolves to nothing
-        # next to its page, shows up as a "Scene error" veil on the deployed
-        # site and is invisible to the engine's own suite. `--slim` is exactly
-        # `--no-default-features` (see scripts/build-web.sh), so these two runs
-        # cover both shipped bundles.
-        run: |
-          cargo test -p animatix-web --test site_scenes
-          cargo test -p animatix-web --test site_scenes --no-default-features
+      # The two gates that used to live here as hand-written steps, plus the
+      # bundle-drift check. Ordered cheap-first: embed-drift is an npm build,
+      # site_scenes is a native test, and the engine builds are the minutes-long
+      # step — no reason to pay for two wasm links before the fast gates agree.
+      - name: Gates (embed bundle drift, site scenes in both profiles)
+        run: scripts/ci.sh gate embed-drift site-scenes
 
       - name: Build engines (slim + full)
+        # `.#web-build` is the only shell with a wasm32 std, and the wasm-bindgen
+        # CLI must equal the pin in crates/animatix-web/Cargo.toml exactly. ci.sh
+        # never enters the shell itself — devshells prepend, so an outer rustc
+        # would win and the build would fail looking like a code fault.
         run: |
-          scripts/build-web.sh --slim
-          scripts/build-web.sh
+          scripts/ci.sh setup wasm-bindgen
+          nix develop .#web-build --command scripts/ci.sh gate web-build
 
+      # The same assembler the release pipeline zips with (scripts/site-artifact.sh):
+      # the .br twins dropped, .nojekyll written, both engine bundles required.
       - name: Assemble site
-        run: |
-          mkdir -p _site
-          cp -r web/. _site/
-          find _site -name '*.br' -delete
-          touch _site/.nojekyll
-          du -sh _site
+        run: scripts/ci.sh gate site-artifact
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
