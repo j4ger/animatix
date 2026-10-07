@@ -185,13 +185,27 @@ Behavior:
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
   afterwards), `profile` (below), `quality` (below), `sealed` and `fit`
-  (page-driven mode, below).
+  (page-driven mode, below), `debug-frame` (frame readout, below).
 - **Controls UX** — the strip lives *below* the canvas, full-height and
   always visible: it never covers the picture, and it doubles as the
   timeline inspector. The engine reports the author's `#2s` keyframe
   declarations (and, in compositions, scene starts and transition windows);
   the strip draws them — ticks for keyframes, diamonds for scene starts,
   hatched spans for transitions — so the bar *is* the scene's structure.
+
+  **`debug-frame`** replaces the time chip with a readout for locating a broken
+  frame: `f<frame> / <total>  <seconds>  @60fps  rs<render scale>`. The frame
+  index is a label on a nominal 60 fps reporting grid (the player renders on
+  rAF, so it is not a clock); the seconds are the reproducible value and go
+  straight into `animatix image --time`. `rs` is the adaptive render scale the
+  quality controller settled on, which distinguishes a raster-scale shimmer
+  from a geometry defect. Turn it on per element with the attribute, for a
+  whole page with `?amxdebug` on the URL (works on a deployed page without
+  editing markup), or per focused strip with `d`. Then **Shift+←/→ step exactly
+  one frame** (pausing first, so the rAF clock cannot move off it) and **`c`**
+  copies the line to the clipboard and the console. Needs `controls` — the
+  readout lives in the strip; `player.frame`, `player.totalFrames` and
+  `player.debugReport()` work on any ready player regardless.
   Mouse: hovering the strip freezes the clock and peeks the frame under the
   pointer (snapping to landmarks within 0.2 s); leaving resumes, unless a
   click latched the pause. Clicking the strip sets the position and toggles

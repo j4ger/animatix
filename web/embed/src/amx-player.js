@@ -19,7 +19,8 @@
 //              a click latched the pause; canvas click pauses latched, strip
 //              click resumes. Touch: tap toggles, drag scrubs. Keyboard:
 //              arrows step between landmarks, Home restarts, Space/K
-//              toggles.
+//              toggles. With the debug readout on, Shift+arrows step exactly
+//              one frame (pausing first) and `c` copies the readout.
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
@@ -36,6 +37,13 @@
 //              whenever it re-enters the viewport (a sealed embed has no
 //              visible control to resume it with). Used for full-bleed hero
 //              plates, scroll-scrubbed figures and hover-play cards.
+//   debug-frame  show a frame readout in the timeline strip: the frame index
+//              on a nominal 60 fps reporting grid, the exact time in seconds
+//              (what `animatix image --time` takes), and the active render
+//              scale. For locating and reporting a broken frame. Needs
+//              `controls` (the readout lives in the strip); `?amxdebug` on the
+//              page URL turns it on for every player without editing markup,
+//              and `d` toggles it while the strip has focus.
 //   fit        "contain" (default — the whole frame, letterboxed) | "cover"
 //              — the frame fills the element box, cropping overflow. Cover
 //              also unlocks the stage from its aspect-ratio box so the
@@ -67,6 +75,17 @@
 // requestAnimationFrame loop; offscreen instances pause automatically. Embeds
 // using the same engine directory share one WebGPU context inside that wasm
 // instance; a page mixing `profile` values holds one context per profile.
+
+// Nominal frame rate for the debug readout. The player renders on rAF, so this
+// is a reporting grid rather than a clock: `frame = round(t * FRAME_RATE)`. The
+// seconds beside it are the reproducible value — they go straight into
+// `animatix image --time` — and the grid exists so two people can name the same
+// frame out loud.
+const FRAME_RATE = 60;
+
+// `?amxdebug` turns the readout on for every player on the page, so a deployed
+// page can be inspected without editing its markup.
+const DEBUG_BY_URL = /[?&]amxdebug\b/.test(location.search);
 
 const LOADER_SCRIPT = [...document.querySelectorAll("script[type=module]")].find((s) =>
   (s.src || "").includes("amx-player.js"),
@@ -362,6 +381,7 @@ class AmxPlayerElement extends HTMLElement {
     this._restTime = 0; // frame shown while paused
     this._lastAlpha = 1;
     this._renderFailures = 0; // consecutive _renderScene failures; see below
+    this._debugFrame = this.hasAttribute("debug-frame") || DEBUG_BY_URL;
     this._visible = false;
     this._observer = null;
     this._renderScaleObserver = null;
@@ -603,7 +623,13 @@ class AmxPlayerElement extends HTMLElement {
         font-variant-numeric: tabular-nums;
         background: rgba(5,8,12,.55); border-radius: 6px; padding: 3px 8px;
         pointer-events: none;
+        /* The debug readout is far longer than the time chip. Let it grow
+           leftward and truncate its tail — the frame index and the time, the
+           parts a report needs, come first — rather than run off the start
+           edge of a narrow player. */
+        max-width: calc(100% - 120px); overflow: hidden; text-overflow: ellipsis;
       }
+      .chip.dbg { color: #8ab4f8; background: rgba(5,8,12,.8); }
       .speed {
         position: absolute; right: 4px; top: 50%;
         transform: translateY(-50%);
@@ -1123,10 +1149,33 @@ class AmxPlayerElement extends HTMLElement {
     });
     strip.addEventListener("keydown", (e) => {
       const dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-      if (dir !== 0) {
+      if (dir !== 0 && e.shiftKey) {
+        // One frame at a time. Pause first: the rAF clock would otherwise
+        // advance off the frame that was just asked for, and the whole point
+        // is to land on it and look at it.
+        e.preventDefault();
+        e.stopPropagation();
+        if (this._playing) {
+          this._latched = true;
+          this.pause();
+        }
+        this.seek(this._time + dir / FRAME_RATE);
+      } else if (dir !== 0) {
         e.preventDefault();
         e.stopPropagation();
         this.seek(this._nextLandmark(dir));
+      } else if (e.key === "d") {
+        e.preventDefault();
+        e.stopPropagation();
+        this._debugFrame = !this._debugFrame;
+        this._syncControls();
+      } else if (e.key === "c") {
+        // Copy the readout so a report carries the exact frame and time.
+        e.preventDefault();
+        e.stopPropagation();
+        const line = this.debugReport();
+        navigator.clipboard?.writeText(line).catch(() => {});
+        console.log(line);
       } else if (e.key === "Home") {
         e.preventDefault();
         this.seek(0);
@@ -1204,7 +1253,18 @@ class AmxPlayerElement extends HTMLElement {
     const frac = this._duration > 0 ? shown / this._duration : 0;
     c.fill.style.transform = `scaleX(${frac})`;
     c.cursor.style.left = `${frac * 100}%`;
-    c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
+    if (this._debugFrame) {
+      // `rs` is the adaptive render scale the quality controller settled on.
+      // It belongs in the report because a shimmer that only appears at a
+      // reduced raster scale is a different defect from a geometry one.
+      const rs = this._renderScale ?? 1;
+      c.chip.textContent =
+        `f${this.frame} / ${this.totalFrames}  ${shown.toFixed(3)}s  @${FRAME_RATE}fps  rs${rs.toFixed(2)}`;
+      c.chip.classList.add("dbg");
+    } else {
+      c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
+      c.chip.classList.remove("dbg");
+    }
     c.strip.setAttribute("aria-valuenow", shown.toFixed(1));
   }
 
@@ -1292,6 +1352,23 @@ class AmxPlayerElement extends HTMLElement {
   /// a loop's hold rest; clamp for timeline math).
   get time() {
     return Math.min(this._time, this._duration);
+  }
+
+  /// Position on the nominal `FRAME_RATE` reporting grid — a label for a
+  /// frame, not a clock. `time` stays the value the CLI takes.
+  get frame() {
+    return Math.round(this.time * FRAME_RATE);
+  }
+
+  get totalFrames() {
+    return Math.round(this._duration * FRAME_RATE);
+  }
+
+  /// The debug line in the same words the chip shows, for `player.debugReport()`
+  /// in a console or for the `c` key.
+  debugReport() {
+    return `frame ${this.frame}/${this.totalFrames} @${FRAME_RATE}fps, ` +
+      `time ${this.time.toFixed(3)}s, render scale ${(this._renderScale ?? 1).toFixed(2)}`;
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
