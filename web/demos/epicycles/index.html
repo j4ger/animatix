@@ -83,21 +83,21 @@
         A pen rides the rim of a turning circle; its <strong>height over
         time</strong> traces a sine. In the figure the pen is driven by an
         <code class="inline">always</code> block — one cosine for x, one sine
-        for y, evaluated every frame — while a line ties it to the point
-        being traced on the graph. That point is placed with the graph's own
-        <code class="inline">map()</code>, in radians and amplitudes rather
-        than pixels, so nothing has to be recomputed when the plot moves.
-        Nothing is precomputed: stop the circle and the pen stops writing.
+        for y, evaluated every frame — and the graph shows that height as a
+        <strong>scrolling history</strong>: the newest sample sits at the left
+        edge, under the pen, and the paper moves right. The plotted function
+        reads the pen's own angle variable, so the trace is literally the pen's
+        history rather than a second clock that could drift away from it.
       </p>
       <figure class="tour-embed" data-editable>
         <amx-player src="onecircle.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="One circle, one sine"></amx-player>
         <figcaption>
           <span class="cap"><b>Watch:</b> the pen laps the circle once per
-            cycle; the traced height on the right is the sine it writes. The
-            faint line between them is the figure's whole claim — and it stays
-            level, because the plot box is authored <code class="inline">pi * R</code>
-            tall, which is what makes the two columns share a y-scale.</span>
+            cycle; the wave slides out from under it. The faint line is the
+            figure's whole claim — and it stays level, because the plot box is
+            authored so that one y-unit is exactly <code class="inline">R · pi / 4</code>
+            pixels, which pins both columns to the same scale.</span>
           <a class="src" href="onecircle.amx">onecircle.amx ↗</a>
         </figcaption>
       </figure>
@@ -111,7 +111,8 @@
         rim; a third (⅕, five times) rides that; a fourth (⅐, seven times)
         rides the third. The tip of the last one is what draws. Each added
         circle flattens the tops a little more and steepens the sides, and
-        the equation underneath lights up the term responsible. Four circles
+        the equation underneath gains the term responsible, in that circle's
+        colour. Four circles
         is already embarrassingly square; the residual ripple dies as 1/k.
       </p>
       <figure class="tour-embed" data-editable>

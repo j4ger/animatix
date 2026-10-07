@@ -693,3 +693,21 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   fixed, or it describes something specific to that scene's graph — and if the
   former, the doubling in `descent.amx` is now placing its ball one half-scale
   off. Needs a rendered check on that scene before either is changed.
+- **`stroke_progress` overshoots by one tessellation segment, so a marker
+  cannot sit on a plot's leading edge.** Measured on `web/demos/epicycles`
+  §02: a `Graph` at `x_domain: (0, 4 pi)`, `size: (660, …)`, `at: (870, …)`
+  driven by `stroke_progress = u` with `ease: linear`, against a ball placed at
+  `graph.map(4 pi · u, …)`. At `u = 0.065` the ball is at screen x 583 and the
+  ink's rightmost pixel at 591; at `u = 0.283`, 727 vs 736. The offset is
+  ~1.0% of the domain at every sample — one segment of the adaptive
+  tessellation — so it hides under a 14px ball where the curve is flat and
+  pokes ~20px of ink out from under it on a steep descent (at `u = 0.283` the
+  ball's centre is y 446, the ink's end y 466). Nothing in the property's
+  contract says the trim is quantised, so content authors discover it as "the
+  trace isn't synchronised with the pen". Fixing it means trimming to the
+  requested fraction rather than to the next vertex — or exposing the trimmed
+  endpoint so content can place a marker on where the ink actually stopped.
+  `onecircle.amx` and `hero.amx` now sidestep it entirely by plotting a
+  scrolling history (`sin(θ_now − x)`) with the marker pinned to the window's
+  left edge, which has no leading edge to miss; a scene that genuinely wants a
+  growing trace still cannot land a marker on its end.
