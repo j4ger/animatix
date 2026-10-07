@@ -1,5 +1,14 @@
 ignore_merge_commits = true
 
+# Releases are cut on main. Bumping from a feature branch would tag a commit that
+# has no right to a version, and the tag is what release.yml builds from.
+branch_whitelist = ["main"]
+
+# cocogitto's own default is no prefix, and this repo's history is `nightly-*`
+# tags with no version in them. `v` is what makes a bump produce `v0.1.0`, which
+# is what release.yml's `push: tags: ["v[0-9]+…"]` trigger looks for.
+tag_prefix = "v"
+
 # Valid scopes for this project
 scopes = [
     "animatix",
@@ -12,12 +21,35 @@ scopes = [
     "timeline",
     "ci",
     "docs",
+    # The site, its scenes and the embed component. Added because 28 commits were
+    # already using it while it was undeclared — cog verify does not check scopes
+    # against this list, so the mismatch was invisible rather than impossible.
+    "web",
 ]
 
 [commit_types]
 chore = { changelog_title = "Chores", omit_from_changelog = true }
 ci = { changelog_title = "CI", omit_from_changelog = true }
 
+# The release act is `cog bump --auto --skip-ci`: it writes the changelog entry
+# for everything since the last tag, commits that, and tags the commit. It does
+# not touch a manifest — the version itself is scripts/bump-version.sh's job, run
+# before the bump commit so the tag and Cargo.toml cannot disagree. It writes only
+# the one [workspace.package] line, so there is no second tool (cargo-edit) to
+# pin and no set of 15 manifests to keep in step.
+#
+# There are no post_bump_hooks, deliberately: they would push the branch and the
+# tag from inside a command run at a desk. Pushing a tag publishes a release, so
+# it stays an explicit act — `git push && git push origin v<version>` — which is
+# also the moment release.yml starts.
+pre_bump_hooks = ["scripts/bump-version.sh {{version}}"]
+
 [changelog]
 path = "CHANGELOG.md"
 template = "remote"
+# The template was `remote` with no remote, owner or repository set, so every
+# commit link in a generated changelog pointed at an empty URL. These are the
+# values cog needs to build github.com/<owner>/<repository> links.
+remote = "github.com"
+owner = "j4ger"
+repository = "animatix"

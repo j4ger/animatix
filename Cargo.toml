@@ -18,6 +18,17 @@ members = [
 ]
 resolver = "2"
 
+# One version for the whole workspace. `cargo set-version --workspace` — the
+# pre_bump_hooks command that `cog bump` runs — writes here and nowhere else, so a
+# release cannot half-bump. Before this, 15 manifests each hand-declared
+# `version = "0.1.0"` and nothing checked that they agreed; `scripts/ci.sh gate
+# meta-version` now does, off `cargo metadata` rather than off the text of the
+# files, so it catches a member that resolves to something else for any reason.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
 [workspace.dependencies]
 # egui stack — single source of truth, shared by eparts + animatix-gui
 egui            = { version = "0.34" }

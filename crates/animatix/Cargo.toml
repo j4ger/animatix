@@ -1,8 +1,8 @@
 [package]
 name = "animatix"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [features]
 # Rendering, text, and SVG are part of the engine, not options: the build and

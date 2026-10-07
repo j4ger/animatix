@@ -1,8 +1,8 @@
 [package]
 name = "animatix-plugin-api"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Unstable C ABI shared by Animatix and native extension plugins"
 publish = false
 

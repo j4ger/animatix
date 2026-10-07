@@ -1,8 +1,8 @@
 [package]
 name = "animatix-lsp"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "LSP server for Animatix DSL — provides language intelligence to external editors"
 
 [[bin]]
