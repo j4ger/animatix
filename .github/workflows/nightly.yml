@@ -1,0 +1,62 @@
+# Nightly — an unscheduled build of main, for when you want a binary that is not
+# a release.
+#
+# This is the behaviour the old `release.yml` actually had (`workflow_dispatch`,
+# Linux CLI + GUI, a `nightly-YYMMDD-HHMM` tag), split out so the file named
+# Release can mean a version. The seven `nightly-*` tags already published keep
+# their shape: same artifacts, same naming, no semver involved.
+#
+# No gates: this builds whatever is on main, and main is green by definition of
+# having merged through ci.yml. What it adds over CI is a build with `video`,
+# which needs the FFmpeg the nix shell provides.
+name: Nightly
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Tag
+        id: tag
+        run: echo "tag=nightly-$(date -u +%y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+
+      # The same gate a release runs, so a nightly and a release are the same
+      # build command rather than two. ANIMATIX_RELEASE_LABEL names the files
+      # `nightly-…` instead of `v0.1.0-…`, and the version/tag agreement check in
+      # dist-package.sh stays off because ANIMATIX_RELEASE_VERSION is unset.
+      - name: Build and package (video, Linux)
+        env:
+          ANIMATIX_RELEASE_LABEL: ${{ steps.tag.outputs.tag }}
+        run: nix develop --command scripts/ci.sh gate dist-linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          prerelease: true
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,55 +1,205 @@
-name: Release Nightly
+# Release — one tag, one pipeline, every artifact.
+#
+# This used to be `workflow_dispatch`, Linux-only, and named "Release Nightly":
+# it built two binaries and posted a tag with nothing to say about what version
+# they were. There was no path from "a version" to "the things that carry it", so
+# the site, the wasm runtimes and the changelog could only be published by hand.
+#
+# Now: push a `vX.Y.Z` tag (made by `cog bump`, which writes the changelog commit
+# and the tag together) and this workflow runs the full PR gate set as a release
+# blocker, then builds the artifacts in parallel and publishes them as one GitHub
+# Release. Every command it runs is a gate in scripts/ci.sh — the `workflows` gate
+# in PR CI fails if that stops being true.
+#
+# `workflow_dispatch` remains for testing the pipeline against an existing tag,
+# including a prerelease like `v0.2.0-rc.1`. It builds; it does not invent a tag.
+name: Release
 
 on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing tag to build and publish, e.g. v0.1.0 or v0.2.0-rc.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: "0"
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  # Resolved once, so no job has to re-derive "which version is this" and get a
+  # different answer. Checked here rather than trusted, because the value is used
+  # to name files that strangers download.
+  version:
+    name: Resolve version
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - id: resolve
+        env:
+          DISPATCHED: ${{ github.event.inputs.version }}
+          TAGGED: ${{ github.ref_name }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            v="$DISPATCHED"
+          else
+            v="$TAGGED"
+          fi
+          case "$v" in
+            v[0-9]*.[0-9]*.[0-9]*|v[0-9]*.[0-9]*.[0-9]*-*) : ;;
+            *) echo "refusing to release: '$v' is not a vX.Y.Z[-pre] tag" >&2; exit 1 ;;
+          esac
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "releasing $v"
 
+  # The whole PR gate set, as a release blocker. `uses:` rather than a copy, so
+  # there is one list of what green means.
+  gates:
+    name: Gates
+    uses: ./.github/workflows/ci.yml
+
+  plan:
+    name: Plan artifacts
+    needs: gates
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: echo "matrix=$(scripts/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
+
+  dist:
+    name: ${{ matrix.name }}
+    needs: [plan, version]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    env:
+      ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Nix
+        if: matrix.shell == 'nix'
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Cache Nix store
+        if: matrix.shell == 'nix'
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      - name: Rust (stable)
+        if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
+        uses: dtolnay/rust-toolchain@stable
+      - name: Rust cache
+        if: matrix.shell == 'native'
+        uses: Swatinem/rust-cache@v2
+      - name: Gate
+        shell: bash
+        env:
+          GATE: ${{ matrix.gate }}
+          GATE_SHELL: ${{ matrix.shell }}
+          SETUP: ${{ matrix.setup }}
+        run: |
+          scripts/ci.sh setup $SETUP
+          case "$GATE_SHELL" in
+            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
+            *)   scripts/ci.sh gate "$GATE" ;;
+          esac
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ matrix.gate }}
+          path: dist/
+          if-no-files-found: error
+
+  # The site and the two wasm runtimes. Ordered: web-build produces the bundles
+  # that both zips contain, and it needs the .#web-build shell for its wasm32 std.
+  site:
+    name: Site and wasm
+    needs: [gates, version]
+    runs-on: ubuntu-latest
+    env:
+      ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
-
       - name: Cache Nix store
         uses: DeterminateSystems/magic-nix-cache-action@main
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-
-      - name: Build CLI (animatix)
-        run: nix develop --command cargo build --release -p animatix-cli --features video
-
-      - name: Build GUI (animatix-gui)
-        run: nix develop --command cargo build --release -p animatix-gui --features video
-
-      - name: Strip binaries
+      - name: Build engines (slim + full)
         run: |
-          strip target/release/animatix
-          strip target/release/animatix-gui
+          scripts/ci.sh setup wasm-bindgen
+          nix develop .#web-build --command scripts/ci.sh gate web-build
+      - name: Package site + wasm
+        run: scripts/ci.sh gate site-artifact dist-site dist-wasm
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-site
+          path: |
+            dist/
+            _site/
+          if-no-files-found: error
 
-      - name: Create release tag
-        id: tag
+  publish:
+    name: Publish
+    needs: [version, dist, site]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: artifact-*
+          path: out
+          merge-multiple: true
+      # The release body is cog's changelog for this tag — the same generator that
+      # wrote CHANGELOG.md in the bump commit, run through the same pinned cog the
+      # developer used. `--at` takes the tag name.
+      - name: Changelog
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
-          TAG="nightly-$(date -u +%y%m%d-%H%M)"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-
-      - name: Create GitHub Release
+          {
+            echo "## Install"
+            echo
+            echo "| asset | what it is |"
+            echo "| --- | --- |"
+            echo "| \`*-site.zip\` | the whole \`web/\` tree, ready to serve |"
+            echo "| \`*-wasm-slim.zip\` | playback-only engine (no Typst/raster/SVG) |"
+            echo "| \`*-wasm-full.zip\` | full engine, the profile the demos use |"
+            echo "| \`*-linux-gnu-video.tar.gz\` | CLI + GUI, **with** FFmpeg video export |"
+            echo "| \`*-macos.zip\`, \`*-windows.zip\` | CLI + GUI, **without** video export |"
+            echo
+            echo "Only the Linux build carries \`video\`: a macOS FFmpeg would be"
+            echo "whatever major version brew ships, and Windows would need a"
+            echo "from-source vcpkg port — neither is ours to pin, and the"
+            echo "no-video shape is the one the PR gates actually test. The GUI"
+            echo "reports the missing feature where it is used."
+            echo
+            echo "## Changes"
+            echo
+            nix develop --command cog changelog --at "$VERSION"
+          } > RELEASE_BODY.md
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ${{ steps.tag.outputs.tag }}
-          files: |
-            target/release/animatix
-            target/release/animatix-gui
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ needs.version.outputs.version }}
+          body_path: RELEASE_BODY.md
+          files: out/*
+          prerelease: ${{ contains(needs.version.outputs.version, '-') }}
