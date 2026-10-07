@@ -195,6 +195,112 @@ fn basic_func_transition_cartesian() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Tessellation fineness follows `resolution`
+// ─────────────────────────────────────────────────────────────
+
+use crate::ast::BinaryOp;
+
+fn bin(op: BinaryOp, a: Expr, b: Expr) -> Expr {
+    Expr::Binary(Box::new(a), op, Box::new(b))
+}
+
+/// The §03 wave: the first two terms of the square-wave series, on the real
+/// plot box (660 x 351.9 px, x 0..4pi, y -1.75..1.75).
+fn epicycles_plot(resolution: usize) -> ProceduralPlot {
+    let four_over_pi = bin(BinaryOp::Div, Expr::Num(4.0), Expr::Ident("pi".to_string()));
+    let third = bin(
+        BinaryOp::Div,
+        Expr::Call(
+            "sin".to_string(),
+            vec![bin(
+                BinaryOp::Mul,
+                Expr::Num(3.0),
+                Expr::Ident("x".to_string()),
+            )],
+        ),
+        Expr::Num(3.0),
+    );
+    let body = bin(
+        BinaryOp::Mul,
+        four_over_pi,
+        bin(
+            BinaryOp::Add,
+            Expr::Call("sin".to_string(), vec![Expr::Ident("x".to_string())]),
+            third,
+        ),
+    );
+    ProceduralPlot {
+        plot_type: ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
+        kind: PlotCurveKind::Cartesian,
+        func_args: vec!["x".to_string()],
+        func_body: compiled_body(body),
+        actor_label: "hero_wave".to_string(),
+        param_names: vec![],
+        p_x_domain: [0.0, 4.0 * std::f64::consts::PI],
+        p_y_domain: [-1.75, 1.75],
+        p_size: [660.0, 351.858],
+        padding: [0.0, 0.0, 0.0, 0.0],
+        t_domain: [0.0, 0.0],
+        tolerance: 0.5,
+        max_depth: 10,
+        resolution,
+        density: 0,
+        levels: vec![],
+        stroke_width: 2.0,
+        stroke_color: [1.0, 1.0, 1.0, 1.0],
+        fill_color: [0.0, 0.0, 0.0, 0.0],
+        params: vec![],
+        extra_captures: Default::default(),
+    }
+}
+
+/// Widest horizontal gap between consecutive vertices of the sampled polyline.
+///
+/// This is the observable that matters, and segment *count* is not it: on the
+/// §03 wave a 16-segment base grid and a 64-segment one both end up emitting
+/// ~104 segments, because `tolerance` adds refinement wherever the curve is
+/// steep. What differs is *where* the vertices sit — a coarse base grid leaves
+/// long spans unrefined, and an unrefined span is drawn as one straight chord.
+fn widest_gap(plot: &ProceduralPlot) -> f64 {
+    let mut env = stdlib_env();
+    let mut xs: Vec<f64> = Vec::new();
+    for vp in sample_procedural_plot_at(plot, &mut env, 0, &[]) {
+        for el in vp.path.elements() {
+            let pt = match el {
+                kurbo::PathEl::MoveTo(pt) | kurbo::PathEl::LineTo(pt) => *pt,
+                _ => continue,
+            };
+            xs.push(pt.x);
+        }
+    }
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    xs.windows(2).map(|w| w[1] - w[0]).fold(0.0_f64, f64::max)
+}
+
+/// A coarse base grid must leave visibly longer unrefined spans than a fine
+/// one — and the knob has to be what changes them.
+///
+/// Regression guard for the clamp that made `resolution` dead: the sample count
+/// was clamped by `max_depth` *before* the log2, so every request above 10
+/// collapsed onto the same 16-segment grid and rendered byte-identically. On
+/// `web/demos/epicycles` §03 that left the shallow 1/k ripple spanning whole
+/// base cells as straight chords: measured against the analytic curve, p95
+/// deviation on frame 443 was 3.96px against 1.69px on its neighbours — a
+/// 2.27px swing that is the "the curve flattens, then the flat bits jump"
+/// flicker. The fix takes the swing to 0.07px.
+#[test]
+fn coarser_resolution_leaves_longer_straight_spans() {
+    let coarse = widest_gap(&epicycles_plot(16));
+    let fine = widest_gap(&epicycles_plot(256));
+    assert!(coarse > 0.0, "coarse plot produced no spans at all");
+    assert!(
+        coarse > fine * 1.5,
+        "`resolution` did not change span length: coarse gap {coarse:.1}px vs \
+         fine gap {fine:.1}px — the clamp is back"
+    );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Test 2: blend_at_half_progress
 // ─────────────────────────────────────────────────────────────
 

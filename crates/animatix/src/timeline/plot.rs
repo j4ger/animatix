@@ -1326,6 +1326,27 @@ fn opacity_quality_factor(from: &FuncSource, to: &FuncSource) -> f64 {
     0.75_f64.powi(depth as i32 - 1)
 }
 
+/// Uniform subdivision floor for a requested base sample count.
+///
+/// The recursive samplers take a *depth* floor: they bisect until `depth`
+/// reaches it regardless of chord deviation, so the base grid holds
+/// `2^depth` segments before `tolerance` refines anything. `resolution` is a
+/// sample count — see [`scaled_plot_quality`] and
+/// `BuildQuality::scale_plot_params`, which halve and quarter it — so it
+/// converts to a depth by log2, and only the *result* is clamped by
+/// `max_depth`, the recursion cap.
+///
+/// Clamping the sample count by the cap before the log (which both call sites
+/// here and their build-time twins in `build/plot.rs` did) discarded every
+/// value above it: with the default `max_depth` of 10, `resolution: 16` and
+/// `resolution: 256` rendered byte-identical, and no quality tier could
+/// coarsen the grid either. That left a per-frame resampled curve sitting on a
+/// 16-segment base grid, where adaptive refinement flips whole subtrees on and
+/// off as a waveform scrolls through it — the visible twitch this fixes.
+pub(crate) fn base_subdivision_depth(resolution: usize, max_depth: usize) -> usize {
+    (resolution.max(2).ilog2() as usize).min(max_depth)
+}
+
 fn scaled_plot_quality(plot: &ProceduralPlot, quality_factor: f64) -> (usize, f64, usize) {
     (
         (plot.max_depth as f64 * quality_factor).max(2.0) as usize,
@@ -1513,7 +1534,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
-            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
+            base_subdivision_depth(actual_resolution, actual_max_depth),
             actual_tolerance,
             env,
             &arg_name,
@@ -1534,7 +1555,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
-            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
+            base_subdivision_depth(actual_resolution, actual_max_depth),
             actual_tolerance,
             env,
             &arg_name,
@@ -1555,7 +1576,7 @@ fn sample_curve_plot_source(
             p1,
             0,
             actual_max_depth,
-            actual_resolution.min(actual_max_depth).max(3).ilog2() as usize + 1,
+            base_subdivision_depth(actual_resolution, actual_max_depth),
             actual_tolerance,
             env,
             &arg_name,
@@ -1611,7 +1632,7 @@ fn sample_curve_plot_source(
 
 #[cfg(test)]
 mod tests {
-    use super::math_to_screen_padded;
+    use super::{base_subdivision_depth, math_to_screen_padded};
 
     /// With zero padding the formula degenerates to the original:
     /// `screen = (norm - 0.5) * size`
@@ -1668,5 +1689,27 @@ mod tests {
         // domain centre maps to x = (20 - 0) / 2 = 10
         let (sx, _) = math_to_screen_padded(0.0, 0.0, &x_domain, &y_domain, &p_size, &padding);
         assert!((sx - 10.0).abs() < 1e-10, "expected sx=10 with left-only padding, got {sx}");
+    }
+
+    #[test]
+    fn resolution_is_a_sample_count_not_a_depth() {
+        // `resolution` asks for base *segments*; the sampler wants a subdivision
+        // *depth*. Clamping the sample count by the depth cap before the log2 is
+        // what made every value above `max_depth` render identically.
+        assert_eq!(base_subdivision_depth(16, 10), 4);
+        assert_eq!(base_subdivision_depth(96, 10), 6);
+        assert_eq!(base_subdivision_depth(256, 10), 8, "log2 of the sample count");
+        // The cap still bites — but only once the *depth* exceeds it, which is
+        // where the old expression clamped the sample count instead and lost
+        // every request above `max_depth` outright.
+        assert_eq!(base_subdivision_depth(4096, 10), 10);
+        assert_eq!(base_subdivision_depth(1024, 12), 10);
+    }
+
+    #[test]
+    fn tiny_and_bogus_resolutions_stay_in_range() {
+        assert_eq!(base_subdivision_depth(0, 10), 1);
+        assert_eq!(base_subdivision_depth(1, 10), 1);
+        assert_eq!(base_subdivision_depth(2, 0), 0);
     }
 }

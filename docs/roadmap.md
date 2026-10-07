@@ -751,3 +751,40 @@ amber lollipop", blamed there on a solid fill — 440 is exactly 2× the authore
 220, i.e. this doubling. The scene's own comment states the intended semantics
 ("`ring.size = (238, 238)` on a 220 actor grows it by 18 px, not 476"), which is
 what the fix now produces.
+
+## `PlotCurve`'s `resolution` knob was dead (2026-10-07) — fixed
+
+`resolution: 16` and `resolution: 256` on the same curve rendered
+**byte-identical**. Both the build-time sampler and the per-frame resampler
+computed the subdivision floor as `resolution.max(8).min(max_depth).ilog2() + 1`
+— clamping a **sample count** by a **recursion depth** before the log. With the
+default `max_depth` of 10 that discarded every request above 10 outright, and it
+also disabled the `resolution /= 4` and `/= 2` steps in
+`BuildQuality::scale_plot_params`, so Draft and Preview could not coarsen the
+base grid either.
+
+Fixed by `base_subdivision_depth()`: log2 first, clamp by `max_depth` after.
+The declared default (96) now yields a 64-segment base grid where the clamp
+forced 16.
+
+The visible symptom was on `web/demos/epicycles` §03, reported by frame number:
+442 clean, 443 with straight chords across the harmonic ripple, 444 with those
+flat spans shifted. The shallow 1/k ripple passes the chord-deviation test whole
+on a 41px base cell, so which cells rendered as one straight segment depended on
+where the scrolling wave happened to sit — measured against the analytic curve,
+p95 deviation on 443 was 3.96px against 1.69px on its neighbours, a 2.27px
+frame-to-frame swing; the fix takes the swing to 0.07px.
+
+Two measurement traps on the way there, both worth remembering:
+
+- **Segment count is the wrong observable.** A 16-segment and a 64-segment base
+  grid both emit ~104 segments for that wave, because `tolerance` adds refinement
+  wherever the curve is steep; what differs is *where* the vertices sit. The
+  regression test guards widest inter-vertex gap, and it is verified to fail
+  (10.3px vs 10.3px) if the clamp returns.
+- **Pixel-differencing across a small time step is also blind to it.** A chord
+  replacing a shallow arc moves a 3.5px stroke by well under a pixel, so the
+  frame-to-frame changed-pixel count stayed flat (~800 at dt=8ms) across a 32×
+  range of `resolution` — and I reported "fineness is not the cause" on that
+  evidence. The artifact is low-amplitude and high-contrast: a corner where a
+  curve was. Deviation from the *analytic* function is what sees it.
