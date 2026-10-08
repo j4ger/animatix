@@ -1,26 +1,66 @@
-# Nightly — an unscheduled build of main, for when you want a binary that is not
-# a release.
+# Nightly — daily automated rolling build of main with video support.
 #
-# This is the behaviour the old `release.yml` actually had (`workflow_dispatch`,
-# Linux CLI + GUI, a `nightly-YYMMDD-HHMM` tag), split out so the file named
-# Release can mean a version. The seven `nightly-*` tags already published keep
-# their shape: same artifacts, same naming, no semver involved.
+# Runs on a schedule (daily at 02:00 UTC) and on manual dispatch.
+# A fast check job skips execution when there are no new commits on main since
+# the last successful nightly run, saving runner time.
 #
-# No gates: this builds whatever is on main, and main is green by definition of
-# having merged through ci.yml. What it adds over CI is a build with `video`,
-# which needs the FFmpeg the nix shell provides.
+# Storage-efficient rolling release: maintains a single pre-release tagged
+# `nightly` (replaces previous assets) rather than accumulating dozens of historical
+# builds in storage.
 name: Nightly
 
 on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force build even if no changes on main'
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  actions: read
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
 
 jobs:
+  check:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    permissions:
+      actions: read
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "Build forced via workflow_dispatch."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          last_sha=$(gh run list --workflow nightly.yml --status success --branch main --limit 1 --json headSha --jq '.[0].headSha')
+          if [ -n "$last_sha" ] && [ "${{ github.sha }}" = "$last_sha" ]; then
+            echo "No changes on main since last successful nightly ($last_sha)."
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "New commits detected (current: ${{ github.sha }}, last: ${last_sha:-none})."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
@@ -36,24 +76,39 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
-      - name: Tag
-        id: tag
-        run: echo "tag=nightly-$(date -u +%y%m%d-%H%M)" >> "$GITHUB_OUTPUT"
+      - name: Release details
+        id: details
+        run: echo "title=Nightly Build ($(date -u +'%Y-%m-%d %H:%M UTC'))" >> "$GITHUB_OUTPUT"
 
       # The same gate a release runs, so a nightly and a release are the same
       # build command rather than two. ANIMATIX_RELEASE_LABEL names the files
-      # `nightly-…` instead of `v0.1.0-…`, and the version/tag agreement check in
-      # dist-package.sh stays off because ANIMATIX_RELEASE_VERSION is unset.
+      # `nightly-…` instead of `v0.1.0-…`.
       - name: Build and package (video, Linux)
         env:
-          ANIMATIX_RELEASE_LABEL: ${{ steps.tag.outputs.tag }}
+          ANIMATIX_RELEASE_LABEL: nightly
         run: nix develop --command scripts/ci.sh gate dist-linux
 
-      - name: Create GitHub Release
+      # Delete previous rolling 'nightly' release and any legacy 'nightly-*' releases
+      # to reclaim storage quota before publishing the new pre-release.
+      - name: Prune previous nightly releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete nightly --cleanup-tag -y 2>/dev/null || true
+          gh release list --exclude-drafts --limit 30 --json tagName,isPrerelease \
+            --jq '.[] | select(.isPrerelease and (.tagName | startswith("nightly-"))) | .tagName' \
+            | while read -r old_tag; do
+                [ -n "$old_tag" ] || continue
+                echo "Pruning legacy nightly release: $old_tag"
+                gh release delete "$old_tag" --cleanup-tag -y || true
+              done
+
+      - name: Create GitHub Pre-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag.outputs.tag }}
-          name: ${{ steps.tag.outputs.tag }}
+          tag_name: nightly
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.details.outputs.title }}
           prerelease: true
           files: dist/*
           generate_release_notes: true
