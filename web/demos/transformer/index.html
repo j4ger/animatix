@@ -10,36 +10,53 @@
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <p class="kicker">ANIMATIX DEEP DIVE · COMPILATION-FIRST EXPLAINER</p>
-      <h1>The Transformer Architecture, Animated</h1>
-      <p class="lede">
-        Every frontier language model — GPT-4, Claude, Llama 3 — is powered by
-        one core machine repeated in a stack: the <strong>transformer block</strong>.
-        This walkthrough dissects the architecture piece by piece. Every figure
-        below is not a pre-rendered video, but a declarative <code>.amx</code> scene
-        compiled inside your browser and rendered at 60 FPS via WebGPU.
-      </p>
-
-      <div class="mental-model">
-        <div class="mental-model-title">⚡ The Core Mental Model: Tokens Flow Up</div>
-        <p>
-          Text enters at the bottom as discrete symbols, converts into high-dimensional
-          coordinate vectors, and climbs through an assembly line of identical blocks.
-          Inside each block, <strong>self-attention mixes information between tokens</strong>,
-          and the <strong>feed-forward network transforms each token on its own</strong>.
-          At the summit, the refined vector projects onto the vocabulary to predict
-          the single most probable next word.
-        </p>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX DEEP DIVE · COMPILATION-FIRST EXPLAINER</p>
+        <h1 class="hero-title">The Transformer Architecture, Animated</h1>
+        <ul class="facts">
+          <li><b>7</b> interactive scenes</li>
+          <li><b>WebGPU</b> hardware rendering</li>
+          <li><b>pkg-slim</b> runtime (~1.6 MB brotli)</li>
+          <li><b>Zero</b> video buffer lag</li>
+        </ul>
       </div>
 
-      <ul class="facts">
-        <li><b>7</b> interactive scenes</li>
-        <li><b>WebGPU</b> hardware rendering</li>
-        <li><b>pkg-slim</b> runtime (~1.6 MB brotli)</li>
-        <li><b>Zero</b> video buffer lag</li>
-      </ul>
+      <div class="hero-intro">
+        <p class="lede">
+          Every frontier language model — GPT-4, Claude, Llama 3 — is powered by
+          one core machine repeated in a stack: the <strong>transformer block</strong>.
+          This walkthrough dissects the architecture piece by piece. Every figure
+          below is a declarative <code>.amx</code> scene compiled live in your browser
+          and rendered at 60 FPS via WebGPU.
+        </p>
+      </div>
     </header>
+
+    <div class="mental-model-banner">
+      <div class="model-badge">
+        <span class="pulse-dot"></span>
+        <span>The Core Mental Model</span>
+      </div>
+      <h3 class="model-title">Tokens Flow Up</h3>
+      <p class="model-text">
+        Text enters at the bottom as discrete symbols, converts into high-dimensional
+        coordinate vectors, and climbs through an assembly line of identical blocks.
+        Inside each block, <strong>self-attention mixes context between tokens</strong>,
+        and the <strong>feed-forward network transforms each token on its own</strong>.
+        At the summit, the refined vector projects onto the vocabulary to predict
+        the single most probable next word.
+      </p>
+      <div class="model-pipeline">
+        <div class="pipeline-step"><span>01</span> Tokens</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step"><span>02</span> Embed + Pos</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step active"><span>03</span> [Attn + FFN] × N</div>
+        <div class="pipeline-arrow">→</div>
+        <div class="pipeline-step"><span>04</span> Logits</div>
+      </div>
+    </div>
 
     <figure class="hero">
       <amx-player src="scenes/overview.amx" eager autoplay loop controls hold="1.5"
