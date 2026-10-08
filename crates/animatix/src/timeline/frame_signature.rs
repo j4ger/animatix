@@ -4,14 +4,14 @@
 //! Evaluation is not where a frame costs: `sample` is ~47 µs and
 //! `build_frame_env` ~7.4 µs against a 3.4–4.1 ms web raster
 //! (`docs/performance_evaluation.md`), so the engine's existing scene cache
-//! [`crate::timeline::EvalCaches`] memoizes about one percent of the work. The
+//! `crate::timeline::EvalCaches` memoizes about one percent of the work. The
 //! raster is the other ninety-nine, and it is the part that repeats: a looping
 //! embed renders its finished frame for the whole `hold` window — measured at
 //! 13% of all ticks on the tour — and a filtered figure re-rasterizes tens of
 //! milliseconds each time to produce pixels it already has.
 //!
-//! This module is what makes that skip legal: [`FrameSignature`] names every
-//! input the presented pixels depend on, and [`FrameDedup`] remembers the last
+//! This module is what makes that skip legal: `FrameSignature` names every
+//! input the presented pixels depend on, and `FrameDedup` remembers the last
 //! one that actually reached the screen.
 
 use std::cell::RefCell;

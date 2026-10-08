@@ -81,7 +81,7 @@ jobs:
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
         uses: dtolnay/rust-toolchain@stable
       - name: Rust cache
-        if: matrix.shell == 'native'
+        if: matrix.shell == 'native' || matrix.shell == 'nix'
         uses: Swatinem/rust-cache@v2
 
       - name: Node

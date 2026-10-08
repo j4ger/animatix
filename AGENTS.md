@@ -62,8 +62,8 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
    | shell | run the gate as | provides |
    | --- | --- | --- |
-   | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks; stays off nix so `rust-cache` still works |
-   | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, `cog`, `cargo-audit` |
+   | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks (fmt, meta-version, eparts on non-Linux); stays off nix |
+   | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, Mesa/Vulkan, `cog`, `cargo-audit` |
    | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | the only toolchain with a wasm32 std |
    | `none` | anywhere | checks that need no toolchain (`content-sync`, `workflows`) |
 

@@ -5,7 +5,7 @@
 //! consumers derive their knowledge from this table — the timeline build's
 //! unknown-key warning, the composition path's scene-scoped validation, and the
 //! scope table in `docs/spec.md` (pinned by
-//! [`config_scope_table_matches_catalog`]).
+//! `config_scope_table_matches_catalog`).
 //!
 //! A key has exactly one [`ConfigScope`], which is where it is *honoured*: a
 //! key scoped to a stricter unit warns when it appears somewhere narrower (a

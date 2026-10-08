@@ -9,11 +9,11 @@
 //!
 //! ## Source & license
 //!
-//! Every entry is copied **verbatim** from a [Lucide] icon
-//! (https://github.com/lucide-icons/lucide). Lucide is distributed under the ISC
-//! license:
+//! Every entry is copied **verbatim** from a
+//! [Lucide](https://github.com/lucide-icons/lucide) icon. Lucide is
+//! distributed under the ISC license:
 //!
-//! > Copyright (c) Lucide Contributors (https://github.com/lucide-icons/lucide)
+//! > Copyright (c) Lucide Contributors (<https://github.com/lucide-icons/lucide>)
 //! >
 //! > Permission to use, copy, modify, and/or distribute this software for any
 //! > purpose with or without fee is hereby granted, provided that the above

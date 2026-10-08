@@ -3,7 +3,7 @@
 //! Layering mirrors the GUI: parse/typecheck/expand via [`animatix_syntax`]'s
 //! module system in `SourcesOnly` mode (no disk), build a `Timeline` or
 //! `Composition` through the engine's font-context-aware build entry points,
-//! and present each frame by rendering the evaluated [`vello::Scene`] straight
+//! and present each frame by rendering the evaluated `vello::Scene` straight
 //! into a WebGPU canvas surface. Video/native-plugin/export paths are not
 //! reachable from the web target.
 //!

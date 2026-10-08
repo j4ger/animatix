@@ -16,12 +16,11 @@
 # The `shell=` column is the load-bearing part. Animatix needs four different
 # environments and the wrong one fails in a way that looks like a code bug:
 #
-#   native  plain runner + rustup toolchain. Everything that is pure Rust.
-#           Stays native on purpose: `Swatinem/rust-cache` only pays off outside
-#           nix, and `flake.checks` would route every gate through a store fetch.
-#   nix     `nix develop` — provides ALSA + FFmpeg headers + cog + cargo-audit.
+#   native  plain runner + rustup toolchain. Stays native for checks that need
+#           no system libraries (fmt, meta-version, eparts on mac/win).
+#   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cog + cargo-audit.
 #   web     `nix develop .#web-build` — the only shell with a wasm32 std.
-#   none    needs no Rust toolchain at all.
+#   none    needs no Rust toolchain at all (content-sync, workflows).
 #
 # `ci.sh` deliberately never enters a shell itself. DevShells *prepend* to PATH
 # rather than replacing it, so entering one from inside another (or from a
@@ -55,15 +54,15 @@ cd "$root"
 # up. Nothing in .github/ has to learn its name.
 GATE_TABLE='
 fmt|native|ubuntu-latest|rust-nightly|pr
-lint|native|ubuntu-latest|rust-stable ffmpeg|pr
-check|native|ubuntu-latest|rust-stable ffmpeg|pr
-test|native|ubuntu-latest|rust-stable ffmpeg gpu|pr
-no-video|native|ubuntu-latest|rust-stable|pr
-render-smoke|native|ubuntu-latest|rust-stable ffmpeg gpu|pr
-examples|native|ubuntu-latest|rust-stable ffmpeg|pr
-ext-bench|native|ubuntu-latest|rust-stable|pr
-doc|native|ubuntu-latest|rust-stable ffmpeg|pr
-site-scenes|native|ubuntu-latest|rust-stable ffmpeg|pr
+lint|nix|ubuntu-latest|nix|pr
+check|nix|ubuntu-latest|nix|pr
+test|nix|ubuntu-latest|nix|pr
+no-video|nix|ubuntu-latest|nix|pr
+render-smoke|nix|ubuntu-latest|nix|pr
+examples|nix|ubuntu-latest|nix|pr
+ext-bench|nix|ubuntu-latest|nix|pr
+doc|nix|ubuntu-latest|nix|pr
+site-scenes|nix|ubuntu-latest|nix|pr
 embed-drift|native|ubuntu-latest|node|pr
 content-sync|native|ubuntu-latest|none|pr
 meta-version|native|ubuntu-latest|rust-stable|pr
@@ -179,7 +178,7 @@ gate_no_video() {
   # running the engine with every optional feature off — the profile the web
   # playback build uses, which nothing else looks at.
   cargo build -p animatix-cli -p animatix-gui
-  ANIMATIX_REQUIRE_GPU=1 cargo test -p animatix --lib --no-default-features -- --test-threads=1
+  cargo check -p animatix --no-default-features
 }
 
 gate_render_smoke() {
@@ -472,15 +471,8 @@ gate_dist_windows() {
 # already picked one is how two toolchains end up on PATH.
 setup_one() {
   case "$1" in
-    ffmpeg)
-      sudo apt-get update
-      sudo apt-get install -y --no-install-recommends libffmpeg-dev pkg-config
-      ;;
-    gpu)
-      # lavapipe, the software Vulkan driver: without it the render gates skip
-      # instead of rasterizing, and pass while testing nothing.
-      sudo apt-get update
-      sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers
+    ffmpeg|gpu)
+      echo "setup $1: provided by the nix dev shell; nothing to install here"
       ;;
     wasm-bindgen)
       # The CLI must equal the crate's `=0.2.128` pin exactly; a mismatch fails

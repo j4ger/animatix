@@ -972,8 +972,8 @@ impl RenderOutputs<'_, '_> {
 /// `ChildProcessing` value. `scene`, `hit_regions`, `program_items`, and
 /// `filter_backend` are the caller-local outputs; every other field is
 /// read-only frame state, handed to the recursion entry point
-/// (`Timeline::evaluate_node`) through [`Self::render_frame`] and
-/// [`RenderOutputs`]. The frame caches are reached through [`Self::timeline`].
+/// (`Timeline::evaluate_node`) through `Self::render_frame` and
+/// `RenderOutputs`. The frame caches are reached through `Self::timeline`.
 pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// The timeline being rendered.
     pub timeline: &'a Timeline,
