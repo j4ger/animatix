@@ -19,21 +19,11 @@
 name: Deploy site to GitHub Pages
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
     branches: [main]
-    paths:
-      # The deployed bundles embed the whole engine and the scenes import
-      # `examples/lib/*`, so any change there can change what the site renders.
-      # A filter that only watched `web/**` left the deployed site running an
-      # engine that no longer matches the source it plays.
-      - "web/**"
-      - "crates/**"
-      - "examples/**"
-      - "Cargo.lock"
-      - "Cargo.toml"
-      - "flake.nix"
-      - "scripts/**"
-      - ".github/workflows/pages.yml"
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -47,9 +37,12 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: dtolnay/rust-toolchain@stable
 
