@@ -73,6 +73,7 @@ mod position;
 pub(crate) mod property_engine;
 pub mod property_registry;
 pub mod property_track;
+pub(crate) mod scene_stats;
 pub(crate) mod taffy_layout;
 pub(crate) mod value_parser;
 
@@ -640,6 +641,8 @@ pub struct Timeline {
     /// O(declarations²) into O(declarations × referenced). `None` disables
     /// filtering (inject everything) for Timelines built without an AST scan.
     pub(crate) referenced_roots: Option<std::collections::HashSet<String>>,
+    /// Whether any expression in the scene references `scene.stats` (STAT-1).
+    pub(crate) stats_used: bool,
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
@@ -908,6 +911,7 @@ impl Timeline {
             camera_exempt_present: std::cell::Cell::new(false),
             variable_tracks: BTreeMap::new(),
             referenced_roots: None,
+            stats_used: false,
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),

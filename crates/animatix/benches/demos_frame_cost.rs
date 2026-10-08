@@ -143,7 +143,7 @@ fn bench_demo_frame_cost(c: &mut Criterion) {
             let _ = render_frame(&target, &mut renderer, FRAME_TIME_S);
             let mut stages: Vec<(String, std::time::Duration)> =
                 animatix::perf::take_measurements();
-            stages.sort_by(|a, b| b.1.cmp(&a.1));
+            stages.sort_by_key(|b| std::cmp::Reverse(b.1));
             for (stage, dur) in stages {
                 eprintln!("[stage] {name} {stage} = {:.3} ms", dur.as_secs_f64() * 1000.0);
             }

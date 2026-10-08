@@ -113,7 +113,7 @@ fn prettify_label(label: &str) -> String {
 }
 
 /// Returns `true` when a shape is sized to fill the full viewport.
-fn is_full_viewport_background(track: &super::AnimationTrack) -> bool {
+pub(crate) fn is_full_viewport_background(track: &super::AnimationTrack) -> bool {
     use crate::timeline::taffy_layout::SizeSpec;
     let full = |spec: SizeSpec| match spec {
         SizeSpec::Fill => true,

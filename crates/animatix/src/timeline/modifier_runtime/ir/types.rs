@@ -68,6 +68,10 @@ pub enum BuiltinFn {
     Factorial,
     /// Sum of a list of numbers.
     SumList,
+    /// Sample a piecewise-linear curve at time t.
+    CurveAt,
+    /// Analytically smooth a curve with exponential filter kernel tau.
+    CurveSmooth,
 }
 
 /// A compiled expression in the modifier IR.

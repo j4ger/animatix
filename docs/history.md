@@ -2560,3 +2560,28 @@ and `webbrowser` were lifted by `cargo update`, and the remaining two (`quick-xm
 two versions, pinned by `citationberg`/`plist`/`wayland-scanner`) are recorded with
 their reasons in `scripts/audit-allow.txt`, which the gate prints on every run and
 refuses to accept an unannotated line for.
+
+---
+
+### STAT-1 — Scene Statistics & Analytical Curves (2026-10-08)
+
+Source of truth: `docs/scene_stats.md`. Scenes can now react to their own composition
+without frame-time accumulators or GPU readbacks:
+- **Build-time bake pass** (`crates/animatix/src/timeline/scene_stats.rs`): bakes
+  piecewise-linear scalar signals (`scene.stats.motion`, `scene.stats.ink`,
+  `scene.stats.focus_x`, `scene.stats.focus_y`, `scene.stats.spread_x`,
+  `scene.stats.spread_y`, `scene.stats.cast`) into `timeline.env` as immutable base-layer
+  values (`Value::List`) before freezing `env_base`.
+- **Optimization & gating**: Adaptive stride (32–256 points), 3-point smoothing, and
+  RDP simplification (0.5% tolerance) keep curves to tens of points. Gated on textual
+  reference (`stats_used` via `scan_references`), incurring zero overhead when unused.
+- **Analytical curve builtins** (`curve_at`, `curve_smooth`): fast path with AST and IR
+  evaluator parity. `curve_smooth` evaluates the exact closed-form 1-pole exponential
+  response across linear segments in $O(\log P)$ time with zero per-frame heap allocation.
+  Circular window wrapping on seamless loops prevents edge transient jumps, with
+  seamless-loop endpoint verification in build diagnostics.
+- **Exclusion of full-viewport backgrounds**: Automatically filters out viewport-filling
+  plates (`size: (fill, fill)` or `(100%, 100%)`) using `is_full_viewport_background`.
+- **Ambience recipe & demo**: `examples/lib/ambience.amx` exports `Ambience` and
+  standalone recipe; `examples/animation/39_ambience.amx` demonstrates reactive lighting
+  following moving actors. Added to `bundled_library()` in `animatix-web` for browser parity.

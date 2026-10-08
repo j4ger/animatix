@@ -323,6 +323,8 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         // time with UndefinedVariable. The ir_tests parity suite guards this.
         "factorial" => Some(BuiltinFn::Factorial),
         "sum" => Some(BuiltinFn::SumList),
+        "curve_at" => Some(BuiltinFn::CurveAt),
+        "curve_smooth" => Some(BuiltinFn::CurveSmooth),
         _ => None,
     }
 }

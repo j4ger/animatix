@@ -2111,7 +2111,7 @@ func: (x) => {
 }
 ```
 
-**Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `atan2(y, x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `pow(x, y)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `hypot(a, b)`, `floor(x)`, `ceil(x)`, `round(x)`, `fract(x)`, `rem(a, b)`, `signum(x)`, `step(edge, x)`, `clamp(val, min, max)`, `lerp(a, b, t)`, `deg(x)`, `rad(x)`, `sum(list)`, `factorial(n)`, `rand()`, `seeded_rand(seed)`, `format("template {}", value, ...)`
+**Built-in math:** `sin(x)`, `cos(x)`, `tan(x)`, `atan2(y, x)`, `sqrt(x)`, `exp(x)`, `ln(x)`, `pow(x, y)`, `abs(x)`, `min(a, b)`, `max(a, b)`, `hypot(a, b)`, `floor(x)`, `ceil(x)`, `round(x)`, `fract(x)`, `rem(a, b)`, `signum(x)`, `step(edge, x)`, `clamp(val, min, max)`, `lerp(a, b, t)`, `deg(x)`, `rad(x)`, `sum(list)`, `factorial(n)`, `rand()`, `seeded_rand(seed)`, `curve_at(c, t)`, `curve_smooth(c, t, tau)`, `format("template {}", value, ...)`
 
 **Series helpers:**
 - `factorial(n)` — factorial of a non-negative integer (`170` max before overflow); non-integer or negative arguments are errors.
@@ -2123,6 +2123,20 @@ func: (x) => {
   ```animatix
   func: (x) => sum_range((k) => (-1)^k * x^(2*k + 1) / factorial(2*k + 1), 0, floor((n - 1) / 2))
   ```
+
+**Analytical curve helpers & scene statistics (STAT-1):**
+- `curve_at(c, t)` — samples a piecewise-linear curve represented as a flat interleaved list `[t0, v0, t1, v1, ...]`. Uses binary search and clamps at endpoints (`t <= t0` → `v0`, `t >= tN` → `vN`).
+- `curve_smooth(c, t, tau)` — evaluates the exact analytical 1-pole exponential response $y(t) = \frac{1}{\tau}\int_{t-5\tau}^t e^{-(t-u)/\tau} c(u) \, du$ over the linear segments in the smoothing window. When $v_0 == v_N$ on a seamless loop, the window wraps circularly to avoid transient edge jumps. When $\tau \le 0$, evaluates `curve_at(c, t)` directly.
+
+**Scene Statistics (`scene.stats.*`):**
+When referenced in any expression, the compiler bakes low-frequency piecewise-linear signals into the base environment:
+- `scene.stats.motion` — instantaneous activity normalized by canvas area and duration: $\sum \|p_i'(t)\| \cdot s_i.w \cdot s_i.h \cdot o_i / (\text{canvas} \cdot \text{duration})$.
+- `scene.stats.ink` — total visible content coverage: $\sum s_i.w \cdot s_i.h \cdot o_i / \text{canvas\_area}$.
+- `scene.stats.focus_x`, `scene.stats.focus_y` — area-and-opacity-weighted centroid of active actors.
+- `scene.stats.spread_x`, `scene.stats.spread_y` — weighted RMS distance from `focus`, normalized to canvas dimensions.
+- `scene.stats.cast` — count of visible actors ($o_i(t) > 0$) at time $t$.
+
+Full-viewport background shapes (`size: (fill, fill)` or `(100%, 100%)`) are automatically excluded. Seamless loop scenes (`seamless_loop: true`) pin start and end values ($v_0 == v_N$) and verify closure. Unreferenced scenes pay zero build or frame-time overhead.
 
 **Built-in constants:** `pi` (π), `tau` / `two_pi` (2π), `e` (Euler's number), `PI`, `TAU`, `E` (uppercase aliases).
 

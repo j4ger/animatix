@@ -45,6 +45,8 @@ mod plot_transitions;
 #[cfg(test)]
 mod scene_eval;
 #[cfg(test)]
+mod scene_stats;
+#[cfg(test)]
 mod solo;
 #[cfg(test)]
 mod taffy_layout;

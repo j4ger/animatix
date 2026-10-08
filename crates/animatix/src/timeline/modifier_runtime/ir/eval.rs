@@ -91,6 +91,8 @@ pub(crate) fn evaluate_compiled_expr(
                 BuiltinFn::Round => "round",
                 BuiltinFn::Factorial => "factorial",
                 BuiltinFn::SumList => "sum",
+                BuiltinFn::CurveAt => "curve_at",
+                BuiltinFn::CurveSmooth => "curve_smooth",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         },

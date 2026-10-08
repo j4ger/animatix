@@ -1194,3 +1194,35 @@ fn color_builtins_accept_color_strings() {
     );
     assert!(bad.is_err(), "an unresolvable color string must error, not silently gray");
 }
+
+#[test]
+fn curve_at_and_curve_smooth_agree_between_ir_and_ast() {
+    let curve_expr = Expr::List(vec![
+        Expr::Num(0.0),
+        Expr::Num(10.0),
+        Expr::Num(1.0),
+        Expr::Num(20.0),
+        Expr::Num(3.0),
+        Expr::Num(50.0),
+    ]);
+
+    let cases = vec![
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(0.5)]),
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(2.0)]),
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(-1.0)]),
+        Expr::Call(
+            "curve_smooth".to_string(),
+            vec![curve_expr.clone(), Expr::Num(1.5), Expr::Num(0.6)],
+        ),
+        Expr::Call("curve_smooth".to_string(), vec![curve_expr, Expr::Num(2.0), Expr::Num(0.0)]),
+    ];
+
+    for expr in &cases {
+        let compiled = compile_expr(expr).expect("curve builtin call should compile");
+        let mut env = Environment::new();
+        load_standard_library(&mut env);
+        let ir_value = evaluate_modifier_via_ir(compiled, &mut env);
+        let ast_value = evaluate_expr(expr, &env).expect("ast eval should work");
+        assert_eq!(ir_value, ast_value, "IR and AST disagree for {expr:?}");
+    }
+}

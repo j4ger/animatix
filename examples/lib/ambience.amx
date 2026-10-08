@@ -1,0 +1,43 @@
+// ambience.amx — Reactive dynamic background shading driven by scene statistics.
+//
+// Background:
+// Scenes cannot traditionally see themselves without GPU readbacks or stateful
+// accumulators. Animatix STAT-1 solves this by computing scene statistics at build time
+// (scene.stats.motion, focus_x/y, spread_x/y, cast) as piecewise-linear curves, and
+// evaluating smoothed responses analytically via `curve_smooth` with zero GPU readback
+// and zero per-frame CPU allocation overhead.
+//
+// Usage as an imported component:
+//   import "lib/ambience.amx" as amb
+//   bg: amb.Ambience(tint: rgb(0.37, 0.36, 0.90), base_opacity: 0.18, tau: 0.7)
+//
+// Usage as a standalone inline recipe:
+//   plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0
+//   wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen",
+//     fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (100%, "#f5b94200")}),
+//     anchor: scene.center
+//   always {
+//     let e = curve_smooth(scene.stats.motion, t, 0.7)
+//     let fx = curve_smooth(scene.stats.focus_x, t, 1.2)
+//     let sx = curve_smooth(scene.stats.spread_x, t, 1.0)
+//     wash.at = (fx, scene_height * 0.5)
+//     wash.size = (600 + 600 * sx, 600 + 600 * sx)
+//     wash.opacity = clamp(0.06 + 0.5 * e, 0.02, 0.30)
+//   }
+
+pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7) {
+  plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0
+
+  wash: Ellipse, size: (900, 900), opacity: base_opacity, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (100%, (0, 0, 0, 0))}),
+    anchor: scene.center
+
+  always {
+    let e = curve_smooth(scene.stats.motion, t, tau)
+    let fx = curve_smooth(scene.stats.focus_x, t, tau * 1.5)
+    let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
+    self.wash.at = (fx, scene_height * 0.5)
+    self.wash.size = (600 + 600 * sx, 600 + 600 * sx)
+    self.wash.opacity = clamp(base_opacity * (0.5 + 1.5 * e), 0.02, 0.45)
+  }
+}

@@ -394,7 +394,9 @@ impl Timeline {
         // Pre-scan the program for actor labels referenced by expressions so
         // build_eval_env injects only those actors' properties (see
         // build::referenced_roots for the safety argument).
-        timeline.referenced_roots = Some(super::referenced_roots::collect_referenced_roots(ast));
+        let (roots, stats_used) = super::referenced_roots::scan_references(ast);
+        timeline.referenced_roots = Some(roots);
+        timeline.stats_used = stats_used;
         timeline.build_quality = build_quality;
         timeline.extensions = extensions;
         if let Some(registry) = primitive_registry {
@@ -700,6 +702,12 @@ impl Timeline {
             }
         }
 
+        // Bake scene statistics (STAT-1) before loop seam check and before
+        // env_base is frozen.
+        if timeline.stats_used {
+            crate::timeline::scene_stats::bake_scene_stats(&mut timeline);
+        }
+
         // Loop seam check. A scene that declares `config { seamless_loop: true }`
         // is replayed end-to-start, so any keyframed value that differs between
         // the first and last frame shows up as a jump every cycle — the single
@@ -744,6 +752,34 @@ impl Timeline {
                     for (axis, first, last) in timeline.camera.seam_pairs(0, end_ms) {
                         if !crate::timeline::values_wrap(&first, &last) {
                             broken.push(format!("`{axis}`"));
+                        }
+                    }
+                }
+                // Baked scene statistics are data, so check that they wrap cleanly.
+                if timeline.stats_used {
+                    for key in [
+                        "scene.stats.motion",
+                        "scene.stats.ink",
+                        "scene.stats.focus_x",
+                        "scene.stats.focus_y",
+                        "scene.stats.spread_x",
+                        "scene.stats.spread_y",
+                        "scene.stats.cast",
+                    ] {
+                        if let Some(val) = timeline.env.get(key) {
+                            let first = crate::timeline::eval_shared::eval_builtin_fn(
+                                "curve_at",
+                                &[val.clone(), Value::Num(0.0)],
+                            );
+                            let last = crate::timeline::eval_shared::eval_builtin_fn(
+                                "curve_at",
+                                &[val.clone(), Value::Num(timeline.duration_seconds())],
+                            );
+                            if let (Ok(f), Ok(l)) = (first, last) {
+                                if (f.as_num() - l.as_num()).abs() > 1e-3 {
+                                    broken.push(format!("`{key}`"));
+                                }
+                            }
                         }
                     }
                 }

@@ -40,6 +40,7 @@ pub const ENTRY_PATH: &str = "main.amx";
 /// it at compile time: the embedded text is part of the artifact's fingerprint.
 const BUNDLED_LIBRARY: &[(&str, &str)] = &[
     ("../lib/actions.amx", include_str!("../../../examples/lib/actions.amx")),
+    ("../lib/ambience.amx", include_str!("../../../examples/lib/ambience.amx")),
     ("../lib/card.amx", include_str!("../../../examples/lib/card.amx")),
     ("../lib/charts.amx", include_str!("../../../examples/lib/charts.amx")),
     (

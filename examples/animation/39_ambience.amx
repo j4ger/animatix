@@ -1,0 +1,40 @@
+// 39_ambience.amx — Reactive dynamic background shading driven by scene statistics (STAT-1).
+//
+// Demonstrates:
+//   - Analytical scene statistics computed at build time (`scene.stats.motion`,
+//     `scene.stats.focus_x`, `scene.stats.spread_x`)
+//   - The `curve_smooth` builtin evaluating exact one-pole exponential responses
+//     without frame-to-frame state or GPU readbacks
+//   - An ambient light wash that tracks actor movement, expands as the cast spreads out,
+//     and brightens during energetic action
+//   - Seamless loop compatibility: endpoint pinning and circular filter wrapping
+
+import "../lib/theme.amx"
+import "../lib/ambience.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 6, seamless_loop: true }
+
+bg: Ambience, tint: rgb(1.0, 0.62, 0.04), base_opacity: 0.22, tau: 0.5
+
+hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1.0
+satellite: Rect, size: (70, 70), corner_radius: 12, color: accent.secondary, at: (960, 360), opacity: 1.0
+
+#0s
+hero.at = (320, 360)
+satellite.at = (960, 360)
+
+#1.5s
+hero.at = (640, 240)
+satellite.at = (640, 480)
+
+#3s
+hero.at = (960, 360)
+satellite.at = (320, 360)
+
+#4.5s
+hero.at = (640, 480)
+satellite.at = (640, 240)
+
+#6s
+hero.at = (320, 360)
+satellite.at = (960, 360)

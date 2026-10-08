@@ -95,6 +95,8 @@ pub const MATH_FUNCTIONS: &[&str] = &[
     "clamp",
     "ceil",
     "cos",
+    "curve_at",
+    "curve_smooth",
     "deg",
     "deg_to_rad",
     "exp",

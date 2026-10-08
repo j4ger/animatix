@@ -29,73 +29,83 @@ fn normalize_root(name: &str) -> String {
     }
 }
 
-fn collect_expr_roots(expr: &Expr, roots: &mut HashSet<String>) {
+fn collect_expr_roots(expr: &Expr, roots: &mut HashSet<String>, stats_used: &mut bool) {
     match expr {
         Expr::Num(_) | Expr::Percent(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Null => {},
         Expr::Ident(name) => {
+            if name.starts_with("scene.stats") {
+                *stats_used = true;
+            }
             roots.insert(normalize_root(name));
         },
         Expr::Path(parts) => {
+            if parts.len() >= 2 && parts[0] == "scene" && parts[1] == "stats" {
+                *stats_used = true;
+            }
             if let Some(first) = parts.first() {
                 roots.insert(normalize_root(first));
             }
         },
         Expr::Index(container, index) => {
-            collect_expr_roots(container, roots);
-            collect_expr_roots(index, roots);
+            collect_expr_roots(container, roots, stats_used);
+            collect_expr_roots(index, roots, stats_used);
         },
         Expr::Tuple(items) | Expr::List(items) => {
             for item in items {
-                collect_expr_roots(item, roots);
+                collect_expr_roots(item, roots, stats_used);
             }
         },
         Expr::Binary(a, _, b) => {
-            collect_expr_roots(a, roots);
-            collect_expr_roots(b, roots);
+            collect_expr_roots(a, roots, stats_used);
+            collect_expr_roots(b, roots, stats_used);
         },
-        Expr::Unary(_, e) => collect_expr_roots(e, roots),
+        Expr::Unary(_, e) => collect_expr_roots(e, roots, stats_used),
         // The function name resolves against the stdlib / user fns in the base
         // environment, not against actor tracks; arguments may reference actors.
         Expr::Call(_, args) => {
             for arg in args {
-                collect_expr_roots(arg, roots);
+                collect_expr_roots(arg, roots, stats_used);
             }
         },
         Expr::Method(receiver, _, args) => {
-            collect_expr_roots(receiver, roots);
+            collect_expr_roots(receiver, roots, stats_used);
             for arg in args {
-                collect_expr_roots(arg, roots);
+                collect_expr_roots(arg, roots, stats_used);
             }
         },
-        Expr::Closure(_, body) => collect_expr_roots(body, roots),
+        Expr::Closure(_, body) => collect_expr_roots(body, roots, stats_used),
         Expr::LetChain(bindings, tail) => {
             for (_, value) in bindings {
-                collect_expr_roots(value, roots);
+                collect_expr_roots(value, roots, stats_used);
             }
-            collect_expr_roots(tail, roots);
+            collect_expr_roots(tail, roots, stats_used);
         },
         Expr::Conditional(condition, then_expr, else_expr) => {
-            collect_expr_roots(condition, roots);
-            collect_expr_roots(then_expr, roots);
-            collect_expr_roots(else_expr, roots);
+            collect_expr_roots(condition, roots, stats_used);
+            collect_expr_roots(then_expr, roots, stats_used);
+            collect_expr_roots(else_expr, roots, stats_used);
         },
         Expr::Match(scrutinee, arms) => {
-            collect_expr_roots(scrutinee, roots);
+            collect_expr_roots(scrutinee, roots, stats_used);
             for (_, body) in arms {
-                collect_expr_roots(body, roots);
+                collect_expr_roots(body, roots, stats_used);
             }
         },
-        Expr::Construct(_, props) => collect_property_roots(props, roots),
+        Expr::Construct(_, props) => collect_property_roots(props, roots, stats_used),
     }
 }
 
-fn collect_property_roots(props: &[Property], roots: &mut HashSet<String>) {
+fn collect_property_roots(props: &[Property], roots: &mut HashSet<String>, stats_used: &mut bool) {
     for prop in props {
-        collect_expr_roots(&prop.value, roots);
+        collect_expr_roots(&prop.value, roots, stats_used);
     }
 }
 
-fn collect_target_roots(target: &[TargetSegment], roots: &mut HashSet<String>) {
+fn collect_target_roots(
+    target: &[TargetSegment],
+    roots: &mut HashSet<String>,
+    stats_used: &mut bool,
+) {
     for segment in target {
         match segment {
             TargetSegment::Static(name) => {
@@ -103,13 +113,17 @@ fn collect_target_roots(target: &[TargetSegment], roots: &mut HashSet<String>) {
             },
             TargetSegment::Indexed { base, index } => {
                 roots.insert(normalize_root(base));
-                collect_expr_roots(index, roots);
+                collect_expr_roots(index, roots, stats_used);
             },
         }
     }
 }
 
-fn collect_inline_item_roots(items: &[InlineItem], roots: &mut HashSet<String>) {
+fn collect_inline_item_roots(
+    items: &[InlineItem],
+    roots: &mut HashSet<String>,
+    stats_used: &mut bool,
+) {
     for item in items {
         match item {
             InlineItem::Anonymous {
@@ -118,11 +132,11 @@ fn collect_inline_item_roots(items: &[InlineItem], roots: &mut HashSet<String>) 
                 children,
                 ..
             } => {
-                collect_property_roots(props, roots);
+                collect_property_roots(props, roots, stats_used);
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
-                collect_inline_item_roots(children, roots);
+                collect_inline_item_roots(children, roots, stats_used);
             },
             InlineItem::Labeled {
                 array_index,
@@ -132,26 +146,28 @@ fn collect_inline_item_roots(items: &[InlineItem], roots: &mut HashSet<String>) 
                 ..
             } => {
                 if let Some(index) = array_index {
-                    collect_expr_roots(index, roots);
+                    collect_expr_roots(index, roots, stats_used);
                 }
-                collect_property_roots(props, roots);
+                collect_property_roots(props, roots, stats_used);
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
-                collect_inline_item_roots(children, roots);
+                collect_inline_item_roots(children, roots, stats_used);
             },
             InlineItem::ForLoop { iterable, body, .. } => {
-                collect_expr_roots(iterable, roots);
-                collect_inline_item_roots(body, roots);
+                collect_expr_roots(iterable, roots, stats_used);
+                collect_inline_item_roots(body, roots, stats_used);
             },
             // A slot marker references no actors; fills carry the slotted items.
             InlineItem::SlotMarker => {},
-            InlineItem::SlotFill { items, .. } => collect_inline_item_roots(items, roots),
+            InlineItem::SlotFill { items, .. } => {
+                collect_inline_item_roots(items, roots, stats_used)
+            },
         }
     }
 }
 
-fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
+fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>, stats_used: &mut bool) {
     for stmt in stmts {
         match stmt {
             Stmt::Action(action, _) => {
@@ -160,13 +176,13 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                     roots.insert(normalize_root(target));
                 }
                 for index in action.target_index.iter().flatten() {
-                    collect_expr_roots(index, roots);
+                    collect_expr_roots(index, roots, stats_used);
                 }
                 for arg in &action.args {
-                    collect_expr_roots(arg, roots);
+                    collect_expr_roots(arg, roots, stats_used);
                 }
             },
-            Stmt::LetDecl { value, .. } => collect_expr_roots(value, roots),
+            Stmt::LetDecl { value, .. } => collect_expr_roots(value, roots, stats_used),
             Stmt::ActorDecl {
                 array_index,
                 props,
@@ -175,19 +191,19 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                 ..
             } => {
                 if let Some(index) = array_index {
-                    collect_expr_roots(index, roots);
+                    collect_expr_roots(index, roots, stats_used);
                 }
-                collect_property_roots(props, roots);
+                collect_property_roots(props, roots, stats_used);
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
-                collect_inline_item_roots(children, roots);
+                collect_inline_item_roots(children, roots, stats_used);
             },
             // Type aliases, imports, and comments carry no expressions that
             // resolve against actor tracks.
             Stmt::TypeAlias { .. } | Stmt::Import { .. } | Stmt::Comment(..) => {},
             Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-                collect_stmt_roots(body, roots);
+                collect_stmt_roots(body, roots, stats_used);
             },
             Stmt::Assignment {
                 target,
@@ -195,22 +211,22 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                 modifiers,
                 ..
             } => {
-                collect_target_roots(target, roots);
-                collect_expr_roots(value, roots);
+                collect_target_roots(target, roots, stats_used);
+                collect_expr_roots(value, roots, stats_used);
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
             },
             Stmt::Sequence { body, .. } | Stmt::Always { body, .. } => {
-                collect_stmt_roots(body, roots);
+                collect_stmt_roots(body, roots, stats_used);
             },
             Stmt::Stagger {
                 modifiers, body, ..
             } => {
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
-                collect_stmt_roots(body, roots);
+                collect_stmt_roots(body, roots, stats_used);
             },
             Stmt::ReactiveBinding {
                 target,
@@ -219,8 +235,8 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                 value_span: _,
                 span: _,
             } => {
-                collect_target_roots(target, roots);
-                collect_expr_roots(value, roots);
+                collect_target_roots(target, roots, stats_used);
+                collect_expr_roots(value, roots, stats_used);
             },
             Stmt::Conditional {
                 condition,
@@ -228,18 +244,18 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                 else_branch,
                 ..
             } => {
-                collect_expr_roots(condition, roots);
-                collect_stmt_roots(then_branch, roots);
+                collect_expr_roots(condition, roots, stats_used);
+                collect_stmt_roots(then_branch, roots, stats_used);
                 if let Some(else_branch) = else_branch {
-                    collect_stmt_roots(else_branch, roots);
+                    collect_stmt_roots(else_branch, roots, stats_used);
                 }
             },
             Stmt::Match {
                 scrutinee, arms, ..
             } => {
-                collect_expr_roots(scrutinee, roots);
+                collect_expr_roots(scrutinee, roots, stats_used);
                 for (_, body) in arms {
-                    collect_stmt_roots(body, roots);
+                    collect_stmt_roots(body, roots, stats_used);
                 }
             },
             Stmt::ForLoop {
@@ -248,25 +264,25 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
                 modifiers,
                 ..
             } => {
-                collect_expr_roots(iterable, roots);
+                collect_expr_roots(iterable, roots, stats_used);
                 for modifier in modifiers {
-                    collect_expr_roots(&modifier.value, roots);
+                    collect_expr_roots(&modifier.value, roots, stats_used);
                 }
-                collect_stmt_roots(body, roots);
+                collect_stmt_roots(body, roots, stats_used);
             },
-            Stmt::ComponentDef(def, _) => collect_stmt_roots(&def.body, roots),
-            Stmt::FnDecl { body, .. } => collect_stmt_roots(body, roots),
-            Stmt::Block { body, .. } => collect_stmt_roots(body, roots),
+            Stmt::ComponentDef(def, _) => collect_stmt_roots(&def.body, roots, stats_used),
+            Stmt::FnDecl { body, .. } => collect_stmt_roots(body, roots, stats_used),
+            Stmt::Block { body, .. } => collect_stmt_roots(body, roots, stats_used),
             Stmt::Return { value, .. } => {
                 if let Some(value) = value {
-                    collect_expr_roots(value, roots);
+                    collect_expr_roots(value, roots, stats_used);
                 }
             },
-            Stmt::Expr(expr, _) => collect_expr_roots(expr, roots),
-            Stmt::Config { settings, .. } => collect_property_roots(settings, roots),
+            Stmt::Expr(expr, _) => collect_expr_roots(expr, roots, stats_used),
+            Stmt::Config { settings, .. } => collect_property_roots(settings, roots, stats_used),
             Stmt::Scene { config, body, .. } => {
-                collect_property_roots(config, roots);
-                collect_stmt_roots(body, roots);
+                collect_property_roots(config, roots, stats_used);
+                collect_stmt_roots(body, roots, stats_used);
             },
             // Play transitions are static scene-graph metadata.
             Stmt::Play { .. } => {},
@@ -274,11 +290,19 @@ fn collect_stmt_roots(stmts: &[Stmt], roots: &mut HashSet<String>) {
     }
 }
 
-/// Collect every actor label root referenced by any expression in `stmts`.
-pub(crate) fn collect_referenced_roots(stmts: &[Stmt]) -> HashSet<String> {
+/// Collect every actor label root referenced by any expression in `stmts`,
+/// and whether `scene.stats.*` was referenced.
+pub(crate) fn scan_references(stmts: &[Stmt]) -> (HashSet<String>, bool) {
     let mut roots = HashSet::new();
-    collect_stmt_roots(stmts, &mut roots);
-    roots
+    let mut stats_used = false;
+    collect_stmt_roots(stmts, &mut roots, &mut stats_used);
+    (roots, stats_used)
+}
+
+/// Collect every actor label root referenced by any expression in `stmts`.
+#[cfg(test)]
+pub(crate) fn collect_referenced_roots(stmts: &[Stmt]) -> HashSet<String> {
+    scan_references(stmts).0
 }
 
 #[cfg(test)]

@@ -458,6 +458,7 @@ impl TypeEnv {
                 },
                 Some("width") | Some("height") => Some(Type::Num),
                 Some("background") => Some(Type::Color),
+                Some("stats") => Some(Type::List(Box::new(Type::Num))),
                 _ => None,
             };
         }
@@ -844,6 +845,17 @@ mod tests {
         }
         let scene = Expr::Path(vec!["scene".to_string(), "background".to_string()]);
         assert_eq!(infer_expr_type(&scene, &env), Type::Color);
+        let stats = Expr::Path(vec![
+            "scene".to_string(),
+            "stats".to_string(),
+            "motion".to_string(),
+        ]);
+        assert_eq!(infer_expr_type(&stats, &env), Type::List(Box::new(Type::Num)));
+        let curve_call = Expr::Call("curve_at".to_string(), vec![stats.clone(), Expr::Num(0.5)]);
+        assert_eq!(infer_expr_type(&curve_call, &env), Type::Num);
+        let smooth_call =
+            Expr::Call("curve_smooth".to_string(), vec![stats, Expr::Num(0.5), Expr::Num(0.7)]);
+        assert_eq!(infer_expr_type(&smooth_call, &env), Type::Num);
     }
 
     #[test]

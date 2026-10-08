@@ -294,7 +294,7 @@ impl BuiltinAction for Bounce {
         let first_airtime = if hops == 0 {
             0.0
         } else {
-            duration_ms as f64 * f64::from(1.0 - restitution)
+            duration_ms * f64::from(1.0 - restitution)
                 / f64::from(1.0 - restitution.powi(hops as i32))
         };
 
