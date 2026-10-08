@@ -77,7 +77,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: plan
         run: echo "matrix=$(scripts/ci.sh --matrix release)" >> "$GITHUB_OUTPUT"
 
@@ -91,7 +91,8 @@ jobs:
     env:
       ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        name: Checkout
       - name: Install Nix
         if: matrix.shell == 'nix'
         uses: DeterminateSystems/determinate-nix-action@v3
@@ -117,7 +118,7 @@ jobs:
             *)   scripts/ci.sh gate "$GATE" ;;
           esac
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: artifact-${{ matrix.gate }}
           path: dist/
@@ -132,7 +133,7 @@ jobs:
     env:
       ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
@@ -144,7 +145,7 @@ jobs:
       - name: Package site + wasm
         run: scripts/ci.sh gate site-artifact dist-site dist-wasm
       - name: Upload
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: artifact-site
           path: |
@@ -157,14 +158,14 @@ jobs:
     needs: [version, dist, site]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
         uses: DeterminateSystems/flakehub-cache-action@v3
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: artifact-*
           path: out
@@ -198,7 +199,7 @@ jobs:
             nix develop --command cog changelog --at "$VERSION"
           } > RELEASE_BODY.md
       - name: Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.version.outputs.version }}
           body_path: RELEASE_BODY.md

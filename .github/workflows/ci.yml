@@ -40,7 +40,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: plan
         # pr-stage only. The release-stage rows (dist-linux, dist-macos,
         # dist-windows) build the shippable binaries — running them here would
@@ -55,7 +55,7 @@ jobs:
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # `commit` walks the history since the last tag; the others do not care,
           # and fetching it for all of them is cheaper than a conditional that a
@@ -86,7 +86,7 @@ jobs:
 
       - name: Node
         if: contains(matrix.setup, 'node')
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
