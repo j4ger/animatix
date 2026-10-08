@@ -109,7 +109,11 @@ elif command -v nix >/dev/null 2>&1; then
 fi
 
 if [ "${brotli_avail:-false}" = true ]; then
-  br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q 11 -f -k "$1"; else brotli -q 11 -f -k "$1"; fi; }
+  br_level=11
+  if [ "$out_profile" = "debug" ]; then
+    br_level=1
+  fi
+  br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q "$br_level" -f -k "$1"; else brotli -q "$br_level" -f -k "$1"; fi; }
   for f in "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web.js"; do
     [ -f "$f" ] && br "$f"
   done

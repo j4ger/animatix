@@ -404,6 +404,7 @@ class AmxPlayerElement extends HTMLElement {
       this._initialized = true;
       this._renderSkeleton();
       this._setupObserver();
+      if (this.hasAttribute("eager")) this.loadNow();
       return;
     }
     // Re-attached after a DOM move — a live editor re-parents figures, and
@@ -430,6 +431,11 @@ class AmxPlayerElement extends HTMLElement {
     // here would make that re-arm dead code and silently freeze the figure.
     // A re-attached player re-arms the visibility observer, which re-queues the
     // load if it had not started yet.
+  }
+
+  loadNow() {
+    this._visible = true;
+    if (this._state === "idle") this._maybeStartLoading();
   }
 
   attributeChangedCallback(name) {
@@ -917,7 +923,10 @@ class AmxPlayerElement extends HTMLElement {
     this._state = "loading";
     if (!("gpu" in navigator)) {
       this._state = "error";
-      this._showVeil("This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).", true);
+      const msg = "This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).";
+      console.warn(`amx-player: ${msg}`);
+      this._showVeil(msg, true);
+      this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, error: "WebGPU unsupported" } }));
       return;
     }
     try {
@@ -945,7 +954,10 @@ class AmxPlayerElement extends HTMLElement {
       if (!result.ok) {
         this._state = "error";
         const first = errors[0] ?? diags[0];
-        this._showVeil(`Scene error${first?.line ? ` (line ${first.line})` : ""}: ${first?.message ?? "build failed"}`, true);
+        const msg = `Scene error${first?.line ? ` (line ${first.line})` : ""}: ${first?.message ?? "build failed"}`;
+        console.error(`amx-player: ${msg} [src="${src}"]`, diags);
+        this._showVeil(msg, true);
+        this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, diagnostics: diags, message: msg } }));
         return;
       }
 
@@ -1001,7 +1013,9 @@ class AmxPlayerElement extends HTMLElement {
       this.dispatchEvent(new CustomEvent("amxready", { bubbles: true }));
     } catch (err) {
       this._state = "error";
+      console.error(`amx-player: failed to load scene "${src}":`, err);
       this._showVeil(`Failed to load scene: ${err?.message ?? err}`, true);
+      this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, error: err } }));
     }
   }
 
