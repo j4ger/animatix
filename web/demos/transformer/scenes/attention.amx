@@ -51,10 +51,10 @@ query_tag: Text, text: "query", font_size: 14, color: accent.warning, at: (1000,
 // visible from frame 0 whatever entrance follows — and settle via assignment.
 a_animal: Arrow, from: (965, 224), to: (460, 312), head_size: 16, stroke: accent.primary,
   stroke_width: 7, opacity: 0.0
-scan: Arrow, from: (975, 272), to: (760, 272), head_size: 12, stroke: accent.primary,
+scan: Arrow, from: (910, 252), to: (550, 252), head_size: 12, stroke: accent.primary,
   stroke_width: 2, opacity: 0.0
-scan_label: Text, text: "attends to", font_size: 15, color: text.muted,
-  text_max_width: 160, text_align: "left", at: (330, 326)
+scan_label: Text, text: "queries prior keys", font_size: 14, color: text.muted,
+  text_max_width: 200, text_align: "center", at: (730, 236)
 
 // ── weights: one baseline at y = 560; every bar bottom is center_y + h/2
 // on that line. (A bottom-aligned Row was tried and reverted: align "end"

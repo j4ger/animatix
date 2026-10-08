@@ -125,7 +125,7 @@ pb1: Rect, size: (88, 16), corner_radius: 4, color: accent.primary, opacity: 0.0
 pb2: Rect, size: (20, 16), corner_radius: 4, color: accent.primary, opacity: 0.0, at: (1010, 156)
 
 pv0: Text, text: "0.41", font_size: 14, color: text.secondary,
-  text_max_width: 50, text_align: "left", at: (1176, 100)
+  text_max_width: 50, text_align: "left", at: (1190, 100)
 pv1: Text, text: "0.22", font_size: 14, color: text.secondary,
   text_max_width: 50, text_align: "left", at: (1100, 128)
 pv2: Text, text: "0.05", font_size: 14, color: text.secondary,
