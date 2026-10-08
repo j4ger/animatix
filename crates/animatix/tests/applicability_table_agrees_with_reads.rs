@@ -10,12 +10,12 @@
 //! and `font_size` omitted `Legend`, which reads it for its own labels.
 //!
 //! Scope, stated honestly:
-//! - Only `Actors(&[…])` rows are cross-checked — 59 of the table's rows. The
-//!   capability-shaped rows (`TextLike`, `SizedActors`, …) need an `ActorCaps`
-//!   to evaluate, which this test deliberately does not reconstruct.
-//! - A read is recognised as a `"name" =>` match arm or a `== "name"` test
-//!   inside the primitive's own file. Reads that live in shared helpers are not
-//!   attributed to a type, so the test can under-report, never invent.
+//! - Only `Actors(&[…])` rows are cross-checked — 59 of the table's rows. The capability-shaped
+//!   rows (`TextLike`, `SizedActors`, …) need an `ActorCaps` to evaluate, which this test
+//!   deliberately does not reconstruct.
+//! - A read is recognised as a `"name" =>` match arm or a `== "name"` test inside the primitive's
+//!   own file. Reads that live in shared helpers are not attributed to a type, so the test can
+//!   under-report, never invent.
 
 use std::collections::BTreeMap;
 use std::path::Path;

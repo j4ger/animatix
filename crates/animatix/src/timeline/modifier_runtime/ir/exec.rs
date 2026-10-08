@@ -7,12 +7,11 @@
 //! is also used by the plot sampling path, so there is a single expression
 //! executor for frame-time code.
 
+use super::evaluate_compiled_expr;
+use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
 use crate::ast::{LoopPattern, array_actor_label};
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
-
-use super::evaluate_compiled_expr;
-use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
 
 /// Execute a lowered modifier IR program against a frame environment.
 pub fn execute_modifier_ir(

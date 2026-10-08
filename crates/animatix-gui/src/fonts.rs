@@ -90,8 +90,8 @@ mod tests {
 
     #[test]
     fn installed_fallbacks_cover_chinese_when_available() {
-        if system_fallbacks().is_empty() {
-            return; // CI/machines without a non-Latin font should not fail this test.
+        if system_font_context().font_for_glyphs(&['中', '文']).is_empty() {
+            return; // CI/machines without a Chinese font should not fail this test.
         }
 
         let ctx = egui::Context::default();

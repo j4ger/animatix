@@ -5,14 +5,12 @@
 //! contains no runtime logic so `animatix-analyzer` and LSP can consume it
 //! without depending on Vello/WGPU.
 
-use crate::typing::{Type, transform_type};
-
 pub use animatix_core::caps::Applicable;
-
+pub use animatix_core::property::{PropertyId, PropertyValueKind};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-pub use animatix_core::property::{PropertyId, PropertyValueKind};
+use crate::typing::{Type, transform_type};
 
 /// One known built-in property with its applicable actor types.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -156,17 +154,16 @@ impl PrimitiveCategory {
     }
 }
 
-/// Engine capabilities that determine which subsystems consume a primitive.
-///
-/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
-/// shared schema, manifests, and tooling address it through this crate.
-pub use animatix_core::caps::PrimitiveCapabilities;
-
 /// Child-rendering strategy selected by a primitive.
 ///
 /// Vocabulary lives in `animatix-core::caps`; re-exported here because the
 /// shared schema, manifests, and tooling address it through this crate.
 pub use animatix_core::caps::ChildProcessingKind;
+/// Engine capabilities that determine which subsystems consume a primitive.
+///
+/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
+/// shared schema, manifests, and tooling address it through this crate.
+pub use animatix_core::caps::PrimitiveCapabilities;
 
 /// Metadata for a primitive in the shared schema.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -538,12 +535,13 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
 
 #[cfg(test)]
 mod tests {
+    use animatix_core::property::{PROPERTY_DESCRIPTORS, PropertyValueKind};
+
     use super::{
         ChildProcessingKind, PrimitiveCapabilities, PrimitiveCategory, PrimitiveSpec,
         builtin_primitive_specs, common_property_names, property_specs, raw_property_types,
     };
     use crate::typing::Type;
-    use animatix_core::property::{PROPERTY_DESCRIPTORS, PropertyValueKind};
 
     /// The type-system view must line up with the core descriptor table: same
     /// rows, same order. A rename or reorder here would otherwise mis-type a

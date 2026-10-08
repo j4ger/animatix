@@ -559,8 +559,9 @@ fn components_gallery_instances_form_single_nodes() {
 /// invocation fell through to unknown-action cross-file.)
 #[test]
 fn cross_file_component_fn_resolves() {
-    use animatix_syntax::module::{ModuleGraph, SourceAccess};
     use std::path::Path;
+
+    use animatix_syntax::module::{ModuleGraph, SourceAccess};
 
     let lib = r#"
 pub component Pulsar {

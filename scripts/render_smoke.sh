@@ -10,6 +10,11 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # shellcheck source=scripts/lib-scenes.sh
 . "$SCRIPT_DIR/lib-scenes.sh"
 
+command -v identify >/dev/null 2>&1 || {
+    echo "error: identify (ImageMagick) not found on PATH" >&2
+    exit 1
+}
+
 FAILED=0
 TOTAL=0
 

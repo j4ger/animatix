@@ -161,8 +161,9 @@ fn import_paths(source: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn imports_is_independent_of_add_order() {

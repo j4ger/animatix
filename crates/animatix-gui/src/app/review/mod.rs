@@ -18,13 +18,13 @@ use egui_phosphor::regular::{
 };
 use eparts::widget::UiExt;
 use serde::{Deserialize, Serialize};
+use source_viewer::SourceViewer;
 
 use super::runtime::{detect_system_dark, install_theme};
 use super::*;
 use crate::app::components::text_tooltip;
 use crate::document::DocumentSession;
 use crate::preview_surface::PreviewSurface;
-use source_viewer::SourceViewer;
 
 const REVIEW_WINDOW_SIZE: (f64, f64) = (1600.0, 960.0);
 const REVIEW_FPS: f32 = 60.0;

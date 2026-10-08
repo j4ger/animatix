@@ -15,17 +15,17 @@
 //! ## Limitations / TODOs
 //!
 //! - No support for SVG `<use>`, `<clipPath>`, patterns
-//! - SVG `<path>` `d` attribute: supports M/m, L/l, H/h, V/v, Q/q, C/c, S/s,
-//!   T/t, A/a, Z/z; `A`/`a` arcs are approximated as a straight chord
+//! - SVG `<path>` `d` attribute: supports M/m, L/l, H/h, V/v, Q/q, C/c, S/s, T/t, A/a, Z/z; `A`/`a`
+//!   arcs are approximated as a straight chord
 //! - SVG `currentColor`, `inherit` fill types: not yet supported
 //! - SVG `stroke-linecap`, `stroke-linejoin`: not yet mapped
 
-use super::path_data::parse_svg_path_data;
 use std::collections::HashMap;
 use std::path::Path;
 
 use roxmltree::{Document, Node};
 
+use super::path_data::parse_svg_path_data;
 use crate::ast::{Expr, Property, Stmt};
 
 // ---------------------------------------------------------------------------

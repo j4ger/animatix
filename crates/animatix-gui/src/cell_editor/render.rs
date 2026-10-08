@@ -1,7 +1,6 @@
 use egui::{Color32, Frame, Margin, RichText, ScrollArea, Stroke, Vec2};
 
-use crate::app::components::anim;
-use crate::app::components::text_tooltip;
+use crate::app::components::{anim, text_tooltip};
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::spatial::ROW_S;
 use crate::app::design_tokens::typography::TextRole;

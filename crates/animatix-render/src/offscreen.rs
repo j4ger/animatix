@@ -1,8 +1,9 @@
+use animatix::timeline::effects::FilterBackend;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+
 use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
-use animatix::timeline::effects::FilterBackend;
-use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// A single frame rendered to CPU-accessible RGBA memory.
 ///

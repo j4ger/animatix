@@ -8,14 +8,13 @@
 //! surface.
 //!
 //! Contents:
-//! - [`caps`]: the capability vocabulary (`ActorCategory`, `ChildProcessing`,
-//!   `ShapeKind`, `TextKind`, `PrimitiveCapabilities`).
-//! - [`effect`]: the [`Effect`](effect::Effect) trait, parameter schema, and
-//!   identity types.
-//! - [`icon_glyphs`]: UI glyph constants (defined here rather than via
-//!   `egui_phosphor` so nothing below the GUI depends on egui).
-//! - [`stroke_icons`]: the bundled stroke-icon table that the engine's `icon:`
-//!   property expands into `Path` geometry.
+//! - [`caps`]: the capability vocabulary (`ActorCategory`, `ChildProcessing`, `ShapeKind`,
+//!   `TextKind`, `PrimitiveCapabilities`).
+//! - [`effect`]: the [`Effect`](effect::Effect) trait, parameter schema, and identity types.
+//! - [`icon_glyphs`]: UI glyph constants (defined here rather than via `egui_phosphor` so nothing
+//!   below the GUI depends on egui).
+//! - [`stroke_icons`]: the bundled stroke-icon table that the engine's `icon:` property expands
+//!   into `Path` geometry.
 
 pub mod caps;
 pub mod effect;

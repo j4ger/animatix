@@ -5,12 +5,12 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
+use animatix::composition::Composition;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use tracing::info;
 
 use crate::encode::ExportError;
 use crate::offscreen::OffscreenRenderer;
-use animatix::composition::Composition;
-use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline image

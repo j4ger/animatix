@@ -1,4 +1,6 @@
 use eframe::egui;
+#[cfg(feature = "theme-json")]
+use eparts::{ThemeRegistry, ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 
 use super::*;
 use crate::app::audio::AudioEngine;
@@ -10,8 +12,6 @@ use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,
 };
-#[cfg(feature = "theme-json")]
-use eparts::{ThemeRegistry, ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 
 pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Option<PathBuf>) {
     // Open the optional JSONL perf sink (PF-9) before the event loop starts; a

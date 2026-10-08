@@ -391,7 +391,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: name.clone(),
                             kind: LabelKind::For,
-                            line: 0, // populated by Analyzer::enrich_positions from the token stream
+                            line: 0, /* populated by Analyzer::enrich_positions from the token
+                                      * stream */
                             col: 0, // populated by Analyzer::enrich_positions from the token stream
                             span: *span,
                             ty: None,
@@ -408,7 +409,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: iv.clone(),
                             kind: LabelKind::For,
-                            line: 0, // populated by Analyzer::enrich_positions from the token stream
+                            line: 0, /* populated by Analyzer::enrich_positions from the token
+                                      * stream */
                             col: 0, // populated by Analyzer::enrich_positions from the token stream
                             span: *span,
                             ty: None,

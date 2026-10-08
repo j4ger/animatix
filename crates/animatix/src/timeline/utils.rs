@@ -556,10 +556,10 @@ pub(crate) fn invoke_closure_value(
 
     // NativeFn reachability inside the closure body depends on WHEN the
     // closure is invoked:
-    // - Frame time: the caller env carries the frozen stdlib base, propagated
-    //   into the child env below.
-    // - Build time (pre-freeze): base is None, but the stdlib lives in the
-    //   caller's overrides and is therefore part of the lexical captures.
+    // - Frame time: the caller env carries the frozen stdlib base, propagated into the child env
+    //   below.
+    // - Build time (pre-freeze): base is None, but the stdlib lives in the caller's overrides and
+    //   is therefore part of the lexical captures.
     // Both cases resolve; the fallback `Environment::new()` covers the build
     // case, where lookup falls back to the merged captures.
 

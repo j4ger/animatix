@@ -25,7 +25,6 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use animatix_core::effect::{Effect, EffectParamSpec, EffectParams, EffectPassSpec};
-
 pub use catalog::{CATALOG, PrimitiveInfo, caps_for_type, caps_from_info, catalog_lookup};
 pub use effects::{
     BLOOM, BLUR, CHROMATIC_ABERRATION, COLOR_GRADE, DROP_SHADOW, DUOTONE, EDGE, GRAIN,
@@ -287,8 +286,9 @@ pub fn pack_generic(data: &PluginEffectData, params: &EffectParams, out: &mut [u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix_core::effect::{EffectParamKind, EffectParamValue, uniform_size_for};
+
+    use super::*;
 
     /// Declared parameters follow the host layout rule (each offset aligned to
     /// its kind: scalars 4, vec2 8, vec4 16; sequential with alignment gaps),

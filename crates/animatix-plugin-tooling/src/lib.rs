@@ -10,8 +10,7 @@ use std::path::{Path, PathBuf};
 use animatix::extension_context::ExtensionContext;
 use animatix::extension_plugin::{ExtensionPlugin, NativePlugin};
 use animatix::timeline::effects::{EffectParamKind, plugin_effects};
-use animatix_analyzer::ExtensionManifest;
-use animatix_analyzer::{ManifestEffect, ManifestEffectParam};
+use animatix_analyzer::{ExtensionManifest, ManifestEffect, ManifestEffectParam};
 
 /// Map a runtime effect parameter kind onto the manifest's type string
 /// (parsed back through `Type::parse`).
@@ -117,8 +116,9 @@ pub fn relative_path(from_dir: &Path, target: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
         let unique = SystemTime::now()

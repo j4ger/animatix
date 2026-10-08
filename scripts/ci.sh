@@ -134,7 +134,13 @@ want_nightly_fmt() {
   FMT_CMD=(cargo fmt)
   if rustc --version | grep -q nightly; then return 0; fi
   if command -v rustup >/dev/null 2>&1 && rustup toolchain list 2>/dev/null | grep -q '^nightly'; then
-    FMT_CMD=(rustup run nightly cargo fmt)
+    local nightly_bin
+    nightly_bin="$(rustup which --toolchain nightly rustfmt 2>/dev/null | xargs dirname 2>/dev/null || true)"
+    if [ -n "$nightly_bin" ]; then
+      FMT_CMD=(env PATH="$nightly_bin:$PATH" cargo fmt)
+    else
+      FMT_CMD=(rustup run nightly cargo fmt)
+    fi
     return 0
   fi
   echo "error: the fmt gate needs a nightly rustfmt — rustfmt.toml sets unstable" >&2

@@ -26,8 +26,8 @@ type ValidateFn<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
 /// A themed single-line text input.
 ///
-/// Renders inside a frame that tracks `theme.components.input.{normal, hover, focus, invalid, disabled}`
-/// slots. Supports optional prefix/suffix labels, a clear button, password masking, and
+/// Renders inside a frame that tracks `theme.components.input.{normal, hover, focus, invalid,
+/// disabled}` slots. Supports optional prefix/suffix labels, a clear button, password masking, and
 /// a validation predicate that flips the border to the `invalid` slot when it returns `false`.
 pub struct TextField<'a> {
     buf: &'a mut String,

@@ -25,7 +25,8 @@ WARN_TOTAL=0
 #   unused-label        — actors/curves declared for visual content, never re-referenced
 #   always-overrides    — `always` deliberately overrides keyframes in reactive demos
 #   unknown-type        — analyzer is single-file; imported/plugin types are unresolved
-ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type'
+#   missing-glyph       — demos include CJK text; allowed on headless systems lacking CJK fonts
+ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|missing-glyph'
 
 while read -r amx; do
     TOTAL=$((TOTAL + 1))

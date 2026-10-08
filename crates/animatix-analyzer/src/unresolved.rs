@@ -14,10 +14,9 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use animatix_syntax::ast::Stmt;
-use animatix_syntax::builtins;
-use animatix_syntax::easing;
 use animatix_syntax::occurrence::{Occurrence, OccurrenceKind};
 use animatix_syntax::token::{Token, TokenKind, byte_to_line_col};
+use animatix_syntax::{builtins, easing};
 
 use crate::diagnostics::{Diagnostic, DiagnosticSeverity};
 use crate::symbol_table::SymbolTable;

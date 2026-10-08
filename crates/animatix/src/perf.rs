@@ -6,17 +6,15 @@
 //! §3.5 (design) and §7 (cost-of-instrumentation constraints).
 //!
 //! Semantics:
-//! - `ScopedStage::new` pushes `(name, Instant)` onto a thread-local stack;
-//!   the [`Drop`] impl pops it and accumulates the elapsed nanoseconds into a
-//!   thread-local ledger keyed by stage name (nested instances of the same
-//!   stage sum into one entry).
-//! - `take_measurements` drains the ledger. Callers (GUI HUD frame tick,
-//!   tests, future perf sinks) own the drained values.
-//! - The hot path pays only a thread-local push/pop plus a bounded linear scan
-//!   over at most `MAX_LEDGER_ENTRIES` entries — no allocation on push, pop,
-//!   or drop. The ledger is only allowed to grow to its fixed cap; stage kinds
-//!   beyond the cap are intentionally dropped (bounded memory by design; the
-//!   canonical set in `stage` is well under the cap).
+//! - `ScopedStage::new` pushes `(name, Instant)` onto a thread-local stack; the [`Drop`] impl pops
+//!   it and accumulates the elapsed nanoseconds into a thread-local ledger keyed by stage name
+//!   (nested instances of the same stage sum into one entry).
+//! - `take_measurements` drains the ledger. Callers (GUI HUD frame tick, tests, future perf sinks)
+//!   own the drained values.
+//! - The hot path pays only a thread-local push/pop plus a bounded linear scan over at most
+//!   `MAX_LEDGER_ENTRIES` entries — no allocation on push, pop, or drop. The ledger is only allowed
+//!   to grow to its fixed cap; stage kinds beyond the cap are intentionally dropped (bounded memory
+//!   by design; the canonical set in `stage` is well under the cap).
 //!
 //! Compile-time gating: the `perf-tracing` feature (default-on) provides the
 //! real implementation. Without it, `ScopedStage` is a zero-sized no-op and
@@ -174,10 +172,9 @@ pub fn take_measurements() -> Vec<(String, Duration)> {
 
 #[cfg(all(test, feature = "perf-tracing"))]
 mod tests {
-    use super::stage;
     use std::time::Duration;
 
-    use super::{MAX_STACK_DEPTH, ScopedStage, take_measurements};
+    use super::{MAX_STACK_DEPTH, ScopedStage, stage, take_measurements};
 
     #[test]
     fn scopes_accumulate_and_drain() {

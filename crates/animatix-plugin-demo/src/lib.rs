@@ -3,11 +3,11 @@
 //! Showcases the full extension surface with one `Pulse` primitive:
 //!
 //! - a keyframable `Num` property (`glow`)
-//! - a manifest-driven `Enum` property (`mode: ring | dot | cross`) that
-//!   renders as a dropdown in the GUI inspector
+//! - a manifest-driven `Enum` property (`mode: ring | dot | cross`) that renders as a dropdown in
+//!   the GUI inspector
 //! - `Str` (`caption`, `image_url`) and `Vec2` (`origin`) properties
-//! - vector paths, text (`Text` + `Code` render kinds), a highlight layer,
-//!   and a best-effort image command resolved from the asset cache
+//! - vector paths, text (`Text` + `Code` render kinds), a highlight layer, and a best-effort image
+//!   command resolved from the asset cache
 //! - a native expression function (`scale`)
 //! - a native action (`throb`) that writes keyframes through the host API
 //! - a typed service with an explicit destructor

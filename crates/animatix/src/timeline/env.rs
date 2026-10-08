@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::timeline::modifier_runtime::ir::CompiledExpr;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+
+use crate::timeline::modifier_runtime::ir::CompiledExpr;
 
 /// Error produced during expression evaluation in the timeline environment.
 #[derive(Debug, Clone)]
@@ -734,8 +734,7 @@ fn update_object_path(current: Value, path: &[&str], field: &str, value: Value) 
 
 #[cfg(feature = "serde")]
 mod serde_impl {
-    use serde::de;
-    use serde::{Deserializer, Serializer};
+    use serde::{Deserializer, Serializer, de};
 
     use super::*;
 

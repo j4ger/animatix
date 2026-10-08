@@ -377,7 +377,8 @@ impl UiStore {
             interaction: InteractionStore::new(),
             clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
-            editor_sync_enabled: true, // Auto-key is off by default: property edits change the base value
+            editor_sync_enabled: true, /* Auto-key is off by default: property edits change the
+                                        * base value */
             // unless the user explicitly records or clicks a keyframe diamond.
             keyframe_mode: false,
             cursor_time_s: None,

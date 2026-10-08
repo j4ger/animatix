@@ -1,6 +1,7 @@
+use std::sync::Arc;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 
 pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 use super::kurbo_shapes::KurboShape;

@@ -33,6 +33,7 @@
             # has to be able to run it.
             python3
             clang
+            imagemagick
 
             libX11
             libXcursor

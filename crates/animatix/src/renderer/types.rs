@@ -1,5 +1,4 @@
 pub use animatix_text::TextPath;
-
 use kurbo::BezPath;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

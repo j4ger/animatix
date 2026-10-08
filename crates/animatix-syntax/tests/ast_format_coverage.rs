@@ -9,16 +9,14 @@
 //!
 //! The guard here is behavioural, and it has three layers:
 //!
-//! 1. **Compiler-enforced variant discovery.** [`variant_of`] and
-//!    [`scrub_in_place`] match exhaustively on `Stmt`. Adding a variant is a
-//!    build error here until the new arm is written — which is the bookkeeping
-//!    the count tests only pretended to do.
-//! 2. **Coverage.** [`every_stmt_variant_has_a_probe`] fails if a variant has
-//!    no probe document.
-//! 3. **Fidelity.** Each probe is parsed, formatted, re-parsed, and the two
-//!    ASTs are compared for *exact structural equality* (spans aside), plus the
-//!    formatter must be stable on its own output. A field that is read but not
-//!    printed, or printed in a form that comes back differently, fails here.
+//! 1. **Compiler-enforced variant discovery.** [`variant_of`] and [`scrub_in_place`] match
+//!    exhaustively on `Stmt`. Adding a variant is a build error here until the new arm is written —
+//!    which is the bookkeeping the count tests only pretended to do.
+//! 2. **Coverage.** [`every_stmt_variant_has_a_probe`] fails if a variant has no probe document.
+//! 3. **Fidelity.** Each probe is parsed, formatted, re-parsed, and the two ASTs are compared for
+//!    *exact structural equality* (spans aside), plus the formatter must be stable on its own
+//!    output. A field that is read but not printed, or printed in a form that comes back
+//!    differently, fails here.
 
 use animatix_syntax::ast::{
     BinaryOp, Expr, InlineItem, LoopPattern, MatchPattern, Property, Stmt, Transition, UnaryOp,

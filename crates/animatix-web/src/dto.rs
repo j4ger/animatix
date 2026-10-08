@@ -1,8 +1,7 @@
 //! Serializable diagnostic shape crossing the wasm boundary to the JS shell.
 
-use serde::Serialize;
-
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticSeverity};
+use serde::Serialize;
 
 /// A flattened, JSON-friendly diagnostic for the web editor.
 #[derive(Clone, Debug, Serialize, PartialEq)]

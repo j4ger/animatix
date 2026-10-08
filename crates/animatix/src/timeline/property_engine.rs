@@ -34,6 +34,8 @@
 //! ```
 
 // Sibling module imports (accessible via super:: because we're a child of timeline)
+use animatix_syntax::schema::PropertyValueKind;
+
 use super::preserve_instant_delayed_value;
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
@@ -43,7 +45,6 @@ use crate::renderer::types::GradientSpec;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{AnimationTrack, Interpolate, PropertyTrack, ShapeType, TrackAccessor};
-use animatix_syntax::schema::PropertyValueKind;
 
 // ─────────────────────────────────────────────────────────────
 // Parsed property values

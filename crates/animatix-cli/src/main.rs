@@ -155,7 +155,8 @@ enum Commands {
         #[arg(long, default_value = "medium")]
         preset: export::H264Preset,
 
-        /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides width/height/fps/codec/preset.
+        /// Named export preset (720p30, 1080p30, 1080p60, 4k30). Overrides
+        /// width/height/fps/codec/preset.
         #[arg(long)]
         export_preset: Option<String>,
     },

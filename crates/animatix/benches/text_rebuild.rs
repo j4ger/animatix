@@ -5,10 +5,10 @@
 //! unless compiled results are memoized across rebuilds. These benches isolate
 //! `Timeline::build` for a large mixed text scene in two regimes:
 //!
-//! - `*_warm`: repeated builds with unchanged input (steady-state authoring;
-//!   a cross-rebuild cache should make this nearly free).
-//! - `*_cold`: builds with the compile cache cleared each iteration
-//!   (first build / worst case; must not regress when caching is added).
+//! - `*_warm`: repeated builds with unchanged input (steady-state authoring; a cross-rebuild cache
+//!   should make this nearly free).
+//! - `*_cold`: builds with the compile cache cleared each iteration (first build / worst case; must
+//!   not regress when caching is added).
 
 use animatix::timeline::Timeline;
 use criterion::{Criterion, criterion_group, criterion_main};

@@ -221,7 +221,6 @@ impl BuildQuality {
         }
     }
 }
-pub use crate::primitives::primitive_info_by_name;
 pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
     ActionCategory, ActionEvent, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, PlacementMode,
@@ -235,6 +234,8 @@ use timing::{
     push_unknown_target_path_diagnostic, push_unsupported_stagger_statement_diagnostic,
     sequence_stmt_kind,
 };
+
+pub use crate::primitives::primitive_info_by_name;
 /// Collect all keyframe times (in seconds) across all property tracks of an
 /// `AnimationTrack`, using the property registry to discover all possible fields.
 /// Used by the GUI to show keyframe markers on the mini timeline and time lens.

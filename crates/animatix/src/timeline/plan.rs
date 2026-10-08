@@ -1,12 +1,11 @@
 //! Build-time property plans and dynamic property tracks.
 //!
 //! This module is the performance-oriented counterpart to the shared schema.
-//! Names are resolved to [`animatix_syntax::schema::PropertyId`] once at build time. Frame-time access
-//! then walks a compact plan and dispatches through a finite [`DynTrack`] enum
+//! Names are resolved to [`animatix_syntax::schema::PropertyId`] once at build time. Frame-time
+//! access then walks a compact plan and dispatches through a finite [`DynTrack`] enum
 //! instead of doing String hash lookups.
 
 use animatix_syntax::schema::{PropertyId, PropertyValueKind};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

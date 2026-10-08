@@ -277,10 +277,10 @@ pub(crate) fn parse_svg_path_data(d: &str) -> Expr {
 /// is unambiguous, so the split rules are:
 /// - a command letter always starts a new token;
 /// - a `,`/whitespace ends the current token;
-/// - a `+`/`-` starts a new number (unless it is the leading sign of a token
-///   that has not begun), which is what turns `7-7` into `7` and `-7`;
-/// - a `.` ends the current number if it already contains one, which turns the
-///   radii pair `.53.53` into `.53` and `.53` (a number has at most one point).
+/// - a `+`/`-` starts a new number (unless it is the leading sign of a token that has not begun),
+///   which is what turns `7-7` into `7` and `-7`;
+/// - a `.` ends the current number if it already contains one, which turns the radii pair `.53.53`
+///   into `.53` and `.53` (a number has at most one point).
 ///
 /// Without this, real-world data (Lucide, most icon sets) produced single
 /// unparseable tokens like `7-7`/`.53.53` that `parse_token_num` silently turned

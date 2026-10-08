@@ -14,7 +14,6 @@
 
 use std::collections::HashMap;
 
-use crate::core::RendererCore;
 use animatix::timeline::SceneDimensions;
 use animatix::timeline::effects::{
     Effect, EffectChain, EffectRegion, FilterBackend, PendingBackdrop, PendingComposite,
@@ -22,6 +21,8 @@ use animatix::timeline::effects::{
 };
 use animatix::timeline::image::SceneImage;
 use animatix_core::effect::EffectParamSpec;
+
+use crate::core::RendererCore;
 
 // ── `ANIMATIX_FILTER_TIMING` probe clock ────────────────────────────────────
 
@@ -1422,11 +1423,12 @@ impl FilterBackend for GpuFilterBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix::timeline::effects::{
         EffectId, EffectInstance, EffectParamValue, EffectParams, EffectRegion, PendingLayer,
     };
     use animatix_core::effect::EffectParamKind;
+
+    use super::*;
 
     fn pack_radius(radius: f32) -> [u8; 4] {
         let spec =

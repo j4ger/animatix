@@ -5,8 +5,9 @@
 //! language's own grammar, so an override can carry any build-time expression
 //! the file itself could carry.
 
-use crate::ast::{Expr, Stmt};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
+
+use crate::ast::{Expr, Stmt};
 
 /// One parsed override: the environment name and the expression that seeds it.
 pub(crate) struct BuildDefine {

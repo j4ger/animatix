@@ -181,8 +181,9 @@ fn normalized_key(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
         let unique = SystemTime::now()

@@ -1,10 +1,9 @@
 use egui::{Pos2, Rect, Response, Ui};
 
-use super::DragState;
 use super::context::PreviewContext;
 use super::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
 use super::gestures::common::GestureFrame;
-use super::selection;
+use super::{DragState, selection};
 
 /// Select-on-mousedown.
 ///

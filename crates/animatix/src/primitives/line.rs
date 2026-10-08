@@ -3,10 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
-use crate::timeline::ActorCaps;
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
+    ActorCaps, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 

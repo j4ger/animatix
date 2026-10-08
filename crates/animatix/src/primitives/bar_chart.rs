@@ -6,9 +6,9 @@ use crate::primitives::{
     AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
 };
 use crate::renderer::error::RenderError;
-use crate::timeline::AnimationTrack;
-use crate::timeline::{BarDataTransition, parse_bar_chart_data_expr};
-use crate::timeline::{Environment, SceneDimensions};
+use crate::timeline::{
+    AnimationTrack, BarDataTransition, Environment, SceneDimensions, parse_bar_chart_data_expr,
+};
 
 /// The `BarChart` primitive.
 pub struct BarChartPrimitive;

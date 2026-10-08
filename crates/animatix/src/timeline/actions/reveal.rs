@@ -584,14 +584,16 @@ impl BuiltinAction for DrawOut {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use animatix_core::caps::ActorCategory;
+
     use super::*;
     use crate::ast::{Expr, Modifier, Property, Stmt, Time};
     use crate::diagnostics::DiagnosticCode;
     use crate::primitives::{BuildCtx, Primitive};
     use crate::timeline::actions::process_action;
-    use animatix_core::caps::ActorCategory;
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     struct TextExt;
 

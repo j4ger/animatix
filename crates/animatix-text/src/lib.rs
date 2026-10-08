@@ -6,7 +6,6 @@
 //! and frame evaluation (glyph runs), and the render layer only ever sees the
 //! produced paths.
 
-use kurbo::{Affine, BezPath, Point, Shape};
 use std::collections::HashMap;
 // Only the rich-text fallback-font path shares face data as `Arc<[u8]>`; the
 // plain fast path qualifies `std::sync::Arc` at its (always-compiled) uses.
@@ -14,6 +13,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use animatix_core::error::RenderError;
+use kurbo::{Affine, BezPath, Point, Shape};
 
 /// A glyph path extracted from text, with color and opacity.
 #[derive(Debug, Clone)]
@@ -1342,11 +1342,10 @@ fn typst_rgb(color: [f32; 4]) -> String {
 /// Two deliberate departures from a raw fence, both to defeat Typst's inline
 /// line builder, which drops whitespace-only inline elements (it treats a
 /// styled-run boundary as a line-break opportunity and trims the space):
-/// - whitespace-only pieces are merged into their neighbouring token, so every
-///   space lives *inside* a non-empty `#text` element and survives;
-/// - each source line is emitted as its own run of `#text` spans joined by a
-///   forced line break (`\`), because a bare newline in markup collapses to a
-///   space.
+/// - whitespace-only pieces are merged into their neighbouring token, so every space lives *inside*
+///   a non-empty `#text` element and survives;
+/// - each source line is emitted as its own run of `#text` spans joined by a forced line break
+///   (`\`), because a bare newline in markup collapses to a space.
 ///
 /// Tokens whose colour equals the theme's base foreground are emitted without a
 /// `fill`, so they inherit the actor's own `color` (set by the caller's
@@ -1358,6 +1357,7 @@ fn highlighted_code_markup(
     palette: Option<&HighlightPalette>,
 ) -> Option<String> {
     use std::mem;
+
     use syntect::easy::HighlightLines;
     use syntect::highlighting::Color;
     use syntect::util::LinesWithEndings;
@@ -2211,7 +2211,8 @@ pub fn compile_text_fast_wrapped(
         #[allow(dead_code)] // Reserved for debug/annotation use
         text: String,
         width: f64, // total advance in scene coords
-        glyphs: Vec<(usize, ttf_parser::GlyphId, f32, f64)>, /* (face slot, glyph_id, scale, x_offset) */
+        // (face slot, glyph_id, scale, x_offset)
+        glyphs: Vec<(usize, ttf_parser::GlyphId, f32, f64)>,
     }
 
     let mut word_infos: Vec<WordInfo> = Vec::with_capacity(words.len());

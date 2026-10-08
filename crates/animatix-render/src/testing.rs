@@ -5,8 +5,8 @@
 //! returning directly, so the decision is explicit and can be overridden:
 //!
 //! - locally (no `ANIMATIX_REQUIRE_GPU`): a missing adapter skips the test;
-//! - in CI (`ANIMATIX_REQUIRE_GPU=1`): a missing adapter panics, because a
-//!   green run that exercised no pixels is worse than a red one.
+//! - in CI (`ANIMATIX_REQUIRE_GPU=1`): a missing adapter panics, because a green run that exercised
+//!   no pixels is worse than a red one.
 
 /// Fail when the environment demands a GPU and none is available.
 ///

@@ -1,5 +1,6 @@
-use crate::primitives::ChildProcessing;
 use animatix_core::caps::ActorCategory;
+
+use crate::primitives::ChildProcessing;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PrimitiveFamily {
@@ -120,8 +121,9 @@ impl PrimitiveFamilyDescriptor {
 
 #[cfg(test)]
 mod tests {
-    use super::{PrimitiveFamily, PrimitiveFamilyDescriptor};
     use animatix_std::catalog_lookup;
+
+    use super::{PrimitiveFamily, PrimitiveFamilyDescriptor};
 
     #[test]
     fn classifies_text_like_primitives() {

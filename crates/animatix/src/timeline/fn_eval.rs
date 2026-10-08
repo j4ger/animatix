@@ -8,7 +8,6 @@
 use std::sync::Arc;
 
 use crate::ast::Stmt;
-
 use crate::timeline::build::pattern_matches;
 use crate::timeline::env::{Environment, Value};
 use crate::timeline::lookup::for_iter_values;

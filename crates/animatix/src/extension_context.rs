@@ -583,6 +583,8 @@ impl ExtensionRegistry {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{ExtensionContext, PropertyBinding, PropertyRegistry};
     use crate::ast::Action;
     use crate::composition::BuildTarget;
@@ -590,9 +592,7 @@ mod tests {
     use crate::easing::Easing;
     use crate::primitives::{BuildCtx, Primitive};
     use crate::timeline::actions::registry::{ActionSignature, BuiltinAction};
-    use crate::timeline::{ActorCategory, TextKind, TrackAccessor};
-    use crate::timeline::{Timeline, Value};
-    use std::sync::Arc;
+    use crate::timeline::{ActorCategory, TextKind, Timeline, TrackAccessor, Value};
 
     struct Marker;
 

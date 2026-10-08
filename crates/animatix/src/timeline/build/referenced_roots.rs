@@ -8,10 +8,9 @@
 //!
 //! Collecting those roots once per build lets the build environment inject
 //! only referenced actors' properties:
-//! - Over-injection (collecting too much) stays perfectly safe — those keys
-//!   are simply unused.
-//! - Under-injection fails loudly as an undefined-variable error instead of
-//!   silently producing wrong values.
+//! - Over-injection (collecting too much) stays perfectly safe — those keys are simply unused.
+//! - Under-injection fails loudly as an undefined-variable error instead of silently producing
+//!   wrong values.
 //!
 //! The walk must stay exhaustive over [`Stmt`] and [`Expr`] variants (no
 //! catch-all arm) so newly added syntax cannot silently escape collection.

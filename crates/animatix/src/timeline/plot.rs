@@ -8,12 +8,11 @@
 //!
 //! Instead, `func` transitions use a **side-channel** pattern:
 //!
-//! - `FuncTransition` records a time range, easing, blend mode, and the
-//!   `from`/`to` `FuncSource` closures in a parallel `Vec` on `AnimationTrack`.
-//! - At frame time, `sample_procedural_plot_at` checks for active transitions.
-//!   Output blending evaluates both sources and lerps their outputs at each
-//!   sample point; opacity blending renders the two generated path sets at
-//!   partial opacity.
+//! - `FuncTransition` records a time range, easing, blend mode, and the `from`/`to` `FuncSource`
+//!   closures in a parallel `Vec` on `AnimationTrack`.
+//! - At frame time, `sample_procedural_plot_at` checks for active transitions. Output blending
+//!   evaluates both sources and lerps their outputs at each sample point; opacity blending renders
+//!   the two generated path sets at partial opacity.
 //! - [`FuncSource::Blend`] captures a mid-flight snap when the transition is frozen mid-progress
 //!   (used for combined transitions).
 //!
@@ -106,7 +105,8 @@ impl PlotCurveKind {
 ///
 /// A `FuncSource` is either:
 /// - [`Compiled`](FuncSource::Compiled): a user-authored closure `(x) => expr`, stored as argument
-///   names and a compiled body. This is the steady-state form used when no transition is in progress.
+///   names and a compiled body. This is the steady-state form used when no transition is in
+///   progress.
 /// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured when a second `func`
 ///   transition begins before the first has finished. Rather than discarding in-progress blending
 ///   state, the evaluator snapshots the current `(from, to, progress)` into a `Blend` node and uses
@@ -864,8 +864,8 @@ pub(crate) fn sample_recursive_parametric(
 
 /// Convert math coordinates to screen coordinates relative to the graph actor center.
 ///
-/// `p_size` is the full width and height of the graph `[w, h]`.  `padding` is `[left, right, top, bottom]`
-/// in the same pixel units.  Returns coordinates in the local (relative-to-center) space.
+/// `p_size` is the full width and height of the graph `[w, h]`.  `padding` is `[left, right, top,
+/// bottom]` in the same pixel units.  Returns coordinates in the local (relative-to-center) space.
 pub(crate) fn math_to_screen_padded(
     math_x: f64,
     math_y: f64,

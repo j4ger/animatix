@@ -9,6 +9,9 @@
 use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
+use animatix::ast::Stmt;
+use animatix::composition::Composition;
+use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
 use rsmpeg::avformat::AVFormatContextOutput;
 use rsmpeg::avutil::{AVDictionary, AVFrame, AVRational};
@@ -20,9 +23,6 @@ use crate::encode::{ExportError, ExportSettings, VideoCodec, mux_audio_segments}
 use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
-use animatix::ast::Stmt;
-use animatix::composition::Composition;
-use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline video

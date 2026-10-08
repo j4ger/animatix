@@ -10,8 +10,7 @@ use crate::app::commands::{
     PropertyValue as GuiPropertyValue, SceneCommand,
 };
 use crate::app::components::easing_curve_editor::EasingCurveState;
-use crate::app::components::{Badge, TabBar, text_tooltip};
-use crate::app::components::{easing_curve_editor, layout, timeline};
+use crate::app::components::{Badge, TabBar, easing_curve_editor, layout, text_tooltip, timeline};
 use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;

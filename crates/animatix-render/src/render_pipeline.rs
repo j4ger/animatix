@@ -7,12 +7,12 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
+use animatix::composition::Composition;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use tracing::info;
 
 use crate::encode::ExportError;
 use crate::offscreen::{OffscreenRenderer, PendingFrame, RenderedFrame};
-use animatix::composition::Composition;
-use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 
 /// Fill an `AVFrame` with a borrowed RGBA buffer.
 ///

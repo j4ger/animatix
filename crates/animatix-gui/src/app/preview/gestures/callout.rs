@@ -16,9 +16,8 @@ use crate::app::commands::{
     Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
 };
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
-use crate::app::preview::DragState;
-use crate::app::preview::drag_utils;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
+use crate::app::preview::{DragState, drag_utils};
 
 pub(crate) struct CalloutGesture;
 

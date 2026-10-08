@@ -6,11 +6,10 @@
 //! visible. Every iteration clears the process-wide cache, so each sample is
 //! a fresh compile (miss), not a cache hit.
 
-use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-
 use animatix::renderer::text::{
     FontContext, HighlightPalette, TextCompiler, TextKind, clear_text_compile_cache,
 };
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 const CODE: &str = "fn evaluate_frame(t: f64) -> Vec<RenderItem> {\n    let items = collect(t);\n    if items.is_empty() { return vec![]; }\n    items.iter().map(render).collect()\n}";
 

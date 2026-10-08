@@ -904,10 +904,12 @@ fn parse_vec2_value(s: &str) -> (f64, f64) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::sync::Arc;
+
     use animatix::extension_context::ExtensionContext;
     use animatix::timeline::actions::registry::{ActionSignature, BuiltinAction};
-    use std::sync::Arc;
+
+    use super::*;
 
     struct ExtensionPulse;
 

@@ -9,27 +9,24 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use wasm_bindgen::prelude::*;
-
-use web_sys::HtmlCanvasElement;
-
 use animatix::composition::BuildTarget;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
 use animatix::timeline::effects::FilterBackend;
 use animatix::timeline::frame_signature::FrameSignature;
 use animatix::timeline::{BuildQuality, DebugRenderOptions, SceneDimensions, Timeline};
-use animatix_syntax::ast::Stmt;
-use animatix_syntax::parser::parse_source;
-
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::offscreen::drain_pending_layers;
 use animatix_render::transition::TransitionCompositor;
+use animatix_syntax::ast::Stmt;
+use animatix_syntax::parser::parse_source;
+use wasm_bindgen::prelude::*;
+use web_sys::HtmlCanvasElement;
+use wgpu::CurrentSurfaceTexture;
 
 use crate::host;
 use crate::host::BuiltDocument;
-use wgpu::CurrentSurfaceTexture;
 
 /// Process-wide WebGPU context: adapter, device, queue, and the one vello
 /// renderer. Created once by [`ensure_engine`]; every [`AmxPlayer`] shares it.

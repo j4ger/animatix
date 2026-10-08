@@ -1159,8 +1159,9 @@ impl Default for ModuleGraph {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::path::PathBuf;
+
+    use super::*;
 
     #[test]
     fn sources_only_mode_never_reads_disk() {

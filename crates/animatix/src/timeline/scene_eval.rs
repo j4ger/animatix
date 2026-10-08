@@ -322,10 +322,10 @@ impl Timeline {
     /// cached and reset by `invalidate_frame_cache`. Two things can make the
     /// walk necessary:
     ///
-    /// - some actor declares `solo: true` (the flag is non-animatable, so this
-    ///   only changes with the timeline); or
-    /// - an `always` block writes `solo` on some actor, which happens per frame
-    ///   *without* a mutation and would otherwise go unnoticed.
+    /// - some actor declares `solo: true` (the flag is non-animatable, so this only changes with
+    ///   the timeline); or
+    /// - an `always` block writes `solo` on some actor, which happens per frame *without* a
+    ///   mutation and would otherwise go unnoticed.
     ///
     /// The second test is exact rather than a blanket "has modifiers" flag:
     /// timelines that merely animate other properties (the common case, and
@@ -1098,8 +1098,8 @@ impl Timeline {
 
         // Region of interest, in priority order:
         // 1. an authored `bounds: (x, y, w, h)`;
-        // 2. derived from the content bounds the sub-scene evaluation just
-        //    recorded (`docs/effects.md` §3), expanded by worst-case support;
+        // 2. derived from the content bounds the sub-scene evaluation just recorded
+        //    (`docs/effects.md` §3), expanded by worst-case support;
         // 3. `None` — the historical full-scene path.
         // The GPU textures stay at full scene capacity in every case, so
         // varying regions never reallocate (PF-7).

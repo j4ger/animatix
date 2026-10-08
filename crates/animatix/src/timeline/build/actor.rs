@@ -230,15 +230,14 @@ impl Timeline {
     /// filters its property list with, so the editor and the build cannot
     /// disagree about what a type takes. Two honest limits:
     ///
-    /// - Rows declared `Applicable::Everything` (`color`, `opacity`, `at`, …)
-    ///   pass unconditionally, so a primitive that ignores one of those is
-    ///   invisible here. That is a defect in the table, not in this check, and
-    ///   the fix is to narrow the row.
-    /// - Coverage matches `warn_unknown_declaration_properties`' exactly, which
-    ///   means the plot-family dispatch is not covered at all (it never calls
-    ///   either function). Its runtime parameters are the reason: `freq: 2` on
-    ///   `func: (x) => sin(freq * x)` is read by the author's closure, not by a
-    ///   primitive, and the exemption would have to be `plot_runtime_params`.
+    /// - Rows declared `Applicable::Everything` (`color`, `opacity`, `at`, …) pass unconditionally,
+    ///   so a primitive that ignores one of those is invisible here. That is a defect in the table,
+    ///   not in this check, and the fix is to narrow the row.
+    /// - Coverage matches `warn_unknown_declaration_properties`' exactly, which means the
+    ///   plot-family dispatch is not covered at all (it never calls either function). Its runtime
+    ///   parameters are the reason: `freq: 2` on `func: (x) => sin(freq * x)` is read by the
+    ///   author's closure, not by a primitive, and the exemption would have to be
+    ///   `plot_runtime_params`.
     fn warn_inapplicable_declaration_properties(
         &self,
         label: &str,

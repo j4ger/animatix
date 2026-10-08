@@ -147,10 +147,9 @@ pub(crate) fn panel_frame() -> egui::Frame {
 
 #[cfg(test)]
 mod tests {
-    use super::nice_tick_interval;
     use super::{
         LibraryDragPayload, clear_library_drag, library_drag, library_drag_id,
-        library_drag_label_base, set_library_drag,
+        library_drag_label_base, nice_tick_interval, set_library_drag,
     };
 
     fn url_property(url: &str) -> animatix_syntax::ast::Property {

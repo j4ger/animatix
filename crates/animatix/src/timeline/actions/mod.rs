@@ -517,6 +517,9 @@ pub fn get_action_signatures_with_extensions(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use super::*;
     use crate::ast::{Action, Modifier};
     use crate::diagnostics::DiagnosticCode;
@@ -524,8 +527,6 @@ mod tests {
     use crate::timeline::{
         ActorCategory, AnimationTrack, ContainerMetadata, LayoutType, PropertyTrack,
     };
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     struct FlexContainer;
 

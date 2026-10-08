@@ -26,7 +26,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use crate::app::components::{Alert, AlertLevel, text_tooltip};
 use animatix::timeline::SceneDimensions;
 use animatix_syntax::diagnostics::{
     Diagnostic, DiagnosticCode, DiagnosticPhase, diagnostics_phase_summary,
@@ -46,8 +45,8 @@ use crate::app::commands::{
     ActionQueue, CommandQueue, CommandSender, DocumentCommand, Effect, UndoLabel, ViewCommand,
 };
 use crate::app::components::button::Button;
-use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
+use crate::app::components::{Alert, AlertLevel, dialog, text_tooltip};
 use crate::app::design_tokens::spatial::welcome::TOP_OFFSET_FRAC as WELCOME_TOP_OFFSET_FRAC;
 use crate::app::design_tokens::spatial::{
     RADIUS_L, RADIUS_S, ROW_L, SPACE_2, SPACE_3, SPACE_4, SPACE_5, STROKE_WIDTH, spatial,

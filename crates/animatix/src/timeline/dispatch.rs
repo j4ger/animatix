@@ -208,8 +208,8 @@ pub struct AnimationTrack {
     ///
     /// ## Implementation checklist for new non-interpolatable properties
     ///
-    /// 1. Define a transition struct (like `FuncTransition`) with `start_ms`, `end_ms`,
-    ///    `easing`, `from`, `to`.
+    /// 1. Define a transition struct (like `FuncTransition`) with `start_ms`, `end_ms`, `easing`,
+    ///    `from`, `to`.
     /// 2. Define the source type (like `FuncSource`) with variants for raw values and
     ///    mid-transition blends.
     /// 3. Add a `Vec<YourTransition>` field to [`AnimationTrack`].

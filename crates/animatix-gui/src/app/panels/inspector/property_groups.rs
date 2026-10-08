@@ -13,8 +13,7 @@ use crate::app::commands::{
     PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::button::Button;
-use crate::app::components::row;
-use crate::app::components::{Badge, ColorPicker, text_tooltip};
+use crate::app::components::{Badge, ColorPicker, row, text_tooltip};
 use crate::app::design_tokens::spatial::inspector::{
     COL_GAP as INSPECTOR_COL_GAP, KF_BTN_WIDTH as INSPECTOR_KF_BTN_WIDTH,
     KF_COL_WIDTH as INSPECTOR_KF_COL_WIDTH, LABEL_MAX_WIDTH as INSPECTOR_LABEL_MAX_WIDTH,

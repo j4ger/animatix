@@ -14,9 +14,8 @@
 
 use std::path::{Path, PathBuf};
 
-use criterion::{Criterion, criterion_group, criterion_main};
-
 use animatix_analyzer::{Analyzer, LintConfig};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 /// One benchmark input: a label and the file's source.
 struct Sample {

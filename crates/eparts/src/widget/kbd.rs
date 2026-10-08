@@ -136,6 +136,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "macos"))]
     fn format_shortcut_uses_names_on_non_mac() {
         // With NAMES, a COMMAND+S shortcut produces "Ctrl+S" on non-macOS.
         let shortcut = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S);
@@ -144,5 +145,15 @@ mod tests {
         // egui 0.34 Context::format_shortcut uses NAMES on non-macOS by default.
         assert!(formatted.contains("Ctrl"));
         assert!(formatted.contains("S"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn format_shortcut_on_mac() {
+        let shortcut = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S);
+        let ctx = egui::Context::default();
+        let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+        let formatted = format_shortcut(&shortcut, &ctx);
+        assert!(formatted.contains('S') || formatted.contains('s'));
     }
 }

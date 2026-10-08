@@ -34,8 +34,9 @@ pub use vignette::{VIGNETTE, Vignette};
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix_core::effect::EffectParamSpec;
+
+    use super::*;
 
     /// Every parameter the built-in effects author, with the effect's name on
     /// it. Adding an effect file without adding its table here is a test

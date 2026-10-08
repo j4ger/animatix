@@ -3,9 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
-use crate::timeline::ActorCaps;
 use crate::timeline::{
-    Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath, evaluate_expr,
+    ActorCaps, Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath,
+    evaluate_expr,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 

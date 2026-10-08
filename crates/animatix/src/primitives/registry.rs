@@ -2,8 +2,9 @@
 
 use std::sync::Arc;
 
-use super::{BUILT_INS, BuiltIn, Primitive};
 use animatix_std::PrimitiveInfo;
+
+use super::{BUILT_INS, BuiltIn, Primitive};
 
 /// Storage for a registered primitive: compiled-in built-ins keep their
 /// `&'static` identity (the [`BuiltIn`] row carries both behaviour and the
@@ -164,13 +165,14 @@ impl std::error::Error for PrimitiveRegistrationError {}
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
     use super::PrimitiveRegistry;
     use crate::ast::{InlineItem, Modifier, Property};
     use crate::diagnostics::Diagnostic;
     use crate::primitives::{BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
     use crate::renderer::error::RenderError;
-    use std::collections::HashMap;
-    use std::sync::Arc;
 
     struct Gauge;
 

@@ -3,10 +3,10 @@
 #[cfg(feature = "plugin-loading")]
 #[path = "extension_native_plugin.rs"]
 mod extension_native_plugin;
+use std::sync::Arc;
+
 #[cfg(feature = "plugin-loading")]
 pub use extension_native_plugin::NativePlugin;
-
-use std::sync::Arc;
 
 use crate::extension_context::ExtensionContext;
 

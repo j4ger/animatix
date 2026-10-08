@@ -21,25 +21,22 @@
 //!
 //! ## Adding a new primitive
 //!
-//! 1. Add the identity card: a `pub const <NAME>: PrimitiveInfo` in
-//!    `animatix-std/src/catalog.rs` (type/display/icon/category/advanced/
-//!    capabilities/child processing) and its name in the `CATALOG` list.
-//!    Tooling, the parser's contract tables, and the inspector palette all
-//!    derive from the card.
-//! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only —
-//!    no metadata methods).
-//! 3. Add `BuiltIn::new(&catalog::<NAME>, &<NAME>::CONST)` to the `BUILT_INS`
-//!    array below. The card is referenced by symbol, so the two lists cannot
-//!    drift positionally; a name mismatch fails the pairing test.
+//! 1. Add the identity card: a `pub const <NAME>: PrimitiveInfo` in `animatix-std/src/catalog.rs`
+//!    (type/display/icon/category/advanced/ capabilities/child processing) and its name in the
+//!    `CATALOG` list. Tooling, the parser's contract tables, and the inspector palette all derive
+//!    from the card.
+//! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only — no metadata
+//!    methods).
+//! 3. Add `BuiltIn::new(&catalog::<NAME>, &<NAME>::CONST)` to the `BUILT_INS` array below. The card
+//!    is referenced by symbol, so the two lists cannot drift positionally; a name mismatch fails
+//!    the pairing test.
 //! 4. If the primitive has properties, add the descriptor row to
-//!    `animatix-core::property::PROPERTY_DESCRIPTORS` (name + applicability +
-//!    value kind), its type row to
-//!    `animatix-syntax/src/schema.rs::raw_property_types()`, and the runtime
-//!    binding to `timeline/property_registry.rs::BINDINGS`; the tests in those
-//!    modules fail until all three line up. Append descriptor rows — the row
-//!    index is the serialized `PropertyId`.
-//! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region
-//!    coverage if it draws.
+//!    `animatix-core::property::PROPERTY_DESCRIPTORS` (name + applicability + value kind), its type
+//!    row to `animatix-syntax/src/schema.rs::raw_property_types()`, and the runtime binding to
+//!    `timeline/property_registry.rs::BINDINGS`; the tests in those modules fail until all three
+//!    line up. Append descriptor rows — the row index is the serialized `PropertyId`.
+//! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region coverage if it
+//!    draws.
 //!
 //! ## Current primitives
 //!
@@ -281,14 +278,12 @@ fn override_color(
 /// The three sources do not share units, and mixing them up made the same
 /// literal render twice as large per frame as declared:
 ///
-/// - `track_half` comes from `geometry.size`, which **stores half-sizes** —
-///   both the declaration path and the timed-assignment path halve the authored
-///   bounding box before storing it.
-/// - a `size` override from an `always` block is the **raw authored bounding
-///   box**, so it is halved here.
-/// - `radius_x` / `radius_y` overrides are **half-size components** and each
-///   replace one axis. They are applied after `size`, so a scene can set the
-///   box and then nudge a single radius.
+/// - `track_half` comes from `geometry.size`, which **stores half-sizes** — both the declaration
+///   path and the timed-assignment path halve the authored bounding box before storing it.
+/// - a `size` override from an `always` block is the **raw authored bounding box**, so it is halved
+///   here.
+/// - `radius_x` / `radius_y` overrides are **half-size components** and each replace one axis. They
+///   are applied after `size`, so a scene can set the box and then nudge a single radius.
 ///
 /// A wrongly-typed override keeps the keyframed size. This runs for every shape
 /// every frame, so the drop is logged at debug rather than warn, which would
@@ -381,13 +376,12 @@ pub fn sample_shape_style(
 /// contract for future variants). The borrow protocol ("single master, take
 /// and return") makes a memo hit fully allocation-free:
 ///
-/// - **hit** (inputs equal): `take_shape_commands` hands the cached `Vec` to
-///   the caller, which encodes it into the frame's vello scene, clones it for
-///   the observable `SceneItem` when item collection is requested, and hands
-///   it back via `recycle_shape_commands` — the next frame's hit reuses the
-///   same buffers.
-/// - **miss** (inputs changed): the caller builds a fresh `Vec`, clones it
-///   once into the memo slot, and still returns the fresh one.
+/// - **hit** (inputs equal): `take_shape_commands` hands the cached `Vec` to the caller, which
+///   encodes it into the frame's vello scene, clones it for the observable `SceneItem` when item
+///   collection is requested, and hands it back via `recycle_shape_commands` — the next frame's hit
+///   reuses the same buffers.
+/// - **miss** (inputs changed): the caller builds a fresh `Vec`, clones it once into the memo slot,
+///   and still returns the fresh one.
 ///
 /// `epoch` is `vector_paths_epoch` — the same invalidation funnel as the
 /// PF-6 path memo (`invalidate_frame_cache`), which every track mutation
@@ -1608,15 +1602,12 @@ pub trait Primitive: Send + Sync {
     /// non-visual primitives).
     ///
     /// Semantics of the return value:
-    /// - `Ok(Some(commands))` — `scene_eval.rs` executes the commands with the
-    ///   actor's local transform and inherited opacity, and records a hit
-    ///   region derived from their local bounds.
-    /// - `Ok(None)` — "no drawable content" (e.g. empty text, missing image).
-    ///   Nothing is drawn and no hit region / precise bounds are recorded
-    ///   (empty-content actors stay un-pickable until they have content;
-    ///   pinned by `runtime_empty_text_override_clears_stale_glyphs`).
-    /// - `Err(e)` — the actor does not render and a `RenderFailure` runtime
-    ///   diagnostic is recorded.
+    /// - `Ok(Some(commands))` — `scene_eval.rs` executes the commands with the actor's local
+    ///   transform and inherited opacity, and records a hit region derived from their local bounds.
+    /// - `Ok(None)` — "no drawable content" (e.g. empty text, missing image). Nothing is drawn and
+    ///   no hit region / precise bounds are recorded (empty-content actors stay un-pickable until
+    ///   they have content; pinned by `runtime_empty_text_override_clears_stale_glyphs`).
+    /// - `Err(e)` — the actor does not render and a `RenderFailure` runtime diagnostic is recorded.
     fn evaluate(
         &self,
         _ctx: &EvaluateCtx,
@@ -1973,7 +1964,8 @@ mod tests {
     fn runtime_text_content_crossfade_compiles_both_endpoints() {
         use crate::easing::Easing;
         use crate::renderer::text::{FontContext, TextCompiler, TextKind};
-        use crate::timeline::{AnimationTrack, SceneDimensions, property_track::PropertyTrack};
+        use crate::timeline::property_track::PropertyTrack;
+        use crate::timeline::{AnimationTrack, SceneDimensions};
 
         let mut track = AnimationTrack::placeholder("label".to_string());
         let mut content = PropertyTrack::new("Hello".to_string());

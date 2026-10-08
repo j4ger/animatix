@@ -17,8 +17,7 @@ use crate::app::components::context_menu::{MenuEntry, render_menu};
 use crate::app::components::{anim, layout, row, text_tooltip};
 use crate::app::design_tokens::motion;
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::panels::SidebarTab;
-use crate::app::panels::{CompactDrawer, SIDEBAR_TABS};
+use crate::app::panels::{CompactDrawer, SIDEBAR_TABS, SidebarTab};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
 

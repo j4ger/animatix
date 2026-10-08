@@ -1,8 +1,8 @@
+use animatix_core::error::RenderError;
 use vello::peniko::Color;
 use vello::{AaConfig, AaSupport, RenderParams, Renderer, RendererOptions, Scene};
 
 use super::fullscreen_blit::FullscreenBlitPipeline;
-use animatix_core::error::RenderError;
 
 /// Thin wrapper around a Vello [`Renderer`] that handles scene-to-texture rendering.
 ///

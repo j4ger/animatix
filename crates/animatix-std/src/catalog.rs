@@ -501,8 +501,9 @@ pub fn caps_for_type(actor_type: &str) -> Option<ActorCaps> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashSet;
+
+    use super::*;
 
     /// The "LLM Generation Checklist" in `docs/spec.md` lists the supported
     /// primitives by hand; this test pins that list to the catalog so the

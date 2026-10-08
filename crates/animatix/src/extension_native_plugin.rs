@@ -43,6 +43,7 @@ use animatix_plugin_api::{
 use kurbo::Shape;
 use libloading::Library;
 
+use super::{ExtensionPlugin, PluginDisposer, PluginError};
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::extension_context::ExtensionContext;
 use crate::primitives::{
@@ -52,8 +53,6 @@ use crate::timeline::actions::registry::{ActionParam, ActionSignature, BuiltinAc
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ActorCategory, Environment, EvalError, PropertyValue, ResizeMode, Value};
-
-use super::{ExtensionPlugin, PluginDisposer, PluginError};
 
 /// A native plugin loaded from a `cdylib` shared library.
 pub struct NativePlugin {
@@ -2487,11 +2486,13 @@ fn native_to_value(native: NativeValue) -> Result<Value, EvalError> {
 
 #[cfg(test)]
 mod tests {
+    use std::ffi::c_void;
+
+    use animatix_plugin_api::NATIVE_RESIZE_MODE_SIZE;
+
     use super::*;
     use crate::extension_context::ExtensionContext;
     use crate::timeline::{Environment, PropertyKind, Value};
-    use animatix_plugin_api::NATIVE_RESIZE_MODE_SIZE;
-    use std::ffi::c_void;
 
     /// The ABI easing table must not be able to lie. Every code the host
     /// advertises decodes to a curve and re-encodes to that same code, codes it
@@ -3829,11 +3830,12 @@ mod tests {
 
     #[test]
     fn native_primitive_clip_path_and_equation_fragment_flow_through_adapter() {
-        use crate::primitives::Primitive;
         use animatix_plugin_api::{
             NATIVE_PATH_RECT, NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC,
             NativeClipPathCtx, NativePrimitiveEquationFragmentCtx,
         };
+
+        use crate::primitives::Primitive;
 
         fn rect_command(x: f64) -> NativePathCommand {
             NativePathCommand {
@@ -3946,10 +3948,11 @@ mod tests {
 
     #[test]
     fn native_primitive_default_props_and_color_key_flow_through_adapter() {
-        use crate::primitives::Primitive;
         use animatix_plugin_api::{
             NATIVE_PRIMITIVE_CATEGORY_SHAPE, NATIVE_PRIMITIVE_CHILD_GENERIC, NativeDefaultPropsCtx,
         };
+
+        use crate::primitives::Primitive;
 
         unsafe extern "C" fn pulse_default_props(ctx: *mut NativeDefaultPropsCtx) -> i32 {
             let Some(ctx) = (unsafe { ctx.as_mut() }) else {

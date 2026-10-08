@@ -4,8 +4,7 @@
 //! per source line. The review demo does not need the full cell editor, but it
 //! does need line-anchored comments, so this viewer owns line hit-testing.
 
-use animatix_analyzer::Diagnostic as AnalyzerDiagnostic;
-use animatix_analyzer::DiagnosticSeverity as AnalyzerSeverity;
+use animatix_analyzer::{Diagnostic as AnalyzerDiagnostic, DiagnosticSeverity as AnalyzerSeverity};
 use animatix_syntax::diagnostics::{
     Diagnostic as SyntaxDiagnostic, DiagnosticSeverity as SyntaxSeverity,
 };

@@ -13,13 +13,13 @@
 //! (transition blending is a brief 2× overlap, not the steady state).
 //! `plugin_pulse.amx` needs a native plugin library and is skipped.
 
-use criterion::{Criterion, SamplingMode, criterion_group, criterion_main};
 use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
 use animatix::timeline::SceneDimensions;
 use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 use animatix_syntax::module::ModuleGraph;
+use criterion::{Criterion, SamplingMode, criterion_group, criterion_main};
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 1280,

@@ -7,12 +7,12 @@ use crate::primitives::{
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
-use crate::timeline::ActorCaps;
 use crate::timeline::callout_geometry::derive_callout_geometry;
 use crate::timeline::property_engine::{parse_property_value, write_property_field};
 use crate::timeline::property_registry::{ActorField, ValueType};
 use crate::timeline::{
-    AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
+    ActorCaps, AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value,
+    VectorShapeState, VelloPath,
 };
 
 /// Resolve an actor reference at assignment time, including runtime indices

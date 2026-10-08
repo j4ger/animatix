@@ -146,15 +146,14 @@ impl PartialField for Shadow {
 /// Generate a `Partial*` mirror of a token struct plus its merge/extract glue.
 ///
 /// Given a full type and a field list, this emits:
-/// - `Partial<Full>` with an `Option<<FieldTy as PartialField>::Partial>` per
-///   field, `#[serde(default, skip_serializing_if = "Option::is_none")]`, and
-///   `#[serde(deny_unknown_fields)]` (matching the hand-written structs it
-///   replaces);
-/// - a private `apply_fields(self, &mut Full)` that merges only the fields
-///   present in the partial (the merge primitive every other method delegates to);
-/// - a public `apply_to` whose signature depends on the arm: `&mut Full` for
-///   nested groups, `Full -> Full` for the `@root` arm so `PartialTheme` keeps
-///   its historical by-value `apply_to(base) -> Theme`;
+/// - `Partial<Full>` with an `Option<<FieldTy as PartialField>::Partial>` per field,
+///   `#[serde(default, skip_serializing_if = "Option::is_none")]`, and
+///   `#[serde(deny_unknown_fields)]` (matching the hand-written structs it replaces);
+/// - a private `apply_fields(self, &mut Full)` that merges only the fields present in the partial
+///   (the merge primitive every other method delegates to);
+/// - a public `apply_to` whose signature depends on the arm: `&mut Full` for nested groups, `Full
+///   -> Full` for the `@root` arm so `PartialTheme` keeps its historical by-value `apply_to(base)
+///   -> Theme`;
 /// - `from_full(&Full) -> Self`;
 /// - `impl PartialField for Full`.
 ///

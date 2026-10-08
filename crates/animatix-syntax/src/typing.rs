@@ -9,12 +9,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
 use crate::ast::{BinaryOp, Expr, TypeAnnotation};
-use crate::schema::property_specs;
-
 pub use crate::builtins::{
     COLOR_CONSTRUCTOR_FUNCTIONS as COLOR_CONSTRUCTOR_FNS, COLOR_NAMES as NAMED_COLOR_NAMES,
     COLOR_NAMESPACES, MATH_FUNCTIONS as MATH_FUNCTION_NAMES, named_color_rgba,
 };
+use crate::schema::property_specs;
 
 /// A namespaced value, either a concrete type or a nested namespace.
 #[derive(Clone, Debug, PartialEq, Eq)]

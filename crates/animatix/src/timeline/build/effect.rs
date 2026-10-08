@@ -6,7 +6,6 @@
 //! hit region, and are not rendered as content.
 
 use super::*;
-
 use crate::timeline::effects::{Effect, EffectStage, identity_to_property, value_to_property};
 use crate::timeline::property_engine::PropertyValue;
 use crate::timeline::timing::{ModifierHost, ParsedTimingModifiers, parse_timing_modifiers};

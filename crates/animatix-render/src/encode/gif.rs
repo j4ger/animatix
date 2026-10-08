@@ -5,13 +5,13 @@
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
+use animatix::composition::Composition;
+use animatix::timeline::{DebugRenderOptions, Timeline};
 use tracing::info;
 
 use crate::encode::video::adaptive_thread_count;
 use crate::encode::{ExportError, ExportSettings};
 use crate::render_pipeline::{render_frames_streaming, render_frames_streaming_composition};
-use animatix::composition::Composition;
-use animatix::timeline::{DebugRenderOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Public API: single-timeline GIF

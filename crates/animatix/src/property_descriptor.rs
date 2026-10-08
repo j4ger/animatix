@@ -49,9 +49,10 @@ pub fn type_for_value_kind(kind: PropertyValueKind) -> Type {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use animatix_syntax::schema::{PropertyId, PropertyValueKind};
     use animatix_syntax::typing::Type;
+
+    use super::*;
 
     #[test]
     fn schema_descriptor_uses_shared_fields() {

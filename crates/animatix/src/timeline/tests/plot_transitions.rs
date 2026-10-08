@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 use crate::ast::Expr;
 use crate::easing::Easing;
@@ -7,7 +9,6 @@ use crate::timeline::plot::{
     FuncBlendMode, FuncSource, FuncTransition, PlotCurveKind, ProceduralPlot, ProceduralPlotKind,
     blend_depth, flatten_blend, resolve_func_source, sample_procedural_plot_at,
 };
-use std::sync::Arc;
 
 // ─────────────────────────────────────────────────────────────
 // Helpers

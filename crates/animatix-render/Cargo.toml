@@ -36,3 +36,6 @@ wgpu = { workspace = true, default-features = false, features = ["std", "parking
 # whether upstream has since fixed the residency regression is still unmeasured.
 vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
 rsmpeg = { version = "0.18.0", default-features = false, features = ["ffmpeg8", "link_system_ffmpeg"], optional = true }
+
+[dev-dependencies]
+animatix = { path = "../animatix", features = ["image-decode"] }

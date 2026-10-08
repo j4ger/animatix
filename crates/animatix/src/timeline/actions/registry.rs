@@ -1,9 +1,9 @@
+/// Description of a single action parameter or modifier.
+pub use animatix_syntax::schema::{ActionParam, ActionSignature};
+
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::timeline::Timeline;
-
-/// Description of a single action parameter or modifier.
-pub use animatix_syntax::schema::{ActionParam, ActionSignature};
 
 /// Trait implemented by every built-in timeline action.
 pub trait BuiltinAction: Send + Sync {

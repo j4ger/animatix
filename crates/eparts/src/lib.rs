@@ -66,7 +66,6 @@ pub mod prelude {
     };
     pub use crate::tokens::theme::{AppThemeChoice, Theme, set_theme, theme, theme_from_ctx};
     pub use crate::tokens::typography::TextRole;
-
     // Widgets
     pub use crate::widget::button::Button;
     pub use crate::widget::color_picker::ColorPicker;

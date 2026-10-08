@@ -108,8 +108,9 @@ pub fn trim_path_by_progress(path: &BezPath, progress: f64) -> BezPath {
 
 #[cfg(test)]
 mod tests {
-    use super::trim_path_by_progress;
     use kurbo::{BezPath, ParamCurve, PathEl};
+
+    use super::trim_path_by_progress;
 
     fn endpoint(path: &BezPath) -> kurbo::Point {
         path.elements()

@@ -297,9 +297,11 @@ pub(crate) fn generate_manifest_for_library(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use animatix::extension_plugin::PluginDisposer;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use animatix::extension_plugin::PluginDisposer;
+
+    use super::*;
 
     struct DoublePlugin;
 

@@ -1,9 +1,10 @@
 //! Scene-camera (`camera.at` / `camera.zoom` / `camera.rotation`) build and
 //! sampling behaviour.
 
+use kurbo::{Affine, Point};
+
 use super::*;
 use crate::timeline::SceneDimensions;
-use kurbo::{Affine, Point};
 
 fn build(source: &str) -> Timeline {
     let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
