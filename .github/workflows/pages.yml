@@ -56,10 +56,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@main
+        uses: DeterminateSystems/flakehub-cache-action@v3
 
       - name: Node
         uses: actions/setup-node@v4

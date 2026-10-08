@@ -29,6 +29,10 @@ env:
   CARGO_TERM_COLOR: always
   ANIMATIX_COMMIT_BASE: ${{ github.event.before }}
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   plan:
     name: Plan
@@ -63,10 +67,10 @@ jobs:
       # order would then decide which rustc runs, and the answer differs per job.
       - name: Install Nix
         if: matrix.shell == 'nix' || matrix.shell == 'web'
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
         if: matrix.shell == 'nix' || matrix.shell == 'web'
-        uses: DeterminateSystems/magic-nix-cache-action@main
+        uses: DeterminateSystems/flakehub-cache-action@v3
 
       - name: Rust (nightly — rustfmt.toml sets unstable options)
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-nightly')
