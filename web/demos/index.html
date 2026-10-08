@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Demos — Animatix</title>
-  <meta name="description" content="Animated explainers built with Animatix — every figure is a declarative .amx scene compiling in your browser, not a video file.">
+  <title>Interactive Demos — Animatix</title>
+  <meta name="description" content="Animated interactive explainers built with Animatix — deep learning, mathematics, and computer science rendered at 60 FPS in WebGPU.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
 </head>
@@ -12,51 +12,48 @@
 
   <div class="wrap">
     <header>
-      <p class="kicker">Animatix · demos</p>
+      <p class="kicker">Animatix · Interactive Demos</p>
       <h1>Watch it explain.</h1>
       <p class="lede">
-        Each demo below is a self-contained explainer whose every figure is a
-        declarative scene file — nothing here is a video. The posters are not
-        posters: they are the demos' own scenes, live in this page — hover a
-        card to play it. Pick one; the engine compiles it in your browser as
-        you read.
+        Six complete visual walkthroughs where every diagram, equation, and chart is a
+        declarative <code class="inline">.amx</code> scene running live in your browser over WebGPU.
+        Hover or tap any card to preview the animation.
       </p>
     </header>
 
     <div class="cards hub">
       <a class="hub-card featured" href="./transformer/">
         <span class="hub-poster">
+          <span class="poster-badge live">Live Scene · 9s</span>
           <amx-player src="transformer/scenes/overview.amx" sealed autoplay loop
                       hold="1.5" aspect="16:9"
                       title="The transformer block, drawn as an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 7 scenes · live poster</span>
+          <span class="demo-kicker">Deep Learning · 7 Scenes</span>
           <span class="hub-title">The Transformer Architecture, Animated</span>
           <span class="hub-blurb">
-            The machine behind every language model, built up piece by piece —
-            tokens, positions, attention, heads, the feed-forward block, the
-            stack. Picture-first prose; every figure compiles live as you
-            scroll, and hovering a figure pauses it for study. The map playing
-            above is its opening figure.
+            The mechanism behind modern language models, built up step-by-step:
+            tokens, positional encodings, scaled dot-product attention, multi-head projections,
+            the feed-forward block, and residual streams.
           </span>
-          <span class="open">Start reading</span>
+          <span class="open">Explore the walkthrough</span>
         </span>
       </a>
 
       <a class="hub-card" href="./gradient/">
         <span class="hub-poster">
+          <span class="poster-badge">Hover to play · 6 scenes</span>
           <amx-player src="gradient/losssurface.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="A loss surface drawn as an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 6 scenes · hover to play</span>
-          <span class="hub-title">Rolling Downhill</span>
+          <span class="demo-kicker">Optimization · 6 Scenes</span>
+          <span class="hub-title">Rolling Downhill: Gradient Descent</span>
           <span class="hub-blurb">
-            How machines learn, one picture at a time: the loss surface, the
-            direction against the gradient, a ball that rolls to the minimum,
-            and the step size that decides whether it ever arrives.
+            How neural networks learn: the loss landscape, stepping against the gradient,
+            a particle rolling toward the global minimum, and how learning rates govern convergence.
           </span>
           <span class="open">Start reading</span>
         </span>
@@ -64,17 +61,17 @@
 
       <a class="hub-card" href="./matrix/">
         <span class="hub-poster">
+          <span class="poster-badge">Hover to play · 3 scenes</span>
           <amx-player src="matrix/rotation.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="A sheared grid under a live 2×2 matrix, as an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
+          <span class="demo-kicker">Linear Algebra · 3 Scenes</span>
           <span class="hub-title">A Matrix Is a Machine</span>
           <span class="hub-blurb">
-            Linear algebra you can watch: a shear with nothing keyframed, a
-            rotation you read off the columns, and the determinant collapsing
-            the plane through zero — then flipping it.
+            Intuitive coordinate geometry: live shears, rotations read directly off column vectors,
+            and the determinant collapsing the plane through zero.
           </span>
           <span class="open">Start reading</span>
         </span>
@@ -82,17 +79,17 @@
 
       <a class="hub-card" href="./hash/">
         <span class="hub-poster">
+          <span class="poster-badge">Hover to play · 3 scenes</span>
           <amx-player src="hash/collision.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="A collision chaining below a bucket, as an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
-          <span class="hub-title">Where Keys Live</span>
+          <span class="demo-kicker">Data Structures · 3 Scenes</span>
+          <span class="hub-title">Where Keys Live: Hash Tables</span>
           <span class="hub-blurb">
-            Hash tables staged as theatre: a hash you can follow in your
-            head, a collision that chains, and three lookups — a hit, a
-            chained hit, and a miss answered by an empty bucket.
+            Hash tables staged visually: visual hash bucket distribution, bucket collision chaining,
+            and fast O(1) lookups vs linked-list traversals.
           </span>
           <span class="open">Start reading</span>
         </span>
@@ -100,17 +97,17 @@
 
       <a class="hub-card" href="./epicycles/">
         <span class="hub-poster">
+          <span class="poster-badge">Hover to play · 5 scenes</span>
           <amx-player src="epicycles/hero.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="Spinning circles stacking into a square wave, as an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 5 scenes · hover to play</span>
+          <span class="demo-kicker">Fourier Series · 5 Scenes</span>
           <span class="hub-title">Circles That Draw a Square Wave</span>
           <span class="hub-blurb">
-            A Fourier series as spinning dials: one circle traces a sine, four
-            build a square. The wave re-forms through live function
-            transitions as each harmonic turns amber in the equation.
+            Fourier analysis as spinning mechanical dials: one circle traces a pure sine wave,
+            while four harmonic circles stack into a square wave.
           </span>
           <span class="open">Start reading</span>
         </span>
@@ -118,17 +115,17 @@
 
       <a class="hub-card" href="./sorting/">
         <span class="hub-poster">
+          <span class="poster-badge">Hover to play · 3 scenes</span>
           <amx-player src="sorting/sort.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="Insertion sort staged as bars in an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Walkthrough · 3 scenes · hover to play</span>
+          <span class="demo-kicker">Algorithms · 3 Scenes</span>
           <span class="hub-title">Sorting, Staged</span>
           <span class="hub-blurb">
-            Insertion sort performed by eight bars, directed entirely by one
-            build-time function — every comparison lights a tick, every swap
-            moves two bars, and the bill is stated at the end.
+            Insertion sort choreographed with animated bars. Every comparison lights a tick,
+            every swap moves two actors, and total algorithmic cost is tallies at the end.
           </span>
           <span class="open">Start reading</span>
         </span>
@@ -136,17 +133,17 @@
 
       <a class="hub-card" href="../gallery.html">
         <span class="hub-poster">
+          <span class="poster-badge">Showcase</span>
           <amx-player src="transformer/scenes/attention.amx" sealed data-hoverplay
                       aspect="16:9"
                       title="Attention weights as drawn by an Animatix scene"></amx-player>
         </span>
         <span class="hub-body">
-          <span class="demo-kicker">Scene collection · hover to play</span>
-          <span class="hub-title">Seven scenes, one engine</span>
+          <span class="demo-kicker">Scene Gallery</span>
+          <span class="hub-title">Seven Scenes, One Engine</span>
           <span class="hub-blurb">
-            The walkthrough's figures on their own — entrances, morphs,
-            attention bars, plots — each playable right on the page, each with
-            its <code class="inline">.amx</code> source one click away.
+            Standalone animation figures with full timeline scrubber controls, fullscreen theater mode,
+            and direct <code class="inline">.amx</code> source links.
           </span>
           <span class="open">Open the gallery</span>
         </span>

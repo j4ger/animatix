@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Scene Gallery — .amx scenes in the browser</title>
-  <meta name="description" content="Seven declarative .amx scenes playing in the browser through the Animatix WebGPU engine — one custom element embeds any of them.">
+  <title>Scene Gallery — Animatix</title>
+  <meta name="description" content="Declarative .amx scenes playing in the browser through the Animatix WebGPU engine — one custom element embeds any of them.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./site.css">
 </head>
@@ -12,101 +12,131 @@
 
   <div class="wrap">
     <header>
-      <p class="kicker">Animatix · scene gallery</p>
-      <h1>Seven scenes, one engine</h1>
+      <p class="kicker">Animatix · Scene Gallery</p>
+      <h1>Seven scenes, one engine.</h1>
       <p class="lede">
-        Every figure below is a small declarative scene file rendered by the
-        same engine as the desktop app. Hover a figure to pause and scrub it;
-        press <code class="inline">theater</code> to blow it up full screen.
-        Embed one anywhere with a single
-        <code class="inline">&lt;amx-player src="…"&gt;</code> element — no
-        editor, no backend, no build step.
+        Every figure below is a lightweight declarative scene file rendered live by the
+        Animatix WebGPU engine. Scrub through the timelines, inspect their sources,
+        or expand into fullscreen theater mode.
       </p>
       <ul class="meta">
-        <li>7 scenes</li>
-        <li>one engine download for the whole page</li>
-        <li>plain text scenes only</li>
-        <li>theater: fullscreen, esc to leave</li>
+        <li>7 interactive scenes</li>
+        <li>One 5.5 MB shared engine download</li>
+        <li>100% vector WebGPU rendering</li>
+        <li>Fullscreen theater support (ESC to exit)</li>
       </ul>
     </header>
 
-    <div class="gallery">
+    <div class="gallery-grid">
       <figure>
-        <h3>The whole architecture</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">The Whole Architecture</h3>
+          <span class="figure-tag">Overview</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/overview.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="The full transformer, one map"></amx-player>
         <figcaption>
-          <span class="cap">Tokens climb one block (repeated × N) to the LM
-            head; the chosen word loops back into the input.</span>
-          <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
+          <span class="cap">Tokens climb through N stacked transformer blocks to the LM head.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
       <figure>
-        <h3>Tokens &amp; embeddings</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">Tokens &amp; Embeddings</h3>
+          <span class="figure-tag">Representation</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/tokens.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="Tokens and embeddings"></amx-player>
         <figcaption>
-          <span class="cap">Text becomes tokens; each token becomes a column of
-            learned numbers.</span>
-          <a class="src" href="./demos/transformer/scenes/tokens.amx">tokens.amx ↗</a>
+          <span class="cap">Text fragments map to learned dense continuous vectors.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/tokens.amx">tokens.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
       <figure>
-        <h3>Positional encoding</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">Positional Encoding</h3>
+          <span class="figure-tag">Geometric Sinusoids</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/positional.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="Positional encoding"></amx-player>
         <figcaption>
-          <span class="cap">Each row is a sine of twice the period above it.</span>
-          <a class="src" href="./demos/transformer/scenes/positional.amx">positional.amx ↗</a>
+          <span class="cap">Harmonic sine frequencies imbue tokens with absolute order.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/positional.amx">positional.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
       <figure>
-        <h3>Self-attention</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">Self-Attention</h3>
+          <span class="figure-tag">Dot-Product Matrix</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/attention.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="Scaled dot-product attention"></amx-player>
         <figcaption>
-          <span class="cap">One weight carries almost all of the answer.</span>
-          <a class="src" href="./demos/transformer/scenes/attention.amx">attention.amx ↗</a>
+          <span class="cap">Query-Key dot products weight and aggregate value vectors.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/attention.amx">attention.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
       <figure>
-        <h3>Multi-head attention</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">Multi-Head Attention</h3>
+          <span class="figure-tag">Subspace Projections</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/multihead.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="Multiple attention heads"></amx-player>
         <figcaption>
-          <span class="cap">Three heads, three attention patterns, one output vector.</span>
-          <a class="src" href="./demos/transformer/scenes/multihead.amx">multihead.amx ↗</a>
+          <span class="cap">Multiple attention heads capture distinct linguistic patterns in parallel.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/multihead.amx">multihead.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
       <figure>
-        <h3>Feed-forward &amp; residuals</h3>
+        <div class="figure-header">
+          <h3 class="figure-title">Feed-Forward &amp; Residuals</h3>
+          <span class="figure-tag">Non-Linear Layer</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/feedforward.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="Feed-forward block with residuals"></amx-player>
         <figcaption>
-          <span class="cap">The rail runs straight through; the arcs are what gets added.</span>
-          <a class="src" href="./demos/transformer/scenes/feedforward.amx">feedforward.amx ↗</a>
+          <span class="cap">Residual highway streams allow clean gradient propagation across layers.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/feedforward.amx">feedforward.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
 
-      <figure>
-        <h3>Stacking the blocks</h3>
+      <figure style="grid-column: 1 / -1;">
+        <div class="figure-header">
+          <h3 class="figure-title">Stacking the Blocks</h3>
+          <span class="figure-tag">Full Pipeline</span>
+        </div>
         <amx-player src="./demos/transformer/scenes/pipeline.amx"
                     autoplay loop controls hold="1" aspect="16:9"
                     title="The full transformer stack"></amx-player>
         <figcaption>
-          <span class="cap">Same weights in every block, new meaning at every level.</span>
-          <a class="src" href="./demos/transformer/scenes/pipeline.amx">pipeline.amx ↗</a>
+          <span class="cap">Identical block parameters transform and contextualize representations at scale.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/transformer/scenes/pipeline.amx">pipeline.amx ↗</a>
+          </div>
         </figcaption>
       </figure>
     </div>
@@ -114,21 +144,17 @@
     <div class="howto">
       <h2>Embedding a scene</h2>
       <p>
-        The seven figures above come from
-        <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>,
-        which explains them one at a time. Each scene source is a plain text file.
+        The figures above originate from
+        <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>.
+        Embedding any scene on the web requires just one script and tag:
       </p>
-      <pre>&lt;script type="module" src="./embed/amx-player.js"
-        data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
+      <pre>&lt;script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
 
-&lt;amx-player src="./scenes/attention.amx" autoplay loop
-            hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
-      <p style="margin-bottom:0">
-        <code class="inline">data-runtime-base</code> on the loader script picks
-        which engine profile to serve. These scenes use plain text only, so the
-        page serves <code class="inline">pkg-slim</code> — the full profile is
-        only needed for Typst markup, equations and image/SVG assets.
-        <a href="./README.md">web/README.md</a> has the hosting notes.
+&lt;amx-player src="./scenes/attention.amx" autoplay loop hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
+      <p style="margin-top: 14px; margin-bottom: 0;">
+        <code class="inline">data-runtime-base</code> selects which engine wasm profile to download.
+        Vector and plain text scenes use the 5.5 MB <code class="inline">pkg-slim</code> bundle.
+        For full Typst equations and SVG assets, load the full engine profile. See <a href="./README.md">web/README.md</a>.
       </p>
     </div>
 

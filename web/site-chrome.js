@@ -8,18 +8,6 @@
 // depth), `data-section` (optional) marks the current nav link. The script is
 // parser-blocking at the end of <body>, so the chrome is present before first
 // paint — no flash, no layout shift.
-//
-// Beyond nav + footer, this file wires the "the page is a timeline" layer:
-//
-//   ruler      the amber playhead in the nav's bottom edge — scroll progress
-//              as scaleX, one tick per section, a diamond at the head
-//   timecode   the `#12.4s` readout in the nav (the page's master clock: one
-//              beat of BEAT seconds per section)
-//   stamps     each section head gets its master-time stamp (`#8.0s`)
-//   hover-play `amx-player[data-hoverplay]` posters play on card hover/focus
-//   ledger     `.ledger .row` entries stamp in as they enter the viewport
-//   duality    the home page's code/stage figure scrubs with scroll and
-//              lights the code line owning the current beat
 
 (function () {
   const script = document.currentScript;
@@ -53,6 +41,11 @@
     const a = document.createElement("a");
     a.href = key === "github" ? href : root + href;
     a.textContent = label;
+    if (key === "github") {
+      a.className = "github-star";
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    }
     if (key === section) a.setAttribute("aria-current", "page");
     linksBox.appendChild(a);
   }
@@ -81,7 +74,7 @@
   const footer = document.createElement("footer");
   const left = document.createElement("span");
   left.innerHTML =
-    'Built with <strong>Animatix</strong> — a layout-first animation DSL. MIT licensed.';
+    'Built with <strong>Animatix</strong> — declarative animation DSL & 60 FPS Rust engine. MIT licensed.';
   const right = document.createElement("span");
   const parts = [
     ["", "Home"],
@@ -101,15 +94,34 @@
   const gh = document.createElement("a");
   gh.href = external;
   gh.textContent = "GitHub";
+  gh.target = "_blank";
+  gh.rel = "noopener noreferrer";
   right.append(gh);
   footer.append(left, right);
   wrap.appendChild(footer);
 
-  // ── the master timeline ───────────────────────────────────────────
-  // Each top-level section occupies one BEAT-second beat of the page's master
-  // timeline; the hero/header happens at #0.0s. Scroll position is the
-  // playhead.
+  // ── copy to clipboard support ─────────────────────────────────────
+  document.querySelectorAll("button[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const text = btn.dataset.copy;
+      if (!text) return;
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.classList.add("copied");
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = `<span class="term-prompt">✓</span> Copied to clipboard!`;
+        setTimeout(() => {
+          btn.classList.remove("copied");
+          btn.innerHTML = origHtml;
+        }, 2200);
+      } catch (err) {
+        console.warn("copy failed", err);
+      }
+    });
+  });
 
+  // ── the master timeline ───────────────────────────────────────────
   const BEAT = 4;
   const sections = [...wrap.querySelectorAll(":scope > section[id], :scope > div > section[id]")];
   const duration = BEAT * (sections.length + 1);
@@ -125,7 +137,7 @@
   // Stamp each section head with its master time.
   sections.forEach((el, i) => {
     const head = el.querySelector(".sec-head");
-    if (!head) return;
+    if (!head || head.querySelector(".stamp")) return;
     const stamp = document.createElement("span");
     stamp.className = "stamp";
     stamp.textContent = fmt(BEAT * (i + 1));
@@ -139,8 +151,7 @@
     const doc = document.documentElement;
     const maxScroll = Math.max(doc.scrollHeight - window.innerHeight, 1);
     for (const { el, tick } of ticks) {
-      // The tick sits where the section's top reaches the nav line.
-      const arrive = Math.min(Math.max((el.offsetTop - 54) / maxScroll, 0), 1);
+      const arrive = Math.min(Math.max((el.offsetTop - 56) / maxScroll, 0), 1);
       tick.style.left = `${arrive * 100}%`;
     }
   }
@@ -154,8 +165,6 @@
     rulerHead.style.setProperty("--head", `${p * 100}%`);
     timecode.textContent = fmt(p * duration);
     if (cue) {
-      // The scroll hint gets a lifetime, not a rhythm: it gives way under the
-      // first flick instead of pulsing until the reader gives up.
       const gone = Math.min(Math.max((window.scrollY - 60) / 200, 0), 1);
       cue.style.opacity = String(1 - gone);
     }
@@ -170,17 +179,11 @@
   timecode.classList.add("on");
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", () => { measure(); onScroll(); }, { passive: true });
-  // Fonts and images change offsets; re-measure once they settle.
   window.addEventListener("load", measure);
   measure();
   sync();
 
-  // ── hover-play posters ────────────────────────────────────────────
-  // A `data-hoverplay` embed rests on its finished frame (the player's
-  // built-in poster) and plays while its card is hovered or focused. Used by
-  // the demo hub's live posters; autoplaying everything at once would spend
-  // the frame budget on cards nobody is reading.
-
+  // ── hover-play & touch-toggle posters ─────────────────────────────
   for (const el of document.querySelectorAll("amx-player[data-hoverplay]")) {
     const card = el.closest("a.hub-card, a.demo-card, .hub-card, .demo-card") ?? el;
     const whenReady = new Promise((res) => {
@@ -195,37 +198,17 @@
     card.addEventListener("blur", pause, true);
   }
 
-  // ── ledger stamp-in ───────────────────────────────────────────────
-
+  // ── ensure ledger rows are always visible ─────────────────────────
   const rows = document.querySelectorAll(".ledger .row");
   if (rows.length) {
-    if (REDUCED) {
-      rows.forEach((r) => r.classList.add("in"));
-    } else {
-      const io = new IntersectionObserver(
-        (entries) => {
-          for (const e of entries) {
-            if (e.isIntersecting) {
-              e.target.classList.add("in");
-              io.unobserve(e.target);
-            }
-          }
-        },
-        { rootMargin: "0px 0px -8% 0px" },
-      );
-      rows.forEach((r) => io.observe(r));
-    }
+    rows.forEach((r) => r.classList.add("in"));
   }
 
   // ── theater mode (gallery) ────────────────────────────────────────
-  // Each gallery figure gets a `theater` button that fullscreens the whole
-  // figure — picture, caption and source link ride along; Esc leaves. The
-  // player keeps playing across the transition; the :fullscreen styles in
-  // site.css give the figure a stage of its own.
-
-  for (const figure of document.querySelectorAll(".gallery figure, figure.tour-embed")) {
+  for (const figure of document.querySelectorAll(".gallery figure, figure.tour-embed, .gallery-grid figure, .recipes-grid figure")) {
     const caption = figure.querySelector("figcaption");
     if (!caption || !document.fullscreenEnabled) continue;
+    if (caption.querySelector(".theater-btn")) continue;
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "theater-btn";
@@ -235,14 +218,11 @@
       if (document.fullscreenElement) document.exitFullscreen();
       else figure.requestFullscreen?.();
     });
-    caption.appendChild(btn);
+    const actions = caption.querySelector(".fig-actions") ?? caption;
+    actions.appendChild(btn);
   }
 
-  // ── the duality: scroll-scrubbed code/stage figure ────────────────
-  // Present only on the home page. Scrolling through the section scrubs the
-  // stage across its whole timeline; the code line owning the current beat
-  // (each line carries data-t="start,end" in scene seconds) lights up.
-
+  // ── the duality: scroll-scrubbed + click-interactive code/stage ───
   const duality = document.querySelector(".duality");
   if (duality) {
     const player = duality.querySelector("amx-player");
@@ -251,13 +231,22 @@
     let ready = false;
     player?.addEventListener("amxready", () => { ready = true; scrub(); });
 
+    // Click line to jump to beat
+    lines.forEach((ln) => {
+      ln.addEventListener("click", () => {
+        if (!player) return;
+        const [a] = ln.dataset.t.split(",").map(Number);
+        player.seek(a + 0.05);
+        if (beatOut) beatOut.textContent = fmt(a);
+        lines.forEach((other) => other.classList.toggle("live", other === ln));
+      });
+    });
+
     const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
     function scrub() {
       if (!ready || !player) return;
       const r = duality.getBoundingClientRect();
       const vh = window.innerHeight;
-      // 0 when the figure's top crosses 85% of the viewport, 1 when its
-      // bottom crosses 35% — a scrub window roughly the section's own height.
       const span = r.height + vh * 0.5;
       const p = clamp01((vh * 0.85 - r.top) / span);
       const t = p * player.duration;
