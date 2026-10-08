@@ -74,11 +74,11 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> Neural networks cannot read letters or words.
-          Every piece of text must be fractured into statistical fragments and mapped
-          into a <strong>768-number coordinate vector</strong> in an abstract continuous space.
+          Neural networks cannot read letters or words. Every piece of text must be fractured
+          into statistical fragments and mapped into a <strong>768-number coordinate vector</strong>
+          in an abstract continuous space.
         </p>
       </div>
 
@@ -149,11 +149,11 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> Self-attention is inherently permutation-invariant.
-          Without positional encoding, <em>“dog bites man”</em> and <em>“man bites dog”</em> produce
-          identical mathematical outputs. Word order must be injected manually into every token.
+          Self-attention is inherently permutation-invariant. Without positional encoding,
+          <em>“dog bites man”</em> and <em>“man bites dog”</em> produce identical mathematical outputs.
+          Word order must be injected manually into every token.
         </p>
       </div>
 
@@ -223,12 +223,12 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> Self-attention allows tokens to exchange context.
-          Every token acts as a <strong>Query</strong> (what it seeks), a <strong>Key</strong>
-          (what it advertises), and a <strong>Value</strong> (what it gives). Softmax normalizes
-          compatibilities into a probability distribution that sums to exactly 1.0.
+          Self-attention allows tokens to exchange context. Every token acts as a <strong>Query</strong>
+          (what it seeks), a <strong>Key</strong> (what it advertises), and a <strong>Value</strong>
+          (what it gives). Softmax normalizes compatibilities into a probability distribution that
+          sums to exactly 1.0.
         </p>
       </div>
 
@@ -302,11 +302,11 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> Language requires tracking multiple relationships simultaneously
-          (grammar, semantics, coreference, rhythm). Instead of running one wide attention calculation,
-          the model splits into <strong><i>h</i> parallel heads</strong> operating in distinct subspaces.
+          Language requires tracking multiple relationships simultaneously (grammar, semantics,
+          coreference, rhythm). Instead of running one wide attention calculation, the model
+          splits into <strong><i>h</i> parallel heads</strong> operating in distinct subspaces.
         </p>
       </div>
 
@@ -375,10 +375,10 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> Self-attention mixes tokens together; the Feed-Forward
-          Network (FFN) transforms each token alone. It inflates into a 4 × <i>d</i><sub>model</sub> memory chamber
+          Self-attention mixes tokens together; the Feed-Forward Network (FFN) transforms
+          each token alone. It inflates into a 4 × <i>d</i><sub>model</sub> memory chamber
           where learned factual knowledge is stored and retrieved.
         </p>
       </div>
@@ -454,9 +454,9 @@
       </div>
 
       <div class="intuition-card">
-        <span class="intuition-icon">💡</span>
+        <div class="intuition-badge">💡 Key Intuition</div>
         <p class="intuition-text">
-          <strong>Key Intuition:</strong> A complete language model stacks <i>N</i> identical blocks in series.
+          A complete language model stacks <i>N</i> identical blocks in series.
           As the token vector ascends the tower, its meaning deepens: from surface spelling to grammar,
           from factual reasoning to vocabulary logits.
         </p>
