@@ -34,6 +34,13 @@ pub struct PrimitiveCapabilities {
     pub is_shape: bool,
     /// Directly emits visual ink or content (stroke, fill, glyphs, raster pixels, or plot marks).
     pub has_visual_content: bool,
+    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, Callout, PlotCurve,
+    /// VectorField, ContourSet).
+    pub stroke_primary: bool,
+    /// Has callout-style targeted leader line and label geometry.
+    pub callout: bool,
+    /// Manages and displays a series legend.
+    pub legend_host: bool,
 }
 
 /// Child-rendering strategy selected by a primitive.
@@ -181,6 +188,13 @@ pub struct ActorCaps {
     pub group_like: bool,
     /// Directly renders visual stroke, fill, glyphs, raster pixels, or plot marks.
     pub has_visual_content: bool,
+    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, Callout, PlotCurve,
+    /// VectorField, ContourSet).
+    pub stroke_primary: bool,
+    /// Has callout-style targeted leader line and label geometry.
+    pub callout: bool,
+    /// Manages and displays a series legend.
+    pub legend_host: bool,
 }
 
 impl ActorCaps {
@@ -202,6 +216,15 @@ impl ActorCaps {
     pub fn renders_visual_content(&self) -> bool {
         self.has_visual_content
     }
+
+    /// Default stroke width for this actor kind.
+    ///
+    /// Stroke-primary actors (Line, Arrow, Callout, PlotCurve, VectorField, ContourSet)
+    /// need a visible outline (2.0) by default; filled shapes default to 0.0 to avoid
+    /// edge artifacts.
+    pub fn default_stroke_width(&self) -> f32 {
+        if self.stroke_primary { 2.0 } else { 0.0 }
+    }
 }
 
 /// Declares which actors a property applies to.
@@ -214,8 +237,6 @@ impl ActorCaps {
 pub enum Applicable {
     /// Applies to every actor kind including Group.
     Everything,
-    /// Applies to all actor kinds except Group (style / size properties).
-    EveryActorExceptGroup,
     /// Applies to all shape kinds.
     AllShapes,
     /// All actors with stroke-based path rendering (shapes + `PlotCurve`).
@@ -252,7 +273,6 @@ impl Applicable {
     pub fn includes(self, caps: &ActorCaps, actor_type: &str) -> bool {
         match self {
             Applicable::Everything => true,
-            Applicable::EveryActorExceptGroup => !caps.group_like,
             Applicable::AllShapes => caps.shape.is_some(),
             Applicable::AllStrokePaths => caps.stroke_path,
             Applicable::AllShapesExceptLine => caps.shape.is_some_and(|sk| sk != ShapeKind::Line),
@@ -296,5 +316,20 @@ mod tests {
             ..Default::default()
         };
         assert!(!non_visual.renders_visual_content());
+    }
+
+    #[test]
+    fn default_stroke_width_classification() {
+        let stroke_primary = ActorCaps {
+            stroke_primary: true,
+            ..Default::default()
+        };
+        assert_eq!(stroke_primary.default_stroke_width(), 2.0);
+
+        let fill_primary = ActorCaps {
+            stroke_primary: false,
+            ..Default::default()
+        };
+        assert_eq!(fill_primary.default_stroke_width(), 0.0);
     }
 }

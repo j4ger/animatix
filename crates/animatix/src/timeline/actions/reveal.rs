@@ -10,10 +10,7 @@ use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifi
 /// draw/reveal actions. The outline uses the actor's fill color so the default
 /// declaration stays clean while the entrance effect remains visible.
 fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u64) {
-    let current_width = track
-        .style
-        .stroke_width
-        .get(time_ms, crate::timeline::default_stroke_width(&track.actor_type));
+    let current_width = track.style.stroke_width.get(time_ms, track.caps.default_stroke_width());
     if current_width > 0.0 {
         return;
     }

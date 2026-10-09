@@ -30,7 +30,7 @@ impl Timeline {
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         // Callout has its own state struct; resolve via kind instead of a
         // type-name string.
-        let is_callout = ty == "Callout";
+        let is_callout = animatix_std::caps_for_type(ty).is_some_and(|c| c.callout);
         let mut vector_shape_state = if is_callout {
             VectorShapeState::Callout(crate::timeline::shapes::CalloutState::default())
         } else {

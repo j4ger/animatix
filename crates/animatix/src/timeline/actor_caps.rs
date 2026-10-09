@@ -64,7 +64,7 @@ pub fn find_actor_kind(ty: &str) -> Option<Box<dyn ActorKind + Send + Sync>> {
         .expect("find_actor_kind only dispatches catalog-registered built-ins");
     match info.category {
         ActorCategory::Shape | ActorCategory::Container => None,
-        _ if primitive.type_name() == "Callout" => None,
+        _ if info.capabilities.callout => None,
         _ => Some(Box::new(PrimitiveActorKind(primitive)) as Box<dyn ActorKind + Send + Sync>),
     }
 }

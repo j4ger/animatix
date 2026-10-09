@@ -53,7 +53,7 @@ impl GestureHandler for CalloutGesture {
                     None => return GestureResult::Ignored,
                 };
 
-                if track.actor_type != "Callout" || track.locked {
+                if !track.caps.callout || track.locked {
                     return GestureResult::Ignored;
                 }
 

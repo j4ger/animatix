@@ -896,7 +896,7 @@ impl Timeline {
         // Validate Callout `target` references after all actors are built.
         // This is a post-build pass so forward declarations are visible.
         for (label, track) in &timeline.tracks {
-            if track.actor_type == "Callout" {
+            if track.caps.callout {
                 use crate::timeline::TrackAccessor;
                 let target = track.geometry.callout_target.get(0, String::new());
                 if !target.is_empty() && !timeline.tracks.contains_key(&target) {
@@ -942,7 +942,7 @@ impl Timeline {
         let legend_labels = timeline
             .tracks
             .iter()
-            .filter(|(_, track)| track.actor_type == "Legend")
+            .filter(|(_, track)| track.caps.legend_host)
             .map(|(label, _)| label.clone())
             .collect::<Vec<_>>();
         if !legend_labels.is_empty() {

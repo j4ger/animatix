@@ -2181,6 +2181,9 @@ fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabili
         is_container,
         is_shape: flags & NATIVE_CAP_IS_SHAPE != 0,
         has_visual_content,
+        stroke_primary: false,
+        callout: false,
+        legend_host: false,
     }
 }
 

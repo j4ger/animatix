@@ -601,12 +601,12 @@ impl Timeline {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
-        let kind = match actor_type {
-            "Text" => TextDeclarationKind::Text,
-            "Math" => TextDeclarationKind::Math,
-            "Code" => TextDeclarationKind::Code,
-            "Typst" => TextDeclarationKind::Typst,
-            _ => return Ok(()),
+        let kind = match animatix_std::caps_for_type(actor_type).and_then(|c| c.text) {
+            Some(animatix_core::caps::TextKind::Text) => TextDeclarationKind::Text,
+            Some(animatix_core::caps::TextKind::Math) => TextDeclarationKind::Math,
+            Some(animatix_core::caps::TextKind::Code) => TextDeclarationKind::Code,
+            Some(animatix_core::caps::TextKind::Typst) => TextDeclarationKind::Typst,
+            None => return Ok(()),
         };
         self.process_text_declaration(
             kind,

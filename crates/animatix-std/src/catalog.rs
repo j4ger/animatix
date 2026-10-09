@@ -58,6 +58,9 @@ const fn caps(
     is_container: bool,
     is_shape: bool,
     has_visual_content: bool,
+    stroke_primary: bool,
+    callout: bool,
+    legend_host: bool,
 ) -> PrimitiveCapabilities {
     PrimitiveCapabilities {
         text_paths,
@@ -71,37 +74,52 @@ const fn caps(
         is_container,
         is_shape,
         has_visual_content,
+        stroke_primary,
+        callout,
+        legend_host,
     }
 }
 
-const SHAPE_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, false, false, false, true, true);
-const TEXT_CAPS: PrimitiveCapabilities =
-    caps(true, false, false, false, true, true, false, false, false, false, true);
-const PLOT_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, true, false, false, false, true);
-const CONTAINER_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, false, false, true, false, false);
+const SHAPE_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, true, false, false, false, true, true, false, false, false,
+);
+const TEXT_CAPS: PrimitiveCapabilities = caps(
+    true, false, false, false, true, true, false, false, false, false, true, false, false, false,
+);
+const PLOT_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, true, true, false, false, false, true, false, false, false,
+);
+const CONTAINER_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, true, false, false, false, false, true, false, false, false, false, false,
+);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
 /// and do not invite a scope that paints nothing; `corner_radius` stays applicable
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
-const GLASS_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, false, false, true, true, false);
-const GROUP_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, false, false, false, false, false, true, false, false);
-const NO_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, false, false, false, false, false, false, false, false);
-const IMAGE_CAPS: PrimitiveCapabilities =
-    caps(false, false, true, false, false, false, false, false, false, false, true);
-const SVG_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, false, false, false, false, true);
-const GRAPH_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, true, true, false, false, true);
-const ANNOTATION_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, false, false, false, false, false, false, true);
+const GLASS_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, true, false, false, false, false, true, true, false, false, false, false,
+);
+const GROUP_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, false, false, false, false, false, true, false, false, false, false, false,
+);
+const NO_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false,
+);
+const IMAGE_CAPS: PrimitiveCapabilities = caps(
+    false, false, true, false, false, false, false, false, false, false, true, false, false, false,
+);
+const SVG_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, true, false, false, false, false, true, false, false, false,
+);
+const GRAPH_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, true, true, true, false, false, true, false, false, false,
+);
+const ANNOTATION_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, false, false, false, false, false, false, true, false, false, false,
+);
 
 impl PrimitiveInfo {
     /// A built-in card in `category` with `capabilities`: `Generic` child
@@ -137,13 +155,16 @@ impl PrimitiveInfo {
         icon: &'static str,
         kind: ShapeKind,
     ) -> Self {
+        let stroke_primary = matches!(kind, ShapeKind::Line | ShapeKind::Arrow);
+        let mut capabilities = SHAPE_CAPS;
+        capabilities.stroke_primary = stroke_primary;
         Self {
             type_name: Cow::Borrowed(type_name),
             display_name: Cow::Borrowed(display_name),
             category: ActorCategory::Shape,
             icon_id: Cow::Borrowed(icon),
             advanced: false,
-            capabilities: SHAPE_CAPS,
+            capabilities,
             child_processing: ChildProcessingKind::Generic,
             shape: Some(kind),
             text: None,
@@ -181,6 +202,25 @@ impl PrimitiveInfo {
     /// Mark the card stroke-based.
     pub const fn stroked(mut self) -> Self {
         self.stroke_path = true;
+        self
+    }
+
+    /// Mark the card as primarily stroke-drawn (e.g. Line, Arrow, Callout, PlotCurve, VectorField,
+    /// ContourSet).
+    pub const fn stroke_primary(mut self) -> Self {
+        self.capabilities.stroke_primary = true;
+        self
+    }
+
+    /// Mark the card as having callout geometry.
+    pub const fn callout(mut self) -> Self {
+        self.capabilities.callout = true;
+        self
+    }
+
+    /// Mark the card as hosting a series legend.
+    pub const fn legend_host(mut self) -> Self {
+        self.capabilities.legend_host = true;
         self
     }
 
@@ -236,7 +276,8 @@ pub static AUDIO: PrimitiveInfo =
 
 // Plots
 pub static GRAPH: PrimitiveInfo =
-    PrimitiveInfo::new("Graph", "Graph", icon_glyphs::CHART_BAR, ActorCategory::Plot, GRAPH_CAPS);
+    PrimitiveInfo::new("Graph", "Graph", icon_glyphs::CHART_BAR, ActorCategory::Plot, GRAPH_CAPS)
+        .stroked();
 pub static PLOT_CURVE: PrimitiveInfo = PrimitiveInfo::new(
     "PlotCurve",
     "Plot Curve",
@@ -245,7 +286,8 @@ pub static PLOT_CURVE: PrimitiveInfo = PrimitiveInfo::new(
     PLOT_CAPS,
 )
 .advanced()
-.stroked();
+.stroked()
+.stroke_primary();
 pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
     "VectorField",
     "Vector Field",
@@ -253,10 +295,13 @@ pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
-.advanced();
+.advanced()
+.stroked()
+.stroke_primary();
 pub static HEATMAP: PrimitiveInfo =
     PrimitiveInfo::new("Heatmap", "Heatmap", icon_glyphs::GRADIENT, ActorCategory::Plot, PLOT_CAPS)
-        .advanced();
+        .advanced()
+        .stroked();
 pub static CONTOUR_SET: PrimitiveInfo = PrimitiveInfo::new(
     "ContourSet",
     "Contour Set",
@@ -264,14 +309,17 @@ pub static CONTOUR_SET: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
-.advanced();
+.advanced()
+.stroked()
+.stroke_primary();
 pub static NUMBER_PLANE: PrimitiveInfo = PrimitiveInfo::new(
     "NumberPlane",
     "Number Plane",
     icon_glyphs::SQUARES_FOUR,
     ActorCategory::Plot,
     PLOT_CAPS,
-);
+)
+.stroked();
 pub static BAR_CHART: PrimitiveInfo = PrimitiveInfo::new(
     "BarChart",
     "Bar Chart",
@@ -361,14 +409,18 @@ pub static CALLOUT: PrimitiveInfo = PrimitiveInfo::new(
     icon_glyphs::TEXT_T,
     ActorCategory::Annotation,
     ANNOTATION_CAPS,
-);
+)
+.stroked()
+.stroke_primary()
+.callout();
 pub static LEGEND: PrimitiveInfo = PrimitiveInfo::new(
     "Legend",
     "Legend",
     icon_glyphs::CHART_LINE_UP,
     ActorCategory::Annotation,
     ANNOTATION_CAPS,
-);
+)
+.legend_host();
 
 /// The built-in primitive catalog.
 ///
@@ -472,13 +524,15 @@ pub fn catalog_lookup(name: &str) -> Option<&'static PrimitiveInfo> {
 
 /// Derive the engine's capability projection from a catalog row.
 pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
+    let stroke_primary = info.capabilities.stroke_primary
+        || (info.shape.is_some_and(|k| matches!(k, ShapeKind::Line | ShapeKind::Arrow)));
     ActorCaps {
         category: info.category,
         child_processing: info.child_processing,
         shape: info.shape,
         text: info.text,
         is_shape: info.capabilities.is_shape,
-        stroke_path: info.stroke_path,
+        stroke_path: info.stroke_path || stroke_primary || info.capabilities.callout,
         text_paths: info.capabilities.text_paths,
         vector_paths: info.capabilities.vector_paths,
         image_payload: info.capabilities.image_payload,
@@ -506,6 +560,9 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
                             | ActorCategory::Plot
                             | ActorCategory::Annotation
                     ))),
+        stroke_primary,
+        callout: info.capabilities.callout,
+        legend_host: info.capabilities.legend_host,
     }
 }
 

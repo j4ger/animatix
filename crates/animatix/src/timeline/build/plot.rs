@@ -675,7 +675,7 @@ impl Timeline {
 
         // Start with track defaults, override from props.
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
-        let default_stroke = default_stroke_width(ty);
+        let default_stroke = existing_track.caps.default_stroke_width();
         let mut stroke_width = existing_track.style.stroke_width.last(default_stroke);
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);

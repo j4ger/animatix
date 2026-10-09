@@ -541,7 +541,7 @@ impl Timeline {
         } else {
             existing_track.style.opacity.last(1.0)
         };
-        let mut stroke_width = existing_track.style.stroke_width.last(default_stroke_width(ty));
+        let mut stroke_width = existing_track.style.stroke_width.last(caps.default_stroke_width());
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let legend_color = existing_track.legend.color;
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
@@ -908,7 +908,7 @@ impl Timeline {
 
         // Seed Callout defaults before user properties so fields used by targeted
         // geometry and text evaluation are always present, even without explicit props.
-        if ty == "Callout" {
+        if caps.callout {
             let defaults = [
                 (
                     crate::timeline::property_registry::ActorField::TextContent,
@@ -994,7 +994,7 @@ impl Timeline {
         // Callout annotation properties that live outside the tagged storage map.
         // These are handled by the generic build path now; the primitive no longer
         // re-implements keyframe writing for them.
-        if ty == "Callout" {
+        if caps.callout {
             for prop in props {
                 let prop_subject = format!("{label}.{}", prop.name);
                 if prop.name == "target" {

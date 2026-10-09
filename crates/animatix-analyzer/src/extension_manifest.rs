@@ -643,6 +643,9 @@ impl ExtensionManifest {
                                         | PrimitiveCategory::Plot
                                         | PrimitiveCategory::Annotation
                                 )),
+                        stroke_primary: false,
+                        callout: false,
+                        legend_host: false,
                     },
                     child_processing: primitive
                         .child_processing

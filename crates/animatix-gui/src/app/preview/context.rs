@@ -1159,7 +1159,7 @@ impl PreviewContext<'_> {
             let is_callout = self
                 .timeline
                 .and_then(|t| t.get_track(actor))
-                .map(|tr| tr.actor_type == "Callout")
+                .map(|tr| tr.caps.callout)
                 .unwrap_or(false);
             if is_callout {
                 if let Some(timeline) = self.timeline {

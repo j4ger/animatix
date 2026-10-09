@@ -640,7 +640,7 @@ fn apply_property_edit_to_track(
         return;
     }
 
-    if track.actor_type == "Legend" {
+    if track.caps.legend_host {
         match property {
             "title" => {
                 if let PV::String(v) = value {

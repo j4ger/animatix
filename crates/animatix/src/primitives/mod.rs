@@ -56,7 +56,6 @@ use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
     ActorCaps, ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
     Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
-    default_stroke_width,
 };
 
 /// Map the runtime UI category onto the schema category used by tooling.
@@ -322,8 +321,7 @@ pub fn sample_shape_style(
     overrides: Option<&std::collections::HashMap<String, Value>>,
 ) -> VectorShapeStyle {
     let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width =
-        track.style.stroke_width.get(time_ms, default_stroke_width(&track.actor_type));
+    let mut stroke_width = track.style.stroke_width.get(time_ms, track.caps.default_stroke_width());
     let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
     let mut line_cap = track.style.line_cap.get(time_ms, 0);

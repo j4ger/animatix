@@ -108,11 +108,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // own, so a scope-level `color:` had nowhere to go — the value was dropped in
     // silence, which is what the "never silently drop" rule is for. Verified
     // against the primitives: none of the three reads a style colour.
-    PropertyDescriptor::new(
-        "color",
-        Applicable::Except(&["Glass", "Filter", "Mask"]),
-        PropertyValueKind::Vec4,
-    ),
+    PropertyDescriptor::new("color", Applicable::AllDrawables, PropertyValueKind::Vec4),
     PropertyDescriptor::new("cols", Applicable::Actors(&["Grid"]), PropertyValueKind::U32),
     PropertyDescriptor::new("commands", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
     PropertyDescriptor::new("data", Applicable::Actors(&["BarChart"]), PropertyValueKind::Generic),
@@ -269,24 +265,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("standoff", Applicable::Actors(&["Callout"]), PropertyValueKind::F32),
     PropertyDescriptor::new("stroke", Applicable::AllStrokePaths, PropertyValueKind::Vec4),
     PropertyDescriptor::new("stroke_progress", Applicable::AllStrokePaths, PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "stroke_width",
-        Applicable::Actors(&[
-            "Arrow",
-            "ContourSet",
-            "Ellipse",
-            "Graph",
-            "Heatmap",
-            "Line",
-            "NumberPlane",
-            "Path",
-            "PlotCurve",
-            "Polygon",
-            "Rect",
-            "VectorField",
-        ]),
-        PropertyValueKind::F32,
-    ),
+    PropertyDescriptor::new("stroke_width", Applicable::AllStrokePaths, PropertyValueKind::F32),
     PropertyDescriptor::new("swatch_size", Applicable::Actors(&["Legend"]), PropertyValueKind::F32),
     PropertyDescriptor::new(
         "t_domain",

@@ -1324,7 +1324,7 @@ impl AnimationTrack {
             return false;
         };
 
-        if field == ImageData && self.actor_type == "Svg" {
+        if field == ImageData && self.caps.vector_paths {
             return self
                 .svg_paths_track
                 .as_ref()
@@ -1342,7 +1342,7 @@ impl AnimationTrack {
             return false;
         };
 
-        if field == ImageData && self.actor_type == "Svg" {
+        if field == ImageData && self.caps.vector_paths {
             return self.svg_paths_track.as_ref().is_some_and(|track| !track.keyframes.is_empty());
         }
 
@@ -1399,7 +1399,7 @@ impl AnimationTrack {
             return Vec::new();
         };
 
-        let mut times: Vec<u64> = if field == ImageData && self.actor_type == "Svg" {
+        let mut times: Vec<u64> = if field == ImageData && self.caps.vector_paths {
             self.svg_paths_track
                 .as_ref()
                 .map_or(Vec::new(), |track| track.keyframes.keys().copied().collect())
@@ -1420,7 +1420,7 @@ fn svg_paths_track_for(
     track: &AnimationTrack,
     field: ActorField,
 ) -> Option<&PropertyTrack<Option<Vec<VelloPath>>>> {
-    if track.actor_type == "Svg" && field == ActorField::ImageData {
+    if track.caps.vector_paths && field == ActorField::ImageData {
         track.svg_paths_track.as_ref()
     } else {
         None

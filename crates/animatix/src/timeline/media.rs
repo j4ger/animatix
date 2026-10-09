@@ -147,9 +147,9 @@ impl Timeline {
         // so `kind` cannot drift from `actor_type`).
         track.set_identity(actor_type);
 
-        // Media-specific decode below distinguishes Svg from raster Image.
-        let is_svg = actor_type == "Svg";
-        let is_image = actor_type == "Image";
+        // Media-specific decode below distinguishes vector graphics from raster images.
+        let is_svg = track.caps.vector_paths;
+        let is_image = track.caps.image_payload;
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

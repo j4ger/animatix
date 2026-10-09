@@ -3,7 +3,7 @@ use super::{
     AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
     ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
     VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, build_vector_shape_vello_path, default_stroke_width, evaluate_expr,
+    build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr,
     evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
     parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
     preserve_discrete_position_state_before, preserve_instant_delayed_value,
@@ -522,14 +522,7 @@ impl Timeline {
         // `func` is a build-time-only AST node, not a registry property.
         // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
         // FuncTransition that blends function outputs at frame time.
-        let is_plot_actor = self
-            .primitive_registry
-            .info_of(track.actor_type.as_str())
-            .is_some_and(|info| info.capabilities.plot_geometry)
-            || matches!(
-                track.actor_type.as_str(),
-                "VectorField" | "Heatmap" | "ContourSet" | "PlotCurve"
-            );
+        let is_plot_actor = track.caps.plot_geometry;
         if property == "func" && is_plot_actor {
             // Evaluate RHS to a closure.
             let closure_val = match evaluate_expr(value, &eval_env) {
@@ -686,7 +679,7 @@ impl Timeline {
                     for child_label in &children {
                         if let Some(child_track) = self.tracks.get_mut(child_label) {
                             // Scale PlotCurve paths
-                            if child_track.actor_type == "PlotCurve" {
+                            if child_track.caps.plot_geometry {
                                 scale_plot_curve_paths(
                                     child_track,
                                     scale_x,
@@ -698,7 +691,7 @@ impl Timeline {
                             }
                             // Scale tick label positions (Text children named {label}_tick_x_N /
                             // _tick_y_N)
-                            if child_track.actor_type == "Text"
+                            if child_track.caps.text.is_some()
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
                             {

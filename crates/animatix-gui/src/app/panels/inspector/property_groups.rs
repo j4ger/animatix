@@ -203,7 +203,7 @@ pub(crate) fn build_property_groups(
     }
 
     let mut legend_props = Vec::new();
-    if track.actor_type == "Legend" {
+    if track.caps.legend_host {
         legend_props.extend(legend_style_entries(track));
     }
     let mode = animatix::timeline::legend::legend_mode_for_track(track);

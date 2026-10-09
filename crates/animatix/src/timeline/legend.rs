@@ -92,9 +92,8 @@ impl Default for LegendTracks {
     }
 }
 
-fn legend_eligible(caps: &super::ActorCaps, actor_type: &str) -> bool {
-    caps.is_shape
-        || matches!(actor_type, "PlotCurve" | "VectorField" | "Heatmap" | "ContourSet" | "BarChart")
+fn legend_eligible(caps: &super::ActorCaps) -> bool {
+    caps.is_shape || caps.plot_geometry
 }
 
 fn prettify_label(label: &str) -> String {
@@ -168,7 +167,7 @@ pub fn scan_legend_entries(
     let mut candidates = Vec::new();
     for (label, track) in tracks {
         let mode = legend_mode_for_track(track);
-        if !legend_eligible(&track.caps, &track.actor_type)
+        if !legend_eligible(&track.caps)
             || mode == LegendMode::Hidden
             || (is_full_viewport_background(track) && !track.legend.legend_declared)
         {

@@ -350,16 +350,9 @@ pub struct VectorShapeStyle {
 /// and a hidden white outline was visible as asymmetric edge artifacts on
 /// plain `Rect`s.
 pub fn default_stroke_width(actor_type: &str) -> f32 {
-    match actor_type {
-        "Line" | "Arrow" | "Callout" | "PlotCurve"
-        // Stroke-drawn plots: VectorField/ContourSet draw arrows/contours via
-        // `stroke`, so a zero default width makes them invisible when the user
-        // sets only `color:`. `color` is used as their stroke color, so a
-        // non-zero default renders them as authored.
-        | "VectorField"
-        | "ContourSet" => 2.0,
-        _ => 0.0,
-    }
+    animatix_std::caps_for_type(actor_type)
+        .map(|caps| caps.default_stroke_width())
+        .unwrap_or(0.0)
 }
 
 #[cfg(test)]
