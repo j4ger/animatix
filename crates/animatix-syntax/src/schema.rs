@@ -760,8 +760,6 @@ mod tests {
             advanced: false,
             capabilities: PrimitiveCapabilities {
                 vector_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
                 ..PrimitiveCapabilities::default()
             },
             child_processing: ChildProcessingKind::Generic,

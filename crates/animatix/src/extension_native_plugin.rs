@@ -13,9 +13,8 @@ use std::sync::Arc;
 
 use animatix_plugin_api::{
     NATIVE_CAP_IMAGE_PAYLOAD, NATIVE_CAP_IS_CONTAINER, NATIVE_CAP_IS_SHAPE,
-    NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_MORPHABLE_PATHS, NATIVE_CAP_PLOT_GEOMETRY,
-    NATIVE_CAP_PLOT_HOST, NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS,
-    NATIVE_CAP_VECTOR_REVEAL_TARGET, NATIVE_EASING_BACK, NATIVE_EASING_BOUNCE_IN,
+    NATIVE_CAP_LAYOUT_CONTAINER, NATIVE_CAP_PLOT_GEOMETRY, NATIVE_CAP_PLOT_HOST,
+    NATIVE_CAP_TEXT_PATHS, NATIVE_CAP_VECTOR_PATHS, NATIVE_EASING_BACK, NATIVE_EASING_BOUNCE_IN,
     NATIVE_EASING_ELASTIC, NATIVE_EASING_EXPO, NATIVE_EASING_EXPO_IN_OUT, NATIVE_EASING_EXPO_OUT,
     NATIVE_EASING_IN, NATIVE_EASING_IN_OUT, NATIVE_EASING_LINEAR, NATIVE_EASING_OUT,
     NATIVE_EASING_UNSUPPORTED, NATIVE_EFFECT_PARAM_KIND_BOOL, NATIVE_EFFECT_PARAM_KIND_F32,
@@ -2174,8 +2173,6 @@ fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabili
         vector_paths: flags & NATIVE_CAP_VECTOR_PATHS != 0,
         image_payload: flags & NATIVE_CAP_IMAGE_PAYLOAD != 0,
         layout_container: flags & NATIVE_CAP_LAYOUT_CONTAINER != 0,
-        morphable_paths: flags & NATIVE_CAP_MORPHABLE_PATHS != 0,
-        vector_reveal_target: flags & NATIVE_CAP_VECTOR_REVEAL_TARGET != 0,
         plot_geometry: flags & NATIVE_CAP_PLOT_GEOMETRY != 0,
         plot_host: flags & NATIVE_CAP_PLOT_HOST != 0,
         is_container,
@@ -4130,8 +4127,6 @@ mod tests {
         assert!(capabilities.vector_paths);
         assert!(capabilities.image_payload);
         assert!(capabilities.layout_container);
-        assert!(capabilities.morphable_paths);
-        assert!(capabilities.vector_reveal_target);
         assert!(capabilities.plot_geometry);
         assert!(capabilities.plot_host);
         assert!(capabilities.is_container);

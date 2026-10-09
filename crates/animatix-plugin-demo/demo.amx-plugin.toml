@@ -6,8 +6,6 @@ display_name = "Pulse"
 category = "Shapes"
 icon_id = "extension:pulse"
 vector_paths = true
-morphable_paths = true
-vector_reveal_target = true
 properties = ["glow", "mode", "caption", "origin", "image_url"]
 
 [[properties]]

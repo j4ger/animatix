@@ -9,7 +9,7 @@
 //! mismatched step fails a test instead of drifting silently, which is how two
 //! hand-sorted tables behaved before.
 
-use crate::caps::Applicable;
+use crate::caps::{Applicable, ShapeKind};
 
 /// The reserved assignment target that addresses the scene camera.
 ///
@@ -85,11 +85,7 @@ impl PropertyDescriptor {
 /// a row is safe but reordering or removing one invalidates saved files. The
 /// `property_id_order_is_pinned` test guards it.
 pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
-    PropertyDescriptor::new(
-        "align",
-        Applicable::Actors(&["Col", "Grid", "Row", "Stack"]),
-        PropertyValueKind::String,
-    ),
+    PropertyDescriptor::new("align", Applicable::LayoutContainers, PropertyValueKind::String),
     PropertyDescriptor::new("anchor", Applicable::Everything, PropertyValueKind::Generic),
     PropertyDescriptor::new("ascent", Applicable::Never, PropertyValueKind::F32),
     PropertyDescriptor::new("at", Applicable::Everything, PropertyValueKind::Vec2),
@@ -142,7 +138,10 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("font_weight", Applicable::TextLike, PropertyValueKind::F32),
     PropertyDescriptor::new(
         "from",
-        Applicable::Actors(&["Arrow", "Callout", "Line"]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
+            Applicable::Callout,
+        ]),
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new(
@@ -159,10 +158,13 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         ]),
         PropertyValueKind::F32,
     ),
-    PropertyDescriptor::new("grid", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
+    PropertyDescriptor::new("grid", Applicable::PlotHost, PropertyValueKind::String),
     PropertyDescriptor::new(
         "head_size",
-        Applicable::Actors(&["Arrow", "Callout"]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Arrow]),
+            Applicable::Callout,
+        ]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("height", Applicable::SizedActors, PropertyValueKind::F32),
@@ -187,13 +189,9 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("kind", Applicable::Actors(&["PlotCurve"]), PropertyValueKind::String),
-    PropertyDescriptor::new("label", Applicable::Actors(&["Callout"]), PropertyValueKind::String),
-    PropertyDescriptor::new("label_at", Applicable::Actors(&["Callout"]), PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "label_color",
-        Applicable::Actors(&["Legend"]),
-        PropertyValueKind::Vec4,
-    ),
+    PropertyDescriptor::new("label", Applicable::Callout, PropertyValueKind::String),
+    PropertyDescriptor::new("label_at", Applicable::Callout, PropertyValueKind::Vec2),
+    PropertyDescriptor::new("label_color", Applicable::LegendHost, PropertyValueKind::Vec4),
     PropertyDescriptor::new("legend", Applicable::Everything, PropertyValueKind::Generic),
     PropertyDescriptor::new(
         "letter_spacing",
@@ -230,7 +228,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         Applicable::Actors(&["Col", "Graph", "Grid", "Row", "Stack"]),
         PropertyValueKind::F32,
     ),
-    PropertyDescriptor::new("place", Applicable::Actors(&["Callout"]), PropertyValueKind::Generic),
+    PropertyDescriptor::new("place", Applicable::Callout, PropertyValueKind::Generic),
     PropertyDescriptor::new(
         "points",
         Applicable::Actors(&["Polygon"]),
@@ -262,17 +260,17 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // non-solo subtree is hidden (recursively) in preview and export alike.
     PropertyDescriptor::new("solo", Applicable::Everything, PropertyValueKind::Bool),
     PropertyDescriptor::new("source", Applicable::Actors(&["Audio"]), PropertyValueKind::String),
-    PropertyDescriptor::new("standoff", Applicable::Actors(&["Callout"]), PropertyValueKind::F32),
+    PropertyDescriptor::new("standoff", Applicable::Callout, PropertyValueKind::F32),
     PropertyDescriptor::new("stroke", Applicable::AllStrokePaths, PropertyValueKind::Vec4),
     PropertyDescriptor::new("stroke_progress", Applicable::AllStrokePaths, PropertyValueKind::F32),
     PropertyDescriptor::new("stroke_width", Applicable::AllStrokePaths, PropertyValueKind::F32),
-    PropertyDescriptor::new("swatch_size", Applicable::Actors(&["Legend"]), PropertyValueKind::F32),
+    PropertyDescriptor::new("swatch_size", Applicable::LegendHost, PropertyValueKind::F32),
     PropertyDescriptor::new(
         "t_domain",
         Applicable::Actors(&["PlotCurve"]),
         PropertyValueKind::Vec2,
     ),
-    PropertyDescriptor::new("target", Applicable::Actors(&["Callout"]), PropertyValueKind::Generic),
+    PropertyDescriptor::new("target", Applicable::Callout, PropertyValueKind::Generic),
     // The uniform body property for every text-like actor (`Text`, `Typst`,
     // `Code`, `Math`); `code` remains the `Code` spelling. It used to list only
     // Text and Math, which left `Typst` with no body property the analyzer
@@ -286,22 +284,21 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         // name per spec; `max_width` kept as a legacy alias"). The row used to
         // list only `Legend`, which is why 94 site scenes could set a wrap width
         // on a `Text` that the table claimed did not take one.
-        Applicable::Any(&[Applicable::Actors(&["Legend"]), Applicable::TextLike]),
+        Applicable::Any(&[Applicable::LegendHost, Applicable::TextLike]),
         PropertyValueKind::F32,
     ),
-    PropertyDescriptor::new(
-        "tick_labels",
-        Applicable::Actors(&["Graph"]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new("ticks", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
-    PropertyDescriptor::new("title", Applicable::Actors(&["Legend"]), PropertyValueKind::String),
+    PropertyDescriptor::new("tick_labels", Applicable::PlotHost, PropertyValueKind::String),
+    PropertyDescriptor::new("ticks", Applicable::PlotHost, PropertyValueKind::String),
+    PropertyDescriptor::new("title", Applicable::LegendHost, PropertyValueKind::String),
     PropertyDescriptor::new(
         "to",
-        Applicable::Actors(&["Arrow", "Callout", "Line"]),
+        Applicable::Any(&[
+            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
+            Applicable::Callout,
+        ]),
         PropertyValueKind::Vec2,
     ),
-    PropertyDescriptor::new("to_offset", Applicable::Actors(&["Callout"]), PropertyValueKind::Vec2),
+    PropertyDescriptor::new("to_offset", Applicable::Callout, PropertyValueKind::Vec2),
     PropertyDescriptor::new(
         "tolerance",
         Applicable::Actors(&["PlotCurve"]),
@@ -327,14 +324,14 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
         PropertyValueKind::Vec2,
     ),
-    PropertyDescriptor::new("x_scale", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
+    PropertyDescriptor::new("x_scale", Applicable::PlotHost, PropertyValueKind::String),
     PropertyDescriptor::new("y_domain", Applicable::PlotGeometry, PropertyValueKind::Vec2),
     PropertyDescriptor::new(
         "y_range",
         Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
         PropertyValueKind::Vec2,
     ),
-    PropertyDescriptor::new("y_scale", Applicable::Actors(&["Graph"]), PropertyValueKind::String),
+    PropertyDescriptor::new("y_scale", Applicable::PlotHost, PropertyValueKind::String),
     // Appended last on purpose: `PropertyId` is the row index, so new rows go
     // at the end rather than into name order.
     // `Glass` paints no surface, but its radius is not decorative: it is the

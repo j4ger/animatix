@@ -20,10 +20,6 @@ pub struct PrimitiveCapabilities {
     pub image_payload: bool,
     /// Participates in layout containers.
     pub layout_container: bool,
-    /// Supports path morphing.
-    pub morphable_paths: bool,
-    /// Supports vector reveal actions.
-    pub vector_reveal_target: bool,
     /// Emits plot geometry.
     pub plot_geometry: bool,
     /// Hosts plot-curve children in a math coordinate system.
@@ -180,12 +176,6 @@ pub struct ActorCaps {
     pub plot_geometry: bool,
     /// Is the `Graph` coordinate host.
     pub plot_host: bool,
-    /// Can be a morph target between vector paths.
-    pub morphable_paths: bool,
-    /// Can be revealed by tracing vector paths.
-    pub vector_reveal_target: bool,
-    /// Is a plain structural group (no layout semantics).
-    pub group_like: bool,
     /// Directly renders visual stroke, fill, glyphs, raster pixels, or plot marks.
     pub has_visual_content: bool,
     /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, Callout, PlotCurve,
@@ -209,6 +199,14 @@ impl ActorCaps {
     /// scene-graph recursion (not Mask/Filter/Equation aggregation).
     pub fn is_nestable_container(&self) -> bool {
         self.is_container && self.child_processing == ChildProcessingKind::Generic
+    }
+
+    /// Returns `true` if this actor is a plain structural group (no layout semantics).
+    #[inline]
+    pub fn is_group_like(&self) -> bool {
+        self.is_container
+            && !self.layout_container
+            && self.child_processing == ChildProcessingKind::Generic
     }
 
     /// Returns `true` if this actor directly renders visual ink or content
@@ -252,16 +250,20 @@ pub enum Applicable {
     ShapeKinds(&'static [ShapeKind]),
     /// Applies to the listed authored actor type names.
     Actors(&'static [&'static str]),
-    /// Applies to every actor *except* the listed type names — for a property the
-    /// universal `Everything` is too broad for, because these actors have no code
-    /// path that reads it at all (`color` on a scope that paints no surface).
-    Except(&'static [&'static str]),
     /// Applies to text-engine actors (Text, Code, Typst, Math).
     TextLike,
     /// Applies to every actor except text-engine actors.
     ExceptTextLike,
     /// Applies to actors hosting time-varying plot geometry.
     PlotGeometry,
+    /// Applies to the math coordinate host (Graph).
+    PlotHost,
+    /// Applies to series legend hosts.
+    LegendHost,
+    /// Applies to callouts with targeted leader line and label geometry.
+    Callout,
+    /// Applies to layout containers (Row, Col, Stack, Grid).
+    LayoutContainers,
     /// Applies when any child applicability matches.
     Any(&'static [Applicable]),
     /// Never shown in the inspector (build-time only, aliases, compounds).
@@ -287,10 +289,15 @@ impl Applicable {
             },
             Applicable::ShapeKinds(kinds) => caps.shape.is_some_and(|sk| kinds.contains(&sk)),
             Applicable::Actors(actors) => actors.contains(&actor_type),
-            Applicable::Except(actors) => !actors.contains(&actor_type),
             Applicable::TextLike => caps.text.is_some(),
             Applicable::ExceptTextLike => caps.text.is_none(),
             Applicable::PlotGeometry => caps.plot_geometry,
+            Applicable::PlotHost => caps.plot_host,
+            Applicable::LegendHost => caps.legend_host,
+            Applicable::Callout => caps.callout,
+            Applicable::LayoutContainers => {
+                caps.layout_container && caps.child_processing == ChildProcessingKind::Generic
+            },
             Applicable::Any(children) => {
                 children.iter().any(|child| child.includes(caps, actor_type))
             },
@@ -331,5 +338,70 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(fill_primary.default_stroke_width(), 0.0);
+    }
+
+    #[test]
+    fn group_like_classification() {
+        let group = ActorCaps {
+            is_container: true,
+            layout_container: false,
+            child_processing: ChildProcessingKind::Generic,
+            ..Default::default()
+        };
+        assert!(group.is_group_like());
+
+        let layout = ActorCaps {
+            is_container: true,
+            layout_container: true,
+            child_processing: ChildProcessingKind::Generic,
+            ..Default::default()
+        };
+        assert!(!layout.is_group_like());
+
+        let filter = ActorCaps {
+            is_container: true,
+            layout_container: false,
+            child_processing: ChildProcessingKind::Filter,
+            ..Default::default()
+        };
+        assert!(!filter.is_group_like());
+    }
+
+    #[test]
+    fn applicable_capability_variants() {
+        let plot_host = ActorCaps {
+            plot_host: true,
+            ..Default::default()
+        };
+        assert!(Applicable::PlotHost.includes(&plot_host, "Graph"));
+        assert!(!Applicable::PlotHost.includes(&ActorCaps::default(), "Rect"));
+
+        let legend = ActorCaps {
+            legend_host: true,
+            ..Default::default()
+        };
+        assert!(Applicable::LegendHost.includes(&legend, "Legend"));
+        assert!(!Applicable::LegendHost.includes(&ActorCaps::default(), "Rect"));
+
+        let callout = ActorCaps {
+            callout: true,
+            ..Default::default()
+        };
+        assert!(Applicable::Callout.includes(&callout, "Callout"));
+        assert!(!Applicable::Callout.includes(&ActorCaps::default(), "Line"));
+
+        let row = ActorCaps {
+            layout_container: true,
+            child_processing: ChildProcessingKind::Generic,
+            ..Default::default()
+        };
+        assert!(Applicable::LayoutContainers.includes(&row, "Row"));
+
+        let glass = ActorCaps {
+            layout_container: true,
+            child_processing: ChildProcessingKind::Glass,
+            ..Default::default()
+        };
+        assert!(!Applicable::LayoutContainers.includes(&glass, "Glass"));
     }
 }

@@ -138,7 +138,7 @@ fn every_actor_row_covers_the_type_that_reads_it() {
         std::fs::read_to_string(manifest.join("../animatix-core/src/property.rs")).expect("table");
     let rows = actor_rows(&property_rs);
     assert!(
-        rows.len() > 40,
+        rows.len() >= 35,
         "expected to parse the Actors-shaped rows, got {} — the parser and the table have drifted",
         rows.len()
     );

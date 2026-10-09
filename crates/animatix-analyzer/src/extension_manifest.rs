@@ -125,10 +125,6 @@ struct RawPrimitive {
     #[serde(default)]
     layout_container: bool,
     #[serde(default)]
-    morphable_paths: bool,
-    #[serde(default)]
-    vector_reveal_target: bool,
-    #[serde(default)]
     plot_geometry: bool,
     #[serde(default)]
     plot_host: bool,
@@ -239,10 +235,6 @@ struct OutputPrimitive<'a> {
     image_payload: bool,
     #[serde(skip_serializing_if = "is_false")]
     layout_container: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    morphable_paths: bool,
-    #[serde(skip_serializing_if = "is_false")]
-    vector_reveal_target: bool,
     #[serde(skip_serializing_if = "is_false")]
     plot_geometry: bool,
     #[serde(skip_serializing_if = "is_false")]
@@ -435,8 +427,6 @@ impl ExtensionManifest {
                     vector_paths: primitive.capabilities.vector_paths,
                     image_payload: primitive.capabilities.image_payload,
                     layout_container: primitive.capabilities.layout_container,
-                    morphable_paths: primitive.capabilities.morphable_paths,
-                    vector_reveal_target: primitive.capabilities.vector_reveal_target,
                     plot_geometry: primitive.capabilities.plot_geometry,
                     plot_host: primitive.capabilities.plot_host,
                     is_container: primitive.capabilities.is_container,
@@ -623,8 +613,6 @@ impl ExtensionManifest {
                         vector_paths: primitive.vector_paths,
                         image_payload: primitive.image_payload,
                         layout_container: primitive.layout_container,
-                        morphable_paths: primitive.morphable_paths,
-                        vector_reveal_target: primitive.vector_reveal_target,
                         plot_geometry: primitive.plot_geometry,
                         plot_host: primitive.plot_host,
                         is_container: primitive.is_container,

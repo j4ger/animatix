@@ -345,7 +345,7 @@ impl AnimationTrack {
 
     /// Returns `true` if this actor is a plain structural group.
     pub fn is_group_like(&self) -> bool {
-        self.caps.group_like
+        self.caps.is_group_like()
     }
 
     /// Returns `true` if this actor directly renders visual ink or content

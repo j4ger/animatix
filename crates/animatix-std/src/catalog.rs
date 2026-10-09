@@ -51,8 +51,6 @@ const fn caps(
     vector_paths: bool,
     image_payload: bool,
     layout_container: bool,
-    morphable_paths: bool,
-    vector_reveal_target: bool,
     plot_geometry: bool,
     plot_host: bool,
     is_container: bool,
@@ -67,8 +65,6 @@ const fn caps(
         vector_paths,
         image_payload,
         layout_container,
-        morphable_paths,
-        vector_reveal_target,
         plot_geometry,
         plot_host,
         is_container,
@@ -80,46 +76,36 @@ const fn caps(
     }
 }
 
-const SHAPE_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, false, false, false, true, true, false, false, false,
-);
-const TEXT_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, false, true, true, false, false, false, false, true, false, false, false,
-);
-const PLOT_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, true, false, false, false, true, false, false, false,
-);
-const CONTAINER_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, false, false, true, false, false, false, false, false,
-);
+const SHAPE_CAPS: PrimitiveCapabilities =
+    caps(false, true, false, false, false, false, false, true, true, false, false, false);
+const TEXT_CAPS: PrimitiveCapabilities =
+    caps(true, false, false, false, false, false, false, false, true, false, false, false);
+const PLOT_CAPS: PrimitiveCapabilities =
+    caps(false, true, false, false, true, false, false, false, true, false, false, false);
+const CONTAINER_CAPS: PrimitiveCapabilities =
+    caps(false, false, false, true, false, false, true, false, false, false, false, false);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
 /// and do not invite a scope that paints nothing; `corner_radius` stays applicable
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
-const GLASS_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, false, false, true, true, false, false, false, false,
-);
+const GLASS_CAPS: PrimitiveCapabilities =
+    caps(false, false, false, true, false, false, true, true, false, false, false, false);
 const GROUP_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, false, false, true, false, false, false, false, false,
+    false, false, false, false, false, false, true, false, false, false, false, false,
 );
 const NO_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false,
+    false, false, false, false, false, false, false, false, false, false, false, false,
 );
-const IMAGE_CAPS: PrimitiveCapabilities = caps(
-    false, false, true, false, false, false, false, false, false, false, true, false, false, false,
-);
-const SVG_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, false, false, false, false, true, false, false, false,
-);
-const GRAPH_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, true, true, false, false, true, false, false, false,
-);
-const ANNOTATION_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, false, false, false, true, false, false, false,
-);
+const IMAGE_CAPS: PrimitiveCapabilities =
+    caps(false, false, true, false, false, false, false, false, true, false, false, false);
+const SVG_CAPS: PrimitiveCapabilities =
+    caps(false, true, false, false, false, false, false, false, true, false, false, false);
+const GRAPH_CAPS: PrimitiveCapabilities =
+    caps(false, true, false, false, true, true, false, false, true, false, false, false);
+const ANNOTATION_CAPS: PrimitiveCapabilities =
+    caps(false, true, false, false, false, false, false, false, true, false, false, false);
 
 impl PrimitiveInfo {
     /// A built-in card in `category` with `capabilities`: `Generic` child
@@ -540,11 +526,6 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
         is_container: info.capabilities.is_container,
         plot_geometry: info.capabilities.plot_geometry,
         plot_host: info.capabilities.plot_host,
-        morphable_paths: info.capabilities.morphable_paths,
-        vector_reveal_target: info.capabilities.vector_reveal_target,
-        group_like: info.capabilities.is_container
-            && !info.capabilities.layout_container
-            && info.child_processing == ChildProcessingKind::Generic,
         has_visual_content: info.capabilities.has_visual_content
             || (!info.capabilities.is_container
                 && (info.capabilities.is_shape

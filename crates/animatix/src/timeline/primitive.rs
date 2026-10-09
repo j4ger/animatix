@@ -28,8 +28,6 @@ impl Default for PrimitiveFamilyDescriptor {
             family: PrimitiveFamily::VectorShape,
             capabilities: PrimitiveCapabilities {
                 vector_paths: true,
-                morphable_paths: true,
-                vector_reveal_target: true,
                 is_shape: true,
                 ..PrimitiveCapabilities::default()
             },
@@ -131,7 +129,6 @@ mod tests {
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert_eq!(descriptor.family, PrimitiveFamily::TextLike);
         assert!(descriptor.capabilities.text_paths);
-        assert!(descriptor.capabilities.morphable_paths);
     }
 
     #[test]
@@ -194,7 +191,6 @@ mod tests {
         let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
         assert!(descriptor.capabilities.plot_geometry);
-        assert!(descriptor.capabilities.morphable_paths);
         assert!(!descriptor.capabilities.is_shape);
     }
 

@@ -624,7 +624,7 @@ mod tests {
         assert!(filter.is_effect_scope());
 
         let gauge_like_group = animatix_std::caps_for_type("Group").unwrap();
-        assert!(gauge_like_group.group_like);
+        assert!(gauge_like_group.is_group_like());
         assert!(!gauge_like_group.layout_container);
 
         let row = animatix_std::caps_for_type("Row").unwrap();
