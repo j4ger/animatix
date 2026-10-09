@@ -527,6 +527,59 @@ impl ActorField {
             | ActorField::NoStorage => return None,
         })
     }
+
+    /// Returns `true` if this storage field holds spatial geometry (position,
+    /// dimensions, transformation, shape anchors, or layout constraints).
+    pub const fn is_spatial(&self) -> bool {
+        matches!(
+            self,
+            ActorField::Position
+                | ActorField::MotionOffset
+                | ActorField::Size
+                | ActorField::LayoutSize
+                | ActorField::Rotation
+                | ActorField::Scale
+                | ActorField::PlacementMode
+                | ActorField::PositionBinding
+                | ActorField::PositionBindingGroup
+                | ActorField::Transform
+                | ActorField::LineFrom
+                | ActorField::LineTo
+                | ActorField::ArcAngles
+                | ActorField::CornerRadius
+                | ActorField::Points
+                | ActorField::Commands
+                | ActorField::VectorPaths
+                | ActorField::HeadSize
+                | ActorField::LabelAt
+                | ActorField::CalloutToOffset
+                | ActorField::MinWidth
+                | ActorField::MinHeight
+                | ActorField::MaxHeight
+        )
+    }
+
+    /// Returns `true` if this storage field controls visibility / presence.
+    pub const fn is_presence(&self) -> bool {
+        matches!(self, ActorField::Opacity)
+    }
+
+    /// Returns `true` if changes to this storage field require rebuilding
+    /// cached vector paths.
+    pub const fn affects_vector_paths(&self) -> bool {
+        matches!(
+            self,
+            ActorField::Size
+                | ActorField::ShapeType
+                | ActorField::LineFrom
+                | ActorField::LineTo
+                | ActorField::ArcAngles
+                | ActorField::CornerRadius
+                | ActorField::Points
+                | ActorField::Commands
+                | ActorField::HeadSize
+        )
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -575,6 +628,35 @@ pub struct PropertySchema {
     pub default_value: fn(&super::ActorCaps) -> super::property_engine::PropertyValue,
     /// How this property is read at frame time (env injection, `_animating` flags).
     pub read_source: ReadSource,
+}
+
+impl PropertySchema {
+    /// Returns `true` if this property directly or via its read source targets
+    /// spatial geometry (position, size, transformation, or shape anchors).
+    pub fn is_spatial(&self) -> bool {
+        self.field.is_spatial() || self.read_source.storage_field().is_some_and(|f| f.is_spatial())
+    }
+
+    /// Returns `true` if this property directly or via its read source controls
+    /// presence or opacity.
+    pub fn is_presence(&self) -> bool {
+        self.field.is_presence()
+            || self.read_source.storage_field().is_some_and(|f| f.is_presence())
+    }
+
+    /// Returns `true` if modifying this property at runtime alters an actor's
+    /// position, extents, or presence, and thus affects or invalidates
+    /// build-time scene statistics (`scene.stats.*`).
+    pub fn affects_scene_statistics(&self) -> bool {
+        self.is_spatial() || self.is_presence()
+    }
+
+    /// Returns `true` if keyframing this property requires regenerating cached
+    /// vector paths.
+    pub fn affects_vector_paths(&self) -> bool {
+        self.field.affects_vector_paths()
+            || self.read_source.storage_field().is_some_and(|f| f.affects_vector_paths())
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1227,6 +1309,20 @@ pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
     property_index(name).map(|i| &PROPERTY_REGISTRY[i])
 }
 
+/// Query whether a property name (or synthetic component accessor like `x`/`y`/`radius`)
+/// affects scene statistics (geometry or presence).
+pub fn property_affects_scene_statistics(property: &str) -> bool {
+    if let Some(schema) = lookup_property(property) {
+        schema.affects_scene_statistics()
+    } else {
+        // Fallback for sub-field accessors or syntactic aliases not registered as standalone
+        // properties:
+        // - `x`, `y`: components of position / motion offset
+        // - `radius`: DSL convenience shorthand for ellipse/circle size
+        matches!(property, "x" | "y" | "radius")
+    }
+}
+
 /// Resolve a property name to its stable shared-schema [`animatix_syntax::schema::PropertyId`].
 ///
 /// The id comes from the shared schema declaration order, so analyzer,
@@ -1590,5 +1686,94 @@ mod tests {
     fn unknown_property_has_no_id() {
         assert_eq!(property_id("definitely_not_a_property"), None);
         assert!(property_schema_by_id(animatix_syntax::schema::PropertyId(u32::MAX)).is_none());
+    }
+
+    #[test]
+    fn scene_statistics_property_classification() {
+        // Spatial and presence properties MUST affect scene statistics
+        let spatial_and_presence = [
+            "at",
+            "position",
+            "size",
+            "width",
+            "height",
+            "radius_x",
+            "radius_y",
+            "from",
+            "to",
+            "shift",
+            "offset",
+            "rotation",
+            "scale",
+            "transform",
+            "opacity",
+        ];
+        for prop in spatial_and_presence {
+            assert!(
+                property_affects_scene_statistics(prop),
+                "Property '{prop}' should affect scene statistics"
+            );
+            let schema = lookup_property(prop).expect("known property must exist in registry");
+            assert!(
+                schema.affects_scene_statistics(),
+                "Schema for '{prop}' must report affects_scene_statistics() = true"
+            );
+        }
+
+        // Sub-field accessors and DSL aliases
+        assert!(property_affects_scene_statistics("x"));
+        assert!(property_affects_scene_statistics("y"));
+        assert!(property_affects_scene_statistics("radius"));
+
+        // Styling and non-spatial properties MUST NOT affect scene statistics
+        let non_spatial = [
+            "color",
+            "stroke",
+            "stroke_width",
+            "stroke_progress",
+            "fill_opacity",
+            "font_size",
+            "char_progress",
+            "dash_offset",
+            "line_cap",
+        ];
+        for prop in non_spatial {
+            assert!(
+                !property_affects_scene_statistics(prop),
+                "Property '{prop}' should NOT affect scene statistics"
+            );
+            let schema = lookup_property(prop).expect("known property must exist in registry");
+            assert!(
+                !schema.affects_scene_statistics(),
+                "Schema for '{prop}' must report affects_scene_statistics() = false"
+            );
+        }
+    }
+
+    #[test]
+    fn affects_vector_paths_classification() {
+        let path_affecting = [
+            "size",
+            "radius_x",
+            "radius_y",
+            "from",
+            "to",
+            "points",
+            "commands",
+            "corner_radius",
+        ];
+        for prop in path_affecting {
+            let schema = lookup_property(prop).expect("known property must exist in registry");
+            assert!(schema.affects_vector_paths(), "Property '{prop}' should affect vector paths");
+        }
+
+        let non_path_affecting = ["color", "opacity", "at", "position", "font_size", "shift"];
+        for prop in non_path_affecting {
+            let schema = lookup_property(prop).expect("known property must exist in registry");
+            assert!(
+                !schema.affects_vector_paths(),
+                "Property '{prop}' should NOT affect vector paths"
+            );
+        }
     }
 }

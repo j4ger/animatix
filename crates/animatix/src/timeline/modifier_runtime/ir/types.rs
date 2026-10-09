@@ -437,19 +437,7 @@ impl ModifierIrProgram {
     /// feedback loops when driven by `scene.stats.*`).
     pub fn collect_stats_excluded_targets(&self, out: &mut std::collections::HashSet<String>) {
         fn is_spatial_or_presence_property(prop: &str) -> bool {
-            matches!(
-                prop,
-                "at" | "position"
-                    | "size"
-                    | "width"
-                    | "height"
-                    | "radius"
-                    | "opacity"
-                    | "from"
-                    | "to"
-                    | "x"
-                    | "y"
-            )
+            crate::timeline::property_registry::property_affects_scene_statistics(prop)
         }
 
         fn record_target(target: &[String], out: &mut std::collections::HashSet<String>) {

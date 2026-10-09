@@ -155,11 +155,12 @@ Exclusions applied at build time to prevent feedback loops and uninitialized def
   `legend: false` (or `legend: hidden`) opt out of the catalog and are excluded from
   scene statistics.
 - **Runtime spatial & presence modifier targets do not count.** Any actor whose spatial
-  geometry or presence (`at`, `position`, `size`, `width`, `height`, `radius`, `opacity`,
-  `from`, `to`, `x`, `y`) is driven by an `always` block is excluded from statistics.
-  This automatically breaks self-referential feedback loops (such as an ambient wash
-  driven by `scene.stats`) and prevents uninitialized build-time positions from biasing
-  centroids. Pure style overrides (e.g. `color`, `stroke_width`) on keyframed actors
+  geometry or presence (classified systematically via `PropertySchema::affects_scene_statistics()`,
+  covering `at`, `position`, `size`, `width`, `height`, `radius`, `opacity`, `from`, `to`,
+  `shift`, `scale`, `rotation`, and sub-field vector components `x`, `y`) is driven by an `always`
+  block is excluded from statistics. This automatically breaks self-referential feedback loops
+  (such as an ambient wash driven by `scene.stats`) and prevents uninitialized build-time positions
+  from biasing centroids. Pure style overrides (e.g. `color`, `stroke_width`) on keyframed actors
   do not disqualify them.
 - **`solo` is not honoured at build.** The bake sees the authored scene; `solo` is
   resolved per frame (`resolve_solo_state`). Documented limit, not a bug.

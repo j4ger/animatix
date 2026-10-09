@@ -380,10 +380,7 @@ pub(super) fn scale_plot_curve_paths(
 // ─────────────────────────────────────────────────────────────
 
 pub(super) fn affects_shape_geometry(property: &str) -> bool {
-    matches!(
-        property,
-        "from" | "to" | "radius_x" | "radius_y" | "size" | "points" | "commands" | "shape_type"
-    )
+    lookup_property(property).is_some_and(|schema| schema.affects_vector_paths())
 }
 
 pub(super) fn push_unsupported_assignment_property_diagnostic(
