@@ -59,7 +59,11 @@ use std::collections::HashMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::modifier_runtime::ir::{CompiledExpr, compile_expr, evaluate_compiled_expr};
+use super::modifier_runtime::ir::{
+    compile_expr, evaluate_compiled_expr, evaluate_compiled_expr_scalar,
+    evaluate_compiled_expr_vec2, is_scalar_fast_evaluable, is_vec2_fast_evaluable,
+    resolve_scalar_constants, CompiledExpr,
+};
 use super::{CapturedEnv, Environment, EvalError, Value};
 use crate::ast::Expr;
 use crate::easing::{Easing, apply_easing};
@@ -519,7 +523,7 @@ pub(crate) fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
 // Recursive plot samplers thread many independent sampling/styling params;
 // grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn sample_recursive_cartesian(
+pub(crate) fn sample_recursive_cartesian_impl<F: FnMut(f64) -> f64>(
     min_t: f64,
     max_t: f64,
     p0: kurbo::Point,
@@ -528,16 +532,12 @@ pub(crate) fn sample_recursive_cartesian(
     max_depth: usize,
     min_depth: usize,
     tolerance: f64,
-    env: &mut Environment,
-    arg_name: &str,
-    func: &PlotFuncRef<'_>,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
     padding: &[f64; 4],
-    from_cache: &mut HashMap<u64, Value>,
-    to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
+    eval: &mut F,
 ) {
     let screen_height = p_size[1];
 
@@ -574,7 +574,7 @@ pub(crate) fn sample_recursive_cartesian(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    let math_y = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
+    let math_y = eval(mid_t);
     let math_x = mid_t;
 
     let (screen_x, screen_y) =
@@ -590,7 +590,7 @@ pub(crate) fn sample_recursive_cartesian(
     // depth floor: the chord-deviation test is always-false on NaN, so
     // without this the failure is swallowed and the curve renders empty.
     if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
-        sample_recursive_cartesian(
+        sample_recursive_cartesian_impl(
             min_t,
             mid_t,
             p0,
@@ -599,18 +599,14 @@ pub(crate) fn sample_recursive_cartesian(
             max_depth,
             min_depth,
             tolerance,
-            env,
-            arg_name,
-            func,
             p_x_domain,
             p_y_domain,
             p_size,
             padding,
-            from_cache,
-            to_cache,
             pts,
+            eval,
         );
-        sample_recursive_cartesian(
+        sample_recursive_cartesian_impl(
             mid_t,
             max_t,
             p_mid,
@@ -619,16 +615,152 @@ pub(crate) fn sample_recursive_cartesian(
             max_depth,
             min_depth,
             tolerance,
-            env,
-            arg_name,
-            func,
             p_x_domain,
             p_y_domain,
             p_size,
             padding,
-            from_cache,
-            to_cache,
             pts,
+            eval,
+        );
+    } else {
+        pts.push(p1);
+    }
+}
+
+// Recursive plot samplers thread many independent sampling/styling params;
+// grouping them into a struct is a separate refactor.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn sample_recursive_cartesian(
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    depth: usize,
+    max_depth: usize,
+    min_depth: usize,
+    tolerance: f64,
+    env: &mut Environment,
+    arg_name: &str,
+    func: &PlotFuncRef<'_>,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    padding: &[f64; 4],
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
+    pts: &mut Vec<kurbo::Point>,
+) {
+    let mut eval = |t: f64| eval_scalar(func, env, arg_name, t, from_cache, to_cache);
+    sample_recursive_cartesian_impl(
+        min_t,
+        max_t,
+        p0,
+        p1,
+        depth,
+        max_depth,
+        min_depth,
+        tolerance,
+        p_x_domain,
+        p_y_domain,
+        p_size,
+        padding,
+        pts,
+        &mut eval,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn sample_recursive_polar_impl<F: FnMut(f64) -> f64>(
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    depth: usize,
+    max_depth: usize,
+    min_depth: usize,
+    tolerance: f64,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    padding: &[f64; 4],
+    pts: &mut Vec<kurbo::Point>,
+    eval: &mut F,
+) {
+    let margin_y = p_size[1] * 2.0;
+    let min_screen_y = -(p_size[1] / 2.0) - margin_y;
+    let max_screen_y = (p_size[1] / 2.0) + margin_y;
+
+    let margin_x = p_size[0] * 2.0;
+    let min_screen_x = -(p_size[0] / 2.0) - margin_x;
+    let max_screen_x = (p_size[0] / 2.0) + margin_x;
+
+    if ((p0.y < min_screen_y && p1.y < min_screen_y)
+        || (p0.y > max_screen_y && p1.y > max_screen_y))
+        && ((p0.x < min_screen_x && p1.x < min_screen_x)
+            || (p0.x > max_screen_x && p1.x > max_screen_x))
+    {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        return;
+    }
+
+    let dist_sq_jump = (p1.x - p0.x).powi(2) + (p1.y - p0.y).powi(2);
+    if dist_sq_jump > (p_size[0].max(p_size[1])).powi(2) * 4.0 {
+        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
+        pts.push(p1);
+        return;
+    }
+
+    if depth >= max_depth {
+        pts.push(p1);
+        return;
+    }
+
+    let mid_t = (min_t + max_t) / 2.0;
+    let math_r = eval(mid_t);
+    let math_x = math_r * mid_t.cos();
+    let math_y = math_r * mid_t.sin();
+
+    let (screen_x, screen_y) =
+        math_to_screen_padded(math_x, math_y, p_x_domain, p_y_domain, p_size, padding);
+
+    let p_mid = kurbo::Point::new(screen_x, screen_y);
+
+    let expected_mid_x = (p0.x + p1.x) / 2.0;
+    let expected_mid_y = (p0.y + p1.y) / 2.0;
+    let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
+
+    if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
+        sample_recursive_polar_impl(
+            min_t,
+            mid_t,
+            p0,
+            p_mid,
+            depth + 1,
+            max_depth,
+            min_depth,
+            tolerance,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            pts,
+            eval,
+        );
+        sample_recursive_polar_impl(
+            mid_t,
+            max_t,
+            p_mid,
+            p1,
+            depth + 1,
+            max_depth,
+            min_depth,
+            tolerance,
+            p_x_domain,
+            p_y_domain,
+            p_size,
+            padding,
+            pts,
+            eval,
         );
     } else {
         pts.push(p1);
@@ -658,99 +790,27 @@ pub(crate) fn sample_recursive_polar(
     to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
 ) {
-    let margin_y = p_size[1] * 2.0;
-    let min_screen_y = -(p_size[1] / 2.0) - margin_y;
-    let max_screen_y = (p_size[1] / 2.0) + margin_y;
-
-    let margin_x = p_size[0] * 2.0;
-    let min_screen_x = -(p_size[0] / 2.0) - margin_x;
-    let max_screen_x = (p_size[0] / 2.0) + margin_x;
-
-    if ((p0.y < min_screen_y && p1.y < min_screen_y)
-        || (p0.y > max_screen_y && p1.y > max_screen_y))
-        && ((p0.x < min_screen_x && p1.x < min_screen_x)
-            || (p0.x > max_screen_x && p1.x > max_screen_x))
-    {
-        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
-        return;
-    }
-
-    let dist_sq_jump = (p1.x - p0.x).powi(2) + (p1.y - p0.y).powi(2);
-    if dist_sq_jump > (p_size[0].max(p_size[1])).powi(2) * 4.0 {
-        pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
-        pts.push(p1);
-        return;
-    }
-
-    if depth >= max_depth {
-        pts.push(p1);
-        return;
-    }
-
-    let mid_t = (min_t + max_t) / 2.0;
-    let math_r = eval_scalar(func, env, arg_name, mid_t, from_cache, to_cache);
-    let math_x = math_r * mid_t.cos();
-    let math_y = math_r * mid_t.sin();
-
-    let (screen_x, screen_y) =
-        math_to_screen_padded(math_x, math_y, p_x_domain, p_y_domain, p_size, padding);
-
-    let p_mid = kurbo::Point::new(screen_x, screen_y);
-
-    let expected_mid_x = (p0.x + p1.x) / 2.0;
-    let expected_mid_y = (p0.y + p1.y) / 2.0;
-    let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
-
-    if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
-        sample_recursive_polar(
-            min_t,
-            mid_t,
-            p0,
-            p_mid,
-            depth + 1,
-            max_depth,
-            min_depth,
-            tolerance,
-            env,
-            arg_name,
-            func,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            padding,
-            from_cache,
-            to_cache,
-            pts,
-        );
-        sample_recursive_polar(
-            mid_t,
-            max_t,
-            p_mid,
-            p1,
-            depth + 1,
-            max_depth,
-            min_depth,
-            tolerance,
-            env,
-            arg_name,
-            func,
-            p_x_domain,
-            p_y_domain,
-            p_size,
-            padding,
-            from_cache,
-            to_cache,
-            pts,
-        );
-    } else {
-        pts.push(p1);
-    }
+    let mut eval = |t: f64| eval_scalar(func, env, arg_name, t, from_cache, to_cache);
+    sample_recursive_polar_impl(
+        min_t,
+        max_t,
+        p0,
+        p1,
+        depth,
+        max_depth,
+        min_depth,
+        tolerance,
+        p_x_domain,
+        p_y_domain,
+        p_size,
+        padding,
+        pts,
+        &mut eval,
+    );
 }
 
-// Recursive plot samplers thread many independent sampling/styling params;
-// grouping them into a struct is a separate refactor.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn sample_recursive_parametric(
+pub(crate) fn sample_recursive_parametric_impl<F: FnMut(f64) -> [f64; 2]>(
     min_t: f64,
     max_t: f64,
     p0: kurbo::Point,
@@ -759,16 +819,12 @@ pub(crate) fn sample_recursive_parametric(
     max_depth: usize,
     min_depth: usize,
     tolerance: f64,
-    env: &mut Environment,
-    arg_name: &str,
-    func: &PlotFuncRef<'_>,
     p_x_domain: &[f64; 2],
     p_y_domain: &[f64; 2],
     p_size: &[f64; 2],
     padding: &[f64; 4],
-    from_cache: &mut HashMap<u64, Value>,
-    to_cache: &mut HashMap<u64, Value>,
     pts: &mut Vec<kurbo::Point>,
+    eval: &mut F,
 ) {
     let margin_y = p_size[1] * 2.0;
     let min_screen_y = -(p_size[1] / 2.0) - margin_y;
@@ -800,7 +856,7 @@ pub(crate) fn sample_recursive_parametric(
     }
 
     let mid_t = (min_t + max_t) / 2.0;
-    let [math_x, math_y] = eval_vec2(func, env, arg_name, mid_t, from_cache, to_cache);
+    let [math_x, math_y] = eval(mid_t);
     if math_x.is_nan() || math_y.is_nan() {
         pts.push(kurbo::Point::new(f64::NAN, f64::NAN));
         pts.push(p1);
@@ -817,7 +873,7 @@ pub(crate) fn sample_recursive_parametric(
     let dist_sq = (p_mid.x - expected_mid_x).powi(2) + (p_mid.y - expected_mid_y).powi(2);
 
     if dist_sq > tolerance || depth < min_depth || p_mid.x.is_nan() || p_mid.y.is_nan() {
-        sample_recursive_parametric(
+        sample_recursive_parametric_impl(
             min_t,
             mid_t,
             p0,
@@ -826,18 +882,14 @@ pub(crate) fn sample_recursive_parametric(
             max_depth,
             min_depth,
             tolerance,
-            env,
-            arg_name,
-            func,
             p_x_domain,
             p_y_domain,
             p_size,
             padding,
-            from_cache,
-            to_cache,
             pts,
+            eval,
         );
-        sample_recursive_parametric(
+        sample_recursive_parametric_impl(
             mid_t,
             max_t,
             p_mid,
@@ -846,20 +898,58 @@ pub(crate) fn sample_recursive_parametric(
             max_depth,
             min_depth,
             tolerance,
-            env,
-            arg_name,
-            func,
             p_x_domain,
             p_y_domain,
             p_size,
             padding,
-            from_cache,
-            to_cache,
             pts,
+            eval,
         );
     } else {
         pts.push(p1);
     }
+}
+
+// Recursive plot samplers thread many independent sampling/styling params;
+// grouping them into a struct is a separate refactor.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn sample_recursive_parametric(
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    depth: usize,
+    max_depth: usize,
+    min_depth: usize,
+    tolerance: f64,
+    env: &mut Environment,
+    arg_name: &str,
+    func: &PlotFuncRef<'_>,
+    p_x_domain: &[f64; 2],
+    p_y_domain: &[f64; 2],
+    p_size: &[f64; 2],
+    padding: &[f64; 4],
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
+    pts: &mut Vec<kurbo::Point>,
+) {
+    let mut eval = |t: f64| eval_vec2(func, env, arg_name, t, from_cache, to_cache);
+    sample_recursive_parametric_impl(
+        min_t,
+        max_t,
+        p0,
+        p1,
+        depth,
+        max_depth,
+        min_depth,
+        tolerance,
+        p_x_domain,
+        p_y_domain,
+        p_size,
+        padding,
+        pts,
+        &mut eval,
+    );
 }
 
 /// Convert math coordinates to screen coordinates relative to the graph actor center.
@@ -1474,6 +1564,291 @@ fn sample_curve_plot_source(
             fill_gradient: None,
             stroke_gradient: None,
         });
+        return vello_paths;
+    }
+
+    // Fast path: try unboxed direct math evaluation without Environment mutation
+    let flat_leaves = flatten_blend(source);
+    let mut can_fast = !flat_leaves.is_empty();
+    struct FastLeaf<'a> {
+        weight: f64,
+        body: &'a CompiledExpr,
+        arg_name: &'a str,
+        constants: Vec<(String, f64)>,
+    }
+    let mut fast_leaves = Vec::with_capacity(flat_leaves.len());
+    for (weight, leaf_src) in &flat_leaves {
+        if let FuncSource::Compiled(args, body, captures) = leaf_src {
+            let leaf_arg = args.first().map(String::as_str).unwrap_or(&arg_name);
+            let mut constants = Vec::new();
+            resolve_scalar_constants(body, leaf_arg, env, captures, &mut constants);
+            let eligible = if plot.kind == PlotCurveKind::Parametric {
+                is_vec2_fast_evaluable(body, leaf_arg, &constants)
+            } else {
+                is_scalar_fast_evaluable(body, leaf_arg, &constants)
+            };
+            if eligible {
+                fast_leaves.push(FastLeaf {
+                    weight: *weight,
+                    body,
+                    arg_name: leaf_arg,
+                    constants,
+                });
+            } else {
+                can_fast = false;
+                break;
+            }
+        } else {
+            can_fast = false;
+            break;
+        }
+    }
+
+    if can_fast {
+        let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
+            let mut y = 0.0;
+            for leaf in &fast_leaves {
+                y += leaf.weight
+                    * evaluate_compiled_expr_scalar(
+                        leaf.body,
+                        leaf.arg_name,
+                        min_t,
+                        &leaf.constants,
+                    )
+                    .unwrap_or(f64::NAN);
+            }
+            (min_t, y)
+        } else if plot.kind == PlotCurveKind::Parametric {
+            let mut x_sum = 0.0;
+            let mut y_sum = 0.0;
+            for leaf in &fast_leaves {
+                let [vx, vy] = evaluate_compiled_expr_vec2(
+                    leaf.body,
+                    leaf.arg_name,
+                    min_t,
+                    &leaf.constants,
+                )
+                .unwrap_or([f64::NAN, f64::NAN]);
+                x_sum += leaf.weight * vx;
+                y_sum += leaf.weight * vy;
+            }
+            (x_sum, y_sum)
+        } else {
+            let mut r = 0.0;
+            for leaf in &fast_leaves {
+                r += leaf.weight
+                    * evaluate_compiled_expr_scalar(
+                        leaf.body,
+                        leaf.arg_name,
+                        min_t,
+                        &leaf.constants,
+                    )
+                    .unwrap_or(f64::NAN);
+            }
+            (r * min_t.cos(), r * min_t.sin())
+        };
+
+        let (start_screen_x, start_screen_y) = math_to_screen_padded(
+            start_math_x,
+            start_math_y,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
+        );
+
+        let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
+            let mut y = 0.0;
+            for leaf in &fast_leaves {
+                y += leaf.weight
+                    * evaluate_compiled_expr_scalar(
+                        leaf.body,
+                        leaf.arg_name,
+                        max_t,
+                        &leaf.constants,
+                    )
+                    .unwrap_or(f64::NAN);
+            }
+            (max_t, y)
+        } else if plot.kind == PlotCurveKind::Parametric {
+            let mut x_sum = 0.0;
+            let mut y_sum = 0.0;
+            for leaf in &fast_leaves {
+                let [vx, vy] = evaluate_compiled_expr_vec2(
+                    leaf.body,
+                    leaf.arg_name,
+                    max_t,
+                    &leaf.constants,
+                )
+                .unwrap_or([f64::NAN, f64::NAN]);
+                x_sum += leaf.weight * vx;
+                y_sum += leaf.weight * vy;
+            }
+            (x_sum, y_sum)
+        } else {
+            let mut r = 0.0;
+            for leaf in &fast_leaves {
+                r += leaf.weight
+                    * evaluate_compiled_expr_scalar(
+                        leaf.body,
+                        leaf.arg_name,
+                        max_t,
+                        &leaf.constants,
+                    )
+                    .unwrap_or(f64::NAN);
+            }
+            (r * max_t.cos(), r * max_t.sin())
+        };
+
+        let (end_screen_x, end_screen_y) = math_to_screen_padded(
+            end_math_x,
+            end_math_y,
+            &plot.p_x_domain,
+            &plot.p_y_domain,
+            &plot.p_size,
+            &plot.padding,
+        );
+
+        let p0 = kurbo::Point::new(start_screen_x, start_screen_y);
+        let p1 = kurbo::Point::new(end_screen_x, end_screen_y);
+
+        let mut pts = Vec::with_capacity(512);
+        pts.push(p0);
+
+        if plot.kind == PlotCurveKind::Cartesian {
+            let mut eval = |t: f64| {
+                let mut y = 0.0;
+                for leaf in &fast_leaves {
+                    y += leaf.weight
+                        * evaluate_compiled_expr_scalar(
+                            leaf.body,
+                            leaf.arg_name,
+                            t,
+                            &leaf.constants,
+                        )
+                        .unwrap_or(f64::NAN);
+                }
+                y
+            };
+            sample_recursive_cartesian_impl(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                base_subdivision_depth(actual_resolution, actual_max_depth),
+                actual_tolerance,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &plot.padding,
+                &mut pts,
+                &mut eval,
+            );
+        } else if plot.kind == PlotCurveKind::Polar {
+            let mut eval = |t: f64| {
+                let mut r = 0.0;
+                for leaf in &fast_leaves {
+                    r += leaf.weight
+                        * evaluate_compiled_expr_scalar(
+                            leaf.body,
+                            leaf.arg_name,
+                            t,
+                            &leaf.constants,
+                        )
+                        .unwrap_or(f64::NAN);
+                }
+                r
+            };
+            sample_recursive_polar_impl(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                base_subdivision_depth(actual_resolution, actual_max_depth),
+                actual_tolerance,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &plot.padding,
+                &mut pts,
+                &mut eval,
+            );
+        } else {
+            let mut eval = |t: f64| {
+                let mut x_sum = 0.0;
+                let mut y_sum = 0.0;
+                for leaf in &fast_leaves {
+                    let [vx, vy] = evaluate_compiled_expr_vec2(
+                        leaf.body,
+                        leaf.arg_name,
+                        t,
+                        &leaf.constants,
+                    )
+                    .unwrap_or([f64::NAN, f64::NAN]);
+                    x_sum += leaf.weight * vx;
+                    y_sum += leaf.weight * vy;
+                }
+                [x_sum, y_sum]
+            };
+            sample_recursive_parametric_impl(
+                min_t,
+                max_t,
+                p0,
+                p1,
+                0,
+                actual_max_depth,
+                base_subdivision_depth(actual_resolution, actual_max_depth),
+                actual_tolerance,
+                &plot.p_x_domain,
+                &plot.p_y_domain,
+                &plot.p_size,
+                &plot.padding,
+                &mut pts,
+                &mut eval,
+            );
+        }
+
+        let mut path = kurbo::BezPath::new();
+        let mut first = true;
+        for pt in pts {
+            if pt.x.is_nan() || pt.y.is_nan() {
+                first = true;
+            } else if first {
+                path.move_to((pt.x, pt.y));
+                first = false;
+            } else {
+                path.line_to((pt.x, pt.y));
+            }
+        }
+
+        vello_paths.push(VelloPath {
+            path: std::sync::Arc::new(path),
+            fill: None,
+            stroke: if plot.stroke_width > 0.0 {
+                Some((
+                    vello::peniko::Color::from_rgba8(
+                        (plot.stroke_color[0] * 255.0) as u8,
+                        (plot.stroke_color[1] * 255.0) as u8,
+                        (plot.stroke_color[2] * 255.0) as u8,
+                        (plot.stroke_color[3] * 255.0) as u8,
+                    ),
+                    plot.stroke_width,
+                ))
+            } else {
+                None
+            },
+            line_cap: 0,
+            line_join: 0,
+            dash_pattern: None,
+            dash_offset: 0.0,
+            fill_gradient: None,
+            stroke_gradient: None,
+        });
+
         return vello_paths;
     }
 

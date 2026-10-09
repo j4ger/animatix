@@ -451,16 +451,16 @@ impl ModifierIrProgram {
             for stmt in stmts {
                 match stmt {
                     ModifierIrStmt::Assign {
-                        target, property, ..
-                    } => {
-                        if is_spatial_or_presence_property(property) {
-                            record_target(target, out);
-                        }
+                        target,
+                        property,
+                        ..
+                    } if is_spatial_or_presence_property(property) => {
+                        record_target(target, out);
                     },
-                    ModifierIrStmt::AssignIndexed { base, property, .. } => {
-                        if is_spatial_or_presence_property(property) {
-                            out.insert(base.clone());
-                        }
+                    ModifierIrStmt::AssignIndexed { base, property, .. }
+                        if is_spatial_or_presence_property(property) =>
+                    {
+                        out.insert(base.clone());
                     },
                     ModifierIrStmt::If {
                         then_branch,

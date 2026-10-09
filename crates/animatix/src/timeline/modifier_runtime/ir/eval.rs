@@ -262,3 +262,436 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
         _ => Value::List(values.into()),
     })
 }
+
+/// Direct scalar evaluation of a `CompiledExpr` for 1D math functions f(x) -> f64.
+/// Returns None if the expression cannot be evaluated purely as an f64 scalar,
+/// signaling that the general evaluate_compiled_expr path should be used instead.
+pub(crate) fn evaluate_compiled_expr_scalar(
+    expr: &CompiledExpr,
+    arg_name: &str,
+    x: f64,
+    constants: &[(String, f64)],
+) -> Option<f64> {
+    match expr {
+        CompiledExpr::Const(Value::Num(n)) => Some(*n),
+        CompiledExpr::LoadEnv(name) => {
+            if name == arg_name {
+                Some(x)
+            } else {
+                constants.iter().find(|(k, _)| k == name).map(|(_, v)| *v)
+            }
+        },
+        CompiledExpr::Unary(op, inner) => {
+            let val = evaluate_compiled_expr_scalar(inner, arg_name, x, constants)?;
+            match op {
+                UnaryOp::Neg => Some(-val),
+                UnaryOp::Not => Some(if val != 0.0 { 0.0 } else { 1.0 }),
+                UnaryOp::Ref => None,
+            }
+        },
+        CompiledExpr::Binary(left, op, right) => {
+            let l = evaluate_compiled_expr_scalar(left, arg_name, x, constants)?;
+            let r = evaluate_compiled_expr_scalar(right, arg_name, x, constants)?;
+            Some(match op {
+                BinaryOp::Add => l + r,
+                BinaryOp::Sub => l - r,
+                BinaryOp::Mul => l * r,
+                BinaryOp::Div => crate::timeline::utils::safe_div(l, r),
+                BinaryOp::Mod => crate::timeline::utils::safe_rem(l, r),
+                BinaryOp::Pow => l.powf(r),
+                BinaryOp::Eq => {
+                    if l == r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Neq => {
+                    if l != r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Lt => {
+                    if l < r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Gt => {
+                    if l > r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Lte => {
+                    if l <= r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Gte => {
+                    if l >= r {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::And => {
+                    if l != 0.0 && r != 0.0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+                BinaryOp::Or => {
+                    if l != 0.0 || r != 0.0 {
+                        1.0
+                    } else {
+                        0.0
+                    }
+                },
+            })
+        },
+        CompiledExpr::Select(condition, then_expr, else_expr) => {
+            let cond = evaluate_compiled_expr_scalar(condition, arg_name, x, constants)?;
+            if cond != 0.0 {
+                evaluate_compiled_expr_scalar(then_expr, arg_name, x, constants)
+            } else {
+                evaluate_compiled_expr_scalar(else_expr, arg_name, x, constants)
+            }
+        },
+        CompiledExpr::CallBuiltin(builtin, args) => match builtin {
+            BuiltinFn::Sin => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.sin())
+            },
+            BuiltinFn::Cos => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.cos())
+            },
+            BuiltinFn::Tan => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.tan())
+            },
+            BuiltinFn::Sqrt => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.sqrt())
+            },
+            BuiltinFn::Exp => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.exp())
+            },
+            BuiltinFn::Log => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.ln())
+            },
+            BuiltinFn::Abs => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.abs())
+            },
+            BuiltinFn::Floor => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.floor())
+            },
+            BuiltinFn::Ceil => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.ceil())
+            },
+            BuiltinFn::Round => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.round())
+            },
+            BuiltinFn::Signum => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.signum())
+            },
+            BuiltinFn::Fract => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a.fract())
+            },
+            BuiltinFn::Deg => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a * std::f64::consts::PI / 180.0)
+            },
+            BuiltinFn::Rad => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                Some(a * 180.0 / std::f64::consts::PI)
+            },
+            BuiltinFn::Min => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(a.min(b))
+            },
+            BuiltinFn::Max => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(a.max(b))
+            },
+            BuiltinFn::Clamp => {
+                let v = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let lo = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                let hi = evaluate_compiled_expr_scalar(args.get(2)?, arg_name, x, constants)?;
+                Some(v.clamp(lo, hi))
+            },
+            BuiltinFn::Lerp => {
+                let s = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let e = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                let t = evaluate_compiled_expr_scalar(args.get(2)?, arg_name, x, constants)?;
+                Some(s + (e - s) * t)
+            },
+            BuiltinFn::Hypot => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(a.hypot(b))
+            },
+            BuiltinFn::Pow => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(a.powf(b))
+            },
+            BuiltinFn::Rem => {
+                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(a % b)
+            },
+            BuiltinFn::Step => {
+                let edge = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let x_val = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(if x_val < edge { 0.0 } else { 1.0 })
+            },
+            BuiltinFn::Atan2 => {
+                let y = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
+                let x_val = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
+                Some(y.atan2(x_val))
+            },
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Direct vector evaluation of a `CompiledExpr` for 2D parametric curves f(t) -> [f64; 2].
+pub(crate) fn evaluate_compiled_expr_vec2(
+    expr: &CompiledExpr,
+    arg_name: &str,
+    t: f64,
+    constants: &[(String, f64)],
+) -> Option<[f64; 2]> {
+    if let CompiledExpr::MakeVec(items) = expr {
+        if items.len() == 2 {
+            let x = evaluate_compiled_expr_scalar(&items[0], arg_name, t, constants)?;
+            let y = evaluate_compiled_expr_scalar(&items[1], arg_name, t, constants)?;
+            return Some([x, y]);
+        }
+    }
+    None
+}
+
+/// Pre-resolve non-argument identifiers referenced by `expr` against `env` and `captures`.
+pub(crate) fn resolve_scalar_constants(
+    expr: &CompiledExpr,
+    arg_name: &str,
+    env: &Environment,
+    captures: &CapturedEnv,
+    out: &mut Vec<(String, f64)>,
+) {
+    match expr {
+        CompiledExpr::LoadEnv(name)
+            if name != arg_name && !out.iter().any(|(k, _)| k == name) =>
+        {
+            // Priority: env (frame-time overrides and parameters shadow captures)
+            if let Some(Value::Num(n)) = env.get_path(name) {
+                out.push((name.clone(), n));
+                return;
+            }
+            // Fallback: captured build-time variables
+            if let Some(Value::Num(n)) = captures.0.get(name) {
+                out.push((name.clone(), *n));
+            }
+        },
+        CompiledExpr::Unary(_, inner) => {
+            resolve_scalar_constants(inner, arg_name, env, captures, out);
+        },
+        CompiledExpr::Binary(left, _, right) => {
+            resolve_scalar_constants(left, arg_name, env, captures, out);
+            resolve_scalar_constants(right, arg_name, env, captures, out);
+        },
+        CompiledExpr::Select(cond, then_e, else_e) => {
+            resolve_scalar_constants(cond, arg_name, env, captures, out);
+            resolve_scalar_constants(then_e, arg_name, env, captures, out);
+            resolve_scalar_constants(else_e, arg_name, env, captures, out);
+        },
+        CompiledExpr::CallBuiltin(_, args) => {
+            for arg in args {
+                resolve_scalar_constants(arg, arg_name, env, captures, out);
+            }
+        },
+        CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
+            for item in items {
+                resolve_scalar_constants(item, arg_name, env, captures, out);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// Check if `expr` can be evaluated purely via unboxed scalar arithmetic without env mutation.
+pub(crate) fn is_scalar_fast_evaluable(
+    expr: &CompiledExpr,
+    arg_name: &str,
+    constants: &[(String, f64)],
+) -> bool {
+    match expr {
+        CompiledExpr::Const(Value::Num(_)) => true,
+        CompiledExpr::LoadEnv(name) => name == arg_name || constants.iter().any(|(k, _)| k == name),
+        CompiledExpr::Unary(op, inner) => match op {
+            UnaryOp::Neg | UnaryOp::Not => is_scalar_fast_evaluable(inner, arg_name, constants),
+            UnaryOp::Ref => false,
+        },
+        CompiledExpr::Binary(left, _op, right) => {
+            is_scalar_fast_evaluable(left, arg_name, constants)
+                && is_scalar_fast_evaluable(right, arg_name, constants)
+        },
+        CompiledExpr::Select(cond, then_e, else_e) => {
+            is_scalar_fast_evaluable(cond, arg_name, constants)
+                && is_scalar_fast_evaluable(then_e, arg_name, constants)
+                && is_scalar_fast_evaluable(else_e, arg_name, constants)
+        },
+        CompiledExpr::CallBuiltin(builtin, args) => match builtin {
+            BuiltinFn::Sin
+            | BuiltinFn::Cos
+            | BuiltinFn::Tan
+            | BuiltinFn::Sqrt
+            | BuiltinFn::Exp
+            | BuiltinFn::Log
+            | BuiltinFn::Abs
+            | BuiltinFn::Floor
+            | BuiltinFn::Ceil
+            | BuiltinFn::Round
+            | BuiltinFn::Signum
+            | BuiltinFn::Fract
+            | BuiltinFn::Deg
+            | BuiltinFn::Rad => {
+                args.len() == 1 && is_scalar_fast_evaluable(&args[0], arg_name, constants)
+            },
+            BuiltinFn::Min
+            | BuiltinFn::Max
+            | BuiltinFn::Hypot
+            | BuiltinFn::Pow
+            | BuiltinFn::Rem
+            | BuiltinFn::Step
+            | BuiltinFn::Atan2 => {
+                args.len() == 2
+                    && is_scalar_fast_evaluable(&args[0], arg_name, constants)
+                    && is_scalar_fast_evaluable(&args[1], arg_name, constants)
+            },
+            BuiltinFn::Clamp | BuiltinFn::Lerp => {
+                args.len() == 3
+                    && is_scalar_fast_evaluable(&args[0], arg_name, constants)
+                    && is_scalar_fast_evaluable(&args[1], arg_name, constants)
+                    && is_scalar_fast_evaluable(&args[2], arg_name, constants)
+            },
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// Check if `expr` can be evaluated purely via unboxed 2D vector arithmetic without env mutation.
+pub(crate) fn is_vec2_fast_evaluable(
+    expr: &CompiledExpr,
+    arg_name: &str,
+    constants: &[(String, f64)],
+) -> bool {
+    if let CompiledExpr::MakeVec(items) = expr {
+        if items.len() == 2 {
+            return is_scalar_fast_evaluable(&items[0], arg_name, constants)
+                && is_scalar_fast_evaluable(&items[1], arg_name, constants);
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::timeline::Environment;
+
+    #[test]
+    fn test_scalar_fast_eval_parity() {
+        // (4 / pi) * sin(th - x)
+        let expr = CompiledExpr::Binary(
+            Box::new(CompiledExpr::Binary(
+                Box::new(CompiledExpr::Const(Value::Num(4.0))),
+                BinaryOp::Div,
+                Box::new(CompiledExpr::LoadEnv("pi".to_string())),
+            )),
+            BinaryOp::Mul,
+            Box::new(CompiledExpr::CallBuiltin(
+                BuiltinFn::Sin,
+                vec![CompiledExpr::Binary(
+                    Box::new(CompiledExpr::LoadEnv("th".to_string())),
+                    BinaryOp::Sub,
+                    Box::new(CompiledExpr::LoadEnv("x".to_string())),
+                )],
+            )),
+        );
+
+        let mut env = Environment::new();
+        env.set("pi", Value::Num(std::f64::consts::PI));
+        env.set("th", Value::Num(1.23));
+
+        let captures = CapturedEnv::default();
+        let mut constants = Vec::new();
+        resolve_scalar_constants(&expr, "x", &env, &captures, &mut constants);
+
+        assert!(is_scalar_fast_evaluable(&expr, "x", &constants));
+
+        for x in [0.0, 0.5, 1.0, 2.5] {
+            let fast_val = evaluate_compiled_expr_scalar(&expr, "x", x, &constants).unwrap();
+
+            env.set("x", Value::Num(x));
+            let slow_val = evaluate_compiled_expr(&expr, &env).unwrap().as_num();
+
+            assert!((fast_val - slow_val).abs() < 1e-12, "Parity check failed at x={x}");
+        }
+    }
+
+    #[test]
+    fn test_vec2_fast_eval_parametric() {
+        let expr = CompiledExpr::MakeVec(vec![
+            CompiledExpr::CallBuiltin(
+                BuiltinFn::Cos,
+                vec![CompiledExpr::LoadEnv("t".to_string())],
+            ),
+            CompiledExpr::CallBuiltin(
+                BuiltinFn::Sin,
+                vec![CompiledExpr::LoadEnv("t".to_string())],
+            ),
+        ]);
+
+        let constants = Vec::new();
+        assert!(is_vec2_fast_evaluable(&expr, "t", &constants));
+
+        let [x, y] = evaluate_compiled_expr_vec2(&expr, "t", 0.5, &constants).unwrap();
+        assert!((x - 0.5_f64.cos()).abs() < 1e-12);
+        assert!((y - 0.5_f64.sin()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn test_scalar_fast_eval_rejects_unsupported() {
+        let expr = CompiledExpr::Method(
+            Box::new(CompiledExpr::LoadEnv("list".to_string())),
+            "len".to_string(),
+            vec![],
+        );
+        let constants = Vec::new();
+        assert!(!is_scalar_fast_evaluable(&expr, "x", &constants));
+    }
+}
+

@@ -652,8 +652,8 @@ impl Environment {
         // Replace existing binding with same name, or fill first empty slot
         for slot in self.bindings.iter_mut() {
             match slot {
-                Some((existing_name, _)) if existing_name == name => {
-                    *slot = Some((name.to_string(), value));
+                Some((existing_name, slot_val)) if existing_name == name => {
+                    *slot_val = value;
                     return;
                 },
                 None => {
