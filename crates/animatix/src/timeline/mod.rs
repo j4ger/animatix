@@ -643,6 +643,13 @@ pub struct Timeline {
     pub(crate) referenced_roots: Option<std::collections::HashSet<String>>,
     /// Whether any expression in the scene references `scene.stats` (STAT-1).
     pub(crate) stats_used: bool,
+    /// Whether `is_animating` or a property reference (`&actor.prop`) was used.
+    pub(crate) is_animating_used: bool,
+    /// Actor labels that appeared as bare identifiers in expressions without a dot accessor.
+    pub(crate) wildcard_actors: std::collections::HashSet<String>,
+    /// Map from actor label to the specific property names referenced in expressions.
+    pub(crate) referenced_properties:
+        std::collections::HashMap<String, std::collections::HashSet<String>>,
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
@@ -912,6 +919,9 @@ impl Timeline {
             variable_tracks: BTreeMap::new(),
             referenced_roots: None,
             stats_used: false,
+            is_animating_used: false,
+            wildcard_actors: std::collections::HashSet::new(),
+            referenced_properties: std::collections::HashMap::new(),
             audio_segments: Vec::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),

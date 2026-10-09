@@ -501,9 +501,7 @@ pub(crate) fn resolve_scalar_constants(
     out: &mut Vec<(String, f64)>,
 ) {
     match expr {
-        CompiledExpr::LoadEnv(name)
-            if name != arg_name && !out.iter().any(|(k, _)| k == name) =>
-        {
+        CompiledExpr::LoadEnv(name) if name != arg_name && !out.iter().any(|(k, _)| k == name) => {
             // Priority: env (frame-time overrides and parameters shadow captures)
             if let Some(Value::Num(n)) = env.get_path(name) {
                 out.push((name.clone(), n));
@@ -665,14 +663,8 @@ mod tests {
     #[test]
     fn test_vec2_fast_eval_parametric() {
         let expr = CompiledExpr::MakeVec(vec![
-            CompiledExpr::CallBuiltin(
-                BuiltinFn::Cos,
-                vec![CompiledExpr::LoadEnv("t".to_string())],
-            ),
-            CompiledExpr::CallBuiltin(
-                BuiltinFn::Sin,
-                vec![CompiledExpr::LoadEnv("t".to_string())],
-            ),
+            CompiledExpr::CallBuiltin(BuiltinFn::Cos, vec![CompiledExpr::LoadEnv("t".to_string())]),
+            CompiledExpr::CallBuiltin(BuiltinFn::Sin, vec![CompiledExpr::LoadEnv("t".to_string())]),
         ]);
 
         let constants = Vec::new();
@@ -694,4 +686,3 @@ mod tests {
         assert!(!is_scalar_fast_evaluable(&expr, "x", &constants));
     }
 }
-

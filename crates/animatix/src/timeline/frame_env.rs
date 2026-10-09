@@ -120,17 +120,38 @@ impl Timeline {
         // staying ~30× below the old `env.len()`-sized reservation.
         let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
         let has_runtime_injection = has_modifiers || self.has_procedural_plots();
-        let injected_actors = if has_runtime_injection {
+        let estimated_prop_entries = if has_runtime_injection {
             match &self.referenced_roots {
-                Some(roots) => {
-                    roots.iter().filter(|label| self.tracks.contains_key(label.as_str())).count()
+                Some(_) => {
+                    let mut count = 0;
+                    for label in self.tracks.keys() {
+                        let is_wildcard = self.wildcard_actors.contains(label.as_str())
+                            || self
+                                .wildcard_actors
+                                .iter()
+                                .any(|w| label.starts_with(&format!("{w}__")));
+                        if is_wildcard {
+                            count += 120;
+                        } else {
+                            let base =
+                                label.split_once("__").map(|(b, _)| b).unwrap_or(label.as_str());
+                            let props_count = self
+                                .referenced_properties
+                                .get(label.as_str())
+                                .or_else(|| self.referenced_properties.get(base))
+                                .map(|p| p.len())
+                                .unwrap_or(0);
+                            count += props_count * 4;
+                        }
+                    }
+                    count
                 },
-                None => self.tracks.len(),
+                None => self.tracks.len() * 120,
             }
         } else {
             0
         };
-        let estimated_capacity = 16 + self.variable_tracks.len() + injected_actors * 120;
+        let estimated_capacity = 16 + self.variable_tracks.len() + estimated_prop_entries;
         // PF-6 pool: the override-layer key set is identical frame-to-frame
         // (actor labels × registry properties are build-time-fixed), so the
         // environment is retained and its keys overwritten in place via
@@ -194,6 +215,8 @@ impl Timeline {
                     track,
                     time_ms,
                     self.extensions.as_deref(),
+                    None,
+                    false,
                 );
             }
             return env;
@@ -285,10 +308,74 @@ impl Timeline {
                     continue;
                 }
             }
+
+            let (allowed_props, inject_animating_flags) = if self.referenced_roots.is_some() {
+                let is_wildcard = self.wildcard_actors.contains(label.as_str())
+                    || self.wildcard_actors.iter().any(|w| label.starts_with(&format!("{w}__")));
+                if is_wildcard {
+                    (None, self.is_animating_used)
+                } else {
+                    let base = label.split_once("__").map(|(b, _)| b).unwrap_or(label.as_str());
+                    let props = self
+                        .referenced_properties
+                        .get(label.as_str())
+                        .or_else(|| self.referenced_properties.get(base));
+                    match props {
+                        Some(p) => (Some(p), self.is_animating_used),
+                        None => {
+                            // Actor's properties are not read by any expression.
+                            // Apply explicit node overrides if present, then skip base property
+                            // injection.
+                            let node_overrides = overrides.and_then(|map| map.get(label));
+                            if let Some(overrides) = node_overrides {
+                                for (okey, val) in overrides {
+                                    crate::timeline::env_keys::property_into(label, okey, &mut key);
+                                    env.set(&key, val.clone());
+                                    match val {
+                                        Value::Vec2([x, y]) => {
+                                            let base_len = key.len();
+                                            key.push_str(".x");
+                                            env.set(&key, Value::Num(*x));
+                                            key.truncate(base_len);
+                                            key.push_str(".y");
+                                            env.set(&key, Value::Num(*y));
+                                        },
+                                        Value::Color([r, g, b, a]) => {
+                                            let base_len = key.len();
+                                            key.push_str(".r");
+                                            env.set(&key, Value::Num(*r));
+                                            key.truncate(base_len);
+                                            key.push_str(".g");
+                                            env.set(&key, Value::Num(*g));
+                                            key.truncate(base_len);
+                                            key.push_str(".b");
+                                            env.set(&key, Value::Num(*b));
+                                            key.truncate(base_len);
+                                            key.push_str(".a");
+                                            env.set(&key, Value::Num(*a));
+                                        },
+                                        _ => {},
+                                    }
+                                }
+                            }
+                            continue;
+                        },
+                    }
+                }
+            } else {
+                (None, true)
+            };
+
             // Use the centralized injector for base track values (key buffer
             // shared with the anchors above).
             crate::timeline::property_engine::inject_property_into_env(
-                env, &mut key, label, track, time_ms,
+                env,
+                &mut key,
+                label,
+                track,
+                time_ms,
+                allowed_props,
+                inject_animating_flags,
             );
             crate::timeline::property_engine::inject_extension_properties_into_env(
                 env,
@@ -297,6 +384,8 @@ impl Timeline {
                 track,
                 time_ms,
                 self.extensions.as_deref(),
+                allowed_props,
+                inject_animating_flags,
             );
 
             // Apply overrides on top (from `always` blocks or modifiers).

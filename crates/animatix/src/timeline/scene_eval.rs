@@ -681,15 +681,20 @@ impl Timeline {
                 || transitioning
                 || has_completed_transitions
             {
-                let mut local_env = if let Some(env) = frame_env {
-                    env.clone()
+                let fallback_env;
+                let env = if let Some(env) = frame_env {
+                    env
                 } else {
-                    self.build_frame_env_internal(time_ms, scene_dimensions, overrides)
+                    fallback_env =
+                        self.build_frame_env_internal(time_ms, scene_dimensions, overrides);
+                    &fallback_env
                 };
 
-                // Inject plot parameter values from keyframe tracks into the
-                // evaluation environment so that `sample_procedural_plot_at` sees
-                // the animated value rather than the build-time static default.
+                // Inject plot parameter values from keyframe tracks into a
+                // scoped let-chain overlay on the frame environment, so that
+                // `sample_procedural_plot_at` sees animated values without
+                // deep-cloning the entire Environment hash map.
+                let mut param_bindings = Vec::new();
                 for name in &procedural_plot.param_names {
                     if let Some(param_track) = track.plot_param_tracks.get(name) {
                         let val = param_track.evaluate(time_ms);
@@ -701,22 +706,30 @@ impl Timeline {
                             name,
                             &mut key,
                         );
-                        local_env.set(&key, num_val.clone());
+                        param_bindings.push((key, num_val.clone()));
                         // Set the bare name (e.g. "freq") for closure captures,
                         // but don't shadow closure sample arguments.
                         if !procedural_plot.func_args.contains(name) {
-                            local_env.set(name, num_val);
+                            param_bindings.push((name.clone(), num_val));
                         }
                     }
+                }
+                let has_params = !param_bindings.is_empty();
+                if has_params {
+                    env.push_let_scope(param_bindings);
                 }
 
                 vector_paths =
                     std::sync::Arc::new(crate::timeline::plot::sample_procedural_plot_at(
                         procedural_plot,
-                        &mut local_env,
+                        env,
                         time_ms,
                         &track.func_transitions,
                     ));
+
+                if has_params {
+                    env.pop_let_scope();
+                }
                 // Surface silent sample failures once per actor per frame: a
                 // closure whose evaluation fails renders NaN gaps with no
                 // other trace (the sampler memoizes per-sample errors, so the

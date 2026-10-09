@@ -451,9 +451,7 @@ impl ModifierIrProgram {
             for stmt in stmts {
                 match stmt {
                     ModifierIrStmt::Assign {
-                        target,
-                        property,
-                        ..
+                        target, property, ..
                     } if is_spatial_or_presence_property(property) => {
                         record_target(target, out);
                     },

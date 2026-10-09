@@ -1151,6 +1151,8 @@ pub(crate) fn inject_property_into_env(
     label: &str,
     track: &AnimationTrack,
     time_ms: u64,
+    allowed_props: Option<&std::collections::HashSet<String>>,
+    inject_animating_flags: bool,
 ) {
     use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags, ReadSource};
 
@@ -1166,6 +1168,12 @@ pub(crate) fn inject_property_into_env(
     for schema in PROPERTY_REGISTRY.iter() {
         if !schema.flags.contains(PropertyFlags::INJECTABLE) {
             continue;
+        }
+
+        if let Some(allowed) = allowed_props {
+            if !allowed.contains(schema.name) {
+                continue;
+            }
         }
 
         // Read via the schema's read_source (handles Field, Alias, Component).
@@ -1196,10 +1204,12 @@ pub(crate) fn inject_property_into_env(
 
         // Inject the animation-state flag under the internal animating_flag
         // key (read by `is_animating(&label.prop)`).
-        if let Some(storage) = schema.read_source.storage_field() {
-            let flag_key = super::env_keys::animating_flag(label, schema.name);
-            let animating = track.is_field_currently_animating(storage, time_ms);
-            env.set(&flag_key, Value::Bool(animating));
+        if inject_animating_flags {
+            if let Some(storage) = schema.read_source.storage_field() {
+                let flag_key = super::env_keys::animating_flag(label, schema.name);
+                let animating = track.is_field_currently_animating(storage, time_ms);
+                env.set(&flag_key, Value::Bool(animating));
+            }
         }
     }
 }
@@ -1212,6 +1222,8 @@ pub(crate) fn inject_extension_properties_into_env(
     track: &AnimationTrack,
     time_ms: u64,
     ctx: Option<&ExtensionContext>,
+    allowed_props: Option<&std::collections::HashSet<String>>,
+    inject_animating_flags: bool,
 ) {
     let Some(ctx) = ctx else {
         return;
@@ -1228,6 +1240,11 @@ pub(crate) fn inject_extension_properties_into_env(
         if !spec.injectable || spec.actor_type != actor_type {
             continue;
         }
+        if let Some(allowed) = allowed_props {
+            if !allowed.contains(&spec.name) {
+                continue;
+            }
+        }
         let Some(pv) = read_property_plan_slot(track, spec.id, time_ms) else {
             continue;
         };
@@ -1235,12 +1252,14 @@ pub(crate) fn inject_extension_properties_into_env(
         key.push_str(&spec.name);
         inject_value(env, key, prefix_len, &spec.name, &pv);
 
-        let animating = track
-            .property_plan
-            .get(spec.id)
-            .is_some_and(|slot| slot.track.has_any_keyframes());
-        let flag_key = super::env_keys::animating_flag(label, &spec.name);
-        env.set(&flag_key, Value::Bool(animating));
+        if inject_animating_flags {
+            let animating = track
+                .property_plan
+                .get(spec.id)
+                .is_some_and(|slot| slot.track.has_any_keyframes());
+            let flag_key = super::env_keys::animating_flag(label, &spec.name);
+            env.set(&flag_key, Value::Bool(animating));
+        }
     }
 }
 

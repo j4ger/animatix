@@ -394,9 +394,12 @@ impl Timeline {
         // Pre-scan the program for actor labels referenced by expressions so
         // build_eval_env injects only those actors' properties (see
         // build::referenced_roots for the safety argument).
-        let (roots, stats_used) = super::referenced_roots::scan_references(ast);
-        timeline.referenced_roots = Some(roots);
-        timeline.stats_used = stats_used;
+        let scan = super::referenced_roots::scan_references(ast);
+        timeline.referenced_roots = Some(scan.roots);
+        timeline.stats_used = scan.stats_used;
+        timeline.is_animating_used = scan.is_animating_used;
+        timeline.wildcard_actors = scan.wildcard_actors;
+        timeline.referenced_properties = scan.referenced_properties;
         timeline.build_quality = build_quality;
         timeline.extensions = extensions;
         if let Some(registry) = primitive_registry {

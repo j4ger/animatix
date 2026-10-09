@@ -263,9 +263,9 @@ fn epicycles_plot(resolution: usize) -> ProceduralPlot {
 /// steep. What differs is *where* the vertices sit — a coarse base grid leaves
 /// long spans unrefined, and an unrefined span is drawn as one straight chord.
 fn widest_gap(plot: &ProceduralPlot) -> f64 {
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let mut xs: Vec<f64> = Vec::new();
-    for vp in sample_procedural_plot_at(plot, &mut env, 0, &[]) {
+    for vp in sample_procedural_plot_at(plot, &env, 0, &[]) {
         for el in vp.path.elements() {
             let pt = match el {
                 kurbo::PathEl::MoveTo(pt) | kurbo::PathEl::LineTo(pt) => *pt,
@@ -310,7 +310,7 @@ fn coarser_resolution_leaves_longer_straight_spans() {
 /// and also exercises `sample_procedural_plot_at` to verify non-empty output.
 #[test]
 fn blend_at_half_progress() {
-    let mut env = stdlib_env();
+    let env = stdlib_env();
 
     // Manually construct a Blend node with frozen_progress = 0.5.
     let blend = FuncSource::Blend {
@@ -376,8 +376,7 @@ fn blend_at_half_progress() {
     };
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
-    let paths_mid =
-        sample_procedural_plot_at(&plot, &mut env, 2500, std::slice::from_ref(&transition));
+    let paths_mid = sample_procedural_plot_at(&plot, &env, 2500, std::slice::from_ref(&transition));
     assert!(!paths_mid.is_empty(), "Expected output paths at mid-transition");
     assert!(
         !paths_mid[0].path.elements().is_empty(),
@@ -386,11 +385,11 @@ fn blend_at_half_progress() {
 
     // Before the transition, output should be pure sin(x).
     let paths_before =
-        sample_procedural_plot_at(&plot, &mut env, 1000, std::slice::from_ref(&transition));
+        sample_procedural_plot_at(&plot, &env, 1000, std::slice::from_ref(&transition));
     assert!(!paths_before.is_empty(), "Expected output paths before transition");
 
     // After the transition, output should be pure cos(x).
-    let paths_after = sample_procedural_plot_at(&plot, &mut env, 4000, &[transition]);
+    let paths_after = sample_procedural_plot_at(&plot, &env, 4000, &[transition]);
     assert!(!paths_after.is_empty(), "Expected output paths after transition");
 }
 
@@ -523,13 +522,13 @@ fn cascading_transitions() {
 
     // Sample at the midpoint of the third transition (t=2.75s) and verify
     // non-empty output.
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let plot = track
         .procedural_plot
         .as_ref()
         .expect("curve should have a procedural_plot")
         .clone();
-    let paths = sample_procedural_plot_at(&plot, &mut env, 2750, &track.func_transitions);
+    let paths = sample_procedural_plot_at(&plot, &env, 2750, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths during cascading transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -580,8 +579,8 @@ fn polar_mode_transition() {
     assert_eq!(plot.kind, PlotCurveKind::Polar, "plot kind should be Polar");
 
     // Sample at mid-transition and verify non-empty output.
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 2500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths for polar mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -633,8 +632,8 @@ fn parametric_mode_transition() {
     assert_eq!(plot.kind, PlotCurveKind::Parametric, "plot kind should be Parametric");
 
     // Sample at mid-transition and verify non-empty output.
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &mut env, 2500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 2500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths for parametric mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -809,7 +808,7 @@ fn for_loop_closure_captures_loop_variable() {
         .collect();
     assert!(errors.is_empty(), "Unexpected build errors: {:?}", errors);
 
-    let mut env = stdlib_env();
+    let env = stdlib_env();
 
     // Check each generated curve track captures a distinct `freq` and samples correctly.
     // For func=(x)=>x*freq, at x=2.0, expected output = 2.0 * freq.
@@ -834,7 +833,7 @@ fn for_loop_closure_captures_loop_variable() {
         );
 
         // Sample the plot and verify output matches the captured `freq` value.
-        let paths = sample_procedural_plot_at(plot, &mut env, 0, &[]);
+        let paths = sample_procedural_plot_at(plot, &env, 0, &[]);
         assert!(!paths.is_empty(), "{}: sampled paths should be non-empty", track_name);
 
         // Directly evaluate the function via FuncSource to confirm the captured value.
@@ -905,13 +904,13 @@ fn adaptive_quality_reduces_depth_for_blends() {
 
     // Sample at the midpoint of the third transition (t=2.75s) and verify
     // non-empty output despite reduced quality.
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let plot = track
         .procedural_plot
         .as_ref()
         .expect("curve should have a procedural_plot")
         .clone();
-    let paths = sample_procedural_plot_at(&plot, &mut env, 2750, &track.func_transitions);
+    let paths = sample_procedural_plot_at(&plot, &env, 2750, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths during 3-deep blend");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -1026,7 +1025,7 @@ fn implicit_transition_simple() {
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
 
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let plot = track
         .procedural_plot
         .as_ref()
@@ -1036,7 +1035,7 @@ fn implicit_transition_simple() {
     assert_eq!(plot.kind, PlotCurveKind::Implicit, "Plot kind should be Implicit");
 
     // Before transition: pure circle contour.
-    let paths_before = sample_procedural_plot_at(&plot, &mut env, 1000, &track.func_transitions);
+    let paths_before = sample_procedural_plot_at(&plot, &env, 1000, &track.func_transitions);
     assert!(!paths_before.is_empty(), "Expected paths before transition");
     assert!(
         !paths_before[0].path.elements().is_empty(),
@@ -1044,7 +1043,7 @@ fn implicit_transition_simple() {
     );
 
     // Mid-transition (t=2500ms, progress≈0.5): blended contour.
-    let paths_mid = sample_procedural_plot_at(&plot, &mut env, 2500, &track.func_transitions);
+    let paths_mid = sample_procedural_plot_at(&plot, &env, 2500, &track.func_transitions);
     assert!(!paths_mid.is_empty(), "Expected paths at mid-transition");
     assert!(
         !paths_mid[0].path.elements().is_empty(),
@@ -1052,7 +1051,7 @@ fn implicit_transition_simple() {
     );
 
     // After transition: pure line contour.
-    let paths_after = sample_procedural_plot_at(&plot, &mut env, 4000, &track.func_transitions);
+    let paths_after = sample_procedural_plot_at(&plot, &env, 4000, &track.func_transitions);
     assert!(!paths_after.is_empty(), "Expected paths after transition");
     assert!(
         !paths_after[0].path.elements().is_empty(),
@@ -1191,7 +1190,7 @@ fn implicit_cascading() {
         );
     }
 
-    let mut env = stdlib_env();
+    let env = stdlib_env();
     let plot = track
         .procedural_plot
         .as_ref()
@@ -1201,7 +1200,7 @@ fn implicit_cascading() {
     assert_eq!(plot.kind, PlotCurveKind::Implicit, "Plot kind should be Implicit");
 
     // Sample at the midpoint of the third transition (t=2.75s) — deepest blend.
-    let paths_deep = sample_procedural_plot_at(&plot, &mut env, 2750, &track.func_transitions);
+    let paths_deep = sample_procedural_plot_at(&plot, &env, 2750, &track.func_transitions);
     assert!(!paths_deep.is_empty(), "Expected paths during 3-deep implicit cascade");
     assert!(
         !paths_deep[0].path.elements().is_empty(),
@@ -1209,7 +1208,7 @@ fn implicit_cascading() {
     );
 
     // Sample after all transitions have completed.
-    let paths_after = sample_procedural_plot_at(&plot, &mut env, 5000, &track.func_transitions);
+    let paths_after = sample_procedural_plot_at(&plot, &env, 5000, &track.func_transitions);
     assert!(!paths_after.is_empty(), "Expected paths after all implicit transitions");
     assert!(
         !paths_after[0].path.elements().is_empty(),
@@ -1575,8 +1574,8 @@ fn vector_field_func_transition() {
     let plot = track.procedural_plot.as_ref().expect("VectorField should have procedural_plot");
     assert_eq!(plot.plot_type, ProceduralPlotKind::VectorField);
 
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 1500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths during VectorField transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -1613,8 +1612,8 @@ fn heatmap_func_transition() {
     let plot = track.procedural_plot.as_ref().expect("Heatmap should have procedural_plot");
     assert_eq!(plot.plot_type, ProceduralPlotKind::Heatmap);
 
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 1500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths during Heatmap transition");
     assert!(paths.iter().any(|p| p.fill.is_some()), "Expected filled heat cells");
 }
@@ -1648,8 +1647,8 @@ fn contour_set_func_transition() {
     let plot = track.procedural_plot.as_ref().expect("ContourSet should have procedural_plot");
     assert_eq!(plot.plot_type, ProceduralPlotKind::ContourSet);
 
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &mut env, 1500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 1500, &track.func_transitions);
     assert!(!paths.is_empty(), "Expected output paths during ContourSet transition");
 }
 
@@ -1687,8 +1686,8 @@ fn opacity_crossfade_blend_mode() {
         .as_ref()
         .expect("curve should have a procedural_plot")
         .clone();
-    let mut env = stdlib_env();
-    let paths = sample_procedural_plot_at(&plot, &mut env, 1500, &track.func_transitions);
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(&plot, &env, 1500, &track.func_transitions);
     assert_eq!(paths.len(), 2, "Opacity cross-fade should render both endpoint paths");
     for path in &paths {
         let (color, _) = path.stroke.expect("curves should be stroked");
