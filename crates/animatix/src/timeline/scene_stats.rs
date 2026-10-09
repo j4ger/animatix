@@ -195,11 +195,42 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
 
     let p_count = compute_sample_count(duration_s);
 
-    // Eligible tracks: exclude full-viewport backgrounds (legend.rs rule)
+    // Collect all actors targeted by frame-time modifier programs (always blocks).
+    // Actors whose positions/sizes are driven at runtime cannot participate in
+    // build-time scene statistics because:
+    // 1. Their build-time tracks lack frame-time positions/sizes.
+    // 2. Modifiers driven by scene.stats (e.g. ambient lighting wash) create circular dependencies.
+    let mut modifier_targets = std::collections::HashSet::new();
+    for p in &timeline.modifier_programs {
+        p.collect_written_targets(&mut modifier_targets);
+    }
+
+    // Eligible tracks: exclude:
+    // 1. Structural Group containers (they don't render visual shapes)
+    // 2. Full-viewport backgrounds (e.g. background plates)
+    // 3. Actors explicitly marked legend: false / hidden
+    // 4. Actors whose properties are dynamically driven by modifier programs
     let eligible_tracks: Vec<&AnimationTrack> = timeline
         .tracks
-        .values()
-        .filter(|t| !crate::timeline::legend::is_full_viewport_background(t))
+        .iter()
+        .filter(|(label, t)| {
+            if t.actor_type == "Group" {
+                return false;
+            }
+            if crate::timeline::legend::is_full_viewport_background(t) {
+                return false;
+            }
+            if crate::timeline::legend::legend_mode_for_track(t)
+                == crate::timeline::legend::LegendMode::Hidden
+            {
+                return false;
+            }
+            if modifier_targets.contains(label.as_str()) {
+                return false;
+            }
+            true
+        })
+        .map(|(_, t)| t)
         .collect();
 
     let mut raw_motion = Vec::with_capacity(p_count);

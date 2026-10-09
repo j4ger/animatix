@@ -1,0 +1,29 @@
+import "lib/theme.amx"
+import "lib/ambience.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6, seamless_loop: true }
+
+bg: Ambience, tint: accent.primary, base_opacity: 0.22, tau: 0.5
+
+hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1.0
+satellite: Rect, size: (70, 70), corner_radius: 12, color: accent.secondary, at: (960, 360), opacity: 1.0
+
+#0s
+hero.at = (320, 360)
+satellite.at = (960, 360)
+
+#1.5s
+hero.at = (640, 240) [ease: ease-in-out]
+satellite.at = (640, 480) [ease: ease-in-out]
+
+#3s
+hero.at = (960, 360) [ease: ease-in-out]
+satellite.at = (320, 360) [ease: ease-in-out]
+
+#4.5s
+hero.at = (640, 480) [ease: ease-in-out]
+satellite.at = (640, 240) [ease: ease-in-out]
+
+#6s
+hero.at = (320, 360) [ease: ease-in-out]
+satellite.at = (960, 360) [ease: ease-in-out]

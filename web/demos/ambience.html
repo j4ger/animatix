@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dynamic Background Shading (Ambience) — Animatix</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../site.css">
+  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix · STAT-1 Preview</p>
+      <h1>Dynamic Background Shading</h1>
+      <p class="lede">
+        Reactive background lighting driven analytically by scene motion statistics
+        with <strong>zero GPU readback</strong> and <strong>zero frame-time allocation</strong>.
+        The wash brightens during energetic action and smoothly relaxes when movement settles.
+      </p>
+      <ul class="meta">
+        <li>Analytical scene statistics (<code class="inline">scene.stats.motion</code>)</li>
+        <li>Continuous one-pole filter (<code class="inline">curve_smooth</code>)</li>
+        <li>Single declarative component: <code class="inline">bg: Ambience</code></li>
+      </ul>
+    </header>
+
+    <section>
+      <div class="sec-head"><h2>1. Standalone Motion Tracking &amp; Ambient Wash</h2></div>
+      <p>
+        As the hero and satellite actors move, the background glow reacts to their motion energy.
+      </p>
+      <figure class="tour-embed">
+        <amx-player src="ambience.amx" autoplay loop controls hold="1"
+                    aspect="16:9" title="Standalone Ambience Component"></amx-player>
+        <figcaption>
+          <span class="cap">Driven by <code class="inline">curve_smooth(&amp;scene.stats.motion, t, tau)</code>.</span>
+          <a class="src" href="ambience.amx">ambience.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>2. Applied in a Diagram Scene (Matrix Shear)</h2></div>
+      <p>
+        Integrated directly behind the live 2×2 matrix transformation plane with
+        <code class="inline">bg: Ambience, tint: accent.warning</code>.
+      </p>
+      <figure class="tour-embed">
+        <amx-player src="matrix/shear.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Matrix Shear with Ambience"></amx-player>
+        <figcaption>
+          <span class="cap">The ambient glow breathes with the grid and vector movements.</span>
+          <a class="src" href="matrix/shear.amx">matrix/shear.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+  </div>
+</body>
+</html>

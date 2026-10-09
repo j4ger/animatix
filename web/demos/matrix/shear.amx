@@ -1,8 +1,11 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 config { resolution: (1280, 720) }
 
 # Shear
 config { colorscheme: "ink", duration: 8 }
+
+bg: Ambience, tint: accent.warning
 
 shear_title: Text, text: "A matrix is a machine", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

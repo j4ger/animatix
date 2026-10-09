@@ -315,6 +315,39 @@ impl ModifierIrProgram {
         }
         walk_stmts(&self.statements, out);
     }
+
+    /// Collect every target actor path (e.g. `"bg.wash"` or `"hero"`) written to
+    /// by any assignment statement.
+    pub fn collect_written_targets(&self, out: &mut std::collections::HashSet<String>) {
+        fn walk_stmts(stmts: &[ModifierIrStmt], out: &mut std::collections::HashSet<String>) {
+            for stmt in stmts {
+                match stmt {
+                    ModifierIrStmt::Assign { target, .. } => {
+                        out.insert(target.join("."));
+                        if let Some(first) = target.first() {
+                            out.insert(first.clone());
+                        }
+                    },
+                    ModifierIrStmt::AssignIndexed { base, .. } => {
+                        out.insert(base.clone());
+                    },
+                    ModifierIrStmt::If {
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
+                        walk_stmts(then_branch, out);
+                        walk_stmts(else_branch, out);
+                    },
+                    ModifierIrStmt::For { body, .. } => {
+                        walk_stmts(body, out);
+                    },
+                    _ => {},
+                }
+            }
+        }
+        walk_stmts(&self.statements, out);
+    }
 }
 
 /// Overrides for modifier properties, keyed by object and property name.

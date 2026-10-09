@@ -220,3 +220,84 @@ always {
         "focus_y must center on subject (200), not full-screen bg (500), got {fy_val}"
     );
 }
+
+#[test]
+fn ambience_component_evaluates_at_runtime() {
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/animation/39_ambience.amx");
+    let program = graph.load_program(&path).unwrap();
+    let mut diagnostics = Vec::new();
+    let expanded = program.expand_components(&mut diagnostics);
+    assert!(diagnostics.is_empty(), "expansion diagnostics: {diagnostics:?}");
+    let report = Timeline::build_with_diagnostics(&expanded, &program.namespaces);
+    let timeline = report.output;
+    assert!(
+        timeline.env_base.contains_key("scene.stats.motion"),
+        "scene.stats.motion must be baked"
+    );
+    assert!(
+        timeline.env_base.contains_key("scene.stats.focus_x"),
+        "scene.stats.focus_x must be baked"
+    );
+
+    let mut sampled_at = Vec::new();
+    let mut sampled_opacity = Vec::new();
+    let mut sampled_size = Vec::new();
+
+    for t_s in [0.0, 0.75, 1.5, 2.25, 3.0] {
+        let time_ms = (t_s * 1000.0) as u64;
+        let mut overrides = std::collections::HashMap::new();
+        let mut env =
+            timeline.build_frame_env_internal(time_ms, SceneDimensions::default(), &overrides);
+        for p in &timeline.modifier_programs {
+            timeline
+                .apply_modifier_program(
+                    p,
+                    time_ms,
+                    SceneDimensions::default(),
+                    &mut env,
+                    &mut overrides,
+                )
+                .expect("modifier program evaluation should succeed");
+        }
+        let wash_props = overrides.get("bg.wash").expect("bg.wash must have modifier overrides");
+        if let Some(Value::Vec2(pos)) = wash_props.get("at") {
+            sampled_at.push(*pos);
+        }
+        if let Some(Value::Num(op)) = wash_props.get("opacity") {
+            sampled_opacity.push(*op);
+        }
+        if let Some(Value::Vec2(sz)) = wash_props.get("size") {
+            sampled_size.push(*sz);
+        }
+    }
+
+    assert_eq!(sampled_at.len(), 5);
+    // Wash must visibly track actors horizontally (hero swings to 960 at 3s)
+    let dx = (sampled_at[4][0] - sampled_at[1][0]).abs();
+    assert!(
+        dx > 150.0,
+        "Ambience wash must visibly track horizontal actor movement: dx={dx}px"
+    );
+
+    // Wash must visibly track actors vertically
+    let dy = (sampled_at[1][1] - sampled_at[2][1]).abs();
+    assert!(dy > 20.0, "Ambience wash must visibly track vertical actor movement: dy={dy}px");
+
+    // Wash opacity must breathe dynamically with motion energy
+    let max_op = sampled_opacity.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let min_op = sampled_opacity.iter().cloned().fold(f64::INFINITY, f64::min);
+    assert!(
+        max_op - min_op > 0.015,
+        "Ambience wash opacity must breathe with motion: max={max_op}, min={min_op}"
+    );
+
+    // Wash size must dilate and contract as actors separate and converge
+    let max_sz = sampled_size.iter().map(|s| s[0]).fold(f64::NEG_INFINITY, f64::max);
+    let min_sz = sampled_size.iter().map(|s| s[0]).fold(f64::INFINITY, f64::min);
+    assert!(
+        max_sz - min_sz > 40.0,
+        "Ambience wash size must contract and expand with actor spread: max={max_sz}, min={min_sz}"
+    );
+}

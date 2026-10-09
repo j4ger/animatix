@@ -26,17 +26,18 @@
 //   }
 
 pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7) {
-  plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0
+  plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0, legend: false
 
   wash: Ellipse, size: (900, 900), opacity: base_opacity, blend: "screen",
     fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (100%, (0, 0, 0, 0))}),
-    anchor: scene.center
+    anchor: scene.center, legend: false
 
   always {
     let e = curve_smooth(scene.stats.motion, t, tau)
     let fx = curve_smooth(scene.stats.focus_x, t, tau * 1.5)
+    let fy = curve_smooth(scene.stats.focus_y, t, tau * 1.5)
     let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
-    self.wash.at = (fx, scene_height * 0.5)
+    self.wash.at = (fx, fy)
     self.wash.size = (600 + 600 * sx, 600 + 600 * sx)
     self.wash.opacity = clamp(base_opacity * (0.5 + 1.5 * e), 0.02, 0.45)
   }
