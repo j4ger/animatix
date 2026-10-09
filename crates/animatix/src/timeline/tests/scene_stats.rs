@@ -344,3 +344,50 @@ always {
         "hero motion must be captured even when color is animated in always: got {motion_val}"
     );
 }
+
+#[test]
+fn scene_stats_excludes_containers_and_non_visual_actors() {
+    let source = r#"
+config { duration: 2, resolution: (1000, 1000) }
+
+group: Group, at: (100, 100)
+row: Row, at: (200, 200)
+sound: Audio, url: "test.mp3"
+hero: Ellipse, size: (100, 100), at: (600, 600), opacity: 1.0
+
+always {
+  let fx = scene.stats.focus_x
+  let fy = scene.stats.focus_y
+  let c = scene.stats.cast
+}
+"#;
+
+    let (timeline, _) = build_source(source);
+    let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
+    let fy = timeline.env_base.get("scene.stats.focus_y").unwrap();
+    let cast = timeline.env_base.get("scene.stats.cast").unwrap();
+
+    let fx_val =
+        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(1.0)])
+            .unwrap()
+            .as_num();
+    let fy_val =
+        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fy.clone(), Value::Num(1.0)])
+            .unwrap()
+            .as_num();
+    let cast_val =
+        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[cast.clone(), Value::Num(1.0)])
+            .unwrap()
+            .as_num();
+
+    // Only hero should count: cast must be 1.0, and focus must be on hero (600, 600)
+    assert_eq!(cast_val, 1.0, "cast count must only include visual leaf actor (hero)");
+    assert!(
+        (fx_val - 600.0).abs() < 5.0,
+        "focus_x must center on hero (600), not containers or audio: got {fx_val}"
+    );
+    assert!(
+        (fy_val - 600.0).abs() < 5.0,
+        "focus_y must center on hero (600), not containers or audio: got {fy_val}"
+    );
+}

@@ -206,7 +206,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
     }
 
     // Eligible tracks: exclude:
-    // 1. Structural Group containers (they don't render visual shapes)
+    // 1. Containers and non-visual actors (they don't render visual shapes/ink of their own)
     // 2. Full-viewport backgrounds (e.g. background plates)
     // 3. Actors explicitly marked legend: false / hidden
     // 4. Actors whose spatial geometry/presence is driven dynamically or that consume scene.stats
@@ -214,7 +214,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         .tracks
         .iter()
         .filter(|(label, t)| {
-            if t.actor_type == "Group" {
+            if !t.renders_visual_content() {
                 return false;
             }
             if crate::timeline::legend::is_full_viewport_background(t) {

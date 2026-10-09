@@ -192,6 +192,29 @@ impl ActorCaps {
     pub fn is_nestable_container(&self) -> bool {
         self.is_container && self.child_processing == ChildProcessingKind::Generic
     }
+
+    /// Returns `true` if this actor directly renders visual ink or content
+    /// of its own (shapes, text, media graphics, plots, or annotations).
+    ///
+    /// Structural and layout containers (`Group`, `Row`, `Col`, `Grid`,
+    /// `Stack`, `Mask`, `Filter`, `Glass`, `Equation`) and non-visual
+    /// primitives (`Audio`) return `false` because they manage children,
+    /// offscreen textures, or audio playback rather than rendering visual ink
+    /// of their own.
+    pub fn renders_visual_content(&self) -> bool {
+        if self.is_container {
+            return false;
+        }
+        self.is_shape
+            || self.stroke_path
+            || self.text_paths
+            || self.text.is_some()
+            || self.vector_paths
+            || self.image_payload
+            || self.plot_geometry
+            || self.plot_host
+            || self.category == ActorCategory::Annotation
+    }
 }
 
 /// Declares which actors a property applies to.
@@ -268,5 +291,62 @@ impl Applicable {
             },
             Applicable::Never => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn renders_visual_content_classification() {
+        let shape = ActorCaps {
+            is_shape: true,
+            ..Default::default()
+        };
+        assert!(shape.renders_visual_content());
+
+        let text = ActorCaps {
+            text: Some(TextKind::Text),
+            ..Default::default()
+        };
+        assert!(text.renders_visual_content());
+
+        let media = ActorCaps {
+            image_payload: true,
+            ..Default::default()
+        };
+        assert!(media.renders_visual_content());
+
+        let plot = ActorCaps {
+            plot_geometry: true,
+            ..Default::default()
+        };
+        assert!(plot.renders_visual_content());
+
+        let annotation = ActorCaps {
+            category: ActorCategory::Annotation,
+            ..Default::default()
+        };
+        assert!(annotation.renders_visual_content());
+
+        // Containers must return false
+        let container = ActorCaps {
+            is_container: true,
+            is_shape: true, // e.g. Glass
+            ..Default::default()
+        };
+        assert!(!container.renders_visual_content());
+
+        let group = ActorCaps {
+            is_container: true,
+            group_like: true,
+            ..Default::default()
+        };
+        assert!(!group.renders_visual_content());
+
+        // Non-visual media like Audio (all false)
+        let audio = ActorCaps::default();
+        assert!(!audio.renders_visual_content());
     }
 }

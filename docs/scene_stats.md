@@ -148,9 +148,12 @@ Exclusions applied at build time to prevent feedback loops and uninitialized def
   plate from polluting a legend (`spec.md` "Legend": *"Full-viewport background shapes
   using `fill` or `100%` sizing are excluded automatically"*). Without it, one
   full-screen rect makes `spread` and `ink` constant and the whole feature inert.
-- **Structural containers (`Group`) do not count.** Containers exist for hierarchy
-  and layout grouping; they have no visual stroke/fill ink of their own and do not
-  pollute statistics with phantom box centroids.
+- **Containers and non-visual actors do not count.** Containers exist for hierarchy,
+  layout grouping, or effect scoping (`Group`, `Row`, `Col`, `Grid`, `Stack`, `Mask`,
+  `Filter`, `Glass`, `Equation`) and non-visual media (`Audio`) have no visual stroke/fill
+  ink of their own. They are systematically excluded via `track.renders_visual_content()`
+  (`ActorCaps::renders_visual_content()`) so they do not pollute statistics with phantom
+  box centroids or duplicate ink.
 - **Decorative & non-content actors do not count.** Elements explicitly marked
   `legend: false` (or `legend: hidden`) opt out of the catalog and are excluded from
   scene statistics.

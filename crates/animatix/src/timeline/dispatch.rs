@@ -337,6 +337,23 @@ impl AnimationTrack {
         self.caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
     }
 
+    /// Returns `true` if this actor is a container (group, layout container,
+    /// or effect scope) rather than a leaf drawable.
+    pub fn is_container(&self) -> bool {
+        self.caps.is_container
+    }
+
+    /// Returns `true` if this actor is a plain structural group.
+    pub fn is_group_like(&self) -> bool {
+        self.caps.group_like
+    }
+
+    /// Returns `true` if this actor directly renders visual ink or content
+    /// of its own, delegating to [`ActorCaps::renders_visual_content`].
+    pub fn renders_visual_content(&self) -> bool {
+        self.caps.renders_visual_content()
+    }
+
     /// The primitive type name this track must resolve to at `time_ms`.
     ///
     /// Normally the track identity, but a same-label re-declaration that
