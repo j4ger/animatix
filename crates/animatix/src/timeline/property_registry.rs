@@ -135,23 +135,37 @@ pub struct PropertyFlags(u8);
 
 impl PropertyFlags {
     /// This property supports keyframe animation.
-    pub const ANIMATED: Self = Self(0b0001);
+    pub const ANIMATED: Self = Self(0b0000_0001);
     /// This property can be assigned from source expressions.
-    pub const ASSIGNABLE: Self = Self(0b0010);
+    pub const ASSIGNABLE: Self = Self(0b0000_0010);
     /// This property can receive injected environment values.
-    pub const INJECTABLE: Self = Self(0b0100);
+    pub const INJECTABLE: Self = Self(0b0000_0100);
     /// Changes to this property affect layout resolution.
-    pub const LAYOUT_AFFECTING: Self = Self(0b1000);
+    pub const LAYOUT_AFFECTING: Self = Self(0b0000_1000);
+    /// Changes to this property alter spatial placement, orientation, or dimensions.
+    pub const SPATIAL: Self = Self(0b0001_0000);
+    /// Changes to this property alter visibility or presence.
+    pub const PRESENCE: Self = Self(0b0010_0000);
+    /// Changes to this property require regenerating vector paths.
+    pub const PATH_AFFECTING: Self = Self(0b0100_0000);
 
     // Convenience combinations for use in static PROPERTY_REGISTRY
     /// `ANIMATED | ASSIGNABLE` combined.
-    pub const ASSIGNABLE_A: Self = Self(0b0011); // ANIMATED | ASSIGNABLE
+    pub const ASSIGNABLE_A: Self = Self(0b0000_0011); // ANIMATED | ASSIGNABLE
     /// `ANIMATED | ASSIGNABLE | INJECTABLE` combined.
-    pub const ASSIGNABLE_AI: Self = Self(0b0111); // ANIMATED | ASSIGNABLE | INJECTABLE
+    pub const ASSIGNABLE_AI: Self = Self(0b0000_0111); // ANIMATED | ASSIGNABLE | INJECTABLE
     /// `ANIMATED | INJECTABLE` combined.
-    pub const ANIMATED_I: Self = Self(0b0101); // ANIMATED | INJECTABLE
-    /// All flags combined.
-    pub const ALL: Self = Self(0b1111); // all flags
+    pub const ANIMATED_I: Self = Self(0b0000_0101); // ANIMATED | INJECTABLE
+    /// `ANIMATED | ASSIGNABLE | INJECTABLE | SPATIAL` combined.
+    pub const SPATIAL_AI: Self = Self(0b0001_0111);
+    /// `ANIMATED | ASSIGNABLE | INJECTABLE | PRESENCE` combined.
+    pub const PRESENCE_AI: Self = Self(0b0010_0111);
+    /// `ANIMATED | ASSIGNABLE | INJECTABLE | PATH_AFFECTING` combined.
+    pub const PATH_AI: Self = Self(0b0100_0111);
+    /// `ANIMATED | ASSIGNABLE | INJECTABLE | SPATIAL | PATH_AFFECTING` combined.
+    pub const SPATIAL_PATH_AI: Self = Self(0b0101_0111);
+    /// All basic flags combined.
+    pub const ALL: Self = Self(0b0000_1111); // all basic flags
 
     /// Returns an empty flag set.
     pub const fn empty() -> Self {
@@ -527,59 +541,6 @@ impl ActorField {
             | ActorField::NoStorage => return None,
         })
     }
-
-    /// Returns `true` if this storage field holds spatial geometry (position,
-    /// dimensions, transformation, shape anchors, or layout constraints).
-    pub const fn is_spatial(&self) -> bool {
-        matches!(
-            self,
-            ActorField::Position
-                | ActorField::MotionOffset
-                | ActorField::Size
-                | ActorField::LayoutSize
-                | ActorField::Rotation
-                | ActorField::Scale
-                | ActorField::PlacementMode
-                | ActorField::PositionBinding
-                | ActorField::PositionBindingGroup
-                | ActorField::Transform
-                | ActorField::LineFrom
-                | ActorField::LineTo
-                | ActorField::ArcAngles
-                | ActorField::CornerRadius
-                | ActorField::Points
-                | ActorField::Commands
-                | ActorField::VectorPaths
-                | ActorField::HeadSize
-                | ActorField::LabelAt
-                | ActorField::CalloutToOffset
-                | ActorField::MinWidth
-                | ActorField::MinHeight
-                | ActorField::MaxHeight
-        )
-    }
-
-    /// Returns `true` if this storage field controls visibility / presence.
-    pub const fn is_presence(&self) -> bool {
-        matches!(self, ActorField::Opacity)
-    }
-
-    /// Returns `true` if changes to this storage field require rebuilding
-    /// cached vector paths.
-    pub const fn affects_vector_paths(&self) -> bool {
-        matches!(
-            self,
-            ActorField::Size
-                | ActorField::ShapeType
-                | ActorField::LineFrom
-                | ActorField::LineTo
-                | ActorField::ArcAngles
-                | ActorField::CornerRadius
-                | ActorField::Points
-                | ActorField::Commands
-                | ActorField::HeadSize
-        )
-    }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -631,17 +592,15 @@ pub struct PropertySchema {
 }
 
 impl PropertySchema {
-    /// Returns `true` if this property directly or via its read source targets
-    /// spatial geometry (position, size, transformation, or shape anchors).
+    /// Returns `true` if this property affects 2D spatial placement, dimensions,
+    /// or transformation.
     pub fn is_spatial(&self) -> bool {
-        self.field.is_spatial() || self.read_source.storage_field().is_some_and(|f| f.is_spatial())
+        self.flags.contains(PropertyFlags::SPATIAL)
     }
 
-    /// Returns `true` if this property directly or via its read source controls
-    /// presence or opacity.
+    /// Returns `true` if this property controls presence or visibility (e.g. opacity).
     pub fn is_presence(&self) -> bool {
-        self.field.is_presence()
-            || self.read_source.storage_field().is_some_and(|f| f.is_presence())
+        self.flags.contains(PropertyFlags::PRESENCE)
     }
 
     /// Returns `true` if modifying this property at runtime alters an actor's
@@ -654,8 +613,7 @@ impl PropertySchema {
     /// Returns `true` if keyframing this property requires regenerating cached
     /// vector paths.
     pub fn affects_vector_paths(&self) -> bool {
-        self.field.affects_vector_paths()
-            || self.read_source.storage_field().is_some_and(|f| f.affects_vector_paths())
+        self.flags.contains(PropertyFlags::PATH_AFFECTING)
     }
 }
 
@@ -769,7 +727,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "at",
         ValueType::Vec2,
-        F::ASSIGNABLE_AI,
+        F::SPATIAL_AI,
         ActorField::PositionBindingGroup,
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
         ReadSource::Alias(ActorField::Position)
@@ -835,17 +793,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "commands",
         ValueType::CommandList,
-        F::ASSIGNABLE_A,
+        F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
         ActorField::Commands,
         |_| super::property_engine::PropertyValue::CommandList(String::new())
     ),
-    binding!(
-        "corner_radius",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::CornerRadius,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
+    binding!("corner_radius", ValueType::F32, F::PATH_AI, ActorField::CornerRadius, |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
     binding!("dash_offset", ValueType::F32, F::ASSIGNABLE_AI, ActorField::DashOffset, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
@@ -921,7 +875,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("font_weight", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontWeight, |_| {
         super::property_engine::PropertyValue::F32(400.0)
     }),
-    binding!("from", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LineFrom, |_| {
+    binding!("from", ValueType::Vec2, F::SPATIAL_PATH_AI, ActorField::LineFrom, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),
     binding!(
@@ -951,13 +905,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("grid", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())
     }),
-    binding!("head_size", ValueType::F32, F::ASSIGNABLE_AI, ActorField::HeadSize, |_| {
+    binding!("head_size", ValueType::F32, F::PATH_AI, ActorField::HeadSize, |_| {
         super::property_engine::PropertyValue::F32(10.0)
     }),
     binding!(
         "height",
         ValueType::F32,
-        F::ANIMATED_I,
+        F::ANIMATED_I.union(F::SPATIAL).union(F::PATH_AFFECTING),
         ActorField::Size,
         |_| super::property_engine::PropertyValue::F32(100.0),
         ReadSource::Component {
@@ -1045,7 +999,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("max_depth", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(12.0)
     }),
-    binding!("max_height", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MaxHeight, |_| {
+    binding!("max_height", ValueType::F32, F::SPATIAL_AI, ActorField::MaxHeight, |_| {
         super::property_engine::PropertyValue::F32(f32::INFINITY)
     }),
     binding!("max_value", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
@@ -1054,21 +1008,21 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("max_width", ValueType::F32, F::ASSIGNABLE_A, ActorField::TextMaxWidth, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("min_height", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MinHeight, |_| {
+    binding!("min_height", ValueType::F32, F::SPATIAL_AI, ActorField::MinHeight, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("min_width", ValueType::F32, F::ASSIGNABLE_AI, ActorField::MinWidth, |_| {
+    binding!("min_width", ValueType::F32, F::SPATIAL_AI, ActorField::MinWidth, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
     binding!(
         "offset",
         ValueType::Vec2,
-        F::ASSIGNABLE_AI,
+        F::SPATIAL_AI,
         ActorField::PositionBindingGroup,
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
         ReadSource::None_
     ),
-    binding!("opacity", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Opacity, |_| {
+    binding!("opacity", ValueType::F32, F::PRESENCE_AI, ActorField::Opacity, |_| {
         super::property_engine::PropertyValue::F32(1.0)
     }),
     binding!("overflow", ValueType::String, F::ASSIGNABLE_A, ActorField::Overflow, |_| {
@@ -1084,16 +1038,20 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::Tagged("callout_place"),
         |_| super::property_engine::PropertyValue::Enum("right".to_string())
     ),
-    binding!("points", ValueType::PointList, F::ASSIGNABLE_A, ActorField::Points, |_| {
-        super::property_engine::PropertyValue::PointList(Vec::new())
-    }),
-    binding!("position", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::Position, |_| {
+    binding!(
+        "points",
+        ValueType::PointList,
+        F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
+        ActorField::Points,
+        |_| super::property_engine::PropertyValue::PointList(Vec::new())
+    ),
+    binding!("position", ValueType::Vec2, F::SPATIAL_AI, ActorField::Position, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),
     binding!(
         "radius_x",
         ValueType::F32,
-        F::ASSIGNABLE_AI,
+        F::SPATIAL_PATH_AI,
         ActorField::Size,
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
@@ -1105,7 +1063,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "radius_y",
         ValueType::F32,
-        F::ASSIGNABLE_AI,
+        F::SPATIAL_PATH_AI,
         ActorField::Size,
         |_| super::property_engine::PropertyValue::F32(50.0),
         ReadSource::Component {
@@ -1117,13 +1075,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("resolution", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(48.0)
     }),
-    binding!("rotation", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Rotation, |_| {
+    binding!("rotation", ValueType::F32, F::SPATIAL_AI, ActorField::Rotation, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("scale", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Scale, |_| {
+    binding!("scale", ValueType::F32, F::SPATIAL_AI, ActorField::Scale, |_| {
         super::property_engine::PropertyValue::F32(1.0)
     }),
-    binding!("shift", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::MotionOffset, |_| {
+    binding!("shift", ValueType::Vec2, F::SPATIAL_AI, ActorField::MotionOffset, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),
     binding!("show_axis", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
@@ -1136,9 +1094,13 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::NoStorage,
         |_| super::property_engine::PropertyValue::String("true".to_string())
     ),
-    binding!("size", ValueType::Vec2, F::ALL, ActorField::Size, |_| {
-        super::property_engine::PropertyValue::Vec2([50.0, 50.0])
-    }),
+    binding!(
+        "size",
+        ValueType::Vec2,
+        F::ALL.union(F::SPATIAL).union(F::PATH_AFFECTING),
+        ActorField::Size,
+        |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])
+    ),
     binding!("solo", ValueType::Bool, F::ASSIGNABLE, ActorField::Tagged("solo"), |_| {
         super::property_engine::PropertyValue::Bool(false)
     }),
@@ -1223,7 +1185,7 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::Tagged("legend_title"),
         |_| super::property_engine::PropertyValue::String(String::new())
     ),
-    binding!("to", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LineTo, |_| {
+    binding!("to", ValueType::Vec2, F::SPATIAL_PATH_AI, ActorField::LineTo, |_| {
         super::property_engine::PropertyValue::Vec2([100.0, 0.0])
     }),
     binding!(
@@ -1236,13 +1198,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("tolerance", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(2.0)
     }),
-    binding!(
-        "transform",
-        ValueType::Transform,
-        F::ASSIGNABLE_AI,
-        ActorField::Transform,
-        |_| super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
-    ),
+    binding!("transform", ValueType::Transform, F::SPATIAL_AI, ActorField::Transform, |_| {
+        super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    }),
     binding!("url", ValueType::String, F::ASSIGNABLE, ActorField::ImageData, |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),
@@ -1255,7 +1213,7 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!(
         "width",
         ValueType::F32,
-        F::ANIMATED_I,
+        F::ANIMATED_I.union(F::SPATIAL).union(F::PATH_AFFECTING),
         ActorField::Size,
         |_| super::property_engine::PropertyValue::F32(100.0),
         ReadSource::Component {
@@ -1736,6 +1694,8 @@ mod tests {
             "char_progress",
             "dash_offset",
             "line_cap",
+            "corner_radius",
+            "head_size",
         ];
         for prop in non_spatial {
             assert!(
@@ -1761,6 +1721,7 @@ mod tests {
             "points",
             "commands",
             "corner_radius",
+            "head_size",
         ];
         for prop in path_affecting {
             let schema = lookup_property(prop).expect("known property must exist in registry");

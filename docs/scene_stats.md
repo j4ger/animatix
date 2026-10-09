@@ -156,12 +156,13 @@ Exclusions applied at build time to prevent feedback loops and uninitialized def
   scene statistics.
 - **Runtime spatial & presence modifier targets do not count.** Any actor whose spatial
   geometry or presence (classified systematically via `PropertySchema::affects_scene_statistics()`,
-  covering `at`, `position`, `size`, `width`, `height`, `radius`, `opacity`, `from`, `to`,
-  `shift`, `scale`, `rotation`, and sub-field vector components `x`, `y`) is driven by an `always`
-  block is excluded from statistics. This automatically breaks self-referential feedback loops
-  (such as an ambient wash driven by `scene.stats`) and prevents uninitialized build-time positions
-  from biasing centroids. Pure style overrides (e.g. `color`, `stroke_width`) on keyframed actors
-  do not disqualify them.
+  which queries `PropertyFlags::SPATIAL` and `PropertyFlags::PRESENCE` embedded in each property's
+  registry definition: `at`, `position`, `size`, `width`, `height`, `radius_x`, `radius_y`, `opacity`,
+  `from`, `to`, `shift`, `scale`, `rotation`, and sub-field vector components `x`, `y`) is driven
+  by an `always` block is excluded from statistics. This automatically breaks self-referential
+  feedback loops (such as an ambient wash driven by `scene.stats`) and prevents uninitialized build-time
+  positions from biasing centroids. Non-spatial modifiers (e.g. `color`, `stroke_width`, `corner_radius`,
+  `head_size`) do not disqualify actors.
 - **`solo` is not honoured at build.** The bake sees the authored scene; `solo` is
   resolved per frame (`resolve_solo_state`). Documented limit, not a bug.
 

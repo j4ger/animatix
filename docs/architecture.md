@@ -404,7 +404,7 @@ Every property is described by a static `PropertySchema` record:
 struct PropertySchema {
     name: &'static str,
     value_type: ValueType,      // F32, Vec2, Color, String, etc.
-    flags: PropertyFlags,       // ANIMATED | LAYOUT_AFFECTING | ASSIGNABLE | INJECTABLE
+    flags: PropertyFlags,       // ANIMATED | LAYOUT_AFFECTING | ASSIGNABLE | INJECTABLE | SPATIAL | PRESENCE | PATH_AFFECTING
     field: ActorField,          // Which storage tier to WRITE (build-time)
     group: Option<GroupMembership>, // For compound cross-property resolution
     read_source: ReadSource,    // How to READ (frame-time env injection)

@@ -302,3 +302,29 @@ Each injectable property also gets an internal animation-state flag in the
 environment (key shape `label.__anim__name`, see `env_keys::animating_flag`),
 consumed by the `is_animating(&label.name)` query (see `spec.md` §10 Reactive
 System — Property References & State Queries).
+
+## Spatial, Presence, and Vector Path Semantics
+
+Beyond animation and injection capabilities, `PropertyFlags` defines semantic metadata
+directly on each property binding:
+
+- `PropertyFlags::SPATIAL`: Marks properties that alter 2D spatial placement, dimensions,
+  or coordinate transformations (`at`, `position`, `size`, `width`, `height`, `radius_x`,
+  `radius_y`, `from`, `to`, `rotation`, `scale`, `shift`, `offset`, `transform`, `points`,
+  `commands`, `min_width`, `min_height`, `max_height`).
+- `PropertyFlags::PRESENCE`: Marks properties controlling visibility or presence (`opacity`).
+- `PropertyFlags::PATH_AFFECTING`: Marks properties that require regenerating cached vector
+  paths when animated or reassigned (`points`, `commands`, `from`, `to`, `radius_x`,
+  `radius_y`, `size`, `width`, `height`, `corner_radius`, `head_size`).
+
+This design makes the property definition in `BINDINGS` the single source of truth:
+1. **Scene Statistics Exclusion (`scene.stats.*`)**: Querying `PropertySchema::affects_scene_statistics()`
+   checks `is_spatial() || is_presence()`. Any actor whose spatial geometry or presence
+   is dynamically modified in an `always` block is automatically excluded from build-time
+   scene statistics.
+2. **Element-Specific Path Properties**: Properties like `corner_radius` or `head_size` are
+   flagged `PATH_AFFECTING` to trigger path rebuilds without being flagged `SPATIAL`, ensuring
+   they do not accidentally disqualify actors from scene statistics.
+3. **Decoupled Storage**: Storage fields (`ActorField`) remain pure storage tiers without
+   semantic pattern matching or side-effect classification.
+
