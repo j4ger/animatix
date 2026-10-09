@@ -221,6 +221,52 @@ impl CompiledExpr {
             CompiledExpr::Const(_) | CompiledExpr::AnchorLookup { .. } => false,
         }
     }
+
+    /// Returns `true` if this compiled expression references an environment variable with the given
+    /// prefix.
+    pub fn references_env_prefix(&self, prefix: &str) -> bool {
+        match self {
+            CompiledExpr::LoadEnv(id) => id.starts_with(prefix),
+            CompiledExpr::MakeVec(items) => {
+                items.iter().any(|item| item.references_env_prefix(prefix))
+            },
+            CompiledExpr::MakeList(items) => {
+                items.iter().any(|item| item.references_env_prefix(prefix))
+            },
+            CompiledExpr::Unary(_, expr) => expr.references_env_prefix(prefix),
+            CompiledExpr::Binary(left, _, right) => {
+                left.references_env_prefix(prefix) || right.references_env_prefix(prefix)
+            },
+            CompiledExpr::Select(cond, then_expr, else_expr) => {
+                cond.references_env_prefix(prefix)
+                    || then_expr.references_env_prefix(prefix)
+                    || else_expr.references_env_prefix(prefix)
+            },
+            CompiledExpr::CallBuiltin(_, args) => {
+                args.iter().any(|arg| arg.references_env_prefix(prefix))
+            },
+            CompiledExpr::CallEnv(_, args) => {
+                args.iter().any(|arg| arg.references_env_prefix(prefix))
+            },
+            CompiledExpr::Index(container, index) => {
+                container.references_env_prefix(prefix) || index.references_env_prefix(prefix)
+            },
+            CompiledExpr::Method(receiver, _, args) => {
+                receiver.references_env_prefix(prefix)
+                    || args.iter().any(|arg| arg.references_env_prefix(prefix))
+            },
+            CompiledExpr::Closure(_, body) => body.references_env_prefix(prefix),
+            CompiledExpr::PropRef { label, .. } => label.starts_with(prefix),
+            CompiledExpr::LetChain(bindings, tail) => {
+                bindings.iter().any(|(_, expr)| expr.references_env_prefix(prefix))
+                    || tail.references_env_prefix(prefix)
+            },
+            CompiledExpr::Construct(_, fields) => {
+                fields.iter().any(|(_, value)| value.references_env_prefix(prefix))
+            },
+            CompiledExpr::Const(_) | CompiledExpr::AnchorLookup { .. } => false,
+        }
+    }
 }
 
 /// A statement in the modifier IR.
@@ -346,6 +392,104 @@ impl ModifierIrProgram {
                 }
             }
         }
+        walk_stmts(&self.statements, out);
+    }
+
+    /// Returns `true` if this modifier program references any `scene.stats.*` signal.
+    pub fn references_scene_stats(&self) -> bool {
+        fn expr_refs_stats(expr: &CompiledExpr) -> bool {
+            expr.references_env_prefix("scene.stats.")
+        }
+
+        fn walk_stmts(stmts: &[ModifierIrStmt]) -> bool {
+            for stmt in stmts {
+                let matches = match stmt {
+                    ModifierIrStmt::Assign { value, .. }
+                    | ModifierIrStmt::AssignIndexed { value, .. }
+                    | ModifierIrStmt::Let { value, .. } => expr_refs_stats(value),
+                    ModifierIrStmt::If {
+                        condition,
+                        then_branch,
+                        else_branch,
+                    } => {
+                        expr_refs_stats(condition)
+                            || walk_stmts(then_branch)
+                            || walk_stmts(else_branch)
+                    },
+                    ModifierIrStmt::For { iterable, body, .. } => {
+                        expr_refs_stats(iterable) || walk_stmts(body)
+                    },
+                    ModifierIrStmt::Noop => false,
+                };
+                if matches {
+                    return true;
+                }
+            }
+            false
+        }
+        walk_stmts(&self.statements)
+    }
+
+    /// Collect target actors that must be excluded from build-time scene statistics:
+    /// Any actor whose spatial geometry or presence (`at`, `position`, `size`,
+    /// `opacity`, `from`, `to`, `width`, `height`, `radius`, `x`, `y`) is overwritten by
+    /// a modifier program (since build-time tracks lack those runtime values, or to break
+    /// feedback loops when driven by `scene.stats.*`).
+    pub fn collect_stats_excluded_targets(&self, out: &mut std::collections::HashSet<String>) {
+        fn is_spatial_or_presence_property(prop: &str) -> bool {
+            matches!(
+                prop,
+                "at" | "position"
+                    | "size"
+                    | "width"
+                    | "height"
+                    | "radius"
+                    | "opacity"
+                    | "from"
+                    | "to"
+                    | "x"
+                    | "y"
+            )
+        }
+
+        fn record_target(target: &[String], out: &mut std::collections::HashSet<String>) {
+            out.insert(target.join("."));
+            if let Some(first) = target.first() {
+                out.insert(first.clone());
+            }
+        }
+
+        fn walk_stmts(stmts: &[ModifierIrStmt], out: &mut std::collections::HashSet<String>) {
+            for stmt in stmts {
+                match stmt {
+                    ModifierIrStmt::Assign {
+                        target, property, ..
+                    } => {
+                        if is_spatial_or_presence_property(property) {
+                            record_target(target, out);
+                        }
+                    },
+                    ModifierIrStmt::AssignIndexed { base, property, .. } => {
+                        if is_spatial_or_presence_property(property) {
+                            out.insert(base.clone());
+                        }
+                    },
+                    ModifierIrStmt::If {
+                        then_branch,
+                        else_branch,
+                        ..
+                    } => {
+                        walk_stmts(then_branch, out);
+                        walk_stmts(else_branch, out);
+                    },
+                    ModifierIrStmt::For { body, .. } => {
+                        walk_stmts(body, out);
+                    },
+                    _ => {},
+                }
+            }
+        }
+
         walk_stmts(&self.statements, out);
     }
 }

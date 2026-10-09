@@ -301,3 +301,46 @@ fn ambience_component_evaluates_at_runtime() {
         "Ambience wash size must contract and expand with actor spread: max={max_sz}, min={min_sz}"
     );
 }
+
+#[test]
+fn scene_stats_preserves_actors_with_non_spatial_modifiers() {
+    let source = r#"
+config { duration: 2, resolution: (1000, 1000) }
+
+hero: Ellipse, size: (100, 100), at: (200, 500), opacity: 1.0
+
+#0s
+hero.at = (200, 500)
+#2s
+hero.at = (800, 500)
+
+always {
+  let m = scene.stats.motion
+  let u = sin(t * 3.0)
+  hero.color = rgb(1.0, 0.0, 0.0)
+}
+"#;
+
+    let (timeline, _) = build_source(source);
+    let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
+    let fx_start =
+        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(0.0)])
+            .unwrap()
+            .as_num();
+    assert!(
+        (fx_start - 200.0).abs() < 10.0,
+        "hero must NOT be excluded from stats just because its color is animated in always: got {fx_start}"
+    );
+
+    let motion = timeline.env_base.get("scene.stats.motion").unwrap();
+    let motion_val = crate::timeline::eval_shared::eval_builtin_fn(
+        "curve_at",
+        &[motion.clone(), Value::Num(1.0)],
+    )
+    .unwrap()
+    .as_num();
+    assert!(
+        motion_val > 0.0,
+        "hero motion must be captured even when color is animated in always: got {motion_val}"
+    );
+}

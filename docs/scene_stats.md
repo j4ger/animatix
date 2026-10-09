@@ -141,13 +141,26 @@ containing `t` (tracks are piecewise, so the derivative is available without fin
 differencing), and `s_i · o_i` weighting makes an off-screen or unrevealed actor
 contribute zero, matching intent.
 
-Two exclusions inherited from existing code, both load-bearing:
+Exclusions applied at build time to prevent feedback loops and uninitialized defaults:
 
-- **Full-viewport backgrounds do not count.** Reuse `legend.rs`'s
+- **Full-viewport backgrounds do not count.** Reuses `legend.rs`'s
   `is_full_viewport_background` predicate, the same rule that stops a `size: fill`
   plate from polluting a legend (`spec.md` "Legend": *"Full-viewport background shapes
   using `fill` or `100%` sizing are excluded automatically"*). Without it, one
   full-screen rect makes `spread` and `ink` constant and the whole feature inert.
+- **Structural containers (`Group`) do not count.** Containers exist for hierarchy
+  and layout grouping; they have no visual stroke/fill ink of their own and do not
+  pollute statistics with phantom box centroids.
+- **Decorative & non-content actors do not count.** Elements explicitly marked
+  `legend: false` (or `legend: hidden`) opt out of the catalog and are excluded from
+  scene statistics.
+- **Runtime spatial & presence modifier targets do not count.** Any actor whose spatial
+  geometry or presence (`at`, `position`, `size`, `width`, `height`, `radius`, `opacity`,
+  `from`, `to`, `x`, `y`) is driven by an `always` block is excluded from statistics.
+  This automatically breaks self-referential feedback loops (such as an ambient wash
+  driven by `scene.stats`) and prevents uninitialized build-time positions from biasing
+  centroids. Pure style overrides (e.g. `color`, `stroke_width`) on keyframed actors
+  do not disqualify them.
 - **`solo` is not honoured at build.** The bake sees the authored scene; `solo` is
   resolved per frame (`resolve_solo_state`). Documented limit, not a bug.
 
@@ -258,20 +271,21 @@ Illustrative shape, using only what exists today plus the two builtins:
 # ambience.amx — authored-explicit, reads the scene, invents no actors
 config { resolution: (1280, 720), duration: 12 }
 
-plate: Rect, size: fill, color: scene.background, anchor: scene.center, opacity: 1
+plate: Rect, size: fill, color: scene.background, anchor: scene.center, opacity: 1, legend: false
 
-wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen",
+wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen", legend: false,
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (100%, "#f5b94200")})
 
-always
+always {
   let e   = curve_smooth(scene.stats.motion, t, 0.7)
   let fx  = curve_smooth(scene.stats.focus_x, t, 1.2)
+  let fy  = curve_smooth(scene.stats.focus_y, t, 1.2)
   let sx  = curve_smooth(scene.stats.spread_x, t, 1.0)
-  wash.at       = (fx + 180 * sin(τ * t / 6), scene_height * 0.5)
-  wash.size     = (600 + 900 * sx, 600 + 900 * sx)
-  wash.opacity  = clamp(0.06 + 0.5 * e, 0.02, 0.30)
+  wash.at       = (fx, fy)
+  wash.size     = (600 + 600 * sx, 600 + 600 * sx)
+  wash.opacity  = clamp(0.06 + 0.5 * e, 0.02, 0.45)
   plate.color   = lerp_color("#0d0f14", "#141821", clamp(1.5 * e, 0, 1))
-end
+}
 ```
 
 `opacity` on `wash` is **not** decorative. An actor declared before the first keyframe

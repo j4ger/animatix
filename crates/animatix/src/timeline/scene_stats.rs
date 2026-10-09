@@ -195,21 +195,21 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
 
     let p_count = compute_sample_count(duration_s);
 
-    // Collect all actors targeted by frame-time modifier programs (always blocks).
-    // Actors whose positions/sizes are driven at runtime cannot participate in
-    // build-time scene statistics because:
-    // 1. Their build-time tracks lack frame-time positions/sizes.
-    // 2. Modifiers driven by scene.stats (e.g. ambient lighting wash) create circular dependencies.
-    let mut modifier_targets = std::collections::HashSet::new();
+    // Collect all actors that must be excluded from build-time scene statistics:
+    // 1. Any actor written to by a modifier program that reads `scene.stats.*` (to prevent feedback
+    //    loops / circular dependencies).
+    // 2. Any actor whose spatial geometry (at, position, size, from, to) or presence (opacity) is
+    //    overwritten at runtime by a modifier program (since build-time tracks lack those values).
+    let mut modifier_excluded_targets = std::collections::HashSet::new();
     for p in &timeline.modifier_programs {
-        p.collect_written_targets(&mut modifier_targets);
+        p.collect_stats_excluded_targets(&mut modifier_excluded_targets);
     }
 
     // Eligible tracks: exclude:
     // 1. Structural Group containers (they don't render visual shapes)
     // 2. Full-viewport backgrounds (e.g. background plates)
     // 3. Actors explicitly marked legend: false / hidden
-    // 4. Actors whose properties are dynamically driven by modifier programs
+    // 4. Actors whose spatial geometry/presence is driven dynamically or that consume scene.stats
     let eligible_tracks: Vec<&AnimationTrack> = timeline
         .tracks
         .iter()
@@ -225,7 +225,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
             {
                 return false;
             }
-            if modifier_targets.contains(label.as_str()) {
+            if modifier_excluded_targets.contains(label.as_str()) {
                 return false;
             }
             true

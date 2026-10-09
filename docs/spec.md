@@ -2136,7 +2136,7 @@ When referenced in any expression, the compiler bakes low-frequency piecewise-li
 - `scene.stats.spread_x`, `scene.stats.spread_y` — weighted RMS distance from `focus`, normalized to canvas dimensions.
 - `scene.stats.cast` — count of visible actors ($o_i(t) > 0$) at time $t$.
 
-Full-viewport background shapes (`size: (fill, fill)` or `(100%, 100%)`) are automatically excluded. Seamless loop scenes (`seamless_loop: true`) pin start and end values ($v_0 == v_N$) and verify closure. Unreferenced scenes pay zero build or frame-time overhead.
+The build-time sampler automatically excludes non-content elements to prevent feedback loops and bias: structural `Group` containers, full-viewport background shapes (`size: (fill, fill)` or `(100%, 100%)`), actors explicitly marked non-content (`legend: false` / `hidden`), and actors whose spatial geometry or presence (`at`, `position`, `size`, `opacity`, `from`, `to`) is overwritten at runtime by an `always` block (pure style modifiers like `color` on keyframed actors do not disqualify them). Seamless loop scenes (`seamless_loop: true`) pin start and end values ($v_0 == v_N$) and verify closure. Unreferenced scenes pay zero build or frame-time overhead.
 
 **Built-in constants:** `pi` (π), `tau` / `two_pi` (2π), `e` (Euler's number), `PI`, `TAU`, `E` (uppercase aliases).
 

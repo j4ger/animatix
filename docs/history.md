@@ -2580,8 +2580,14 @@ without frame-time accumulators or GPU readbacks:
   response across linear segments in $O(\log P)$ time with zero per-frame heap allocation.
   Circular window wrapping on seamless loops prevents edge transient jumps, with
   seamless-loop endpoint verification in build diagnostics.
-- **Exclusion of full-viewport backgrounds**: Automatically filters out viewport-filling
-  plates (`size: (fill, fill)` or `(100%, 100%)`) using `is_full_viewport_background`.
-- **Ambience recipe & demo**: `examples/lib/ambience.amx` exports `Ambience` and
-  standalone recipe; `examples/animation/39_ambience.amx` demonstrates reactive lighting
-  following moving actors. Added to `bundled_library()` in `animatix-web` for browser parity.
+- **Exclusion of non-content & modifier-driven actors**: Automatically filters out
+  full-viewport plates (`is_full_viewport_background`), structural `Group` containers,
+  `legend: false` / `hidden` actors, and any actor whose spatial geometry or presence
+  (`at`, `position`, `size`, `opacity`, `from`, `to`) is overwritten by an `always` block.
+  This breaks self-referential feedback loops (such as the ambient wash biasing `focus_x/y`
+  to itself) while preserving actors whose keyframed movement only carries non-spatial
+  modifiers like `color`.
+- **Ambience recipe & demo**: `examples/lib/ambience.amx` exports `Ambience` with 2D focal
+  tracking (`wash.at = (fx, fy)`) and `legend: false`; `examples/animation/39_ambience.amx`
+  demonstrates reactive lighting following moving actors with easing. Added to `bundled_library()`
+  in `animatix-web` for browser parity.
