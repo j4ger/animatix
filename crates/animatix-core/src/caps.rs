@@ -32,6 +32,8 @@ pub struct PrimitiveCapabilities {
     pub is_container: bool,
     /// Is a vector shape.
     pub is_shape: bool,
+    /// Directly emits visual ink or content (stroke, fill, glyphs, raster pixels, or plot marks).
+    pub has_visual_content: bool,
 }
 
 /// Child-rendering strategy selected by a primitive.
@@ -177,6 +179,8 @@ pub struct ActorCaps {
     pub vector_reveal_target: bool,
     /// Is a plain structural group (no layout semantics).
     pub group_like: bool,
+    /// Directly renders visual stroke, fill, glyphs, raster pixels, or plot marks.
+    pub has_visual_content: bool,
 }
 
 impl ActorCaps {
@@ -195,25 +199,8 @@ impl ActorCaps {
 
     /// Returns `true` if this actor directly renders visual ink or content
     /// of its own (shapes, text, media graphics, plots, or annotations).
-    ///
-    /// Structural and layout containers (`Group`, `Row`, `Col`, `Grid`,
-    /// `Stack`, `Mask`, `Filter`, `Glass`, `Equation`) and non-visual
-    /// primitives (`Audio`) return `false` because they manage children,
-    /// offscreen textures, or audio playback rather than rendering visual ink
-    /// of their own.
     pub fn renders_visual_content(&self) -> bool {
-        if self.is_container {
-            return false;
-        }
-        self.is_shape
-            || self.stroke_path
-            || self.text_paths
-            || self.text.is_some()
-            || self.vector_paths
-            || self.image_payload
-            || self.plot_geometry
-            || self.plot_host
-            || self.category == ActorCategory::Annotation
+        self.has_visual_content
     }
 }
 
@@ -269,9 +256,7 @@ impl Applicable {
             Applicable::AllShapes => caps.shape.is_some(),
             Applicable::AllStrokePaths => caps.stroke_path,
             Applicable::AllShapesExceptLine => caps.shape.is_some_and(|sk| sk != ShapeKind::Line),
-            Applicable::AllDrawables => {
-                caps.is_shape || caps.text.is_some() || actor_type == "BarChart"
-            },
+            Applicable::AllDrawables => caps.has_visual_content,
             Applicable::SizedActors => {
                 caps.is_shape
                     || caps.image_payload
@@ -300,53 +285,16 @@ mod tests {
 
     #[test]
     fn renders_visual_content_classification() {
-        let shape = ActorCaps {
-            is_shape: true,
+        let visual = ActorCaps {
+            has_visual_content: true,
             ..Default::default()
         };
-        assert!(shape.renders_visual_content());
+        assert!(visual.renders_visual_content());
 
-        let text = ActorCaps {
-            text: Some(TextKind::Text),
+        let non_visual = ActorCaps {
+            has_visual_content: false,
             ..Default::default()
         };
-        assert!(text.renders_visual_content());
-
-        let media = ActorCaps {
-            image_payload: true,
-            ..Default::default()
-        };
-        assert!(media.renders_visual_content());
-
-        let plot = ActorCaps {
-            plot_geometry: true,
-            ..Default::default()
-        };
-        assert!(plot.renders_visual_content());
-
-        let annotation = ActorCaps {
-            category: ActorCategory::Annotation,
-            ..Default::default()
-        };
-        assert!(annotation.renders_visual_content());
-
-        // Containers must return false
-        let container = ActorCaps {
-            is_container: true,
-            is_shape: true, // e.g. Glass
-            ..Default::default()
-        };
-        assert!(!container.renders_visual_content());
-
-        let group = ActorCaps {
-            is_container: true,
-            group_like: true,
-            ..Default::default()
-        };
-        assert!(!group.renders_visual_content());
-
-        // Non-visual media like Audio (all false)
-        let audio = ActorCaps::default();
-        assert!(!audio.renders_visual_content());
+        assert!(!non_visual.renders_visual_content());
     }
 }

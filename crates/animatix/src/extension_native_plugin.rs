@@ -2159,6 +2159,16 @@ fn native_child_processing(kind: u32) -> Option<ChildProcessing> {
 }
 
 fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabilities {
+    let is_container = flags & NATIVE_CAP_IS_CONTAINER != 0;
+    let has_visual_content = !is_container
+        && (flags
+            & (NATIVE_CAP_IS_SHAPE
+                | NATIVE_CAP_TEXT_PATHS
+                | NATIVE_CAP_IMAGE_PAYLOAD
+                | NATIVE_CAP_VECTOR_PATHS
+                | NATIVE_CAP_PLOT_GEOMETRY
+                | NATIVE_CAP_PLOT_HOST)
+            != 0);
     animatix_syntax::schema::PrimitiveCapabilities {
         text_paths: flags & NATIVE_CAP_TEXT_PATHS != 0,
         vector_paths: flags & NATIVE_CAP_VECTOR_PATHS != 0,
@@ -2168,8 +2178,9 @@ fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabili
         vector_reveal_target: flags & NATIVE_CAP_VECTOR_REVEAL_TARGET != 0,
         plot_geometry: flags & NATIVE_CAP_PLOT_GEOMETRY != 0,
         plot_host: flags & NATIVE_CAP_PLOT_HOST != 0,
-        is_container: flags & NATIVE_CAP_IS_CONTAINER != 0,
+        is_container,
         is_shape: flags & NATIVE_CAP_IS_SHAPE != 0,
+        has_visual_content,
     }
 }
 

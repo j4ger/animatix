@@ -57,6 +57,7 @@ const fn caps(
     plot_host: bool,
     is_container: bool,
     is_shape: bool,
+    has_visual_content: bool,
 ) -> PrimitiveCapabilities {
     PrimitiveCapabilities {
         text_paths,
@@ -69,17 +70,18 @@ const fn caps(
         plot_host,
         is_container,
         is_shape,
+        has_visual_content,
     }
 }
 
 const SHAPE_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, false, false, false, true);
+    caps(false, true, false, false, true, true, false, false, false, true, true);
 const TEXT_CAPS: PrimitiveCapabilities =
-    caps(true, false, false, false, true, true, false, false, false, false);
+    caps(true, false, false, false, true, true, false, false, false, false, true);
 const PLOT_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, true, false, false, false);
+    caps(false, true, false, false, true, true, true, false, false, false, true);
 const CONTAINER_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, false, false, true, false);
+    caps(false, false, false, true, false, false, false, false, true, false, false);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
@@ -87,19 +89,19 @@ const CONTAINER_CAPS: PrimitiveCapabilities =
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
 const GLASS_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, false, false, true, true);
+    caps(false, false, false, true, false, false, false, false, true, true, false);
 const GROUP_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, false, false, false, false, false, true, false);
+    caps(false, false, false, false, false, false, false, false, true, false, false);
 const NO_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, false, false, false, false, false, false, false);
+    caps(false, false, false, false, false, false, false, false, false, false, false);
 const IMAGE_CAPS: PrimitiveCapabilities =
-    caps(false, false, true, false, false, false, false, false, false, false);
+    caps(false, false, true, false, false, false, false, false, false, false, true);
 const SVG_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, false, false, false, false);
+    caps(false, true, false, false, true, true, false, false, false, false, true);
 const GRAPH_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, true, true, false, false);
+    caps(false, true, false, false, true, true, true, true, false, false, true);
 const ANNOTATION_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, false, false, false, false, false, false);
+    caps(false, true, false, false, false, false, false, false, false, false, true);
 
 impl PrimitiveInfo {
     /// A built-in card in `category` with `capabilities`: `Generic` child
@@ -489,6 +491,21 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
         group_like: info.capabilities.is_container
             && !info.capabilities.layout_container
             && info.child_processing == ChildProcessingKind::Generic,
+        has_visual_content: info.capabilities.has_visual_content
+            || (!info.capabilities.is_container
+                && (info.capabilities.is_shape
+                    || info.capabilities.text_paths
+                    || info.capabilities.image_payload
+                    || info.capabilities.vector_paths
+                    || info.capabilities.plot_geometry
+                    || info.capabilities.plot_host
+                    || matches!(
+                        info.category,
+                        ActorCategory::Shape
+                            | ActorCategory::Text
+                            | ActorCategory::Plot
+                            | ActorCategory::Annotation
+                    ))),
     }
 }
 

@@ -370,13 +370,29 @@ impl ExtensionManifest {
                         })
                         .map(|property| property.name.clone())
                         .collect();
+                    let mut capabilities = spec.capabilities;
+                    if !capabilities.has_visual_content && !capabilities.is_container {
+                        capabilities.has_visual_content = capabilities.is_shape
+                            || capabilities.text_paths
+                            || capabilities.image_payload
+                            || capabilities.vector_paths
+                            || capabilities.plot_geometry
+                            || capabilities.plot_host
+                            || matches!(
+                                spec.category,
+                                PrimitiveCategory::Shape
+                                    | PrimitiveCategory::Text
+                                    | PrimitiveCategory::Plot
+                                    | PrimitiveCategory::Annotation
+                            );
+                    }
                     PrimitiveDescriptor {
                         type_name: spec.type_name.clone(),
                         display_name: spec.display_name.clone(),
                         category: spec.category,
                         icon_id: spec.icon_id.clone(),
                         advanced: spec.advanced,
-                        capabilities: spec.capabilities,
+                        capabilities,
                         child_processing: spec.child_processing,
                         properties: declared,
                     }
@@ -613,6 +629,20 @@ impl ExtensionManifest {
                         plot_host: primitive.plot_host,
                         is_container: primitive.is_container,
                         is_shape: primitive.is_shape,
+                        has_visual_content: !primitive.is_container
+                            && (primitive.is_shape
+                                || primitive.text_paths
+                                || primitive.image_payload
+                                || primitive.vector_paths
+                                || primitive.plot_geometry
+                                || primitive.plot_host
+                                || matches!(
+                                    category,
+                                    PrimitiveCategory::Shape
+                                        | PrimitiveCategory::Text
+                                        | PrimitiveCategory::Plot
+                                        | PrimitiveCategory::Annotation
+                                )),
                     },
                     child_processing: primitive
                         .child_processing
