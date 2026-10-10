@@ -443,6 +443,50 @@ b.size = (140, 80) [1s]
 always {
   b.size = (100.0, 60.0)
 }
-"#
+"#,
     ));
+}
+
+/// `Equation` aggregates child `Fragment`s and renders math glyphs with `color`,
+/// so declaring `color:` must be accepted cleanly without `inapplicable-property`.
+#[test]
+fn equation_accepts_color_without_warning() {
+    let warnings = inapplicable_warnings(
+        r#"
+config { resolution: (320, 180) }
+eq: Equation, font_size: 48, color: (1.0, 0.0, 0.0, 1.0), at: (160, 90) {
+    e: Fragment, text: "E"
+}
+"#,
+    );
+    assert!(
+        warnings.is_empty(),
+        "Equation consumes color at evaluate time; it must not warn as inapplicable: {warnings:?}"
+    );
+}
+
+/// `Line` and `Arrow` support frame-time dynamic anchor references (`from: pen.center`),
+/// which must not be rejected at build time as unknown lookup paths.
+#[test]
+fn line_and_arrow_accept_actor_anchors_without_unknown_lookup_path() {
+    let source = r#"
+config { resolution: (320, 180) }
+pen: Ellipse, size: (18, 18), at: (100, 100)
+dot: Ellipse, size: (14, 14), at: (200, 100)
+link: Line, from: pen.center, to: dot.center
+arrow: Arrow, from: pen.right, to: dot.left
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let lookup_errors: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::UnknownLookupPath)
+        .collect();
+    assert!(
+        lookup_errors.is_empty(),
+        "Line and Arrow dynamic actor anchor refs must not emit unknown-lookup-path: {lookup_errors:?}"
+    );
 }

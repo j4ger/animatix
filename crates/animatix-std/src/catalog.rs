@@ -84,6 +84,8 @@ const PLOT_CAPS: PrimitiveCapabilities =
     caps(false, true, false, false, true, false, false, false, true, false, false, false);
 const CONTAINER_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, true, false, false, false, false, false);
+const EQUATION_CAPS: PrimitiveCapabilities =
+    caps(false, false, false, true, false, false, true, false, true, false, false, false);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
@@ -375,7 +377,7 @@ pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     "Equation",
     icon_glyphs::SIGMA,
     ActorCategory::Container,
-    CONTAINER_CAPS,
+    EQUATION_CAPS,
 )
 .with_child_processing(ChildProcessingKind::Equation);
 

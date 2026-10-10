@@ -819,9 +819,6 @@ impl Timeline {
         // G6: Detect actor-anchor refs in `from`/`to` property declarations.
         // Store them in the track's side-channel so the primitive's frame-time
         // `evaluate` method can resolve them each frame.
-        // G6: Detect actor-anchor refs in `from`/`to` property declarations.
-        // Store them in the track's side-channel so the primitive's frame-time
-        // `evaluate` method can resolve them each frame.
         if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow)) {
             if let Some(track) = self.tracks.get_mut(label) {
                 for prop in props {
@@ -1012,6 +1009,15 @@ impl Timeline {
                         );
                     }
                     continue;
+                }
+                if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow))
+                    && (prop.name == "from" || prop.name == "to")
+                {
+                    if let Expr::Path(segments) = &prop.value {
+                        if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
+                            continue;
+                        }
+                    }
                 }
                 let (value_type, field) = match prop.name.as_str() {
                     "from" => (

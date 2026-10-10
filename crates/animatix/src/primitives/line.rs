@@ -5,7 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    ActorCaps, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
+    ActorCaps, Environment, SceneAnchor, SceneDimensions, TrackAccessor, Value, VectorShapeState,
+    VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 
@@ -145,6 +146,11 @@ impl Primitive for LinePrimitive {
         };
         match name {
             "from" => {
+                if let Expr::Path(segments) = value {
+                    if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
+                        return true;
+                    }
+                }
                 if let Some(parsed) =
                     parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
                 {
@@ -153,6 +159,11 @@ impl Primitive for LinePrimitive {
                 true
             },
             "to" => {
+                if let Expr::Path(segments) = value {
+                    if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
+                        return true;
+                    }
+                }
                 if let Some(parsed) =
                     parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
                 {
