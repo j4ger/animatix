@@ -143,6 +143,16 @@ const FADE_EACH = 0.28;
 const ICONS = {
   playBig:
     '<svg width="26" height="26" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
+  play:
+    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 2.2v13.6L15.5 9z"/></svg>',
+  pause:
+    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M4.5 3h3v12h-3zm6 0h3v12h-3z"/></svg>',
+  replay:
+    '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M9 3a6 6 0 1 0 6 6h-2a4 4 0 1 1-4-4V2l4 3-4 3V5z"/></svg>',
+  stepPrev:
+    '<svg width="16" height="16" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M12 4l-6 5 6 5zM4 4h2v10H4z"/></svg>',
+  stepNext:
+    '<svg width="16" height="16" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true"><path d="M6 4l6 5-6 5zM12 4h2v10h-2z"/></svg>',
 };
 
 // ── shared engine loading ───────────────────────────────────────────
@@ -393,15 +403,19 @@ class AmxPlayerElement extends HTMLElement {
     this._resizeDebounceTimer = null;
     this._initialized = false;
     this._scrubbing = false;
-    this._peeking = false;
-    this._latched = false;
-    this._resumeOnLeave = false;
-    this._suppressHoverPeek = false;
-    this._downX = 0;
     this._rate = 1;
     this._markers = [];
     this._marks = null;
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
+    this._hudFlash = null;
+    this._hudSkip = null;
+    this._hudTimer = null;
+    this._skipHudTimer = null;
+    this._singleTapTimer = null;
+    this._lastTapTime = 0;
+    this._lastTapX = 0;
+    this._resumeOnScrubEnd = false;
+    this._lastSnappedMarker = null;
   }
 
   connectedCallback() {
@@ -430,6 +444,9 @@ class AmxPlayerElement extends HTMLElement {
     this._renderScaleObserver?.disconnect();
     clearTimeout(this._renderScaleRetry);
     clearTimeout(this._resizeDebounceTimer);
+    clearTimeout(this._hudTimer);
+    clearTimeout(this._skipHudTimer);
+    clearTimeout(this._singleTapTimer);
     instances.delete(this);
     dequeueLoad(this);
     // `_playing` is deliberately left as-is: connectedCallback re-adds a
@@ -555,19 +572,64 @@ class AmxPlayerElement extends HTMLElement {
         background-size: 300% 100%;
         animation: shimmer 2.2s linear infinite;
         color: #808fa6; font: 13px/1.4 system-ui, sans-serif;
+        transition: opacity 0.28s cubic-bezier(0.2, 0, 0, 1);
       }
+      .skeleton.fade-out { opacity: 0; pointer-events: none; }
+      .skeleton-badge {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(5,8,12,0.65); border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 20px; padding: 6px 14px; font: 12px system-ui, sans-serif;
+        color: #c7cfd9;
+      }
+      .skeleton-spinner {
+        width: 12px; height: 12px; border: 2px solid rgba(245,185,66,0.25);
+        border-top-color: #f5b942; border-radius: 50%;
+        animation: spin 0.8s linear infinite; display: none;
+      }
+      .skeleton.loading .skeleton-spinner { display: inline-block; }
+      @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes shimmer { to { background-position: -300% 0; } }
       canvas { position: absolute; inset: 0; width: 100%; height: 100%;
                display: block; object-fit: contain; }
+      .hud-flash {
+        position: absolute; left: 50%; top: 50%;
+        transform: translate(-50%, -50%) scale(0.85);
+        width: 64px; height: 64px; border-radius: 50%;
+        background: rgba(5,8,12,0.75); border: 1px solid rgba(245,185,66,0.45);
+        color: #f5b942; display: flex; align-items: center; justify-content: center;
+        pointer-events: none; opacity: 0;
+        transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 5;
+      }
+      .hud-flash.show { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+      .hud-flash svg { width: 26px; height: 26px; display: block; }
+      .hud-skip {
+        position: absolute; top: 50%; transform: translateY(-50%);
+        padding: 6px 14px; border-radius: 18px;
+        background: rgba(5,8,12,0.85); border: 1px solid rgba(255,255,255,0.15);
+        color: #f5b942; font: 12px ui-monospace, monospace;
+        pointer-events: none; opacity: 0;
+        transition: opacity 0.25s, transform 0.25s; z-index: 5;
+      }
+      .hud-skip.left { left: 10%; }
+      .hud-skip.right { right: 10%; }
+      .hud-skip.show { opacity: 1; }
       .veil {
         position: absolute; inset: 0; display: flex; flex-direction: column;
         align-items: center; justify-content: center; gap: 10px;
         color: #8b96a7; font: 13px/1.4 system-ui, sans-serif;
-        background: rgba(13,16,22,0.55); opacity: 0; transition: opacity .3s;
-        pointer-events: none; text-align: center; padding: 12px;
+        background: rgba(13,16,22,0.75); opacity: 0; transition: opacity .3s;
+        pointer-events: none; text-align: center; padding: 16px;
       }
       .veil.show { opacity: 1; pointer-events: auto; }
       .veil.error { color: #ef6a6a; }
+      .veil .retry-btn {
+        margin-top: 8px; padding: 6px 16px; border-radius: 6px;
+        border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.12);
+        color: #fff; cursor: pointer; font: 12px system-ui, sans-serif;
+        transition: background 0.15s;
+      }
+      .veil .retry-btn:hover { background: rgba(255,255,255,0.22); }
       .playbtn {
         position: absolute; left: 50%; top: 50%;
         transform: translate(-50%, -50%);
@@ -578,37 +640,62 @@ class AmxPlayerElement extends HTMLElement {
       }
       .playbtn.show { display: flex; }
       .playbtn svg { display: block; }
-      /* The strip lives below the stage, in flow, and spans the full width
-         and height of the bar: it never covers the picture. Hovering it
-         freezes the clock and peeks the frame under the pointer; the clock
-         resumes on leave unless the pause was latched by a click. */
       .strip {
         position: relative; height: 44px;
         display: flex; align-items: center;
         border-top: 1px solid rgba(255,255,255,.07);
         cursor: pointer; touch-action: none;
+        user-select: none; -webkit-user-select: none;
+        padding: 0 4px; gap: 2px;
       }
       .strip:focus-visible { outline: 2px solid #f5b942; outline-offset: -2px; }
-      .strip .fill {
+      .strip-btn {
+        width: 36px; height: 36px; flex: none;
+        border: none; border-radius: 8px; background: none;
+        color: #c7cfd9; cursor: pointer; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        transition: background 0.15s, color 0.15s;
+      }
+      .strip-btn:hover { background: rgba(255,255,255,.14); color: #e8edf4; }
+      .strip-btn:focus-visible { outline: 2px solid #f5b942; }
+      .strip-btn svg { width: 18px; height: 18px; display: block; }
+      .track {
+        position: relative; flex: 1; height: 100%;
+        display: flex; align-items: center; margin: 0 4px;
+        cursor: pointer;
+      }
+      .track-bar {
+        position: absolute; left: 0; right: 0; height: 4px;
+        background: rgba(255,255,255,0.14); border-radius: 2px;
+        overflow: visible; transition: height 0.15s;
+      }
+      .strip:hover .track-bar, .strip.scrubbing .track-bar { height: 6px; }
+      .fill {
         position: absolute; left: 0; top: 0; bottom: 0; width: 100%;
-        background: rgba(245,185,66,.16);
+        background: #f5b942; border-radius: 2px;
         transform-origin: left; transform: scaleX(0);
         pointer-events: none;
       }
-      .strip .marks { position: absolute; inset: 0; pointer-events: none; }
-      /* Timeline landmarks. Keyframes are thin ticks; scene starts are
-         diamonds; a transition is a hatched span — all full height. */
+      .marks { position: absolute; inset: 0; pointer-events: none; }
       .strip .tick {
-        position: absolute; top: 0; bottom: 0; width: 2px;
+        position: absolute; top: -3px; bottom: -3px; width: 2px;
         transform: translateX(-50%);
-        background: rgba(255,255,255,.28);
-        pointer-events: none;
+        background: rgba(255,255,255,.32);
+        pointer-events: none; transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      }
+      .strip .tick.snapped {
+        background: #f5b942; transform: translateX(-50%) scaleY(1.3);
+        box-shadow: 0 0 6px rgba(245,185,66,0.6);
       }
       .strip .diamond {
         position: absolute; top: 50%; width: 9px; height: 9px;
         transform: translate(-50%, -50%) rotate(45deg);
         background: #8ab4f8; border-radius: 2px;
-        pointer-events: none;
+        pointer-events: none; transition: transform 0.15s, box-shadow 0.15s;
+      }
+      .strip .diamond.snapped {
+        background: #f5b942; transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
+        box-shadow: 0 0 8px rgba(245,185,66,0.8);
       }
       .strip .span {
         position: absolute; top: 0; bottom: 0;
@@ -616,36 +703,42 @@ class AmxPlayerElement extends HTMLElement {
           rgba(138,180,248,.35) 0 4px, transparent 4px 8px);
         pointer-events: none;
       }
-      /* The playhead: one line, constant width, positioned from the timeline
-         position by _syncControls — the single writer. It is deliberately not
-         the fill's border-right (scaleX squashes that toward nothing as the
-         playhead nears the start) and deliberately not something a pointermove
-         positions as a side effect: that made it visible while unpositioned,
-         parked at the strip's start edge. */
-      .strip .cursor {
+      .cursor {
         position: absolute; top: 0; bottom: 0; width: 2px; left: 0;
         transform: translateX(-50%);
-        background: #f5b942;
-        pointer-events: none;
+        background: #f5b942; pointer-events: none;
       }
+      .cursor-handle {
+        position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+        transform: translate(-50%, -50%) scale(0);
+        background: #f5b942; border-radius: 50%;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        transition: transform 0.15s ease-out; pointer-events: none;
+      }
+      .strip:hover .cursor-handle, .strip.scrubbing .cursor-handle {
+        transform: translate(-50%, -50%) scale(1);
+      }
+      .scrub-pill {
+        position: absolute; bottom: 100%; left: 0;
+        transform: translate(-50%, -8px);
+        background: rgba(10,15,23,0.92); border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        color: #e8edf4; font: 11px/1.3 ui-monospace, monospace;
+        padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+        pointer-events: none; opacity: 0; transition: opacity 0.15s;
+        z-index: 10;
+      }
+      .scrub-pill.show { opacity: 1; }
       .chip {
-        position: absolute; right: 56px; top: 50%;
-        transform: translateY(-50%);
+        flex: none;
         color: #c7cfd9; font: 12px ui-monospace, monospace; white-space: nowrap;
         font-variant-numeric: tabular-nums;
         background: rgba(5,8,12,.55); border-radius: 6px; padding: 3px 8px;
         pointer-events: none;
-        /* The debug readout is far longer than the time chip. Let it grow
-           leftward and truncate its tail — the frame index and the time, the
-           parts a report needs, come first — rather than run off the start
-           edge of a narrow player. */
-        max-width: calc(100% - 120px); overflow: hidden; text-overflow: ellipsis;
       }
       .chip.dbg { color: #8ab4f8; background: rgba(5,8,12,.8); }
       .speed {
-        position: absolute; right: 4px; top: 50%;
-        transform: translateY(-50%);
-        width: 48px; height: 36px; flex: none;
+        flex: none; width: 44px; height: 36px;
         border: none; border-radius: 8px; background: none;
         color: #c7cfd9; cursor: pointer; padding: 0;
         font: 12px ui-monospace, monospace;
@@ -654,20 +747,49 @@ class AmxPlayerElement extends HTMLElement {
       .speed:hover { background: rgba(255,255,255,.14); color: #e8edf4; }
       .speed:focus-visible { outline: 2px solid #f5b942; }
       @media (pointer: coarse) {
-        .strip { height: 52px; }
-        .speed { width: 52px; height: 44px; }
+        .strip { height: 52px; padding: 0 6px; gap: 4px; }
+        .strip-btn { width: 44px; height: 44px; }
+        .strip-btn svg { width: 22px; height: 22px; }
+        .speed { width: 48px; height: 44px; }
+        .cursor-handle { width: 14px; height: 14px; transform: translate(-50%, -50%) scale(1); }
+        .scrub-pill {
+          transform: translate(-50%, -46px);
+          font-size: 13px; padding: 5px 10px; border-radius: 8px;
+        }
+      }
+      @media (max-width: 480px) {
+        .chip { font-size: 11px; padding: 2px 6px; }
+      }
+      @media (max-width: 360px) {
+        .chip { display: none; }
       }
     `;
     this.shadowRoot.replaceChildren(style, this._stage);
     this._skeleton = document.createElement("div");
     this._skeleton.className = "skeleton";
-    this._skeleton.textContent = title ? `${title}` : "animatix scene";
+    const badge = document.createElement("div");
+    badge.className = "skeleton-badge";
+    const spinner = document.createElement("span");
+    spinner.className = "skeleton-spinner";
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "skeleton-title";
+    titleSpan.textContent = title ? `${title}` : "animatix scene";
+    badge.append(spinner, titleSpan);
+    this._skeleton.appendChild(badge);
     this._stage.appendChild(this._skeleton);
 
     this._canvas = document.createElement("canvas");
     this._canvas.width = 1280;
     this._canvas.height = 720;
     this._canvas.hidden = true;
+
+    this._hudFlash = document.createElement("div");
+    this._hudFlash.className = "hud-flash";
+    this._stage.appendChild(this._hudFlash);
+
+    this._hudSkip = document.createElement("div");
+    this._hudSkip.className = "hud-skip";
+    this._stage.appendChild(this._hudSkip);
 
     this._veil = document.createElement("div");
     this._veil.className = "veil";
@@ -685,12 +807,45 @@ class AmxPlayerElement extends HTMLElement {
 
   _showVeil(text, isError) {
     this._veil.className = `veil show${isError ? " error" : ""}`;
-    this._veil.textContent = text;
+    this._veil.replaceChildren();
+    const msg = document.createElement("div");
+    msg.textContent = text;
+    this._veil.appendChild(msg);
+    if (isError) {
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "retry-btn";
+      retry.textContent = "Retry";
+      retry.addEventListener("click", () => this._resetForReload());
+      this._veil.appendChild(retry);
+    }
     if (!this._veil.isConnected) this.shadowRoot.appendChild(this._veil);
   }
 
   _hideVeil() {
     this._veil.className = "veil";
+  }
+
+  _triggerHud(iconSvg) {
+    if (!this._hudFlash) return;
+    this._hudFlash.innerHTML = iconSvg;
+    this._hudFlash.classList.remove("show");
+    void this._hudFlash.offsetWidth; // re-trigger animation
+    this._hudFlash.classList.add("show");
+    clearTimeout(this._hudTimer);
+    this._hudTimer = setTimeout(() => {
+      this._hudFlash?.classList.remove("show");
+    }, 320);
+  }
+
+  _triggerSkipHud(text, isRight) {
+    if (!this._hudSkip) return;
+    this._hudSkip.className = `hud-skip ${isRight ? "right" : "left"} show`;
+    this._hudSkip.textContent = text;
+    clearTimeout(this._skipHudTimer);
+    this._skipHudTimer = setTimeout(() => {
+      this._hudSkip?.classList.remove("show");
+    }, 450);
   }
 
   // ── loop timing ─────────────────────────────────────────────────
@@ -895,6 +1050,8 @@ class AmxPlayerElement extends HTMLElement {
     this._configureCycle();
     const strip = this.shadowRoot?.querySelector(".strip");
     if (strip) strip.setAttribute("aria-valuemax", String(this._duration));
+    const track = this.shadowRoot?.querySelector(".track");
+    if (track) track.setAttribute("aria-valuemax", String(this._duration));
     // The edit may have moved or added keyframes, so re-draw the landmark
     // layer the strip's ticks come from; snapping already reads `_markers`,
     // and leaving the drawn marks stale would point the playhead at nothing.
@@ -927,6 +1084,7 @@ class AmxPlayerElement extends HTMLElement {
     const src = this.getAttribute("src");
     if (!src || this._state !== "idle") return;
     this._state = "loading";
+    this._skeleton?.classList.add("loading");
     if (!("gpu" in navigator)) {
       this._state = "error";
       const msg = "This embed needs a WebGPU browser (Chrome 113+, Firefox 141+, Safari 26+).";
@@ -974,21 +1132,29 @@ class AmxPlayerElement extends HTMLElement {
         this._stage.style.aspectRatio = `${this._canvas.width} / ${this._canvas.height}`;
       }
       this._configureCycle();
-      // Poster = the finished composition, not frame 0. These scenes build up
-      // from nothing, so frame 0 is an empty stage: a reader who never presses
-      // play (or who asked for reduced motion) would see a blank box.
-      this._restTime = this._duration;
-      this._time = this._duration;
+      // If autoplaying: seed at t = 0 so playback starts cleanly without
+      // flashing the finished poster frame. Otherwise: show finished frame.
+      const willAutoplay = this._shouldAutoplay();
+      if (willAutoplay) {
+        this._time = 0;
+        this._restTime = 0;
+      } else {
+        this._restTime = this._duration;
+        this._time = this._duration;
+      }
       this._renderScene();
 
       // Timeline landmarks for the scrubber (keyframes, scene starts,
       // transition windows) — the engine knows them, so the bar can show them.
       this._markers = Array.isArray(result.markers) ? result.markers : [];
 
-      // swap skeleton for canvas + interactions
-      this._skeleton.remove();
+      // Swap skeleton for canvas with a smooth crossfade
       this._canvas.hidden = false;
       this._stage.appendChild(this._canvas);
+      this._skeleton?.classList.add("fade-out");
+      setTimeout(() => {
+        if (this._skeleton?.isConnected) this._skeleton.remove();
+      }, 300);
       // Only now does the canvas have a laid-out size to match the raster to.
       this._applyRenderScale();
       this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale(false));
@@ -1029,15 +1195,36 @@ class AmxPlayerElement extends HTMLElement {
     const strip = document.createElement("div");
     strip.className = "strip";
     strip.tabIndex = 0;
-    strip.setAttribute("role", "slider");
-    strip.setAttribute("aria-label", "Timeline");
-    strip.setAttribute("aria-valuemin", "0");
-    strip.setAttribute("aria-valuemax", String(this._duration));
+    strip.setAttribute("role", "region");
+    strip.setAttribute("aria-label", "Playback controls");
+
+    const playToggle = document.createElement("button");
+    playToggle.type = "button";
+    playToggle.className = "strip-btn play-toggle";
+    playToggle.setAttribute("aria-label", "Play");
+    playToggle.innerHTML = ICONS.play;
+    playToggle.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.togglePlay(false);
+    });
+
+    const track = document.createElement("div");
+    track.className = "track";
+    track.setAttribute("role", "slider");
+    track.setAttribute("aria-label", "Timeline");
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", String(this._duration));
+
+    const trackBar = document.createElement("div");
+    trackBar.className = "track-bar";
 
     const fill = document.createElement("div");
     fill.className = "fill";
     const cursor = document.createElement("div");
     cursor.className = "cursor";
+    const cursorHandle = document.createElement("div");
+    cursorHandle.className = "cursor-handle";
+    cursor.appendChild(cursorHandle);
 
     // Landmarks at percentage positions of the pure timeline: keyframe ticks,
     // scene-start diamonds, hatched transition spans. They live in their own
@@ -1047,9 +1234,17 @@ class AmxPlayerElement extends HTMLElement {
     this._marks.className = "marks";
     this._renderMarks();
 
+    trackBar.append(fill, this._marks, cursor);
+
+    const scrubPill = document.createElement("div");
+    scrubPill.className = "scrub-pill";
+
+    track.append(trackBar, scrubPill);
+
     const chip = document.createElement("span");
     chip.className = "chip";
     const speed = document.createElement("button");
+    speed.type = "button";
     speed.className = "speed";
     speed.textContent = "1\u00d7";
     speed.setAttribute("aria-label", "Playback speed 1\u00d7");
@@ -1062,157 +1257,124 @@ class AmxPlayerElement extends HTMLElement {
       speed.setAttribute("aria-label", `Playback speed ${this._rate}\u00d7`);
     });
 
-    strip.append(fill, this._marks, cursor, chip, speed);
+    strip.append(playToggle, track, chip, speed);
     this.shadowRoot.append(strip);
 
-    // ── strip interaction ──
-    // Mouse: entering freezes the clock and peeks the frame under the
-    // pointer; leaving resumes *unless* a click latched the pause. A click
-    // (press+release without dragging) sets the position and toggles the
-    // latched state. Touch has no hover: a tap toggles, a drag scrubs.
-    const snapTarget = (t) => {
+    // ── track scrubbing and magnetic snapping ──
+    const findSnap = (t) => {
       const SNAP_S = 0.2;
+      let closest = null;
+      let minDiff = SNAP_S + 1e-4;
       for (const m of this._markers) {
-        if (Math.abs(t - m.t) <= SNAP_S) return m.t;
-        if (m.kind === "transition" && m.dur > 0 && Math.abs(t - (m.t + m.dur)) <= SNAP_S) {
-          return m.t + m.dur;
+        const d = Math.abs(t - m.t);
+        if (d <= SNAP_S && d < minDiff) {
+          minDiff = d;
+          closest = { t: m.t, kind: m.kind };
+        }
+        if (m.kind === "transition" && m.dur > 0) {
+          const dEnd = Math.abs(t - (m.t + m.dur));
+          if (dEnd <= SNAP_S && dEnd < minDiff) {
+            minDiff = dEnd;
+            closest = { t: m.t + m.dur, kind: "transition" };
+          }
         }
       }
-      return null;
+      return closest;
     };
+
+    const updateMarksSnap = (snap) => {
+      if (!this._marks) return;
+      this._marks.querySelectorAll(".snapped").forEach((el) => el.classList.remove("snapped"));
+      if (snap) {
+        for (const el of this._marks.children) {
+          if (el.dataset.t && Math.abs(Number(el.dataset.t) - snap.t) < 1e-3) {
+            el.classList.add("snapped");
+          }
+        }
+        if (navigator.vibrate && this._lastSnappedMarker !== snap.t) {
+          try { navigator.vibrate(10); } catch {}
+        }
+        this._lastSnappedMarker = snap.t;
+      } else {
+        this._lastSnappedMarker = null;
+      }
+    };
+
     const timeAt = (e) => {
-      const rect = strip.getBoundingClientRect();
-      if (rect.width <= 0 || !Number.isFinite(e.clientX)) return this._time;
+      const rect = track.getBoundingClientRect();
+      if (rect.width <= 0 || !Number.isFinite(e.clientX)) return { time: this._time, pct: 0, snap: null };
       const frac = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
       const raw = frac * this._duration;
-      return snapTarget(raw) ?? raw;
-    };
-    const peek = (e) => {
-      this._time = timeAt(e);
-      this._restTime = this._time;
-      this._renderScene();
-      this._syncControls();
+      const snap = findSnap(raw);
+      const targetTime = snap ? snap.t : raw;
+      const snapFrac = this._duration > 0 ? targetTime / this._duration : frac;
+      return { time: targetTime, pct: snapFrac, snap };
     };
 
-    strip.addEventListener("pointerenter", (e) => {
-      if (e.pointerType !== "mouse" || this._suppressHoverPeek) return;
-      this._peeking = true;
-      this._resumeOnLeave = this._playing;
-      strip.classList.add("peeking");
-      peek(e);
+    const updateScrubPill = (t, pct) => {
+      scrubPill.style.left = `${pct * 100}%`;
+      const frameNum = Math.round(t * FRAME_RATE);
+      scrubPill.textContent = `${t.toFixed(2)}s (f${frameNum})`;
+      scrubPill.classList.add("show");
+    };
+
+    track.addEventListener("pointerenter", (e) => {
+      if (e.pointerType !== "mouse" || this._scrubbing) return;
+      const { time, pct, snap } = timeAt(e);
+      updateScrubPill(time, pct);
+      updateMarksSnap(snap);
     });
-    strip.addEventListener("pointerdown", (e) => {
+
+    track.addEventListener("pointermove", (e) => {
+      const { time, pct, snap } = timeAt(e);
+      updateScrubPill(time, pct);
+      updateMarksSnap(snap);
+      if (this._scrubbing) {
+        this.seek(time);
+      }
+    });
+
+    track.addEventListener("pointerleave", (e) => {
+      if (this._scrubbing) return;
+      scrubPill.classList.remove("show");
+      updateMarksSnap(null);
+    });
+
+    track.addEventListener("pointerdown", (e) => {
       try {
-        strip.setPointerCapture(e.pointerId);
-      } catch {
-        // An invalid pointer id (automation, edge teardown) must not abort.
+        track.setPointerCapture(e.pointerId);
+      } catch {}
+      this._resumeOnScrubEnd = this._playing;
+      if (this._playing) {
+        this.pause();
       }
-      this._downX = e.clientX;
-      // Any press on the strip is a scrub until proven a tap at release —
-      // even while a previous resume suppressed hover peeking.
       this._scrubbing = true;
-      if (e.pointerType === "mouse" && !this._peeking && !this._suppressHoverPeek) {
-        this._peeking = true;
-        this._resumeOnLeave = this._playing;
-        strip.classList.add("peeking");
-      }
-      peek(e);
+      strip.classList.add("scrubbing");
+      const { time, pct, snap } = timeAt(e);
+      updateScrubPill(time, pct);
+      updateMarksSnap(snap);
+      this.seek(time);
       e.stopPropagation();
     });
-    // Exactly one move handler: `peek` re-renders the frame, so a second
-    // listener with the same condition renders every move twice.
-    strip.addEventListener("pointermove", (e) => {
-      if (!this._scrubbing && !this._peeking) return;
-      peek(e);
-    });
-    const release = (e) => {
-      const wasScrub = this._scrubbing;
+
+    const finishScrub = (e) => {
+      if (!this._scrubbing) return;
       this._scrubbing = false;
-      const wasTap = wasScrub && Math.abs(e.clientX - this._downX) <= 4;
-      if (!wasTap) return; // a drag just leaves the peeked position
-      if (e.pointerType === "mouse") {
-        if (this._playing) {
-          this._latched = true;
-          this.pause();
-        } else {
-          this._latched = false;
-          this.play();
-          // Keep playback observable while still hovering: no re-peek
-          // until the pointer leaves the strip.
-          this._suppressHoverPeek = true;
-          this._peeking = false;
-          strip.classList.remove("peeking");
-        }
-      } else if (this._playing) {
-        this._latched = true;
-        this.pause();
-      } else {
-        this._latched = false;
+      strip.classList.remove("scrubbing");
+      scrubPill.classList.remove("show");
+      updateMarksSnap(null);
+      if (this._resumeOnScrubEnd) {
+        this._resumeOnScrubEnd = false;
         this.play();
       }
     };
-    strip.addEventListener("pointerup", release);
-    strip.addEventListener("pointercancel", release);
-    strip.addEventListener("pointerleave", (e) => {
-      if (e.pointerType !== "mouse") return;
-      strip.classList.remove("peeking");
-      const resume = this._peeking && this._resumeOnLeave && !this._latched;
-      this._peeking = false;
-      this._resumeOnLeave = false;
-      this._suppressHoverPeek = false;
-      if (resume) {
-        this.play();
-      } else {
-        this._renderScene();
-      }
-      this._syncControls();
-    });
-    strip.addEventListener("keydown", (e) => {
-      const dir = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-      if (dir !== 0 && e.shiftKey) {
-        // One frame at a time. Pause first: the rAF clock would otherwise
-        // advance off the frame that was just asked for, and the whole point
-        // is to land on it and look at it.
-        e.preventDefault();
-        e.stopPropagation();
-        if (this._playing) {
-          this._latched = true;
-          this.pause();
-        }
-        this.seek(this._time + dir / FRAME_RATE);
-      } else if (dir !== 0) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.seek(this._nextLandmark(dir));
-      } else if (e.key === "d") {
-        e.preventDefault();
-        e.stopPropagation();
-        this._debugFrame = !this._debugFrame;
-        this._syncControls();
-      } else if (e.key === "c") {
-        // Copy the readout so a report carries the exact frame and time.
-        e.preventDefault();
-        e.stopPropagation();
-        const line = this.debugReport();
-        navigator.clipboard?.writeText(line).catch(() => {});
-        console.log(line);
-      } else if (e.key === "Home") {
-        e.preventDefault();
-        this.seek(0);
-      } else if (e.key === " " || e.key === "k") {
-        e.preventDefault();
-        e.stopPropagation();
-        if (this._playing) {
-          this._latched = true;
-          this.pause();
-        } else {
-          this._latched = false;
-          this.play();
-        }
-      }
-    });
 
-    this._controls = { strip, fill, cursor, chip, speed };
+    track.addEventListener("pointerup", finishScrub);
+    track.addEventListener("pointercancel", finishScrub);
+
+    strip.addEventListener("keydown", (e) => this._handleKeyDown(e));
+
+    this._controls = { strip, playToggle, track, fill, cursor, scrubPill, chip, speed };
     this._syncControls();
   }
 
@@ -1230,11 +1392,13 @@ class AmxPlayerElement extends HTMLElement {
         span.className = "span";
         span.style.left = `${frac * 100}%`;
         span.style.width = `${Math.min(m.dur / this._duration, 1 - frac) * 100}%`;
+        span.dataset.t = String(m.t);
         marks.appendChild(span);
       } else {
         const mark = document.createElement("div");
         mark.className = m.kind === "scene" ? "diamond" : "tick";
         mark.style.left = `${frac * 100}%`;
+        mark.dataset.t = String(m.t);
         marks.appendChild(mark);
       }
     }
@@ -1273,6 +1437,19 @@ class AmxPlayerElement extends HTMLElement {
     const frac = this._duration > 0 ? shown / this._duration : 0;
     c.fill.style.transform = `scaleX(${frac})`;
     c.cursor.style.left = `${frac * 100}%`;
+
+    // Sync play/pause toggle button icon and aria-label
+    if (this._playing) {
+      c.playToggle.innerHTML = ICONS.pause;
+      c.playToggle.setAttribute("aria-label", "Pause");
+    } else if (this._time >= this._duration && !this._looping()) {
+      c.playToggle.innerHTML = ICONS.replay;
+      c.playToggle.setAttribute("aria-label", "Replay");
+    } else {
+      c.playToggle.innerHTML = ICONS.play;
+      c.playToggle.setAttribute("aria-label", "Play");
+    }
+
     if (this._debugFrame) {
       // `rs` is the adaptive render scale the quality controller settled on.
       // It belongs in the report because a shimmer that only appears at a
@@ -1285,38 +1462,146 @@ class AmxPlayerElement extends HTMLElement {
       c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
       c.chip.classList.remove("dbg");
     }
-    c.strip.setAttribute("aria-valuenow", shown.toFixed(1));
+    c.track.setAttribute("aria-valuenow", shown.toFixed(1));
   }
 
-  /// Canvas gesture. A click pauses *latched*: leaving the strip afterwards
-  /// does not resume — only a click on the strip does (the inspection model).
-  /// An already-latched canvas click does nothing (that is the point of the
-  /// latch); a plain paused figure (no autoplay) resumes on click. Touch
-  /// behaves the same minus the hover machinery.
   _setupGestures() {
+    this._canvas.tabIndex = 0;
     this._canvas.addEventListener("pointerdown", (e) => {
-      if (!this._controls) return;
-      if (this._playing) {
-        this._latched = true;
-        this.pause();
-      } else if (!this._latched) {
-        this.play();
+      if (!this._controls && !this.hasAttribute("controls") && this._isSealed()) return;
+      this._canvas.focus({ preventScroll: true });
+
+      if (e.pointerType === "mouse") {
+        this.togglePlay(true);
+        e.preventDefault();
+        return;
+      }
+
+      // Touch / mobile double-tap detection
+      const now = Date.now();
+      const dt = now - this._lastTapTime;
+      const dx = Math.abs(e.clientX - this._lastTapX);
+
+      if (dt < 280 && dx < 48) {
+        clearTimeout(this._singleTapTimer);
+        this._lastTapTime = 0;
+        const rect = this._canvas.getBoundingClientRect();
+        const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5;
+
+        if (relX < 0.35) {
+          const prev = this._nextLandmark(-1);
+          this.seek(prev);
+          this._triggerSkipHud("« Keyframe", false);
+        } else if (relX > 0.65) {
+          const next = this._nextLandmark(1);
+          this.seek(next);
+          this._triggerSkipHud("Keyframe »", true);
+        } else {
+          this.togglePlay(true);
+        }
+      } else {
+        this._lastTapTime = now;
+        this._lastTapX = e.clientX;
+        clearTimeout(this._singleTapTimer);
+        this._singleTapTimer = setTimeout(() => {
+          this.togglePlay(true);
+        }, 280);
       }
       e.preventDefault();
     });
-    this._canvas.addEventListener("keydown", (e) => {
-      if (!this._controls) return;
-      if (e.key === " " || e.key === "k") {
-        e.preventDefault();
-        if (this._playing) {
-          this._latched = true;
-          this.pause();
-        } else {
-          this._latched = false;
-          this.play();
-        }
+
+    this._canvas.addEventListener("keydown", (e) => this._handleKeyDown(e));
+  }
+
+  _handleKeyDown(e) {
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable)) {
+      return;
+    }
+    if (e.key === " " || e.key === "k" || e.key === "K") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.togglePlay(true);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        this.stepFrame(-1);
+      } else {
+        const prev = this._nextLandmark(-1);
+        this.seek(prev);
+        this._triggerSkipHud("« Keyframe", false);
       }
-    });
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) {
+        this.stepFrame(1);
+      } else {
+        const next = this._nextLandmark(1);
+        this.seek(next);
+        this._triggerSkipHud("Keyframe »", true);
+      }
+    } else if (e.key === "," || e.key === "<") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.stepFrame(-1);
+    } else if (e.key === "." || e.key === ">") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.stepFrame(1);
+    } else if (e.key === "j" || e.key === "J") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.seek(Math.max(this._time - 1, 0));
+      this._triggerSkipHud("« 1s", false);
+    } else if (e.key === "l" || e.key === "L") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.seek(Math.min(this._time + 1, this._duration));
+      this._triggerSkipHud("1s »", true);
+    } else if (e.key === "Home" || e.key === "0") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.seek(0);
+      this._triggerSkipHud("0:00", false);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.seek(this._duration);
+      this._triggerSkipHud("End", true);
+    } else if (e.key === "d" || e.key === "D") {
+      e.preventDefault();
+      e.stopPropagation();
+      this._debugFrame = !this._debugFrame;
+      this._syncControls();
+    } else if (e.key === "c" || e.key === "C") {
+      e.preventDefault();
+      e.stopPropagation();
+      const line = this.debugReport();
+      navigator.clipboard?.writeText(line).catch(() => {});
+      console.log(line);
+      this._triggerSkipHud("Copied report", true);
+    }
+  }
+
+  togglePlay(showHud = true) {
+    if (this._playing) {
+      this.pause();
+      if (showHud) this._triggerHud(ICONS.pause);
+    } else {
+      this.play();
+      if (showHud) this._triggerHud(ICONS.play);
+    }
+  }
+
+  stepFrame(dir) {
+    if (this._playing) {
+      this.pause();
+    }
+    const target = Math.min(Math.max(this._time + dir / FRAME_RATE, 0), this._duration);
+    this.seek(target);
+    const frameNum = Math.round(this._time * FRAME_RATE);
+    this._triggerSkipHud(dir > 0 ? `+1f (f${frameNum})` : `-1f (f${frameNum})`, dir > 0);
   }
 
   // ── public API ──────────────────────────────────────────────────
@@ -1394,9 +1679,9 @@ class AmxPlayerElement extends HTMLElement {
   /// Called by the shared loop each frame. Returns whether it played.
   advance(dt) {
     if (!this._playing || !this._visible) return false;
-    // Scrubbing or peeking owns the playhead: the clock freezes and the
-    // inspected frame is what renders (the strip's seek renders directly).
-    if (this._scrubbing || this._peeking) return false;
+    // Scrubbing owns the playhead: the clock freezes and the inspected frame
+    // is what renders (the strip's seek renders directly).
+    if (this._scrubbing) return false;
     const looping = this._looping();
     const limit = looping ? this._cycle : this._duration;
     this._time += dt * (this._rate ?? 1);
