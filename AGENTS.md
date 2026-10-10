@@ -77,8 +77,8 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
    These gates did not exist in PR CI before, and each one is for a defect that got
    past the old ten jobs: `wasm-check`, `site-scenes`, `web-build`, `embed-drift`
-   (`web/embed/amx-player.js` is committed esbuild output — a src change that
-   skipped the rebuild deployed the previous player while the repo looked fixed),
+   (`web/embed/amx-player.js` is the esbuild output of
+   `web/embed/src/amx-player.js`, built on demand and gitignored),
    `content-sync` (generated plates, bundled-library parity, the duplicated font
    hash table, the bundle sizes `web/README.md` quotes) and `workflows`.
 

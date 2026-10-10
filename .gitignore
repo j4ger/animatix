@@ -31,11 +31,12 @@ dogfood/runs/*/
 !dogfood/runs/README.md
 dhat-export.json
 
-# Web demo build artifacts (regenerate with scripts/build-web.sh)
+# Web demo build artifacts (regenerate with scripts/build-web.sh or web/tools)
 web/pkg/
 web/tools/node_modules/
 web/**/*.br
 web/pkg-slim/
+web/embed/amx-player.js
 # The Pages/release staging directory scripts/site-artifact.sh assembles.
 _site/
 # The `video` release build uses its own target dir so it cannot clobber the

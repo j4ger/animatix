@@ -125,13 +125,24 @@
         # override flag exists in 2.39.0) gives .css a ONE-YEAR max-age, so a
         # returning browser renders fresh HTML against a stale cached
         # stylesheet. Serves the repo's web/ so edits are live; override with
-        # SERVE_PORT and SERVE_ROOT.
+        # SERVE_PORT and SERVE_ROOT. Resolves repo root dynamically so running
+        # from any subfolder (e.g. `cd web && nix run .#serve`) finds web/.
         apps.serve =
           let
             script = pkgs.writeShellScript "serve-web" ''
+              REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
+              if [ -n "$REPO_ROOT" ] && [ -d "$REPO_ROOT/web" ]; then
+                DEFAULT_ROOT="$REPO_ROOT/web"
+              elif [ -d "$PWD/web" ]; then
+                DEFAULT_ROOT="$PWD/web"
+              elif [ -f "$PWD/index.html" ] && [ -d "$PWD/scenes" ]; then
+                DEFAULT_ROOT="$PWD"
+              else
+                DEFAULT_ROOT="$PWD/web"
+              fi
               exec ${pkgs.python3}/bin/python3 "${./scripts/serve-web.py}" \
                 "''${SERVE_PORT:-8124}" \
-                "''${SERVE_ROOT:-$PWD/web}"
+                "''${SERVE_ROOT:-$DEFAULT_ROOT}"
             '';
           in
           { type = "app"; program = toString script; };

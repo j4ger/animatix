@@ -22,9 +22,38 @@ import os
 import subprocess
 import sys
 
-WEB_DIR = os.environ.get("SERVE_ROOT") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "web"
-)
+def find_default_web_dir():
+    env_root = os.environ.get("SERVE_ROOT")
+    if env_root and os.path.isdir(env_root):
+        return os.path.abspath(env_root)
+
+    # Check git root if available
+    try:
+        git_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+        candidate = os.path.join(git_root, "web")
+        if os.path.isdir(candidate):
+            return candidate
+    except Exception:
+        pass
+
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidate = os.path.normpath(os.path.join(script_dir, "..", "web"))
+    if os.path.isdir(candidate):
+        return candidate
+
+    if os.path.isdir("web"):
+        return os.path.abspath("web")
+    if os.path.isfile("index.html") and os.path.isdir("scenes"):
+        return os.path.abspath(".")
+
+    return os.path.abspath("web")
+
+
+WEB_DIR = find_default_web_dir()
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -49,7 +78,20 @@ WASM_STALENESS = None
 
 def check_wasm_staleness(web_dir):
     """Check if web/pkg wasm files are missing or older than crates/ engine source."""
-    repo_root = os.path.dirname(os.path.abspath(web_dir))
+    repo_root = None
+    try:
+        repo_root = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=web_dir if os.path.isdir(web_dir) else None,
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
+    except Exception:
+        pass
+
+    if not repo_root or not os.path.isdir(repo_root):
+        repo_root = os.path.dirname(os.path.abspath(web_dir))
+
     crates_dir = os.path.join(repo_root, "crates")
     if not os.path.isdir(crates_dir):
         return None
@@ -109,6 +151,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def guess_type(self, path):
         ext = os.path.splitext(path)[1].lower()
         return MIME.get(ext, "application/octet-stream")
+
+    def translate_path(self, path):
+        translated = super().translate_path(path)
+        # Transparently serve web/embed/src/amx-player.js when embed/amx-player.js is requested,
+        # so local dev does not require a prebuilt bundle and live edits take effect immediately.
+        if translated.endswith(os.path.join("embed", "amx-player.js")):
+            src_candidate = os.path.join(os.path.dirname(translated), "src", "amx-player.js")
+            if os.path.isfile(src_candidate):
+                if not os.path.exists(translated) or os.path.getmtime(src_candidate) > os.path.getmtime(translated):
+                    return src_candidate
+        return translated
 
     def send_head(self):
         # brotli negotiation: prefer the precompressed twin when present
@@ -176,7 +229,13 @@ if __name__ == "__main__":
 
     port = args.port
     if args.root:
-        WEB_DIR = os.path.abspath(args.root)
+        if os.path.isdir(args.root):
+            WEB_DIR = os.path.abspath(args.root)
+        else:
+            fallback = find_default_web_dir()
+            WEB_DIR = fallback if os.path.isdir(fallback) else os.path.abspath(args.root)
+    else:
+        WEB_DIR = find_default_web_dir()
 
     # By default, use no-cache unless --cache is explicitly set
     NO_CACHE_MODE = not args.cache

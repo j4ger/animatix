@@ -223,14 +223,12 @@ gate_site_scenes() {
 }
 
 gate_embed_drift() {
-  # `web/embed/amx-player.js` is the committed esbuild output of
-  # `web/embed/src/amx-player.js`, and Pages ships the committed copy — so a src
-  # change that skipped the rebuild deploys the previous player while the repo
-  # looks fixed. This was a push-to-main gate; a PR now catches it before merge.
+  # Build the <amx-player> web component bundle from src and verify that it
+  # compiles cleanly to a non-empty distribution file.
   command -v npm >/dev/null 2>&1 || { echo "error: npm not on PATH" >&2; return 1; }
   npm --prefix web/tools ci
   npm --prefix web/tools run build:embed
-  git diff --exit-code web/embed/amx-player.js
+  [ -s web/embed/amx-player.js ] || { echo "error: web/embed/amx-player.js missing or empty after build" >&2; return 1; }
 }
 
 gate_web_build() {

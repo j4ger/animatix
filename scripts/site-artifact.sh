@@ -53,6 +53,17 @@ for d in web/pkg web/pkg-slim; do
   }
 done
 
+# Build the distributable embed player bundle if missing or older than src
+if [ ! -f "web/embed/amx-player.js" ] || [ "web/embed/src/amx-player.js" -nt "web/embed/amx-player.js" ]; then
+  if command -v npm >/dev/null 2>&1; then
+    npm --prefix web/tools ci --silent
+    npm --prefix web/tools run build:embed
+  else
+    mkdir -p web/embed
+    cp web/embed/src/amx-player.js web/embed/amx-player.js
+  fi
+fi
+
 rm -rf "$out"
 mkdir -p "$out"
 cp -r web/. "$out"/

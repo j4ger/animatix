@@ -11,7 +11,7 @@ the web side only plays back and embeds.
 
 ```
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
-web/embed/amx-player.js      <amx-player> web component (committed bundle; source in embed/src)
+web/embed/src/amx-player.js  <amx-player> web component source (built to embed/amx-player.js)
 web/site.css                 shared dark "instrument" stylesheet for the whole site
 web/site-chrome.js           shared nav + footer + timeline chrome (scroll playhead,
                              keyframe stamps, hover-play, theater), injected per page
@@ -159,7 +159,7 @@ touches `web/`, the engine, the examples' shared library, or the build scripts.
 It runs four gates from `scripts/ci.sh` and then one assembler:
 
 ```
-embed-drift     the committed web/embed/amx-player.js matches its src
+embed-drift     the web/embed/amx-player.js bundle builds from its src
 site-scenes     every scene the pages embed builds, in both profiles
 web-build       both engine bundles, in the .#web-build shell
 site-artifact   scripts/site-artifact.sh assembles _site
