@@ -59,6 +59,8 @@ mod wave2;
 #[cfg(test)]
 mod wave3;
 #[cfg(test)]
+mod wave4;
+#[cfg(test)]
 mod connector;
 
 #[test]

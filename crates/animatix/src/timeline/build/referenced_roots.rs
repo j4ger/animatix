@@ -343,8 +343,8 @@ fn collect_stmt_roots(stmts: &[Stmt], scan: &mut ReferenceScan) {
                 collect_property_roots(config, scan);
                 collect_stmt_roots(body, scan);
             },
-            // Play transitions are static scene-graph metadata.
-            Stmt::Play { .. } => {},
+            // Play transitions and step pause markers carry no actor tracks.
+            Stmt::Play { .. } | Stmt::Step { .. } => {},
         }
     }
 }

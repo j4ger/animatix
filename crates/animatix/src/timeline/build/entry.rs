@@ -505,7 +505,8 @@ impl Timeline {
                 | Stmt::Stagger { .. }
                 | Stmt::LetDecl { .. }
                 | Stmt::Always { .. }
-                | Stmt::ForLoop { .. } => {
+                | Stmt::ForLoop { .. }
+                | Stmt::Step { .. } => {
                     let saved_opacity = timeline.default_opacity;
                     if !has_seen_keyframe {
                         timeline.default_opacity = 0.0;
@@ -993,6 +994,9 @@ impl Timeline {
         // Declarative idle micro-motions (Wave 3.3): synthesize seamless sinusoidal tracks
         // at build time for actors declaring `idle: "float"` or `idle: "breath"`.
         synthesize_idle_tracks(&mut timeline);
+
+        timeline.pause_points.sort_unstable();
+        timeline.pause_points.dedup();
 
         timeline.has_effect_scopes =
             timeline.tracks.values().any(|track| track.caps.is_effect_scope());

@@ -986,6 +986,15 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
+    // === Interactive Step / Pause Markers ===
+    /// Step or pause marker: `#step 1` or `pause`
+    Step {
+        /// Optional step index.
+        index: Option<u64>,
+        /// Source span for this step marker.
+        span: Option<Span>,
+    },
+
     // === Comments ===
     /// Standalone comment statement.
     Comment(String, Option<Span>),

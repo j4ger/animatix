@@ -610,16 +610,19 @@ impl Timeline {
         let node_transform = {
             // Copy the hit out first so the borrow ends before the recompute
             // below. A miss frame must not allocate a fresh `String` key per
-            // node on every insert.
-            let hit = self
-                .eval_caches
-                .transform_cache
-                .borrow()
-                .get(node_label)
-                .filter(|(cached_time, cached_parent, _)| {
-                    *cached_time == time_ms && *cached_parent == parent_coeffs
-                })
-                .map(|(_, _, cached_transform)| *cached_transform);
+            // node on every insert. Bypassed when node_overrides is present.
+            let hit = if node_overrides.is_some() {
+                None
+            } else {
+                self.eval_caches
+                    .transform_cache
+                    .borrow()
+                    .get(node_label)
+                    .filter(|(cached_time, cached_parent, _)| {
+                        *cached_time == time_ms && *cached_parent == parent_coeffs
+                    })
+                    .map(|(_, _, cached_transform)| *cached_transform)
+            };
             if let Some(transform) = hit {
                 transform
             } else {
@@ -632,13 +635,15 @@ impl Timeline {
                     layout_pos,
                     node_overrides,
                 );
-                let mut cache = self.eval_caches.transform_cache.borrow_mut();
-                // Labels are stable across frames, so refresh the existing slot
-                // in place rather than re-inserting an owned key.
-                if let Some(slot) = cache.get_mut(node_label) {
-                    *slot = (time_ms, parent_coeffs, t);
-                } else {
-                    cache.insert(node_label.to_string(), (time_ms, parent_coeffs, t));
+                if node_overrides.is_none() {
+                    let mut cache = self.eval_caches.transform_cache.borrow_mut();
+                    // Labels are stable across frames, so refresh the existing slot
+                    // in place rather than re-inserting an owned key.
+                    if let Some(slot) = cache.get_mut(node_label) {
+                        *slot = (time_ms, parent_coeffs, t);
+                    } else {
+                        cache.insert(node_label.to_string(), (time_ms, parent_coeffs, t));
+                    }
                 }
                 t
             }
@@ -878,6 +883,7 @@ impl Timeline {
                 }
                 if let Some(items) = program_items.as_mut() {
                     items.push(crate::timeline::scene_program::SceneItem {
+                        label: node_label.to_string(),
                         transform: local_transform,
                         opacity,
                         commands: commands.clone(),
@@ -1945,7 +1951,7 @@ impl Timeline {
         {
             return program.scene;
         }
-        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, false)
+        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, false, &[])
             .scene
     }
 
@@ -2043,6 +2049,7 @@ impl Timeline {
                 background: cached.program.background,
                 scene: cached.program.scene.clone(),
                 items: Vec::new(),
+                suppressed_items: Vec::new(),
                 precise_bounds: std::collections::HashMap::new(),
                 diagnostics: Vec::new(),
             })
@@ -2062,7 +2069,26 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> crate::timeline::scene_program::SceneProgram {
-        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, true)
+        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, true, &[])
+    }
+
+    /// Evaluates scene program while suppressing specified actor labels (e.g. for FLIP transitions).
+    pub fn evaluate_program_with_suppressed(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        suppressed_actors: &[String],
+    ) -> crate::timeline::scene_program::SceneProgram {
+        self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            true,
+            suppressed_actors,
+        )
     }
 
     fn evaluate_program_inner(
@@ -2072,15 +2098,18 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
+        suppressed_actors: &[String],
     ) -> crate::timeline::scene_program::SceneProgram {
-        if let Some(program) = self.restore_frame_cache(
-            time_s,
-            scene_dimensions,
-            debug_options,
-            filter_backend,
-            collect_items,
-        ) {
-            return program;
+        if suppressed_actors.is_empty() {
+            if let Some(program) = self.restore_frame_cache(
+                time_s,
+                scene_dimensions,
+                debug_options,
+                filter_backend,
+                collect_items,
+            ) {
+                return program;
+            }
         }
 
         let time_ms = (time_s * 1000.0) as u64;
@@ -2137,6 +2166,12 @@ impl Timeline {
         let mut overrides = self.eval_caches.overrides_buffer.take();
         for inner in overrides.values_mut() {
             inner.clear();
+        }
+        for label in suppressed_actors {
+            overrides
+                .entry(label.clone())
+                .or_default()
+                .insert("opacity".to_string(), Value::Num(0.0));
         }
 
         // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
@@ -2283,6 +2318,7 @@ impl Timeline {
                 // re-evaluate the subtree instead.
                 if !self.backend_can_run(out.filter_backend)
                     && !self.camera_used.get()
+                    && suppressed_actors.is_empty()
                     && self.is_static_subtree(root)
                 {
                     let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
@@ -2425,6 +2461,7 @@ impl Timeline {
             background: bg_color,
             scene,
             items: program_items.take().unwrap_or_default(),
+            suppressed_items: Vec::new(),
             precise_bounds: program_bounds,
             diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };

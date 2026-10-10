@@ -105,7 +105,7 @@ fn stmt_needs_rewrite(
         // Component bodies are rewritten at instance-expansion time with
         // their own gate (see rewrite_stmt's ComponentDef handling).
         Stmt::ComponentDef(..) => false,
-        Stmt::Comment(..) => false,
+        Stmt::Comment(..) | Stmt::Step { .. } => false,
         Stmt::FnDecl { .. } => false, // its body gate lives in rewrite_stmt's FnDecl arm
     };
 
@@ -562,6 +562,10 @@ pub(super) fn rewrite_stmt(
         } => Stmt::Play {
             scene_name: scene_name.clone(),
             transition: transition.clone(),
+            span: *span,
+        },
+        Stmt::Step { index, span } => Stmt::Step {
+            index: *index,
             span: *span,
         },
     }

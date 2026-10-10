@@ -48,6 +48,8 @@ const PAN_KEYS: [&str; 3] = ["at", "position", "pan"];
 const ZOOM_KEYS: [&str; 2] = ["zoom", "scale"];
 const SPIN_KEYS: [&str; 2] = ["rotation", "spin"];
 
+const FOCUS_KEYS: [&str; 2] = ["focus", "focus_on"];
+
 pub(crate) fn is_pan(property: &str) -> bool {
     PAN_KEYS.contains(&property)
 }
@@ -60,13 +62,18 @@ pub(crate) fn is_spin(property: &str) -> bool {
     SPIN_KEYS.contains(&property)
 }
 
-/// True for the three properties a camera accepts.
+pub(crate) fn is_focus(property: &str) -> bool {
+    FOCUS_KEYS.contains(&property)
+}
+
+/// True for the properties a camera accepts.
 pub(crate) fn is_camera_property(property: &str) -> bool {
-    is_pan(property) || is_zoom(property) || is_spin(property)
+    is_pan(property) || is_zoom(property) || is_spin(property) || is_focus(property)
 }
 
 /// The names of the properties a camera accepts, for diagnostics.
-pub(crate) const CAMERA_PROPERTIES: &str = "at / position / pan, zoom / scale, rotation / spin";
+pub(crate) const CAMERA_PROPERTIES: &str =
+    "at / position / pan, zoom / scale, rotation / spin, focus / focus_on";
 
 fn override_vec2(overrides: Option<&HashMap<String, Value>>, keys: &[&str]) -> Option<[f32; 2]> {
     let value = keys.iter().find_map(|key| overrides?.get(*key))?;
@@ -175,13 +182,31 @@ impl Camera {
         }
     }
 
+    #[allow(dead_code)] // Reserved for tooling inspection of camera pan axis
+    /// Access the pan track if authored.
+    pub fn pan(&self) -> Option<&PropertyTrack<[f32; 2]>> {
+        self.pan.as_ref()
+    }
+
+    #[allow(dead_code)] // Reserved for tooling inspection of camera zoom axis
+    /// Access the zoom track if authored.
+    pub fn zoom(&self) -> Option<&PropertyTrack<f32>> {
+        self.zoom.as_ref()
+    }
+
+    #[allow(dead_code)] // Reserved for tooling inspection of camera spin axis
+    /// Access the spin track if authored.
+    pub fn spin(&self) -> Option<&PropertyTrack<f32>> {
+        self.spin.as_ref()
+    }
+
     /// The value each axis holds at `time_ms`, identity where unwritten.
     ///
     /// This is what a scene hands to its successor by `persist camera`; an
     /// `always`-driven axis is deliberately not included, because its value is
     /// per-frame state that no track holds (see `Timeline::refresh_camera_used`
     /// for the same distinction).
-    pub(crate) fn values_at(&self, time_ms: u64) -> ([f32; 2], f32, f32) {
+    pub fn values_at(&self, time_ms: u64) -> ([f32; 2], f32, f32) {
         // `TrackAccessor` is implemented on the `Option`, so an axis that was
         // never written answers with its identity.
         (

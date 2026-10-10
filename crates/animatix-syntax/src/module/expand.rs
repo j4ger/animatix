@@ -250,6 +250,7 @@ fn expand_stmt_into(
         | Stmt::Return { .. }
         | Stmt::Expr(..)
         | Stmt::Config { .. }
+        | Stmt::Step { .. }
         | Stmt::Comment(..)
         | Stmt::Import { .. }
         | Stmt::TypeAlias { .. }
@@ -745,6 +746,7 @@ fn resolve_slots(stmts: &[Stmt], slot_fills: &HashMap<String, Vec<InlineItem>>) 
             | Stmt::Return { .. }
             | Stmt::Expr(..)
             | Stmt::Config { .. }
+            | Stmt::Step { .. }
             | Stmt::Import { .. }
             | Stmt::TypeAlias { .. }
             | Stmt::Play { .. }

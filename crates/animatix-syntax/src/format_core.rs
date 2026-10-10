@@ -718,6 +718,13 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             }
             s
         },
+        Stmt::Step { index, .. } => {
+            if let Some(i) = index {
+                format!("#step {}", i)
+            } else {
+                "pause".to_string()
+            }
+        },
         Stmt::Comment(text, ..) => format!("//{}", text),
     }
 }

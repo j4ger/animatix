@@ -148,6 +148,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
         | Stmt::Expr(..)
         | Stmt::Config { .. }
         | Stmt::Scene { .. }
+        | Stmt::Step { .. }
         | Stmt::Play { .. } => Err(IrLowerError::UnsupportedStatement("non-modifier statement")),
     }
 }

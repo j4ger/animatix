@@ -382,6 +382,12 @@ impl Timeline {
                         self.process_body(time_ms, else_branch, parent_label, diagnostics);
                     }
                 },
+                Stmt::Step { .. } => {
+                    let t = time_ms as u64;
+                    if !self.pause_points.contains(&t) {
+                        self.pause_points.push(t);
+                    }
+                },
                 Stmt::Keyframe { .. }
                 | Stmt::RelativeKeyframe { .. }
                 | Stmt::Comment(..)

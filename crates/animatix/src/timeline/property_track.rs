@@ -325,6 +325,34 @@ impl<T: Interpolate> PropertyTrack<T> {
 
         Some((found_time, prev_val, found_val, progress, found_easing))
     }
+
+    /// Returns the interpolation segment along with the segment duration.
+    pub(crate) fn interpolation_segment_with_duration(
+        &self,
+        time_ms: u64,
+    ) -> Option<(u64, &T, &T, f32, f32, &Easing)> {
+        let found = self.keyframes.range(time_ms..).next()?;
+        let (&found_time, (found_val, found_easing)) = found;
+
+        if let Some((&first_time, _)) = self.keyframes.iter().next() {
+            if time_ms <= first_time {
+                return None;
+            }
+        }
+
+        let (prev_time, (prev_val, _)) = self.keyframes.range(..time_ms).next_back()?;
+        let duration = (found_time - prev_time) as f32;
+        let elapsed = (time_ms - prev_time) as f32;
+        let progress = elapsed / duration;
+
+        Some((found_time, prev_val, found_val, progress, duration, found_easing))
+    }
+
+    /// Prune any keyframes strictly after `time_ms`.
+    pub fn split_off_after(&mut self, time_ms: u64) {
+        self.keyframes.split_off(&(time_ms + 1));
+        *self.last_evaluated.borrow_mut() = None;
+    }
     /// Core evaluation logic parameterized by clone strategy.
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
         // P2.20: Memoization - return cached value if time matches
@@ -417,6 +445,38 @@ impl<T> PropertyTrack<T> {
     /// [`crate::timeline::Interpolate`], as it makes the trait bound explicit at the call site.
     pub fn keyframes_raw(&self) -> &BTreeMap<u64, (T, Easing)> {
         &self.keyframes
+    }
+}
+
+impl PropertyTrack<[f32; 2]> {
+    /// Return the current velocity vector [dx/dt, dy/dt] in pt/ms at `time_ms`.
+    pub fn velocity_at(&self, time_ms: u64) -> [f32; 2] {
+        if let Some((_found_time, prev_val, found_val, progress, duration, easing)) =
+            self.interpolation_segment_with_duration(time_ms)
+        {
+            if duration > 0.0 {
+                let d_ease = crate::easing::easing_derivative(progress, *easing);
+                let dx = (found_val[0] - prev_val[0]) / duration * d_ease;
+                let dy = (found_val[1] - prev_val[1]) / duration * d_ease;
+                return [dx, dy];
+            }
+        }
+        [0.0, 0.0]
+    }
+}
+
+impl PropertyTrack<f32> {
+    /// Return the current scalar velocity dx/dt in 1/ms at `time_ms`.
+    pub fn velocity_at(&self, time_ms: u64) -> f32 {
+        if let Some((_found_time, prev_val, found_val, progress, duration, easing)) =
+            self.interpolation_segment_with_duration(time_ms)
+        {
+            if duration > 0.0 {
+                let d_ease = crate::easing::easing_derivative(progress, *easing);
+                return (found_val - prev_val) / duration * d_ease;
+            }
+        }
+        0.0
     }
 }
 

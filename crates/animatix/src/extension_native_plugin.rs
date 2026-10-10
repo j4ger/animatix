@@ -1617,7 +1617,7 @@ fn easing_code(easing: crate::easing::Easing) -> u32 {
         Easing::ExpoOut => NATIVE_EASING_EXPO_OUT,
         Easing::ExpoInOut => NATIVE_EASING_EXPO_IN_OUT,
         // Carries parameters; one u32 cannot name it.
-        Easing::Spring { .. } | Easing::CubicBezier(_) => NATIVE_EASING_UNSUPPORTED,
+        Easing::Spring { .. } | Easing::SpringV0 { .. } | Easing::CubicBezier(_) => NATIVE_EASING_UNSUPPORTED,
     }
 }
 

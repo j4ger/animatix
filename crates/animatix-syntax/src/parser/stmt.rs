@@ -10,6 +10,7 @@ use super::common::{
 use super::token_parser::*;
 use crate::ast::*;
 use crate::occurrence::OccurrenceKind;
+use crate::token::TokenKind;
 
 /// Build the recursive statement parser.
 pub(crate) fn parser<'src>(
@@ -839,8 +840,32 @@ pub(crate) fn parser<'src>(
             ))
         });
 
+        let step_marker = hash()
+            .ignore_then(select! {
+                TokenKind::Keyword(k) if k == "step" => (),
+                TokenKind::Ident(i) if i == "step" => (),
+            })
+            .then(number().or_not())
+            .map(|(_, num)| Stmt::Step {
+                index: num.map(|n| n as u64),
+                span: None,
+            })
+            .labelled("step marker");
+
+        let pause_stmt = select! {
+            TokenKind::Keyword(k) if k == "pause" => (),
+            TokenKind::Ident(i) if i == "pause" => (),
+        }
+        .map(|_| Stmt::Step {
+            index: None,
+            span: None,
+        })
+        .labelled("pause statement");
+
         choice((
             block_comment_reject,
+            step_marker,
+            pause_stmt,
             let_decl,
             type_alias,
             import_stmt,

@@ -30,6 +30,7 @@ pub(crate) fn sequence_stmt_kind(stmt: &Stmt) -> &'static str {
         Stmt::Comment(..) => "comment",
         Stmt::Scene { .. } => "scene declaration",
         Stmt::Play { .. } => "play statement",
+        Stmt::Step { .. } => "step marker",
     }
 }
 
@@ -729,7 +730,8 @@ pub(crate) fn parse_timing_modifiers(
             // the Action host — on assignments/declarations/text these keys
             // have no vocabulary and would be silent no-ops, so they warn.
             Some(name)
-                if host == ModifierHost::Action && action_declares_modifier(subject, name) => {},
+                if (host == ModifierHost::Action && action_declares_modifier(subject, name))
+                    || (name == "padding" && subject.is_some_and(|s| s.ends_with(".focus") || s.ends_with(".focus_on"))) => {},
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,

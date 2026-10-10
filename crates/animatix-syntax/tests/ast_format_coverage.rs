@@ -70,6 +70,7 @@ fn variant_of(stmt: &Stmt) -> &'static str {
         Stmt::Scene { .. } => "Scene",
         Stmt::Play { .. } => "Play",
         Stmt::Comment(..) => "Comment",
+        Stmt::Step { .. } => "Step",
     }
 }
 
@@ -183,6 +184,7 @@ fn scrub_in_place(stmts: &mut [Stmt]) {
             },
             Stmt::Play { span, .. } => *span = None,
             Stmt::Comment(_text, span) => *span = None,
+            Stmt::Step { span, .. } => *span = None,
         }
     }
 }
@@ -214,6 +216,7 @@ fn collect_variants(stmts: &[Stmt], out: &mut Vec<&'static str>) {
             | Stmt::Config { .. }
             | Stmt::Play { .. }
             | Stmt::Comment(..)
+            | Stmt::Step { .. }
             | Stmt::ActorDecl { .. } => {},
             Stmt::Keyframe { body, .. }
             | Stmt::RelativeKeyframe { body, .. }
@@ -443,6 +446,14 @@ config { resolution: (400, 300), duration: 1 }
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 ",
     },
+    Probe {
+        variant: "Step",
+        source: "\
+#1s
+pause
+b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
+",
+    },
 ];
 
 /// Variants the parser cannot produce, so no probe document exists for them.
@@ -478,6 +489,7 @@ const ALL_VARIANTS: &[&str] = &[
     "Config",
     "Scene",
     "Play",
+    "Step",
     "Comment",
 ];
 

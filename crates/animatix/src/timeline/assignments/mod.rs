@@ -306,6 +306,89 @@ impl Timeline {
             .first()
             .is_some_and(|segment| segment.label_str() == crate::timeline::camera::CAMERA_TARGET)
         {
+            if crate::timeline::camera::is_focus(property) {
+                let target_label = match value {
+                    crate::ast::Expr::Ident(s) | crate::ast::Expr::Str(s) => Some(s.clone()),
+                    _ => match evaluate_expr_with_lookup_diagnostic(
+                        value,
+                        &eval_env,
+                        diagnostics,
+                        &assignment_subject,
+                    ) {
+                        Some(Value::Str(s)) => Some(s),
+                        _ => None,
+                    },
+                };
+                let Some(label) = target_label else {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!("`camera.{property}` expects an actor name, got {value:?}"),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                    return;
+                };
+
+                let padding = modifiers
+                    .iter()
+                    .find_map(|m| {
+                        if m.name.as_deref() == Some("padding") {
+                            match &m.value {
+                                crate::ast::Expr::Num(n) => Some(*n as f32),
+                                _ => None,
+                            }
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(40.0);
+
+                if let Some(track) = self.tracks.get(&label) {
+                    let pos = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
+                    let half_size = track.geometry.size.get(t_start_ms, [50.0, 50.0]);
+                    let w = (half_size[0] * 2.0).max(1.0);
+                    let h = (half_size[1] * 2.0).max(1.0);
+                    let view_w = 1920.0_f32;
+                    let view_h = 1080.0_f32;
+                    let target_zoom = ((view_w - 2.0 * padding) / w)
+                        .min((view_h - 2.0 * padding) / h)
+                        .clamp(0.1, 10.0);
+                    let scene_center = [view_w / 2.0, view_h / 2.0];
+                    let target_pan = [
+                        -target_zoom * (pos[0] - scene_center[0]),
+                        -target_zoom * (pos[1] - scene_center[1]),
+                    ];
+
+                    self.camera.assign(
+                        "pan",
+                        &Value::Vec2([target_pan[0] as f64, target_pan[1] as f64]),
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                    );
+                    self.camera.assign(
+                        "zoom",
+                        &Value::Num(target_zoom as f64),
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                    );
+                    self.camera_used.set(true);
+                } else {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::UnknownTargetPath,
+                            DiagnosticPhase::Build,
+                            format!("`camera.{property}`: target actor '{label}' not found"),
+                        )
+                        .with_subject(&assignment_subject),
+                    );
+                }
+                return;
+            }
+
             let Some(evaluated) = evaluate_expr_with_lookup_diagnostic(
                 value,
                 &eval_env,

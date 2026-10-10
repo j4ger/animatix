@@ -43,6 +43,16 @@ pub enum Easing {
         /// Oscillation rate, in radians over the segment.
         frequency: f32,
     },
+    /// Damped harmonic settle with initial velocity: preserves kinetic continuity
+    /// when interrupting an ongoing motion.
+    SpringV0 {
+        /// Exponential decay rate of the overshoot, in units of the segment.
+        damping: f32,
+        /// Oscillation rate, in radians over the segment.
+        frequency: f32,
+        /// Normalized initial scalar velocity projected onto the travel direction.
+        v0: f32,
+    },
     /// Custom cubic-bezier easing with two control points.
     ///
     /// The four values are `(p1x, p1y, p2x, p2y)` where P1 and P2 are the
@@ -165,7 +175,94 @@ pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
                 1.0 - (-damping * t).exp() * (frequency * t).cos()
             }
         },
+        Easing::SpringV0 { damping, frequency, v0 } => {
+            if t <= 0.0 {
+                0.0
+            } else if t >= 1.0 {
+                1.0
+            } else {
+                let decay = (-damping * t).exp();
+                let b = if frequency.abs() > 1e-4 {
+                    (damping - v0) / frequency
+                } else {
+                    0.0
+                };
+                1.0 - decay * ((frequency * t).cos() + b * (frequency * t).sin())
+            }
+        },
         Easing::CubicBezier(cp) => evaluate_cubic_bezier(t, cp),
+    }
+}
+
+/// Closed-form velocity derivative x'(t) for an easing curve.
+pub fn easing_derivative(progress: f32, easing: Easing) -> f32 {
+    let t = progress.clamp(0.0, 1.0);
+    match easing {
+        Easing::Linear => 1.0,
+        Easing::EaseIn => 2.0 * t,
+        Easing::EaseOut => 2.0 * (1.0 - t),
+        Easing::EaseInOut => {
+            if t < 0.5 {
+                4.0 * t
+            } else {
+                4.0 * (1.0 - t)
+            }
+        },
+        Easing::Expo => {
+            if t <= 0.0 {
+                0.0
+            } else {
+                10.0 * 2.0_f32.ln() * 2.0_f32.powf(10.0 * (t - 1.0))
+            }
+        },
+        Easing::ExpoOut => {
+            if t >= 1.0 {
+                0.0
+            } else {
+                10.0 * 2.0_f32.ln() * 2.0_f32.powf(-10.0 * t)
+            }
+        },
+        Easing::ExpoInOut => {
+            let ln2 = 2.0_f32.ln();
+            if t <= 0.0 || t >= 1.0 {
+                0.0
+            } else if t < 0.5 {
+                10.0 * ln2 * 2.0_f32.powf(20.0 * t - 10.0)
+            } else {
+                10.0 * ln2 * 2.0_f32.powf(10.0 - 20.0 * t)
+            }
+        },
+        Easing::Back => {
+            let c1 = 1.70158;
+            let c3 = c1 + 1.0;
+            3.0 * c3 * t * t - 2.0 * c1 * t
+        },
+        Easing::Spring { damping, frequency } => {
+            let decay = (-damping * t).exp();
+            decay * (damping * (frequency * t).cos() + frequency * (frequency * t).sin())
+        },
+        Easing::SpringV0 { damping, frequency, v0 } => {
+            let decay = (-damping * t).exp();
+            let b = if frequency.abs() > 1e-4 {
+                (damping - v0) / frequency
+            } else {
+                0.0
+            };
+            let cos_term = (frequency * t).cos();
+            let sin_term = (frequency * t).sin();
+            decay * (v0 * cos_term + (damping * b + frequency) * sin_term)
+        },
+        // Numerical central difference for curves with piecewise or binary-search definitions
+        Easing::Bounce | Easing::Elastic | Easing::CubicBezier(_) => {
+            let eps = 1e-4;
+            let t0 = (t - eps).max(0.0);
+            let t1 = (t + eps).min(1.0);
+            if (t1 - t0) > 0.0 {
+                (apply_easing(t1, easing) - apply_easing(t0, easing)) / (t1 - t0)
+            } else {
+                1.0
+            }
+        },
     }
 }
 
@@ -260,10 +357,17 @@ pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
             let cp = args.iter().map(|v| *v as f32).collect::<Vec<_>>();
             Some(Easing::CubicBezier([cp[0], cp[1], cp[2], cp[3]]))
         },
-        "spring" if matches!(args.len(), 0..=2) => Some(Easing::Spring {
-            damping: args.first().copied().unwrap_or(f64::from(DEFAULT_SPRING[0])) as f32,
-            frequency: args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32,
-        }),
+        "spring" if matches!(args.len(), 0..=2) => {
+            let damping = args.first().copied().unwrap_or(f64::from(DEFAULT_SPRING[0])) as f32;
+            let frequency = args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32;
+            Some(Easing::Spring { damping, frequency })
+        },
+        "spring-v0" | "spring_v0" if matches!(args.len(), 1..=3) => {
+            let damping = args.first().copied().unwrap_or(f64::from(DEFAULT_SPRING[0])) as f32;
+            let frequency = args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32;
+            let v0 = args.get(2).copied().unwrap_or(0.0) as f32;
+            Some(Easing::SpringV0 { damping, frequency, v0 })
+        },
         _ => None,
     }
 }
@@ -273,6 +377,7 @@ pub fn easing_expects_args(name: &str) -> Option<&'static str> {
     match name {
         "cubic-bezier" | "cubicbezier" => Some("cubic-bezier(x1, y1, x2, y2)"),
         "spring" => Some("spring(damping, frequency)"),
+        "spring-v0" | "spring_v0" => Some("spring-v0(damping, frequency, v0)"),
         _ => None,
     }
 }
@@ -329,6 +434,14 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
                 Expr::Num(f64::from(frequency)),
             ],
         ),
+        Easing::SpringV0 { damping, frequency, v0 } => Expr::Call(
+            "spring-v0".to_string(),
+            vec![
+                Expr::Num(f64::from(damping)),
+                Expr::Num(f64::from(frequency)),
+                Expr::Num(f64::from(v0)),
+            ],
+        ),
         other => Expr::Ident(easing_source_form(other)),
     }
 }
@@ -350,6 +463,7 @@ pub fn easing_source_form(easing: Easing) -> String {
         Easing::Back => "back".to_string(),
         Easing::Expo => "expo".to_string(),
         Easing::Spring { damping, frequency } => format!("spring({damping}, {frequency})"),
+        Easing::SpringV0 { damping, frequency, v0 } => format!("spring-v0({damping}, {frequency}, {v0})"),
         Easing::CubicBezier(cp) => format_cubic_bezier(cp),
     }
 }
@@ -432,6 +546,11 @@ mod tests {
                 damping: 6.0,
                 frequency: 9.0,
             },
+            Easing::SpringV0 {
+                damping: 6.0,
+                frequency: 9.0,
+                v0: 1.5,
+            },
             Easing::CubicBezier([0.16, 1.0, 0.3, 1.0]),
         ];
         for easing in curves {
@@ -463,6 +582,7 @@ mod tests {
         );
         assert!(parse_easing_call("spring", &[6.0, 9.0]).is_some());
         assert!(parse_easing_call("spring", &[6.0, 9.0, 1.0]).is_none());
+        assert!(parse_easing_call("spring-v0", &[6.0, 9.0, 1.0]).is_some());
         assert!(parse_easing_call("ease-out", &[1.0]).is_none());
         assert_eq!(
             parse_easing_call("cubic-bezier", &[0.16, 1.0, 0.3, 1.0]),

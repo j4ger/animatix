@@ -29,6 +29,8 @@ pub struct SceneProgram {
     pub scene: vello::Scene,
     /// Primitive draw items observed during evaluation.
     pub items: Vec<SceneItem>,
+    /// Suppressed primitive items during scene transitions (FLIP overlays).
+    pub suppressed_items: Vec<SceneItem>,
     /// Precise world-space actor bounds discovered during evaluation.
     pub precise_bounds: HashMap<String, kurbo::Rect>,
     /// Runtime diagnostics produced while evaluating this frame.
@@ -38,6 +40,8 @@ pub struct SceneProgram {
 /// A single primitive actor item with its local transform and inherited opacity.
 #[derive(Clone, Debug)]
 pub struct SceneItem {
+    /// Actor label.
+    pub label: String,
     /// Local-to-world transform for the actor.
     pub transform: kurbo::Affine,
     /// Inherited opacity multiplier.
@@ -61,12 +65,14 @@ mod tests {
             background: [0.0, 0.0, 0.0, 1.0],
             scene: vello::Scene::new(),
             items: vec![SceneItem {
+                label: "test".to_string(),
                 transform: kurbo::Affine::IDENTITY,
                 opacity: 1.0,
                 commands: vec![RenderCommand::Paths {
                     paths: vec![VelloPath::default()],
                 }],
             }],
+            suppressed_items: Vec::new(),
             precise_bounds: HashMap::new(),
             diagnostics: Vec::new(),
         };

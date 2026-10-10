@@ -256,14 +256,45 @@ impl BuiltinAction for Move {
                 Some(t) => t,
                 None => continue,
             };
+            let prior_v = track
+                .geometry
+                .motion_offset
+                .as_ref()
+                .map(|mot| mot.velocity_at(t_start_ms))
+                .unwrap_or([0.0, 0.0]);
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let travel = [
                 target_offset[0] - start_offset[0],
                 target_offset[1] - start_offset[1],
             ];
+            let dist_sq = travel[0] * travel[0] + travel[1] * travel[1];
+            let effective_easing = match easing {
+                Easing::Spring { damping, frequency } => {
+                    if dist_sq > 1e-4
+                        && (prior_v[0] != 0.0 || prior_v[1] != 0.0)
+                        && duration_ms > 0.0
+                    {
+                        let dot = prior_v[0] * travel[0] + prior_v[1] * travel[1];
+                        let v0_norm = (dot / dist_sq) * (duration_ms as f32);
+                        Easing::SpringV0 {
+                            damping,
+                            frequency,
+                            v0: v0_norm,
+                        }
+                    } else {
+                        easing
+                    }
+                },
+                other => other,
+            };
+
             let from_offset =
                 anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, travel)
                     .unwrap_or(start_offset);
+
+            if let Some(mot) = track.geometry.motion_offset.as_mut() {
+                mot.split_off_after(t_start_ms);
+            }
 
             if duration_ms > 0.0 {
                 track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
@@ -292,7 +323,7 @@ impl BuiltinAction for Move {
             track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                 t_end_ms,
                 target_offset,
-                easing,
+                effective_easing,
             );
         }
     }
@@ -537,11 +568,42 @@ impl BuiltinAction for Shift {
                 Some(t) => t,
                 None => continue,
             };
+            let prior_v = track
+                .geometry
+                .motion_offset
+                .as_ref()
+                .map(|mot| mot.velocity_at(t_start_ms))
+                .unwrap_or([0.0, 0.0]);
             let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
+            let dist_sq = shift_by[0] * shift_by[0] + shift_by[1] * shift_by[1];
+            let effective_easing = match easing {
+                Easing::Spring { damping, frequency } => {
+                    if dist_sq > 1e-4
+                        && (prior_v[0] != 0.0 || prior_v[1] != 0.0)
+                        && duration_ms > 0.0
+                    {
+                        let dot = prior_v[0] * shift_by[0] + prior_v[1] * shift_by[1];
+                        let v0_norm = (dot / dist_sq) * (duration_ms as f32);
+                        Easing::SpringV0 {
+                            damping,
+                            frequency,
+                            v0: v0_norm,
+                        }
+                    } else {
+                        easing
+                    }
+                },
+                other => other,
+            };
+
             let from_offset =
                 anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, shift_by)
                     .unwrap_or(start_offset);
+
+            if let Some(mot) = track.geometry.motion_offset.as_mut() {
+                mot.split_off_after(t_start_ms);
+            }
 
             if duration_ms > 0.0 {
                 track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
@@ -571,7 +633,7 @@ impl BuiltinAction for Shift {
                 .geometry
                 .motion_offset
                 .ensure([0.0, 0.0])
-                .add_keyframe(t_end_ms, end_offset, easing);
+                .add_keyframe(t_end_ms, end_offset, effective_easing);
         }
     }
 }

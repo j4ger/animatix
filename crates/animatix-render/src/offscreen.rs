@@ -397,6 +397,7 @@ impl OffscreenRenderer {
                 filter_backend,
                 view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
                 texture_a.as_ref(),
+                &[],
             )?;
         }
 
@@ -439,6 +440,7 @@ impl OffscreenRenderer {
                 filter_backend_b,
                 view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
                 texture_b.as_ref(),
+                &[],
             )?;
         }
 
@@ -511,6 +513,50 @@ impl OffscreenRenderer {
         let compositor =
             self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
 
+        // Wave 4.4: Detect matching shared_id across from_timeline and to_timeline for FLIP transitions
+        let from_time_ms = (from_time * 1000.0) as u64;
+        let to_time_ms = (to_time * 1000.0) as u64;
+        let from_shared = from_timeline.shared_id_actors(from_time_ms);
+        let to_shared = to_timeline.shared_id_actors(to_time_ms);
+
+        let mut suppressed_from = Vec::new();
+        let mut suppressed_to = Vec::new();
+        let mut shared_pairs = Vec::new();
+
+        for (shared_id, from_label) in &from_shared {
+            if let Some(to_label) = to_shared.get(shared_id) {
+                suppressed_from.push(from_label.clone());
+                suppressed_to.push(to_label.clone());
+                shared_pairs.push((from_label.clone(), to_label.clone()));
+            }
+        }
+
+        let mut flip_items: Vec<(
+            animatix::timeline::scene_program::SceneItem,
+            animatix::timeline::scene_program::SceneItem,
+        )> = Vec::new();
+        if !shared_pairs.is_empty() {
+            let from_prog = from_timeline.evaluate_program_with_debug(
+                from_time,
+                dimensions,
+                debug_options,
+                &mut None,
+            );
+            let to_prog = to_timeline.evaluate_program_with_debug(
+                to_time,
+                dimensions,
+                debug_options,
+                &mut None,
+            );
+            for (from_lbl, to_lbl) in &shared_pairs {
+                let from_item = from_prog.items.iter().find(|it| it.label == *from_lbl).cloned();
+                let to_item = to_prog.items.iter().find(|it| it.label == *to_lbl).cloned();
+                if let (Some(f), Some(t)) = (from_item, to_item) {
+                    flip_items.push((f, t));
+                }
+            }
+        }
+
         // Render the outgoing scene to texture_a, then drop scene_a before
         // creating scene_b to avoid holding both large vello::Scene objects
         // simultaneously. Each scene keeps its own filter backend, so a
@@ -538,6 +584,7 @@ impl OffscreenRenderer {
                 filter_backend,
                 view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?,
                 texture_a.as_ref(),
+                &suppressed_from,
             )?;
         }
 
@@ -563,6 +610,7 @@ impl OffscreenRenderer {
                 filter_backend_b,
                 view_b.as_ref().ok_or_else(|| "Missing offscreen view_b".to_string())?,
                 texture_b.as_ref(),
+                &suppressed_to,
             )?;
         }
 
@@ -587,6 +635,61 @@ impl OffscreenRenderer {
                 easing,
             )
             .map_err(|e| e.to_string())?;
+
+        // Render floating FLIP overlays
+        if !flip_items.is_empty() {
+            let mut overlay_scene = vello::Scene::new();
+            let p_eased = animatix::easing::apply_easing(progress, easing);
+            let p_f64 = p_eased as f64;
+            for (from_item, to_item) in &flip_items {
+                let c_from = from_item.transform.as_coeffs();
+                let c_to = to_item.transform.as_coeffs();
+                let mut c_interp = [0.0; 6];
+                for i in 0..6 {
+                    c_interp[i] = (1.0 - p_f64) * c_from[i] + p_f64 * c_to[i];
+                }
+                let interp_affine = kurbo::Affine::new(c_interp);
+
+                let alpha_from = (1.0 - p_eased) * from_item.opacity;
+                let alpha_to = p_eased * to_item.opacity;
+                if alpha_from > 0.001 {
+                    for cmd in &from_item.commands {
+                        cmd.execute(&mut overlay_scene, &interp_affine, alpha_from);
+                    }
+                }
+                if alpha_to > 0.001 {
+                    for cmd in &to_item.commands {
+                        cmd.execute(&mut overlay_scene, &interp_affine, alpha_to);
+                    }
+                }
+            }
+
+            let view_a = self
+                .view_a
+                .as_ref()
+                .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+            self.core
+                .render_vello_scene_with_background(
+                    &self.device,
+                    &self.queue,
+                    view_a,
+                    dimensions.width,
+                    dimensions.height,
+                    &overlay_scene,
+                    vello::peniko::Color::TRANSPARENT,
+                )
+                .map_err(|e| e.to_string())?;
+
+            self.core.blit_texture(
+                &self.device,
+                &self.queue,
+                view_a,
+                output_view,
+                dimensions.width,
+                dimensions.height,
+                1.0,
+            );
+        }
 
         Ok(())
     }
@@ -938,15 +1041,28 @@ fn render_timeline_into_view(
     backend: &mut Option<GpuFilterBackend>,
     view: &wgpu::TextureView,
     backdrop_target: Option<&wgpu::Texture>,
+    suppressed_actors: &[String],
 ) -> Result<(), String> {
     if backend.is_none() {
         *backend = Some(GpuFilterBackend::new(device.clone(), queue.clone(), dimensions)?);
     }
     let mut fb: Option<&mut dyn animatix::timeline::effects::FilterBackend> =
         backend.as_mut().map(|b| b as _);
-    let scene = timeline
-        .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
-        .scene;
+    let scene = if suppressed_actors.is_empty() {
+        timeline
+            .evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb)
+            .scene
+    } else {
+        timeline
+            .evaluate_program_with_suppressed(
+                time_s,
+                dimensions,
+                debug_options,
+                &mut fb,
+                suppressed_actors,
+            )
+            .scene
+    };
 
     core.render_vello_scene(device, queue, view, dimensions.width, dimensions.height, &scene)
         .map_err(|e| e.to_string())?;

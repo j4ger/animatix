@@ -610,6 +610,8 @@ pub struct Timeline {
     /// Persistence flags set by `persist`/`remove` actions.
     /// `true` = actor should be carried into the next scene; `false` = not carried.
     pub(crate) persistence_flags: BTreeMap<String, bool>,
+    /// Interactive pause points in milliseconds marked by `#step` or `pause`.
+    pub pause_points: Vec<u64>,
     /// Runtime text compiler with cache. Enables `always` blocks to change
     /// text content / font_family / font_size and have glyphs recompiled on-demand.
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
@@ -915,6 +917,7 @@ impl Timeline {
             default_opacity: 1.0,
             child_orders: BTreeMap::new(),
             persistence_flags: BTreeMap::new(),
+            pause_points: Vec::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             eval_caches: EvalCaches::default(),
             blend_used: std::cell::Cell::new(false),
@@ -1021,6 +1024,36 @@ impl Timeline {
     /// Duration declared by `config { duration: N }`, if any.
     pub fn declared_duration_seconds(&self) -> Option<f64> {
         self.declared_duration_s
+    }
+
+    /// Interactive pause points in milliseconds marked by `#step` or `pause`.
+    pub fn pause_points(&self) -> &[u64] {
+        &self.pause_points
+    }
+
+    /// Returns the next pause point strictly after `current_time_ms`, if any.
+    pub fn step_next(&self, current_time_ms: u64) -> Option<u64> {
+        self.pause_points.iter().copied().find(|&t| t > current_time_ms)
+    }
+
+    /// Returns the previous pause point strictly before `current_time_ms`, if any.
+    pub fn step_prev(&self, current_time_ms: u64) -> Option<u64> {
+        self.pause_points.iter().copied().rfind(|&t| t < current_time_ms)
+    }
+
+    /// Collects actor labels with non-empty `shared_id` at `time_ms`, keyed by `shared_id`.
+    pub fn shared_id_actors(&self, time_ms: u64) -> std::collections::HashMap<String, String> {
+        let mut map = std::collections::HashMap::new();
+        for (label, track) in &self.tracks {
+            if let Some(crate::timeline::property_engine::PropertyValue::String(id)) =
+                crate::timeline::read_property_value(track, crate::timeline::ActorField::Tagged("shared_id"), time_ms)
+            {
+                if !id.is_empty() {
+                    map.insert(id, label.clone());
+                }
+            }
+        }
+        map
     }
 
     /// How long this timeline *plays*: the declared duration when the file set
