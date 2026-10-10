@@ -960,6 +960,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("icon", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),
+    binding!("idle", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("idle"), |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
     binding!("kind", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::String("cartesian".to_string())
     }),
@@ -1044,6 +1047,13 @@ static BINDINGS: &[PropertyBinding] = &[
         super::property_engine::PropertyValue::F32(1.0)
     }),
     binding!(
+        "perspective",
+        ValueType::F32,
+        F::ASSIGNABLE_AI.union(F::SPATIAL),
+        ActorField::Tagged("perspective"),
+        |_| super::property_engine::PropertyValue::F32(800.0)
+    ),
+    binding!(
         "place",
         ValueType::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),
         F::ASSIGNABLE,
@@ -1090,6 +1100,20 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("resolution", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(48.0)
     }),
+    binding!(
+        "rotate_x",
+        ValueType::F32,
+        F::ASSIGNABLE_AI.union(F::SPATIAL),
+        ActorField::Tagged("rotate_x"),
+        |_| super::property_engine::PropertyValue::F32(0.0)
+    ),
+    binding!(
+        "rotate_y",
+        ValueType::F32,
+        F::ASSIGNABLE_AI.union(F::SPATIAL),
+        ActorField::Tagged("rotate_y"),
+        |_| super::property_engine::PropertyValue::F32(0.0)
+    ),
     binding!("rotation", ValueType::F32, F::SPATIAL_AI, ActorField::Rotation, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
@@ -1099,6 +1123,27 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("scale", ValueType::F32, F::SPATIAL_AI, ActorField::Scale, |_| {
         super::property_engine::PropertyValue::F32(1.0)
     }),
+    binding!(
+        "shadow",
+        ValueType::Vec4,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("shadow"),
+        |_| super::property_engine::PropertyValue::Vec4([0.0, 4.0, 12.0, 0.0])
+    ),
+    binding!(
+        "shadow_color",
+        ValueType::Color,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("shadow_color"),
+        |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.25])
+    ),
+    binding!(
+        "shared_id",
+        ValueType::String,
+        F::ASSIGNABLE,
+        ActorField::Tagged("shared_id"),
+        |_| super::property_engine::PropertyValue::String(String::new())
+    ),
     binding!("shift", ValueType::Vec2, F::SPATIAL_AI, ActorField::MotionOffset, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),

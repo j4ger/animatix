@@ -563,22 +563,15 @@ pub(crate) fn evaluate_shape_render(
     // progress == 1 — and build_shape_commands' only-store-when-empty guard
     // keeps the mid-draw clones out of it.
     let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
-    if progress < 1.0 {
+    let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
+    let has_gradient = shape_has_gradient(ctx);
+    let mut commands = if progress < 1.0 {
         let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
         let mut trimmed = trim_shape_stroke_progress(&built, progress);
         stamp_shape_dash(&mut trimmed, ctx);
         stamp_shape_gradient(&mut trimmed, ctx);
-        return Ok(Some(trimmed));
-    }
-
-    // A dash pattern or a gradient paint rides *outside* the shape-command memo
-    // (its key is `(epoch, style, state)`), because an animated `dash_offset` —
-    // the marching-ants case — or an animated ramp would otherwise be served
-    // from a cached encoding. Bearing frames build fresh and stamp clones;
-    // every other frame takes the memo fast path untouched.
-    let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
-    let has_gradient = shape_has_gradient(ctx);
-    if has_dash || has_gradient {
+        trimmed
+    } else if has_dash || has_gradient {
         let mut built =
             ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
         if has_dash {
@@ -587,16 +580,52 @@ pub(crate) fn evaluate_shape_render(
         if has_gradient {
             stamp_shape_gradient(&mut built, ctx);
         }
-        return Ok(Some(built));
-    }
-
-    if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
+        built
+    } else if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
         ctx.track.offer_shape_command_bounds(bounds);
-        return Ok(Some(commands));
+        commands
+    } else {
+        ctx.track
+            .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?
+    };
+
+    attach_shape_shadow(&mut commands, ctx, state);
+    Ok(Some(commands))
+}
+
+fn attach_shape_shadow(
+    commands: &mut Vec<RenderCommand>,
+    ctx: &EvaluateCtx,
+    state: &VectorShapeState,
+) {
+    use crate::timeline::property_engine::PropertyValue;
+    use crate::timeline::ActorField;
+    let shadow_val = crate::timeline::read_property_value(ctx.track, ActorField::Tagged("shadow"), ctx.time_ms);
+    if let Some(PropertyValue::Vec4(params)) = shadow_val {
+        if params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0 {
+            let color = match crate::timeline::read_property_value(
+                ctx.track,
+                ActorField::Tagged("shadow_color"),
+                ctx.time_ms,
+            ) {
+                Some(PropertyValue::Vec4(c)) | Some(PropertyValue::Color(c)) => c,
+                _ => [0.0, 0.0, 0.0, 0.25],
+            };
+            let (size, corner_radius) = match state {
+                VectorShapeState::Rect(r) => (r.size, r.corner_radius),
+                _ => ([50.0, 50.0], 0.0),
+            };
+            commands.insert(
+                0,
+                RenderCommand::Shadow {
+                    size,
+                    corner_radius,
+                    params,
+                    color,
+                },
+            );
+        }
     }
-    ctx.track
-        .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)
-        .map(Some)
 }
 
 /// Stamp the shared stroke decorations (dash, gradient) onto a plot's commands.
@@ -1153,6 +1182,17 @@ pub enum RenderCommand {
         /// Corner radius.
         corner_radius: f64,
     },
+    /// Analytical erf Gaussian drop shadow for cards and shapes.
+    Shadow {
+        /// Half size [w/2, h/2] of the base shape.
+        size: [f32; 2],
+        /// Corner radius.
+        corner_radius: f32,
+        /// [offset_x, offset_y, blur, spread].
+        params: [f32; 4],
+        /// Shadow color RGBA.
+        color: [f32; 4],
+    },
 }
 
 /// Translate text glyph paths by a local-space offset.
@@ -1367,6 +1407,67 @@ impl RenderCommand {
                 );
                 scene.pop_layer();
             },
+            RenderCommand::Shadow {
+                size,
+                corner_radius,
+                params,
+                color,
+            } => {
+                let [dx, dy, blur, spread] = *params;
+                let [r, g, b, a] = *color;
+                let final_alpha = a * opacity;
+                if final_alpha <= 0.001 {
+                    return;
+                }
+                let half_w = size[0] + spread;
+                let half_h = size[1] + spread;
+                if blur <= 0.5 {
+                    let shadow_rect = kurbo::Rect::new(
+                        (dx - half_w) as f64,
+                        (dy - half_h) as f64,
+                        (dx + half_w) as f64,
+                        (dy + half_h) as f64,
+                    );
+                    let peniko_color = vello::peniko::Color::from_rgba8(
+                        (r * 255.0) as u8,
+                        (g * 255.0) as u8,
+                        (b * 255.0) as u8,
+                        (final_alpha * 255.0) as u8,
+                    );
+                    if *corner_radius > 0.0 {
+                        let rounded = kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
+                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+                    } else {
+                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &shadow_rect);
+                    }
+                } else {
+                    let sigma = blur * 0.5;
+                    let steps = 6;
+                    for i in 0..steps {
+                        let t0 = i as f32 / steps as f32;
+                        let t1 = (i + 1) as f32 / steps as f32;
+                        let erf0 = (1.2 * (t0 * 3.0)).tanh();
+                        let erf1 = (1.2 * (t1 * 3.0)).tanh();
+                        let slice_alpha = (erf1 - erf0) * final_alpha;
+                        let pad = t1 * 3.0 * sigma;
+                        let shadow_rect = kurbo::Rect::new(
+                            (dx - half_w - pad) as f64,
+                            (dy - half_h - pad) as f64,
+                            (dx + half_w + pad) as f64,
+                            (dy + half_h + pad) as f64,
+                        );
+                        let peniko_color = vello::peniko::Color::from_rgba8(
+                            (r * 255.0) as u8,
+                            (g * 255.0) as u8,
+                            (b * 255.0) as u8,
+                            (slice_alpha * 255.0).clamp(0.0, 255.0) as u8,
+                        );
+                        let cr = (*corner_radius + pad) as f64;
+                        let rounded = kurbo::RoundedRect::from_rect(shadow_rect, cr);
+                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+                    }
+                }
+            },
         }
     }
 
@@ -1411,6 +1512,21 @@ impl RenderCommand {
             },
             RenderCommand::HighlightLayer { rect, .. } => {
                 bounds = union(bounds, *rect);
+            },
+            RenderCommand::Shadow { size, params, .. } => {
+                let (half_w, half_h) = (size[0] as f64 + params[3] as f64, size[1] as f64 + params[3] as f64);
+                let blur_pad = params[2] as f64 * 3.0;
+                let ox = params[0] as f64;
+                let oy = params[1] as f64;
+                bounds = union(
+                    bounds,
+                    kurbo::Rect::new(
+                        ox - half_w - blur_pad,
+                        oy - half_h - blur_pad,
+                        ox + half_w + blur_pad,
+                        oy + half_h + blur_pad,
+                    ),
+                );
             },
         }
         bounds

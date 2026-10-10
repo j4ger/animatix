@@ -93,7 +93,7 @@ impl Timeline {
     /// spatial properties (`at`/`position`, `shift`, `rotation`, `scale`,
     /// `opacity`, `size`, `transform`) are applied via the property registry
     /// helpers in place of the track's keyframed values.
-    fn evaluate_node_transform(
+    pub(crate) fn evaluate_node_transform(
         &self,
         track: &AnimationTrack,
         time_ms: u64,
@@ -183,12 +183,42 @@ impl Timeline {
             transform[5] as f64,
         ]);
 
+        let rotate_x = match crate::timeline::read_property_value(
+            track,
+            crate::timeline::ActorField::Tagged("rotate_x"),
+            time_ms,
+        ) {
+            Some(crate::timeline::property_engine::PropertyValue::F32(v)) => v as f64,
+            _ => 0.0,
+        };
+        let rotate_y = match crate::timeline::read_property_value(
+            track,
+            crate::timeline::ActorField::Tagged("rotate_y"),
+            time_ms,
+        ) {
+            Some(crate::timeline::property_engine::PropertyValue::F32(v)) => v as f64,
+            _ => 0.0,
+        };
+        let tilt_affine = if rotate_x != 0.0 || rotate_y != 0.0 {
+            kurbo::Affine::new([
+                rotate_y.cos(),
+                rotate_x.sin() * rotate_y.sin(),
+                0.0,
+                rotate_x.cos(),
+                0.0,
+                0.0,
+            ])
+        } else {
+            kurbo::Affine::IDENTITY
+        };
+
         let local_transform = parent_transform
             * kurbo::Affine::translate((
                 position[0] as f64 + motion_offset[0] as f64,
                 position[1] as f64 + motion_offset[1] as f64,
             ))
             * transform_affine
+            * tilt_affine
             * kurbo::Affine::rotate(rotation)
             * kurbo::Affine::scale(scale);
 

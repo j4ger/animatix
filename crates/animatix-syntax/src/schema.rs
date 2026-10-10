@@ -373,6 +373,7 @@ pub fn common_property_names() -> &'static [&'static str] {
         "camera_follow",
         "color",
         "height",
+        "idle",
         "legend",
         "max_height",
         "min_height",
@@ -380,9 +381,13 @@ pub fn common_property_names() -> &'static [&'static str] {
         "offset",
         "opacity",
         "parallax",
+        "perspective",
         "position",
+        "rotate_x",
+        "rotate_y",
         "rotation",
         "scale",
+        "shared_id",
         "shift",
         "size",
         "solo",
@@ -543,6 +548,13 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("suffix", Type::Str),
         ("decimals", Type::Num),
         ("comma", Type::Bool),
+        ("idle", Type::Str),
+        ("shadow", Type::Vec4),
+        ("shadow_color", Type::Color),
+        ("rotate_x", Type::Num),
+        ("rotate_y", Type::Num),
+        ("perspective", Type::Num),
+        ("shared_id", Type::Str),
     ]
 }
 
@@ -592,7 +604,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            118,
+            125,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

@@ -12,7 +12,9 @@ pub mod core;
 pub mod encode;
 pub mod filter_backend;
 pub mod fullscreen_blit;
+pub mod instanced_shadow;
 pub mod offscreen;
+pub mod perspective_blit;
 #[cfg(feature = "video")]
 pub mod render_pipeline;
 pub mod testing;

@@ -394,6 +394,20 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("decimals", Applicable::Actors(&["Counter"]), PropertyValueKind::U32),
     // Whether to insert thousands grouping commas in the rolling counter.
     PropertyDescriptor::new("comma", Applicable::Actors(&["Counter"]), PropertyValueKind::Bool),
+    // Declarative idle ambient motion ("float" or "breath").
+    PropertyDescriptor::new("idle", Applicable::Everything, PropertyValueKind::String),
+    // Instanced Gaussian shadow [offset_x, offset_y, blur, spread].
+    PropertyDescriptor::new("shadow", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
+    // Shadow color in RGBA.
+    PropertyDescriptor::new("shadow_color", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
+    // 2.5D X-axis rotation angle in radians.
+    PropertyDescriptor::new("rotate_x", Applicable::Everything, PropertyValueKind::F32),
+    // 2.5D Y-axis rotation angle in radians.
+    PropertyDescriptor::new("rotate_y", Applicable::Everything, PropertyValueKind::F32),
+    // 2.5D perspective projection camera distance in points.
+    PropertyDescriptor::new("perspective", Applicable::Everything, PropertyValueKind::F32),
+    // Cross-scene shared element transition identifier.
+    PropertyDescriptor::new("shared_id", Applicable::Everything, PropertyValueKind::String),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.
