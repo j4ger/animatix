@@ -213,7 +213,7 @@ let lastT = 0;
 // stretch of comfortable frames. Stepping one notch at a time and reading the
 // clock is deliberate: the alternative — sizing by how many embeds happen to be
 // playing — guesses at work it cannot measure.
-const QUALITY_STEPS = [1, 0.85, 0.72, 0.6, 0.5];
+const QUALITY_STEPS = [1, 0.88, 0.75];
 const SLOW_TICK_MS = 24; // a 60 Hz tick that misses its vsync lands at ~33 ms
 const FAST_TICK_MS = 18.5;
 let qualityStep = 0;
@@ -238,20 +238,24 @@ function tick(t) {
     if (inst.advance(dt)) anyPlaying = true;
   }
   if (anyPlaying) {
-    if (dtMs > SLOW_TICK_MS) {
+    if (dtMs > 100) {
+      // Background tab resumption or long GC stall — ignore for quality adjustment.
+    } else if (dtMs > SLOW_TICK_MS) {
       slowTicks += 1;
       fastTicks = 0;
-      if (slowTicks >= 8) {
+      if (slowTicks >= 12) {
         setQualityStep(qualityStep + 1);
         slowTicks = 0;
       }
     } else if (dtMs < FAST_TICK_MS) {
       fastTicks += 1;
-      slowTicks = 0;
-      if (fastTicks >= 90) {
+      if (slowTicks > 0) slowTicks -= 1;
+      if (fastTicks >= 30) {
         setQualityStep(qualityStep - 1);
         fastTicks = 0;
       }
+    } else if (slowTicks > 0) {
+      slowTicks -= 1;
     }
     requestAnimationFrame(tick);
   } else {
@@ -386,6 +390,7 @@ class AmxPlayerElement extends HTMLElement {
     this._observer = null;
     this._renderScaleObserver = null;
     this._renderScaleRetry = null;
+    this._resizeDebounceTimer = null;
     this._initialized = false;
     this._scrubbing = false;
     this._peeking = false;
@@ -424,6 +429,7 @@ class AmxPlayerElement extends HTMLElement {
     this._observer?.disconnect();
     this._renderScaleObserver?.disconnect();
     clearTimeout(this._renderScaleRetry);
+    clearTimeout(this._resizeDebounceTimer);
     instances.delete(this);
     dequeueLoad(this);
     // `_playing` is deliberately left as-is: connectedCallback re-adds a
@@ -985,7 +991,7 @@ class AmxPlayerElement extends HTMLElement {
       this._stage.appendChild(this._canvas);
       // Only now does the canvas have a laid-out size to match the raster to.
       this._applyRenderScale();
-      this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale());
+      this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale(false));
       this._renderScaleObserver.observe(this._stage);
       // A cold first load can still report a zero-sized box at this point, and
       // an environment that never delivers ResizeObserver would then keep the
@@ -1421,11 +1427,15 @@ class AmxPlayerElement extends HTMLElement {
   /// as the target, capped at the scene's own resolution, gives one 1:1 blit
   /// with no second resample and the fewest possible raster pixels — which is
   /// where a browser frame's cost lives.
-  ///
   /// The `qualityStep` multiplier on top is the page-wide concession when even
   /// that will not hold a frame; it lowers the raster below the backing store,
   /// so the blit upscales.
-  _applyRenderScale() {
+  ///
+  /// Resizing is debounced (100 ms) during dynamic drag to eliminate WebGPU
+  /// swapchain reconfigurations and texture reallocation churn while CSS stretches
+  /// the canvas at compositor speed; settling immediately commits the new backing
+  /// store and re-renders if paused.
+  _applyRenderScale(immediate = true) {
     const player = this._player;
     if (!player?.set_render_scale || !player.scene_width) return;
     if (!this.isConnected) return;
@@ -1434,20 +1444,52 @@ class AmxPlayerElement extends HTMLElement {
     const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
     const cssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
     const dpr = window.devicePixelRatio || 1;
+    const maxScale = Math.min(Math.max(1, dpr), 2.0);
     // Before layout (display:none, pre-append) the element reports 0; render
-    // at full detail rather than clamping to a blurry minimum.
+    // at full detail rather than clamping to a blurry minimum. Supports up to
+    // 2x Retina rendering for crisp vector display.
     const display =
       cssW > 0 && cssH > 0 && sceneW > 0 && sceneH > 0
-        ? Math.min(1, (cssW * dpr) / sceneW, (cssH * dpr) / sceneH)
+        ? Math.min(maxScale, (cssW * dpr) / sceneW, (cssH * dpr) / sceneH)
         : 1;
     const backingW = Math.max(1, Math.round(sceneW * display));
     const backingH = Math.max(1, Math.round(sceneH * display));
-    if (this._canvas.width !== backingW || this._canvas.height !== backingH) {
-      this._canvas.width = backingW;
-      this._canvas.height = backingH;
+    const sizeChanged = this._canvas.width !== backingW || this._canvas.height !== backingH;
+
+    const commit = () => {
+      this._resizeDebounceTimer = null;
+      if (!this.isConnected || !this._player) return;
+      const curCssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
+      const curCssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
+      const curDpr = window.devicePixelRatio || 1;
+      const curMaxScale = Math.min(Math.max(1, curDpr), 2.0);
+      const curDisplay =
+        curCssW > 0 && curCssH > 0 && sceneW > 0 && sceneH > 0
+          ? Math.min(curMaxScale, (curCssW * curDpr) / sceneW, (curCssH * curDpr) / sceneH)
+          : 1;
+      const curBackingW = Math.max(1, Math.round(sceneW * curDisplay));
+      const curBackingH = Math.max(1, Math.round(sceneH * curDisplay));
+      if (this._canvas.width !== curBackingW || this._canvas.height !== curBackingH) {
+        this._canvas.width = curBackingW;
+        this._canvas.height = curBackingH;
+      }
+      const curWanted = Math.min(2.0, Math.max(0.25, curDisplay * QUALITY_STEPS[qualityStep]));
+      this._renderScale = player.set_render_scale(curWanted);
+      if (!this._playing && this._state === "ready") {
+        this._renderScene();
+      }
+    };
+
+    if (this._resizeDebounceTimer) {
+      clearTimeout(this._resizeDebounceTimer);
+      this._resizeDebounceTimer = null;
     }
-    const wanted = Math.min(1, Math.max(0.25, display * QUALITY_STEPS[qualityStep]));
-    this._renderScale = player.set_render_scale(wanted);
+
+    if (immediate || !sizeChanged) {
+      commit();
+    } else {
+      this._resizeDebounceTimer = setTimeout(commit, 100);
+    }
   }
 
   _renderScene() {

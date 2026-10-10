@@ -296,7 +296,7 @@ pub struct AmxPlayer {
     dims: SceneDimensions,
     duration_s: f64,
     target: Option<BuildTarget>,
-    /// Raster scale for the offscreen targets, `0.25..=1.0` (see
+    /// Raster scale for the offscreen targets, `0.25..=2.0` (see
     /// [`AmxPlayer::set_render_scale`]). The canvas blit scales whatever the
     /// offscreen holds up to the surface, so a scale below 1 trades detail for
     /// fill rate without touching layout.
@@ -326,11 +326,14 @@ pub struct AmxPlayer {
 /// text is legible.
 pub const MIN_RENDER_SCALE: f32 = 0.25;
 
-/// Raster target size for `scale`, rounded to whole pixels and clamped to the
-/// scene's own resolution — upscaling beyond it spends pixels without adding
-/// detail.
+/// Largest raster scale [`AmxPlayer::set_render_scale`] accepts (supports up to
+/// 2x Retina rendering for crisp vector display).
+pub const MAX_RENDER_SCALE: f32 = 2.0;
+
+/// Raster target size for `scale`, rounded to whole pixels and clamped to
+/// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
 fn raster_dims(dims: SceneDimensions, scale: f32) -> (u32, u32) {
-    let s = scale.clamp(MIN_RENDER_SCALE, 1.0);
+    let s = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
     let w = ((dims.width as f32 * s).round() as u32).max(1);
     let h = ((dims.height as f32 * s).round() as u32).max(1);
     (w, h)
@@ -349,7 +352,7 @@ fn scaled_scene<'s>(
     scene: &'s vello::Scene,
     scale: f32,
 ) -> &'s vello::Scene {
-    let s = scale.clamp(MIN_RENDER_SCALE, 1.0);
+    let s = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
     if (s - 1.0).abs() < 1e-3 {
         return scene;
     }
@@ -615,7 +618,7 @@ impl AmxPlayer {
     }
 
     /// Raster scale for the offscreen render targets, clamped to
-    /// `MIN_RENDER_SCALE..=1.0`; returns the value in effect.
+    /// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`; returns the value in effect.
     ///
     /// A frame's GPU cost tracks the *raster* pixel count, not the scene's
     /// content — an empty 1280×720 scene and a full one measure the same — so
@@ -626,7 +629,7 @@ impl AmxPlayer {
     /// displayed pixels; `debug_bench` reports what a scale costs.
     pub fn set_render_scale(&mut self, scale: f64) -> f64 {
         let scale = if scale.is_finite() { scale as f32 } else { 1.0 };
-        self.render_scale = scale.clamp(MIN_RENDER_SCALE, 1.0);
+        self.render_scale = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
         self.render_scale as f64
     }
 
@@ -1517,7 +1520,7 @@ fn render_timeline(
     // against `dims`, so the drain is what applies the scale — including to the
     // backdrop region, which is why it receives `scale` rather than being
     // pre-scaled here.
-    let s = scale.clamp(MIN_RENDER_SCALE, 1.0);
+    let s = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
     if let Some(fb) = filter_backend.as_mut() {
         drain_pending_layers(core, device, queue, fb, pending, Some(target), view, s);
     }
