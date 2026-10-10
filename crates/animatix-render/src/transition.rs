@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 
 /// GPU-based compositor for scene transition effects.
 ///
@@ -10,6 +11,7 @@ pub struct TransitionCompositor {
     bind_group_layout: wgpu::BindGroupLayout,
     uniform_buffer: wgpu::Buffer,
     sampler: wgpu::Sampler,
+    bind_group_cache: RefCell<Option<((wgpu::TextureView, wgpu::TextureView), wgpu::BindGroup)>>,
 }
 
 #[repr(C)]
@@ -209,6 +211,7 @@ impl TransitionCompositor {
             bind_group_layout,
             uniform_buffer,
             sampler,
+            bind_group_cache: RefCell::new(None),
         })
     }
 
@@ -233,29 +236,43 @@ impl TransitionCompositor {
         let uniforms = TransitionUniforms::new(eased_progress, transition_id);
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
-        // Create bind group for this frame
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Animatix Transition Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(from_view),
+        // Reuse or create bind group for this frame
+        let bind_group = {
+            let mut cache = self.bind_group_cache.borrow_mut();
+            match cache.as_ref() {
+                Some(((cached_from, cached_to), bg))
+                    if cached_from == from_view && cached_to == to_view =>
+                {
+                    bg.clone()
                 },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(to_view),
+                _ => {
+                    let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("Animatix Transition Bind Group"),
+                        layout: &self.bind_group_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(from_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(to_view),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::Sampler(&self.sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: self.uniform_buffer.as_entire_binding(),
+                            },
+                        ],
+                    });
+                    *cache = Some(((from_view.clone(), to_view.clone()), bg.clone()));
+                    bg
                 },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: self.uniform_buffer.as_entire_binding(),
-                },
-            ],
-        });
+            }
+        };
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Transition Encoder"),

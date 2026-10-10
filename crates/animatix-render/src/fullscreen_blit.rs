@@ -8,6 +8,8 @@
 //! the main scene without readback.
 
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 const FULLSCREEN_BLIT_VS: &str = r#"
 struct VertexOutput {
@@ -93,6 +95,8 @@ pub struct FullscreenBlitPipeline {
     pub sampler: wgpu::Sampler,
     /// Pre-allocated uniform buffer for the alpha value.
     alpha_buffer: wgpu::Buffer,
+    /// Cached bind groups keyed by source texture view to avoid per-frame allocations.
+    bind_group_cache: RefCell<HashMap<wgpu::TextureView, wgpu::BindGroup>>,
 }
 
 impl FullscreenBlitPipeline {
@@ -205,6 +209,7 @@ impl FullscreenBlitPipeline {
             bind_group_layout,
             sampler,
             alpha_buffer,
+            bind_group_cache: RefCell::new(HashMap::new()),
         }
     }
 
@@ -301,24 +306,36 @@ impl FullscreenBlitPipeline {
     ) {
         self.write_params(queue, alpha, mask, dst_size);
 
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Animatix Fullscreen Blit Bind Group"),
-            layout: &self.bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Sampler(&self.sampler),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(src_view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: self.alpha_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        let bind_group = {
+            let mut cache = self.bind_group_cache.borrow_mut();
+            if let Some(bg) = cache.get(src_view) {
+                bg.clone()
+            } else {
+                if cache.len() >= 16 {
+                    cache.clear();
+                }
+                let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Animatix Fullscreen Blit Bind Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(src_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: self.alpha_buffer.as_entire_binding(),
+                        },
+                    ],
+                });
+                cache.insert(src_view.clone(), bg.clone());
+                bg
+            }
+        };
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
