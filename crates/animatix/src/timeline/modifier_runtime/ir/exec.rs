@@ -9,9 +9,36 @@
 
 use super::evaluate_compiled_expr;
 use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
-use crate::ast::{LoopPattern, array_actor_label};
+use crate::ast::LoopPattern;
 use crate::timeline::frame_env::apply_override_incremental;
 use crate::timeline::{Environment, EvalError, Value};
+
+thread_local! {
+    static OVERRIDE_LABEL: std::cell::RefCell<String> =
+        std::cell::RefCell::new(String::with_capacity(64));
+}
+
+/// Record a property override into `overrides`, avoiding string allocations when
+/// keys already exist in the buffer.
+#[inline]
+pub(crate) fn record_override(
+    overrides: &mut ModifierOverrides,
+    target: &str,
+    property: &str,
+    value: &Value,
+) {
+    if let Some(inner) = overrides.get_mut(target) {
+        if let Some(entry) = inner.get_mut(property) {
+            *entry = value.clone();
+        } else {
+            inner.insert(property.to_string(), value.clone());
+        }
+    } else {
+        let mut inner = std::collections::HashMap::with_capacity(4);
+        inner.insert(property.to_string(), value.clone());
+        overrides.insert(target.to_string(), inner);
+    }
+}
 
 /// Execute a lowered modifier IR program against a frame environment.
 pub fn execute_modifier_ir(
@@ -32,12 +59,12 @@ fn execute_stmt(
 ) -> Result<(), EvalError> {
     match stmt {
         ModifierIrStmt::Assign {
-            target,
+            target_key,
             property,
             value,
+            ..
         } => {
             let value = evaluate_compiled_expr(value, frame_env)?;
-            let target_key = target.join(".");
             // Frame-local object field writes take priority over actor/property
             // overrides. `set_object_path`/`set_object_field` return false when
             // the target is not an object, in which case we fall through to the
@@ -48,14 +75,11 @@ fn execute_stmt(
                 if frame_env.set_object_path(&path, root, property, value.clone()) {
                     return Ok(());
                 }
-            } else if frame_env.set_object_field(&target_key, property, value.clone()) {
+            } else if frame_env.set_object_field(target_key, property, value.clone()) {
                 return Ok(());
             }
-            overrides
-                .entry(target_key.clone())
-                .or_default()
-                .insert(property.clone(), value.clone());
-            apply_override_incremental(frame_env, &target_key, property, value);
+            record_override(overrides, target_key, property, &value);
+            apply_override_incremental(frame_env, target_key, property, value);
         },
         ModifierIrStmt::AssignIndexed {
             base,
@@ -84,12 +108,13 @@ fn execute_stmt(
                     return Ok(());
                 },
             };
-            let label = array_actor_label(base, n);
-            overrides
-                .entry(label.clone())
-                .or_default()
-                .insert(property.clone(), value.clone());
-            apply_override_incremental(frame_env, &label, property, value);
+            OVERRIDE_LABEL.with_borrow_mut(|label_buf| {
+                label_buf.clear();
+                use std::fmt::Write;
+                let _ = write!(label_buf, "{base}__{n}");
+                record_override(overrides, label_buf.as_str(), property, &value);
+                apply_override_incremental(frame_env, label_buf.as_str(), property, value);
+            });
         },
         ModifierIrStmt::Let { name, value } => {
             let value = evaluate_compiled_expr(value, frame_env)?;

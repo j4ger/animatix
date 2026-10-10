@@ -713,6 +713,7 @@ pub(crate) struct EvalCaches {
     static_subtree_flags: std::cell::RefCell<std::collections::HashMap<String, bool>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
     /// [`AnimationTrack::bounds_slot`] instead of actor label (PF-6 slot-id
     /// design: the per-node write is a `Vec` store, the frame-cache stash and
@@ -1622,6 +1623,7 @@ impl Timeline {
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
+        self.eval_caches.overrides_buffer.borrow_mut().clear();
         {
             // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).
             self.eval_caches.precise_bounds.borrow_mut().clear_frame();

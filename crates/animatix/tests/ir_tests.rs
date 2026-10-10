@@ -858,6 +858,7 @@ fn ir_for_loop_binds_index_var() {
 fn ir_truthiness_handles_bool_literals() {
     let assign = |property: &str, value: CompiledExpr| ModifierIrStmt::Assign {
         target: vec!["actor".to_string()],
+        target_key: "actor".to_string(),
         property: property.to_string(),
         value,
     };

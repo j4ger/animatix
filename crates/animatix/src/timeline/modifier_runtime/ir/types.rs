@@ -276,6 +276,8 @@ pub enum ModifierIrStmt {
     Assign {
         /// Object path segments.
         target: Vec<String>,
+        /// Precomputed joined target path (`target.join(".")`).
+        target_key: String,
         /// Property name to assign.
         property: String,
         /// Value expression.
@@ -368,8 +370,10 @@ impl ModifierIrProgram {
         fn walk_stmts(stmts: &[ModifierIrStmt], out: &mut std::collections::HashSet<String>) {
             for stmt in stmts {
                 match stmt {
-                    ModifierIrStmt::Assign { target, .. } => {
-                        out.insert(target.join("."));
+                    ModifierIrStmt::Assign {
+                        target, target_key, ..
+                    } => {
+                        out.insert(target_key.clone());
                         if let Some(first) = target.first() {
                             out.insert(first.clone());
                         }

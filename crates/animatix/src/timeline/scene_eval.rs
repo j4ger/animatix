@@ -2084,12 +2084,17 @@ impl Timeline {
         self.eval_caches.solo.replace(solo_state);
 
         // Collect actor world-space bounding boxes for click-to-select
-        let mut hit_regions: Vec<(String, kurbo::Rect)> = Vec::new();
+        let mut hit_regions: Vec<(String, kurbo::Rect)> = if debug_options.compute_hit_regions {
+            self.eval_caches.hit_regions.take()
+        } else {
+            Vec::new()
+        };
+        hit_regions.clear();
 
-        let mut overrides: std::collections::HashMap<
-            String,
-            std::collections::HashMap<String, Value>,
-        > = std::collections::HashMap::new();
+        let mut overrides = self.eval_caches.overrides_buffer.take();
+        for inner in overrides.values_mut() {
+            inner.clear();
+        }
 
         // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
         // For static scenes, this eliminates ~95% of evaluation overhead.
@@ -2281,7 +2286,11 @@ impl Timeline {
                         // Capture the subtree's hit regions once (only collected
                         // when requested; see the cache-key's debug_options).
                         let new_hit_regions: Vec<(String, kurbo::Rect)> =
-                            out.hit_regions[subtree_hits_before..].to_vec();
+                            if debug_options.compute_hit_regions {
+                                out.hit_regions[subtree_hits_before..].to_vec()
+                            } else {
+                                Vec::new()
+                            };
                         // Append to main out.scene and cache for next time.
                         out.scene.encoding_mut().append(temp_scene.encoding(), &None);
                         let new_bounds: Vec<(u32, kurbo::Rect)> = self
@@ -2384,6 +2393,7 @@ impl Timeline {
         if let Some(env) = frame_env {
             *self.env_pool.borrow_mut() = Some(env);
         }
+        *self.eval_caches.overrides_buffer.borrow_mut() = overrides;
 
         program
     }

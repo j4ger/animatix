@@ -17,10 +17,11 @@ impl fmt::Display for DisplayStmt<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             ModifierIrStmt::Assign {
-                target,
+                target_key,
                 property,
                 value,
-            } => write!(f, "assign {}.{} = {}", target.join("."), property, DisplayExpr(value)),
+                ..
+            } => write!(f, "assign {}.{} = {}", target_key, property, DisplayExpr(value)),
             ModifierIrStmt::Let { name, value } => {
                 write!(f, "let {} = {}", name, DisplayExpr(value))
             },

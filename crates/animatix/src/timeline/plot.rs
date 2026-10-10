@@ -60,9 +60,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::modifier_runtime::ir::{
-    CompiledExpr, compile_expr, evaluate_compiled_expr, evaluate_compiled_expr_scalar,
-    evaluate_compiled_expr_vec2, is_scalar_fast_evaluable, is_vec2_fast_evaluable,
-    resolve_scalar_constants,
+    CompiledExpr, FastScalarExpr, compile_expr, compile_fast_scalar, compile_fast_vec2,
+    evaluate_compiled_expr, resolve_slot_values,
 };
 use super::{CapturedEnv, Environment, EvalError, Value};
 use crate::ast::Expr;
@@ -1690,30 +1689,40 @@ fn sample_curve_plot_source(
         },
     }
 
-    let mut can_fast = !func_leaves.is_empty();
-    struct FastLeaf<'a> {
-        weight: f64,
-        body: &'a CompiledExpr,
-        arg_name: &'a str,
-        constants: Vec<(&'a str, f64)>,
+    enum FastExprKind {
+        Scalar(FastScalarExpr),
+        Vec2(FastScalarExpr, FastScalarExpr),
     }
+
+    struct FastLeaf {
+        weight: f64,
+        expr: FastExprKind,
+        slots: Vec<f64>,
+    }
+
+    let mut can_fast = !func_leaves.is_empty();
     let mut fast_leaves = Vec::with_capacity(func_leaves.len());
     for leaf in &func_leaves {
         let leaf_arg = leaf.args.first().map(String::as_str).unwrap_or(&arg_name);
-        let mut constants = Vec::with_capacity(8);
-        resolve_scalar_constants(leaf.body, leaf_arg, env, leaf.captures, &mut constants);
-        let eligible = if plot.kind == PlotCurveKind::Parametric {
-            is_vec2_fast_evaluable(leaf.body, leaf_arg, &constants)
+        let mut slot_names = Vec::with_capacity(8);
+        let expr = if plot.kind == PlotCurveKind::Parametric {
+            compile_fast_vec2(leaf.body, leaf_arg, &mut slot_names)
+                .map(|(x, y)| FastExprKind::Vec2(x, y))
         } else {
-            is_scalar_fast_evaluable(leaf.body, leaf_arg, &constants)
+            compile_fast_scalar(leaf.body, leaf_arg, &mut slot_names).map(FastExprKind::Scalar)
         };
-        if eligible {
-            fast_leaves.push(FastLeaf {
-                weight: leaf.weight,
-                body: leaf.body,
-                arg_name: leaf_arg,
-                constants,
-            });
+        if let Some(expr) = expr {
+            let mut slots = Vec::with_capacity(slot_names.len());
+            if resolve_slot_values(&slot_names, env, leaf.captures, &mut slots) {
+                fast_leaves.push(FastLeaf {
+                    weight: leaf.weight,
+                    expr,
+                    slots,
+                });
+            } else {
+                can_fast = false;
+                break;
+            }
         } else {
             can_fast = false;
             break;
@@ -1724,38 +1733,27 @@ fn sample_curve_plot_source(
         let (start_math_x, start_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             let mut y = 0.0;
             for leaf in &fast_leaves {
-                y += leaf.weight
-                    * evaluate_compiled_expr_scalar(
-                        leaf.body,
-                        leaf.arg_name,
-                        min_t,
-                        &leaf.constants,
-                    )
-                    .unwrap_or(f64::NAN);
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                    y += leaf.weight * expr.eval(min_t, &leaf.slots);
+                }
             }
             (min_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
             let mut x_sum = 0.0;
             let mut y_sum = 0.0;
             for leaf in &fast_leaves {
-                let [vx, vy] =
-                    evaluate_compiled_expr_vec2(leaf.body, leaf.arg_name, min_t, &leaf.constants)
-                        .unwrap_or([f64::NAN, f64::NAN]);
-                x_sum += leaf.weight * vx;
-                y_sum += leaf.weight * vy;
+                if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.expr {
+                    x_sum += leaf.weight * x_expr.eval(min_t, &leaf.slots);
+                    y_sum += leaf.weight * y_expr.eval(min_t, &leaf.slots);
+                }
             }
             (x_sum, y_sum)
         } else {
             let mut r = 0.0;
             for leaf in &fast_leaves {
-                r += leaf.weight
-                    * evaluate_compiled_expr_scalar(
-                        leaf.body,
-                        leaf.arg_name,
-                        min_t,
-                        &leaf.constants,
-                    )
-                    .unwrap_or(f64::NAN);
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                    r += leaf.weight * expr.eval(min_t, &leaf.slots);
+                }
             }
             (r * min_t.cos(), r * min_t.sin())
         };
@@ -1763,38 +1761,27 @@ fn sample_curve_plot_source(
         let (end_math_x, end_math_y) = if plot.kind == PlotCurveKind::Cartesian {
             let mut y = 0.0;
             for leaf in &fast_leaves {
-                y += leaf.weight
-                    * evaluate_compiled_expr_scalar(
-                        leaf.body,
-                        leaf.arg_name,
-                        max_t,
-                        &leaf.constants,
-                    )
-                    .unwrap_or(f64::NAN);
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                    y += leaf.weight * expr.eval(max_t, &leaf.slots);
+                }
             }
             (max_t, y)
         } else if plot.kind == PlotCurveKind::Parametric {
             let mut x_sum = 0.0;
             let mut y_sum = 0.0;
             for leaf in &fast_leaves {
-                let [vx, vy] =
-                    evaluate_compiled_expr_vec2(leaf.body, leaf.arg_name, max_t, &leaf.constants)
-                        .unwrap_or([f64::NAN, f64::NAN]);
-                x_sum += leaf.weight * vx;
-                y_sum += leaf.weight * vy;
+                if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.expr {
+                    x_sum += leaf.weight * x_expr.eval(max_t, &leaf.slots);
+                    y_sum += leaf.weight * y_expr.eval(max_t, &leaf.slots);
+                }
             }
             (x_sum, y_sum)
         } else {
             let mut r = 0.0;
             for leaf in &fast_leaves {
-                r += leaf.weight
-                    * evaluate_compiled_expr_scalar(
-                        leaf.body,
-                        leaf.arg_name,
-                        max_t,
-                        &leaf.constants,
-                    )
-                    .unwrap_or(f64::NAN);
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                    r += leaf.weight * expr.eval(max_t, &leaf.slots);
+                }
             }
             (r * max_t.cos(), r * max_t.sin())
         };
@@ -1819,14 +1806,9 @@ fn sample_curve_plot_source(
             let mut eval = |t: f64| {
                 let mut y = 0.0;
                 for leaf in &fast_leaves {
-                    y += leaf.weight
-                        * evaluate_compiled_expr_scalar(
-                            leaf.body,
-                            leaf.arg_name,
-                            t,
-                            &leaf.constants,
-                        )
-                        .unwrap_or(f64::NAN);
+                    if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                        y += leaf.weight * expr.eval(t, &leaf.slots);
+                    }
                 }
                 y
             };
@@ -1847,14 +1829,9 @@ fn sample_curve_plot_source(
             let mut eval = |t: f64| {
                 let mut r = 0.0;
                 for leaf in &fast_leaves {
-                    r += leaf.weight
-                        * evaluate_compiled_expr_scalar(
-                            leaf.body,
-                            leaf.arg_name,
-                            t,
-                            &leaf.constants,
-                        )
-                        .unwrap_or(f64::NAN);
+                    if let FastExprKind::Scalar(ref expr) = leaf.expr {
+                        r += leaf.weight * expr.eval(t, &leaf.slots);
+                    }
                 }
                 r
             };
@@ -1876,11 +1853,10 @@ fn sample_curve_plot_source(
                 let mut x_sum = 0.0;
                 let mut y_sum = 0.0;
                 for leaf in &fast_leaves {
-                    let [vx, vy] =
-                        evaluate_compiled_expr_vec2(leaf.body, leaf.arg_name, t, &leaf.constants)
-                            .unwrap_or([f64::NAN, f64::NAN]);
-                    x_sum += leaf.weight * vx;
-                    y_sum += leaf.weight * vy;
+                    if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.expr {
+                        x_sum += leaf.weight * x_expr.eval(t, &leaf.slots);
+                        y_sum += leaf.weight * y_expr.eval(t, &leaf.slots);
+                    }
                 }
                 [x_sum, y_sum]
             };

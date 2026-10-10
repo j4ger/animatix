@@ -84,8 +84,10 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
                         _ => unreachable!(), // filtered above
                     })
                     .collect();
+                let target_key = static_target.join(".");
                 Ok(ModifierIrStmt::Assign {
                     target: static_target,
+                    target_key,
                     property: property.clone(),
                     value: compile_expr(value)?,
                 })

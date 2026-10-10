@@ -263,360 +263,350 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
     })
 }
 
-/// Direct scalar evaluation of a `CompiledExpr` for 1D math functions f(x) -> f64.
-/// Returns None if the expression cannot be evaluated purely as an f64 scalar,
-/// signaling that the general evaluate_compiled_expr path should be used instead.
-pub(crate) fn evaluate_compiled_expr_scalar(
-    expr: &CompiledExpr,
+/// Pre-indexed compiled expression for high-throughput scalar math evaluation (curve plot
+/// sampling). Replaces recursive AST matching and string identifier lookups with direct hardware
+/// floating point operations and direct slot indexing against a contiguous `&[f64]` slice.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum FastScalarExpr {
+    Const(f64),
+    Arg,
+    Slot(usize),
+    Neg(Box<FastScalarExpr>),
+    Not(Box<FastScalarExpr>),
+    Add(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Sub(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Mul(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Div(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Mod(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Pow(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Eq(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Neq(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Lt(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Gt(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Lte(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Gte(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    And(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Or(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Select(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Sin(Box<FastScalarExpr>),
+    Cos(Box<FastScalarExpr>),
+    Tan(Box<FastScalarExpr>),
+    Sqrt(Box<FastScalarExpr>),
+    Exp(Box<FastScalarExpr>),
+    Log(Box<FastScalarExpr>),
+    Abs(Box<FastScalarExpr>),
+    Floor(Box<FastScalarExpr>),
+    Ceil(Box<FastScalarExpr>),
+    Round(Box<FastScalarExpr>),
+    Signum(Box<FastScalarExpr>),
+    Fract(Box<FastScalarExpr>),
+    Deg(Box<FastScalarExpr>),
+    Rad(Box<FastScalarExpr>),
+    Min(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Max(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Clamp(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Lerp(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Hypot(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Step(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    Atan2(Box<FastScalarExpr>, Box<FastScalarExpr>),
+}
+
+impl FastScalarExpr {
+    #[inline(always)]
+    pub(crate) fn eval(&self, x: f64, slots: &[f64]) -> f64 {
+        match self {
+            Self::Const(c) => *c,
+            Self::Arg => x,
+            Self::Slot(idx) => slots.get(*idx).copied().unwrap_or(f64::NAN),
+            Self::Neg(inner) => -inner.eval(x, slots),
+            Self::Not(inner) => {
+                if inner.eval(x, slots) != 0.0 {
+                    0.0
+                } else {
+                    1.0
+                }
+            },
+            Self::Add(l, r) => l.eval(x, slots) + r.eval(x, slots),
+            Self::Sub(l, r) => l.eval(x, slots) - r.eval(x, slots),
+            Self::Mul(l, r) => l.eval(x, slots) * r.eval(x, slots),
+            Self::Div(l, r) => crate::timeline::utils::safe_div(l.eval(x, slots), r.eval(x, slots)),
+            Self::Mod(l, r) => crate::timeline::utils::safe_rem(l.eval(x, slots), r.eval(x, slots)),
+            Self::Pow(l, r) => l.eval(x, slots).powf(r.eval(x, slots)),
+            Self::Eq(l, r) => {
+                if l.eval(x, slots) == r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Neq(l, r) => {
+                if l.eval(x, slots) != r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Lt(l, r) => {
+                if l.eval(x, slots) < r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Gt(l, r) => {
+                if l.eval(x, slots) > r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Lte(l, r) => {
+                if l.eval(x, slots) <= r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Gte(l, r) => {
+                if l.eval(x, slots) >= r.eval(x, slots) {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::And(l, r) => {
+                if l.eval(x, slots) != 0.0 && r.eval(x, slots) != 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Or(l, r) => {
+                if l.eval(x, slots) != 0.0 || r.eval(x, slots) != 0.0 {
+                    1.0
+                } else {
+                    0.0
+                }
+            },
+            Self::Select(cond, then_expr, else_expr) => {
+                if cond.eval(x, slots) != 0.0 {
+                    then_expr.eval(x, slots)
+                } else {
+                    else_expr.eval(x, slots)
+                }
+            },
+            Self::Sin(inner) => inner.eval(x, slots).sin(),
+            Self::Cos(inner) => inner.eval(x, slots).cos(),
+            Self::Tan(inner) => inner.eval(x, slots).tan(),
+            Self::Sqrt(inner) => inner.eval(x, slots).sqrt(),
+            Self::Exp(inner) => inner.eval(x, slots).exp(),
+            Self::Log(inner) => inner.eval(x, slots).ln(),
+            Self::Abs(inner) => inner.eval(x, slots).abs(),
+            Self::Floor(inner) => inner.eval(x, slots).floor(),
+            Self::Ceil(inner) => inner.eval(x, slots).ceil(),
+            Self::Round(inner) => inner.eval(x, slots).round(),
+            Self::Signum(inner) => inner.eval(x, slots).signum(),
+            Self::Fract(inner) => inner.eval(x, slots).fract(),
+            Self::Deg(inner) => inner.eval(x, slots) * std::f64::consts::PI / 180.0,
+            Self::Rad(inner) => inner.eval(x, slots) * 180.0 / std::f64::consts::PI,
+            Self::Min(l, r) => l.eval(x, slots).min(r.eval(x, slots)),
+            Self::Max(l, r) => l.eval(x, slots).max(r.eval(x, slots)),
+            Self::Clamp(val, lo, hi) => {
+                val.eval(x, slots).clamp(lo.eval(x, slots), hi.eval(x, slots))
+            },
+            Self::Lerp(s, e, t) => {
+                let sv = s.eval(x, slots);
+                let ev = e.eval(x, slots);
+                let tv = t.eval(x, slots);
+                sv + (ev - sv) * tv
+            },
+            Self::Hypot(l, r) => l.eval(x, slots).hypot(r.eval(x, slots)),
+            Self::Step(edge, x_val) => {
+                if x_val.eval(x, slots) < edge.eval(x, slots) {
+                    0.0
+                } else {
+                    1.0
+                }
+            },
+            Self::Atan2(y, x_val) => y.eval(x, slots).atan2(x_val.eval(x, slots)),
+        }
+    }
+}
+
+pub(crate) fn compile_fast_scalar<'a>(
+    expr: &'a CompiledExpr,
     arg_name: &str,
-    x: f64,
-    constants: &[(&str, f64)],
-) -> Option<f64> {
+    slot_names: &mut Vec<&'a str>,
+) -> Option<FastScalarExpr> {
     match expr {
-        CompiledExpr::Const(Value::Num(n)) => Some(*n),
+        CompiledExpr::Const(Value::Num(n)) => Some(FastScalarExpr::Const(*n)),
         CompiledExpr::LoadEnv(name) => {
             if name == arg_name {
-                Some(x)
+                Some(FastScalarExpr::Arg)
             } else {
-                constants.iter().find(|(k, _)| *k == name.as_str()).map(|(_, v)| *v)
+                let slot = if let Some(idx) = slot_names.iter().position(|k| *k == name.as_str()) {
+                    idx
+                } else {
+                    let idx = slot_names.len();
+                    slot_names.push(name.as_str());
+                    idx
+                };
+                Some(FastScalarExpr::Slot(slot))
             }
         },
         CompiledExpr::Unary(op, inner) => {
-            let val = evaluate_compiled_expr_scalar(inner, arg_name, x, constants)?;
+            let inner_fast = compile_fast_scalar(inner, arg_name, slot_names)?;
             match op {
-                UnaryOp::Neg => Some(-val),
-                UnaryOp::Not => Some(if val != 0.0 { 0.0 } else { 1.0 }),
+                UnaryOp::Neg => Some(FastScalarExpr::Neg(Box::new(inner_fast))),
+                UnaryOp::Not => Some(FastScalarExpr::Not(Box::new(inner_fast))),
                 UnaryOp::Ref => None,
             }
         },
         CompiledExpr::Binary(left, op, right) => {
-            let l = evaluate_compiled_expr_scalar(left, arg_name, x, constants)?;
-            let r = evaluate_compiled_expr_scalar(right, arg_name, x, constants)?;
+            let l = compile_fast_scalar(left, arg_name, slot_names)?;
+            let r = compile_fast_scalar(right, arg_name, slot_names)?;
             Some(match op {
-                BinaryOp::Add => l + r,
-                BinaryOp::Sub => l - r,
-                BinaryOp::Mul => l * r,
-                BinaryOp::Div => crate::timeline::utils::safe_div(l, r),
-                BinaryOp::Mod => crate::timeline::utils::safe_rem(l, r),
-                BinaryOp::Pow => l.powf(r),
-                BinaryOp::Eq => {
-                    if l == r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Neq => {
-                    if l != r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Lt => {
-                    if l < r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Gt => {
-                    if l > r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Lte => {
-                    if l <= r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Gte => {
-                    if l >= r {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::And => {
-                    if l != 0.0 && r != 0.0 {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
-                BinaryOp::Or => {
-                    if l != 0.0 || r != 0.0 {
-                        1.0
-                    } else {
-                        0.0
-                    }
-                },
+                BinaryOp::Add => FastScalarExpr::Add(Box::new(l), Box::new(r)),
+                BinaryOp::Sub => FastScalarExpr::Sub(Box::new(l), Box::new(r)),
+                BinaryOp::Mul => FastScalarExpr::Mul(Box::new(l), Box::new(r)),
+                BinaryOp::Div => FastScalarExpr::Div(Box::new(l), Box::new(r)),
+                BinaryOp::Mod => FastScalarExpr::Mod(Box::new(l), Box::new(r)),
+                BinaryOp::Pow => FastScalarExpr::Pow(Box::new(l), Box::new(r)),
+                BinaryOp::Eq => FastScalarExpr::Eq(Box::new(l), Box::new(r)),
+                BinaryOp::Neq => FastScalarExpr::Neq(Box::new(l), Box::new(r)),
+                BinaryOp::Lt => FastScalarExpr::Lt(Box::new(l), Box::new(r)),
+                BinaryOp::Gt => FastScalarExpr::Gt(Box::new(l), Box::new(r)),
+                BinaryOp::Lte => FastScalarExpr::Lte(Box::new(l), Box::new(r)),
+                BinaryOp::Gte => FastScalarExpr::Gte(Box::new(l), Box::new(r)),
+                BinaryOp::And => FastScalarExpr::And(Box::new(l), Box::new(r)),
+                BinaryOp::Or => FastScalarExpr::Or(Box::new(l), Box::new(r)),
             })
         },
-        CompiledExpr::Select(condition, then_expr, else_expr) => {
-            let cond = evaluate_compiled_expr_scalar(condition, arg_name, x, constants)?;
-            if cond != 0.0 {
-                evaluate_compiled_expr_scalar(then_expr, arg_name, x, constants)
-            } else {
-                evaluate_compiled_expr_scalar(else_expr, arg_name, x, constants)
-            }
+        CompiledExpr::Select(cond, then_expr, else_expr) => {
+            let c = compile_fast_scalar(cond, arg_name, slot_names)?;
+            let t = compile_fast_scalar(then_expr, arg_name, slot_names)?;
+            let e = compile_fast_scalar(else_expr, arg_name, slot_names)?;
+            Some(FastScalarExpr::Select(Box::new(c), Box::new(t), Box::new(e)))
         },
         CompiledExpr::CallBuiltin(builtin, args) => match builtin {
-            BuiltinFn::Sin => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.sin())
-            },
-            BuiltinFn::Cos => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.cos())
-            },
-            BuiltinFn::Tan => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.tan())
-            },
-            BuiltinFn::Sqrt => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.sqrt())
-            },
-            BuiltinFn::Exp => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.exp())
-            },
-            BuiltinFn::Log => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.ln())
-            },
-            BuiltinFn::Abs => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.abs())
-            },
-            BuiltinFn::Floor => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.floor())
-            },
-            BuiltinFn::Ceil => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.ceil())
-            },
-            BuiltinFn::Round => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.round())
-            },
-            BuiltinFn::Signum => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.signum())
-            },
-            BuiltinFn::Fract => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a.fract())
-            },
-            BuiltinFn::Deg => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a * std::f64::consts::PI / 180.0)
-            },
-            BuiltinFn::Rad => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                Some(a * 180.0 / std::f64::consts::PI)
-            },
-            BuiltinFn::Min => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(a.min(b))
-            },
-            BuiltinFn::Max => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(a.max(b))
-            },
-            BuiltinFn::Clamp => {
-                let v = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let lo = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                let hi = evaluate_compiled_expr_scalar(args.get(2)?, arg_name, x, constants)?;
-                Some(v.clamp(lo, hi))
-            },
-            BuiltinFn::Lerp => {
-                let s = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let e = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                let t = evaluate_compiled_expr_scalar(args.get(2)?, arg_name, x, constants)?;
-                Some(s + (e - s) * t)
-            },
-            BuiltinFn::Hypot => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(a.hypot(b))
-            },
-            BuiltinFn::Pow => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(a.powf(b))
-            },
-            BuiltinFn::Rem => {
-                let a = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let b = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(a % b)
-            },
-            BuiltinFn::Step => {
-                let edge = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let x_val = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(if x_val < edge { 0.0 } else { 1.0 })
-            },
-            BuiltinFn::Atan2 => {
-                let y = evaluate_compiled_expr_scalar(args.first()?, arg_name, x, constants)?;
-                let x_val = evaluate_compiled_expr_scalar(args.get(1)?, arg_name, x, constants)?;
-                Some(y.atan2(x_val))
-            },
+            BuiltinFn::Sin if args.len() == 1 => Some(FastScalarExpr::Sin(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Cos if args.len() == 1 => Some(FastScalarExpr::Cos(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Tan if args.len() == 1 => Some(FastScalarExpr::Tan(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Sqrt if args.len() == 1 => Some(FastScalarExpr::Sqrt(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Exp if args.len() == 1 => Some(FastScalarExpr::Exp(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Log if args.len() == 1 => Some(FastScalarExpr::Log(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Abs if args.len() == 1 => Some(FastScalarExpr::Abs(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Floor if args.len() == 1 => Some(FastScalarExpr::Floor(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Ceil if args.len() == 1 => Some(FastScalarExpr::Ceil(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Round if args.len() == 1 => Some(FastScalarExpr::Round(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Signum if args.len() == 1 => Some(FastScalarExpr::Signum(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Fract if args.len() == 1 => Some(FastScalarExpr::Fract(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Deg if args.len() == 1 => Some(FastScalarExpr::Deg(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Rad if args.len() == 1 => Some(FastScalarExpr::Rad(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
+            BuiltinFn::Min if args.len() == 2 => Some(FastScalarExpr::Min(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Max if args.len() == 2 => Some(FastScalarExpr::Max(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Clamp if args.len() == 3 => Some(FastScalarExpr::Clamp(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[2], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Lerp if args.len() == 3 => Some(FastScalarExpr::Lerp(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[2], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Hypot if args.len() == 2 => Some(FastScalarExpr::Hypot(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Pow if args.len() == 2 => Some(FastScalarExpr::Pow(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Rem if args.len() == 2 => Some(FastScalarExpr::Mod(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Step if args.len() == 2 => Some(FastScalarExpr::Step(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
+            BuiltinFn::Atan2 if args.len() == 2 => Some(FastScalarExpr::Atan2(
+                Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
+                Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
+            )),
             _ => None,
         },
         _ => None,
     }
 }
 
-/// Direct vector evaluation of a `CompiledExpr` for 2D parametric curves f(t) -> [f64; 2].
-pub(crate) fn evaluate_compiled_expr_vec2(
-    expr: &CompiledExpr,
+pub(crate) fn compile_fast_vec2<'a>(
+    expr: &'a CompiledExpr,
     arg_name: &str,
-    t: f64,
-    constants: &[(&str, f64)],
-) -> Option<[f64; 2]> {
+    slot_names: &mut Vec<&'a str>,
+) -> Option<(FastScalarExpr, FastScalarExpr)> {
     if let CompiledExpr::MakeVec(items) = expr {
         if items.len() == 2 {
-            let x = evaluate_compiled_expr_scalar(&items[0], arg_name, t, constants)?;
-            let y = evaluate_compiled_expr_scalar(&items[1], arg_name, t, constants)?;
-            return Some([x, y]);
+            let x = compile_fast_scalar(&items[0], arg_name, slot_names)?;
+            let y = compile_fast_scalar(&items[1], arg_name, slot_names)?;
+            return Some((x, y));
         }
     }
     None
 }
 
-/// Pre-resolve non-argument identifiers referenced by `expr` against `env` and `captures`.
-pub(crate) fn resolve_scalar_constants<'a>(
-    expr: &'a CompiledExpr,
-    arg_name: &str,
+pub(crate) fn resolve_slot_values(
+    slot_names: &[&str],
     env: &Environment,
     captures: &CapturedEnv,
-    out: &mut Vec<(&'a str, f64)>,
-) {
-    match expr {
-        CompiledExpr::LoadEnv(name)
-            if name != arg_name && !out.iter().any(|(k, _)| *k == name.as_str()) =>
-        {
-            // Priority: env (frame-time overrides and parameters shadow captures)
-            if let Some(Value::Num(n)) = env.get_path(name) {
-                out.push((name.as_str(), n));
-                return;
-            }
-            // Fallback: captured build-time variables
-            if let Some(Value::Num(n)) = captures.0.get(name) {
-                out.push((name.as_str(), *n));
-            }
-        },
-        CompiledExpr::Unary(_, inner) => {
-            resolve_scalar_constants(inner, arg_name, env, captures, out);
-        },
-        CompiledExpr::Binary(left, _, right) => {
-            resolve_scalar_constants(left, arg_name, env, captures, out);
-            resolve_scalar_constants(right, arg_name, env, captures, out);
-        },
-        CompiledExpr::Select(cond, then_e, else_e) => {
-            resolve_scalar_constants(cond, arg_name, env, captures, out);
-            resolve_scalar_constants(then_e, arg_name, env, captures, out);
-            resolve_scalar_constants(else_e, arg_name, env, captures, out);
-        },
-        CompiledExpr::CallBuiltin(_, args) => {
-            for arg in args {
-                resolve_scalar_constants(arg, arg_name, env, captures, out);
-            }
-        },
-        CompiledExpr::MakeVec(items) | CompiledExpr::MakeList(items) => {
-            for item in items {
-                resolve_scalar_constants(item, arg_name, env, captures, out);
-            }
-        },
-        _ => {},
-    }
-}
-
-/// Check if `expr` can be evaluated purely via unboxed scalar arithmetic without env mutation.
-pub(crate) fn is_scalar_fast_evaluable(
-    expr: &CompiledExpr,
-    arg_name: &str,
-    constants: &[(&str, f64)],
+    out: &mut Vec<f64>,
 ) -> bool {
-    match expr {
-        CompiledExpr::Const(Value::Num(_)) => true,
-        CompiledExpr::LoadEnv(name) => {
-            name == arg_name || constants.iter().any(|(k, _)| *k == name.as_str())
-        },
-        CompiledExpr::Unary(op, inner) => match op {
-            UnaryOp::Neg | UnaryOp::Not => is_scalar_fast_evaluable(inner, arg_name, constants),
-            UnaryOp::Ref => false,
-        },
-        CompiledExpr::Binary(left, _op, right) => {
-            is_scalar_fast_evaluable(left, arg_name, constants)
-                && is_scalar_fast_evaluable(right, arg_name, constants)
-        },
-        CompiledExpr::Select(cond, then_e, else_e) => {
-            is_scalar_fast_evaluable(cond, arg_name, constants)
-                && is_scalar_fast_evaluable(then_e, arg_name, constants)
-                && is_scalar_fast_evaluable(else_e, arg_name, constants)
-        },
-        CompiledExpr::CallBuiltin(builtin, args) => match builtin {
-            BuiltinFn::Sin
-            | BuiltinFn::Cos
-            | BuiltinFn::Tan
-            | BuiltinFn::Sqrt
-            | BuiltinFn::Exp
-            | BuiltinFn::Log
-            | BuiltinFn::Abs
-            | BuiltinFn::Floor
-            | BuiltinFn::Ceil
-            | BuiltinFn::Round
-            | BuiltinFn::Signum
-            | BuiltinFn::Fract
-            | BuiltinFn::Deg
-            | BuiltinFn::Rad => {
-                args.len() == 1 && is_scalar_fast_evaluable(&args[0], arg_name, constants)
-            },
-            BuiltinFn::Min
-            | BuiltinFn::Max
-            | BuiltinFn::Hypot
-            | BuiltinFn::Pow
-            | BuiltinFn::Rem
-            | BuiltinFn::Step
-            | BuiltinFn::Atan2 => {
-                args.len() == 2
-                    && is_scalar_fast_evaluable(&args[0], arg_name, constants)
-                    && is_scalar_fast_evaluable(&args[1], arg_name, constants)
-            },
-            BuiltinFn::Clamp | BuiltinFn::Lerp => {
-                args.len() == 3
-                    && is_scalar_fast_evaluable(&args[0], arg_name, constants)
-                    && is_scalar_fast_evaluable(&args[1], arg_name, constants)
-                    && is_scalar_fast_evaluable(&args[2], arg_name, constants)
-            },
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
-/// Check if `expr` can be evaluated purely via unboxed 2D vector arithmetic without env mutation.
-pub(crate) fn is_vec2_fast_evaluable(
-    expr: &CompiledExpr,
-    arg_name: &str,
-    constants: &[(&str, f64)],
-) -> bool {
-    if let CompiledExpr::MakeVec(items) = expr {
-        if items.len() == 2 {
-            return is_scalar_fast_evaluable(&items[0], arg_name, constants)
-                && is_scalar_fast_evaluable(&items[1], arg_name, constants);
+    out.clear();
+    for name in slot_names {
+        if let Some(Value::Num(n)) = env.get_path(name) {
+            out.push(n);
+        } else if let Some(Value::Num(n)) = captures.0.get(*name) {
+            out.push(*n);
+        } else {
+            return false;
         }
     }
-    false
+    true
 }
 
 #[cfg(test)]
@@ -625,7 +615,7 @@ mod tests {
     use crate::timeline::Environment;
 
     #[test]
-    fn test_scalar_fast_eval_parity() {
+    fn test_scalar_fast_compile_parity() {
         // (4 / pi) * sin(th - x)
         let expr = CompiledExpr::Binary(
             Box::new(CompiledExpr::Binary(
@@ -649,13 +639,15 @@ mod tests {
         env.set("th", Value::Num(1.23));
 
         let captures = CapturedEnv::default();
-        let mut constants = Vec::new();
-        resolve_scalar_constants(&expr, "x", &env, &captures, &mut constants);
+        let mut slot_names = Vec::new();
+        let fast_expr = compile_fast_scalar(&expr, "x", &mut slot_names)
+            .expect("Should compile to FastScalarExpr");
 
-        assert!(is_scalar_fast_evaluable(&expr, "x", &constants));
+        let mut slots = Vec::new();
+        assert!(resolve_slot_values(&slot_names, &env, &captures, &mut slots));
 
         for x in [0.0, 0.5, 1.0, 2.5] {
-            let fast_val = evaluate_compiled_expr_scalar(&expr, "x", x, &constants).unwrap();
+            let fast_val = fast_expr.eval(x, &slots);
 
             env.set("x", Value::Num(x));
             let slow_val = evaluate_compiled_expr(&expr, &env).unwrap().as_num();
@@ -665,28 +657,35 @@ mod tests {
     }
 
     #[test]
-    fn test_vec2_fast_eval_parametric() {
+    fn test_vec2_fast_compile_parametric() {
         let expr = CompiledExpr::MakeVec(vec![
             CompiledExpr::CallBuiltin(BuiltinFn::Cos, vec![CompiledExpr::LoadEnv("t".to_string())]),
             CompiledExpr::CallBuiltin(BuiltinFn::Sin, vec![CompiledExpr::LoadEnv("t".to_string())]),
         ]);
 
-        let constants = Vec::new();
-        assert!(is_vec2_fast_evaluable(&expr, "t", &constants));
+        let mut slot_names = Vec::new();
+        let (fx, fy) = compile_fast_vec2(&expr, "t", &mut slot_names)
+            .expect("Should compile to FastScalarExpr vec2");
 
-        let [x, y] = evaluate_compiled_expr_vec2(&expr, "t", 0.5, &constants).unwrap();
+        let env = Environment::new();
+        let captures = CapturedEnv::default();
+        let mut slots = Vec::new();
+        assert!(resolve_slot_values(&slot_names, &env, &captures, &mut slots));
+
+        let x = fx.eval(0.5, &slots);
+        let y = fy.eval(0.5, &slots);
         assert!((x - 0.5_f64.cos()).abs() < 1e-12);
         assert!((y - 0.5_f64.sin()).abs() < 1e-12);
     }
 
     #[test]
-    fn test_scalar_fast_eval_rejects_unsupported() {
+    fn test_scalar_fast_compile_rejects_unsupported() {
         let expr = CompiledExpr::Method(
             Box::new(CompiledExpr::LoadEnv("list".to_string())),
             "len".to_string(),
             vec![],
         );
-        let constants = Vec::new();
-        assert!(!is_scalar_fast_evaluable(&expr, "x", &constants));
+        let mut slot_names = Vec::new();
+        assert!(compile_fast_scalar(&expr, "x", &mut slot_names).is_none());
     }
 }
