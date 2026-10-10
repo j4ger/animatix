@@ -98,7 +98,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
         if: matrix.shell == 'nix'
-        uses: DeterminateSystems/flakehub-cache-action@v3
+        uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Rust (stable)
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
         uses: dtolnay/rust-toolchain@stable
@@ -137,7 +137,7 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
-        uses: DeterminateSystems/flakehub-cache-action@v3
+        uses: DeterminateSystems/magic-nix-cache-action@main
       - name: Build engines (slim + full)
         run: |
           scripts/ci.sh setup wasm-bindgen
@@ -164,7 +164,7 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
-        uses: DeterminateSystems/flakehub-cache-action@v3
+        uses: DeterminateSystems/magic-nix-cache-action@main
       - uses: actions/download-artifact@v7
         with:
           pattern: artifact-*

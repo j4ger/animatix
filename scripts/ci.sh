@@ -82,6 +82,28 @@ dist-macos|native|macos-latest|rust-stable|release
 dist-windows|native|windows-latest|rust-stable|release
 '
 
+# ── CI matrix jobs ────────────────────────────────────────────────────────────
+# name | gates | shell | os | setup tokens | stage
+#
+# Consolidated jobs for CI. Rather than spawning a separate VM for each
+# individual gate (which caused 21 runners to hammer GitHub API and Nix caches,
+# taking minutes to spin up each for 3-second checks), related checks run in
+# the same job and reuse compiler/toolchain artifacts.
+#
+# Every gate listed here is defined above in GATE_TABLE and can still be run
+# individually via `scripts/ci.sh gate <name>`.
+JOB_TABLE='
+Fast Checks|fmt workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-nightly node|pr
+Check & Lint|commit audit check lint doc no-video|nix|ubuntu-latest|nix|pr
+Test & Verify|test render-smoke examples ext-bench site-scenes eparts|nix|ubuntu-latest|nix|pr
+Web|wasm-check web-build|web|ubuntu-latest|nix wasm-bindgen|pr
+eparts|eparts|native|macos-latest|rust-stable|pr
+eparts|eparts|native|windows-latest|rust-stable|pr
+dist-linux|dist-linux|nix|ubuntu-latest|nix|release
+dist-macos|dist-macos|native|macos-latest|rust-stable|release
+dist-windows|dist-windows|native|windows-latest|rust-stable|release
+'
+
 # The commands each gate expects to be run by. Kept as prose so `ci.sh shell`
 # can print them and a human can copy one.
 shell_for() {
@@ -327,6 +349,37 @@ MSG
     return 1
   fi
   echo "workflows route every command through scripts/ci.sh"
+
+  # Parity check: every gate in GATE_TABLE with stage pr/release must be scheduled
+  # in JOB_TABLE, and vice versa.
+  python3 - "$GATE_TABLE" "$JOB_TABLE" <<'PY' || return 1
+import sys
+
+def get_gates_by_stage(text, stage_idx, gate_idx):
+    by_stage = {}
+    for line in text.strip().splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) > max(stage_idx, gate_idx) and parts[0]:
+            stage = parts[stage_idx]
+            for g in parts[gate_idx].split():
+                by_stage.setdefault(stage, set()).add(g)
+    return by_stage
+
+gates = get_gates_by_stage(sys.argv[1], 4, 0)
+jobs = get_gates_by_stage(sys.argv[2], 5, 1)
+
+for stage in ("pr", "release"):
+    g_set = gates.get(stage, set())
+    j_set = jobs.get(stage, set())
+    if g_set != j_set:
+        print(f"error: GATE_TABLE and JOB_TABLE drift for stage '{stage}':", file=sys.stderr)
+        if g_set - j_set:
+            print(f"  gates missing from JOB_TABLE: {sorted(g_set - j_set)}", file=sys.stderr)
+        if j_set - g_set:
+            print(f"  extra gates in JOB_TABLE: {sorted(j_set - g_set)}", file=sys.stderr)
+        sys.exit(1)
+print("GATE_TABLE and JOB_TABLE gate parity verified")
+PY
 }
 
 gate_eparts() {
@@ -517,19 +570,23 @@ rows() {
   awk -F'|' -v s="${1:-}" 'NF>1 && $1!="" && (s=="" || s=="all" || $5==s) { printf "%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $5 }' <<<"$GATE_TABLE"
 }
 
+job_rows() {
+  awk -F'|' -v s="${1:-}" 'NF>1 && $1!="" && (s=="" || s=="all" || $6==s) { printf "%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, $4, $5, $6 }' <<<"$JOB_TABLE"
+}
+
 stage="${2:-}"
 case "${1:-}" in
   --list)
     rows "$stage"
     ;;
   --matrix)
-    rows "$stage" | python3 -c '
+    job_rows "$stage" | python3 -c '
 import json, sys
 rows = [l.rstrip("\n").split("\t") for l in sys.stdin if l.strip()]
 print(json.dumps({"include": [
-    {"gate": n, "shell": s, "os": o, "setup": d, "stage": st,
-     "name": "%s (%s)" % (n, o) if st == "pr" or o == "ubuntu-latest" else "%s (%s, %s)" % (n, o, st)}
-    for n, s, o, d, st in rows]}))
+    {"name": "%s (%s)" % (n, o) if not n.endswith(")") else n,
+     "gate": g, "shell": s, "os": o, "setup": d, "stage": st}
+    for n, g, s, o, d, st in rows]}))
 '
     ;;
   gates)
@@ -542,12 +599,16 @@ print(json.dumps({"include": [
   gate)
     shift
     [ $# -ge 1 ] || { echo "usage: ci.sh gate <name> [<name>…]" >&2; exit 2; }
-    for g in "$@"; do run_gate "$g"; done
+    for arg in "$@"; do
+      for g in $arg; do run_gate "$g"; done
+    done
     ;;
   setup)
     shift
     [ $# -ge 1 ] || { echo "usage: ci.sh setup <token>…" >&2; exit 2; }
-    for t in "$@"; do setup_one "$t"; done
+    for arg in "$@"; do
+      for t in $arg; do setup_one "$t"; done
+    done
     ;;
   all)
     gate_names "$stage" | while read -r g; do run_gate "$g"; done

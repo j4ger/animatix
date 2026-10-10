@@ -70,7 +70,7 @@ jobs:
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Cache Nix store
         if: matrix.shell == 'nix' || matrix.shell == 'web'
-        uses: DeterminateSystems/flakehub-cache-action@v3
+        uses: DeterminateSystems/magic-nix-cache-action@main
 
       - name: Rust (nightly — rustfmt.toml sets unstable options)
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-nightly')
@@ -109,7 +109,7 @@ jobs:
         # The matrix's shell column is what says which shell this job owes it.
         run: |
           case "$GATE_SHELL" in
-            web) nix develop .#web-build --command scripts/ci.sh gate "$GATE" ;;
-            nix) nix develop --command scripts/ci.sh gate "$GATE" ;;
-            *)   scripts/ci.sh gate "$GATE" ;;
+            web) nix develop .#web-build --command scripts/ci.sh gate $GATE ;;
+            nix) nix develop --command scripts/ci.sh gate $GATE ;;
+            *)   scripts/ci.sh gate $GATE ;;
           esac
