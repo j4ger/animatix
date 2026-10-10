@@ -944,6 +944,20 @@ impl Timeline {
                     )
                     .with_subject(label),
                 );
+            } else if track.parallax != 1.0 && !timeline.root_nodes.contains(label) {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InapplicableProperty,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "'{label}' declares `parallax: {}` but is not a root actor, so \
+                             the scene camera moves it with its parent; move it to the top \
+                             level of the scene to apply parallax.",
+                            track.parallax
+                        ),
+                    )
+                    .with_subject(label),
+                );
             }
         }
 

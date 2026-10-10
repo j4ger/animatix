@@ -1114,6 +1114,8 @@ pub enum RenderCommand {
     Text {
         /// Text glyph paths with per-glyph color and opacity.
         paths: std::sync::Arc<[TextPath]>,
+        /// Optional paint that ramps across the text fill.
+        fill_gradient: Option<Box<crate::renderer::types::GradientSpec>>,
     },
     /// Draw an image.
     Image {
@@ -1249,22 +1251,55 @@ impl RenderCommand {
                     }
                 }
             },
-            RenderCommand::Text { paths } => {
+            RenderCommand::Text {
+                paths,
+                fill_gradient,
+            } => {
+                use kurbo::Shape as _;
+                let bounds = if fill_gradient.is_some() {
+                    let mut b: Option<kurbo::Rect> = None;
+                    for tp in paths.iter() {
+                        let tp_b = tp.path.bounding_box();
+                        b = Some(match b {
+                            Some(existing) => existing.union(tp_b),
+                            None => tp_b,
+                        });
+                    }
+                    b.unwrap_or_else(|| kurbo::Rect::new(0.0, 0.0, 1.0, 1.0))
+                } else {
+                    kurbo::Rect::ZERO
+                };
+
                 for text_path in paths.iter() {
-                    let [r, g, b, a] = text_path.color;
-                    let color = vello::peniko::Color::from_rgba8(
-                        r,
-                        g,
-                        b,
-                        (a as f32 * opacity * text_path.opacity) as u8,
-                    );
-                    scene.fill(
-                        vello::peniko::Fill::NonZero,
-                        *transform,
-                        color,
-                        None,
-                        &text_path.path,
-                    );
+                    let glyph_alpha = opacity * text_path.opacity;
+                    if glyph_alpha <= 0.0 {
+                        continue;
+                    }
+                    if let Some(grad) = fill_gradient {
+                        let g = grad.to_peniko(bounds, glyph_alpha);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            &g,
+                            None,
+                            &text_path.path,
+                        );
+                    } else {
+                        let [r, g, b, a] = text_path.color;
+                        let color = vello::peniko::Color::from_rgba8(
+                            r,
+                            g,
+                            b,
+                            (a as f32 * glyph_alpha) as u8,
+                        );
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            color,
+                            None,
+                            &text_path.path,
+                        );
+                    }
                 }
             },
             RenderCommand::Image {
@@ -1326,7 +1361,7 @@ impl RenderCommand {
                     bounds = union(bounds, path.path.bounding_box());
                 }
             },
-            RenderCommand::Text { paths } => {
+            RenderCommand::Text { paths, .. } => {
                 for text_path in paths.iter() {
                     bounds = union(bounds, text_path.path.bounding_box());
                 }

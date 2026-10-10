@@ -75,10 +75,9 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let from_color = textureSample(from_texture, texture_sampler, in.uv);
-    let to_color = textureSample(to_texture, texture_sampler, in.uv);
+    let feather: f32 = 0.04;
+    var alpha: f32 = uniforms.progress;
 
-    var alpha: f32;
     switch uniforms.transition_type {
         case 0u: { // Cut
             alpha = select(0.0, 1.0, uniforms.progress >= 0.5);
@@ -87,22 +86,64 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             alpha = uniforms.progress;
         }
         case 2u: { // WipeLeft
-            alpha = 1.0 - step(uniforms.progress, in.uv.x);
+            alpha = 1.0 - smoothstep(uniforms.progress - feather, uniforms.progress + feather, in.uv.x);
         }
         case 3u: { // WipeRight
-            alpha = step(1.0 - uniforms.progress, in.uv.x);
+            alpha = smoothstep(1.0 - uniforms.progress - feather, 1.0 - uniforms.progress + feather, in.uv.x);
         }
         case 4u: { // WipeUp
-            alpha = 1.0 - step(uniforms.progress, in.uv.y);
+            alpha = 1.0 - smoothstep(uniforms.progress - feather, uniforms.progress + feather, in.uv.y);
         }
         case 5u: { // WipeDown
-            alpha = step(1.0 - uniforms.progress, in.uv.y);
+            alpha = smoothstep(1.0 - uniforms.progress - feather, 1.0 - uniforms.progress + feather, in.uv.y);
+        }
+        case 6u: { // PushLeft
+            let p = uniforms.progress;
+            let uv_from = in.uv + vec2<f32>(p, 0.0);
+            let uv_to = in.uv - vec2<f32>(1.0 - p, 0.0);
+            if (uv_from.x <= 1.0) {
+                return textureSample(from_texture, texture_sampler, uv_from);
+            } else {
+                return textureSample(to_texture, texture_sampler, uv_to);
+            }
+        }
+        case 7u: { // PushRight
+            let p = uniforms.progress;
+            let uv_from = in.uv - vec2<f32>(p, 0.0);
+            let uv_to = in.uv + vec2<f32>(1.0 - p, 0.0);
+            if (uv_from.x >= 0.0) {
+                return textureSample(from_texture, texture_sampler, uv_from);
+            } else {
+                return textureSample(to_texture, texture_sampler, uv_to);
+            }
+        }
+        case 8u: { // PushUp
+            let p = uniforms.progress;
+            let uv_from = in.uv + vec2<f32>(0.0, p);
+            let uv_to = in.uv - vec2<f32>(0.0, 1.0 - p);
+            if (uv_from.y <= 1.0) {
+                return textureSample(from_texture, texture_sampler, uv_from);
+            } else {
+                return textureSample(to_texture, texture_sampler, uv_to);
+            }
+        }
+        case 9u: { // PushDown
+            let p = uniforms.progress;
+            let uv_from = in.uv - vec2<f32>(0.0, p);
+            let uv_to = in.uv + vec2<f32>(0.0, 1.0 - p);
+            if (uv_from.y >= 0.0) {
+                return textureSample(from_texture, texture_sampler, uv_from);
+            } else {
+                return textureSample(to_texture, texture_sampler, uv_to);
+            }
         }
         default: {
             alpha = uniforms.progress;
         }
     }
 
+    let from_color = textureSample(from_texture, texture_sampler, in.uv);
+    let to_color = textureSample(to_texture, texture_sampler, in.uv);
     return mix(from_color, to_color, alpha);
 }
 "#;

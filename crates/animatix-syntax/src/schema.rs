@@ -379,6 +379,7 @@ pub fn common_property_names() -> &'static [&'static str] {
         "min_width",
         "offset",
         "opacity",
+        "parallax",
         "position",
         "rotation",
         "scale",
@@ -530,6 +531,7 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         // false`). Build-time only, stored on a plain track field; the declared
         // type guides the analyzer and the assignment path, which rejects it.
         ("camera_follow", Type::Bool),
+        ("parallax", Type::Num),
     ]
 }
 
@@ -579,7 +581,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            106,
+            107,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

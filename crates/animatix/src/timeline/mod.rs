@@ -231,9 +231,10 @@ pub use animatix_std::{caps_for_type, caps_from_info};
 pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
 use timing::{
-    has_non_default_morph_options, parse_stagger_interval_ms, push_modifier_diagnostic,
-    push_unknown_target_path_diagnostic, push_unsupported_stagger_statement_diagnostic,
-    sequence_stmt_kind,
+    has_non_default_morph_options, parse_stagger_modifiers,
+    push_modifier_diagnostic, push_unknown_target_path_diagnostic,
+    push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
+    ParsedStaggerModifiers, StaggerMetric, StaggerOrigin,
 };
 
 pub use crate::primitives::primitive_info_by_name;
@@ -1517,7 +1518,7 @@ impl Timeline {
         self.camera_used
             .set(self.camera.is_authored() || Self::stmts_address_camera(&self.modifiers));
         self.camera_exempt_present
-            .set(self.tracks.values().any(|track| !track.camera_follow));
+            .set(self.tracks.values().any(|track| !track.camera_follow || track.parallax != 1.0));
     }
 
     fn stmts_address_camera(stmts: &[crate::ast::Stmt]) -> bool {

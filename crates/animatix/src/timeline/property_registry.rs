@@ -1031,6 +1031,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("padding", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
+    binding!("parallax", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
+        super::property_engine::PropertyValue::F32(1.0)
+    }),
     binding!(
         "place",
         ValueType::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),

@@ -108,7 +108,13 @@ impl Primitive for TextPrimitive {
         if paths.is_empty() {
             Ok(None)
         } else {
-            Ok(Some(vec![RenderCommand::Text { paths }]))
+            let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
+                use crate::timeline::TrackAccessor;
+                Some(Box::new(ctx.track.style.fill_gradient.get(ctx.time_ms, crate::renderer::types::GradientSpec::default())))
+            } else {
+                None
+            };
+            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient }]))
         }
     }
 

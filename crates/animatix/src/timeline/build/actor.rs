@@ -334,22 +334,40 @@ impl Timeline {
         props: &[Property],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(prop) = props.iter().find(|p| p.name == "camera_follow") else {
-            return;
-        };
-        let subject = format!("{label}.camera_follow");
-        let parsed = crate::timeline::property_engine::parse_property_value(
-            crate::timeline::property_registry::ValueType::Bool,
-            &prop.value,
-            &self.env,
-            diagnostics,
-            &subject,
-        );
-        // A value the bool parser rejects is already reported by it; the flag
-        // keeps its default, so the actor stays camera'd rather than guessing.
-        if let Some(crate::timeline::property_engine::PropertyValue::Bool(follow)) = parsed {
-            if let Some(track) = self.tracks.get_mut(label) {
-                track.camera_follow = follow;
+        if let Some(prop) = props.iter().find(|p| p.name == "camera_follow") {
+            let subject = format!("{label}.camera_follow");
+            let parsed = crate::timeline::property_engine::parse_property_value(
+                crate::timeline::property_registry::ValueType::Bool,
+                &prop.value,
+                &self.env,
+                diagnostics,
+                &subject,
+            );
+            // A value the bool parser rejects is already reported by it; the flag
+            // keeps its default, so the actor stays camera'd rather than guessing.
+            if let Some(crate::timeline::property_engine::PropertyValue::Bool(follow)) = parsed {
+                if let Some(track) = self.tracks.get_mut(label) {
+                    track.camera_follow = follow;
+                    if !follow {
+                        track.parallax = 0.0;
+                    }
+                }
+            }
+        }
+
+        if let Some(prop) = props.iter().find(|p| p.name == "parallax") {
+            let subject = format!("{label}.parallax");
+            let parsed = crate::timeline::property_engine::parse_property_value(
+                crate::timeline::property_registry::ValueType::F32,
+                &prop.value,
+                &self.env,
+                diagnostics,
+                &subject,
+            );
+            if let Some(crate::timeline::property_engine::PropertyValue::F32(p)) = parsed {
+                if let Some(track) = self.tracks.get_mut(label) {
+                    track.parallax = p;
+                }
             }
         }
     }

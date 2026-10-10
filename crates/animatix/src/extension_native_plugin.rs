@@ -1736,7 +1736,10 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
     };
     // Place the text at the command's local offset.
     let paths = crate::primitives::translate_text_paths(paths, command.x, command.y);
-    host.commands.push(crate::primitives::RenderCommand::Text { paths });
+    host.commands.push(crate::primitives::RenderCommand::Text {
+        paths,
+        fill_gradient: None,
+    });
     NATIVE_STATUS_OK
 }
 

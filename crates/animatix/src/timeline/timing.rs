@@ -223,12 +223,35 @@ pub(crate) fn push_modifier_diagnostic(
     });
 }
 
-pub(crate) fn parse_stagger_interval_ms(
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum StaggerOrigin {
+    Center,
+    TopLeft,
+    Point([f64; 2]),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum StaggerMetric {
+    #[default]
+    Euclidean,
+    Manhattan,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ParsedStaggerModifiers {
+    pub interval_ms: f64,
+    pub from: Option<StaggerOrigin>,
+    pub metric: StaggerMetric,
+}
+
+pub(crate) fn parse_stagger_modifiers(
     modifiers: &[Modifier],
     diagnostics: &mut Vec<Diagnostic>,
-) -> Option<f64> {
+) -> Option<ParsedStaggerModifiers> {
     let mut interval_ms = None;
     let mut saw_interval = false;
+    let mut from_origin = None;
+    let mut metric = StaggerMetric::default();
 
     for modifier in modifiers {
         match modifier.name.as_deref() {
@@ -302,11 +325,68 @@ pub(crate) fn parse_stagger_interval_ms(
                     );
                 }
             },
+            Some("from") => {
+                match &modifier.value {
+                    Expr::Ident(name) | Expr::Str(name) if name == "center" => {
+                        from_origin = Some(StaggerOrigin::Center);
+                    },
+                    Expr::Ident(name) | Expr::Str(name) if name == "top-left" || name == "top_left" => {
+                        from_origin = Some(StaggerOrigin::TopLeft);
+                    },
+                    Expr::Tuple(items) if items.len() == 2 => {
+                        match (&items[0], &items[1]) {
+                            (Expr::Num(x), Expr::Num(y)) => {
+                                from_origin = Some(StaggerOrigin::Point([*x, *y]));
+                            },
+                            _ => {
+                                push_modifier_diagnostic(
+                                    diagnostics,
+                                    DiagnosticCode::InvalidModifierValue,
+                                    "Stagger from coordinate tuple expects (x, y) numbers.".to_string(),
+                                    Some("stagger"),
+                                );
+                            }
+                        }
+                    },
+                    _ => {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported stagger from value '{:?}'; expected 'center', 'top-left', or (x, y).",
+                                modifier.value
+                            ),
+                            Some("stagger"),
+                        );
+                    }
+                }
+            },
+            Some("metric") => {
+                match &modifier.value {
+                    Expr::Ident(name) | Expr::Str(name) if name == "euclidean" => {
+                        metric = StaggerMetric::Euclidean;
+                    },
+                    Expr::Ident(name) | Expr::Str(name) if name == "manhattan" => {
+                        metric = StaggerMetric::Manhattan;
+                    },
+                    _ => {
+                        push_modifier_diagnostic(
+                            diagnostics,
+                            DiagnosticCode::InvalidModifierValue,
+                            format!(
+                                "Unsupported stagger metric '{:?}'; expected 'euclidean' or 'manhattan'.",
+                                modifier.value
+                            ),
+                            Some("stagger"),
+                        );
+                    }
+                }
+            },
             Some(other) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,
                 format!(
-                    "Unsupported modifier key '{other}' on stagger; only duration shorthand or 'each' are supported."
+                    "Unsupported modifier key '{other}' on stagger; only duration shorthand, 'each', 'from', or 'metric' are supported."
                 ),
                 Some("stagger"),
             ),
@@ -322,7 +402,11 @@ pub(crate) fn parse_stagger_interval_ms(
         );
     }
 
-    interval_ms
+    interval_ms.map(|interval| ParsedStaggerModifiers {
+        interval_ms: interval,
+        from: from_origin,
+        metric,
+    })
 }
 
 /// The curve an uneased timed statement gets, chosen by what it is doing.

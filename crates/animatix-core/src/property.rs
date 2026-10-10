@@ -347,7 +347,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("blend", Applicable::Everything, PropertyValueKind::String),
     PropertyDescriptor::new(
         "fill_gradient",
-        Applicable::AllShapesExceptLine,
+        Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::TextLike]),
         PropertyValueKind::Generic,
     ),
     PropertyDescriptor::new(
@@ -376,6 +376,8 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // to match its `BuildTimeOnly` runtime binding, exactly as `icon` does: the
     // value is read once at build into a plain track field and never keyframed.
     PropertyDescriptor::new("camera_follow", Applicable::Everything, PropertyValueKind::Generic),
+    // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 = static HUD).
+    PropertyDescriptor::new("parallax", Applicable::Everything, PropertyValueKind::F32),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

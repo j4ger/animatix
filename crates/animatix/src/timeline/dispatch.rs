@@ -88,6 +88,8 @@ pub struct AnimationTrack {
     /// it does *not* see. Applies to root actors; a nested actor inherits its
     /// container's camera, because the camera is applied once, at the root.
     pub camera_follow: bool,
+    /// Continuous parallax multiplier for camera movement on root actors (default 1.0).
+    pub parallax: f32,
     /// Whether the build seeded this track's opacity to `0.0` because the
     /// actor was first declared before the first keyframe without an explicit
     /// `opacity` (docs/spec.md "Pre-Keyframe Actor Declarations").
@@ -261,6 +263,7 @@ impl AnimationTrack {
             visible: true,
             locked: false,
             camera_follow: true,
+            parallax: 1.0,
             hidden_by_default: false,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(

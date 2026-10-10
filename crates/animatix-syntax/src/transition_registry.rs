@@ -53,6 +53,30 @@ pub static REGISTRY: &[TransitionDef] = &[
         default_duration_ms: 300,
         shader_case: 5,
     },
+    TransitionDef {
+        id: "push-left",
+        display_name: "Push Left",
+        default_duration_ms: 300,
+        shader_case: 6,
+    },
+    TransitionDef {
+        id: "push-right",
+        display_name: "Push Right",
+        default_duration_ms: 300,
+        shader_case: 7,
+    },
+    TransitionDef {
+        id: "push-up",
+        display_name: "Push Up",
+        default_duration_ms: 300,
+        shader_case: 8,
+    },
+    TransitionDef {
+        id: "push-down",
+        display_name: "Push Down",
+        default_duration_ms: 300,
+        shader_case: 9,
+    },
 ];
 
 /// Look up a transition definition by its ID.
@@ -79,5 +103,9 @@ pub fn all_ids() -> &'static [&'static str] {
         "wipe-right",
         "wipe-up",
         "wipe-down",
+        "push-left",
+        "push-right",
+        "push-up",
+        "push-down",
     ]
 }

@@ -338,6 +338,7 @@ impl Primitive for LegendPrimitive {
                             .collect::<Vec<_>>();
                         commands.push(RenderCommand::Text {
                             paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
+                            fill_gradient: None,
                         });
                         y_offset += title_height + gap;
                     }
@@ -408,6 +409,7 @@ impl Primitive for LegendPrimitive {
                     .collect::<Vec<_>>();
                 commands.push(RenderCommand::Text {
                     paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
+                    fill_gradient: None,
                 });
             } else {
                 let fallback_width = 80.0f64;

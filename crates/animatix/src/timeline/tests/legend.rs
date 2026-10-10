@@ -81,7 +81,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     let text_command = commands
         .iter()
         .find_map(|cmd| match cmd {
-            RenderCommand::Text { paths } => Some(paths.as_ref()),
+            RenderCommand::Text { paths, .. } => Some(paths.as_ref()),
             _ => None,
         })
         .expect("legend should emit a text command");
@@ -638,7 +638,7 @@ fn test_legend_render_commands_produced() {
             RenderCommand::Paths { paths } => {
                 assert_eq!(paths.len(), 1, "each swatch command should contain 1 path");
             },
-            RenderCommand::Text { paths } => {
+            RenderCommand::Text { paths, .. } => {
                 assert!(!paths.is_empty(), "legend label should compile glyph paths");
             },
             _ => panic!("Command {} should be Paths or Text variant", i),

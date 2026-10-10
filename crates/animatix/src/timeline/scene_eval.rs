@@ -1255,10 +1255,21 @@ impl Timeline {
         // the picture under them — unless this scope opted the camera out, in
         // which case its subtree was evaluated untransformed and its authored
         // numbers are already screen coordinates.
-        let camera = if track.camera_follow {
+        let camera = if track.camera_follow && (track.parallax - 1.0).abs() < f32::EPSILON {
             camera
-        } else {
+        } else if !track.camera_follow || track.parallax == 0.0 {
             kurbo::Affine::IDENTITY
+        } else {
+            let p = track.parallax as f64;
+            let cam = camera.as_coeffs();
+            kurbo::Affine::new([
+                1.0 + p * (cam[0] - 1.0),
+                p * cam[1],
+                p * cam[2],
+                1.0 + p * (cam[3] - 1.0),
+                p * cam[4],
+                p * cam[5],
+            ])
         };
         Self::region_from_rect(
             camera.transform_rect_bbox(rect),
@@ -1730,6 +1741,7 @@ impl Timeline {
                     if !all_glyphs.is_empty() {
                         let cmd = crate::primitives::RenderCommand::Text {
                             paths: std::sync::Arc::clone(&compiled.glyphs),
+                            fill_gradient: None,
                         };
                         cmd.execute(out.scene, &global_transform, global_opacity);
                     }
@@ -2203,12 +2215,30 @@ impl Timeline {
                 // opt-out deeper in the tree would have nothing to undo (and is
                 // reported at build). Short-circuited on `camera_exempt` so a
                 // scene that never uses the flag does no track lookup per root.
-                let root_affine =
-                    if camera_exempt && self.tracks.get(root).is_some_and(|t| !t.camera_follow) {
-                        kurbo::Affine::IDENTITY
+                let root_affine = if camera_exempt {
+                    if let Some(t) = self.tracks.get(root) {
+                        if !t.camera_follow || t.parallax == 0.0 {
+                            kurbo::Affine::IDENTITY
+                        } else if (t.parallax - 1.0).abs() < f32::EPSILON {
+                            camera_affine
+                        } else {
+                            let p = t.parallax as f64;
+                            let cam = camera_affine.as_coeffs();
+                            kurbo::Affine::new([
+                                1.0 + p * (cam[0] - 1.0),
+                                p * cam[1],
+                                p * cam[2],
+                                1.0 + p * (cam[3] - 1.0),
+                                p * cam[4],
+                                p * cam[5],
+                            ])
+                        }
                     } else {
                         camera_affine
-                    };
+                    }
+                } else {
+                    camera_affine
+                };
                 // P2.17: Static subtree cache — fully-static subtrees are evaluated once
                 // and their vello encoding is reused on subsequent frames. Dimensions
                 // and item collection are part of the key so different canvas sizes or
