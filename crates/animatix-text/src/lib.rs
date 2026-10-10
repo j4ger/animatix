@@ -25,6 +25,36 @@ pub struct TextPath {
     pub color: [u8; 4],
     /// The opacity of the glyph (0.0–1.0).
     pub opacity: f32,
+    /// Line index this glyph belongs to (0-indexed).
+    pub line_idx: u16,
+    /// Word index this glyph belongs to (0-indexed).
+    pub word_idx: u16,
+    /// Character index within the text content (0-indexed).
+    pub char_idx: u16,
+    /// Bounding box center of this glyph in local coordinates.
+    pub glyph_center: [f32; 2],
+}
+
+impl TextPath {
+    /// Create a new TextPath with basic fields and default layout indices.
+    pub fn new(path: BezPath, color: [u8; 4], opacity: f32) -> Self {
+        use kurbo::Shape as _;
+        let b = path.bounding_box();
+        let center = if b.width().is_finite() && b.height().is_finite() {
+            [((b.x0 + b.x1) * 0.5) as f32, ((b.y0 + b.y1) * 0.5) as f32]
+        } else {
+            [0.0, 0.0]
+        };
+        Self {
+            path,
+            color,
+            opacity,
+            line_idx: 0,
+            word_idx: 0,
+            char_idx: 0,
+            glyph_center: center,
+        }
+    }
 }
 
 /// Convert an f32 RGBA color (0.0–1.0 components) to RGBA bytes.
@@ -1663,11 +1693,11 @@ fn walk_frame_for_glyphs_text_item(
                 let final_affine = item_transform * glyph_translate * scale_affine;
                 let mut final_path = path;
                 final_path.apply_affine(final_affine);
-                glyphs.push(TextPath {
-                    path: final_path,
-                    color: paint_to_rgba(&text.fill),
-                    opacity: 1.0,
-                });
+                glyphs.push(TextPath::new(
+                    final_path,
+                    paint_to_rgba(&text.fill),
+                    1.0,
+                ));
             }
             x_curr += advance;
         }
@@ -1702,6 +1732,10 @@ pub fn center_text_paths(paths: &mut [TextPath]) -> f32 {
 
         for path in paths.iter_mut() {
             path.path.apply_affine(offset);
+            let b = path.path.bounding_box();
+            if b.width().is_finite() && b.height().is_finite() {
+                path.glyph_center = [((b.x0 + b.x1) * 0.5) as f32, ((b.y0 + b.y1) * 0.5) as f32];
+            }
         }
 
         // Baseline was at Y=0 before centering; after shifting by -center_y, it is at -center_y.
@@ -1735,23 +1769,61 @@ pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
         [0.0, 0.0]
     }
 }
+#[derive(Default)]
 #[cfg(feature = "rich-text")]
-fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &mut Vec<TextPath>) {
+struct GlyphLayoutState {
+    line_idx: u16,
+    word_idx: u16,
+    last_y: Option<f64>,
+    last_end: usize,
+}
+
+#[cfg(feature = "rich-text")]
+fn walk_frame_for_glyphs_with_state(
+    frame: &Frame,
+    current_transform: Transform,
+    glyphs: &mut Vec<TextPath>,
+    state: &mut GlyphLayoutState,
+) {
     for (pos, item) in frame.items() {
         let transform = current_transform.pre_concat(Transform::translate(pos.x, pos.y));
         match item {
             FrameItem::Group(group) => {
                 let group_transform = transform.pre_concat(group.transform);
-                walk_frame_for_glyphs(&group.frame, group_transform, glyphs);
+                walk_frame_for_glyphs_with_state(&group.frame, group_transform, glyphs, state);
             },
             FrameItem::Text(text) => {
+                let current_y = transform.ty.to_pt();
+                if let Some(last_y) = state.last_y {
+                    if (current_y - last_y).abs() > 2.0 {
+                        state.line_idx += 1;
+                        state.last_y = Some(current_y);
+                        state.last_end = 0;
+                    }
+                } else {
+                    state.last_y = Some(current_y);
+                }
+
+                let text_str = text.text.as_str();
                 let size = text.size.to_pt() as f32;
                 let units_per_em = text.font.units_per_em() as f32;
                 let font_scale = size / units_per_em;
                 let face = text.font.ttf();
 
+                let mut item_last_end = 0usize;
                 let mut x_curr = 0.0;
                 for glyph in &text.glyphs {
+                    let start = glyph.range.start as usize;
+                    let end = glyph.range.end as usize;
+                    let is_space = text_str
+                        .get(start..end)
+                        .map(|s| s.chars().all(|c| c.is_whitespace()))
+                        .unwrap_or(false);
+                    if is_space || (start > item_last_end && text_str.get(item_last_end..start).map(|s| s.chars().any(|c| c.is_whitespace())).unwrap_or(false)) {
+                        state.word_idx += 1;
+                    }
+                    item_last_end = end;
+
                     let offset_x = glyph.x_offset.at(text.size).to_pt() as f32;
                     let offset_y = glyph.y_offset.at(text.size).to_pt() as f32;
                     let advance = glyph.x_advance.at(text.size).to_pt() as f32;
@@ -1783,11 +1855,16 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
                         let mut final_path = path;
                         final_path.apply_affine(final_affine);
 
-                        glyphs.push(TextPath {
-                            path: final_path,
-                            color: paint_to_rgba(&text.fill),
-                            opacity: 1.0,
-                        });
+                        let char_idx = glyphs.len() as u16;
+                        let mut tp = TextPath::new(
+                            final_path,
+                            paint_to_rgba(&text.fill),
+                            1.0,
+                        );
+                        tp.line_idx = state.line_idx;
+                        tp.word_idx = state.word_idx;
+                        tp.char_idx = char_idx;
+                        glyphs.push(tp);
                     }
 
                     x_curr += advance;
@@ -1796,6 +1873,12 @@ fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &m
             _ => {},
         }
     }
+}
+
+#[cfg(feature = "rich-text")]
+fn walk_frame_for_glyphs(frame: &Frame, current_transform: Transform, glyphs: &mut Vec<TextPath>) {
+    let mut state = GlyphLayoutState::default();
+    walk_frame_for_glyphs_with_state(frame, current_transform, glyphs, &mut state);
 }
 #[cfg(feature = "rich-text")]
 /// Extract shapes from a Typst frame.
@@ -2051,7 +2134,12 @@ pub fn compile_text_fast(
             .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
     );
 
+    let mut word_idx = 0u16;
+    let mut char_idx = 0u16;
     for c in content.chars() {
+        if c == ' ' {
+            word_idx += 1;
+        }
         // Primary face first; the bundled set covers what it misses. Kerning
         // only applies when both glyphs come from the same face.
         let Some((used_idx, glyph_id, glyph_scale)) = pick_glyph(&faces, c, size) else {
@@ -2103,10 +2191,16 @@ pub fn compile_text_fast(
             let mut final_path = path;
             final_path.apply_affine(final_affine);
 
+            let c_idx = char_idx;
+            char_idx += 1;
             glyphs.push(TextPath {
                 path: final_path,
                 color: rgba,
                 opacity: 1.0,
+                line_idx: 0,
+                word_idx,
+                char_idx: c_idx,
+                glyph_center: [0.0, 0.0],
             });
         }
 
@@ -2393,10 +2487,15 @@ pub fn compile_text_fast_wrapped(
                     let mut final_path = path;
                     final_path.apply_affine(final_affine);
 
+                    let c_idx = glyphs.len() as u16;
                     glyphs.push(TextPath {
                         path: final_path,
                         color: rgba,
                         opacity: 1.0,
+                        line_idx: line_idx as u16,
+                        word_idx: wi_idx as u16,
+                        char_idx: c_idx,
+                        glyph_center: [0.0, 0.0],
                     });
                 }
             }
@@ -2426,10 +2525,16 @@ pub fn compile_text_fast_wrapped(
                         let final_affine = translate * scale_affine;
                         let mut final_path = path;
                         final_path.apply_affine(final_affine);
+                        let c_idx = glyphs.len() as u16;
+                        let last_w_idx = line.words.last().copied().unwrap_or(0) as u16;
                         glyphs.push(TextPath {
                             path: final_path,
                             color: rgba,
                             opacity: 1.0,
+                            line_idx: line_idx as u16,
+                            word_idx: last_w_idx,
+                            char_idx: c_idx,
+                            glyph_center: [0.0, 0.0],
                         });
                     }
                 }

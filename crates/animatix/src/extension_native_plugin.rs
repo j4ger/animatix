@@ -1739,6 +1739,7 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
     host.commands.push(crate::primitives::RenderCommand::Text {
         paths,
         fill_gradient: None,
+        clip_path: None,
     });
     NATIVE_STATUS_OK
 }

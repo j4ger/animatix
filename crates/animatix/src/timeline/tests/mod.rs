@@ -55,6 +55,8 @@ mod variable_tracks;
 #[cfg(test)]
 mod wave1;
 #[cfg(test)]
+mod wave2;
+#[cfg(test)]
 mod connector;
 
 #[test]

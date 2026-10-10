@@ -251,6 +251,8 @@ pub static MATH: PrimitiveInfo =
     PrimitiveInfo::text("Math", "Math", icon_glyphs::FUNCTION, TextKind::Math).advanced();
 pub static TYPST: PrimitiveInfo =
     PrimitiveInfo::text("Typst", "Typst", icon_glyphs::ARTICLE, TextKind::Typst).advanced();
+pub static COUNTER: PrimitiveInfo =
+    PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Text);
 
 // Media
 pub static IMAGE: PrimitiveInfo =
@@ -439,6 +441,7 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     &CODE,
     &MATH,
     &TYPST,
+    &COUNTER,
     // Media
     &IMAGE,
     &SVG,

@@ -762,6 +762,10 @@ pub fn interpolate_text_paths(
                 path: path.path.clone(),
                 color: path.color,
                 opacity: path.opacity * source_alpha,
+                line_idx: path.line_idx,
+                word_idx: path.word_idx,
+                char_idx: path.char_idx,
+                glyph_center: path.glyph_center,
             });
         }
         for path in target {
@@ -769,6 +773,10 @@ pub fn interpolate_text_paths(
                 path: path.path.clone(),
                 color: path.color,
                 opacity: path.opacity * target_alpha,
+                line_idx: path.line_idx,
+                word_idx: path.word_idx,
+                char_idx: path.char_idx,
+                glyph_center: path.glyph_center,
             });
         }
         return result;
@@ -781,18 +789,25 @@ pub fn interpolate_text_paths(
     aligned_lists
         .into_iter()
         .enumerate()
-        .map(|(index, (source_path, target_path))| TextPath {
-            path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
-            color: if t < 0.5 {
-                source.get(index).map(|path| path.color).unwrap_or_else(|| {
-                    target.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
-                })
-            } else {
-                target.get(index).map(|path| path.color).unwrap_or_else(|| {
-                    source.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
-                })
-            },
-            opacity: 1.0,
+        .map(|(index, (source_path, target_path))| {
+            let ref_path = if t < 0.5 { source.get(index) } else { target.get(index) };
+            TextPath {
+                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                color: if t < 0.5 {
+                    source.get(index).map(|path| path.color).unwrap_or_else(|| {
+                        target.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
+                    })
+                } else {
+                    target.get(index).map(|path| path.color).unwrap_or_else(|| {
+                        source.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
+                    })
+                },
+                opacity: 1.0,
+                line_idx: ref_path.map(|p| p.line_idx).unwrap_or(0),
+                word_idx: ref_path.map(|p| p.word_idx).unwrap_or(0),
+                char_idx: ref_path.map(|p| p.char_idx).unwrap_or(index as u16),
+                glyph_center: ref_path.map(|p| p.glyph_center).unwrap_or([0.0, 0.0]),
+            }
         })
         .collect()
 }
@@ -1358,16 +1373,8 @@ mod tests {
 
     #[test]
     fn fade_text_paths_at_midpoint_returns_both_halved() {
-        let source = vec![TextPath {
-            path: BezPath::new(),
-            color: [0, 0, 0, 255],
-            opacity: 1.0,
-        }];
-        let target = vec![TextPath {
-            path: BezPath::new(),
-            color: [255, 255, 255, 255],
-            opacity: 0.8,
-        }];
+        let source = vec![TextPath::new(BezPath::new(), [0, 0, 0, 255], 1.0)];
+        let target = vec![TextPath::new(BezPath::new(), [255, 255, 255, 255], 0.8)];
         let result = interpolate_text_paths(
             &source,
             &target,

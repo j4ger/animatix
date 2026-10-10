@@ -1742,6 +1742,7 @@ impl Timeline {
                         let cmd = crate::primitives::RenderCommand::Text {
                             paths: std::sync::Arc::clone(&compiled.glyphs),
                             fill_gradient: None,
+                            clip_path: None,
                         };
                         cmd.execute(out.scene, &global_transform, global_opacity);
                     }

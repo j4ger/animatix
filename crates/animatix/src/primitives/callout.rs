@@ -204,7 +204,7 @@ impl Primitive for CalloutPrimitive {
                 // Callout labels intentionally default smaller (24pt) than the
                 // shared prose default (`renderer::text::default_font_size`),
                 // so keep the explicit size here.
-                let paths = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
+                let (paths, _) = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
 
                 // Translate text paths to the label position using kurbo Affine
                 let translate = kurbo::Affine::translate((offset_x, offset_y));
@@ -221,6 +221,7 @@ impl Primitive for CalloutPrimitive {
                     commands.push(RenderCommand::Text {
                         paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
                         fill_gradient: None,
+                        clip_path: None,
                     });
                 }
             }

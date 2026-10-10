@@ -96,7 +96,7 @@ impl Primitive for TypstPrimitive {
         use crate::renderer::text::TextKind;
         use crate::timeline::TrackAccessor;
 
-        let paths = if let Some(text_ctx) = text_ctx {
+        let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
             evaluate_text_paths(
                 ctx,
                 text_ctx,
@@ -104,7 +104,8 @@ impl Primitive for TypstPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Typst),
             )
         } else {
-            Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
+            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+            Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {
             Ok(None)
@@ -156,7 +157,7 @@ impl Primitive for TypstPrimitive {
                             alpha: hl_opacity,
                             corner_radius: hl_radius as f64,
                         },
-                        RenderCommand::Text { paths, fill_gradient },
+                        RenderCommand::Text { paths, fill_gradient, clip_path },
                     ]));
                 }
             }
@@ -166,7 +167,7 @@ impl Primitive for TypstPrimitive {
             } else {
                 None
             };
-            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient }]))
+            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient, clip_path }]))
         }
     }
 

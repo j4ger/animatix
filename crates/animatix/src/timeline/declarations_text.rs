@@ -12,12 +12,13 @@ use super::{
 use crate::ast::Property;
 use crate::renderer::error::RenderError;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum TextDeclarationKind {
     Text,
     Code,
     Typst,
     Math,
+    Counter,
 }
 
 impl TextDeclarationKind {
@@ -27,6 +28,7 @@ impl TextDeclarationKind {
             Self::Code => "unnamed_code",
             Self::Typst => "unnamed_typst",
             Self::Math => "unnamed_math",
+            Self::Counter => "unnamed_counter",
         }
     }
 
@@ -37,12 +39,13 @@ impl TextDeclarationKind {
             Self::Code => "Code",
             Self::Typst => "Typst",
             Self::Math => "Math",
+            Self::Counter => "Counter",
         }
     }
 
     fn modifier_host(self) -> ModifierHost {
         match self {
-            Self::Text => ModifierHost::Text,
+            Self::Text | Self::Counter => ModifierHost::Text,
             Self::Code => ModifierHost::Code,
             Self::Typst | Self::Math => ModifierHost::Typst,
         }
@@ -51,7 +54,7 @@ impl TextDeclarationKind {
     fn default_font_size(self) -> f32 {
         match self {
             Self::Code => 24.0,
-            Self::Text | Self::Typst | Self::Math => 48.0,
+            Self::Text | Self::Typst | Self::Math | Self::Counter => 48.0,
         }
     }
 
@@ -65,6 +68,7 @@ impl TextDeclarationKind {
         match self {
             Self::Text | Self::Typst | Self::Math => property_name == "text",
             Self::Code => matches!(property_name, "text" | "code"),
+            Self::Counter => false,
         }
     }
 
@@ -81,6 +85,9 @@ impl TextDeclarationKind {
             },
             Self::Math => {
                 "Morph-specific modifiers on math declaration require a re-declaration with non-zero duration; ignoring them for now."
+            },
+            Self::Counter => {
+                "Morph-specific modifiers on counter declaration require a re-declaration with non-zero duration; ignoring them for now."
             },
         }
     }
@@ -145,6 +152,10 @@ impl Timeline {
         let mut at_expr: Option<Expr> = None;
         let mut anchor_expr: Option<Expr> = None;
         let mut offset_expr: Option<Expr> = None;
+        let mut split_by: Option<String> = None;
+        let mut split_stagger: Option<f32> = None;
+        let mut split_offset_y: Option<f32> = None;
+        let mut split_mask: Option<bool> = None;
 
         for prop in props {
             let prop_subject = format!("{}.{}", label_str, prop.name);
@@ -267,6 +278,40 @@ impl Timeline {
                     .map(|v| v.as_str())
                     .unwrap_or_else(|| "visible".to_string());
                 },
+                "split_by" => {
+                    split_by = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str());
+                },
+                "split_stagger" => {
+                    split_stagger = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_num() as f32);
+                },
+                "split_offset_y" => {
+                    split_offset_y = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_num() as f32);
+                },
+                "split_mask" => {
+                    split_mask = match &prop.value {
+                        Expr::Bool(b) => Some(*b),
+                        Expr::Ident(s) => Some(s == "true" || s == "baseline"),
+                        _ => Some(false),
+                    };
+                },
                 "color" => {
                     let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
                     {
@@ -314,6 +359,7 @@ impl Timeline {
                 TextDeclarationKind::Code => "Code",
                 TextDeclarationKind::Typst => "Typst",
                 TextDeclarationKind::Math => "Math",
+                TextDeclarationKind::Counter => "Counter",
             };
             if let Some(primitive) = self.primitive_registry.find(primitive_type) {
                 let caps = animatix_std::caps_for_type(primitive_type).unwrap_or_default();
@@ -460,6 +506,104 @@ impl Timeline {
             overflow.clone(),
             easing,
         );
+        if let Some(by) = split_by {
+            track.text.split_by.ensure("char".to_string()).add_keyframe(t_end_ms, by, easing);
+        }
+        if let Some(stagger) = split_stagger {
+            track.text.split_stagger.ensure(0.0).add_keyframe(t_end_ms, stagger, easing);
+        }
+        if let Some(offset_y) = split_offset_y {
+            track.text.split_offset_y.ensure(0.0).add_keyframe(t_end_ms, offset_y, easing);
+        }
+        if let Some(mask) = split_mask {
+            track.text.split_mask.ensure(false).add_keyframe(t_end_ms, mask, easing);
+        }
+
+        if kind == TextDeclarationKind::Counter {
+            let mut initial_val = 0.0f32;
+            let mut prefix_str = String::new();
+            let mut suffix_str = String::new();
+            let mut decimals_val = 0u32;
+            let mut use_comma_val = false;
+
+            for prop in props {
+                match prop.name.as_str() {
+                    "value" => {
+                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                            &prop.value,
+                            &eval_env,
+                            diagnostics,
+                            &format!("{}.value", label_str),
+                        ) {
+                            initial_val = v.as_num() as f32;
+                        }
+                    },
+                    "prefix" => {
+                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                            &prop.value,
+                            &eval_env,
+                            diagnostics,
+                            &format!("{}.prefix", label_str),
+                        ) {
+                            prefix_str = v.as_str();
+                        }
+                    },
+                    "suffix" => {
+                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                            &prop.value,
+                            &eval_env,
+                            diagnostics,
+                            &format!("{}.suffix", label_str),
+                        ) {
+                            suffix_str = v.as_str();
+                        }
+                    },
+                    "decimals" => {
+                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                            &prop.value,
+                            &eval_env,
+                            diagnostics,
+                            &format!("{}.decimals", label_str),
+                        ) {
+                            decimals_val = v.as_num() as u32;
+                        }
+                    },
+                    "comma" => {
+                        if let Expr::Bool(b) = &prop.value {
+                            use_comma_val = *b;
+                        }
+                    },
+                    _ => {},
+                }
+            }
+
+            let prebaked = crate::primitives::counter::prebake_counter(
+                &font_family,
+                font_size,
+                font_weight,
+                &font_style,
+                line_height,
+                color_rgba,
+                initial_val,
+                decimals_val,
+                use_comma_val,
+                &prefix_str,
+                &suffix_str,
+                self.font_context.as_ref(),
+            )?;
+
+            track.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
+            track.text.counter_data = Some(prebaked.data);
+            track
+                .geometry
+                .size
+                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+                .add_keyframe(t_end_ms, prebaked.initial_half_size, easing);
+            track
+                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
+                .add_keyframe(t_end_ms, prebaked.initial_half_size, easing);
+            return Ok(());
+        }
 
         // Compile through the process-wide memoized path so that unchanged
         // declarations skip the Typst engine entirely on rebuild (the GUI
@@ -467,7 +611,9 @@ impl Timeline {
         // path has always used the Typst engine directly, so the plain-text
         // fast path stays disabled here to preserve output-identical behavior.
         let text_kind = match kind {
-            TextDeclarationKind::Text => crate::renderer::text::TextKind::Text,
+            TextDeclarationKind::Text | TextDeclarationKind::Counter => {
+                crate::renderer::text::TextKind::Text
+            },
             TextDeclarationKind::Code => crate::renderer::text::TextKind::Code,
             TextDeclarationKind::Typst => crate::renderer::text::TextKind::Typst,
             TextDeclarationKind::Math => crate::renderer::text::TextKind::Math,
@@ -602,7 +748,13 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
         let kind = match animatix_std::caps_for_type(actor_type).and_then(|c| c.text) {
-            Some(animatix_core::caps::TextKind::Text) => TextDeclarationKind::Text,
+            Some(animatix_core::caps::TextKind::Text) => {
+                if actor_type == "Counter" {
+                    TextDeclarationKind::Counter
+                } else {
+                    TextDeclarationKind::Text
+                }
+            },
             Some(animatix_core::caps::TextKind::Math) => TextDeclarationKind::Math,
             Some(animatix_core::caps::TextKind::Code) => TextDeclarationKind::Code,
             Some(animatix_core::caps::TextKind::Typst) => TextDeclarationKind::Typst,

@@ -60,3 +60,5 @@ pub const SPEAKER_HIGH: &str = "\u{E44A}";
 pub const SIGMA: &str = "\u{E72A}";
 /// Phosphor icon glyph for a text fragment / highlight.
 pub const HIGHLIGHTER: &str = "\u{E48A}";
+/// Phosphor icon glyph for a hash / number symbol.
+pub const HASH: &str = "\u{E2BA}";

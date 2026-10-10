@@ -63,3 +63,26 @@ pub component Button(label: Str = "Button", width: Num = 120, height: Num = 40, 
   label_text: Text, text: label, font_size: 15, color: accent
     }
 }
+
+pub component BoundaryBox(label: Str = "", width: Num = 400, height: Num = 300, stroke_color: Color = stroke.default) {
+  root: Stack, size: (width, height), align: "center" {
+    border: Rect, size: (width, height), corner_radius: 8, stroke: stroke_color, stroke_width: 1.5, color: (0, 0, 0, 0), dash_pattern: (6, 6)
+    tag: Row, at: (20, 0), align: "center", gap: 6, padding: (2, 8), color: surface.primary {
+      lbl: Text, text: label, font_size: 12, font_weight: 600, color: text.secondary
+    }
+  }
+}
+
+pub component CardNode(title: Str, eyebrow: Str = "", sub: Str = "", width: Num = 200, height: Num = 90, focal: Bool = false) {
+  root: Stack, size: (width, height), align: "center" {
+    card_bg: Rect, size: (width, height), corner_radius: 8, color: surface.primary, stroke: if focal { accent.primary } else { stroke.default }, stroke_width: if focal { 2 } else { 1 }
+    content: Col, size: (width - 24, height - 20), gap: 4, align: "start" {
+      header: Row, gap: 6, align: "center" {
+        status_dot: Ellipse, size: (6, 6), color: if focal { accent.primary } else { text.tertiary }
+        eye_text: Text, text: eyebrow, font_size: 10, font_weight: 600, color: if focal { accent.primary } else { text.secondary }
+      }
+      title_text: Text, text: title, font_size: 16, font_weight: "bold", color: text.primary
+      sub_text: Text, text: sub, font_size: 11, color: text.tertiary, opacity: if sub == "" { 0 } else { 1 }
+    }
+  }
+}

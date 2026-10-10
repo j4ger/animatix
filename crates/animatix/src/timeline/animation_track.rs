@@ -490,6 +490,17 @@ pub struct TextTracks {
     /// Baseline offset from text center, used for baseline alignment.
     /// A positive value means the baseline is above the text center.
     pub baseline: Option<PropertyTrack<f32>>,
+    /// Split reveal mode ("char", "word", "line").
+    pub split_by: Option<PropertyTrack<String>>,
+    /// Stagger between units in split reveal (0.0–1.0 fraction of duration).
+    pub split_stagger: Option<PropertyTrack<f32>>,
+    /// Vertical offset for split reveal emergence in scene units.
+    pub split_offset_y: Option<PropertyTrack<f32>>,
+    /// Whether to clip split text at line baseline.
+    pub split_mask: Option<PropertyTrack<bool>>,
+    /// Prebaked data for rolling Counter primitive.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub counter_data: Option<crate::primitives::counter::CounterData>,
 }
 
 // ─────────────────────────────────────────────────────────────

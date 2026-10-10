@@ -272,6 +272,7 @@ pub(crate) fn modifier<'src>(
 ) -> ModifierParser<'src> {
     choice((
         ident_occ(crate::occurrence::OccurrenceKind::Property)
+            .or(select! { crate::token::TokenKind::Keyword(k) => k })
             .then_ignore(token_parser::colon())
             .then(choice((
                 time.clone().map(|t| match t {

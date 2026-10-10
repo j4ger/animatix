@@ -31,6 +31,7 @@ use super::morph;
 use super::property_track::{PropertyTrack, TrackAccessor};
 use super::shapes::ShapeType;
 use crate::easing::Easing;
+use kurbo::Shape as _;
 use crate::renderer::types::{GradientSpec, TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::plot::{FuncTransition, ProceduralPlot};
@@ -488,13 +489,14 @@ impl AnimationTrack {
     }
 
     // ── Path evaluation ──
-    /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
-    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
+    /// Evaluate text paths and optional baseline clip path at `time_ms`,
+    /// applying morphing, char_progress typewriter truncation, and split-text baseline reveal.
+    pub fn evaluate_text_paths_and_clip(&self, time_ms: u64) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
         if let Some(content_track) = &self.text.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
                 if current_text.is_empty() {
-                    return Vec::new();
+                    return (Vec::new(), None);
                 }
             }
         }
@@ -509,17 +511,176 @@ impl AnimationTrack {
             morph::interpolate_text_paths,
         );
 
-        // Apply char_progress typewriter truncation
-        if let Some(cp_track) = &self.text.char_progress {
-            let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0) as f64;
-            if progress < 1.0 {
-                let n = (progress * paths.len() as f64).ceil() as usize;
-                paths.truncate(n);
-            }
+        let clip = apply_split_text_animation(&mut paths, self, time_ms);
+        (paths, clip)
+    }
+
+    /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
+    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
+        self.evaluate_text_paths_and_clip(time_ms).0
+    }
+}
+
+/// Applies split-text baseline reveal and typewriter animation to a collection of text paths.
+/// Returns an optional baseline clip path if `split_mask` is active.
+pub fn apply_split_text_animation(
+    paths: &mut Vec<TextPath>,
+    track: &AnimationTrack,
+    time_ms: u64,
+) -> Option<kurbo::BezPath> {
+    let cp_track = track.text.char_progress.as_ref()?;
+    let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0);
+    if progress >= 1.0 {
+        return None;
+    }
+
+    let split_by = track
+        .text
+        .split_by
+        .as_ref()
+        .map(|t| t.evaluate(time_ms))
+        .unwrap_or_else(|| "char".to_string());
+    let split_stagger = track
+        .text
+        .split_stagger
+        .as_ref()
+        .map(|t| t.evaluate(time_ms))
+        .unwrap_or(0.0);
+    let split_offset_y = track
+        .text
+        .split_offset_y
+        .as_ref()
+        .map(|t| t.evaluate(time_ms))
+        .unwrap_or(0.0);
+    let split_mask = track
+        .text
+        .split_mask
+        .as_ref()
+        .map(|t| t.evaluate(time_ms))
+        .unwrap_or(false);
+
+    // Case A: Standard typewriter truncation
+    let is_split_mode = split_offset_y != 0.0
+        || split_mask
+        || split_stagger > 0.0
+        || (split_by != "char" && split_by != "chars");
+
+    if !is_split_mode {
+        let n = (progress as f64 * paths.len() as f64).ceil() as usize;
+        paths.truncate(n);
+        return None;
+    }
+
+    if paths.is_empty() {
+        return None;
+    }
+
+    // Case B: Split-text reveal
+    let mut max_unit = 0usize;
+    for g in paths.iter() {
+        let u = match split_by.as_str() {
+            "line" | "lines" => g.line_idx as usize,
+            "word" | "words" => g.word_idx as usize,
+            _ => g.char_idx as usize,
+        };
+        if u > max_unit {
+            max_unit = u;
+        }
+    }
+    let n_units = max_unit + 1;
+
+    let s = if split_stagger > 0.0 {
+        if split_stagger > 1.0 {
+            (split_stagger / 1000.0).clamp(0.0, 0.5)
+        } else {
+            split_stagger
+        }
+    } else {
+        (0.6 / n_units as f32).min(0.08)
+    };
+
+    let s_clamped = if n_units > 1 {
+        s.min(0.85 / (n_units - 1) as f32)
+    } else {
+        0.0
+    };
+    let w = if n_units > 1 {
+        1.0 - (n_units - 1) as f32 * s_clamped
+    } else {
+        1.0
+    };
+
+    let effective_offset = if split_offset_y != 0.0 {
+        split_offset_y
+    } else if split_mask {
+        30.0
+    } else {
+        0.0
+    };
+
+    // Calculate baseline clip rectangles if split_mask is true
+    let clip_path = if split_mask {
+        let mut line_bounds: HashMap<u16, (f64, f64, f64, f64)> = HashMap::new();
+        for g in paths.iter() {
+            let b = g.path.bounding_box();
+            line_bounds
+                .entry(g.line_idx)
+                .and_modify(|e| {
+                    e.0 = e.0.min(b.x0);
+                    e.1 = e.1.min(b.y0);
+                    e.2 = e.2.max(b.x1);
+                    e.3 = e.3.max(b.y1);
+                })
+                .or_insert((b.x0, b.y0, b.x1, b.y1));
+        }
+        let mut bez = kurbo::BezPath::new();
+        for (_, (x0, y0, x1, y1)) in line_bounds {
+            let rx0 = x0 - 50.0;
+            let ry0 = y0 - 1000.0;
+            let rx1 = x1 + 50.0;
+            let ry1 = y1;
+            bez.move_to((rx0, ry0));
+            bez.line_to((rx1, ry0));
+            bez.line_to((rx1, ry1));
+            bez.line_to((rx0, ry1));
+            bez.close_path();
+        }
+        Some(bez)
+    } else {
+        None
+    };
+
+    for g in paths.iter_mut() {
+        let u = match split_by.as_str() {
+            "line" | "lines" => g.line_idx as usize,
+            "word" | "words" => g.word_idx as usize,
+            _ => g.char_idx as usize,
+        };
+        let start_u = u as f32 * s_clamped;
+        let p_u = if w > 0.0 {
+            ((progress - start_u) / w).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        let dy = (1.0 - p_u) * effective_offset;
+        if dy != 0.0 {
+            g.path = kurbo::Affine::translate((0.0, dy as f64)) * g.path.clone();
+            g.glyph_center[1] += dy;
         }
 
-        paths
+        if split_mask {
+            let alpha = if p_u <= 0.0 { 0.0 } else { (p_u * 4.0).min(1.0) };
+            g.opacity *= alpha;
+        } else {
+            g.opacity *= p_u;
+        }
     }
+
+    clip_path
+}
+
+impl AnimationTrack {
 
     /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
     /// declaration-level static path set.

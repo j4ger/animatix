@@ -95,7 +95,7 @@ impl Primitive for TextPrimitive {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
 
-        let paths = if let Some(text_ctx) = text_ctx {
+        let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
             evaluate_text_paths(
                 ctx,
                 text_ctx,
@@ -103,7 +103,8 @@ impl Primitive for TextPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Text),
             )
         } else {
-            Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
+            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+            Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {
             Ok(None)
@@ -114,7 +115,7 @@ impl Primitive for TextPrimitive {
             } else {
                 None
             };
-            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient }]))
+            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient, clip_path }]))
         }
     }
 

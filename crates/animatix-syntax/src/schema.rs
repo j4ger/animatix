@@ -534,6 +534,15 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("parallax", Type::Num),
         ("routing", Type::Str),
         ("arrow", Type::Bool),
+        ("split_by", Type::Str),
+        ("split_stagger", Type::Num),
+        ("split_offset_y", Type::Num),
+        ("split_mask", Type::Bool),
+        ("value", Type::Num),
+        ("prefix", Type::Str),
+        ("suffix", Type::Str),
+        ("decimals", Type::Num),
+        ("comma", Type::Bool),
     ]
 }
 
@@ -583,7 +592,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            109,
+            118,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

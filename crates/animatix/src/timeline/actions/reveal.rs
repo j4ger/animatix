@@ -61,6 +61,68 @@ fn reveal_granularity(modifiers: &[crate::ast::Modifier]) -> Option<String> {
         })
 }
 
+/// Read the `stagger:` modifier, if the action carries one.
+fn reveal_stagger(modifiers: &[crate::ast::Modifier]) -> Option<f32> {
+    modifiers
+        .iter()
+        .find(|m| m.name.as_deref() == Some("stagger"))
+        .and_then(|m| match &m.value {
+            crate::ast::Expr::Num(n) => Some(*n as f32),
+            crate::ast::Expr::Ident(raw) => {
+                crate::timeline::timing::parse_duration_literal(raw).map(|ms| ms as f32 / 1000.0)
+            },
+            _ => None,
+        })
+}
+
+/// Read the `offset_y:` modifier, if the action carries one.
+fn reveal_offset_y(modifiers: &[crate::ast::Modifier]) -> Option<f32> {
+    modifiers
+        .iter()
+        .find(|m| m.name.as_deref() == Some("offset_y"))
+        .and_then(|m| match &m.value {
+            crate::ast::Expr::Num(n) => Some(*n as f32),
+            _ => None,
+        })
+}
+
+/// Read the `mask:` modifier, if the action carries one.
+fn reveal_mask(modifiers: &[crate::ast::Modifier]) -> Option<bool> {
+    modifiers
+        .iter()
+        .find(|m| m.name.as_deref() == Some("mask"))
+        .map(|m| match &m.value {
+            crate::ast::Expr::Bool(b) => *b,
+            crate::ast::Expr::Ident(s) => s == "true" || s == "baseline",
+            _ => false,
+        })
+}
+
+fn split_reveal_params() -> Vec<ActionParam> {
+    vec![
+        ActionParam {
+            name: "by".to_string(),
+            description: "Reveal granularity for text targets: `by: char` (the default), `by: word`, or `by: line`.".to_string(),
+            type_info: "char | word | line".to_string(),
+        },
+        ActionParam {
+            name: "stagger".to_string(),
+            description: "Stagger delay between units (time or fraction).".to_string(),
+            type_info: "time | num".to_string(),
+        },
+        ActionParam {
+            name: "offset_y".to_string(),
+            description: "Vertical translation offset for split reveal.".to_string(),
+            type_info: "num".to_string(),
+        },
+        ActionParam {
+            name: "mask".to_string(),
+            description: "Mask below resting baseline (`baseline` or `true`).".to_string(),
+            type_info: "baseline | bool".to_string(),
+        },
+    ]
+}
+
 impl BuiltinAction for DrawIn {
     fn signature(&self) -> ActionSignature {
         ActionSignature {
@@ -70,18 +132,9 @@ impl BuiltinAction for DrawIn {
                 "Draws in vector targets by animating stroke progress first, then revealing fill at the end."
                     .to_string(),
             params: vec![],
-            // `by` is a reveal control, not timing: it is stripped before the
-            // timing modifiers are parsed, the same way `to` and `along` are.
             modifiers: {
                 let mut mods = base_timing_params();
-                mods.push(ActionParam {
-                    name: "by".to_string(),
-                    description: "Reveal granularity for text targets: `by: char` (the \
-                                  default typewriter) or `by: word`, which brings each \
-                                  word in as a step."
-                        .to_string(),
-                    type_info: "char | word".to_string(),
-                });
+                mods.extend(split_reveal_params());
                 mods
             },
         }
@@ -95,7 +148,7 @@ impl BuiltinAction for DrawIn {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let parsed = parse_timing_modifiers(
-            &timing_modifiers_without_keys(&action.modifiers, &["by"]),
+            &timing_modifiers_without_keys(&action.modifiers, &["by", "stagger", "offset_y", "mask"]),
             ModifierHost::Action,
             Some(&action.verb),
             diagnostics,
@@ -137,6 +190,29 @@ impl BuiltinAction for DrawIn {
             }
 
             if is_text {
+                let by_opt = reveal_granularity(&action.modifiers);
+                let stagger_opt = reveal_stagger(&action.modifiers);
+                let offset_y_opt = reveal_offset_y(&action.modifiers);
+                let mask_opt = reveal_mask(&action.modifiers);
+
+                if let Some(by) = &by_opt {
+                    track.text.split_by.ensure("char".to_string()).add_keyframe(t_start_ms, by.clone(), Easing::Linear);
+                }
+                if let Some(stagger) = stagger_opt {
+                    let s = if duration_ms > 0.0 && stagger > 0.0 {
+                        (stagger * 1000.0 / duration_ms as f32).min(0.5)
+                    } else {
+                        stagger
+                    };
+                    track.text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
+                }
+                if let Some(offset_y) = offset_y_opt {
+                    track.text.split_offset_y.ensure(0.0).add_keyframe(t_start_ms, offset_y, Easing::Linear);
+                }
+                if let Some(mask) = mask_opt {
+                    track.text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
+                }
+
                 // Typewriter effect: animate char_progress 0→1, or in whole-word
                 // steps when the author asks for `by: word`.
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
@@ -144,8 +220,10 @@ impl BuiltinAction for DrawIn {
                     super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
                 }
 
-                let by_word = matches!(
-                    reveal_granularity(&action.modifiers).as_deref(),
+                let is_split_mode = offset_y_opt.is_some() || mask_opt.is_some() || stagger_opt.is_some()
+                    || track.text.split_offset_y.is_some() || track.text.split_mask.is_some() || track.text.split_stagger.is_some();
+                let by_word = !is_split_mode && matches!(
+                    by_opt.as_deref(),
                     Some("word") | Some("words")
                 );
                 let steps = by_word.then(|| {
@@ -239,7 +317,11 @@ impl BuiltinAction for RevealIn {
                 "Reveals vector targets by drawing stroke progress first, then popping fill at the end."
                     .to_string(),
             params: vec![],
-            modifiers: base_timing_params(),
+            modifiers: {
+                let mut mods = base_timing_params();
+                mods.extend(split_reveal_params());
+                mods
+            },
         }
     }
 
@@ -251,7 +333,7 @@ impl BuiltinAction for RevealIn {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let parsed = parse_timing_modifiers(
-            &action.modifiers,
+            &timing_modifiers_without_keys(&action.modifiers, &["by", "stagger", "offset_y", "mask"]),
             ModifierHost::Action,
             Some(&action.verb),
             diagnostics,
@@ -274,6 +356,9 @@ impl BuiltinAction for RevealIn {
                 continue;
             }
 
+            let is_text =
+                timeline.tracks.get(target).is_some_and(|track| is_text_like(timeline, track));
+
             let track = match timeline.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
@@ -288,6 +373,43 @@ impl BuiltinAction for RevealIn {
                 // An explicitly authored `opacity: 0` needs the same lift.
                 super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
             }
+
+            if is_text {
+                let by_opt = reveal_granularity(&action.modifiers);
+                let stagger_opt = reveal_stagger(&action.modifiers);
+                let offset_y_opt = reveal_offset_y(&action.modifiers);
+                let mask_opt = reveal_mask(&action.modifiers);
+
+                if let Some(by) = &by_opt {
+                    track.text.split_by.ensure("char".to_string()).add_keyframe(t_start_ms, by.clone(), Easing::Linear);
+                }
+                if let Some(stagger) = stagger_opt {
+                    let s = if duration_ms > 0.0 && stagger > 0.0 {
+                        (stagger * 1000.0 / duration_ms as f32).min(0.5)
+                    } else {
+                        stagger
+                    };
+                    track.text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
+                }
+                if let Some(offset_y) = offset_y_opt {
+                    track.text.split_offset_y.ensure(0.0).add_keyframe(t_start_ms, offset_y, Easing::Linear);
+                }
+                if let Some(mask) = mask_opt {
+                    track.text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
+                }
+
+                if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
+                    let guard_time = t_start_ms.saturating_sub(1);
+                    super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
+                }
+
+                track.text.char_progress.ensure(1.0).add_keyframe(
+                    t_start_ms,
+                    0.0,
+                    Easing::Linear,
+                );
+                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            } else {
 
             let has_prior_stroke = track
                 .style
@@ -338,6 +460,7 @@ impl BuiltinAction for RevealIn {
                 Easing::Linear,
             );
             track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            }
         }
     }
 }

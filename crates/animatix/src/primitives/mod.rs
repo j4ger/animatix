@@ -84,7 +84,7 @@ pub fn evaluate_text_paths(
     text_ctx: &mut TextCompileCtx,
     kind: crate::renderer::text::TextKind,
     default_font_size: f32,
-) -> Result<std::sync::Arc<[crate::renderer::types::TextPath]>, crate::renderer::error::RenderError>
+) -> Result<(std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>), crate::renderer::error::RenderError>
 {
     use crate::timeline::TrackAccessor;
 
@@ -203,7 +203,7 @@ pub fn evaluate_text_paths(
                     &text_align,
                     &overflow,
                 )?;
-                let crossfaded = crate::timeline::interpolate_text_paths(
+                let mut crossfaded = crate::timeline::interpolate_text_paths(
                     &source_paths.to_vec(),
                     &target_paths.to_vec(),
                     progress,
@@ -212,12 +212,16 @@ pub fn evaluate_text_paths(
                         ..Default::default()
                     },
                 );
-                return Ok(std::sync::Arc::from(crossfaded));
+                let clip = crate::timeline::dispatch::apply_split_text_animation(&mut crossfaded, ctx.track, ctx.time_ms);
+                return Ok((std::sync::Arc::from(crossfaded), clip));
             }
         }
     }
-    if content_override.is_some() || !content.is_empty() {
-        text_ctx.text_compiler.compile(
+    if content_override.is_none() && ctx.track.text.text_paths.is_some() {
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+        Ok((std::sync::Arc::from(paths), clip))
+    } else if content_override.is_some() || !content.is_empty() {
+        let compiled = text_ctx.text_compiler.compile(
             &content,
             &font_family,
             font_size,
@@ -233,9 +237,13 @@ pub fn evaluate_text_paths(
             max_width,
             &text_align,
             &overflow,
-        )
+        )?;
+        let mut paths_vec = compiled.to_vec();
+        let clip = crate::timeline::dispatch::apply_split_text_animation(&mut paths_vec, ctx.track, ctx.time_ms);
+        Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
-        Ok(std::sync::Arc::from(ctx.track.evaluate_text_paths(ctx.time_ms)))
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+        Ok((std::sync::Arc::from(paths), clip))
     }
 }
 
@@ -790,6 +798,8 @@ mod legend;
 pub use legend::LEGEND;
 pub(crate) mod connector;
 pub use connector::CONNECTOR;
+pub(crate) mod counter;
+pub use counter::COUNTER;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
@@ -1118,6 +1128,8 @@ pub enum RenderCommand {
         paths: std::sync::Arc<[TextPath]>,
         /// Optional paint that ramps across the text fill.
         fill_gradient: Option<Box<crate::renderer::types::GradientSpec>>,
+        /// Optional clip bounds (e.g. for split-text baseline reveal).
+        clip_path: Option<kurbo::BezPath>,
     },
     /// Draw an image.
     Image {
@@ -1256,7 +1268,17 @@ impl RenderCommand {
             RenderCommand::Text {
                 paths,
                 fill_gradient,
+                clip_path,
             } => {
+                if let Some(clip) = clip_path {
+                    scene.push_layer(
+                        vello::peniko::Fill::NonZero,
+                        vello::peniko::BlendMode::default(),
+                        1.0,
+                        *transform,
+                        clip,
+                    );
+                }
                 use kurbo::Shape as _;
                 let bounds = if fill_gradient.is_some() {
                     let mut b: Option<kurbo::Rect> = None;
@@ -1302,6 +1324,10 @@ impl RenderCommand {
                             &text_path.path,
                         );
                     }
+                }
+
+                if clip_path.is_some() {
+                    scene.pop_layer();
                 }
             },
             RenderCommand::Image {
@@ -1721,6 +1747,7 @@ pub static BUILT_INS: &[BuiltIn] = &[
     BuiltIn::new(&animatix_std::catalog::CALLOUT, &CALLOUT),
     BuiltIn::new(&animatix_std::catalog::LEGEND, &LEGEND),
     BuiltIn::new(&animatix_std::catalog::CONNECTOR, &CONNECTOR),
+    BuiltIn::new(&animatix_std::catalog::COUNTER, &COUNTER),
 ];
 
 // ── Built-in metadata ───────────────────────────────────────────────────
@@ -2033,7 +2060,7 @@ mod tests {
             text_compiler: &mut text_compiler,
             font_context: &font_ctx,
         };
-        let paths =
+        let (paths, _) =
             evaluate_text_paths(&ctx, &mut text_ctx, TextKind::Text, 48.0).expect("compile text");
         assert!(paths.len() > 5, "Expected both endpoint glyph sets, got {}", paths.len());
         assert!(

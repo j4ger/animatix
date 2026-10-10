@@ -793,6 +793,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("cols", ValueType::U32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
         super::property_engine::PropertyValue::U32(2)
     }),
+    binding!("comma", ValueType::Bool, F::ASSIGNABLE_AI, ActorField::Tagged("comma"), |_| {
+        super::property_engine::PropertyValue::Bool(false)
+    }),
     binding!(
         "commands",
         ValueType::CommandList,
@@ -819,6 +822,9 @@ static BINDINGS: &[PropertyBinding] = &[
     ),
     binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())
+    }),
+    binding!("decimals", ValueType::U32, F::ASSIGNABLE_AI, ActorField::Tagged("decimals"), |_| {
+        super::property_engine::PropertyValue::U32(0)
     }),
     binding!("density", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(16.0)
@@ -1054,6 +1060,9 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("position", ValueType::Vec2, F::SPATIAL_AI, ActorField::Position, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),
+    binding!("prefix", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("prefix"), |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
     binding!(
         "radius_x",
         ValueType::F32,
@@ -1117,6 +1126,34 @@ static BINDINGS: &[PropertyBinding] = &[
         super::property_engine::PropertyValue::String(String::new())
     }),
     binding!(
+        "split_by",
+        ValueType::String,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("split_by"),
+        |_| super::property_engine::PropertyValue::String("char".to_string())
+    ),
+    binding!(
+        "split_mask",
+        ValueType::Bool,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("split_mask"),
+        |_| super::property_engine::PropertyValue::Bool(false)
+    ),
+    binding!(
+        "split_offset_y",
+        ValueType::F32,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("split_offset_y"),
+        |_| super::property_engine::PropertyValue::F32(0.0)
+    ),
+    binding!(
+        "split_stagger",
+        ValueType::F32,
+        F::ASSIGNABLE_A,
+        ActorField::Tagged("split_stagger"),
+        |_| super::property_engine::PropertyValue::F32(0.0)
+    ),
+    binding!(
         "standoff",
         ValueType::F32,
         F::ASSIGNABLE_AI,
@@ -1147,6 +1184,9 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::StrokeWidth,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
+    binding!("suffix", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("suffix"), |_| {
+        super::property_engine::PropertyValue::String(String::new())
+    }),
     binding!(
         "swatch_size",
         ValueType::F32,
@@ -1212,6 +1252,9 @@ static BINDINGS: &[PropertyBinding] = &[
     }),
     binding!("url", ValueType::String, F::ASSIGNABLE, ActorField::ImageData, |_| {
         super::property_engine::PropertyValue::String(String::new())
+    }),
+    binding!("value", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("value"), |_| {
+        super::property_engine::PropertyValue::F32(0.0)
     }),
     binding!("vertical_align", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("center".to_string())

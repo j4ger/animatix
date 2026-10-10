@@ -376,6 +376,24 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("routing", Applicable::Actors(&["Connector"]), PropertyValueKind::String),
     // Whether a connector draws an arrowhead at its destination.
     PropertyDescriptor::new("arrow", Applicable::Actors(&["Connector"]), PropertyValueKind::Bool),
+    // Split-text reveal granularity: "char" (default), "word", or "line".
+    PropertyDescriptor::new("split_by", Applicable::TextLike, PropertyValueKind::String),
+    // Split-text stagger between units as a duration fraction (0.0–1.0).
+    PropertyDescriptor::new("split_stagger", Applicable::TextLike, PropertyValueKind::F32),
+    // Vertical offset in scene points from which split text units emerge.
+    PropertyDescriptor::new("split_offset_y", Applicable::TextLike, PropertyValueKind::F32),
+    // Whether split text units are clipped at the line baseline.
+    PropertyDescriptor::new("split_mask", Applicable::TextLike, PropertyValueKind::Bool),
+    // Rolling counter target numeric value.
+    PropertyDescriptor::new("value", Applicable::Actors(&["Counter"]), PropertyValueKind::F32),
+    // Optional prefix text prepended to the rolling counter.
+    PropertyDescriptor::new("prefix", Applicable::Actors(&["Counter"]), PropertyValueKind::String),
+    // Optional suffix text appended to the rolling counter.
+    PropertyDescriptor::new("suffix", Applicable::Actors(&["Counter"]), PropertyValueKind::String),
+    // Number of decimal places to display in the rolling counter.
+    PropertyDescriptor::new("decimals", Applicable::Actors(&["Counter"]), PropertyValueKind::U32),
+    // Whether to insert thousands grouping commas in the rolling counter.
+    PropertyDescriptor::new("comma", Applicable::Actors(&["Counter"]), PropertyValueKind::Bool),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.
