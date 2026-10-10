@@ -270,7 +270,7 @@ pub(crate) fn evaluate_compiled_expr_scalar(
     expr: &CompiledExpr,
     arg_name: &str,
     x: f64,
-    constants: &[(String, f64)],
+    constants: &[(&str, f64)],
 ) -> Option<f64> {
     match expr {
         CompiledExpr::Const(Value::Num(n)) => Some(*n),
@@ -278,7 +278,7 @@ pub(crate) fn evaluate_compiled_expr_scalar(
             if name == arg_name {
                 Some(x)
             } else {
-                constants.iter().find(|(k, _)| k == name).map(|(_, v)| *v)
+                constants.iter().find(|(k, _)| *k == name.as_str()).map(|(_, v)| *v)
             }
         },
         CompiledExpr::Unary(op, inner) => {
@@ -480,7 +480,7 @@ pub(crate) fn evaluate_compiled_expr_vec2(
     expr: &CompiledExpr,
     arg_name: &str,
     t: f64,
-    constants: &[(String, f64)],
+    constants: &[(&str, f64)],
 ) -> Option<[f64; 2]> {
     if let CompiledExpr::MakeVec(items) = expr {
         if items.len() == 2 {
@@ -493,23 +493,25 @@ pub(crate) fn evaluate_compiled_expr_vec2(
 }
 
 /// Pre-resolve non-argument identifiers referenced by `expr` against `env` and `captures`.
-pub(crate) fn resolve_scalar_constants(
-    expr: &CompiledExpr,
+pub(crate) fn resolve_scalar_constants<'a>(
+    expr: &'a CompiledExpr,
     arg_name: &str,
     env: &Environment,
     captures: &CapturedEnv,
-    out: &mut Vec<(String, f64)>,
+    out: &mut Vec<(&'a str, f64)>,
 ) {
     match expr {
-        CompiledExpr::LoadEnv(name) if name != arg_name && !out.iter().any(|(k, _)| k == name) => {
+        CompiledExpr::LoadEnv(name)
+            if name != arg_name && !out.iter().any(|(k, _)| *k == name.as_str()) =>
+        {
             // Priority: env (frame-time overrides and parameters shadow captures)
             if let Some(Value::Num(n)) = env.get_path(name) {
-                out.push((name.clone(), n));
+                out.push((name.as_str(), n));
                 return;
             }
             // Fallback: captured build-time variables
             if let Some(Value::Num(n)) = captures.0.get(name) {
-                out.push((name.clone(), *n));
+                out.push((name.as_str(), *n));
             }
         },
         CompiledExpr::Unary(_, inner) => {
@@ -542,11 +544,13 @@ pub(crate) fn resolve_scalar_constants(
 pub(crate) fn is_scalar_fast_evaluable(
     expr: &CompiledExpr,
     arg_name: &str,
-    constants: &[(String, f64)],
+    constants: &[(&str, f64)],
 ) -> bool {
     match expr {
         CompiledExpr::Const(Value::Num(_)) => true,
-        CompiledExpr::LoadEnv(name) => name == arg_name || constants.iter().any(|(k, _)| k == name),
+        CompiledExpr::LoadEnv(name) => {
+            name == arg_name || constants.iter().any(|(k, _)| *k == name.as_str())
+        },
         CompiledExpr::Unary(op, inner) => match op {
             UnaryOp::Neg | UnaryOp::Not => is_scalar_fast_evaluable(inner, arg_name, constants),
             UnaryOp::Ref => false,
@@ -604,7 +608,7 @@ pub(crate) fn is_scalar_fast_evaluable(
 pub(crate) fn is_vec2_fast_evaluable(
     expr: &CompiledExpr,
     arg_name: &str,
-    constants: &[(String, f64)],
+    constants: &[(&str, f64)],
 ) -> bool {
     if let CompiledExpr::MakeVec(items) = expr {
         if items.len() == 2 {

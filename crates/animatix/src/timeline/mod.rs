@@ -560,6 +560,8 @@ pub struct Timeline {
     pub(crate) frame_written_vars: std::collections::HashSet<String>,
     /// Lowered modifier IR programs. Populated during build.
     pub modifier_programs: Vec<ModifierIrProgram>,
+    /// Actor targets written by modifier programs (e.g. `"circle0"` or array prefix `"ring"`).
+    pub(crate) modifier_written_targets: std::collections::HashSet<String>,
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
@@ -890,6 +892,7 @@ impl Timeline {
             modifiers: Vec::new(),
             frame_written_vars: std::collections::HashSet::new(),
             modifier_programs: Vec::new(),
+            modifier_written_targets: std::collections::HashSet::new(),
             colorscheme: BuiltInColorscheme::DefaultDark.resolved(),
             external_colorschemes: std::collections::HashMap::new(),
             export_preset: None,
@@ -1546,20 +1549,43 @@ impl Timeline {
         is_static
     }
 
+    /// Returns `true` if `label` is targeted by any modifier assignment (`Assign` or
+    /// `AssignIndexed`).
+    pub(crate) fn is_targeted_by_modifier(&self, label: &str) -> bool {
+        if self.modifier_written_targets.contains(label) {
+            return true;
+        }
+        for target in &self.modifier_written_targets {
+            if let Some(rest) = label.strip_prefix(target.as_str()) {
+                if rest.starts_with("__") || rest.starts_with('.') {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     /// Uncached static-subtree computation ([`Self::is_static_subtree`] wraps
     /// this in a memo).
     fn compute_static_subtree(&self, label: &str) -> bool {
-        // Conservative: if any modifiers exist, we can't safely cache because
-        // modifiers might change actor properties at frame time. Child-order
-        // animations live outside `AnimationTrack` keyframe detection and can
-        // change layout output, so they also disable this cache.
-        if self.needs_frame_env() || !self.child_orders.is_empty() {
+        // Child-order animations live outside `AnimationTrack` keyframe detection
+        // and can change layout output, so they disable static caching.
+        if self.child_orders.contains_key(label) {
+            return false;
+        }
+        // If this actor is written to by any modifier (always block), it changes
+        // at frame time and cannot be statically cached.
+        if self.is_targeted_by_modifier(label) {
             return false;
         }
         let Some(track) = self.tracks.get(label) else {
             return true;
         };
-        if track.has_any_keyframes() || track.procedural_plot.is_some() {
+        if track.has_any_keyframes()
+            || track.procedural_plot.is_some()
+            || track.shape.from_anchor.is_some()
+            || track.shape.to_anchor.is_some()
+        {
             return false;
         }
         track.children.iter().all(|child| {

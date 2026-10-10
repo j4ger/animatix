@@ -346,6 +346,8 @@ pub fn resolve_func_source(
 /// `Single` re-uses the existing one-function path unchanged.
 /// `Blended` evaluates both sources and lerps the outputs at `progress`.
 pub(crate) enum PlotFuncRef<'a> {
+    /// Direct declaration function from [`ProceduralPlot`] (args, body, captures).
+    Declaration(&'a [String], &'a CompiledExpr, &'a CapturedEnv),
     /// Evaluate a single function source.
     Single(&'a FuncSource),
     /// Lerp between two function sources at `progress` ∈ \[0, 1\].
@@ -354,6 +356,77 @@ pub(crate) enum PlotFuncRef<'a> {
         to: &'a FuncSource,
         progress: f64,
     },
+}
+
+impl<'a> PlotFuncRef<'a> {
+    pub(crate) fn to_func_source(&self) -> FuncSource {
+        match self {
+            PlotFuncRef::Declaration(args, body, captures) => {
+                FuncSource::Compiled(args.to_vec(), Box::new((*body).clone()), (*captures).clone())
+            },
+            PlotFuncRef::Single(src) => (*src).clone(),
+            PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
+                from: Box::new((*from).clone()),
+                to: Box::new((*to).clone()),
+                frozen_progress: *progress,
+            },
+        }
+    }
+}
+
+pub(crate) fn eval_compiled_parts_scalar(
+    args: &[String],
+    body: &CompiledExpr,
+    captures: &CapturedEnv,
+    env: &mut Environment,
+    arg_name: &str,
+    x: f64,
+    cache: &mut HashMap<u64, Value>,
+) -> f64 {
+    let name = args.first().map(String::as_str).unwrap_or(arg_name);
+    let key = x.to_bits();
+    let val = cache.get(&key).cloned().unwrap_or_else(|| {
+        let inserted = captures.merge_missing_into(env);
+        env.set_binding(name, Value::Num(x));
+        let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN));
+        env.clear_bindings();
+        for key in inserted {
+            env.overrides.remove(&key);
+            env.mark_mutated();
+        }
+        cache.insert(key, result.clone());
+        result
+    });
+    val.as_num()
+}
+
+pub(crate) fn eval_compiled_parts_vec2(
+    args: &[String],
+    body: &CompiledExpr,
+    captures: &CapturedEnv,
+    env: &mut Environment,
+    arg_name: &str,
+    t: f64,
+    cache: &mut HashMap<u64, Value>,
+) -> [f64; 2] {
+    let name = args.first().map(String::as_str).unwrap_or(arg_name);
+    let key = t.to_bits();
+    let val = cache.get(&key).cloned().unwrap_or_else(|| {
+        let inserted = captures.merge_missing_into(env);
+        env.set_binding(name, Value::Num(t));
+        let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
+        env.clear_bindings();
+        for key in inserted {
+            env.overrides.remove(&key);
+            env.mark_mutated();
+        }
+        cache.insert(key, result.clone());
+        result
+    });
+    match val {
+        Value::Vec2(arr) => arr,
+        _ => [f64::NAN, f64::NAN],
+    }
 }
 
 /// Evaluate `source` at scalar `x`, using `cache` to avoid redundant evaluations.
@@ -366,22 +439,7 @@ pub(crate) fn eval_source_scalar(
 ) -> f64 {
     match source {
         FuncSource::Compiled(args, body, captures) => {
-            let name = args.first().map(String::as_str).unwrap_or(arg_name);
-            let key = x.to_bits();
-            let val = cache.get(&key).cloned().unwrap_or_else(|| {
-                // Inject captured variables on first evaluation for this x
-                let inserted = captures.merge_missing_into(env);
-                env.set_binding(name, Value::Num(x));
-                let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-                env.clear_bindings();
-                for key in inserted {
-                    env.overrides.remove(&key);
-                    env.mark_mutated();
-                }
-                cache.insert(key, result.clone());
-                result
-            });
-            val.as_num()
+            eval_compiled_parts_scalar(args, body, captures, env, arg_name, x, cache)
         },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
@@ -405,26 +463,7 @@ fn eval_source_vec2(
 ) -> [f64; 2] {
     match source {
         FuncSource::Compiled(args, body, captures) => {
-            let name = args.first().map(String::as_str).unwrap_or(arg_name);
-            let key = t.to_bits();
-            let val = cache.get(&key).cloned().unwrap_or_else(|| {
-                // Inject captured variables on first evaluation for this t
-                let inserted = captures.merge_missing_into(env);
-                env.set_binding(name, Value::Num(t));
-                let result =
-                    evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
-                env.clear_bindings();
-                for key in inserted {
-                    env.overrides.remove(&key);
-                    env.mark_mutated();
-                }
-                cache.insert(key, result.clone());
-                result
-            });
-            match val {
-                Value::Vec2(arr) => arr,
-                _ => [f64::NAN, f64::NAN],
-            }
+            eval_compiled_parts_vec2(args, body, captures, env, arg_name, t, cache)
         },
         FuncSource::Blend { .. } => {
             let flat = flatten_blend(source);
@@ -451,6 +490,9 @@ fn eval_scalar(
     to_cache: &mut HashMap<u64, Value>,
 ) -> f64 {
     match func {
+        PlotFuncRef::Declaration(args, body, captures) => {
+            eval_compiled_parts_scalar(args, body, captures, env, arg_name, x, from_cache)
+        },
         PlotFuncRef::Single(src) => eval_source_scalar(src, env, arg_name, x, from_cache),
         PlotFuncRef::Blended { from, to, progress } => {
             let fv = eval_source_scalar(from, env, arg_name, x, from_cache);
@@ -470,6 +512,9 @@ fn eval_vec2(
     to_cache: &mut HashMap<u64, Value>,
 ) -> [f64; 2] {
     match func {
+        PlotFuncRef::Declaration(args, body, captures) => {
+            eval_compiled_parts_vec2(args, body, captures, env, arg_name, t, from_cache)
+        },
         PlotFuncRef::Single(src) => eval_source_vec2(src, env, arg_name, t, from_cache),
         PlotFuncRef::Blended { from, to, progress } => {
             let [fx, fy] = eval_source_vec2(from, env, arg_name, t, from_cache);
@@ -1368,11 +1413,6 @@ pub fn sample_procedural_plot_at(
     }
     let _guard = LetScopeGuard(env, has_param_scope);
 
-    let decl_source = FuncSource::Compiled(
-        plot.func_args.clone(),
-        Box::new(plot.func_body.clone()),
-        plot.extra_captures.clone(),
-    );
     let active_transition = transitions.iter().find(|t| t.active_at(time_ms).is_some());
     let active = active_transition.and_then(|t| t.active_at(time_ms));
 
@@ -1385,7 +1425,7 @@ pub fn sample_procedural_plot_at(
             let from_paths = sample_plot_source(
                 plot,
                 env,
-                from,
+                PlotFuncRef::Single(from),
                 actual_max_depth,
                 actual_tolerance,
                 actual_resolution,
@@ -1393,7 +1433,7 @@ pub fn sample_procedural_plot_at(
             let to_paths = sample_plot_source(
                 plot,
                 env,
-                to,
+                PlotFuncRef::Single(to),
                 actual_max_depth,
                 actual_tolerance,
                 actual_resolution,
@@ -1410,7 +1450,7 @@ pub fn sample_procedural_plot_at(
         }
     }
 
-    // Resolve the active function reference for this frame.
+    // Resolve the active function reference for this frame without cloning.
     let func_ref: PlotFuncRef<'_> = if let Some((progress, from, to, _)) = active {
         PlotFuncRef::Blended { from, to, progress }
     } else {
@@ -1418,7 +1458,9 @@ pub fn sample_procedural_plot_at(
         let last_complete = transitions.iter().rev().find(|t| t.is_complete_at(time_ms));
         match last_complete {
             Some(t) => PlotFuncRef::Single(&t.to),
-            None => PlotFuncRef::Single(&decl_source),
+            None => {
+                PlotFuncRef::Declaration(&plot.func_args, &plot.func_body, &plot.extra_captures)
+            },
         }
     };
 
@@ -1433,16 +1475,7 @@ pub fn sample_procedural_plot_at(
     let (actual_max_depth, actual_tolerance, actual_resolution) =
         scaled_plot_quality(plot, quality_factor);
 
-    let source = match func_ref {
-        PlotFuncRef::Single(src) => src.clone(),
-        PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
-            from: Box::new(from.clone()),
-            to: Box::new(to.clone()),
-            frozen_progress: progress,
-        },
-    };
-
-    sample_plot_source(plot, env, &source, actual_max_depth, actual_tolerance, actual_resolution)
+    sample_plot_source(plot, env, func_ref, actual_max_depth, actual_tolerance, actual_resolution)
 }
 
 fn opacity_quality_factor(from: &FuncSource, to: &FuncSource) -> f64 {
@@ -1486,7 +1519,7 @@ fn scaled_plot_quality(plot: &ProceduralPlot, quality_factor: f64) -> (usize, f6
 pub(crate) fn sample_plot_source(
     plot: &ProceduralPlot,
     env: &Environment,
-    source: &FuncSource,
+    func_ref: PlotFuncRef<'_>,
     actual_max_depth: usize,
     actual_tolerance: f64,
     actual_resolution: usize,
@@ -1495,7 +1528,7 @@ pub(crate) fn sample_plot_source(
         ProceduralPlotKind::Curve(_) => sample_curve_plot_source(
             plot,
             env,
-            source,
+            func_ref,
             actual_max_depth,
             actual_tolerance,
             actual_resolution,
@@ -1503,9 +1536,10 @@ pub(crate) fn sample_plot_source(
         ProceduralPlotKind::VectorField => {
             let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
             let mut local_env = env.clone();
+            let source = func_ref.to_func_source();
             super::build::plot::build_vector_field_paths(
                 &mut local_env,
-                source,
+                &source,
                 plot.p_x_domain,
                 plot.p_y_domain,
                 full_size,
@@ -1517,9 +1551,10 @@ pub(crate) fn sample_plot_source(
         ProceduralPlotKind::Heatmap => {
             let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
             let mut local_env = env.clone();
+            let source = func_ref.to_func_source();
             super::build::plot::build_heatmap_paths(
                 &mut local_env,
-                source,
+                &source,
                 plot.p_x_domain,
                 plot.p_y_domain,
                 full_size,
@@ -1530,9 +1565,10 @@ pub(crate) fn sample_plot_source(
         ProceduralPlotKind::ContourSet => {
             let full_size = [plot.p_size[0] * 2.0, plot.p_size[1] * 2.0];
             let mut local_env = env.clone();
+            let source = func_ref.to_func_source();
             super::build::plot::build_contour_set_paths(
                 &mut local_env,
-                source,
+                &source,
                 &plot.levels,
                 plot.p_x_domain,
                 plot.p_y_domain,
@@ -1548,7 +1584,7 @@ pub(crate) fn sample_plot_source(
 fn sample_curve_plot_source(
     plot: &ProceduralPlot,
     env: &Environment,
-    source: &FuncSource,
+    func_ref: PlotFuncRef<'_>,
     actual_max_depth: usize,
     actual_tolerance: f64,
     actual_resolution: usize,
@@ -1559,7 +1595,6 @@ fn sample_curve_plot_source(
     } else {
         "x".to_string()
     };
-    let func_ref = PlotFuncRef::Single(source);
 
     let (min_t, max_t) = if plot.kind == PlotCurveKind::Cartesian {
         (plot.p_x_domain[0], plot.p_x_domain[1])
@@ -1571,9 +1606,10 @@ fn sample_curve_plot_source(
 
     if plot.kind == PlotCurveKind::Implicit {
         let mut local_env = env.clone();
+        let source = func_ref.to_func_source();
         let path = build_implicit_plot_path_from_source(
             &mut local_env,
-            source,
+            &source,
             &plot.p_x_domain,
             &plot.p_y_domain,
             &plot.p_size,
@@ -1607,36 +1643,77 @@ fn sample_curve_plot_source(
     }
 
     // Fast path: try unboxed direct math evaluation without Environment mutation
-    let flat_leaves = flatten_blend(source);
-    let mut can_fast = !flat_leaves.is_empty();
+    struct FuncLeaf<'a> {
+        weight: f64,
+        args: &'a [String],
+        body: &'a CompiledExpr,
+        captures: &'a CapturedEnv,
+    }
+
+    fn collect_src_leaves<'a>(weight: f64, src: &'a FuncSource, out: &mut Vec<FuncLeaf<'a>>) {
+        match src {
+            FuncSource::Compiled(args, body, captures) => {
+                out.push(FuncLeaf {
+                    weight,
+                    args,
+                    body,
+                    captures,
+                });
+            },
+            FuncSource::Blend {
+                from,
+                to,
+                frozen_progress,
+            } => {
+                collect_src_leaves(weight * (1.0 - frozen_progress), from, out);
+                collect_src_leaves(weight * frozen_progress, to, out);
+            },
+        }
+    }
+
+    let mut func_leaves = Vec::with_capacity(2);
+    match &func_ref {
+        PlotFuncRef::Declaration(args, body, captures) => {
+            func_leaves.push(FuncLeaf {
+                weight: 1.0,
+                args,
+                body,
+                captures,
+            });
+        },
+        PlotFuncRef::Single(src) => {
+            collect_src_leaves(1.0, src, &mut func_leaves);
+        },
+        PlotFuncRef::Blended { from, to, progress } => {
+            collect_src_leaves(1.0 - progress, from, &mut func_leaves);
+            collect_src_leaves(*progress, to, &mut func_leaves);
+        },
+    }
+
+    let mut can_fast = !func_leaves.is_empty();
     struct FastLeaf<'a> {
         weight: f64,
         body: &'a CompiledExpr,
         arg_name: &'a str,
-        constants: Vec<(String, f64)>,
+        constants: Vec<(&'a str, f64)>,
     }
-    let mut fast_leaves = Vec::with_capacity(flat_leaves.len());
-    for (weight, leaf_src) in &flat_leaves {
-        if let FuncSource::Compiled(args, body, captures) = leaf_src {
-            let leaf_arg = args.first().map(String::as_str).unwrap_or(&arg_name);
-            let mut constants = Vec::new();
-            resolve_scalar_constants(body, leaf_arg, env, captures, &mut constants);
-            let eligible = if plot.kind == PlotCurveKind::Parametric {
-                is_vec2_fast_evaluable(body, leaf_arg, &constants)
-            } else {
-                is_scalar_fast_evaluable(body, leaf_arg, &constants)
-            };
-            if eligible {
-                fast_leaves.push(FastLeaf {
-                    weight: *weight,
-                    body,
-                    arg_name: leaf_arg,
-                    constants,
-                });
-            } else {
-                can_fast = false;
-                break;
-            }
+    let mut fast_leaves = Vec::with_capacity(func_leaves.len());
+    for leaf in &func_leaves {
+        let leaf_arg = leaf.args.first().map(String::as_str).unwrap_or(&arg_name);
+        let mut constants = Vec::with_capacity(8);
+        resolve_scalar_constants(leaf.body, leaf_arg, env, leaf.captures, &mut constants);
+        let eligible = if plot.kind == PlotCurveKind::Parametric {
+            is_vec2_fast_evaluable(leaf.body, leaf_arg, &constants)
+        } else {
+            is_scalar_fast_evaluable(leaf.body, leaf_arg, &constants)
+        };
+        if eligible {
+            fast_leaves.push(FastLeaf {
+                weight: leaf.weight,
+                body: leaf.body,
+                arg_name: leaf_arg,
+                constants,
+            });
         } else {
             can_fast = false;
             break;

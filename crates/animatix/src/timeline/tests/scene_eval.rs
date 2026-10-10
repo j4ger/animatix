@@ -740,3 +740,46 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
         "Expected cross-fade opacities strictly inside (0, 1)"
     );
 }
+
+#[test]
+fn static_subtree_cache_works_alongside_modifiers() {
+    let source = r#"
+        config { colorscheme: "editorial-dark" }
+
+        static_box: Rect, size: (100, 100), color: accent.primary, at: (50, 50)
+        dynamic_box: Rect, size: (80, 80), color: accent.secondary, at: (200, 200)
+
+        always {
+            dynamic_box.at = (200 + t * 10, 200)
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    assert!(timeline.is_static_subtree("static_box"));
+    assert!(!timeline.is_static_subtree("dynamic_box"));
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+
+    let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
+    let cache = timeline.eval_caches.static_subtree_cache.borrow();
+    assert!(
+        cache.contains_key(&("static_box".to_string(), dims, false, DebugRenderOptions::default())),
+        "static_box should be cached despite modifiers existing in scene"
+    );
+    assert!(
+        !cache.contains_key(&(
+            "dynamic_box".to_string(),
+            dims,
+            false,
+            DebugRenderOptions::default()
+        )),
+        "dynamic_box must not be in static subtree cache"
+    );
+}

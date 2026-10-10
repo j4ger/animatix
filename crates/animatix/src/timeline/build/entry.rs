@@ -562,6 +562,13 @@ impl Timeline {
             }
         }
 
+        // Collect actor targets written by always blocks / modifiers so the
+        // static subtree cache can safely distinguish static actors from dynamic ones.
+        timeline.modifier_written_targets.clear();
+        for program in &timeline.modifier_programs {
+            program.collect_written_targets(&mut timeline.modifier_written_targets);
+        }
+
         // Validate `&label.prop` references at build time: the label must be
         // a declared track and the property must be injectable. The reference
         // resolves at frame time today; this pass moves the common failure
