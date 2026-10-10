@@ -105,7 +105,7 @@ b: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1)
 #step 1
 
 #500ms
-pause
+#pause
 
 #1s
 #step 2

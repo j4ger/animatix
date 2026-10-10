@@ -89,8 +89,8 @@ pub(crate) fn parser<'src>(
 
     let step_marker = hash()
         .ignore_then(select! {
-            TokenKind::Keyword(k) if k == "step" => (),
-            TokenKind::Ident(i) if i == "step" => (),
+            TokenKind::Keyword(k) if k == "step" || k == "pause" => (),
+            TokenKind::Ident(i) if i == "step" || i == "pause" => (),
         })
         .then(number().or_not())
         .map(|(_, num)| Stmt::Step {
@@ -99,16 +99,6 @@ pub(crate) fn parser<'src>(
         })
         .labelled("step marker");
 
-    let pause_stmt = select! {
-        TokenKind::Keyword(k) if k == "pause" => (),
-        TokenKind::Ident(i) if i == "pause" => (),
-    }
-    .map(|_| Stmt::Step {
-        index: None,
-        span: None,
-    })
-    .labelled("pause statement");
-
     // Recovery synchronization point: a token that can begin a fresh top-level
     // statement. When a statement fails to parse, the recovery strategy skips
     // forward to the next such token instead of abandoning the whole file, so
@@ -116,7 +106,7 @@ pub(crate) fn parser<'src>(
     // it.
     let statement_start = select! {
         TokenKind::Hash => (),
-        TokenKind::Keyword(k) if k == "config" || k == "play" || k == "pause" || k == "step" => (),
+        TokenKind::Keyword(k) if k == "config" || k == "play" => (),
         TokenKind::Ident(_) => (),
         TokenKind::LBrace => (),
         TokenKind::RBrace => (),
@@ -125,7 +115,6 @@ pub(crate) fn parser<'src>(
     choice((
         step_marker,
         keyframe,
-        pause_stmt,
         scene_decl,
         play_stmt,
         config_stmt,

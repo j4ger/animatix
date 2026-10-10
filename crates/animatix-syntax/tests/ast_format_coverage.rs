@@ -450,7 +450,7 @@ b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
         variant: "Step",
         source: "\
 #1s
-pause
+#step 1
 b: Rect, size: (20, 20), color: (1.0, 0.5, 0.2, 1.0), at: (60, 90)
 ",
     },

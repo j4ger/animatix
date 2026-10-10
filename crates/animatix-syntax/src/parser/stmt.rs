@@ -842,8 +842,8 @@ pub(crate) fn parser<'src>(
 
         let step_marker = hash()
             .ignore_then(select! {
-                TokenKind::Keyword(k) if k == "step" => (),
-                TokenKind::Ident(i) if i == "step" => (),
+                TokenKind::Keyword(k) if k == "step" || k == "pause" => (),
+                TokenKind::Ident(i) if i == "step" || i == "pause" => (),
             })
             .then(number().or_not())
             .map(|(_, num)| Stmt::Step {
@@ -852,20 +852,9 @@ pub(crate) fn parser<'src>(
             })
             .labelled("step marker");
 
-        let pause_stmt = select! {
-            TokenKind::Keyword(k) if k == "pause" => (),
-            TokenKind::Ident(i) if i == "pause" => (),
-        }
-        .map(|_| Stmt::Step {
-            index: None,
-            span: None,
-        })
-        .labelled("pause statement");
-
         choice((
             block_comment_reject,
             step_marker,
-            pause_stmt,
             let_decl,
             type_alias,
             import_stmt,
