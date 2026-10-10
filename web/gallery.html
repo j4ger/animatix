@@ -11,20 +11,20 @@
 <body>
 
   <div class="wrap">
-    <header>
-      <p class="kicker">Animatix · Scene Gallery</p>
-      <h1>Seven scenes, one engine.</h1>
-      <p class="lede">
-        Every figure below is a lightweight declarative scene file rendered live by the
-        Animatix WebGPU engine. Scrub through the timelines, inspect their sources,
-        or expand into fullscreen theater mode.
+    <header class="page-header">
+      <div class="page-eyebrow">
+        <span>SCENE GALLERY</span>
+      </div>
+      <h1 class="page-title">Seven scenes, one engine.</h1>
+      <p class="page-lede">
+        Every figure below is an isolated declarative scene file rendered live by the WebGPU engine. Scrub through timelines, inspect sources, or enter fullscreen theater mode.
       </p>
-      <ul class="meta">
-        <li>7 interactive scenes</li>
-        <li>One 5.5 MB shared engine download</li>
-        <li>100% vector WebGPU rendering</li>
-        <li>Fullscreen theater support (ESC to exit)</li>
-      </ul>
+      <div class="page-stat-strip">
+        <span class="stat-pill">7 Live Scenes</span>
+        <span class="stat-pill">5.5 MB Shared Engine</span>
+        <span class="stat-pill">100% Vector WebGPU</span>
+        <span class="stat-pill">Theater Mode Ready</span>
+      </div>
     </header>
 
     <div class="gallery-grid">
@@ -141,21 +141,23 @@
       </figure>
     </div>
 
-    <div class="howto">
-      <h2>Embedding a scene</h2>
+    <div class="howto-card">
+      <div class="howto-header">
+        <span class="howto-tag">INTEGRATION</span>
+        <h3>Embedding an Animatix Scene</h3>
+      </div>
       <p>
         The figures above originate from
         <a href="./demos/transformer/index.html">The Transformer Architecture, Animated</a>.
-        Embedding any scene on the web requires just one script and tag:
+        Embedding any scene on the web requires just one script tag and custom element:
       </p>
       <pre>&lt;script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
 
 &lt;amx-player src="./scenes/attention.amx" autoplay loop hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
-      <p style="margin-top: 14px; margin-bottom: 0;">
-        <code class="inline">data-runtime-base</code> selects which engine wasm profile to download.
-        Vector and plain text scenes use the 5.5 MB <code class="inline">pkg-slim</code> bundle.
-        For full Typst equations and SVG assets, load the full engine profile. See <a href="./README.md">web/README.md</a>.
-      </p>
+      <div class="howto-footer">
+        <span>Vector and plain text scenes use the 5.5 MB <code class="inline">pkg-slim</code> bundle; load the full engine for Typst equations.</span>
+        <a href="./README.md">web/README.md ↗</a>
+      </div>
     </div>
 
   </div>

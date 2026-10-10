@@ -11,19 +11,19 @@
 <body>
 
   <div class="wrap">
-    <header>
-      <p class="kicker">Animatix · Creative Recipes</p>
-      <h1>Nine moves, not nine features.</h1>
-      <p class="lede">
-        A scene feels organic and alive for combinable reasons: ambient light washes,
-        subtle continuous motion after entrances settle, purposeful easing, and synchronized captions.
-        Each recipe isolates one technique in 20–30 lines of declarative code.
+    <header class="page-header">
+      <div class="page-eyebrow">
+        <span>ANIMATION RECIPES</span>
+      </div>
+      <h1 class="page-title">Nine moves, not nine features.</h1>
+      <p class="page-lede">
+        Techniques that make scenes feel organic and alive: ambient lighting, continuous subtle drift, purposeful easing curves, and synchronized captions.
       </p>
-      <ul class="meta">
-        <li>9 reusable animation recipes</li>
-        <li>Pure text <code class="inline">.amx</code> scenes</li>
-        <li>Hardware-accelerated WebGPU playback</li>
-      </ul>
+      <div class="page-stat-strip">
+        <span class="stat-pill">9 Creative Recipes</span>
+        <span class="stat-pill">Pure Text .amx Files</span>
+        <span class="stat-pill">60 FPS WebGPU Playback</span>
+      </div>
     </header>
 
     <div class="recipes-grid">
@@ -172,13 +172,16 @@
       </figure>
     </div>
 
-    <div class="howto">
-      <h2>Steal the pack</h2>
+    <div class="howto-card">
+      <div class="howto-header">
+        <span class="howto-tag">STANDARD LIBRARY</span>
+        <h3>Reusable Recipe Components</h3>
+      </div>
       <p>
-        These patterns are bundled directly as reusable components in
-        <a href="https://github.com/j4ger/animatix/tree/main/examples/lib">examples/lib/light.amx</a> —
+        These patterns are bundled directly as importable components in
+        <a href="https://github.com/j4ger/animatix/tree/main/examples/lib" target="_blank" rel="noopener noreferrer">examples/lib/light.amx</a> —
         including <code class="inline">KeyLight</code>, <code class="inline">CoolLight</code>,
-        <code class="inline">MarchingRail</code>, <code class="inline">Ticker</code> and <code class="inline">Breather</code>.
+        <code class="inline">MarchingRail</code>, <code class="inline">Ticker</code>, and <code class="inline">Breather</code>.
         Import them into any scene:
       </p>
       <pre>import "lib/light.amx"
