@@ -532,6 +532,8 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         // type guides the analyzer and the assignment path, which rejects it.
         ("camera_follow", Type::Bool),
         ("parallax", Type::Num),
+        ("routing", Type::Str),
+        ("arrow", Type::Bool),
     ]
 }
 
@@ -581,7 +583,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            107,
+            109,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

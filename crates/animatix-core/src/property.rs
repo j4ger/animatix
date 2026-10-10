@@ -138,10 +138,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("font_weight", Applicable::TextLike, PropertyValueKind::F32),
     PropertyDescriptor::new(
         "from",
-        Applicable::Any(&[
-            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
-            Applicable::Callout,
-        ]),
+        Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]),
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new(
@@ -292,10 +289,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("title", Applicable::LegendHost, PropertyValueKind::String),
     PropertyDescriptor::new(
         "to",
-        Applicable::Any(&[
-            Applicable::ShapeKinds(&[ShapeKind::Line, ShapeKind::Arrow]),
-            Applicable::Callout,
-        ]),
+        Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]),
         PropertyValueKind::Vec2,
     ),
     PropertyDescriptor::new("to_offset", Applicable::Callout, PropertyValueKind::Vec2),
@@ -338,7 +332,7 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // rounded clip the backdrop is blitted through.
     PropertyDescriptor::new(
         "corner_radius",
-        Applicable::Actors(&["Rect", "Glass"]),
+        Applicable::Actors(&["Rect", "Glass", "Connector"]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
@@ -378,6 +372,10 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("camera_follow", Applicable::Everything, PropertyValueKind::Generic),
     // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 = static HUD).
     PropertyDescriptor::new("parallax", Applicable::Everything, PropertyValueKind::F32),
+    // Connector routing algorithm ("elbow", "l-bend", "straight").
+    PropertyDescriptor::new("routing", Applicable::Actors(&["Connector"]), PropertyValueKind::String),
+    // Whether a connector draws an arrowhead at its destination.
+    PropertyDescriptor::new("arrow", Applicable::Actors(&["Connector"]), PropertyValueKind::Bool),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

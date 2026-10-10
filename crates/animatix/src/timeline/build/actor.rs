@@ -967,6 +967,55 @@ impl Timeline {
             }
         }
 
+        if track.actor_type == "Connector" {
+            track.geometry.connector_arrow.ensure(true).add_keyframe(t_start_ms, true, easing);
+            track.geometry.connector_routing.ensure(crate::timeline::ConnectorRouting::Elbow).add_keyframe(t_start_ms, crate::timeline::ConnectorRouting::Elbow, easing);
+            track.shape.corner_radius.ensure(8.0).add_keyframe(t_start_ms, 8.0, easing);
+            track.shape.head_size.ensure(10.0).add_keyframe(t_start_ms, 10.0, easing);
+
+            for prop in props {
+                match prop.name.as_str() {
+                    "from" => {
+                        if let Some(endpoint) = crate::primitives::connector::parse_connector_endpoint(&prop.value, &eval_env) {
+                            track.geometry.connector_from.ensure(endpoint.clone()).add_keyframe(t_start_ms, endpoint, easing);
+                        }
+                    },
+                    "to" => {
+                        if let Some(endpoint) = crate::primitives::connector::parse_connector_endpoint(&prop.value, &eval_env) {
+                            track.geometry.connector_to.ensure(endpoint.clone()).add_keyframe(t_start_ms, endpoint, easing);
+                        }
+                    },
+                    "routing" => {
+                        let routing_str = match &prop.value {
+                            Expr::Ident(s) | Expr::Str(s) => s.as_str(),
+                            _ => "elbow",
+                        };
+                        let routing = routing_str.parse::<crate::timeline::ConnectorRouting>().unwrap_or(crate::timeline::ConnectorRouting::Elbow);
+                        track.geometry.connector_routing.ensure(routing).add_keyframe(t_start_ms, routing, easing);
+                    },
+                    "arrow" => {
+                        let arrow_val = match &prop.value {
+                            Expr::Bool(b) => *b,
+                            Expr::Ident(s) => s == "true",
+                            _ => true,
+                        };
+                        track.geometry.connector_arrow.ensure(arrow_val).add_keyframe(t_start_ms, arrow_val, easing);
+                    },
+                    "corner_radius" => {
+                        if let Ok(Value::Num(n)) = crate::timeline::evaluate_expr(&prop.value, &eval_env) {
+                            track.shape.corner_radius.ensure(n as f32).add_keyframe(t_start_ms, n as f32, easing);
+                        }
+                    },
+                    "head_size" => {
+                        if let Ok(Value::Num(n)) = crate::timeline::evaluate_expr(&prop.value, &eval_env) {
+                            track.shape.head_size.ensure(n as f32).add_keyframe(t_start_ms, n as f32, easing);
+                        }
+                    },
+                    _ => {}
+                }
+            }
+        }
+
         // Registry-backed properties that the legacy per-primitive build loop
         // does not reach are written through the generic engine. `Scale` belongs
         // here: an authored `scale:` was dropped on the floor for every actor

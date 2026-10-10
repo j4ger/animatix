@@ -409,6 +409,15 @@ pub static LEGEND: PrimitiveInfo = PrimitiveInfo::new(
     ANNOTATION_CAPS,
 )
 .legend_host();
+pub static CONNECTOR: PrimitiveInfo = PrimitiveInfo::new(
+    "Connector",
+    "Connector",
+    icon_glyphs::ARROW_RIGHT,
+    ActorCategory::Annotation,
+    ANNOTATION_CAPS,
+)
+.stroked()
+.stroke_primary();
 
 /// The built-in primitive catalog.
 ///
@@ -457,6 +466,7 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     // Annotations
     &CALLOUT,
     &LEGEND,
+    &CONNECTOR,
 ];
 
 impl PrimitiveInfo {

@@ -721,6 +721,9 @@ static BINDINGS: &[PropertyBinding] = &[
         |_| super::property_engine::PropertyValue::String("center".to_string()),
         ReadSource::None_
     ),
+    binding!("arrow", ValueType::Bool, F::ASSIGNABLE_AI, ActorField::Tagged("arrow"), |_| {
+        super::property_engine::PropertyValue::Bool(true)
+    }),
     binding!("ascent", ValueType::F32, F::ANIMATED, ActorField::Ascent, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
@@ -1080,6 +1083,9 @@ static BINDINGS: &[PropertyBinding] = &[
     }),
     binding!("rotation", ValueType::F32, F::SPATIAL_AI, ActorField::Rotation, |_| {
         super::property_engine::PropertyValue::F32(0.0)
+    }),
+    binding!("routing", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("routing"), |_| {
+        super::property_engine::PropertyValue::String("elbow".to_string())
     }),
     binding!("scale", ValueType::F32, F::SPATIAL_AI, ActorField::Scale, |_| {
         super::property_engine::PropertyValue::F32(1.0)

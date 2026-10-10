@@ -54,6 +54,8 @@ mod taffy_layout;
 mod variable_tracks;
 #[cfg(test)]
 mod wave1;
+#[cfg(test)]
+mod connector;
 
 #[test]
 fn property_descriptors_include_shared_builtin_schema() {

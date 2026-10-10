@@ -579,6 +579,81 @@ pub struct GeometryTracks {
     pub callout_standoff: Option<PropertyTrack<f32>>,
     /// Offset applied to the callout anchor on the target side.
     pub callout_to_offset: Option<PropertyTrack<[f32; 2]>>,
+    /// Connector start endpoint (actor anchor or coordinate point).
+    pub connector_from: Option<PropertyTrack<ConnectorEndpoint>>,
+    /// Connector end endpoint (actor anchor or coordinate point).
+    pub connector_to: Option<PropertyTrack<ConnectorEndpoint>>,
+    /// Connector routing strategy (Elbow, LBend, Straight).
+    pub connector_routing: Option<PropertyTrack<ConnectorRouting>>,
+    /// Connector arrowhead toggle.
+    pub connector_arrow: Option<PropertyTrack<bool>>,
+}
+
+/// Endpoint of a smart connector (either an explicit point or a target actor anchor).
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ConnectorEndpoint {
+    /// Explicit (x, y) coordinate point.
+    Point([f32; 2]),
+    /// Named actor with an optional side anchor.
+    Target {
+        /// Target actor label.
+        actor: String,
+        /// Anchor side on the target actor.
+        anchor: Option<SceneAnchor>,
+    },
+}
+
+impl Default for ConnectorEndpoint {
+    fn default() -> Self {
+        Self::Point([0.0, 0.0])
+    }
+}
+
+impl Interpolate for ConnectorEndpoint {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        match (self, other) {
+            (Self::Point(a), Self::Point(b)) => {
+                Self::Point([
+                    a[0] + (b[0] - a[0]) * t,
+                    a[1] + (b[1] - a[1]) * t,
+                ])
+            },
+            _ => if t < 0.5 { self.clone() } else { other.clone() },
+        }
+    }
+}
+
+/// Routing algorithm for smart connectors.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ConnectorRouting {
+    /// 2-bend orthogonal routing with bus margin.
+    #[default]
+    Elbow,
+    /// 1-bend L-shape orthogonal routing.
+    LBend,
+    /// Direct straight point-to-point connection.
+    Straight,
+}
+
+impl std::str::FromStr for ConnectorRouting {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "elbow" => Ok(Self::Elbow),
+            "l-bend" | "l_bend" | "lbend" => Ok(Self::LBend),
+            "straight" => Ok(Self::Straight),
+            _ => Err(()),
+        }
+    }
+}
+
+impl Interpolate for ConnectorRouting {
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { *self } else { *other }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

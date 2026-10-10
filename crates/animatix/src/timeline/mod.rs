@@ -224,8 +224,8 @@ impl BuildQuality {
 }
 pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
-    ActionCategory, ActionEvent, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, PlacementMode,
-    PositionBinding, ResizeMode, SceneAnchor,
+    ActionCategory, ActionEvent, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE,
+    DEFAULT_WHITE, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
 };
 pub use animatix_std::{caps_for_type, caps_from_info};
 pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};

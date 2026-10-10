@@ -788,6 +788,8 @@ mod callout;
 pub use callout::CALLOUT;
 mod legend;
 pub use legend::LEGEND;
+pub(crate) mod connector;
+pub use connector::CONNECTOR;
 
 // ── Primitive trait ─────────────────────────────────────────────────────
 
@@ -1718,6 +1720,7 @@ pub static BUILT_INS: &[BuiltIn] = &[
     // Annotations
     BuiltIn::new(&animatix_std::catalog::CALLOUT, &CALLOUT),
     BuiltIn::new(&animatix_std::catalog::LEGEND, &LEGEND),
+    BuiltIn::new(&animatix_std::catalog::CONNECTOR, &CONNECTOR),
 ];
 
 // ── Built-in metadata ───────────────────────────────────────────────────
