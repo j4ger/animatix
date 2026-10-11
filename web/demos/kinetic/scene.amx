@@ -12,8 +12,12 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
 // ── Background Canvas & Atmosphere ─────────────────────────────────────────
 bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-ambient_l: Ellipse, size: (550, 550), color: (0.96, 0.72, 0.26, 0.15), at: (320, 260), opacity: 0.8
-ambient_r: Ellipse, size: (600, 600), color: (0.98, 0.44, 0.52, 0.12), at: (960, 460), opacity: 0.8
+ambient_l: Ellipse, size: (720, 720), at: (280, 240),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94228"), (50%, "#f5b9420c"), (100%, "#f5b94200")}),
+  blend: "screen"
+ambient_r: Ellipse, size: (760, 760), at: (1000, 460),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#fb718526"), (50%, "#c084fc0e"), (100%, "#c084fc00")}),
+  blend: "screen"
 
 // ── Header Typography with Gradient & Mask ────────────────────────────────
 header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
@@ -22,7 +26,7 @@ header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
     text: "Fluid Typography & Spatial Depth",
     font_size: 38,
     font_weight: "bold",
-    fill_gradient: linear(90, {"#f5b942", "#fb7185"}),
+    fill_gradient: linear(90, {"#f5b942", "#fb7185", "#c084fc"}),
     text_align: "center"
   subline: Text,
     text: "Split-text baseline emergence, 2.5D perspective tilt, and real-time frosted glass",
@@ -34,14 +38,14 @@ header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
 // ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
 plate: Group, at: (640, 410) {
   for (dx, h, dy, col), i in {
-    (-280, 240, 20, accent.primary),
-    (-180, 320, -20, accent.warning),
-    (-80, 180, 50, accent.info),
-    (20, 280, 0, accent.primary),
-    (120, 340, -30, accent.warning),
-    (220, 220, 30, accent.info)
+    (-280, 260, 20, accent.primary),
+    (-180, 340, -20, accent.warning),
+    (-80, 200, 50, accent.info),
+    (20, 300, 0, accent.primary),
+    (120, 360, -30, accent.warning),
+    (220, 240, 30, accent.info)
   } {
-    bars[i]: Rect, size: (50, h), at: (dx, dy), color: col, corner_radius: 8, opacity: 0.35
+    bars[i]: Rect, size: (52, h), at: (dx, dy), color: col, corner_radius: 10, opacity: 0.50
   }
 }
 
@@ -49,8 +53,8 @@ plate: Group, at: (640, 410) {
 glass_card: Glass, at: (640, 410), size: (620, 280), corner_radius: 20 {
   frost: Blur, radius: 24
   surface: Rect, size: (620, 280), corner_radius: 20,
-    color: "#ffffff12", stroke: "#ffffff40", stroke_width: 1.5,
-    shadow: (0, 24, 48, 0), shadow_color: (0, 0, 0, 0.45)
+    color: "#ffffff16", stroke: "#ffffff55", stroke_width: 1.5,
+    shadow: (0, 28, 56, 0), shadow_color: (0, 0, 0, 0.55)
   content: Col, size: (560, 220), gap: 12, align: "center" {
     card_kicker: Text, text: "SPATIAL MOTION SCOPE", font_size: 12, font_weight: 600, color: accent.primary
     card_title: Text, text: "Tactile Digital Physics", font_size: 30, font_weight: "bold", color: text.primary
@@ -58,14 +62,16 @@ glass_card: Glass, at: (640, 410), size: (620, 280), corner_radius: 20 {
       text: "Every layer projects into 2.5D coordinate space with real-time perspective distortion, spring-driven momentum, and zero rasterization artifacts.",
       font_size: 14, color: text.secondary, text_align: "center", text_max_width: 500
     card_hud: Row, gap: 16, align: "center" {
-      pill_blur: Chip, label: "24px Gaussian Frost", width: 160, height: 28, color: surface.secondary, text_color: text.primary
-      pill_fps: Chip, label: "60 FPS WebGPU", width: 140, height: 28, color: surface.secondary, text_color: accent.success
+      pill_blur: Chip, label: "24px Gaussian Frost", width: 165, height: 28, color: surface.secondary, text_color: text.primary
+      pill_fps: Chip, label: "60 FPS WebGPU", width: 145, height: 28, color: surface.secondary, text_color: accent.success
     }
   }
 }
 
 // ── Timeline Choreography ──────────────────────────────────────────────────
 #0.0s
+fade-in ambient_l [500ms]
+fade-in ambient_r [500ms]
 fade-in header [400ms]
 fade-in plate [400ms]
 fade-in glass_card [400ms]

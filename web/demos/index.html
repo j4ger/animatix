@@ -17,117 +17,486 @@
       </div>
       <h1 class="page-title">Watch complex systems unfold.</h1>
       <p class="page-lede">
-        Four signature walkthroughs where every diagram, architecture topology, and kinetic poster is a declarative <code class="inline">.amx</code> scene running live in your browser over WebGPU.
+        Eight interactive walkthroughs where every diagram, distributed topology, and mathematical curve is a declarative <code class="inline">.amx</code> scene running live in your browser over WebGPU.
       </p>
       <div class="page-stat-strip">
-        <span class="stat-pill">4 Signature Pillars</span>
-        <span class="stat-pill">18 Interactive Scenes</span>
+        <span class="stat-pill">8 Curated Works</span>
+        <span class="stat-pill">30+ Interactive Scenes</span>
         <span class="stat-pill">100% Vector WebGPU</span>
         <span class="stat-pill">Zero Video Buffering</span>
       </div>
     </header>
 
-    <div class="cards hub">
-      <!-- Pillar 1: Deep Learning & AI (Flagship Spotlight) -->
-      <a class="hub-card featured" href="./transformer/">
-        <span class="hub-poster">
-          <span class="poster-badge live">Live Scene · 9s</span>
-          <amx-player src="transformer/scenes/overview.amx" sealed autoplay loop
+    <!-- ── The Living Theater Feature Stage ── -->
+    <section class="theater-hero" aria-label="Interactive Showcase Stage">
+      <div class="theater-screen">
+        <div class="theater-hud">
+          <span id="theater-hud-file" class="theater-hud-file">
+            <span class="live-dot"></span>
+            <span>transformer/scenes/overview.amx</span>
+          </span>
+          <span class="theater-hud-live">
+            <span class="live-dot"></span>
+            <span>60 FPS · WebGPU</span>
+          </span>
+        </div>
+
+        <div class="theater-stage-body">
+          <amx-player id="theater-player" src="transformer/scenes/overview.amx" sealed autoplay loop
                       hold="1.5" aspect="16:9"
                       title="The transformer block, drawn as an Animatix scene"></amx-player>
-        </span>
-        <span class="hub-body">
-          <span class="demo-kicker">Deep Learning · 7 Scenes · Flagship</span>
-          <span class="hub-title">The Transformer Architecture, Animated</span>
-          <span class="hub-blurb">
-            The mechanism behind modern language models, built up step-by-step:
-            tokens, positional encodings, scaled dot-product attention, multi-head projections,
-            the feed-forward block, and residual streams.
-          </span>
-          <span class="open">Explore the walkthrough</span>
-        </span>
-      </a>
+        </div>
 
-      <!-- Pillar 2: Cloud Infrastructure & Distributed Topology -->
-      <a class="hub-card" href="./topology/">
-        <span class="hub-poster">
-          <span class="poster-badge">Hover to play · 3 scenes</span>
-          <amx-player src="topology/scene.amx" sealed data-hoverplay
-                      aspect="16:9"
-                      title="The distributed event fabric architecture"></amx-player>
-        </span>
-        <span class="hub-body">
-          <span class="demo-kicker">Cloud Infrastructure · 3 Scenes</span>
-          <span class="hub-title">The Distributed Event Fabric</span>
-          <span class="hub-blurb">
-            High-throughput cloud architecture staged visually: line-rate edge ingress,
-            partitioned log streaming, and Raft consensus with smart orthogonal connectors and live telemetry.
-          </span>
-          <span class="open">Explore the walkthrough</span>
-        </span>
-      </a>
+        <div class="theater-caption-bar">
+          <div class="theater-meta">
+            <span id="theater-kicker" class="theater-kicker">Deep Learning · 7 Scenes · Flagship</span>
+            <h2 id="theater-title" class="theater-title">The Transformer Architecture, Animated</h2>
+            <p id="theater-desc" class="theater-desc">
+              The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, self-attention, and the feed-forward stack.
+            </p>
+          </div>
+          <div class="theater-actions">
+            <a id="theater-btn-walkthrough" class="btn-theater-primary" href="./transformer/">
+              Explore Walkthrough <span>→</span>
+            </a>
+            <a id="theater-btn-source" class="btn-theater-ghost" href="transformer/scenes/overview.amx" target="_blank" rel="noopener noreferrer">
+              Source ↗
+            </a>
+          </div>
+        </div>
+      </div>
 
-      <!-- Pillar 3: Product Motion & Kinetic Brand -->
-      <a class="hub-card" href="./kinetic/">
-        <span class="hub-poster">
-          <span class="poster-badge">Hover to play · 3 scenes</span>
-          <amx-player src="kinetic/scene.amx" sealed data-hoverplay
-                      aspect="16:9"
-                      title="Kinetic typography and spatial glass studio"></amx-player>
-        </span>
-        <span class="hub-body">
-          <span class="demo-kicker">Kinetic Design · 3 Scenes</span>
-          <span class="hub-title">Fluid Typography &amp; Spatial Depth</span>
-          <span class="hub-blurb">
-            Editorial motion design and tactile digital physics: split-text baseline emergence,
-            linear text gradients, 2.5D perspective tilt, and real-time GPU frosted glass.
+      <!-- Channel Switcher Strip -->
+      <div class="theater-channels" role="tablist" aria-label="Showcase Channels">
+        <button class="channel-btn active" type="button" data-channel="0" role="tab" aria-selected="true">
+          <span class="channel-num">01</span>
+          <span class="channel-info">
+            <span class="channel-title">The Transformer</span>
+            <span class="channel-tag">Deep Learning</span>
           </span>
-          <span class="open">Explore the walkthrough</span>
-        </span>
-      </a>
+        </button>
 
-      <!-- Pillar 4: Applied Physics & Harmonic Math -->
-      <a class="hub-card" href="./epicycles/">
-        <span class="hub-poster">
-          <span class="poster-badge">Hover to play · 5 scenes</span>
-          <amx-player src="epicycles/hero.amx" sealed data-hoverplay
-                      aspect="16:9"
-                      title="Spinning circles stacking into a square wave, as an Animatix scene"></amx-player>
-        </span>
-        <span class="hub-body">
-          <span class="demo-kicker">Fourier Series · 5 Scenes</span>
-          <span class="hub-title">Circles That Draw a Square Wave</span>
-          <span class="hub-blurb">
-            Fourier analysis as spinning mechanical dials: one circle traces a pure sine wave,
-            while four harmonic circles stack into a square wave in continuous coordinate geometry.
+        <button class="channel-btn" type="button" data-channel="1" role="tab" aria-selected="false">
+          <span class="channel-num">02</span>
+          <span class="channel-info">
+            <span class="channel-title">Event Fabric</span>
+            <span class="channel-tag">Cloud Topology</span>
           </span>
-          <span class="open">Explore the walkthrough</span>
-        </span>
-      </a>
+        </button>
 
-      <!-- Bridge Card: The Scene Gallery -->
-      <a class="hub-card featured" href="../gallery.html">
-        <span class="hub-poster">
-          <span class="poster-badge">Showcase</span>
-          <amx-player src="matrix/rotation.amx" sealed data-hoverplay
-                      aspect="16:9"
-                      title="A sheared grid under a live 2×2 matrix, as an Animatix scene"></amx-player>
-        </span>
+        <button class="channel-btn" type="button" data-channel="2" role="tab" aria-selected="false">
+          <span class="channel-num">03</span>
+          <span class="channel-info">
+            <span class="channel-title">Fourier Circles</span>
+            <span class="channel-tag">Harmonic Waves</span>
+          </span>
+        </button>
+
+        <button class="channel-btn" type="button" data-channel="3" role="tab" aria-selected="false">
+          <span class="channel-num">04</span>
+          <span class="channel-info">
+            <span class="channel-title">Insertion Sort</span>
+            <span class="channel-tag">Algorithmic Stage</span>
+          </span>
+        </button>
+
+        <button class="channel-btn" type="button" data-channel="4" role="tab" aria-selected="false">
+          <span class="channel-num">05</span>
+          <span class="channel-info">
+            <span class="channel-title">2×2 Matrix</span>
+            <span class="channel-tag">Linear Algebra</span>
+          </span>
+        </button>
+
+        <button class="channel-btn" type="button" data-channel="5" role="tab" aria-selected="false">
+          <span class="channel-num">06</span>
+          <span class="channel-info">
+            <span class="channel-title">Gradient Descent</span>
+            <span class="channel-tag">Optimization</span>
+          </span>
+        </button>
+
+        <button class="channel-btn" type="button" data-channel="6" role="tab" aria-selected="false">
+          <span class="channel-num">07</span>
+          <span class="channel-info">
+            <span class="channel-title">Morph Lab</span>
+            <span class="channel-tag">Vector Kinetics</span>
+          </span>
+        </button>
+
+        <button class="channel-btn" type="button" data-channel="7" role="tab" aria-selected="false">
+          <span class="channel-num">08</span>
+          <span class="channel-info">
+            <span class="channel-title">Kinetic Glass</span>
+            <span class="channel-tag">Motion Design</span>
+          </span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ── Filterable Walkthrough Catalog ── -->
+    <section class="catalog-section" aria-label="Curated Walkthrough Catalog">
+      <div class="sec-head">
+        <span class="sec-num">CATALOG</span>
+        <h2>Explore by Domain</h2>
+      </div>
+
+      <!-- Filter Controls -->
+      <div class="catalog-filter-bar" role="toolbar" aria-label="Filter walkthroughs by domain">
+        <button class="filter-pill active" type="button" data-filter="all">All Works (8)</button>
+        <button class="filter-pill" type="button" data-filter="ml">Deep Learning &amp; AI</button>
+        <button class="filter-pill" type="button" data-filter="systems">Cloud &amp; Systems</button>
+        <button class="filter-pill" type="button" data-filter="math">Mathematics &amp; Physics</button>
+        <button class="filter-pill" type="button" data-filter="algorithms">Algorithms</button>
+        <button class="filter-pill" type="button" data-filter="design">Motion &amp; Design</button>
+      </div>
+
+      <!-- Grid of Walkthroughs -->
+      <div class="catalog-grid" id="catalog-grid">
+
+        <!-- 01: Transformer (Flagship Featured) -->
+        <a class="catalog-card featured" href="./transformer/" data-category="ml">
+          <span class="catalog-poster">
+            <span class="catalog-badge live">Live Scene · 9s</span>
+            <amx-player src="transformer/scenes/overview.amx" sealed autoplay loop
+                        hold="1.5" aspect="16:9"
+                        title="The transformer block, drawn as an Animatix scene"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Deep Learning · 7 Scenes · Flagship</span>
+            <h3 class="catalog-title">The Transformer Architecture, Animated</h3>
+            <p class="catalog-blurb">
+              The mechanism behind modern language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and feed-forward memory.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Tokens &amp; Embeddings</span>
+              <span class="tag-chip">Self-Attention</span>
+              <span class="tag-chip">Feed-Forward</span>
+              <span class="tag-chip">Autoregressive Loop</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 02: Topology -->
+        <a class="catalog-card" href="./topology/" data-category="systems">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 3 scenes</span>
+            <amx-player src="topology/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="The distributed event fabric architecture"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Cloud Infrastructure · 3 Scenes</span>
+            <h3 class="catalog-title">The Distributed Event Fabric</h3>
+            <p class="catalog-blurb">
+              High-throughput cloud architecture staged visually: line-rate edge ingress, partitioned log streaming, and Raft consensus with smart orthogonal routing.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Orthogonal Connectors</span>
+              <span class="tag-chip">Fillet Bends</span>
+              <span class="tag-chip">Live Telemetry Counter</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 03: Epicycles -->
+        <a class="catalog-card" href="./epicycles/" data-category="math">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 5 scenes</span>
+            <amx-player src="epicycles/hero.amx" sealed data-hoverplay aspect="16:9"
+                        title="Circles drawing a square wave"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Harmonic Physics · 5 Scenes</span>
+            <h3 class="catalog-title">Circles That Draw a Square Wave</h3>
+            <p class="catalog-blurb">
+              Fourier analysis as spinning mechanical dials: four harmonic circles rotating at odd integer frequencies stacking into a sharp square wave with scrolling history traces.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">PlotCurve</span>
+              <span class="tag-chip">Harmonics</span>
+              <span class="tag-chip">Rolling Time Trace</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 04: Sorting -->
+        <a class="catalog-card" href="./sorting/" data-category="algorithms">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 3 scenes</span>
+            <amx-player src="sorting/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="Insertion sort performed by eight bars"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Algorithmic Stage · 3 Scenes</span>
+            <h3 class="catalog-title">Sorting, Staged</h3>
+            <p class="catalog-blurb">
+              Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick and every swap is emitted algorithmically without hand-keyframing.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Build-time Fn</span>
+              <span class="tag-chip">Dynamic Swaps</span>
+              <span class="tag-chip">Comparison Ticks</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 05: Matrix -->
+        <a class="catalog-card" href="./matrix/" data-category="math">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 3 scenes</span>
+            <amx-player src="matrix/rotation.amx" sealed data-hoverplay aspect="16:9"
+                        title="Sheared coordinate grid under 2x2 matrix"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Linear Algebra · 3 Scenes</span>
+            <h3 class="catalog-title">A Matrix Is a Machine</h3>
+            <p class="catalog-blurb">
+              Linear algebra as spatial transformation: watch a 2×2 matrix bend the coordinate grid, track basis vectors through shears and rotations, and collapse the determinant through zero.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Coordinate Grid</span>
+              <span class="tag-chip">Basis Vectors</span>
+              <span class="tag-chip">Determinant Area</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 06: Gradient Descent -->
+        <a class="catalog-card" href="./gradient/" data-category="ml">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 4 scenes</span>
+            <amx-player src="gradient/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="Loss surface and gradient descent roll"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Optimization &amp; Calculus · 4 Scenes</span>
+            <h3 class="catalog-title">Rolling Downhill: Gradient Descent</h3>
+            <p class="catalog-blurb">
+              How machines learn, one picture at a time: loss surface topography, steepest descent direction fields, rolling inertia, and why learning rate step size decides convergence.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Loss Surface</span>
+              <span class="tag-chip">Vector Field</span>
+              <span class="tag-chip">Learning Rate</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 07: Morph Lab -->
+        <a class="catalog-card" href="./morph/" data-category="design algorithms">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · Vector Morph</span>
+            <amx-player src="morph/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="Morph Lab generative shape transformation"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Topological Synthesis · Vector Lab</span>
+            <h3 class="catalog-title">Morph Lab: Generative Vector Kinetics</h3>
+            <p class="catalog-blurb">
+              Continuous vector interpolation across three mathematical transformation strategies: vertex index matching, curved circular trajectories, and proportional length remapping.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Shape Morphing</span>
+              <span class="tag-chip">strategy: match</span>
+              <span class="tag-chip">path_arc hint</span>
+              <span class="tag-chip">Spring Settle</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+        <!-- 08: Kinetic -->
+        <a class="catalog-card" href="./kinetic/" data-category="design">
+          <span class="catalog-poster">
+            <span class="catalog-badge">Hover to play · 3 scenes</span>
+            <amx-player src="kinetic/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="Kinetic typography and spatial glass studio"></amx-player>
+          </span>
+          <span class="catalog-content">
+            <span class="catalog-kicker">Motion Design · 3 Scenes</span>
+            <h3 class="catalog-title">Fluid Typography &amp; Spatial Depth</h3>
+            <p class="catalog-blurb">
+              Editorial motion design and tactile digital physics: split-text baseline emergence, linear text gradients, 2.5D perspective tilt, and real-time GPU frosted glass.
+            </p>
+            <div class="catalog-tags-strip">
+              <span class="tag-chip">Split-Text Reveal</span>
+              <span class="tag-chip">2.5D Perspective</span>
+              <span class="tag-chip">Glass Blur Compute</span>
+            </div>
+            <span class="catalog-cta">Enter walkthrough</span>
+          </span>
+        </a>
+
+      </div>
+    </section>
+
+    <!-- ── Discovery Bridges ── -->
+    <section class="cards hub" style="margin-top: 48px;">
+      <a class="hub-card" href="../gallery.html">
         <span class="hub-body">
-          <span class="demo-kicker">Scene Gallery · Single-Figure Vignettes</span>
-          <span class="hub-title">Explore Focused Mathematical &amp; Algorithmic Figures</span>
+          <span class="demo-kicker">Scene Gallery</span>
+          <span class="hub-title">Isolated Single-Figure Vignettes</span>
           <span class="hub-blurb">
-            Looking for focused experiments? The Scene Gallery gathers standalone animation figures
-            with full timeline scrubber controls, fullscreen theater mode, and direct source inspection:
-            matrix transformations, loss surface gradients, hash collisions, and sorting choreographies.
+            Looking for quick focused experiments? The Scene Gallery gathers standalone animation figures with full timeline scrubber controls, speed switches, and theater mode.
           </span>
           <span class="open">Open the gallery</span>
         </span>
       </a>
-    </div>
+
+      <a class="hub-card" href="../recipes/">
+        <span class="hub-body">
+          <span class="demo-kicker">Production Recipes</span>
+          <span class="hub-title">Copy-Paste Motion Patterns</span>
+          <span class="hub-blurb">
+            Production-ready recipes for everyday animation needs: bloom glows, camera pushes, marching ants, analytic sparks, and counter rolls.
+          </span>
+          <span class="open">Browse recipes</span>
+        </span>
+      </a>
+    </section>
+
   </div>
 
   <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
   <script src="../site-chrome.js" data-root="../" data-section="demos"></script>
+
+  <!-- Interactive Theater & Filtering Controller -->
+  <script>
+    (function () {
+      const channels = [
+        {
+          src: "transformer/scenes/overview.amx",
+          file: "transformer/scenes/overview.amx",
+          kicker: "Deep Learning · 7 Scenes · Flagship",
+          title: "The Transformer Architecture, Animated",
+          desc: "The mechanism behind modern language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and feed-forward memory.",
+          link: "./transformer/"
+        },
+        {
+          src: "topology/scene.amx",
+          file: "topology/scene.amx",
+          kicker: "Cloud Infrastructure · 3 Scenes",
+          title: "The Distributed Event Fabric",
+          desc: "High-throughput cloud architecture staged visually: line-rate edge ingress, partitioned log streaming, and Raft consensus with smart orthogonal routing.",
+          link: "./topology/"
+        },
+        {
+          src: "epicycles/hero.amx",
+          file: "epicycles/hero.amx",
+          kicker: "Harmonic Physics · 5 Scenes",
+          title: "Circles That Draw a Square Wave",
+          desc: "Fourier analysis as spinning mechanical dials: four harmonic circles rotating at odd integer frequencies stacking into a sharp square wave with scrolling history traces.",
+          link: "./epicycles/"
+        },
+        {
+          src: "sorting/scene.amx",
+          file: "sorting/scene.amx",
+          kicker: "Algorithmic Stage · 3 Scenes",
+          title: "Sorting, Staged",
+          desc: "Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick and every swap is emitted algorithmically without hand-keyframing.",
+          link: "./sorting/"
+        },
+        {
+          src: "matrix/rotation.amx",
+          file: "matrix/rotation.amx",
+          kicker: "Linear Algebra · 3 Scenes",
+          title: "A Matrix Is a Machine",
+          desc: "Linear algebra as spatial transformation: watch a 2×2 matrix bend the coordinate grid, track basis vectors through shears and rotations, and collapse the determinant through zero.",
+          link: "./matrix/"
+        },
+        {
+          src: "gradient/scene.amx",
+          file: "gradient/scene.amx",
+          kicker: "Optimization & Calculus · 4 Scenes",
+          title: "Rolling Downhill: Gradient Descent",
+          desc: "Watch optimization unfold on a loss surface: vector gradient fields, contour tracing, and why the learning rate step size decides convergence.",
+          link: "./gradient/"
+        },
+        {
+          src: "morph/scene.amx",
+          file: "morph/scene.amx",
+          kicker: "Topological Synthesis · Vector Lab",
+          title: "Morph Lab: Generative Vector Kinetics",
+          desc: "Continuous vector interpolation across three mathematical transformation strategies: vertex index matching, curved circular trajectories, and proportional length remapping.",
+          link: "./morph/"
+        },
+        {
+          src: "kinetic/scene.amx",
+          file: "kinetic/scene.amx",
+          kicker: "Motion Design · 3 Scenes",
+          title: "Fluid Typography & Spatial Depth",
+          desc: "Editorial motion design and tactile digital physics: split-text baseline emergence, linear text gradients, 2.5D perspective tilt, and real-time GPU frosted glass.",
+          link: "./kinetic/"
+        }
+      ];
+
+      const player = document.getElementById("theater-player");
+      const hudFile = document.getElementById("theater-hud-file");
+      const kicker = document.getElementById("theater-kicker");
+      const title = document.getElementById("theater-title");
+      const desc = document.getElementById("theater-desc");
+      const btnWalkthrough = document.getElementById("theater-btn-walkthrough");
+      const btnSource = document.getElementById("theater-btn-source");
+      const channelButtons = document.querySelectorAll(".channel-btn");
+
+      channelButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const idx = parseInt(btn.dataset.channel, 10);
+          const ch = channels[idx];
+          if (!ch) return;
+
+          channelButtons.forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-selected", "false");
+          });
+          btn.classList.add("active");
+          btn.setAttribute("aria-selected", "true");
+
+          // Update stage player & metadata
+          player.setAttribute("src", ch.src);
+          if (hudFile) {
+            hudFile.innerHTML = '<span class="live-dot"></span><span>' + ch.file + '</span>';
+          }
+          if (kicker) kicker.textContent = ch.kicker;
+          if (title) title.textContent = ch.title;
+          if (desc) desc.textContent = ch.desc;
+          if (btnWalkthrough) btnWalkthrough.setAttribute("href", ch.link);
+          if (btnSource) btnSource.setAttribute("href", ch.src);
+        });
+      });
+
+      // Category filter pills
+      const filterPills = document.querySelectorAll(".filter-pill");
+      const catalogCards = document.querySelectorAll(".catalog-card");
+
+      filterPills.forEach((pill) => {
+        pill.addEventListener("click", () => {
+          const filter = pill.dataset.filter;
+
+          filterPills.forEach((p) => p.classList.remove("active"));
+          pill.classList.add("active");
+
+          catalogCards.forEach((card) => {
+            if (filter === "all") {
+              card.style.display = "";
+            } else {
+              const cats = (card.dataset.category || "").split(" ");
+              if (cats.includes(filter)) {
+                card.style.display = "";
+              } else {
+                card.style.display = "none";
+              }
+            }
+          });
+        });
+      });
+    })();
+  </script>
 </body>
 </html>

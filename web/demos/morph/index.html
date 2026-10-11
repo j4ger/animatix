@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Morph Lab: Generative Vector Kinetics — an .amx walkthrough</title>
+  <meta name="description" content="Declarative vector shape morphing in 60 FPS WebGPU: continuous interpolation across match, path_arc, and stretch topological strategies.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · TOPOLOGICAL SHAPE SYNTHESIS</p>
+        <h1 class="hero-title">Morph Lab: Generative Vector Kinetics</h1>
+        <ul class="facts">
+          <li><b>3</b> topological strategies</li>
+          <li><b>Continuous</b> bezier vertex interpolation</li>
+          <li><b>60 FPS</b> vector WebGPU</li>
+          <li><b>Zero</b> SVG path spaghetti</li>
+        </ul>
+      </div>
+
+      <div class="hero-intro">
+        <p class="lede">
+          In traditional animation, morphing between arbitrary vector outlines requires manual vertex rigging or video pre-renders.
+          In Animatix, shape morphing is completely declarative: redeclaring an actor with a new geometry automatically generates smooth, topological transitions.
+        </p>
+      </div>
+    </header>
+
+    <div class="intuition-callout">
+      <div class="intuition-callout-badge">THE CORE MECHANISM</div>
+      <p class="intuition-callout-text">
+        Redeclaring an actor (<code class="inline">shape: Polygon [1.2s, strategy: match]</code>) triggers the engine's curve matching algorithms to subdivide edges and smoothly guide vertices across coordinate space.
+      </p>
+    </div>
+
+    <!-- The Stage -->
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="1.5"
+                  aspect="16:9" title="Morph Lab shape transformation"></amx-player>
+      <figcaption>
+        <span class="cap"><b>Figure 0 · The Morphing Trinity.</b> Three distinct geometries simultaneously transform across three mathematical strategies: vertex matching, circular arc trajectory, and proportional perimeter stretching.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <!-- Choreography Beats -->
+    <div class="walk">
+      <p class="walk-title">Choreography beats</p>
+      <ol>
+        <li><span class="step">1</span><strong>Initial geometry emergence</strong> — organic cubic bezier blob, 10-point star polygon, and circular geometry.</li>
+        <li><span class="step">2</span><strong>Strategy-driven transformation</strong> — diamond (<code class="inline">match</code>), hexagon (<code class="inline">path_arc</code>), and squircle (<code class="inline">stretch</code>).</li>
+        <li><span class="step">3</span><strong>Topological convergence</strong> — all three actors converge into identical, luminous stars with a synchronized spring pulse.</li>
+      </ol>
+    </div>
+
+    <!-- Progressive Disclosure Mechanics Drawer -->
+    <details class="mechanics-drawer">
+      <summary class="mechanics-summary">Interpolation Strategies &amp; Algorithmic Details</summary>
+      <div class="mechanics-body">
+        <div class="insight-grid">
+          <div class="insight-card">
+            <div class="insight-title"><span class="sec-num">01</span> strategy: match</div>
+            <p class="insight-body">
+              Matches vertices by normalized perimeter index. Best for shapes with similar vertex distributions, preserving clean angular transitions.
+            </p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-title"><span class="sec-num">02</span> path_arc: 0.35</div>
+            <p class="insight-body">
+              Guides vertices along curved circular trajectories rather than straight lines, simulating natural rotational momentum and organic fluidity.
+            </p>
+          </div>
+          <div class="insight-card">
+            <div class="insight-title"><span class="sec-num">03</span> stretch: true</div>
+            <p class="insight-body">
+              Normalizes path length parameterization before interpolation, avoiding vertex clustering when morphing between shapes with differing segment counts.
+            </p>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- How This Page Works Footer -->
+    <div class="howto">
+      <h2>How This Walkthrough Works</h2>
+      <p>
+        Every frame of vector morphing is computed on the fly by the Animatix runtime in your browser using Wasm and WebGPU.
+        Inspect the declaration in <a class="src" href="scene.amx">scene.amx ↗</a> to see how simple and expressive layout-first motion can be.
+      </p>
+    </div>
+
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>

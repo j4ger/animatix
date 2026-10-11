@@ -10,12 +10,19 @@ rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
 rot_sub: Text, text: "column 1 is where i lands; column 2 is where j lands",
   font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
 
+wash_rot: Ellipse, size: (840, 840), at: (760, 400),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94218"), (55%, "#38bdf80a"), (100%, "#38bdf800")}),
+  blend: "screen"
+
+mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
 a2_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (196, 170)
 b2_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
 c2_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
 d2_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
 m2_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 for x, i in {-2, -1, 0, 1, 2} {
   rv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
@@ -23,11 +30,15 @@ for x, i in {-2, -1, 0, 1, 2} {
 }
 ri_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.primary, stroke_width: 3.5
 rj_hat: Line, from: (760, 400), to: (760, 290), stroke: accent.success, stroke_width: 3.5
+sq_top: Line, from: (760, 290), to: (870, 290), stroke: accent.warning, stroke_width: 2.0
+sq_right: Line, from: (870, 400), to: (870, 290), stroke: accent.warning, stroke_width: 2.0
 
 rot_cap: Text, text: "a quarter turn, tracked the whole way by the numbers", opacity: 1.0,
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.3s
+fade-in wash_rot [500ms, ease: expo-out]
+fade-in mat_card [300ms, ease: expo-out]
 fade-in rv__0 [260ms, ease: expo-out]
 fade-in rv__1 [260ms, ease: expo-out]
 fade-in rv__2 [260ms, ease: expo-out]
@@ -38,6 +49,8 @@ fade-in rh__1 [260ms, ease: expo-out]
 fade-in rh__2 [260ms, ease: expo-out]
 fade-in rh__3 [260ms, ease: expo-out]
 fade-in rh__4 [260ms, ease: expo-out]
+fade-in sq_top [300ms, ease: expo-out]
+fade-in sq_right [300ms, ease: expo-out]
 fade-in ri_hat [300ms, ease: expo-out]
 fade-in m2_brace [260ms, ease: expo-out]
 fade-in rj_hat [300ms, ease: expo-out]
@@ -63,6 +76,10 @@ always {
 
   ri_hat.to = (cx + s * a, cy - s * c)
   rj_hat.to = (cx + s * b, cy - s * d)
+  sq_top.from = (cx + s * b, cy - s * d)
+  sq_top.to = (cx + s * (a + b), cy - s * (c + d))
+  sq_right.from = (cx + s * a, cy - s * c)
+  sq_right.to = (cx + s * (a + b), cy - s * (c + d))
 
   rv__0.from = (cx + s * (a * -2 + b * -2.4), cy - s * (c * -2 + d * -2.4))
   rv__0.to = (cx + s * (a * -2 + b * 2.4), cy - s * (c * -2 + d * 2.4))

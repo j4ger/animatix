@@ -12,7 +12,15 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
 // ── Background & Ambient Lighting ──────────────────────────────────────────
 bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-bg_glow: Ellipse, size: (800, 450), color: (0.09, 0.12, 0.18, 0.4), at: (640, 360), opacity: 0.5
+wash_core: Ellipse, size: (720, 520), at: (600, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94218"), (50%, "#f5b94206"), (100%, "#f5b94200")}),
+  blend: "screen"
+wash_edge: Ellipse, size: (540, 540), at: (230, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#38bdf815"), (50%, "#38bdf805"), (100%, "#38bdf800")}),
+  blend: "screen"
+wash_raft: Ellipse, size: (540, 540), at: (920, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#34d39912"), (50%, "#34d39904"), (100%, "#34d39900")}),
+  blend: "screen"
 
 // ── Header Narration ───────────────────────────────────────────────────────
 header: Col, anchor: scene.top, offset: (0, 44), gap: 6, align: "center" {
@@ -87,6 +95,9 @@ hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
 // ── Timeline Choreography ──────────────────────────────────────────────────
 #0.0s
 fade-in header [400ms, ease: ease-out]
+fade-in wash_core [600ms]
+fade-in wash_edge [600ms]
+fade-in wash_raft [600ms]
 fade-in vpc_edge [400ms]
 fade-in vpc_core [400ms]
 fade-in hud_panel [400ms]
