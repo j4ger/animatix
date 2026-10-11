@@ -1,0 +1,76 @@
+// 40 — Delightful Animation & Kinetic Design
+// Showcases:
+//   - Split-text reveal-in with baseline masking
+//   - Text gradient brush
+//   - Smart orthogonal Connector routing with fillet & arrow
+//   - Rolling Odometer Counter
+//   - BoundaryBox and CardNode structured components
+
+import "../lib/theme.amx"
+import "../lib/ui.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+#0s
+// Canvas background
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360)
+
+// Header with text gradient and split-text reveal
+header: Col, at: (640, 100), align: "center", gap: 8 {
+  badge: Chip, label: "KINETIC ARCHITECTURE", width: 180, height: 28, color: surface.primary, text_color: accent.primary, opacity: 1
+  headline: Text,
+    text: "Autonomous Edge Topology",
+    font_size: 40,
+    font_weight: "bold",
+    fill_gradient: linear(90, {"#38bdf8", "#a855f7"}),
+    text_align: "center"
+}
+
+// VPC Boundary enclosure
+vpc: BoundaryBox, label: "US-EAST EDGE CLUSTER", width: 880, height: 380, at: (640, 420), opacity: 1
+
+// Topology service nodes
+client: CardNode, title: "Client Edge", eyebrow: "INGRESS", sub: "Envoy Gateway", at: (340, 420)
+auth: CardNode, title: "Auth Service", eyebrow: "SECURITY", sub: "mTLS & JWT", at: (640, 320)
+database: CardNode, title: "Distributed DB", eyebrow: "STORAGE", sub: "Raft Consensus", at: (940, 420), focal: true
+
+// Orthogonal smart connectors
+conn1: Connector,
+  from: client.east,
+  to: auth.west,
+  routing: "elbow",
+  corner_radius: 8,
+  arrow: true,
+  stroke: accent.primary,
+  stroke_width: 2
+
+conn2: Connector,
+  from: auth.east,
+  to: database.west,
+  routing: "elbow",
+  corner_radius: 8,
+  arrow: true,
+  stroke: accent.primary,
+  stroke_width: 2
+
+// Live throughput metric ticker with rolling counter
+kpi: Col, at: (640, 560), align: "center", gap: 4 {
+  kpi_label: Text, text: "PROCESSED REQUESTS / SEC", font_size: 11, font_weight: 600, color: text.muted
+  ticker: Counter, value: 1250, color: accent.primary, suffix: " req/s"
+}
+
+#0.2s
+reveal-in headline [by: word, offset_y: 20, 600ms]
+
+#0.6s
+fade-in client [400ms]
+fade-in auth [400ms]
+fade-in database [400ms]
+
+#1.4s
+draw-in conn1 [500ms]
+draw-in conn2 [500ms]
+fade-in kpi [400ms]
+
+#2.0s
+ticker.value = 8490 [3s]

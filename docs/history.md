@@ -14,6 +14,16 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Delightful Animation & Kinetic Design (2026-10-10)
+
+Delightful animation & kinetic design overhaul implemented across 4 waves (source of truth: [`delightful_animation_plan.md`](delightful_animation_plan.md)):
+
+1. **Wave 1 (Channels & High-ROI)**: Text gradient support (`fill_gradient`, `gradient_extend`, `gradient_space` on `TextLike` actors), feathered wipe with `smoothstep`, push transitions (`push-left`, `push-right`, `push-up`, `push-down`), wavefront 2D spatial & radial staggers (`from: center | top-left | (x, y)`), and continuous camera parallax factor (`parallax: f32`).
+2. **Wave 2 (Topology & Typography)**: Built-in `Connector` primitive with post-layout orthogonal routing (`elbow`, `l-bend`, `straight`), corner fillet radii, arrow heads, and automatic label knockout; Split-Text `reveal-in` action modifier (`by: char | word | line`, stagger, baseline clipping); pre-baked odometer `Counter` primitive with monospace advance extraction and slot clipping; standard `CardNode` and `BoundaryBox` components in `examples/lib/ui.amx`.
+3. **Wave 3 (Materials & 2.5D)**: Analytical erf Gaussian shadows (`shadow_color`, `shadow_blur`, `shadow_offset`, `shadow_spread`) bypassing compute shaders; 2.5D perspective tilt via `rotate_x`, `rotate_y`, and `perspective`; ambient closed-loop `idle: float / breath` procedural keyframe synthesizers.
+4. **Wave 4 (Camera & Continuity)**: Target-tracking camera (`camera.focus_on(actor, padding: 40)`); FLIP shared element transitions (`shared_id`) with dual-scene suppression; continuous spring physics with initial velocity handoff (`Easing::SpringV0` + closed-form derivatives); interactive `#step` semantic pause markers with `timeline.pause_points` and player navigation.
+Showcase example added at `examples/animation/40_delightful_kinetic.amx`.
+
 ### Architecture Follow-Ups (2026-08-12)
 
 | ID | Track | Status | Benefit | Feasibility | Necessity |
