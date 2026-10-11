@@ -71,12 +71,12 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    PATH note in `flake.nix`). A gate whose environment is missing says so and names
    the shell, instead of reporting a build error.
 
-   The `fmt` gate needs nightly rustfmt: `rustfmt.toml` sets unstable options, and
-   a stable rustfmt warns, ignores them, and then reports correctly formatted files
-   as unformatted. The gate refuses to run rather than produce that noise.
-   **Always run `scripts/ci.sh gate fmt` before committing.** Inside `nix develop`,
-   the dev shell supplies the nightly `rustfmt` component via `rust-overlay` so
-   `scripts/ci.sh gate fmt` runs out-of-the-box. Never skip this gate.
+   Formatting uses standard stable `rustfmt`: `rustfmt.toml` uses only stable
+   configuration options, so `cargo fmt --all -- --check` runs consistently across
+   local development, `nix develop`, and CI with the single stable Rust toolchain.
+   **Always run `scripts/ci.sh gate fmt` before committing.** Inside `nix develop`
+   or native, the toolchain supplies `rustfmt` so `scripts/ci.sh gate fmt` runs
+   out-of-the-box. Never skip this gate.
 
    These gates did not exist in PR CI before, and each one is for a defect that got
    past the old ten jobs: `wasm-check`, `site-scenes`, `web-build`, `embed-drift`

@@ -72,14 +72,11 @@ jobs:
         if: matrix.shell == 'nix' || matrix.shell == 'web'
         uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Rust (nightly — rustfmt.toml sets unstable options)
-        if: matrix.shell == 'native' && contains(matrix.setup, 'rust-nightly')
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rustfmt
       - name: Rust (stable)
         if: matrix.shell == 'native' && contains(matrix.setup, 'rust-stable')
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
       - name: Rust cache
         if: matrix.shell == 'native' || matrix.shell == 'nix'
         uses: Swatinem/rust-cache@v2

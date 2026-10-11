@@ -75,6 +75,11 @@ fi
 "${cargo_env[@]}" cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
 
 mkdir -p "$out_dir"
+if [ "$out_profile" = "debug" ]; then
+  touch "$out_dir/.dev"
+else
+  rm -f "$out_dir/.dev"
+fi
 wasm-bindgen --target web --out-dir "$out_dir" \
   "target/wasm32-unknown-unknown/$out_profile/animatix_web.wasm"
 

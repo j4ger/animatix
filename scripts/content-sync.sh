@@ -139,6 +139,10 @@ for spec in "slim:--slim" "full:full profile"; do
     echo "SKIP: README '$label' size claim not checked — no $wasm. Build it with: scripts/ci.sh gate web-build"
     continue
   fi
+  if [ -f "$d/.dev" ]; then
+    echo "SKIP: README '$label' size claim not checked — $d is a --dev build. Build release bundle with: scripts/ci.sh gate web-build"
+    continue
+  fi
   line=$(grep -n -- "$marker" web/README.md | head -1 | cut -d: -f1)
   [ -n "$line" ] || { echo "SKIP: README '$label' size claim not checked (marker '$marker' not found)"; continue; }
   claim=$(sed -n "${line}p" web/README.md | grep -oE '~[0-9.]+ MB raw' | grep -oE '[0-9.]+' | head -1)

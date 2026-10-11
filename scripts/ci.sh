@@ -53,7 +53,7 @@ cd "$root"
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
 GATE_TABLE='
-fmt|native|ubuntu-latest|rust-nightly|pr
+fmt|native|ubuntu-latest|rust-stable|pr
 lint|nix|ubuntu-latest|nix|pr
 check|nix|ubuntu-latest|nix|pr
 test|nix|ubuntu-latest|nix|pr
@@ -93,7 +93,7 @@ dist-windows|native|windows-latest|rust-stable|release
 # Every gate listed here is defined above in GATE_TABLE and can still be run
 # individually via `scripts/ci.sh gate <name>`.
 JOB_TABLE='
-Fast Checks|fmt workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-nightly node|pr
+Fast Checks|fmt workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-stable node|pr
 Check & Lint|commit audit check lint doc no-video|nix|ubuntu-latest|nix|pr
 Test & Verify|test render-smoke examples ext-bench site-scenes eparts|nix|ubuntu-latest|nix|pr
 Web|wasm-check web-build|web|ubuntu-latest|nix wasm-bindgen|pr
@@ -147,45 +147,10 @@ want_wasm_std() {
   fi
 }
 
-# `rustfmt.toml` uses unstable options (imports_granularity, group_imports,
-# wrap_comments, format_code_in_doc_comments). A stable rustfmt does not reject
-# them — it warns, ignores them, and then reports the files it just formatted
-# differently from what nightly writes. So `cargo fmt --check` on stable is a
-# gate that fails on correctly formatted code.
-want_nightly_fmt() {
-  FMT_CMD=(cargo fmt)
-  if rustfmt --version 2>/dev/null | grep -q nightly || rustc --version 2>/dev/null | grep -q nightly; then return 0; fi
-  if command -v rustup >/dev/null 2>&1 && rustup toolchain list 2>/dev/null | grep -q '^nightly'; then
-    local nightly_bin
-    nightly_bin="$(rustup which --toolchain nightly rustfmt 2>/dev/null | xargs dirname 2>/dev/null || true)"
-    if [ -n "$nightly_bin" ]; then
-      FMT_CMD=(env PATH="$nightly_bin:$PATH" cargo fmt)
-    else
-      FMT_CMD=(rustup run nightly cargo fmt)
-    fi
-    return 0
-  fi
-  local nix_fmt
-  nix_fmt="$(find /nix/store -maxdepth 3 -name rustfmt -path '*rustfmt-preview*nightly*/bin/rustfmt' 2>/dev/null | head -1 || true)"
-  if [ -n "$nix_fmt" ] && [ -x "$nix_fmt" ]; then
-    local fmt_dir
-    fmt_dir="$(dirname "$nix_fmt")"
-    FMT_CMD=(env PATH="$fmt_dir:$PATH" cargo fmt)
-    return 0
-  fi
-  echo "error: the fmt gate needs a nightly rustfmt — rustfmt.toml sets unstable" >&2
-  echo "       options, and stable silently ignores them, so it would fail on code" >&2
-  echo "       that nightly already formatted correctly." >&2
-  echo "       (rustc is $(rustc --version); rustup $(command -v rustup || echo 'absent — nix shell'))" >&2
-  echo "       CI runs this gate on dtolnay/rust-toolchain@nightly; locally:" >&2
-  echo "       nix shell nixpkgs#rustup -c rustup toolchain install nightly" >&2
-  return 1
-}
-
 # ── gates ─────────────────────────────────────────────────────────────────────
 gate_fmt() {
-  want_cargo; want_nightly_fmt
-  "${FMT_CMD[@]}" --all -- --check
+  want_cargo
+  cargo fmt --all -- --check
 }
 
 gate_lint() {

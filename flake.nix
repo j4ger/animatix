@@ -47,7 +47,6 @@
             mesa
 
             rust-bin.stable.latest.default
-            (rust-bin.selectLatestNightlyWith (toolchain: toolchain.rustfmt))
 
             # The release act. Pinned in practice by flake.lock's nixpkgs revision,
             # which is why CI runs `nix develop --command cog check` instead of the
