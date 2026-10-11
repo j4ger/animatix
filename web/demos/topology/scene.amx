@@ -1,0 +1,114 @@
+// The Distributed Event Fabric — An interactive architecture explainer.
+// Showcases:
+//   - Smart orthogonal Connector routing with fillet radiuses and directional arrowheads
+//   - Structured CardNode and BoundaryBox system primitives
+//   - Rolling Odometer Counter for live throughput telemetry
+//   - Layout-first hierarchy with ink theme palette
+
+import "../../demos/lib/theme.amx"
+import "../../demos/lib/ui.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
+
+// ── Background & Ambient Lighting ──────────────────────────────────────────
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
+bg_glow: Ellipse, size: (800, 450), color: (0.09, 0.12, 0.18, 0.4), at: (640, 360), opacity: 0.5
+
+// ── Header Narration ───────────────────────────────────────────────────────
+header: Col, anchor: scene.top, offset: (0, 44), gap: 6, align: "center" {
+  badge: Chip, label: "SYSTEM ARCHITECTURE", width: 170, height: 26, color: surface.primary, text_color: accent.primary
+  title: Text, text: "The Distributed Event Fabric", font_size: 34, font_weight: "bold", color: text.primary
+  subtitle: Text, text: "High-throughput ingress, partitioned event streaming, and raft consensus", font_size: 15, color: text.secondary
+}
+
+// ── Architecture Boundaries ────────────────────────────────────────────────
+vpc_edge: BoundaryBox, label: "EDGE INGRESS LAYER", width: 290, height: 320, at: (230, 380)
+vpc_core: BoundaryBox, label: "EVENT STREAMING & CONSENSUS FABRIC", width: 680, height: 320, at: (760, 380)
+
+// ── Service Node Cards ─────────────────────────────────────────────────────
+gateway: CardNode, title: "Envoy Gateway", eyebrow: "INGRESS", sub: "TLS Termination · Auth", at: (230, 380), width: 220, height: 95
+stream: CardNode, title: "Event Log", eyebrow: "KAFKA / REDPANDA", sub: "Partitioned Buffer (3x Rep)", at: (560, 380), width: 230, height: 95, focal: true
+raft: CardNode, title: "Raft Workers", eyebrow: "CONSENSUS", sub: "Leader Election · FSM", at: (880, 310), width: 210, height: 90
+lake: CardNode, title: "Storage Lake", eyebrow: "PERSISTENCE", sub: "LSM Tree · Columnar", at: (880, 450), width: 210, height: 90
+
+// ── Smart Connectors ───────────────────────────────────────────────────────
+conn_ing: Connector,
+  from: gateway.east,
+  to: stream.west,
+  routing: "straight",
+  arrow: true,
+  stroke: accent.primary,
+  stroke_width: 2.5
+
+conn_raft: Connector,
+  from: stream.east,
+  to: raft.west,
+  routing: "elbow",
+  corner_radius: 12,
+  arrow: true,
+  stroke: accent.primary,
+  stroke_width: 2.0
+
+conn_lake: Connector,
+  from: stream.east,
+  to: lake.west,
+  routing: "elbow",
+  corner_radius: 12,
+  arrow: true,
+  stroke: accent.info,
+  stroke_width: 2.0
+
+conn_sync: Connector,
+  from: raft.south,
+  to: lake.north,
+  routing: "straight",
+  arrow: true,
+  stroke: accent.success,
+  stroke_width: 1.5
+
+// ── Telemetry HUD Strip ────────────────────────────────────────────────────
+hud_panel: Rect, size: (1160, 52), color: surface.primary, corner_radius: 8, stroke: stroke.default, stroke_width: 1, anchor: scene.bottom, offset: (0, -28)
+
+hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
+  kpi_tps: Row, gap: 12, align: "center" {
+    lbl_tps: Text, text: "INGRESS THROUGHPUT:", font_size: 11, font_weight: 600, color: text.muted
+    counter_tps: Counter, value: 4200, color: accent.primary, suffix: " req/s"
+  }
+  kpi_lat: Row, gap: 10, align: "center" {
+    lbl_lat: Text, text: "P99 LATENCY:", font_size: 11, font_weight: 600, color: text.muted
+    val_lat: Text, text: "1.24 ms", font_size: 14, font_weight: 600, color: accent.success
+  }
+  kpi_health: Row, gap: 8, align: "center" {
+    dot_health: Ellipse, size: (8, 8), color: accent.success
+    val_health: Text, text: "ALL 12 PARTITIONS REPLICATED", font_size: 11, font_weight: 600, color: text.secondary
+  }
+}
+
+// ── Timeline Choreography ──────────────────────────────────────────────────
+#0.0s
+fade-in header [400ms, ease: ease-out]
+fade-in vpc_edge [400ms]
+fade-in vpc_core [400ms]
+fade-in hud_panel [400ms]
+fade-in hud [400ms]
+
+#0.3s
+stagger [100ms] {
+  fade-in gateway [400ms, ease: ease-out]
+  fade-in stream [400ms, ease: ease-out]
+  fade-in raft [400ms, ease: ease-out]
+  fade-in lake [400ms, ease: ease-out]
+}
+
+#0.8s
+draw-in conn_ing [500ms, ease: ease-out]
+draw-in conn_raft [600ms, ease: ease-out]
+draw-in conn_lake [600ms, ease: ease-out]
+draw-in conn_sync [400ms, ease: ease-out]
+
+#1.8s
+counter_tps.value = 184500 [2.8s, ease: ease-out]
+val_lat.text = "0.82 ms" [1.2s]
+
+#5.0s
+// Rest composition holds clean steady state until loop reset

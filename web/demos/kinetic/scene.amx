@@ -1,0 +1,82 @@
+// Kinetic Typography & Glass Studio — An interactive motion design showcase.
+// Showcases:
+//   - Split-text reveal-in with baseline masking
+//   - Linear text gradient brush
+//   - 2.5D perspective tilt and analytical soft shadows
+//   - Frosted Glass backdrop blur with sharp foreground typography
+
+import "../../demos/lib/theme.amx"
+import "../../demos/lib/ui.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
+
+// ── Background Canvas & Atmosphere ─────────────────────────────────────────
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
+ambient_l: Ellipse, size: (550, 550), color: (0.96, 0.72, 0.26, 0.15), at: (320, 260), opacity: 0.8
+ambient_r: Ellipse, size: (600, 600), color: (0.98, 0.44, 0.52, 0.12), at: (960, 460), opacity: 0.8
+
+// ── Header Typography with Gradient & Mask ────────────────────────────────
+header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
+  badge: Chip, label: "KINETIC DESIGN LAB", width: 160, height: 26, color: surface.primary, text_color: accent.primary
+  headline: Text,
+    text: "Fluid Typography & Spatial Depth",
+    font_size: 38,
+    font_weight: "bold",
+    fill_gradient: linear(90, {"#f5b942", "#fb7185"}),
+    text_align: "center"
+  subline: Text,
+    text: "Split-text baseline emergence, 2.5D perspective tilt, and real-time frosted glass",
+    font_size: 15,
+    color: text.secondary,
+    text_align: "center"
+}
+
+// ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
+plate: Group, at: (640, 410) {
+  g1: Rect, size: (50, 240), at: (-280, 20), color: accent.primary, corner_radius: 8, opacity: 0.4
+  g2: Rect, size: (50, 320), at: (-180, -20), color: accent.warning, corner_radius: 8, opacity: 0.35
+  g3: Rect, size: (50, 180), at: (-80, 50), color: accent.info, corner_radius: 8, opacity: 0.4
+  g4: Rect, size: (50, 280), at: (20, 0), color: accent.primary, corner_radius: 8, opacity: 0.3
+  g5: Rect, size: (50, 340), at: (120, -30), color: accent.warning, corner_radius: 8, opacity: 0.35
+  g6: Rect, size: (50, 220), at: (220, 30), color: accent.info, corner_radius: 8, opacity: 0.4
+}
+
+// ── Floating 2.5D Glass Card with Shadow & Tilt ─────────────────────────────
+glass_card: Glass, at: (640, 410), size: (620, 280), corner_radius: 20 {
+  frost: Blur, radius: 24
+  surface: Rect, size: (620, 280), corner_radius: 20,
+    color: "#ffffff12", stroke: "#ffffff40", stroke_width: 1.5,
+    shadow: (0, 24, 48, 0), shadow_color: (0, 0, 0, 0.45)
+  content: Col, size: (560, 220), gap: 12, align: "center" {
+    card_kicker: Text, text: "SPATIAL MOTION SCOPE", font_size: 12, font_weight: 600, color: accent.primary
+    card_title: Text, text: "Tactile Digital Physics", font_size: 30, font_weight: "bold", color: text.primary
+    card_desc: Text,
+      text: "Every layer projects into 2.5D coordinate space with real-time perspective distortion, spring-driven momentum, and zero rasterization artifacts.",
+      font_size: 14, color: text.secondary, text_align: "center", text_max_width: 500
+    card_hud: Row, gap: 16, align: "center" {
+      pill_blur: Chip, label: "24px Gaussian Frost", width: 160, height: 28, color: surface.secondary, text_color: text.primary
+      pill_fps: Chip, label: "60 FPS WebGPU", width: 140, height: 28, color: surface.secondary, text_color: accent.success
+    }
+  }
+}
+
+// ── Timeline Choreography ──────────────────────────────────────────────────
+#0.0s
+fade-in header [400ms]
+fade-in plate [400ms]
+fade-in glass_card [400ms]
+
+#0.3s
+reveal-in headline [by: word, offset_y: 22, 700ms, ease: ease-out]
+
+#1.2s
+glass_card.rotate_y = 0.18 [1.6s, ease: ease-in-out]
+glass_card.rotate_x = -0.10 [1.6s, ease: ease-in-out]
+
+#3.6s
+glass_card.rotate_y = -0.12 [1.8s, ease: ease-in-out]
+glass_card.rotate_x = 0.08 [1.8s, ease: ease-in-out]
+
+#6.0s
+glass_card.rotate_y = 0.0 [1.2s, ease: ease-out]
+glass_card.rotate_x = 0.0 [1.2s, ease: ease-out]

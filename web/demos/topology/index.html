@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The Distributed Event Fabric — an .amx walkthrough</title>
+  <meta name="description" content="Distributed systems architecture visualized in 60 FPS vector WebGPU: ingress proxies, partitioned event streaming, and Raft consensus with smart orthogonal connectors and live telemetry.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../../site.css">
+</head>
+<body>
+
+  <div class="wrap">
+    <header>
+      <p class="kicker">Animatix walkthrough · declarative cloud topology</p>
+      <h1>The Distributed Event Fabric</h1>
+      <p class="lede">
+        Modern distributed systems decouple throughput from durability through
+        event streaming. This walkthrough examines how high-scale architectures
+        coordinate requests: line-rate edge ingress, partitioned log streaming,
+        and state-machine consensus — staged with declarative orthogonal routing,
+        fillet geometry, and live rolling telemetry.
+      </p>
+      <ul class="meta">
+        <li>3 interactive scenes</li>
+        <li>Smart orthogonal <code class="inline">Connector</code> routing with fillet bends</li>
+        <li>Rolling Odometer <code class="inline">Counter</code> telemetry</li>
+        <li>100% Vector WebGPU</li>
+      </ul>
+    </header>
+
+    <figure class="hero">
+      <amx-player src="scene.amx" autoplay loop controls hold="2"
+                  aspect="16:9" title="The full distributed event fabric architecture"></amx-player>
+      <figcaption>
+        <span class="cap"><b>Figure 0 · The Architecture Blueprint.</b> Requests ingress through Envoy,
+          commit to an immutable Kafka log with 3× replication, and replicate to Raft workers and a columnar analytical lake.
+          The rolling telemetry counter tallies processed requests at line rate.</span>
+        <a class="src" href="scene.amx">scene.amx ↗</a>
+      </figcaption>
+    </figure>
+
+    <nav class="toc" aria-label="Contents">
+      <p class="toc-title">Contents</p>
+      <ol>
+        <li><a href="#s1"><span class="n">01</span>Line-Rate Edge Ingress &amp; TLS</a></li>
+        <li><a href="#s2"><span class="n">02</span>Partitioned Event Streaming</a></li>
+        <li><a href="#s3"><span class="n">03</span>Consensus &amp; Durable Storage</a></li>
+      </ol>
+    </nav>
+
+    <section id="s1">
+      <div class="sec-head"><span class="sec-num">01</span><h2>Line-Rate Edge Ingress &amp; TLS</h2></div>
+      <p>
+        The edge layer faces the public internet. Stateless reverse proxies terminate TLS,
+        negotiate ALPN protocols (HTTP/2, HTTP/3), and authenticate incoming JWTs before
+        traffic enters the private VPC overlay.
+      </p>
+      <div class="intuition-card">
+        <div class="intuition-badge">KEY INTUITION</div>
+        <p class="intuition-text">
+          By isolating handshake overhead to the edge, internal microservice communication
+          operates over persistent, multiplexed gRPC channels with zero cryptographic penalty.
+        </p>
+      </div>
+      <figure class="tour-embed">
+        <amx-player src="ingress.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Edge ingress and TLS termination"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> The ingress card routes verified requests directly into the internal mesh.
+            The counter reflects active connections scaling without latency drift.</span>
+          <a class="src" href="ingress.amx">ingress.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s2">
+      <div class="sec-head"><span class="sec-num">02</span><h2>Partitioned Event Streaming</h2></div>
+      <p>
+        Rather than coupling write paths directly to backend databases, producers append records to
+        an immutable, ordered partition log. Partitions distribute horizontally across availability zones,
+        enabling independent scaling of ingest volume and consumer processing speed.
+      </p>
+      <figure class="tour-embed">
+        <amx-player src="stream.amx" autoplay loop controls hold="1.5"
+                    aspect="16:9" title="Partitioned commit log and fanout"></amx-player>
+        <figcaption>
+          <span class="cap"><b>Watch:</b> Orthogonal connectors with 10px fillet radiuses branch the incoming producer
+            stream across partition leaders. Fan-out consumers consume records with zero consumer lag.</span>
+          <a class="src" href="stream.amx">stream.amx ↗</a>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="s3">
+      <div class="sec-head"><span class="sec-num">03</span><h2>Consensus &amp; Durable Storage</h2></div>
+      <p>
+        State changes converge through quorum consensus algorithms (such as Raft or Paxos).
+        Once a majority of cluster nodes acknowledge an entry in the replicated write-ahead log,
+        the transaction is committed into the persistent LSM-tree storage engine.
+      </p>
+    </section>
+  </div>
+
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
+  <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+</body>
+</html>

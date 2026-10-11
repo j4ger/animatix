@@ -1348,31 +1348,33 @@ impl FilterBackend for GpuFilterBackend {
         // bottom edge.
         let ox = (region.origin[0].max(0.0).round() as u32).min(canvas.width);
         let oy = (region.origin[1].max(0.0).round() as u32).min(canvas.height);
-        let copy_w = region.size.width.min(w).min(canvas.width - ox).max(1);
-        let copy_h = region.size.height.min(h).min(canvas.height - oy).max(1);
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Backdrop Copy Encoder"),
-        });
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: target,
-                mip_level: 0,
-                origin: wgpu::Origin3d { x: ox, y: oy, z: 0 },
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: &scratch.render_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: copy_w.max(1),
-                height: copy_h.max(1),
-                depth_or_array_layers: 1,
-            },
-        );
-        self.queue.submit(std::iter::once(encoder.finish()));
+        let copy_w = region.size.width.min(w).min(canvas.width - ox);
+        let copy_h = region.size.height.min(h).min(canvas.height - oy);
+        if copy_w > 0 && copy_h > 0 {
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Backdrop Copy Encoder"),
+            });
+            encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: target,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d { x: ox, y: oy, z: 0 },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyTextureInfo {
+                    texture: &scratch.render_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: copy_w,
+                    height: copy_h,
+                    depth_or_array_layers: 1,
+                },
+            );
+            self.queue.submit(std::iter::once(encoder.finish()));
+        }
 
         let seed = ChainSeed {
             seed_texture: scratch.render_texture.clone(),

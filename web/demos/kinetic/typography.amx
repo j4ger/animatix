@@ -1,0 +1,45 @@
+// Split-Text Baseline Masks & Gradients — Scene 1 of Kinetic Studio
+import "../../demos/lib/theme.amx"
+import "../../demos/lib/ui.amx"
+
+config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
+
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
+ambient: Ellipse, size: (700, 450), color: (0.96, 0.72, 0.26, 0.12), at: (640, 360), opacity: 0.8
+
+header: Col, anchor: scene.top, offset: (0, 60), gap: 8, align: "center" {
+  badge: Chip, label: "01 · TYPOGRAPHIC KINETICS", width: 190, height: 26, color: surface.primary, text_color: accent.primary
+  t1: Text,
+    text: "Split-Text Baseline Emergence",
+    font_size: 44,
+    font_weight: "bold",
+    fill_gradient: linear(90, {"#f5b942", "#fb7185"}),
+    text_align: "center"
+  t2: Text,
+    text: "Words emerge from a sharp horizontal clipping baseline with zero layout displacement",
+    font_size: 16,
+    color: text.secondary,
+    text_align: "center"
+}
+
+stage_box: Rect, size: (880, 260), color: surface.primary, corner_radius: 16, stroke: stroke.default, stroke_width: 1, at: (640, 410)
+
+quote: Col, at: (640, 400), gap: 16, align: "center" {
+  l1: Text, text: "Motion is meaning, not decoration.", font_size: 32, font_weight: "bold", color: text.primary, text_align: "center"
+  l2: Text, text: "Choreographed with declarative precision across time and space.", font_size: 20, color: accent.primary, text_align: "center"
+  author: Text, text: "— ANIMATIX KINETIC MANIFESTO", font_size: 12, font_weight: 600, color: text.muted, letter_spacing: 3
+}
+
+#0.0s
+fade-in header [400ms]
+fade-in stage_box [400ms]
+fade-in quote [400ms]
+
+#0.3s
+reveal-in t1 [by: word, offset_y: 20, 600ms, ease: ease-out]
+
+#1.0s
+reveal-in l1 [by: word, offset_y: 24, 700ms, ease: ease-out]
+
+#1.8s
+reveal-in l2 [by: word, offset_y: 18, 700ms, ease: ease-out]
