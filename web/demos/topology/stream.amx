@@ -29,7 +29,7 @@ c_c2: Connector, from: part2.east, to: consumer.west, routing: "elbow", corner_r
 stat_panel: Rect, size: (840, 48), color: surface.primary, corner_radius: 8, stroke: stroke.default, anchor: scene.bottom, offset: (0, -40)
 stat_row: Row, anchor: scene.bottom, offset: (0, -43), gap: 40, align: "center" {
   m_label: Text, text: "EVENT WRITE RATE:", font_size: 11, font_weight: 600, color: text.muted
-  m_val: Counter, value: 48000, color: accent.primary, suffix: " msg/sec"
+  m_val: Text, text: "48,000 msg/sec", font_size: 13, font_weight: 600, color: accent.primary
   lag_label: Text, text: "CONSUMER GROUP LAG:", font_size: 11, font_weight: 600, color: text.muted
   lag_val: Text, text: "0 records (Real-time)", font_size: 13, font_weight: 600, color: accent.success
 }
@@ -58,4 +58,4 @@ stagger [80ms] {
 }
 
 #1.2s
-m_val.value = 240000 [3s, ease: ease-out]
+m_val.text = "240,000 msg/sec" [3s, ease: ease-out]

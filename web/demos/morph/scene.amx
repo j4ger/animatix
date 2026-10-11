@@ -22,7 +22,7 @@ wash_r: Ellipse, size: (720, 720), at: (960, 380),
   blend: "screen"
 
 // Header
-header: Col, anchor: scene.top, offset: (0, 48), gap: 8, align: "center" {
+header: Col, anchor: scene.top, offset: (0, 78), gap: 8, align: "center" {
   badge: Chip, label: "TOPOLOGICAL SYNTHESIS", width: 190, height: 26, color: surface.primary, text_color: accent.primary
   title: Text, text: "Generative Shape Morphing", font_size: 36, font_weight: "bold",
     fill_gradient: linear(90, {"#f5b942", "#38bdf8", "#34d399"}), text_align: "center"

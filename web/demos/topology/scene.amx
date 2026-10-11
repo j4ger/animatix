@@ -30,8 +30,11 @@ header: Col, anchor: scene.top, offset: (0, 44), gap: 6, align: "center" {
 }
 
 // ── Architecture Boundaries ────────────────────────────────────────────────
-vpc_edge: BoundaryBox, label: "EDGE INGRESS LAYER", width: 290, height: 320, at: (230, 380)
-vpc_core: BoundaryBox, label: "EVENT STREAMING & CONSENSUS FABRIC", width: 680, height: 320, at: (760, 380)
+vpc_edge: Rect, size: (290, 320), at: (230, 380), corner_radius: 8, stroke: stroke.default, stroke_width: 1.5, color: (0, 0, 0, 0), dash_pattern: {6, 6}
+lbl_edge: Text, text: "EDGE INGRESS LAYER", font_size: 11, font_weight: 600, color: text.secondary, at: (230, 236)
+
+vpc_core: Rect, size: (680, 320), at: (760, 380), corner_radius: 8, stroke: stroke.default, stroke_width: 1.5, color: (0, 0, 0, 0), dash_pattern: {6, 6}
+lbl_core: Text, text: "EVENT STREAMING & CONSENSUS FABRIC", font_size: 11, font_weight: 600, color: text.secondary, at: (760, 236)
 
 // ── Service Node Cards ─────────────────────────────────────────────────────
 gateway: CardNode, title: "Envoy Gateway", eyebrow: "INGRESS", sub: "TLS Termination · Auth", at: (230, 380), width: 220, height: 95
@@ -80,7 +83,7 @@ hud_panel: Rect, size: (1160, 52), color: surface.primary, corner_radius: 8, str
 hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
   kpi_tps: Row, gap: 12, align: "center" {
     lbl_tps: Text, text: "INGRESS THROUGHPUT:", font_size: 11, font_weight: 600, color: text.muted
-    counter_tps: Counter, value: 4200, color: accent.primary, suffix: " req/s"
+    val_tps: Text, text: "4,200 req/s", font_size: 14, font_weight: 600, color: accent.primary
   }
   kpi_lat: Row, gap: 10, align: "center" {
     lbl_lat: Text, text: "P99 LATENCY:", font_size: 11, font_weight: 600, color: text.muted
@@ -99,7 +102,9 @@ fade-in wash_core [600ms]
 fade-in wash_edge [600ms]
 fade-in wash_raft [600ms]
 fade-in vpc_edge [400ms]
+fade-in lbl_edge [400ms]
 fade-in vpc_core [400ms]
+fade-in lbl_core [400ms]
 fade-in hud_panel [400ms]
 fade-in hud [400ms]
 
@@ -120,7 +125,7 @@ stagger [100ms] {
 }
 
 #1.8s
-counter_tps.value = 184500 [2.8s, ease: ease-out]
+val_tps.text = "184,500 req/s" [2.8s, ease: ease-out]
 val_lat.text = "0.82 ms" [1.2s]
 
 #5.0s

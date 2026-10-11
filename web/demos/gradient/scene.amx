@@ -36,41 +36,41 @@ play LossSurface [fade, 400ms]
 # LossSurface
 config { colorscheme: "ink", duration: 5.0 }
 
-step_title: Text, text: "1. The Loss Surface", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+step_title: Text, text: "1. The Loss Surface", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
 // The loss field itself. Contour rings tell you there IS a surface; this
 // screen-blend annulus shows you its shape — green in the basin, hot at the
 // rim, dissolving to transparent so it never reads as a disc. Every scene
 // that follows re-uses the same ramp so the reader never has to re-learn it.
-heat: Ellipse, size: (640, 640), at: (400, 380),
+heat: Ellipse, size: (560, 560), at: (420, 380),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15820"), (26%, "#ffd60a12"), (62%, "#ff86662a"), (86%, "#ff2d5538"), (100%, "#ff2d5500")}),
   blend: "screen"
 
-// The legend for the ramp above, in the empty right third.
-legend_bar: Rect, size: (18, 300), at: (1080, 380), corner_radius: 9,
+// The legend for the ramp above, in the right third.
+legend_bar: Rect, size: (18, 280), at: (1020, 380), corner_radius: 9,
   fill_gradient: linear(0, {"#30d158", "#ffd60a", "#ff8666", "#ff2d55"})
-legend_hi: Text, text: "L high", font_size: 18, color: text.secondary, at: (1080, 205)
-legend_lo: Text, text: "L low", font_size: 18, color: text.secondary, at: (1080, 555)
-legend_cap: Text, text: "loss", font_size: 20, color: text.muted, at: (1080, 165)
+legend_hi: Text, text: "L high", font_size: 16, color: text.secondary, at: (1020, 220)
+legend_lo: Text, text: "L low", font_size: 16, color: text.secondary, at: (1020, 540)
+legend_cap: Text, text: "loss", font_size: 18, color: text.muted, at: (1020, 180)
 
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: accent.primary, stroke_width: 2.0
 
 // Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
 field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   color: text.muted
 
 // Global minimum at (0, 0)
-min_dot: Ellipse, size: (16, 16), at: (400, 380),
+min_dot: Ellipse, size: (16, 16), at: (420, 380),
   fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#30d158"), (100%, "#0d5c2e")})
 
 caption: Text,
   text: "Contours = equal loss; arrows = gradient (uphill)",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+  font_size: 18, color: text.muted, anchor: scene.bottom, offset: (0, -44)
 
 #0.0s
 fade-in step_title [500ms, ease: expo-out]
@@ -104,47 +104,47 @@ play GradientDirection [wipe-left, 400ms]
 # GradientDirection
 config { colorscheme: "ink", duration: 4.6 }
 
-step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+step2_title: Text, text: "2. Go Against the Gradient", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
 // Dimmed backdrop of the same contour map and field
 contours_bg: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 field_bg: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   color: text.muted
 
-heat: Ellipse, size: (640, 640), at: (400, 380),
+heat: Ellipse, size: (560, 560), at: (420, 380),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
   blend: "screen"
 
-// Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70).
+// Ball at starting point (math: (3, 2.4), screen: 420+3*62.5, 380-2.4*62.5).
 // A lit sphere, because it is about to roll — the highlight is what makes it
 // read as a body in a field rather than a dot on a map.
-ball: Ellipse, size: (20, 20), at: (610, 212),
+ball: Ellipse, size: (20, 20), at: (608, 230),
   fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
 
 // Arrow pointing uphill along +∇f
-up_arrow: Arrow, from: (610, 212), to: (715, 128),
+up_arrow: Arrow, from: (608, 230), to: (702, 155),
   stroke: accent.danger, stroke_width: 3
 
 // Arrow pointing downhill along −∇f
-down_arrow: Arrow, from: (610, 212), to: (505, 296),
+down_arrow: Arrow, from: (608, 230), to: (514, 305),
   stroke: accent.success, stroke_width: 3
 
 // Labels near arrow tips
 up_label: Text, text: "grad f (uphill)", font_size: 16,
-  color: accent.danger, at: (730, 110)
+  color: accent.danger, at: (716, 138)
 
 down_label: Text, text: "-grad f (descend)", font_size: 16,
-  color: accent.success, at: (480, 300)
+  color: accent.success, at: (490, 312)
 
 // Gradient equation
 gradient_eq: Text,
   text: "grad f = (dL/dx, dL/dy)",
-  font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
+  font_size: 22, color: text.secondary, anchor: scene.center, offset: (340, -170)
 
 #0.0s
 fade-in heat [700ms, ease: expo-out]
@@ -175,18 +175,18 @@ play Descent [fade, 400ms]
 # Descent
 config { colorscheme: "ink", duration: 8.0 }
 
-step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+step3_title: Text, text: "3. Roll to the Minimum", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
 // Dimmed contour backdrop
 contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with the parametric descent trail. For f(x, y) = x² + y² the
 // gradient is radial, so steepest descent stays on a constant-angle ray.
 descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
+  size: (500, 500), at: (420, 380) {
   trail: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
                   3.84 * exp(-0.55 * s) * sin(0.676)),
@@ -194,25 +194,25 @@ descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
     stroke_progress: 0
 }
 
-heat: Ellipse, size: (640, 640), at: (400, 380),
+heat: Ellipse, size: (560, 560), at: (420, 380),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
   blend: "screen"
 
 // Ball driven by the always block (math coords → screen coords)
-ball: Ellipse, size: (20, 20), at: (610, 212),
+ball: Ellipse, size: (20, 20), at: (608, 230),
   fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
 // Its light, parked under it by the same always block that parks the ball.
-ball_glow: Ellipse, size: (120, 120), at: (610, 212), opacity: 0.0,
+ball_glow: Ellipse, size: (120, 120), at: (608, 230), opacity: 0.0,
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a33d"), (60%, "#8fc7a314"), (100%, "#8fc7a300")}),
   blend: "screen"
 
 // Live loss readout
 live_loss: Text, text: "loss = 14.75", font_size: 18,
-  color: accent.success, at: (650, 130)
+  color: accent.success, at: (650, 150)
 
 // Takeaway text
-takeaway: Text, text: "Step against the gradient, reach the minimum", font_size: 22,
-  color: text.secondary, anchor: scene.center, offset: (0, 260)
+takeaway: Text, text: "Step against the gradient, reach the minimum", font_size: 18,
+  color: text.secondary, anchor: scene.bottom, offset: (0, -44)
 
 always {
   let s = clamp(t - 1.0, 0.0, 4.5)
@@ -257,16 +257,16 @@ play LearningRate [fade, 400ms]
 # LearningRate
 config { colorscheme: "ink", duration: 6.8 }
 
-step4_title: Text, text: "4. Step Size Matters", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+step4_title: Text, text: "4. Step Size Matters", font_size: 36, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
-heat: Ellipse, size: (640, 640), at: (400, 380),
+heat: Ellipse, size: (560, 560), at: (420, 380),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
   blend: "screen"
 
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with three parametric curves showing different decay rates.
@@ -274,7 +274,7 @@ contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
 // visible side by side; only the rate toward/away from the minimum changes,
 // matching the radial gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
+  size: (500, 500), at: (420, 380) {
   too_small: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.12 * s) * cos(0.95),
                   3.84 * exp(-0.12 * s) * sin(0.95)),
@@ -300,7 +300,7 @@ label_big: Text, text: "Too big: diverges", font_size: 14,
 // Lesson text
 lesson: Text,
   text: "Pick a learning rate that converges — not too small, not too large",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 280)
+  font_size: 18, color: text.secondary, anchor: scene.bottom, offset: (0, -44)
 
 #0.0s
 fade-in heat [700ms, ease: expo-out]

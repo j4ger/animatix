@@ -20,7 +20,7 @@ ambient_r: Ellipse, size: (760, 760), at: (1000, 460),
   blend: "screen"
 
 // ── Header Typography with Gradient & Mask ────────────────────────────────
-header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
+header: Col, anchor: scene.top, offset: (0, 78), gap: 8, align: "center" {
   badge: Chip, label: "KINETIC DESIGN LAB", width: 160, height: 26, color: surface.primary, text_color: accent.primary
   headline: Text,
     text: "Fluid Typography & Spatial Depth",

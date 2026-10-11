@@ -7,7 +7,7 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
 ambient: Ellipse, size: (600, 600), color: (0.54, 0.71, 0.97, 0.12), at: (640, 360), opacity: 0.8
 
-header: Col, anchor: scene.top, offset: (0, 60), gap: 8, align: "center" {
+header: Col, anchor: scene.top, offset: (0, 78), gap: 8, align: "center" {
   badge: Chip, label: "02 · 2.5D PERSPECTIVE & GLASS", width: 230, height: 26, color: surface.primary, text_color: accent.primary
   title: Text, text: "2.5D Spatial Perspective & Backdrop Blur", font_size: 38, font_weight: "bold", color: text.primary
   subtitle: Text, text: "Three-dimensional angular tilt with real-time GPU texture sampling", font_size: 15, color: text.secondary
