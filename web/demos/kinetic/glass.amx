@@ -14,11 +14,15 @@ header: Col, anchor: scene.top, offset: (0, 60), gap: 8, align: "center" {
 }
 
 pattern: Group, at: (640, 400) {
-  p1: Rect, size: (44, 220), at: (-200, 10), color: accent.primary, corner_radius: 8, opacity: 0.35
-  p2: Rect, size: (44, 280), at: (-100, -20), color: accent.warning, corner_radius: 8, opacity: 0.35
-  p3: Rect, size: (44, 200), at: (0, 30), color: accent.info, corner_radius: 8, opacity: 0.35
-  p4: Rect, size: (44, 260), at: (100, -10), color: accent.primary, corner_radius: 8, opacity: 0.35
-  p5: Rect, size: (44, 180), at: (200, 20), color: accent.warning, corner_radius: 8, opacity: 0.35
+  for (dx, h, dy, col), i in {
+    (-200, 220, 10, accent.primary),
+    (-100, 280, -20, accent.warning),
+    (0, 200, 30, accent.info),
+    (100, 260, -10, accent.primary),
+    (200, 180, 20, accent.warning)
+  } {
+    bars[i]: Rect, size: (44, h), at: (dx, dy), color: col, corner_radius: 8, opacity: 0.35
+  }
 }
 
 glass: Glass, at: (640, 400), size: (540, 260), corner_radius: 20 {

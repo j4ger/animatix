@@ -45,12 +45,17 @@ fade-in stat_panel [400ms]
 fade-in stat_row [400ms]
 
 #0.6s
-draw-in c_p0 [400ms]
-draw-in c_p1 [400ms]
-draw-in c_p2 [400ms]
-draw-in c_c0 [400ms]
-draw-in c_c1 [400ms]
-draw-in c_c2 [400ms]
+stagger [80ms] {
+  draw-in c_p0 [400ms, ease: ease-out]
+  draw-in c_p1 [400ms, ease: ease-out]
+  draw-in c_p2 [400ms, ease: ease-out]
+}
+#+0.2s
+stagger [80ms] {
+  draw-in c_c0 [400ms, ease: ease-out]
+  draw-in c_c1 [400ms, ease: ease-out]
+  draw-in c_c2 [400ms, ease: ease-out]
+}
 
 #1.2s
 m_val.value = 240000 [3s, ease: ease-out]

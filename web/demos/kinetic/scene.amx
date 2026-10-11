@@ -33,12 +33,16 @@ header: Col, anchor: scene.top, offset: (0, 46), gap: 8, align: "center" {
 
 // ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
 plate: Group, at: (640, 410) {
-  g1: Rect, size: (50, 240), at: (-280, 20), color: accent.primary, corner_radius: 8, opacity: 0.4
-  g2: Rect, size: (50, 320), at: (-180, -20), color: accent.warning, corner_radius: 8, opacity: 0.35
-  g3: Rect, size: (50, 180), at: (-80, 50), color: accent.info, corner_radius: 8, opacity: 0.4
-  g4: Rect, size: (50, 280), at: (20, 0), color: accent.primary, corner_radius: 8, opacity: 0.3
-  g5: Rect, size: (50, 340), at: (120, -30), color: accent.warning, corner_radius: 8, opacity: 0.35
-  g6: Rect, size: (50, 220), at: (220, 30), color: accent.info, corner_radius: 8, opacity: 0.4
+  for (dx, h, dy, col), i in {
+    (-280, 240, 20, accent.primary),
+    (-180, 320, -20, accent.warning),
+    (-80, 180, 50, accent.info),
+    (20, 280, 0, accent.primary),
+    (120, 340, -30, accent.warning),
+    (220, 220, 30, accent.info)
+  } {
+    bars[i]: Rect, size: (50, h), at: (dx, dy), color: col, corner_radius: 8, opacity: 0.35
+  }
 }
 
 // ── Floating 2.5D Glass Card with Shadow & Tilt ─────────────────────────────

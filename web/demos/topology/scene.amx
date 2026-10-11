@@ -101,10 +101,12 @@ stagger [100ms] {
 }
 
 #0.8s
-draw-in conn_ing [500ms, ease: ease-out]
-draw-in conn_raft [600ms, ease: ease-out]
-draw-in conn_lake [600ms, ease: ease-out]
-draw-in conn_sync [400ms, ease: ease-out]
+stagger [100ms] {
+  draw-in conn_ing [500ms, ease: ease-out]
+  draw-in conn_raft [500ms, ease: ease-out]
+  draw-in conn_lake [500ms, ease: ease-out]
+  draw-in conn_sync [400ms, ease: ease-out]
+}
 
 #1.8s
 counter_tps.value = 184500 [2.8s, ease: ease-out]

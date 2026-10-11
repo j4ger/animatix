@@ -36,8 +36,10 @@ fade-in stat_panel [400ms]
 fade-in stat_row [400ms]
 
 #0.6s
-draw-in wire1 [500ms, ease: ease-out]
-draw-in wire2 [500ms, ease: ease-out]
+stagger [150ms] {
+  draw-in wire1 [500ms, ease: ease-out]
+  draw-in wire2 [500ms, ease: ease-out]
+}
 
 #1.4s
 c_val.value = 84500 [2.5s, ease: ease-out]
