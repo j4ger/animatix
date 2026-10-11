@@ -642,9 +642,9 @@ impl Timeline {
             letter_spacing,
             word_spacing,
             color_rgba,
-            0.0,
-            "left",
-            "visible",
+            max_width,
+            &text_align,
+            &overflow,
             false,
             self.font_context.as_ref(),
         )?;
