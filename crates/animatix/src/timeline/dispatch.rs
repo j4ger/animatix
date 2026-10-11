@@ -18,6 +18,7 @@
 
 use std::collections::HashMap;
 
+use kurbo::Shape as _;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +32,6 @@ use super::morph;
 use super::property_track::{PropertyTrack, TrackAccessor};
 use super::shapes::ShapeType;
 use crate::easing::Easing;
-use kurbo::Shape as _;
 use crate::renderer::types::{GradientSpec, TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::plot::{FuncTransition, ProceduralPlot};
@@ -491,7 +491,10 @@ impl AnimationTrack {
     // ── Path evaluation ──
     /// Evaluate text paths and optional baseline clip path at `time_ms`,
     /// applying morphing, char_progress typewriter truncation, and split-text baseline reveal.
-    pub fn evaluate_text_paths_and_clip(&self, time_ms: u64) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
+    pub fn evaluate_text_paths_and_clip(
+        &self,
+        time_ms: u64,
+    ) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
         if let Some(content_track) = &self.text.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
@@ -540,24 +543,11 @@ pub fn apply_split_text_animation(
         .as_ref()
         .map(|t| t.evaluate(time_ms))
         .unwrap_or_else(|| "char".to_string());
-    let split_stagger = track
-        .text
-        .split_stagger
-        .as_ref()
-        .map(|t| t.evaluate(time_ms))
-        .unwrap_or(0.0);
-    let split_offset_y = track
-        .text
-        .split_offset_y
-        .as_ref()
-        .map(|t| t.evaluate(time_ms))
-        .unwrap_or(0.0);
-    let split_mask = track
-        .text
-        .split_mask
-        .as_ref()
-        .map(|t| t.evaluate(time_ms))
-        .unwrap_or(false);
+    let split_stagger =
+        track.text.split_stagger.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_offset_y =
+        track.text.split_offset_y.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_mask = track.text.split_mask.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(false);
 
     // Case A: Standard typewriter truncation
     let is_split_mode = split_offset_y != 0.0
@@ -670,7 +660,11 @@ pub fn apply_split_text_animation(
         }
 
         if split_mask {
-            let alpha = if p_u <= 0.0 { 0.0 } else { (p_u * 4.0).min(1.0) };
+            let alpha = if p_u <= 0.0 {
+                0.0
+            } else {
+                (p_u * 4.0).min(1.0)
+            };
             g.opacity *= alpha;
         } else {
             g.opacity *= p_u;
@@ -681,7 +675,6 @@ pub fn apply_split_text_animation(
 }
 
 impl AnimationTrack {
-
     /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
     /// declaration-level static path set.
     pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<VelloPath>> {

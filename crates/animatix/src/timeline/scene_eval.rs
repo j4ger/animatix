@@ -1951,8 +1951,15 @@ impl Timeline {
         {
             return program.scene;
         }
-        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, false, &[])
-            .scene
+        self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            false,
+            &[],
+        )
+        .scene
     }
 
     /// Whether a supplied filter backend could actually be consulted while
@@ -2069,10 +2076,18 @@ impl Timeline {
         debug_options: DebugRenderOptions,
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> crate::timeline::scene_program::SceneProgram {
-        self.evaluate_program_inner(time_s, scene_dimensions, debug_options, filter_backend, true, &[])
+        self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            true,
+            &[],
+        )
     }
 
-    /// Evaluates scene program while suppressing specified actor labels (e.g. for FLIP transitions).
+    /// Evaluates scene program while suppressing specified actor labels (e.g. for FLIP
+    /// transitions).
     pub fn evaluate_program_with_suppressed(
         &self,
         time_s: f64,

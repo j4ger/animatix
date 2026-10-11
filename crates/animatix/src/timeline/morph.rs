@@ -790,7 +790,11 @@ pub fn interpolate_text_paths(
         .into_iter()
         .enumerate()
         .map(|(index, (source_path, target_path))| {
-            let ref_path = if t < 0.5 { source.get(index) } else { target.get(index) };
+            let ref_path = if t < 0.5 {
+                source.get(index)
+            } else {
+                target.get(index)
+            };
             TextPath {
                 path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
                 color: if t < 0.5 {

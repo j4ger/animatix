@@ -507,7 +507,11 @@ impl Timeline {
             easing,
         );
         if let Some(by) = split_by {
-            track.text.split_by.ensure("char".to_string()).add_keyframe(t_end_ms, by, easing);
+            track
+                .text
+                .split_by
+                .ensure("char".to_string())
+                .add_keyframe(t_end_ms, by, easing);
         }
         if let Some(stagger) = split_stagger {
             track.text.split_stagger.ensure(0.0).add_keyframe(t_end_ms, stagger, easing);
@@ -594,14 +598,16 @@ impl Timeline {
 
             track.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
             track.text.counter_data = Some(prebaked.data);
-            track
-                .geometry
-                .size
-                .ensure(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(t_end_ms, prebaked.initial_half_size, easing);
-            track
-                .ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE)
-                .add_keyframe(t_end_ms, prebaked.initial_half_size, easing);
+            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                t_end_ms,
+                prebaked.initial_half_size,
+                easing,
+            );
+            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                t_end_ms,
+                prebaked.initial_half_size,
+                easing,
+            );
             return Ok(());
         }
 

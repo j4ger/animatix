@@ -40,83 +40,73 @@ for arg in "$@"; do
   esac
 done
 
-# Primary WASM artifact to check
-target_dir="web/pkg"
-if [ "$mode_slim" = true ]; then
-  target_dir="web/pkg-slim"
-fi
-wasm_file="$target_dir/animatix_web_bg.wasm"
-
-# 1. Check artifact existence
-is_missing=false
-if [ ! -f "$wasm_file" ]; then
-  is_missing=true
-fi
-
-# 2. Check staleness against crates/
-is_stale=false
 latest_crates_commit_time=0
-latest_crates_commit_hash="unknown"
-wasm_mtime=0
-
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   latest_crates_commit_time=$(git log -1 --format=%ct crates/ 2>/dev/null || echo 0)
-  latest_crates_commit_hash=$(git log -1 --format="%h (%s)" crates/ 2>/dev/null || echo "unknown")
 fi
 
-if [ -f "$wasm_file" ]; then
-  wasm_mtime=$(stat -c %Y "$wasm_file" 2>/dev/null || stat -f %m "$wasm_file" 2>/dev/null || echo 0)
-fi
+# Check freshness for a package directory
+is_stale_or_missing() {
+  local dir="$1"
+  local wasm="$dir/animatix_web_bg.wasm"
+  if [ ! -f "$wasm" ]; then return 0; fi
+  local mtime
+  mtime=$(stat -c %Y "$wasm" 2>/dev/null || stat -f %m "$wasm" 2>/dev/null || echo 0)
+  if [ "$latest_crates_commit_time" -gt "$mtime" ]; then return 0; fi
+  return 1
+}
 
-if [ "$is_missing" = true ]; then
-  is_stale=true
-elif [ "$latest_crates_commit_time" -gt "$wasm_mtime" ]; then
-  is_stale=true
-fi
+run_build() {
+  local extra_args=("$@")
+  local args=()
+  if [ "$mode_dev" = true ]; then
+    args+=(--dev)
+  fi
+  args+=("${extra_args[@]}")
 
-# Format timestamps for display
-format_time() {
-  local ts="$1"
-  if [ "$ts" -eq 0 ]; then
-    echo "none"
-  elif date -d "@$ts" "+%Y-%m-%d %H:%M:%S" >/dev/null 2>&1; then
-    date -d "@$ts" "+%Y-%m-%d %H:%M:%S"
-  elif date -r "$ts" "+%Y-%m-%d %H:%M:%S" >/dev/null 2>&1; then
-    date -r "$ts" "+%Y-%m-%d %H:%M:%S"
+  if rustc --print sysroot >/dev/null 2>&1 && \
+     ls "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" >/dev/null 2>&1 && \
+     [ -z "${LD_LIBRARY_PATH:-}" ]; then
+    bash scripts/build-web.sh "${args[@]}"
   else
-    echo "$ts"
+    local nix_bin_dir
+    nix_bin_dir="$(dirname "$(command -v nix 2>/dev/null || echo /run/current-system/sw/bin)")"
+    local clean_path="$HOME/.cargo/bin:$nix_bin_dir:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(whoami)}/bin:/nix/var/nix/profiles/default/bin:$HOME/.nix-profile/bin:/usr/bin:/bin"
+    echo "Entering nix develop .#web-build..."
+    env -i HOME="$HOME" USER="${USER:-$(whoami)}" PATH="$clean_path" \
+      nix develop .#web-build --command bash scripts/build-web.sh "${args[@]}"
   fi
 }
 
-wasm_time_str=$(format_time "$wasm_mtime")
-crates_time_str=$(format_time "$latest_crates_commit_time")
+targets=()
+if [ "$mode_slim" = true ]; then
+  targets+=("web/pkg-slim")
+else
+  targets+=("web/pkg-slim" "web/pkg")
+fi
 
-if [ "$mode_force" = false ] && [ "$is_stale" = false ]; then
+needs_build=()
+for t in "${targets[@]}"; do
+  if [ "$mode_force" = true ] || is_stale_or_missing "$t"; then
+    needs_build+=("$t")
+  fi
+done
+
+if [ ${#needs_build[@]} -eq 0 ]; then
   if [ "$mode_check" = true ]; then
-    echo "✓ $target_dir is up to date (built: $wasm_time_str, engine: $crates_time_str)."
+    echo "✓ WASM packages are up to date."
   fi
   exit 0
 fi
 
-# Here we need a rebuild or check failure
 if [ "$mode_check" = true ]; then
-  if [ "$is_missing" = true ]; then
-    echo "error: $wasm_file is missing." >&2
-  else
-    echo "warning: $wasm_file is OUTDATED!" >&2
-    echo "         WASM build:    $wasm_time_str" >&2
-    echo "         Latest engine: $crates_time_str [$latest_crates_commit_hash]" >&2
-    echo "         Engine changes in crates/ have not been compiled into WASM." >&2
-  fi
-  echo "         Run: scripts/ensure-web-pkg.sh [--dev]" >&2
+  echo "error: WASM package(s) missing or outdated: ${needs_build[*]}" >&2
+  echo "       Run: scripts/ensure-web-pkg.sh [--dev]" >&2
   exit 1
 fi
 
-# In prompt mode, ask before proceeding
 if [ "$mode_prompt" = true ]; then
-  echo "WASM artifact ($target_dir) is outdated:"
-  echo "  Built:  $wasm_time_str"
-  echo "  Engine: $crates_time_str [$latest_crates_commit_hash]"
+  echo "WASM packages need rebuilding: ${needs_build[*]}"
   read -r -p "Recompile now? [y/N] " response
   case "$response" in
     [yY][eE][sS]|[yY]) ;;
@@ -127,26 +117,12 @@ if [ "$mode_prompt" = true ]; then
   esac
 fi
 
-build_args=()
-if [ "$mode_dev" = true ]; then
-  build_args+=(--dev)
-fi
-if [ "$mode_slim" = true ]; then
-  build_args+=(--slim)
-fi
-
-echo "Building WASM ($target_dir)..."
-
-# If current rustc already has the wasm32 target, run directly
-if rustc --print sysroot >/dev/null 2>&1 && \
-   ls "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" >/dev/null 2>&1; then
-  bash scripts/build-web.sh "${build_args[@]}"
-else
-  # Re-enter with clean environment so outer Nix shells do not shadow wasm32 std
-  clean_path="$HOME/.cargo/bin:/nix/var/nix/profiles/default/bin:$HOME/.nix-profile/bin:/usr/bin:/bin"
-  echo "Entering nix develop .#web-build..."
-  env -i HOME="$HOME" USER="${USER:-$(whoami)}" PATH="$clean_path" \
-    nix develop .#web-build --command bash scripts/build-web.sh "${build_args[@]}"
-fi
-
-echo "✓ WASM build ready in $target_dir."
+for t in "${needs_build[@]}"; do
+  echo "Building WASM ($t)..."
+  if [ "$t" = "web/pkg-slim" ]; then
+    run_build --slim
+  else
+    run_build
+  fi
+  echo "✓ WASM build ready in $t."
+done

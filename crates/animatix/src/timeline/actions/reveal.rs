@@ -148,7 +148,10 @@ impl BuiltinAction for DrawIn {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let parsed = parse_timing_modifiers(
-            &timing_modifiers_without_keys(&action.modifiers, &["by", "stagger", "offset_y", "mask"]),
+            &timing_modifiers_without_keys(
+                &action.modifiers,
+                &["by", "stagger", "offset_y", "mask"],
+            ),
             ModifierHost::Action,
             Some(&action.verb),
             diagnostics,
@@ -196,7 +199,11 @@ impl BuiltinAction for DrawIn {
                 let mask_opt = reveal_mask(&action.modifiers);
 
                 if let Some(by) = &by_opt {
-                    track.text.split_by.ensure("char".to_string()).add_keyframe(t_start_ms, by.clone(), Easing::Linear);
+                    track.text.split_by.ensure("char".to_string()).add_keyframe(
+                        t_start_ms,
+                        by.clone(),
+                        Easing::Linear,
+                    );
                 }
                 if let Some(stagger) = stagger_opt {
                     let s = if duration_ms > 0.0 && stagger > 0.0 {
@@ -204,13 +211,25 @@ impl BuiltinAction for DrawIn {
                     } else {
                         stagger
                     };
-                    track.text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
+                    track.text.split_stagger.ensure(0.0).add_keyframe(
+                        t_start_ms,
+                        s,
+                        Easing::Linear,
+                    );
                 }
                 if let Some(offset_y) = offset_y_opt {
-                    track.text.split_offset_y.ensure(0.0).add_keyframe(t_start_ms, offset_y, Easing::Linear);
+                    track.text.split_offset_y.ensure(0.0).add_keyframe(
+                        t_start_ms,
+                        offset_y,
+                        Easing::Linear,
+                    );
                 }
                 if let Some(mask) = mask_opt {
-                    track.text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
+                    track.text.split_mask.ensure(false).add_keyframe(
+                        t_start_ms,
+                        mask,
+                        Easing::Linear,
+                    );
                 }
 
                 // Typewriter effect: animate char_progress 0→1, or in whole-word
@@ -220,12 +239,14 @@ impl BuiltinAction for DrawIn {
                     super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
                 }
 
-                let is_split_mode = offset_y_opt.is_some() || mask_opt.is_some() || stagger_opt.is_some()
-                    || track.text.split_offset_y.is_some() || track.text.split_mask.is_some() || track.text.split_stagger.is_some();
-                let by_word = !is_split_mode && matches!(
-                    by_opt.as_deref(),
-                    Some("word") | Some("words")
-                );
+                let is_split_mode = offset_y_opt.is_some()
+                    || mask_opt.is_some()
+                    || stagger_opt.is_some()
+                    || track.text.split_offset_y.is_some()
+                    || track.text.split_mask.is_some()
+                    || track.text.split_stagger.is_some();
+                let by_word =
+                    !is_split_mode && matches!(by_opt.as_deref(), Some("word") | Some("words"));
                 let steps = by_word.then(|| {
                     let text = track.text.text_content.get(t_start_ms, String::new());
                     word_progress_steps(&text)
@@ -333,7 +354,10 @@ impl BuiltinAction for RevealIn {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         let parsed = parse_timing_modifiers(
-            &timing_modifiers_without_keys(&action.modifiers, &["by", "stagger", "offset_y", "mask"]),
+            &timing_modifiers_without_keys(
+                &action.modifiers,
+                &["by", "stagger", "offset_y", "mask"],
+            ),
             ModifierHost::Action,
             Some(&action.verb),
             diagnostics,
@@ -381,7 +405,11 @@ impl BuiltinAction for RevealIn {
                 let mask_opt = reveal_mask(&action.modifiers);
 
                 if let Some(by) = &by_opt {
-                    track.text.split_by.ensure("char".to_string()).add_keyframe(t_start_ms, by.clone(), Easing::Linear);
+                    track.text.split_by.ensure("char".to_string()).add_keyframe(
+                        t_start_ms,
+                        by.clone(),
+                        Easing::Linear,
+                    );
                 }
                 if let Some(stagger) = stagger_opt {
                     let s = if duration_ms > 0.0 && stagger > 0.0 {
@@ -389,13 +417,25 @@ impl BuiltinAction for RevealIn {
                     } else {
                         stagger
                     };
-                    track.text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
+                    track.text.split_stagger.ensure(0.0).add_keyframe(
+                        t_start_ms,
+                        s,
+                        Easing::Linear,
+                    );
                 }
                 if let Some(offset_y) = offset_y_opt {
-                    track.text.split_offset_y.ensure(0.0).add_keyframe(t_start_ms, offset_y, Easing::Linear);
+                    track.text.split_offset_y.ensure(0.0).add_keyframe(
+                        t_start_ms,
+                        offset_y,
+                        Easing::Linear,
+                    );
                 }
                 if let Some(mask) = mask_opt {
-                    track.text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
+                    track.text.split_mask.ensure(false).add_keyframe(
+                        t_start_ms,
+                        mask,
+                        Easing::Linear,
+                    );
                 }
 
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
@@ -403,63 +443,62 @@ impl BuiltinAction for RevealIn {
                     super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
                 }
 
-                track.text.char_progress.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    0.0,
-                    Easing::Linear,
-                );
-                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-            } else {
-
-            let has_prior_stroke = track
-                .style
-                .stroke_progress
-                .as_ref()
-                .map(|t| t.keyframes.keys().any(|&k| k < t_start_ms))
-                .unwrap_or(false);
-            let start_stroke = if has_prior_stroke {
-                track.style.stroke_progress.get(t_start_ms, 1.0)
-            } else {
-                0.0
-            };
-
-            ensure_reveal_stroke(track, t_start_ms);
-
-            // Reveal the fill to its authored value, not blindly to 1.0: a
-            // stroke-only Path (fill_opacity seeded 0) must stay unfilled
-            // after the reveal completes.
-            let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
-
-            if duration_ms > 0.0 {
-                track.style.stroke_progress.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    start_stroke,
-                    Easing::Linear,
-                );
                 track
-                    .style
-                    .fill_opacity
+                    .text
+                    .char_progress
                     .ensure(1.0)
                     .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-                if t_end_ms > t_start_ms {
+                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            } else {
+                let has_prior_stroke = track
+                    .style
+                    .stroke_progress
+                    .as_ref()
+                    .map(|t| t.keyframes.keys().any(|&k| k < t_start_ms))
+                    .unwrap_or(false);
+                let start_stroke = if has_prior_stroke {
+                    track.style.stroke_progress.get(t_start_ms, 1.0)
+                } else {
+                    0.0
+                };
+
+                ensure_reveal_stroke(track, t_start_ms);
+
+                // Reveal the fill to its authored value, not blindly to 1.0: a
+                // stroke-only Path (fill_opacity seeded 0) must stay unfilled
+                // after the reveal completes.
+                let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+
+                if duration_ms > 0.0 {
+                    track.style.stroke_progress.ensure(1.0).add_keyframe(
+                        t_start_ms,
+                        start_stroke,
+                        Easing::Linear,
+                    );
                     track.style.fill_opacity.ensure(1.0).add_keyframe(
-                        t_end_ms.saturating_sub(1),
+                        t_start_ms,
                         0.0,
                         Easing::Linear,
                     );
+                    if t_end_ms > t_start_ms {
+                        track.style.fill_opacity.ensure(1.0).add_keyframe(
+                            t_end_ms.saturating_sub(1),
+                            0.0,
+                            Easing::Linear,
+                        );
+                    }
+                } else if delay_ms > 0.0 && t_start_ms > 0 {
+                    let guard_time = t_start_ms.saturating_sub(1);
+                    super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
                 }
-            } else if delay_ms > 0.0 && t_start_ms > 0 {
-                let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
-            }
 
-            track.style.fill_opacity.ensure(1.0).add_keyframe(
-                t_end_ms,
-                authored_fill,
-                Easing::Linear,
-            );
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                track.style.fill_opacity.ensure(1.0).add_keyframe(
+                    t_end_ms,
+                    authored_fill,
+                    Easing::Linear,
+                );
+                track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             }
         }
     }

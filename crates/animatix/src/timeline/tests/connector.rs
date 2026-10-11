@@ -1,5 +1,6 @@
-use super::*;
 use animatix_syntax::parser::parse_source;
+
+use super::*;
 use crate::primitives::connector::{build_connector_path, route_connector};
 use crate::timeline::{ConnectorRouting, SceneDimensions};
 
@@ -11,7 +12,8 @@ fn test_connector_routing_algorithms() {
     let norm_to = [-1.0, 0.0]; // Left
 
     // Straight
-    let straight_pts = route_connector(from, norm_from, to, norm_to, ConnectorRouting::Straight, 20.0);
+    let straight_pts =
+        route_connector(from, norm_from, to, norm_to, ConnectorRouting::Straight, 20.0);
     assert_eq!(straight_pts.len(), 2);
     assert_eq!(straight_pts[0], from);
     assert_eq!(straight_pts[1], to);
@@ -28,7 +30,7 @@ fn test_connector_routing_algorithms() {
     assert_eq!(elbow_pts.len(), 4);
     assert_eq!(elbow_pts[0], from);
     assert_eq!(elbow_pts[1], [200.0, from[1]]); // Mid-x
-    assert_eq!(elbow_pts[2], [200.0, to[1]]);   // Mid-x
+    assert_eq!(elbow_pts[2], [200.0, to[1]]); // Mid-x
     assert_eq!(elbow_pts[3], to);
 }
 
@@ -60,11 +62,20 @@ wire: Connector, from: (box1, right), to: (box2, left), routing: "elbow", arrow:
 "#;
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     if !report.output.tracks.contains_key("wire") {
         panic!("Connector wire track missing! Diagnostics: {:#?}", report.diagnostics);
     }
-    let dims = SceneDimensions { width: 1920, height: 1080 };
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
     let _scene = report.output.evaluate(0.0, dims);
-    assert!(report.output.tracks.contains_key("wire"), "Connector wire track should be present");
+    assert!(
+        report.output.tracks.contains_key("wire"),
+        "Connector wire track should be present"
+    );
 }

@@ -1012,7 +1012,11 @@ fn synthesize_idle_tracks(timeline: &mut Timeline) {
     let duration_ms = ((timeline.duration_seconds() * 1000.0).round() as u64).max(3000);
     for track in timeline.tracks.values_mut() {
         if let Some(crate::timeline::property_engine::PropertyValue::String(idle_mode)) =
-            crate::timeline::read_property_value(track, crate::timeline::ActorField::Tagged("idle"), 0)
+            crate::timeline::read_property_value(
+                track,
+                crate::timeline::ActorField::Tagged("idle"),
+                0,
+            )
         {
             let period_ms: u64 = 3000;
             let num_cycles = duration_ms.div_ceil(period_ms);
@@ -1028,15 +1032,23 @@ fn synthesize_idle_tracks(timeline: &mut Timeline) {
                             [base_offset[0], base_offset[1] - 6.0],
                             crate::timeline::Easing::EaseInOut,
                         );
-                        mot.add_keyframe(t0 + 1500, base_offset, crate::timeline::Easing::EaseInOut);
+                        mot.add_keyframe(
+                            t0 + 1500,
+                            base_offset,
+                            crate::timeline::Easing::EaseInOut,
+                        );
                         mot.add_keyframe(
                             t0 + 2250,
                             [base_offset[0], base_offset[1] + 6.0],
                             crate::timeline::Easing::EaseInOut,
                         );
-                        mot.add_keyframe(t0 + 3000, base_offset, crate::timeline::Easing::EaseInOut);
+                        mot.add_keyframe(
+                            t0 + 3000,
+                            base_offset,
+                            crate::timeline::Easing::EaseInOut,
+                        );
                     }
-                }
+                },
                 "breath" => {
                     let base_scale = track.geometry.scale.get(0, 1.0);
                     let peak_scale = base_scale * 1.03;
@@ -1047,8 +1059,8 @@ fn synthesize_idle_tracks(timeline: &mut Timeline) {
                         sc.add_keyframe(t0 + 1500, peak_scale, crate::timeline::Easing::EaseInOut);
                         sc.add_keyframe(t0 + 3000, base_scale, crate::timeline::Easing::EaseInOut);
                     }
-                }
-                _ => {}
+                },
+                _ => {},
             }
         }
     }

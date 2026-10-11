@@ -154,7 +154,7 @@ want_wasm_std() {
 # gate that fails on correctly formatted code.
 want_nightly_fmt() {
   FMT_CMD=(cargo fmt)
-  if rustc --version | grep -q nightly; then return 0; fi
+  if rustfmt --version 2>/dev/null | grep -q nightly || rustc --version 2>/dev/null | grep -q nightly; then return 0; fi
   if command -v rustup >/dev/null 2>&1 && rustup toolchain list 2>/dev/null | grep -q '^nightly'; then
     local nightly_bin
     nightly_bin="$(rustup which --toolchain nightly rustfmt 2>/dev/null | xargs dirname 2>/dev/null || true)"
@@ -163,6 +163,14 @@ want_nightly_fmt() {
     else
       FMT_CMD=(rustup run nightly cargo fmt)
     fi
+    return 0
+  fi
+  local nix_fmt
+  nix_fmt="$(find /nix/store -maxdepth 3 -name rustfmt -path '*rustfmt-preview*nightly*/bin/rustfmt' 2>/dev/null | head -1 || true)"
+  if [ -n "$nix_fmt" ] && [ -x "$nix_fmt" ]; then
+    local fmt_dir
+    fmt_dir="$(dirname "$nix_fmt")"
+    FMT_CMD=(env PATH="$fmt_dir:$PATH" cargo fmt)
     return 0
   fi
   echo "error: the fmt gate needs a nightly rustfmt — rustfmt.toml sets unstable" >&2

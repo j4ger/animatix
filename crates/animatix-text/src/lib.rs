@@ -1693,11 +1693,7 @@ fn walk_frame_for_glyphs_text_item(
                 let final_affine = item_transform * glyph_translate * scale_affine;
                 let mut final_path = path;
                 final_path.apply_affine(final_affine);
-                glyphs.push(TextPath::new(
-                    final_path,
-                    paint_to_rgba(&text.fill),
-                    1.0,
-                ));
+                glyphs.push(TextPath::new(final_path, paint_to_rgba(&text.fill), 1.0));
             }
             x_curr += advance;
         }
@@ -1819,7 +1815,13 @@ fn walk_frame_for_glyphs_with_state(
                         .get(start..end)
                         .map(|s| s.chars().all(|c| c.is_whitespace()))
                         .unwrap_or(false);
-                    if is_space || (start > item_last_end && text_str.get(item_last_end..start).map(|s| s.chars().any(|c| c.is_whitespace())).unwrap_or(false)) {
+                    if is_space
+                        || (start > item_last_end
+                            && text_str
+                                .get(item_last_end..start)
+                                .map(|s| s.chars().any(|c| c.is_whitespace()))
+                                .unwrap_or(false))
+                    {
                         state.word_idx += 1;
                     }
                     item_last_end = end;
@@ -1856,11 +1858,7 @@ fn walk_frame_for_glyphs_with_state(
                         final_path.apply_affine(final_affine);
 
                         let char_idx = glyphs.len() as u16;
-                        let mut tp = TextPath::new(
-                            final_path,
-                            paint_to_rgba(&text.fill),
-                            1.0,
-                        );
+                        let mut tp = TextPath::new(final_path, paint_to_rgba(&text.fill), 1.0);
                         tp.line_idx = state.line_idx;
                         tp.word_idx = state.word_idx;
                         tp.char_idx = char_idx;

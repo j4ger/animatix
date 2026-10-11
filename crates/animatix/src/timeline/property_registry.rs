@@ -823,9 +823,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("auto".to_string())
     }),
-    binding!("decimals", ValueType::U32, F::ASSIGNABLE_AI, ActorField::Tagged("decimals"), |_| {
-        super::property_engine::PropertyValue::U32(0)
-    }),
+    binding!(
+        "decimals",
+        ValueType::U32,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("decimals"),
+        |_| { super::property_engine::PropertyValue::U32(0) }
+    ),
     binding!("density", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(16.0)
     }),
@@ -1070,9 +1074,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("position", ValueType::Vec2, F::SPATIAL_AI, ActorField::Position, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
     }),
-    binding!("prefix", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("prefix"), |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
+    binding!(
+        "prefix",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("prefix"),
+        |_| { super::property_engine::PropertyValue::String(String::new()) }
+    ),
     binding!(
         "radius_x",
         ValueType::F32,
@@ -1117,9 +1125,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("rotation", ValueType::F32, F::SPATIAL_AI, ActorField::Rotation, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
-    binding!("routing", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("routing"), |_| {
-        super::property_engine::PropertyValue::String("elbow".to_string())
-    }),
+    binding!(
+        "routing",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("routing"),
+        |_| { super::property_engine::PropertyValue::String("elbow".to_string()) }
+    ),
     binding!("scale", ValueType::F32, F::SPATIAL_AI, ActorField::Scale, |_| {
         super::property_engine::PropertyValue::F32(1.0)
     }),
@@ -1229,9 +1241,13 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::StrokeWidth,
         |_| super::property_engine::PropertyValue::F32(1.0)
     ),
-    binding!("suffix", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("suffix"), |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
+    binding!(
+        "suffix",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("suffix"),
+        |_| { super::property_engine::PropertyValue::String(String::new()) }
+    ),
     binding!(
         "swatch_size",
         ValueType::F32,

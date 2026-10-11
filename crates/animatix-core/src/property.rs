@@ -370,10 +370,15 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // to match its `BuildTimeOnly` runtime binding, exactly as `icon` does: the
     // value is read once at build into a plain track field and never keyframed.
     PropertyDescriptor::new("camera_follow", Applicable::Everything, PropertyValueKind::Generic),
-    // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 = static HUD).
+    // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 =
+    // static HUD).
     PropertyDescriptor::new("parallax", Applicable::Everything, PropertyValueKind::F32),
     // Connector routing algorithm ("elbow", "l-bend", "straight").
-    PropertyDescriptor::new("routing", Applicable::Actors(&["Connector"]), PropertyValueKind::String),
+    PropertyDescriptor::new(
+        "routing",
+        Applicable::Actors(&["Connector"]),
+        PropertyValueKind::String,
+    ),
     // Whether a connector draws an arrowhead at its destination.
     PropertyDescriptor::new("arrow", Applicable::Actors(&["Connector"]), PropertyValueKind::Bool),
     // Split-text reveal granularity: "char" (default), "word", or "line".
@@ -399,7 +404,11 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     // Instanced Gaussian shadow [offset_x, offset_y, blur, spread].
     PropertyDescriptor::new("shadow", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
     // Shadow color in RGBA.
-    PropertyDescriptor::new("shadow_color", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
+    PropertyDescriptor::new(
+        "shadow_color",
+        Applicable::AllShapesExceptLine,
+        PropertyValueKind::Vec4,
+    ),
     // 2.5D X-axis rotation angle in radians.
     PropertyDescriptor::new("rotate_x", Applicable::Everything, PropertyValueKind::F32),
     // 2.5D Y-axis rotation angle in radians.

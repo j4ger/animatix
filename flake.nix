@@ -47,6 +47,7 @@
             mesa
 
             rust-bin.stable.latest.default
+            (rust-bin.selectLatestNightlyWith (toolchain: toolchain.rustfmt))
 
             # The release act. Pinned in practice by flake.lock's nixpkgs revision,
             # which is why CI runs `nix develop --command cog check` instead of the
@@ -139,6 +140,9 @@
                 DEFAULT_ROOT="$PWD"
               else
                 DEFAULT_ROOT="$PWD/web"
+              fi
+              if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/scripts/ensure-web-pkg.sh" ]; then
+                bash "$REPO_ROOT/scripts/ensure-web-pkg.sh" --dev
               fi
               exec ${pkgs.python3}/bin/python3 "${./scripts/serve-web.py}" \
                 "''${SERVE_PORT:-8124}" \

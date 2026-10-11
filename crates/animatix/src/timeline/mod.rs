@@ -231,10 +231,9 @@ pub use animatix_std::{caps_for_type, caps_from_info};
 pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
 pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
 use timing::{
-    has_non_default_morph_options, parse_stagger_modifiers,
-    push_modifier_diagnostic, push_unknown_target_path_diagnostic,
+    ParsedStaggerModifiers, StaggerMetric, StaggerOrigin, has_non_default_morph_options,
+    parse_stagger_modifiers, push_modifier_diagnostic, push_unknown_target_path_diagnostic,
     push_unsupported_stagger_statement_diagnostic, sequence_stmt_kind,
-    ParsedStaggerModifiers, StaggerMetric, StaggerOrigin,
 };
 
 pub use crate::primitives::primitive_info_by_name;
@@ -1046,7 +1045,11 @@ impl Timeline {
         let mut map = std::collections::HashMap::new();
         for (label, track) in &self.tracks {
             if let Some(crate::timeline::property_engine::PropertyValue::String(id)) =
-                crate::timeline::read_property_value(track, crate::timeline::ActorField::Tagged("shared_id"), time_ms)
+                crate::timeline::read_property_value(
+                    track,
+                    crate::timeline::ActorField::Tagged("shared_id"),
+                    time_ms,
+                )
             {
                 if !id.is_empty() {
                     map.insert(id, label.clone());

@@ -1,11 +1,15 @@
-use super::*;
 use animatix_syntax::parser::parse_source;
+
+use super::*;
 use crate::timeline::TrackAccessor;
 
 fn build_test_timeline(source: &str) -> Timeline {
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     report.output
 }
 
@@ -17,7 +21,7 @@ box: Rect, size: (100, 100), at: (200, 200), idle: "float"
 "#;
     let timeline = build_test_timeline(source);
     let track = timeline.tracks.get("box").expect("box track exists");
-    
+
     // At t=0, motion_offset y is 0.0
     let y0 = track.geometry.motion_offset.get(0, [0.0, 0.0])[1];
     assert!((y0 - 0.0).abs() < 1e-4, "y0 was {y0}");
@@ -77,7 +81,10 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
-        scene_dimensions: SceneDimensions { width: 1920, height: 1080 },
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
         background_color: [0.0, 0.0, 0.0, 1.0],
         overrides: None,
         vector_paths: &[],
@@ -87,7 +94,12 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
     let cmds = primitive.evaluate(&ctx, None).expect("eval success").expect("render commands");
     assert_eq!(cmds.len(), 2, "Expected shadow + rect fill commands");
     match cmds[0].clone() {
-        crate::primitives::RenderCommand::Shadow { size, corner_radius, params, color } => {
+        crate::primitives::RenderCommand::Shadow {
+            size,
+            corner_radius,
+            params,
+            color,
+        } => {
             assert_eq!(size, [50.0, 50.0]);
             assert_eq!(corner_radius, 0.0);
             assert_eq!(params, [0.0, 8.0, 16.0, 2.0]);
@@ -108,8 +120,12 @@ box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
 "#;
     let timeline = build_test_timeline(source);
     let track = timeline.tracks.get("box").expect("box track exists");
-    let dims = SceneDimensions { width: 1920, height: 1080 };
-    let node = timeline.evaluate_node_transform(track, 0, 1.0, kurbo::Affine::IDENTITY, dims, None, None);
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let node =
+        timeline.evaluate_node_transform(track, 0, 1.0, kurbo::Affine::IDENTITY, dims, None, None);
     let coeffs = node.local_transform.as_coeffs();
     let rx: f64 = 0.1;
     let ry: f64 = 0.2;
@@ -118,4 +134,3 @@ box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
     assert!((coeffs[2] - 0.0).abs() < 1e-4);
     assert!((coeffs[3] - rx.cos()).abs() < 1e-4);
 }
-

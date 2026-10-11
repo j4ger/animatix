@@ -513,7 +513,8 @@ impl OffscreenRenderer {
         let compositor =
             self.compositor.as_ref().ok_or_else(|| "Missing compositor".to_string())?;
 
-        // Wave 4.4: Detect matching shared_id across from_timeline and to_timeline for FLIP transitions
+        // Wave 4.4: Detect matching shared_id across from_timeline and to_timeline for FLIP
+        // transitions
         let from_time_ms = (from_time * 1000.0) as u64;
         let to_time_ms = (to_time * 1000.0) as u64;
         let from_shared = from_timeline.shared_id_actors(from_time_ms);
@@ -664,10 +665,8 @@ impl OffscreenRenderer {
                 }
             }
 
-            let view_a = self
-                .view_a
-                .as_ref()
-                .ok_or_else(|| "Missing offscreen view_a".to_string())?;
+            let view_a =
+                self.view_a.as_ref().ok_or_else(|| "Missing offscreen view_a".to_string())?;
             self.core
                 .render_vello_scene_with_background(
                     &self.device,

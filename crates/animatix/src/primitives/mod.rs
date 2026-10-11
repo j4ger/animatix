@@ -84,8 +84,10 @@ pub fn evaluate_text_paths(
     text_ctx: &mut TextCompileCtx,
     kind: crate::renderer::text::TextKind,
     default_font_size: f32,
-) -> Result<(std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>), crate::renderer::error::RenderError>
-{
+) -> Result<
+    (std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>),
+    crate::renderer::error::RenderError,
+> {
     use crate::timeline::TrackAccessor;
 
     let mut content = ctx.track.text.text_content.get(ctx.time_ms, String::new());
@@ -212,7 +214,11 @@ pub fn evaluate_text_paths(
                         ..Default::default()
                     },
                 );
-                let clip = crate::timeline::dispatch::apply_split_text_animation(&mut crossfaded, ctx.track, ctx.time_ms);
+                let clip = crate::timeline::dispatch::apply_split_text_animation(
+                    &mut crossfaded,
+                    ctx.track,
+                    ctx.time_ms,
+                );
                 return Ok((std::sync::Arc::from(crossfaded), clip));
             }
         }
@@ -239,7 +245,11 @@ pub fn evaluate_text_paths(
             &overflow,
         )?;
         let mut paths_vec = compiled.to_vec();
-        let clip = crate::timeline::dispatch::apply_split_text_animation(&mut paths_vec, ctx.track, ctx.time_ms);
+        let clip = crate::timeline::dispatch::apply_split_text_animation(
+            &mut paths_vec,
+            ctx.track,
+            ctx.time_ms,
+        );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
         let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
@@ -585,8 +595,7 @@ pub(crate) fn evaluate_shape_render(
         ctx.track.offer_shape_command_bounds(bounds);
         commands
     } else {
-        ctx.track
-            .build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?
+        ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?
     };
 
     attach_shape_shadow(&mut commands, ctx, state);
@@ -598,9 +607,10 @@ fn attach_shape_shadow(
     ctx: &EvaluateCtx,
     state: &VectorShapeState,
 ) {
-    use crate::timeline::property_engine::PropertyValue;
     use crate::timeline::ActorField;
-    let shadow_val = crate::timeline::read_property_value(ctx.track, ActorField::Tagged("shadow"), ctx.time_ms);
+    use crate::timeline::property_engine::PropertyValue;
+    let shadow_val =
+        crate::timeline::read_property_value(ctx.track, ActorField::Tagged("shadow"), ctx.time_ms);
     if let Some(PropertyValue::Vec4(params)) = shadow_val {
         if params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0 {
             let color = match crate::timeline::read_property_value(
@@ -1435,10 +1445,23 @@ impl RenderCommand {
                         (final_alpha * 255.0) as u8,
                     );
                     if *corner_radius > 0.0 {
-                        let rounded = kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
-                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+                        let rounded =
+                            kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            peniko_color,
+                            None,
+                            &rounded,
+                        );
                     } else {
-                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &shadow_rect);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            peniko_color,
+                            None,
+                            &shadow_rect,
+                        );
                     }
                 } else {
                     let sigma = blur * 0.5;
@@ -1464,7 +1487,13 @@ impl RenderCommand {
                         );
                         let cr = (*corner_radius + pad) as f64;
                         let rounded = kurbo::RoundedRect::from_rect(shadow_rect, cr);
-                        scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+                        scene.fill(
+                            vello::peniko::Fill::NonZero,
+                            *transform,
+                            peniko_color,
+                            None,
+                            &rounded,
+                        );
                     }
                 }
             },
@@ -1514,7 +1543,8 @@ impl RenderCommand {
                 bounds = union(bounds, *rect);
             },
             RenderCommand::Shadow { size, params, .. } => {
-                let (half_w, half_h) = (size[0] as f64 + params[3] as f64, size[1] as f64 + params[3] as f64);
+                let (half_w, half_h) =
+                    (size[0] as f64 + params[3] as f64, size[1] as f64 + params[3] as f64);
                 let blur_pad = params[2] as f64 * 3.0;
                 let ox = params[0] as f64;
                 let oy = params[1] as f64;

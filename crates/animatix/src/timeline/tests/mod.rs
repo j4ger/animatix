@@ -25,6 +25,8 @@ mod camera;
 #[cfg(test)]
 mod colorscheme;
 #[cfg(test)]
+mod connector;
+#[cfg(test)]
 mod container_helpers;
 #[cfg(test)]
 mod frame_dedup;
@@ -60,8 +62,6 @@ mod wave2;
 mod wave3;
 #[cfg(test)]
 mod wave4;
-#[cfg(test)]
-mod connector;
 
 #[test]
 fn property_descriptors_include_shared_builtin_schema() {

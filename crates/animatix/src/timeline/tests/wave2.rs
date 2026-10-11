@@ -1,5 +1,6 @@
-use super::*;
 use animatix_syntax::parser::parse_source;
+
+use super::*;
 use crate::timeline::TrackAccessor;
 
 #[test]
@@ -10,7 +11,10 @@ title: Text, text: "Hello World", at: (100, 100), split_by: "word", split_stagge
 "#;
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     let track = report.output.tracks.get("title").expect("title track");
     assert_eq!(track.text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
     assert_eq!(track.text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
@@ -42,9 +46,20 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     assert!(clip_mid.is_some(), "Baseline mask should generate clip path at midpoint");
 
     // Word 0 should have progressed further than word 2
-    let word0_y = paths_mid.iter().find(|p| p.word_idx == 0).map(|p| p.glyph_center[1]).unwrap_or(0.0);
-    let word2_y = paths_mid.iter().find(|p| p.word_idx == 2).map(|p| p.glyph_center[1]).unwrap_or(0.0);
-    assert!(word0_y <= word2_y, "Word 0 (y={word0_y}) should rise earlier/higher than word 2 (y={word2_y})");
+    let word0_y = paths_mid
+        .iter()
+        .find(|p| p.word_idx == 0)
+        .map(|p| p.glyph_center[1])
+        .unwrap_or(0.0);
+    let word2_y = paths_mid
+        .iter()
+        .find(|p| p.word_idx == 2)
+        .map(|p| p.glyph_center[1])
+        .unwrap_or(0.0);
+    assert!(
+        word0_y <= word2_y,
+        "Word 0 (y={word0_y}) should rise earlier/higher than word 2 (y={word2_y})"
+    );
 
     // At t=2000 (reveal complete):
     let (paths_end, clip_end) = track.evaluate_text_paths_and_clip(2000);
@@ -86,7 +101,10 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
 "#;
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     let track = report.output.tracks.get("c").expect("counter track");
 
     let data = track.text.counter_data.as_ref().expect("prebaked counter data");
@@ -125,7 +143,10 @@ cnt.value = 100 [1s]
         time_ms,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
-        scene_dimensions: SceneDimensions { width: 1920, height: 1080 },
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
         background_color: [0.0, 0.0, 0.0, 1.0],
         overrides: None,
         vector_paths: &[],
@@ -137,7 +158,9 @@ cnt.value = 100 [1s]
     let cmds0 = primitive.evaluate(&ctx0, None).expect("eval success").expect("render commands");
     assert_eq!(cmds0.len(), 1);
     match &cmds0[0] {
-        crate::primitives::RenderCommand::Text { paths, clip_path, .. } => {
+        crate::primitives::RenderCommand::Text {
+            paths, clip_path, ..
+        } => {
             assert!(!paths.is_empty(), "Paths should be generated for counter at t=0");
             assert!(clip_path.is_some(), "Clip path should be present for slot clipping");
         },
@@ -145,7 +168,10 @@ cnt.value = 100 [1s]
     }
 
     let ctx_mid = make_ctx(1500);
-    let cmds_mid = primitive.evaluate(&ctx_mid, None).expect("eval success").expect("render commands");
+    let cmds_mid = primitive
+        .evaluate(&ctx_mid, None)
+        .expect("eval success")
+        .expect("render commands");
     match &cmds_mid[0] {
         crate::primitives::RenderCommand::Text { paths, .. } => {
             assert!(!paths.is_empty(), "Paths should be generated at midpoint");
@@ -154,7 +180,10 @@ cnt.value = 100 [1s]
     }
 
     let ctx_end = make_ctx(2000);
-    let cmds_end = primitive.evaluate(&ctx_end, None).expect("eval success").expect("render commands");
+    let cmds_end = primitive
+        .evaluate(&ctx_end, None)
+        .expect("eval success")
+        .expect("render commands");
     match &cmds_end[0] {
         crate::primitives::RenderCommand::Text { paths, .. } => {
             assert!(!paths.is_empty(), "Paths should be generated at end");

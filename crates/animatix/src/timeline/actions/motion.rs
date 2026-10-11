@@ -629,11 +629,11 @@ impl BuiltinAction for Shift {
                 }
             }
 
-            track
-                .geometry
-                .motion_offset
-                .ensure([0.0, 0.0])
-                .add_keyframe(t_end_ms, end_offset, effective_easing);
+            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                t_end_ms,
+                end_offset,
+                effective_easing,
+            );
         }
     }
 }

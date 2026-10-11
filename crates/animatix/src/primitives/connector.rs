@@ -1,6 +1,7 @@
 //! Smart orthogonal connector primitive.
 
 use std::sync::Arc;
+
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{
@@ -9,8 +10,8 @@ use crate::primitives::{
 use crate::renderer::error::RenderError;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
-    ActorCaps, AnimationTrack, ConnectorEndpoint, ConnectorRouting, Environment,
-    SceneAnchor, SceneDimensions, TrackAccessor, Value, VelloPath,
+    ActorCaps, AnimationTrack, ConnectorEndpoint, ConnectorRouting, Environment, SceneAnchor,
+    SceneDimensions, TrackAccessor, Value, VelloPath,
 };
 
 /// Helper to parse a `ConnectorEndpoint` from an expression in the build environment.
@@ -54,12 +55,10 @@ pub fn parse_connector_endpoint(expr: &Expr, env: &Environment) -> Option<Connec
                 })
             }
         },
-        Expr::Ident(s) | Expr::Str(s) => {
-            Some(ConnectorEndpoint::Target {
-                actor: s.clone(),
-                anchor: None,
-            })
-        },
+        Expr::Ident(s) | Expr::Str(s) => Some(ConnectorEndpoint::Target {
+            actor: s.clone(),
+            anchor: None,
+        }),
         _ => None,
     }
 }
@@ -79,7 +78,11 @@ pub fn resolve_connector_endpoint(
                     let dx = other[0] - pt[0];
                     let dy = other[1] - pt[1];
                     let len = (dx * dx + dy * dy).sqrt();
-                    if len > 1e-4 { [dx / len, dy / len] } else { [1.0, 0.0] }
+                    if len > 1e-4 {
+                        [dx / len, dy / len]
+                    } else {
+                        [1.0, 0.0]
+                    }
                 },
                 None => [1.0, 0.0],
             };
@@ -87,7 +90,9 @@ pub fn resolve_connector_endpoint(
         },
         ConnectorEndpoint::Target { actor, anchor } => {
             if let Some(resolver) = target_resolver {
-                if let Some((center, half_size)) = resolver.target_bounds(actor, time_ms, scene_dimensions) {
+                if let Some((center, half_size)) =
+                    resolver.target_bounds(actor, time_ms, scene_dimensions)
+                {
                     let resolved_anchor = anchor.unwrap_or_else(|| {
                         // Auto-choose the most direct anchor side facing the other position
                         match other_pos {
@@ -95,9 +100,17 @@ pub fn resolve_connector_endpoint(
                                 let dx = other[0] - center[0];
                                 let dy = other[1] - center[1];
                                 if dx.abs() >= dy.abs() {
-                                    if dx >= 0.0 { SceneAnchor::Right } else { SceneAnchor::Left }
+                                    if dx >= 0.0 {
+                                        SceneAnchor::Right
+                                    } else {
+                                        SceneAnchor::Left
+                                    }
                                 } else {
-                                    if dy >= 0.0 { SceneAnchor::Bottom } else { SceneAnchor::Top }
+                                    if dy >= 0.0 {
+                                        SceneAnchor::Bottom
+                                    } else {
+                                        SceneAnchor::Top
+                                    }
                                 }
                             },
                             None => SceneAnchor::Right,
@@ -111,10 +124,18 @@ pub fn resolve_connector_endpoint(
                         SceneAnchor::Top => ([center[0], center[1] - half_size[1]], [0.0, -1.0]),
                         SceneAnchor::Bottom => ([center[0], center[1] + half_size[1]], [0.0, 1.0]),
                         SceneAnchor::Center => (center, [0.0, 0.0]),
-                        SceneAnchor::TopLeft => ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC]),
-                        SceneAnchor::TopRight => ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC]),
-                        SceneAnchor::BottomLeft => ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC]),
-                        SceneAnchor::BottomRight => ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC]),
+                        SceneAnchor::TopLeft => {
+                            ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC])
+                        },
+                        SceneAnchor::TopRight => {
+                            ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC])
+                        },
+                        SceneAnchor::BottomLeft => {
+                            ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC])
+                        },
+                        SceneAnchor::BottomRight => {
+                            ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC])
+                        },
                     };
                 }
             }
@@ -159,7 +180,14 @@ pub fn route_connector(
                     };
                     let x1 = from[0] + norm_from[0] * margin;
                     let x2 = to[0] + norm_to[0] * margin;
-                    vec![from, [x1, from[1]], [x1, mid_y], [x2, mid_y], [x2, to[1]], to]
+                    vec![
+                        from,
+                        [x1, from[1]],
+                        [x1, mid_y],
+                        [x2, mid_y],
+                        [x2, to[1]],
+                        to,
+                    ]
                 }
             }
             // Both vertical (e.g. Bottom -> Top or Top -> Bottom)
@@ -173,7 +201,14 @@ pub fn route_connector(
                     let mid_x = (from[0] + to[0]) * 0.5;
                     let y1 = from[1] + norm_from[1] * margin;
                     let y2 = to[1] + norm_to[1] * margin;
-                    vec![from, [from[0], y1], [mid_x, y1], [mid_x, y2], [to[0], y2], to]
+                    vec![
+                        from,
+                        [from[0], y1],
+                        [mid_x, y1],
+                        [mid_x, y2],
+                        [to[0], y2],
+                        to,
+                    ]
                 }
             }
             // Horizontal start, Vertical end
@@ -246,8 +281,10 @@ pub fn build_connector_path(
 
         let mut arrow = kurbo::BezPath::new();
         arrow.move_to(kurbo::Point::new(to_x, to_y));
-        arrow.line_to(kurbo::Point::new(base_x + perp_x * half_width, base_y + perp_y * half_width));
-        arrow.line_to(kurbo::Point::new(base_x - perp_x * half_width, base_y - perp_y * half_width));
+        arrow
+            .line_to(kurbo::Point::new(base_x + perp_x * half_width, base_y + perp_y * half_width));
+        arrow
+            .line_to(kurbo::Point::new(base_x - perp_x * half_width, base_y - perp_y * half_width));
         arrow.close_path();
 
         let adjusted_end = [base_x as f32, base_y as f32];
@@ -334,19 +371,21 @@ impl Primitive for ConnectorPrimitive {
         match property {
             "from" => {
                 if let Some(endpoint) = parse_connector_endpoint(value, env) {
-                    track.geometry
-                        .connector_from
-                        .ensure(endpoint.clone())
-                        .add_keyframe(ctx.t_start_ms, endpoint, ctx.easing);
+                    track.geometry.connector_from.ensure(endpoint.clone()).add_keyframe(
+                        ctx.t_start_ms,
+                        endpoint,
+                        ctx.easing,
+                    );
                     return true;
                 }
             },
             "to" => {
                 if let Some(endpoint) = parse_connector_endpoint(value, env) {
-                    track.geometry
-                        .connector_to
-                        .ensure(endpoint.clone())
-                        .add_keyframe(ctx.t_start_ms, endpoint, ctx.easing);
+                    track.geometry.connector_to.ensure(endpoint.clone()).add_keyframe(
+                        ctx.t_start_ms,
+                        endpoint,
+                        ctx.easing,
+                    );
                     return true;
                 }
             },
@@ -355,11 +394,13 @@ impl Primitive for ConnectorPrimitive {
                     Expr::Ident(s) | Expr::Str(s) => s.as_str(),
                     _ => "elbow",
                 };
-                let routing = routing_str.parse::<ConnectorRouting>().unwrap_or(ConnectorRouting::Elbow);
-                track.geometry
-                    .connector_routing
-                    .ensure(routing)
-                    .add_keyframe(ctx.t_start_ms, routing, ctx.easing);
+                let routing =
+                    routing_str.parse::<ConnectorRouting>().unwrap_or(ConnectorRouting::Elbow);
+                track.geometry.connector_routing.ensure(routing).add_keyframe(
+                    ctx.t_start_ms,
+                    routing,
+                    ctx.easing,
+                );
                 return true;
             },
             "arrow" => {
@@ -368,10 +409,11 @@ impl Primitive for ConnectorPrimitive {
                     Expr::Ident(s) => s == "true",
                     _ => true,
                 };
-                track.geometry
-                    .connector_arrow
-                    .ensure(arrow_val)
-                    .add_keyframe(ctx.t_start_ms, arrow_val, ctx.easing);
+                track.geometry.connector_arrow.ensure(arrow_val).add_keyframe(
+                    ctx.t_start_ms,
+                    arrow_val,
+                    ctx.easing,
+                );
                 return true;
             },
             _ => {},
@@ -384,9 +426,18 @@ impl Primitive for ConnectorPrimitive {
         ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let ep_from = ctx.track.geometry.connector_from.get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
-        let ep_to = ctx.track.geometry.connector_to.get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
-        let routing = ctx.track.geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
+        let ep_from = ctx
+            .track
+            .geometry
+            .connector_from
+            .get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
+        let ep_to = ctx
+            .track
+            .geometry
+            .connector_to
+            .get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
+        let routing =
+            ctx.track.geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
         let mut arrow = ctx.track.geometry.connector_arrow.get(ctx.time_ms, true);
         let mut corner_radius = ctx.track.shape.corner_radius.get(ctx.time_ms, 8.0);
         let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
@@ -403,13 +454,33 @@ impl Primitive for ConnectorPrimitive {
             }
         }
 
-        // Two-pass resolve: resolve start with rough target hint, then resolve end, then refine start
-        let (pos_from_init, _) = resolve_connector_endpoint(&ep_from, ctx.target_resolver, ctx.time_ms, ctx.scene_dimensions, None);
-        let (pos_to, norm_to) = resolve_connector_endpoint(&ep_to, ctx.target_resolver, ctx.time_ms, ctx.scene_dimensions, Some(pos_from_init));
-        let (pos_from, norm_from) = resolve_connector_endpoint(&ep_from, ctx.target_resolver, ctx.time_ms, ctx.scene_dimensions, Some(pos_to));
+        // Two-pass resolve: resolve start with rough target hint, then resolve end, then refine
+        // start
+        let (pos_from_init, _) = resolve_connector_endpoint(
+            &ep_from,
+            ctx.target_resolver,
+            ctx.time_ms,
+            ctx.scene_dimensions,
+            None,
+        );
+        let (pos_to, norm_to) = resolve_connector_endpoint(
+            &ep_to,
+            ctx.target_resolver,
+            ctx.time_ms,
+            ctx.scene_dimensions,
+            Some(pos_from_init),
+        );
+        let (pos_from, norm_from) = resolve_connector_endpoint(
+            &ep_from,
+            ctx.target_resolver,
+            ctx.time_ms,
+            ctx.scene_dimensions,
+            Some(pos_to),
+        );
 
         let waypoints = route_connector(pos_from, norm_from, pos_to, norm_to, routing, 20.0);
-        let (shaft_path, arrowhead_path) = build_connector_path(&waypoints, corner_radius, arrow, head_size);
+        let (shaft_path, arrowhead_path) =
+            build_connector_path(&waypoints, corner_radius, arrow, head_size);
 
         let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
         let mut paths = Vec::new();

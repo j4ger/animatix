@@ -1,6 +1,7 @@
-use super::*;
 use animatix_syntax::parser::parse_source;
 use animatix_syntax::transition_registry;
+
+use super::*;
 
 #[test]
 fn test_wavefront_stagger_from_center() {
@@ -94,7 +95,10 @@ heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000
 "##;
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     assert!(!report.output.tracks.is_empty());
     let track = report.output.tracks.get("heading").expect("heading track");
     assert!(track.style.fill_gradient.is_some(), "Text actor should accept fill_gradient");
@@ -109,7 +113,10 @@ fg: Rect, size: (100, 100), parallax: 1.0, at: (50, 50)
 "#;
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&stmts.expect("parsed AST"), &std::collections::HashMap::new());
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
     let bg_track = report.output.tracks.get("bg").expect("bg track");
     let fg_track = report.output.tracks.get("fg").expect("fg track");
     assert_eq!(bg_track.parallax, 0.3);

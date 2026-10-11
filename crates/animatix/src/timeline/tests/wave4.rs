@@ -1,7 +1,8 @@
+use animatix_syntax::easing::{Easing, apply_easing, easing_derivative};
+
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::tests::without_content_lints;
 use crate::timeline::{SceneDimensions, Timeline};
-use animatix_syntax::easing::{Easing, apply_easing, easing_derivative};
 
 #[test]
 fn test_spring_v0_derivative_and_continuity() {
@@ -176,7 +177,8 @@ card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_
         &mut None,
         &["card".to_string()],
     );
-    // Suppressed actor has opacity 0 so its draw commands evaluate to opacity 0 and are omitted from scene
+    // Suppressed actor has opacity 0 so its draw commands evaluate to opacity 0 and are omitted
+    // from scene
     assert_eq!(suppressed.items.len(), 1);
     assert_eq!(suppressed.items[0].opacity, 0.0);
 }

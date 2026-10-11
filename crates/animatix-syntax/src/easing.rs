@@ -175,7 +175,11 @@ pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
                 1.0 - (-damping * t).exp() * (frequency * t).cos()
             }
         },
-        Easing::SpringV0 { damping, frequency, v0 } => {
+        Easing::SpringV0 {
+            damping,
+            frequency,
+            v0,
+        } => {
             if t <= 0.0 {
                 0.0
             } else if t >= 1.0 {
@@ -241,7 +245,11 @@ pub fn easing_derivative(progress: f32, easing: Easing) -> f32 {
             let decay = (-damping * t).exp();
             decay * (damping * (frequency * t).cos() + frequency * (frequency * t).sin())
         },
-        Easing::SpringV0 { damping, frequency, v0 } => {
+        Easing::SpringV0 {
+            damping,
+            frequency,
+            v0,
+        } => {
             let decay = (-damping * t).exp();
             let b = if frequency.abs() > 1e-4 {
                 (damping - v0) / frequency
@@ -366,7 +374,11 @@ pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
             let damping = args.first().copied().unwrap_or(f64::from(DEFAULT_SPRING[0])) as f32;
             let frequency = args.get(1).copied().unwrap_or(f64::from(DEFAULT_SPRING[1])) as f32;
             let v0 = args.get(2).copied().unwrap_or(0.0) as f32;
-            Some(Easing::SpringV0 { damping, frequency, v0 })
+            Some(Easing::SpringV0 {
+                damping,
+                frequency,
+                v0,
+            })
         },
         _ => None,
     }
@@ -434,7 +446,11 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
                 Expr::Num(f64::from(frequency)),
             ],
         ),
-        Easing::SpringV0 { damping, frequency, v0 } => Expr::Call(
+        Easing::SpringV0 {
+            damping,
+            frequency,
+            v0,
+        } => Expr::Call(
             "spring-v0".to_string(),
             vec![
                 Expr::Num(f64::from(damping)),
@@ -463,7 +479,11 @@ pub fn easing_source_form(easing: Easing) -> String {
         Easing::Back => "back".to_string(),
         Easing::Expo => "expo".to_string(),
         Easing::Spring { damping, frequency } => format!("spring({damping}, {frequency})"),
-        Easing::SpringV0 { damping, frequency, v0 } => format!("spring-v0({damping}, {frequency}, {v0})"),
+        Easing::SpringV0 {
+            damping,
+            frequency,
+            v0,
+        } => format!("spring-v0({damping}, {frequency}, {v0})"),
         Easing::CubicBezier(cp) => format_cubic_bezier(cp),
     }
 }

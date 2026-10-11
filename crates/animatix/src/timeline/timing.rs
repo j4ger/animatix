@@ -326,62 +326,56 @@ pub(crate) fn parse_stagger_modifiers(
                     );
                 }
             },
-            Some("from") => {
-                match &modifier.value {
-                    Expr::Ident(name) | Expr::Str(name) if name == "center" => {
-                        from_origin = Some(StaggerOrigin::Center);
-                    },
-                    Expr::Ident(name) | Expr::Str(name) if name == "top-left" || name == "top_left" => {
-                        from_origin = Some(StaggerOrigin::TopLeft);
-                    },
-                    Expr::Tuple(items) if items.len() == 2 => {
-                        match (&items[0], &items[1]) {
-                            (Expr::Num(x), Expr::Num(y)) => {
-                                from_origin = Some(StaggerOrigin::Point([*x, *y]));
-                            },
-                            _ => {
-                                push_modifier_diagnostic(
-                                    diagnostics,
-                                    DiagnosticCode::InvalidModifierValue,
-                                    "Stagger from coordinate tuple expects (x, y) numbers.".to_string(),
-                                    Some("stagger"),
-                                );
-                            }
-                        }
+            Some("from") => match &modifier.value {
+                Expr::Ident(name) | Expr::Str(name) if name == "center" => {
+                    from_origin = Some(StaggerOrigin::Center);
+                },
+                Expr::Ident(name) | Expr::Str(name) if name == "top-left" || name == "top_left" => {
+                    from_origin = Some(StaggerOrigin::TopLeft);
+                },
+                Expr::Tuple(items) if items.len() == 2 => match (&items[0], &items[1]) {
+                    (Expr::Num(x), Expr::Num(y)) => {
+                        from_origin = Some(StaggerOrigin::Point([*x, *y]));
                     },
                     _ => {
                         push_modifier_diagnostic(
                             diagnostics,
                             DiagnosticCode::InvalidModifierValue,
-                            format!(
-                                "Unsupported stagger from value '{:?}'; expected 'center', 'top-left', or (x, y).",
-                                modifier.value
-                            ),
+                            "Stagger from coordinate tuple expects (x, y) numbers.".to_string(),
                             Some("stagger"),
                         );
-                    }
-                }
+                    },
+                },
+                _ => {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported stagger from value '{:?}'; expected 'center', 'top-left', or (x, y).",
+                            modifier.value
+                        ),
+                        Some("stagger"),
+                    );
+                },
             },
-            Some("metric") => {
-                match &modifier.value {
-                    Expr::Ident(name) | Expr::Str(name) if name == "euclidean" => {
-                        metric = StaggerMetric::Euclidean;
-                    },
-                    Expr::Ident(name) | Expr::Str(name) if name == "manhattan" => {
-                        metric = StaggerMetric::Manhattan;
-                    },
-                    _ => {
-                        push_modifier_diagnostic(
-                            diagnostics,
-                            DiagnosticCode::InvalidModifierValue,
-                            format!(
-                                "Unsupported stagger metric '{:?}'; expected 'euclidean' or 'manhattan'.",
-                                modifier.value
-                            ),
-                            Some("stagger"),
-                        );
-                    }
-                }
+            Some("metric") => match &modifier.value {
+                Expr::Ident(name) | Expr::Str(name) if name == "euclidean" => {
+                    metric = StaggerMetric::Euclidean;
+                },
+                Expr::Ident(name) | Expr::Str(name) if name == "manhattan" => {
+                    metric = StaggerMetric::Manhattan;
+                },
+                _ => {
+                    push_modifier_diagnostic(
+                        diagnostics,
+                        DiagnosticCode::InvalidModifierValue,
+                        format!(
+                            "Unsupported stagger metric '{:?}'; expected 'euclidean' or 'manhattan'.",
+                            modifier.value
+                        ),
+                        Some("stagger"),
+                    );
+                },
             },
             Some(other) => push_modifier_diagnostic(
                 diagnostics,
@@ -731,7 +725,10 @@ pub(crate) fn parse_timing_modifiers(
             // have no vocabulary and would be silent no-ops, so they warn.
             Some(name)
                 if (host == ModifierHost::Action && action_declares_modifier(subject, name))
-                    || (name == "padding" && subject.is_some_and(|s| s.ends_with(".focus") || s.ends_with(".focus_on"))) => {},
+                    || (name == "padding"
+                        && subject.is_some_and(|s| {
+                            s.ends_with(".focus") || s.ends_with(".focus_on")
+                        })) => {},
             Some(name) => push_modifier_diagnostic(
                 diagnostics,
                 DiagnosticCode::UnsupportedModifierKey,

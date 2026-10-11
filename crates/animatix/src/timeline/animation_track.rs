@@ -625,12 +625,15 @@ impl Interpolate for ConnectorEndpoint {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         match (self, other) {
             (Self::Point(a), Self::Point(b)) => {
-                Self::Point([
-                    a[0] + (b[0] - a[0]) * t,
-                    a[1] + (b[1] - a[1]) * t,
-                ])
+                Self::Point([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
             },
-            _ => if t < 0.5 { self.clone() } else { other.clone() },
+            _ => {
+                if t < 0.5 {
+                    self.clone()
+                } else {
+                    other.clone()
+                }
+            },
         }
     }
 }

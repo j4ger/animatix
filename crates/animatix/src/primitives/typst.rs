@@ -145,7 +145,12 @@ impl Primitive for TypstPrimitive {
 
                     let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
                         use crate::timeline::TrackAccessor;
-                        Some(Box::new(ctx.track.style.fill_gradient.get(ctx.time_ms, crate::renderer::types::GradientSpec::default())))
+                        Some(Box::new(
+                            ctx.track
+                                .style
+                                .fill_gradient
+                                .get(ctx.time_ms, crate::renderer::types::GradientSpec::default()),
+                        ))
                     } else {
                         None
                     };
@@ -157,17 +162,30 @@ impl Primitive for TypstPrimitive {
                             alpha: hl_opacity,
                             corner_radius: hl_radius as f64,
                         },
-                        RenderCommand::Text { paths, fill_gradient, clip_path },
+                        RenderCommand::Text {
+                            paths,
+                            fill_gradient,
+                            clip_path,
+                        },
                     ]));
                 }
             }
             let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
                 use crate::timeline::TrackAccessor;
-                Some(Box::new(ctx.track.style.fill_gradient.get(ctx.time_ms, crate::renderer::types::GradientSpec::default())))
+                Some(Box::new(
+                    ctx.track
+                        .style
+                        .fill_gradient
+                        .get(ctx.time_ms, crate::renderer::types::GradientSpec::default()),
+                ))
             } else {
                 None
             };
-            Ok(Some(vec![RenderCommand::Text { paths, fill_gradient, clip_path }]))
+            Ok(Some(vec![RenderCommand::Text {
+                paths,
+                fill_gradient,
+                clip_path,
+            }]))
         }
     }
 
