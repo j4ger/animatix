@@ -1,6 +1,17 @@
 {
   description = "animatix devshell";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://animatix.cachix.org"
+      "https://nix-community.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "animatix.cachix.org-1:4UgSkwvqXx15m7MJWObI6CDWs8dbPImIIyzw/2YOMDM="
+      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+    ];
+  };
+
   inputs = {
     nixpkgs.url      = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
