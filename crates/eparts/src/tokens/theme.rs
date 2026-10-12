@@ -469,6 +469,12 @@ pub struct Border {
     pub strong: Color32,
     #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub focus: Color32,
+    /// Subtle divider line (semi-transparent stroke).
+    #[cfg_attr(feature = "theme-json", serde(default, with = "serde_color32"))]
+    pub subtle: Color32,
+    /// 1px top edge highlight / rim bevel for elevated containers.
+    #[cfg_attr(feature = "theme-json", serde(default, with = "serde_color32"))]
+    pub rim_highlight: Color32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -484,6 +490,9 @@ pub struct Overlay {
     pub shadow_ambient: Color32,
     #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
     pub shadow_direct: Color32,
+    /// Translucent floating HUD background (pill capsule over canvas).
+    #[cfg_attr(feature = "theme-json", serde(with = "serde_color32"))]
+    pub floating_hud_bg: Color32,
 }
 
 /// Neutral grid / guide line colors (white-alpha; not brand-specific).
@@ -666,6 +675,8 @@ impl Theme {
                     default: semantic::border::DEFAULT,
                     strong: semantic::border::HOVER,
                     focus: semantic::border::FOCUS,
+                    subtle: semantic::border::SUBTLE,
+                    rim_highlight: semantic::border::RIM_HIGHLIGHT,
                 },
                 overlay: Overlay {
                     backdrop: semantic::overlay::backdrop(),
@@ -673,6 +684,7 @@ impl Theme {
                     tooltip_bg: semantic::overlay::tooltip_bg(),
                     shadow_ambient: semantic::overlay::shadow_ambient(),
                     shadow_direct: semantic::overlay::shadow_direct(),
+                    floating_hud_bg: semantic::overlay::floating_hud_bg(),
                 },
                 lines: Lines {
                     grid: semantic::lines::grid_line(),
@@ -706,13 +718,13 @@ impl Theme {
                     offset: [0, 2],
                     blur: 4,
                     spread: 0,
-                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 40),
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
                 },
                 overlay: Shadow {
                     offset: [0, 8],
                     blur: 24,
                     spread: 0,
-                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 80),
+                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
                 },
             },
         }
@@ -824,6 +836,8 @@ impl Theme {
                     default: border_default,
                     strong: border_strong,
                     focus: border_focus,
+                    subtle: Color32::from_rgba_unmultiplied(0, 0, 0, 15),
+                    rim_highlight: Color32::from_rgba_unmultiplied(255, 255, 255, 80),
                 },
                 overlay: Overlay {
                     backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
@@ -831,6 +845,7 @@ impl Theme {
                     tooltip_bg,
                     shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
                     shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
+                    floating_hud_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 235),
                 },
                 // White-alpha lines are invisible on a near-white surface; light
                 // surfaces need dark ink instead.
@@ -1991,6 +2006,7 @@ mod tests {
         assert_eq!(t.palette.overlay.tooltip_bg, semantic::overlay::tooltip_bg());
         assert_eq!(t.palette.overlay.shadow_ambient, semantic::overlay::shadow_ambient());
         assert_eq!(t.palette.overlay.shadow_direct, semantic::overlay::shadow_direct());
+        assert_eq!(t.palette.overlay.floating_hud_bg, semantic::overlay::floating_hud_bg());
 
         // Elevation shadows are non-zero (not default).
         assert!(t.elevation.raised.blur > 0);
@@ -2026,6 +2042,7 @@ mod tests {
         assert_ne!(l.palette.text.primary, d.palette.text.primary);
         assert_ne!(l.palette.border.default, d.palette.border.default);
         assert_ne!(l.palette.overlay.backdrop, d.palette.overlay.backdrop);
+        assert_ne!(l.palette.overlay.floating_hud_bg, d.palette.overlay.floating_hud_bg);
         // Light surface is bright, light text is dark (contrast sanity).
         assert!(
             l.palette.surface.base.r() > 200

@@ -222,8 +222,8 @@ pub mod toolbar {
 pub mod timeline {
     /// Width of the track-name label column (scaling chrome).
     pub const LABEL_COL_WIDTH: f32 = 120.0;
-    /// Height of a single track row (scaling chrome).
-    pub const TRACK_ROW_HEIGHT: f32 = 24.0;
+    /// Height of a single track row (scaling chrome, 28px ROW_L).
+    pub const TRACK_ROW_HEIGHT: f32 = 28.0;
     /// Height of the time ruler (scaling chrome).
     pub const RULER_HEIGHT: f32 = 22.0;
     /// Height of the loop-range overlay strip (scaling chrome).
@@ -273,7 +273,7 @@ pub mod inspector {
     /// Minimum width of property labels — NOT scaling (content width).
     pub const LABEL_MIN_WIDTH: f32 = 90.0;
     /// Maximum width of property labels — NOT scaling (content width).
-    pub const LABEL_MAX_WIDTH: f32 = 160.0;
+    pub const LABEL_MAX_WIDTH: f32 = 110.0;
     /// Gap between columns (scaling spacing).
     pub const COL_GAP: f32 = 8.0;
     /// Width of a float input field — NOT scaling (content width).
@@ -291,7 +291,7 @@ pub mod inspector {
     /// Width of the keyframe button — NOT scaling (icon button).
     pub const KF_BTN_WIDTH: f32 = 18.0;
     /// Fraction of label column width — NOT scaling (layout fraction).
-    pub const LABEL_WIDTH_FRAC: f32 = 0.42;
+    pub const LABEL_WIDTH_FRAC: f32 = 0.32;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -384,7 +384,7 @@ mod tests {
         // Sanity: every scaled field in Default mode must equal the base const exactly.
         let s = Spatial::for_density(Density::Default);
         assert_eq!(s.toolbar.height, 28.0);
-        assert_eq!(s.timeline.track_row_height, 24.0);
+        assert_eq!(s.timeline.track_row_height, 28.0);
         assert_eq!(s.timeline.ruler_height, 22.0);
         assert_eq!(s.timeline.range_height, 20.0);
         assert_eq!(s.timeline.playback_strip_height, 28.0);

@@ -1,6 +1,6 @@
 use egui::{CornerRadius, Margin, Rect, Response, Stroke, Ui, Vec2, WidgetText};
 
-use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
+use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
 
@@ -11,14 +11,10 @@ pub fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     let s = spatial(ui);
     egui::Frame::new()
         .fill(t.palette.surface.surface)
-        .corner_radius(CornerRadius::same(RADIUS_M as u8))
+        .corner_radius(CornerRadius::same(crate::tokens::spatial::RADIUS_L as u8))
+        .stroke(Stroke::new(STROKE_WIDTH, t.palette.border.subtle))
         .inner_margin(Margin::same(s.space_3 as i8))
-        .shadow(egui::Shadow {
-            offset: [0, 2],
-            blur: 6,
-            spread: 0,
-            color: t.palette.overlay.shadow_ambient,
-        })
+        .shadow(t.elevation.raised)
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             add_contents(ui);
@@ -32,9 +28,8 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
     let clip_rect = ui.clip_rect();
     let available = ui.available_width();
 
-    let line_h = 2.0;
-    let row_h = s.row_s;
-    let header_height = s.space_2 + line_h + s.space_2 + row_h + s.space_2;
+    let row_h = s.row_m;
+    let header_height = s.space_2 + row_h + s.space_2;
 
     let (alloc_rect, _) =
         ui.allocate_exact_size(Vec2::new(available, header_height), egui::Sense::hover());
@@ -53,41 +48,39 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
         let bg_rect =
             Rect::from_min_size(egui::pos2(paint_x, paint_y), Vec2::new(available, header_height));
         ui.painter().rect_filled(bg_rect, RADIUS_M, t.palette.surface.surface);
-        ui.painter().line_segment(
-            [
-                egui::pos2(paint_x, paint_y + header_height),
-                egui::pos2(paint_x + available, paint_y + header_height),
-            ],
-            egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
-        );
     }
 
-    let line_rect =
-        Rect::from_min_size(egui::pos2(paint_x, paint_y + s.space_2), Vec2::new(24.0, line_h));
-    ui.painter().rect_filled(line_rect, RADIUS_S, t.palette.accent.primary);
-
-    let row_rect = Rect::from_min_size(
-        egui::pos2(paint_x, paint_y + s.space_2 + line_h + s.space_2),
-        Vec2::new(available, row_h),
+    // Subtle bottom divider line
+    ui.painter().line_segment(
+        [
+            egui::pos2(paint_x, paint_y + header_height),
+            egui::pos2(paint_x + available, paint_y + header_height),
+        ],
+        egui::Stroke::new(STROKE_WIDTH, t.palette.border.subtle),
     );
+
+    let row_rect =
+        Rect::from_min_size(egui::pos2(paint_x, paint_y + s.space_2), Vec2::new(available, row_h));
     let baseline_y = row_rect.center().y;
-    let mut cursor_x = row_rect.min.x;
+    let mut cursor_x = row_rect.min.x + s.space_1;
 
-    ui.painter().text(
-        egui::pos2(cursor_x + s.component.icon_slot_width / 2.0, baseline_y),
-        egui::Align2::CENTER_CENTER,
-        icon,
-        TextRole::BodyS.font_id(),
-        t.palette.text.muted,
-    );
-    cursor_x += s.component.icon_slot_width + s.space_2;
+    if !icon.is_empty() {
+        ui.painter().text(
+            egui::pos2(cursor_x + s.component.icon_slot_width / 2.0, baseline_y),
+            egui::Align2::CENTER_CENTER,
+            icon,
+            TextRole::Body.font_id(),
+            t.palette.text.secondary,
+        );
+        cursor_x += s.component.icon_slot_width + s.space_2;
+    }
 
     ui.painter().text(
         egui::pos2(cursor_x, baseline_y),
         egui::Align2::LEFT_CENTER,
         title,
-        TextRole::Micro.font_id(),
-        t.palette.text.muted,
+        TextRole::Title.font_id(),
+        t.palette.text.primary,
     );
 
     if let Some(n) = count {
@@ -95,7 +88,7 @@ pub fn section_header(ui: &mut egui::Ui, icon: &str, title: &str, count: Option<
             egui::pos2(row_rect.max.x - s.space_2, baseline_y),
             egui::Align2::RIGHT_CENTER,
             n.to_string(),
-            TextRole::Micro.font_id(),
+            TextRole::Caption.font_id(),
             t.palette.text.muted,
         );
     }

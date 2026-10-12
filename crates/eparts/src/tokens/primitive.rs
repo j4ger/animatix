@@ -11,39 +11,39 @@
 
 use egui::Color32;
 
-// ── Core palette ──
+// ── Core palette (Electric Indigo + Studio Status Accents) ──
 
-pub const BLUE_600: Color32 = Color32::from_rgb(60, 84, 220);
+pub const BLUE_600: Color32 = Color32::from_rgb(70, 94, 230);
 pub const BLUE_500: Color32 = Color32::from_rgb(84, 110, 255);
-pub const BLUE_400: Color32 = Color32::from_rgb(120, 145, 255);
+pub const BLUE_400: Color32 = Color32::from_rgb(115, 138, 255);
 
-pub const CYAN_500: Color32 = Color32::from_rgb(137, 200, 235);
+pub const CYAN_500: Color32 = Color32::from_rgb(56, 189, 248);
 
-pub const GREEN_500: Color32 = Color32::from_rgb(80, 200, 140);
-pub const AMBER_500: Color32 = Color32::from_rgb(255, 196, 92);
-pub const RED_500: Color32 = Color32::from_rgb(255, 100, 100);
-pub const PURPLE_500: Color32 = Color32::from_rgb(156, 39, 176);
+pub const GREEN_500: Color32 = Color32::from_rgb(16, 185, 129);
+pub const AMBER_500: Color32 = Color32::from_rgb(245, 158, 11);
+pub const RED_500: Color32 = Color32::from_rgb(244, 63, 94);
+pub const PURPLE_500: Color32 = Color32::from_rgb(168, 85, 247);
 
-// ── Surface / text palette ──
+// ── Surface / text palette (Obsidian Studio) ──
 
-pub const GRAY_950: Color32 = Color32::from_rgb(10, 12, 16);
-pub const GRAY_900: Color32 = Color32::from_rgb(16, 18, 23);
-pub const GRAY_850: Color32 = Color32::from_rgb(22, 25, 31);
-pub const GRAY_800: Color32 = Color32::from_rgb(30, 34, 42);
-pub const GRAY_700: Color32 = Color32::from_rgb(42, 47, 57);
-pub const GRAY_600: Color32 = Color32::from_rgb(60, 66, 78);
-pub const GRAY_500: Color32 = Color32::from_rgb(90, 97, 112);
-pub const GRAY_400: Color32 = Color32::from_rgb(130, 138, 153);
+pub const GRAY_950: Color32 = Color32::from_rgb(14, 16, 19);
+pub const GRAY_900: Color32 = Color32::from_rgb(20, 23, 28);
+pub const GRAY_850: Color32 = Color32::from_rgb(26, 30, 36);
+pub const GRAY_800: Color32 = Color32::from_rgb(32, 36, 44);
+pub const GRAY_700: Color32 = Color32::from_rgb(41, 47, 58);
+pub const GRAY_600: Color32 = Color32::from_rgb(51, 59, 73);
+pub const GRAY_500: Color32 = Color32::from_rgb(100, 116, 139);
+pub const GRAY_400: Color32 = Color32::from_rgb(148, 163, 184);
 #[allow(dead_code)] // Reserved for future light-theme / elevated-surface tokens
-pub const GRAY_300: Color32 = Color32::from_rgb(170, 178, 192);
+pub const GRAY_300: Color32 = Color32::from_rgb(180, 190, 205);
 #[allow(dead_code)] // Reserved for future light-theme / elevated-surface tokens
-pub const GRAY_200: Color32 = Color32::from_rgb(210, 216, 228);
-pub const GRAY_100: Color32 = Color32::from_rgb(232, 236, 245);
+pub const GRAY_200: Color32 = Color32::from_rgb(220, 226, 235);
+pub const GRAY_100: Color32 = Color32::from_rgb(248, 250, 252);
 
 // ── Domain raw colors ──
 
 /// Canvas background (separate from surface palette).
-pub const CANVAS_BG: Color32 = Color32::from_rgb(8, 8, 12);
+pub const CANVAS_BG: Color32 = Color32::from_rgb(8, 9, 11);
 
 /// Diagnostic phase colors.
 pub const DIAG_PARSE: Color32 = Color32::from_rgb(137, 180, 250);

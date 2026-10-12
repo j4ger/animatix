@@ -119,7 +119,7 @@ pub(crate) fn transport_ui(
         .unwrap_or(1);
     ui.menu_button(
         egui::RichText::new(SPEEDS[si].1)
-            .monospace()
+            .font(TextRole::MonoDigits.font_id())
             .size(TextRole::BodyS.size())
             .color(theme.palette.text.secondary),
         |ui| {
@@ -171,15 +171,25 @@ pub(crate) fn transport_ui(
         }
     }
 
-    // Timecode + duration + fps
+    // Timecode + duration + fps badge capsule
     let current_tc = preview.playback.timecode_string();
     let fps_val = preview.playback.fps;
-    ui.add(
-        egui::Label::new(
-            egui::RichText::new(format!("{current_tc}  {fps_val:.0}fps"))
-                .font(TextRole::Mono.font_id())
-                .color(theme.palette.text.primary),
-        )
-        .selectable(false),
-    );
+    let tc_text = format!("{current_tc}  {fps_val:.0}fps");
+
+    egui::Frame::new()
+        .fill(theme.palette.surface.surface)
+        .corner_radius(egui::CornerRadius::same(crate::app::design_tokens::spatial::RADIUS_S as u8))
+        .stroke(egui::Stroke::new(1.0, theme.palette.border.subtle))
+        .inner_margin(egui::Margin::symmetric(8, 3))
+        .show(ui, |ui| {
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(tc_text)
+                        .font(TextRole::MonoDigits.font_id())
+                        .size(TextRole::MonoDigits.size())
+                        .color(theme.palette.text.primary),
+                )
+                .selectable(false),
+            );
+        });
 }

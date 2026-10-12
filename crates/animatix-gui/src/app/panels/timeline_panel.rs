@@ -1640,19 +1640,26 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             ui.id().with(("kf_diamond", track_idx, kf_ms)),
                             Sense::click_and_drag(),
                         );
+                        if dresp.hovered() || is_ms || is_drag || is_act {
+                            painter.circle_filled(
+                                Pos2::new(draw_x, cy),
+                                ds * 1.8,
+                                Color32::from_rgba_unmultiplied(kc.r(), kc.g(), kc.b(), 45),
+                            );
+                        }
                         painter.add(egui::Shape::convex_polygon(
                             vec![
                                 Pos2::new(draw_x, cy - ds),
                                 Pos2::new(draw_x + ds, cy),
                                 Pos2::new(draw_x, cy + ds),
-                                Pos2::new(kf_x - ds, cy),
+                                Pos2::new(draw_x - ds, cy),
                             ],
                             if dresp.hovered() || is_drag {
                                 kc
                             } else {
-                                kc.linear_multiply(0.7)
+                                kc.linear_multiply(0.85)
                             },
-                            Stroke::NONE,
+                            Stroke::new(0.5, Color32::from_rgba_unmultiplied(255, 255, 255, 70)),
                         ));
 
                         if dresp.hovered() && !is_drag {
@@ -2128,6 +2135,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     ui.id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)),
                                     Sense::click_and_drag(),
                                 );
+                                if dresp.hovered() || is_ms || is_drag || is_act {
+                                    painter.circle_filled(
+                                        Pos2::new(draw_x, cy),
+                                        ds * 1.8,
+                                        Color32::from_rgba_unmultiplied(kc.r(), kc.g(), kc.b(), 45),
+                                    );
+                                }
                                 painter.add(egui::Shape::convex_polygon(
                                     vec![
                                         Pos2::new(draw_x, cy - ds),
@@ -2138,9 +2152,9 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                     if dresp.hovered() || is_drag {
                                         kc
                                     } else {
-                                        kc.linear_multiply(0.7)
+                                        kc.linear_multiply(0.85)
                                     },
-                                    Stroke::NONE,
+                                    Stroke::new(0.5, Color32::from_rgba_unmultiplied(255, 255, 255, 70)),
                                 ));
 
                                 if !is_drag {

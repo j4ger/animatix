@@ -6,18 +6,21 @@
 
 use egui::FontId;
 
-/// 8-level type scale based on a 1.2 ratio.
+/// 11-level type scale with weight and tabular digit specialisations.
 ///
-/// Each variant maps to a size and a font family (proportional or monospace).
+/// Each variant maps to a size and a font family (proportional, medium, semibold, or monospace).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TextRole {
     Display,
     Heading,
+    Subheading,
     Title,
     Body,
+    BodyMedium,
     BodyS,
     Caption,
     Mono,
+    MonoDigits,
     Micro,
 }
 
@@ -25,13 +28,16 @@ impl TextRole {
     /// Returns the `egui::FontId` for this role.
     pub fn font_id(&self) -> FontId {
         match self {
-            Self::Display => FontId::proportional(20.0),
-            Self::Heading => FontId::proportional(18.0),
-            Self::Title => FontId::proportional(15.0),
+            Self::Display => FontId::proportional(26.0),
+            Self::Heading => FontId::proportional(20.0),
+            Self::Subheading => FontId::proportional(16.0),
+            Self::Title => FontId::proportional(14.0),
             Self::Body => FontId::proportional(13.0),
+            Self::BodyMedium => FontId::proportional(13.0),
             Self::BodyS => FontId::proportional(12.0),
             Self::Caption => FontId::proportional(11.0),
             Self::Mono => FontId::monospace(12.0),
+            Self::MonoDigits => FontId::monospace(12.0),
             Self::Micro => FontId::proportional(10.0),
         }
     }
@@ -39,13 +45,16 @@ impl TextRole {
     /// Returns the font size in pixels.
     pub const fn size(&self) -> f32 {
         match self {
-            Self::Display => 20.0,
-            Self::Heading => 18.0,
-            Self::Title => 15.0,
+            Self::Display => 26.0,
+            Self::Heading => 20.0,
+            Self::Subheading => 16.0,
+            Self::Title => 14.0,
             Self::Body => 13.0,
+            Self::BodyMedium => 13.0,
             Self::BodyS => 12.0,
             Self::Caption => 11.0,
             Self::Mono => 12.0,
+            Self::MonoDigits => 12.0,
             Self::Micro => 10.0,
         }
     }

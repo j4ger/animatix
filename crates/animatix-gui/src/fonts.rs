@@ -23,11 +23,46 @@ const FALLBACK_PROBES: &[char] = &[
     'ก',  // Thai
 ];
 
-/// Install egui's built-in fonts, Phosphor icons, and system fallback fonts.
+const GEIST_REGULAR: &[u8] = include_bytes!("../assets/fonts/Geist-Regular.ttf");
+const GEIST_MEDIUM: &[u8] = include_bytes!("../assets/fonts/Geist-Medium.ttf");
+const GEIST_SEMIBOLD: &[u8] = include_bytes!("../assets/fonts/Geist-SemiBold.ttf");
+const JB_MONO_REGULAR: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf");
+const JB_MONO_MEDIUM: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf");
+
+/// Install Geist Sans, JetBrains Mono, Phosphor icons, and system fallback fonts.
 pub(crate) fn install_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
+
+    // 1. Install Geist Sans and JetBrains Mono font faces
+    fonts
+        .font_data
+        .insert("GeistRegular".to_owned(), Arc::new(FontData::from_static(GEIST_REGULAR)));
+    fonts
+        .font_data
+        .insert("GeistMedium".to_owned(), Arc::new(FontData::from_static(GEIST_MEDIUM)));
+    fonts
+        .font_data
+        .insert("GeistSemiBold".to_owned(), Arc::new(FontData::from_static(GEIST_SEMIBOLD)));
+    fonts.font_data.insert(
+        "JetBrainsMonoRegular".to_owned(),
+        Arc::new(FontData::from_static(JB_MONO_REGULAR)),
+    );
+    fonts.font_data.insert(
+        "JetBrainsMonoMedium".to_owned(),
+        Arc::new(FontData::from_static(JB_MONO_MEDIUM)),
+    );
+
+    // 2. Put Geist at the front of Proportional and JetBrains Mono at the front of Monospace
+    let prop_family = fonts.families.entry(FontFamily::Proportional).or_default();
+    prop_family.insert(0, "GeistRegular".to_owned());
+
+    let mono_family = fonts.families.entry(FontFamily::Monospace).or_default();
+    mono_family.insert(0, "JetBrainsMonoRegular".to_owned());
+
+    // 3. Register Phosphor icons and system fallback glyphs
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
     add_system_fallbacks(&mut fonts, system_fallbacks());
+
     ctx.set_fonts(fonts);
 }
 

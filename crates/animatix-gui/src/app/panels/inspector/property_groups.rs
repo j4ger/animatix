@@ -682,8 +682,22 @@ pub(crate) fn render_property_row(
             center + Vec2::new(-half, 0.0),
         ];
         if entry.has_keyframe_at_current_time {
+            // Jewel ambient halo
+            ui.painter().circle_filled(
+                center,
+                half * 1.8,
+                Color32::from_rgba_unmultiplied(
+                    theme.palette.status.warning.r(),
+                    theme.palette.status.warning.g(),
+                    theme.palette.status.warning.b(),
+                    40,
+                ),
+            );
             ui.painter().add(egui::Shape::convex_polygon(points, kf_color, Stroke::NONE));
         } else {
+            if kf_btn_resp.hovered() {
+                ui.painter().circle_filled(center, half * 1.5, theme.palette.surface.hover);
+            }
             ui.painter().add(egui::Shape::convex_polygon(
                 points,
                 Color32::TRANSPARENT,
@@ -873,7 +887,7 @@ pub(crate) fn render_property_row(
                                 ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(format!("{:.2}", nv))
-                                            .monospace()
+                                            .font(TextRole::MonoDigits.font_id())
                                             .size(TextRole::Micro.size())
                                             .color(theme.palette.text.primary),
                                     )
@@ -1052,7 +1066,7 @@ pub(crate) fn render_property_row(
                             ui.add(
                                 egui::Label::new(
                                     egui::RichText::new(color_to_hex_rgba(color))
-                                        .monospace()
+                                        .font(TextRole::MonoDigits.font_id())
                                         .size(TextRole::Micro.size())
                                         .color(theme.palette.text.muted),
                                 )

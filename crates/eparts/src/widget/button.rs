@@ -249,9 +249,12 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
+                    let is_pressed = response.is_pointer_button_down_on();
+                    let y_shift = if is_pressed { 1.0 } else { 0.0 };
+
                     if let Some(i) = self.icon {
                         ui.painter().text(
-                            rect.center(),
+                            rect.center() + Vec2::new(0.0, y_shift),
                             egui::Align2::CENTER_CENTER,
                             i,
                             icon_font,
@@ -338,8 +341,10 @@ impl egui::Widget for Button {
                         self.icon_color.unwrap_or(slot.fg)
                     };
 
+                    let is_pressed = response.is_pointer_button_down_on();
+                    let y_shift = if is_pressed { 1.0 } else { 0.0 };
                     let mut cursor_x = rect.min.x + pad_x;
-                    let baseline_y = rect.center().y;
+                    let baseline_y = rect.center().y + y_shift;
 
                     if let Some(icon) = self.icon {
                         ui.painter().text(
@@ -422,11 +427,23 @@ impl egui::Widget for Button {
                     &slot_group.normal
                 };
 
+                let is_pressed = response.is_pointer_button_down_on();
+                let y_shift = if is_pressed { 1.0 } else { 0.0 };
+
                 ui.painter().rect_filled(rect, radius, slot.bg);
+
+                // Subtle top rim highlight for tactile elevated chassis
+                if !is_pressed && !self.disabled && radius >= 1.0 {
+                    let top_edge = egui::Rect::from_min_max(
+                        egui::pos2(rect.min.x + radius * 0.5, rect.min.y),
+                        egui::pos2(rect.max.x - radius * 0.5, rect.min.y + 1.0),
+                    );
+                    ui.painter().rect_filled(top_edge, 0.5, t.palette.border.rim_highlight);
+                }
 
                 if !self.loading {
                     let mut cursor_x = rect.min.x + self.size.pad_x_for(d);
-                    let baseline_y = rect.center().y;
+                    let baseline_y = rect.center().y + y_shift;
 
                     if icon_width > 0.0 {
                         if let Some(icon) = self.icon {

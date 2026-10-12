@@ -354,7 +354,7 @@ impl<'a> NumberField<'a> {
             ),
         );
 
-        inner_resp
+        inner_resp.on_hover_cursor(egui::CursorIcon::ResizeHorizontal)
     }
 }
 

@@ -131,13 +131,13 @@ impl<'a> TabBar<'a> {
                     egui::StrokeKind::Inside,
                 );
 
-                // Active indicator stripe at the bottom of the pill.
-                let indicator_h = 3.0;
-                let indicator_rect = Rect::from_min_size(
-                    egui::pos2(pill.min.x, pill.max.y - indicator_h),
-                    Vec2::new(pill.width(), indicator_h),
+                // Active indicator capsule at the bottom of the pill.
+                let indicator_w = (pill.width() * 0.6).min(32.0).max(12.0);
+                let indicator_rect = Rect::from_center_size(
+                    egui::pos2(pill.center().x, pill.max.y - 2.0),
+                    Vec2::new(indicator_w, 2.5),
                 );
-                ui.painter().rect_filled(indicator_rect, 0.0, slot.indicator);
+                ui.painter().rect_filled(indicator_rect, 1.25, slot.indicator);
             }
 
             ui.painter().text(

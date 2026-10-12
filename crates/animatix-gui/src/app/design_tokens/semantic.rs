@@ -97,7 +97,7 @@ pub mod timeline {
     pub const KF_FLASH: Color32 = p::KF_FLASH_RAW;
 
     pub fn row_alt() -> Color32 {
-        Color32::from_rgba_unmultiplied(255, 255, 255, 2)
+        Color32::from_rgba_unmultiplied(255, 255, 255, 4)
     }
 }
 

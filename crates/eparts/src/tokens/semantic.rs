@@ -132,6 +132,10 @@ pub mod border {
     pub const DEFAULT: Color32 = p::GRAY_700;
     pub const HOVER: Color32 = p::GRAY_600;
     pub const FOCUS: Color32 = p::BLUE_500;
+    /// Subtle divider stroke (semi-transparent white highlight on dark).
+    pub const SUBTLE: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 12);
+    /// 1px top edge highlight / rim bevel for elevated containers.
+    pub const RIM_HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 24);
 }
 
 // ── Lines (neutral grid/guide) ─────────────────────────────────────────
@@ -176,5 +180,9 @@ pub mod overlay {
     }
     pub fn shadow_direct() -> Color32 {
         Color32::from_rgba_unmultiplied(0, 0, 0, 60)
+    }
+    /// Translucent floating HUD background (pill capsule over canvas).
+    pub fn floating_hud_bg() -> Color32 {
+        Color32::from_rgba_unmultiplied(20, 23, 28, 230)
     }
 }

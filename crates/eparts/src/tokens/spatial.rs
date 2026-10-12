@@ -24,12 +24,15 @@ pub const ROW_L: f32 = 28.0;
 pub const STROKE_WIDTH: f32 = 1.0;
 pub const STROKE_WIDTH_THICK: f32 = 1.5;
 pub const STROKE_WIDTH_THIN: f32 = 0.5;
+pub const STROKE_RIM_HIGHLIGHT: f32 = 1.0;
 
-// ── Corner radii ──
-pub const RADIUS_S: f32 = 2.0;
-pub const RADIUS_M: f32 = 4.0;
-pub const RADIUS_L: f32 = 6.0;
-pub const RADIUS_XL: f32 = 8.0;
+// ── Corner radii (Modern Optical Nested Scale) ──
+pub const RADIUS_XS: f32 = 3.0;
+pub const RADIUS_S: f32 = 4.0;
+pub const RADIUS_M: f32 = 6.0;
+pub const RADIUS_L: f32 = 10.0;
+pub const RADIUS_XL: f32 = 14.0;
+pub const RADIUS_PILL: f32 = 999.0;
 
 // ── Reusable component dimensions ──
 pub mod toggle {
