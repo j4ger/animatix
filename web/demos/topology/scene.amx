@@ -23,10 +23,9 @@ wash_raft: Ellipse, size: (540, 540), at: (920, 380),
   blend: "screen"
 
 // ── Header Narration ───────────────────────────────────────────────────────
-header: Col, anchor: scene.top, offset: (0, 44), gap: 6, align: "center" {
-  badge: Chip, label: "SYSTEM ARCHITECTURE", width: 170, height: 26, color: surface.primary, text_color: accent.primary
-  title: Text, text: "The Distributed Event Fabric", font_size: 34, font_weight: "bold", color: text.primary
-  subtitle: Text, text: "High-throughput ingress, partitioned event streaming, and raft consensus", font_size: 15, color: text.secondary
+header: Row, anchor: scene.top, offset: (0, 48), gap: 12, align: "center" {
+  badge: Chip, label: "EVENT FABRIC", width: 130, height: 24, color: surface.primary, text_color: accent.primary
+  title: Text, text: "TOPOLOGY & CONSENSUS ROUTING", font_size: 13, font_weight: 600, color: text.muted
 }
 
 // ── Architecture Boundaries ────────────────────────────────────────────────

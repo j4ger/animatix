@@ -30,8 +30,8 @@
         </p>
 
         <div class="hero-actions">
-          <a class="btn primary" href="./tour/">Explore the Tour <span class="arrow">→</span></a>
-          <a class="btn secondary" href="./demos/">Browse Demos</a>
+          <a class="btn primary" href="./demos/">Explore Showcase <span class="arrow">→</span></a>
+          <a class="btn secondary" href="./tour/">Interactive Tour</a>
         </div>
 
         <div class="hero-quick-install">
@@ -112,7 +112,7 @@
         <div class="pillar-card">
           <div class="pillar-tag">01 / LAYOUT FIRST</div>
           <h3>Anchors &amp; Relative Grids</h3>
-          <p>Actors anchor to coordinate bounds and parent layouts. Relative alignments adapt without coordinate drift.</p>
+          <p>Actors anchor to coordinate bounds and parent layouts without coordinate drift.</p>
         </div>
         <div class="pillar-card">
           <div class="pillar-tag">02 / TEMPORAL VERBS</div>
@@ -122,7 +122,7 @@
         <div class="pillar-card">
           <div class="pillar-tag">03 / REACTIVE IR</div>
           <h3>Compiled Bytecode</h3>
-          <p>Frame-time closures and <code class="inline">always</code> blocks execute through an IR executor with zero allocations.</p>
+          <p>Frame-time closures and <code class="inline">always</code> blocks execute at 60 FPS in bytecode with zero allocations.</p>
         </div>
       </div>
     </section>
@@ -146,9 +146,8 @@
           </div>
           <h3>Pure Rust &amp; WebGPU Pipeline</h3>
           <p>
-            Hardware-accelerated 2D vector rasterization powered by Vello and custom WGSL compute passes.
-            Compiles natively for macOS, Linux, and Windows, or down to a 5.5 MB slim Wasm module
-            for zero-dependency web execution.
+            Hardware-accelerated 2D vector rasterization powered by Vello and custom WGSL compute shaders.
+            Compiles natively for desktop or down to a 5.5 MB slim Wasm module for web playback.
           </p>
           <div class="bento-spec-pills">
             <span class="pill-spec">Vello Renderer</span>
@@ -166,7 +165,7 @@
           </div>
           <h3>Math &amp; Code Typography</h3>
           <p>
-            Mathematical notation, LaTeX-grade equations, and syntax-highlighted code blocks compiled
+            Mathematical notation, LaTeX-grade equations, and syntax-highlighted code compiled
             directly via Typst into vector glyph actors.
           </p>
           <div class="bento-spec-pills">
@@ -183,8 +182,7 @@
           </div>
           <h3>GPU Shader Scopes</h3>
           <p>
-            Real-time Gaussian blur, bloom, motion blur, chromatic aberration, vignette,
-            and refractive glass materials executing per-frame on the GPU.
+            Real-time Gaussian blur, bloom, chromatic aberration, and frosted glass materials executing per frame.
           </p>
           <div class="bento-spec-pills">
             <span class="pill-spec">Bloom &amp; Blur</span>
@@ -268,39 +266,43 @@
           </div>
           <div class="demo-content">
             <span class="demo-tag">Fourier Analysis · 5 Scenes</span>
-            <h4>Circles That Draw a Square Wave</h4>
+            <h4>Harmonic Fourier Circles</h4>
             <p>Rotating dials tracing harmonic waves to reconstruct a square wave in real-time.</p>
-            <span class="demo-link">Explore demo →</span>
+            <span class="demo-link">Explore walkthrough →</span>
           </div>
         </a>
 
-        <a class="demo-card" href="./tour/">
+        <a class="demo-card" href="./demos/topology/">
           <div class="demo-poster">
-            <span class="poster-badge">Interactive Editor</span>
-            <amx-player src="./tour/scenes/components.amx" sealed data-hoverplay
-                        aspect="16:9" title="Imported components playing a stagger"></amx-player>
+            <span class="poster-badge">Hover to play</span>
+            <amx-player src="./demos/topology/scene.amx" sealed data-hoverplay
+                        aspect="16:9" title="The distributed event fabric architecture"></amx-player>
           </div>
           <div class="demo-content">
-            <span class="demo-tag">Interactive Tour · 11 Chapters</span>
-            <h4>The Language Tour</h4>
-            <p>From declaring your first actor to building reusable components, editable live in the browser.</p>
-            <span class="demo-link">Take the tour →</span>
+            <span class="demo-tag">Cloud Infrastructure · 3 Scenes</span>
+            <h4>Distributed Event Fabric</h4>
+            <p>High-throughput ingress, partitioned log streaming, and Raft consensus with smart routing.</p>
+            <span class="demo-link">Explore walkthrough →</span>
           </div>
         </a>
 
-        <a class="demo-card" href="./gallery.html">
+        <a class="demo-card" href="./demos/matrix/">
           <div class="demo-poster">
-            <span class="poster-badge">Theater Mode</span>
-            <amx-player src="./demos/transformer/scenes/attention.amx" sealed data-hoverplay
-                        aspect="16:9" title="Attention weights as bars"></amx-player>
+            <span class="poster-badge">Hover to play</span>
+            <amx-player src="./demos/matrix/rotation.amx" sealed data-hoverplay
+                        aspect="16:9" title="A 2×2 rotation tracking basis vectors"></amx-player>
           </div>
           <div class="demo-content">
-            <span class="demo-tag">Showcase · Fullscreen Ready</span>
-            <h4>The Scene Gallery</h4>
-            <p>Standalone animations with instant source inspection, timeline scrubbing, and theater mode.</p>
-            <span class="demo-link">Open gallery →</span>
+            <span class="demo-tag">Linear Algebra · 3 Scenes</span>
+            <h4>A Matrix Is a Machine</h4>
+            <p>Spatial transformation: watch a 2×2 matrix bend the coordinate grid and track basis vectors.</p>
+            <span class="demo-link">Explore walkthrough →</span>
           </div>
         </a>
+      </div>
+
+      <div style="display: flex; justify-content: center; margin-top: 32px;">
+        <a class="btn secondary" href="./demos/">Browse All Showcase Works →</a>
       </div>
     </section>
 

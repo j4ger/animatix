@@ -47,12 +47,7 @@
     <section id="s1">
       <div class="sec-head"><span class="sec-num">01</span><h2>Actors &amp; keyframes</h2></div>
       <p>
-        A scene is a list of <strong>actors</strong> — one per line, a type and
-        properties — and a list of <strong>keyframes</strong>. A keyframe stamp
-        (<code class="inline">#1.6s</code>) starts a beat; assignments animated
-        with a <code class="inline">[duration]</code> interpolate from the
-        previous beat. Relative stamps (<code class="inline">#+1s</code>)
-        chain off the last beat.
+        A scene is a list of <strong>actors</strong> (types and properties) and <strong>keyframes</strong>. A keyframe stamp (<code class="inline">#1.6s</code>) marks a beat, and assignments interpolate from the previous beat.
       </p>
       <pre><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">240</span>, <span class="num">240</span>), at: (<span class="num">420</span>, <span class="num">390</span>), corner_radius: <span class="num">18</span>,
   fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f5b942"</span>, <span class="str">"#ff8666"</span>})
@@ -78,13 +73,7 @@ box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>,
     <section id="s2">
       <div class="sec-head"><span class="sec-num">02</span><h2>Timing: sequence, stagger, easing</h2></div>
       <p>
-        Choreography blocks compose actions: <code class="inline">stagger</code>
-        overlaps a group on a delay curve, <code class="inline">sequence</code>
-        runs it back to back. Every animated assignment takes a named ease —
-        or an easing <em>function</em> when you outgrow the names. And the
-        cast itself is generated: one <code class="inline">Row</code>
-        container plus a compile-time <code class="inline">for</code> over an
-        array of colors, instead of five copied lines.
+        Choreography blocks compose actions: <code class="inline">stagger</code> overlaps verbs on a delay curve, <code class="inline">sequence</code> runs them back-to-back, and assignments take named easing curves.
       </p>
       <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span>, offset: (<span class="num">0</span>, -<span class="num">40</span>) {
   <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">text.primary</span>, <span class="cmt">…</span>} {
@@ -117,14 +106,7 @@ box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>,
     <section id="s3">
       <div class="sec-head"><span class="sec-num">03</span><h2>Motion actions</h2></div>
       <p>
-        Common verbs are built in — <code class="inline">shift</code>,
-        <code class="inline">rotate</code>, <code class="inline">scale</code>,
-        <code class="inline">shake</code>, <code class="inline">pulse</code> —
-        so the choreography of an explanation is one line per move. Entrances
-        and exits (<code class="inline">fade-in</code>,
-        <code class="inline">draw-in</code>, <code class="inline">wipe-in</code>,
-        <code class="inline">reveal-in</code> and their <code class="inline">-out</code>
-        twins) gate opacity, strokes and fills.
+        Common motion verbs are built-in: <code class="inline">shift</code>, <code class="inline">rotate</code>, <code class="inline">scale</code>, and entrance pairs (<code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">reveal-in</code>) gate opacity and geometry.
       </p>
       <pre><span class="at">#1.5s</span>
 <span class="kw">shift</span> actor [by: (<span class="num">160</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>, anticipate: <span class="num">90ms</span>]
@@ -152,12 +134,7 @@ actor.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span
     <section id="s4">
       <div class="sec-head"><span class="sec-num">04</span><h2>Morphing</h2></div>
       <p>
-        Re-declaring an actor at a later keyframe morphs it — shape to shape,
-        with <strong>strategies</strong>: <code class="inline">auto</code>,
-        <code class="inline">match</code> (match by vertex), or a
-        <code class="inline">path_arc</code> hint for the travel, plus
-        <code class="inline">stretch</code> for normalization. Paths morph
-        through their control points.
+        Re-declaring an actor at a later keyframe automatically morphs its vector path using strategies: <code class="inline">auto</code>, <code class="inline">match</code> (vertex matching), or <code class="inline">path_arc</code> trajectory hints.
       </p>
       <pre><span class="at">#2s</span>
 circle: <span class="prop">Polygon</span>, points: {(<span class="num">85</span>, <span class="num">0</span>), (<span class="num">85</span>, <span class="num">35</span>), <span class="cmt">… sixteen-point square …</span>}, fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f2efe7"</span>, <span class="str">"#b9b3a6"</span>}) [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
@@ -179,15 +156,7 @@ poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -
     <section id="s5">
       <div class="sec-head"><span class="sec-num">05</span><h2>GPU filters &amp; effects</h2></div>
       <p>
-        Effects are declared as labelled children of a
-        <code class="inline">Filter</code> scope and run in application order;
-        their parameters are ordinary properties, so they <strong>keyframe
-        like everything else</strong>. Fourteen ship built in —
-        <code class="inline">Blur</code>, <code class="inline">Bloom</code>,
-        <code class="inline">ColorGrade</code>,
-        <code class="inline">Vignette</code>, <code class="inline">MotionBlur</code>,
-        <code class="inline">DropShadow</code>… — each a small WGSL program, and
-        each can read the frame as it looked before the chain ran.
+        Post-processing effects (<code class="inline">Blur</code>, <code class="inline">Bloom</code>, <code class="inline">ColorGrade</code>, <code class="inline">Vignette</code>) run as GPU shader passes inside a <code class="inline">Filter</code> scope. Their properties keyframe like any actor.
       </p>
       <pre>panel: <span class="prop">Filter</span>, anchor: scene.center {
   soft: <span class="prop">Blur</span>, radius: <span class="num">0</span>
@@ -213,13 +182,7 @@ panel.glow.intensity = <span class="num">1.0</span> [<span class="num">0.5s</spa
       </figure>
 
       <p>
-        One thing no chain can reach is the picture <em>underneath</em> the
-        scope: an effect reads its own content, never the plate behind it.
-        <code class="inline">Glass</code> is the scope for that — it copies the
-        region of the finished frame behind its own rect, runs a chain on the
-        copy, and paints it back inside the panel's rounded corners. It paints
-        nothing itself, so the card you see is its first child and the label on
-        it stays sharp.
+        <code class="inline">Glass</code> composites backdrop blur: it copies the finished pixels behind its rect, runs a blur pass, and paints sharp children on top.
       </p>
       <pre>card: <span class="prop">Glass</span>, at: (<span class="num">640</span>, <span class="num">360</span>), size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span> {
   frost: <span class="prop">Blur</span>, radius: <span class="num">0</span>
@@ -246,15 +209,7 @@ frost.radius = <span class="num">22</span> [<span class="num">900ms</span>, ease
     <section id="s6">
       <div class="sec-head"><span class="sec-num">06</span><h2>Light &amp; camera</h2></div>
       <p>
-        What reads as production value is a stack of one-line moves. A warm key
-        and a cool fill on <code class="inline">blend: "screen"</code>, so they
-        can only ever <em>add</em> light. A
-        <code class="inline">dash_pattern</code> whose offset keeps travelling
-        after the entrances have landed. A <code class="inline">Bloom</code> that
-        spends the frame as it looked before the chain ran. And last — a
-        <code class="inline">camera</code> that pushes in on a scene that is
-        already worth looking at. Each is an ordinary property on an ordinary
-        actor.
+        Atmospheric lighting combines screen-blended radial ramps with live camera moves (<code class="inline">camera.zoom</code>, <code class="inline">camera.at</code>) and animated dash offsets.
       </p>
       <pre>key: <span class="prop">Ellipse</span>, size: (<span class="num">760</span>, <span class="num">760</span>), blend: <span class="str">"screen"</span>,
   fill_gradient: radial((<span class="num">0.5</span>, <span class="num">0.5</span>), <span class="num">0.5</span>,
@@ -286,14 +241,7 @@ camera.at = (<span class="num">-60</span>, <span class="num">20</span>) [<span c
     <section id="s7">
       <div class="sec-head"><span class="sec-num">07</span><h2>Text &amp; math</h2></div>
       <p>
-        A Typst-powered text compiler handles the typography:
-        <code class="inline">Typst</code> renders markup and math,
-        <code class="inline">Code</code> highlights source in several languages
-        with colorscheme-following token colors, <code class="inline">Equation</code>
-        collects its <code class="inline">Fragment</code> children into a single
-        math document, and
-        <code class="inline">Svg</code>/<code class="inline">Image</code> drop
-        vector and raster assets straight into the scene.
+        Typst compiles LaTeX-grade mathematics (<code class="inline">Typst</code>), formulas, and syntax-highlighted code blocks (<code class="inline">Code</code>) directly into vector glyph actors.
       </p>
       <pre>eq1: <span class="prop">Typst</span>, text: <span class="str">"$ x(t) = sum_(k) A_k dot sin(2 pi f_k t) $"</span>,
   font_size: <span class="num">30</span>, color: <span class="prop">text.primary</span>, anchor: scene.center
@@ -315,14 +263,7 @@ code1: <span class="prop">Code</span>, code: <span class="str">"def attention(q,
     <section id="s8">
       <div class="sec-head"><span class="sec-num">08</span><h2>Plots &amp; data</h2></div>
       <p>
-        The plot family is native:
-        <code class="inline">Graph</code> hosts curves in data coordinates,
-        <code class="inline">PlotCurve</code> is cartesian, polar, parametric
-        or implicit, and <code class="inline">VectorField</code>,
-        <code class="inline">Heatmap</code>, <code class="inline">ContourSet</code>,
-        <code class="inline">BarChart</code> and <code class="inline">NumberPlane</code>
-        cover the rest. A <code class="inline">graph.map(x, y)</code> call
-        converts data space to screen space at frame time.
+        Plots are native actors: <code class="inline">Graph</code>, <code class="inline">PlotCurve</code> (cartesian, polar, parametric), <code class="inline">VectorField</code>, and <code class="inline">BarChart</code> evaluate directly in data coordinates.
       </p>
       <pre>main: <span class="prop">Graph</span>, x_domain: (-<span class="num">6</span>, <span class="num">6</span>), y_domain: (-<span class="num">3</span>, <span class="num">3</span>), size: (<span class="num">640</span>, <span class="num">420</span>) {
   sine: <span class="prop">PlotCurve</span>, kind: <span class="str">"cartesian"</span>, func: (x) =&gt; <span class="fn">sin</span>(x),
@@ -346,12 +287,7 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
     <section id="s9">
       <div class="sec-head"><span class="sec-num">09</span><h2>Reactive expressions</h2></div>
       <p>
-        Beyond keyframes, an <code class="inline">always</code> block
-        re-evaluates every frame — orbits, generators, simulations — with the
-        full expression language: closures, <code class="inline">match</code>,
-        lists, string and math builtins. Queries like
-        <code class="inline">is_animating(&amp;prop)</code> let actors react to
-        the keyframe clock itself.
+        Beyond keyframes, an <code class="inline">always</code> block evaluates every frame for orbits, physics, and state-machine queries like <code class="inline">is_animating()</code> with zero runtime allocations.
       </p>
       <pre><span class="kw">always</span> {
   cross_h.at = ring.at
@@ -385,13 +321,7 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
     <section id="s10">
       <div class="sec-head"><span class="sec-num">10</span><h2>Components &amp; modules</h2></div>
       <p>
-        <code class="inline">pub component</code> declares a reusable actor
-        with typed parameters and <code class="inline">@slot</code> markers;
-        <code class="inline">import</code> brings modules in, with
-        <code class="inline">as</code> namespaces and <code class="inline">pub let</code>
-        exports. The figure's chips are instances of one
-        <code class="inline">LabeledBox</code> component from the shared
-        example library.
+        <code class="inline">pub component</code> creates reusable actors with typed parameters and slot markers, imported across files via <code class="inline">import</code>.
       </p>
       <pre><span class="kw">import</span> <span class="str">"../lib/components.amx"</span>
 
@@ -419,12 +349,7 @@ row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num"
     <section id="s11">
       <div class="sec-head"><span class="sec-num">11</span><h2>Scenes, transitions &amp; tooling</h2></div>
       <p>
-        One file can hold several <code class="inline"># Scene</code>s joined
-        by <code class="inline">play</code> — and the cut is a GPU transition
-        (fade, four wipes, cut), with actors able to persist across scenes.
-        Around the language sits real tooling: a formatter, a checker with
-        named diagnostics, an analyzer and LSP server, and exports from PNG to
-        4K MP4.
+        Join multiple scenes with GPU transitions (<code class="inline">play</code> fade, wipes). Supported by a complete toolchain: formatter, linter, LSP diagnostics, and 4K MP4 export.
       </p>
       <pre><span class="kw">play</span> Diagram [fade, <span class="num">450ms</span>]
 <span class="cmt">// …later…</span>

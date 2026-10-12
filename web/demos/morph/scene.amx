@@ -22,11 +22,10 @@ wash_r: Ellipse, size: (720, 720), at: (960, 380),
   blend: "screen"
 
 // Header
-header: Col, anchor: scene.top, offset: (0, 78), gap: 8, align: "center" {
-  badge: Chip, label: "TOPOLOGICAL SYNTHESIS", width: 190, height: 26, color: surface.primary, text_color: accent.primary
-  title: Text, text: "Generative Shape Morphing", font_size: 36, font_weight: "bold",
+header: Col, anchor: scene.top, offset: (0, 68), gap: 10, align: "center" {
+  badge: Chip, label: "TOPOLOGICAL SYNTHESIS", width: 190, height: 24, color: surface.primary, text_color: accent.primary
+  title: Text, text: "Generative Shape Morphing", font_size: 32, font_weight: "bold",
     fill_gradient: linear(90, {"#f5b942", "#38bdf8", "#34d399"}), text_align: "center"
-  sub: Text, text: "Continuous vector interpolation across three mathematical transformation strategies", font_size: 15, color: text.secondary
 }
 
 // Stage pedestals / glass frames

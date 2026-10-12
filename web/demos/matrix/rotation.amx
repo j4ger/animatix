@@ -5,10 +5,10 @@ config { resolution: (1280, 720) }
 # Rotation
 config { colorscheme: "ink", duration: 7.8 }
 
-rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
-  color: text.primary, anchor: scene.top, offset: (0, 52)
-rot_sub: Text, text: "column 1 is where i lands; column 2 is where j lands",
-  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+rot_title: Text, text: "2×2 Rotation Matrix", font_size: 28,
+  color: text.primary, anchor: scene.top, offset: (0, 48)
+rot_sub: Text, text: "Basis vectors transform the coordinate grid",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 84)
 
 wash_rot: Ellipse, size: (840, 840), at: (760, 400),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94218"), (55%, "#38bdf80a"), (100%, "#38bdf800")}),

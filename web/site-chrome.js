@@ -20,10 +20,8 @@
   const external = "https://github.com/j4ger/animatix";
   const links = [
     ["", "Home", "home"],
-    ["tour/", "Language", "tour"],
-    ["demos/", "Demos", "demos"],
-    ["gallery.html", "Gallery", "gallery"],
-    ["recipes/", "Recipes", "recipes"],
+    ["demos/", "Showcase", "demos"],
+    ["tour/", "Tour", "tour"],
     [external, "GitHub ↗", "github"],
   ];
 
@@ -46,7 +44,9 @@
       a.target = "_blank";
       a.rel = "noopener noreferrer";
     }
-    if (key === section) a.setAttribute("aria-current", "page");
+    if (key === section || (key === "demos" && (section === "gallery" || section === "recipes"))) {
+      a.setAttribute("aria-current", "page");
+    }
     linksBox.appendChild(a);
   }
   const timecode = document.createElement("span");
