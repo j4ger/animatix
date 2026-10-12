@@ -33,4 +33,4 @@ fi
 # 4. Strip LD_LIBRARY_PATH so host browser linkers do not collide with Nix libraries
 exec env -u LD_LIBRARY_PATH AGENT_BROWSER_EXECUTABLE_PATH="${AGENT_BROWSER_EXECUTABLE_PATH:-}" \
   AGENT_BROWSER_WEBGPU="${AGENT_BROWSER_WEBGPU:-1}" \
-  npx agent-browser "$@"
+  npx -y agent-browser "$@"
