@@ -1079,16 +1079,16 @@ fn typst_wrapping_preamble(
         _ => {}, // "left" is default
     }
 
-    // Overflow
-    if overflow == "ellipsis" {
-        inner.push_str("#set text(overflow: '...'); ");
-    }
-
     inner.push_str(inner_content);
 
     if max_width > 0.0 {
+        let clip_arg = if overflow == "clip" {
+            ", clip: true"
+        } else {
+            ""
+        };
         // Wrap in a block with the given width
-        format!("#block(width: {}pt, inset: 0pt)[\n{}]", max_width, inner)
+        format!("#block(width: {}pt, inset: 0pt{})[\n{}]", max_width, clip_arg, inner)
     } else {
         inner
     }
@@ -4073,6 +4073,48 @@ mod tests {
 
         clear_text_compile_cache();
         assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
+    }
+
+    #[test]
+    fn typst_wrapping_supports_overflow_modes() {
+        let _cache = cache_test_guard();
+        let font_ctx = test_font_ctx();
+
+        // Ensure compile_text with overflow: ellipsis and overflow: clip succeed via Typst path
+        let typst_color = typst::visualize::Color::from_u8(255, 255, 255, 255);
+        let frame_ellipsis = compile_text(
+            "Very long text truncated with ellipsis",
+            18.0,
+            typst_color.clone(),
+            "Open Sans",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            200.0,
+            "left",
+            "ellipsis",
+        );
+        assert!(frame_ellipsis.is_ok(), "Typst compile with overflow 'ellipsis' must succeed");
+
+        let frame_clip = compile_text(
+            "Very long text clipped",
+            18.0,
+            typst_color,
+            "Open Sans",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            200.0,
+            "left",
+            "clip",
+        );
+        assert!(frame_clip.is_ok(), "Typst compile with overflow 'clip' must succeed");
     }
 
     #[test]
