@@ -14,6 +14,15 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### CI Wall-Clock Runtime Optimization (2026-10-13)
+
+Profiled GitHub Actions run logs and eliminated critical sequential bottlenecks that kept PR runs at ~30 minutes:
+1. **Parallelized Monolithic Job Matrix**: Decomposed the monolithic 30-minute `Test & Verify` job (`test`, `render-smoke`, `examples`, `ext-bench`, `site-scenes`, `eparts`) and 15-minute `Web` job (`wasm-check`, `web-build`) in `scripts/ci.sh` into balanced parallel matrix jobs (`Test & Examples`, `Render Smoke & Scenes`, `Benchmarks`, `Web Check`, `Web Build`, and standalone `eparts`). Every job now completes in under ~8.5 minutes.
+2. **Prebuilt Binary Reuse in Smoke and Examples Suites**: `scripts/render_smoke.sh` and `scripts/check_examples.sh` compile `target/debug/animatix` once before iteration rather than invoking `cargo run` per scene across 55+ files.
+3. **Brotli Compression Optimization in Web Builds**: `scripts/build-web.sh` default brotli level reduced from 11 (taking 82s per run) to 6 (taking 1s) via `ANIMATIX_BROTLI_LEVEL`, saving ~2.5 minutes on web artifacts.
+4. **WASM Build Caching**: Updated `.github/workflows/ci.yml` to include the `web` shell in Rust dependency caching with scoped keys (`key: ${{ matrix.shell }}`).
+5. **Theme JSON Deserialization Fix**: Fixed subtle color deserialization discrepancy in `crates/eparts/src/tokens/semantic.rs` and added missing fields to `PartialBorder` and `PartialOverlay` in `crates/eparts/src/tokens/theme_json.rs`.
+
 ### Animatix Arena (Dogfood 2.0 Migration) (2026-10-13)
 
 Replaced the legacy native-desktop review GUI (`animatix-gui --review`, `dogfood/runs/`, `dogfood-review.sh`, `review-report.sh`) with a browser-native WebGPU evaluation studio:

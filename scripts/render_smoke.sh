@@ -15,6 +15,11 @@ command -v identify >/dev/null 2>&1 || {
     exit 1
 }
 
+ANIMATIX_BIN="${ANIMATIX_BIN:-$PROJECT_DIR/target/debug/animatix}"
+if [ ! -x "$ANIMATIX_BIN" ]; then
+    cargo build --quiet --manifest-path "$PROJECT_DIR/Cargo.toml" --bin animatix
+fi
+
 FAILED=0
 TOTAL=0
 
@@ -24,8 +29,7 @@ while read -r amx; do
     OK=0
     for T in 1.0 3.0 6.0; do
         OUT=$(mktemp /tmp/amx_smoke_XXXXXX.png)
-        if cargo run --quiet --manifest-path "$PROJECT_DIR/Cargo.toml" --bin animatix -- \
-            image "$amx" --time "$T" -o "$OUT" > /dev/null 2>&1 \
+        if "$ANIMATIX_BIN" image "$amx" --time "$T" -o "$OUT" > /dev/null 2>&1 \
             && [ -s "$OUT" ]; then
             DEV=$(identify -format "%[fx:standard_deviation]" "$OUT" 2>/dev/null || echo 0)
             if awk -v d="$DEV" 'BEGIN { exit !(d > 0.005) }'; then

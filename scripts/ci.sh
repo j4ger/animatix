@@ -94,11 +94,15 @@ dist-windows|native|windows-latest|rust-stable|release
 # individually via `scripts/ci.sh gate <name>`.
 JOB_TABLE='
 Fast Checks|fmt workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-stable node|pr
-Check & Lint|commit audit check lint doc no-video|nix|ubuntu-latest|nix|pr
-Test & Verify|test render-smoke examples ext-bench site-scenes eparts|nix|ubuntu-latest|nix|pr
-Web|wasm-check web-build|web|ubuntu-latest|nix wasm-bindgen|pr
+eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
+Check & Lint|commit audit check lint doc no-video|nix|ubuntu-latest|nix|pr
+Test & Examples|test examples|nix|ubuntu-latest|nix|pr
+Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
+Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
+Web Check|wasm-check|web|ubuntu-latest|nix|pr
+Web Build|web-build|web|ubuntu-latest|nix wasm-bindgen|pr
 dist-linux|dist-linux|nix|ubuntu-latest|nix|release
 dist-macos|dist-macos|native|macos-latest|rust-stable|release
 dist-windows|dist-windows|native|windows-latest|rust-stable|release
@@ -184,6 +188,7 @@ gate_no_video() {
 
 gate_render_smoke() {
   want_cargo
+  cargo build --bin animatix
   ANIMATIX_REQUIRE_GPU=1 bash scripts/render_smoke.sh
 }
 

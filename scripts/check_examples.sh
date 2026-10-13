@@ -28,6 +28,11 @@ WARN_TOTAL=0
 #   missing-glyph       — demos include CJK text; allowed on headless systems lacking CJK fonts
 ALLOWED_WARNINGS='unused-label|always-overrides-keyframes|unknown-type|missing-glyph'
 
+ANIMATIX_BIN="${ANIMATIX_BIN:-$PROJECT_DIR/target/debug/animatix}"
+if [ ! -x "$ANIMATIX_BIN" ]; then
+    cargo build --quiet --manifest-path "$PROJECT_DIR/Cargo.toml" --bin animatix
+fi
+
 while read -r amx; do
     TOTAL=$((TOTAL + 1))
     echo -n "Checking $(basename "$amx")... "
@@ -35,7 +40,7 @@ while read -r amx; do
     if [ "$amx" = "$PROJECT_DIR/examples/projects/plugin_pulse.amx" ]; then
         PLUGIN_FLAGS=(--plugin "$PLUGIN_MANIFEST")
     fi
-    OUTPUT=$(cargo run --quiet --manifest-path "$PROJECT_DIR/Cargo.toml" --bin animatix -- check "$amx" "${PLUGIN_FLAGS[@]}" 2>&1) || {
+    OUTPUT=$("$ANIMATIX_BIN" check "$amx" "${PLUGIN_FLAGS[@]}" 2>&1) || {
         echo "FAILED"
         FAILED=1
         continue

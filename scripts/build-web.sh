@@ -114,7 +114,7 @@ elif command -v nix >/dev/null 2>&1; then
 fi
 
 if [ "${brotli_avail:-false}" = true ]; then
-  br_level=11
+  br_level="${ANIMATIX_BROTLI_LEVEL:-6}"
   if [ "$out_profile" = "debug" ]; then
     br_level=1
   fi

@@ -32,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+cargo bench -p animatix --bench property_interpolation --bench timeline_eval --no-run
 OUT="$(cargo bench -p animatix --bench property_interpolation "${ARGS[@]}" 2>&1)"
 echo "$OUT"
 cargo bench -p animatix --bench timeline_eval "${ARGS[@]}"

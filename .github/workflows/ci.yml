@@ -83,8 +83,9 @@ jobs:
         with:
           components: rustfmt
       - name: Rust cache
-        if: matrix.shell == 'native' || matrix.shell == 'nix'
         uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.shell }}
 
       - name: Node
         if: contains(matrix.setup, 'node')

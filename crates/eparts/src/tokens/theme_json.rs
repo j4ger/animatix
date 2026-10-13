@@ -405,7 +405,13 @@ partial_group! {
 
 partial_group! {
     Border => PartialBorder
-    { default: Color32, strong: Color32, focus: Color32 }
+    {
+        default: Color32,
+        strong: Color32,
+        focus: Color32,
+        subtle: Color32,
+        rim_highlight: Color32,
+    }
 }
 
 partial_group! {
@@ -416,6 +422,7 @@ partial_group! {
         tooltip_bg: Color32,
         shadow_ambient: Color32,
         shadow_direct: Color32,
+        floating_hud_bg: Color32,
     }
 }
 

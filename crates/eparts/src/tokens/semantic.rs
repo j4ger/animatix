@@ -133,9 +133,9 @@ pub mod border {
     pub const HOVER: Color32 = p::GRAY_600;
     pub const FOCUS: Color32 = p::BLUE_500;
     /// Subtle divider stroke (semi-transparent white highlight on dark).
-    pub const SUBTLE: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 12);
+    pub const SUBTLE: Color32 = Color32::from_rgba_premultiplied(12, 12, 12, 12);
     /// 1px top edge highlight / rim bevel for elevated containers.
-    pub const RIM_HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(255, 255, 255, 24);
+    pub const RIM_HIGHLIGHT: Color32 = Color32::from_rgba_premultiplied(24, 24, 24, 24);
 }
 
 // ── Lines (neutral grid/guide) ─────────────────────────────────────────
