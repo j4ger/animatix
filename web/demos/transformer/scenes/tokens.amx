@@ -1,21 +1,11 @@
-// 01 · From text to tokens — chips become vectors, and every entry of a vector
-// is one learned number. Cell intensity *is* the value, so a single hue carries
-// all the information; nothing varies decoratively.
+// 01 · From text to tokens — sub-word fracture & vector extrusion.
 //
-// The figure narrates its own phases with the numbered label at the top left,
-// and it opens with the whole sentence on one bar that then splits into the
-// three chips — tokenization as a visible step rather than an assumption.
+// Unifies with the global example sentence: "The animal didn't cross"
 //
-// Structure: the repetitive parts are layout containers (Row/Col/Stack), so the
-// only authored coordinates are the three column anchors — no hand-computed
-// pitch. Chip+label pairs are Stacks inside the chip Row; each embedding
-// column is a Col of cells.
-//
-// Gating rule (probe-verified): an authored non-zero `opacity` is visible from
-// frame 0 no matter which entrance follows — wipe/draw only animate the fill
-// and stroke channels. Every dimmed actor here is therefore authored
-// `opacity: 0.0` (the seed) and settles on its value through a keyframe
-// `X.opacity = v [dur]` assignment at its beat.
+// Pipeline:
+//   1. Text Stream: The input string fractures into BPE sub-word token chips.
+//   2. Token IDs: Each token maps to an integer index in the 50,257-word vocabulary.
+//   3. Embedding Lookup: Matrix W_e extrudes a 768-dimensional float32 coordinate row.
 
 import "../../lib/theme.amx"
 import "../../lib/ambience.amx"
@@ -25,151 +15,192 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.8 }
 
 bg: Ambience, tint: accent.primary, base_opacity: 0.16
 
-// ── the sentence, before any splitting ──────────────────────────────
-bar_stack: Stack, at: (660, 98) {
-  bar: Rect, size: (520, 56), corner_radius: 14, color: surface.primary
-  bar_t: Text, text: "The cat sat", font_size: 26, color: text.primary
+// ── Header / Narration (top-left) ───────────────────────────────────
+head_eyebrow: Text, text: "FIG 01 // SUB-WORD FRACTURE & EMBEDDING LOOKUP", font_size: 13,
+  color: accent.primary, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+
+phase1: Text, text: "1 · Raw text fractures into BPE token chips", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+phase2: Text, text: "2 · Token IDs map to learned vocabulary rows in W_e", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+phase3: Text, text: "3 · Each token extrudes a 768-dim float coordinate vector", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+
+vocab_badge: Stack, at: (1080, 68) {
+  v_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.2
+  v_txt: Text, text: "Embedding Table W_e: 50,257 × 768", font_size: 13, color: text.secondary
 }
 
-// ── token chips — the shared LabeledBox component, one actor each ───
-chip_row: Row, at: (580, 172), gap: 80, align: "center" {
-  chip_the: LabeledBox, label: "the", width: 200, height: 64, text_size: 26
-  chip_cat: LabeledBox, label: "cat", width: 200, height: 64, text_size: 26
-  chip_sat: LabeledBox, label: "sat", width: 200, height: 64, text_size: 26
+// ── Level 1: Raw Sentence Stream ────────────────────────────────────
+bar_stack: Stack, at: (540, 150) {
+  bar: Rect, size: (720, 56), corner_radius: 14, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.5
+  bar_t: Text, text: "“The animal didn't cross”", font_size: 24, color: text.primary
 }
 
-link_the: Line, from: (300, 208), to: (300, 244), stroke_width: 2, color: text.muted, opacity: 0.0
-link_cat: Line, from: (580, 208), to: (580, 244), stroke_width: 2, color: text.muted, opacity: 0.0
-link_sat: Line, from: (860, 208), to: (860, 244), stroke_width: 2, color: text.muted, opacity: 0.0
+// ── Level 2: Token Chips (4 BPE Tokens) ──────────────────────────────
+chip_row: Row, at: (540, 150), gap: 24, align: "center" {
+  chip_the: LabeledBox, label: "The", width: 160, height: 56, text_size: 22
+  chip_animal: LabeledBox, label: "animal", width: 160, height: 56, text_size: 22
+  chip_didnt: LabeledBox, label: "didn't", width: 160, height: 56, text_size: 22
+  chip_cross: LabeledBox, label: "cross", width: 160, height: 56, text_size: 22
+}
 
-// ── one embedding vector per token: five entries, intensity = value ──
-embed_row: Row, at: (580, 394), gap: 80, align: "center" {
-  the_col: Col, gap: 10 {
-    the_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    the_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    the_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    the_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    the_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+// Sub-labels: Token IDs in Vocabulary
+id_row: Row, at: (540, 216), gap: 24, align: "center" {
+  id_box_the: Stack, size: (160, 24) { id_the: Text, text: "ID: 464", font_size: 12, color: accent.primary }
+  id_box_ani: Stack, size: (160, 24) { id_ani: Text, text: "ID: 8432", font_size: 12, color: accent.primary }
+  id_box_did: Stack, size: (160, 24) { id_did: Text, text: "ID: 1544", font_size: 12, color: accent.primary }
+  id_box_cro: Stack, size: (160, 24) { id_cro: Text, text: "ID: 3278", font_size: 12, color: accent.primary }
+}
+
+link_the: Arrow, from: (265, 236), to: (265, 276), head_size: 8, stroke_width: 2, stroke: accent.primary, opacity: 0.0
+link_ani: Arrow, from: (449, 236), to: (449, 276), head_size: 8, stroke_width: 2, stroke: accent.primary, opacity: 0.0
+link_did: Arrow, from: (632, 236), to: (632, 276), head_size: 8, stroke_width: 2, stroke: accent.primary, opacity: 0.0
+link_cro: Arrow, from: (815, 236), to: (815, 276), head_size: 8, stroke_width: 2, stroke: accent.primary, opacity: 0.0
+
+// ── Level 3: Extruded Embedding Vectors (4 columns × 5 cells) ───────
+embed_row: Row, at: (540, 424), gap: 24, align: "center" {
+  col_the: Col, gap: 8 {
+    the_v0: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    the_v1: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    the_v2: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    the_v3: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    the_v4: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
   }
-  cat_col: Col, gap: 10 {
-    cat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    cat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    cat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    cat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    cat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+  col_ani: Col, gap: 8 {
+    ani_v0: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    ani_v1: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    ani_v2: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    ani_v3: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    ani_v4: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
   }
-  sat_col: Col, gap: 10 {
-    sat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    sat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    sat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    sat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-    sat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+  col_did: Col, gap: 8 {
+    did_v0: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    did_v1: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    did_v2: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    did_v3: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    did_v4: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
   }
-}
-
-// The vector continues past five entries. Drawn as dots, not "⋮" (U+22EE):
-// the fast-path face has no glyph for it and renders tofu.
-dots_row: Row, at: (580, 573), gap: 80, align: "center" {
-  the_dots: Row, gap: 2, align: "center" {
-    the_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    the_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    the_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-  }
-  cat_dots: Row, gap: 2, align: "center" {
-    cat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    cat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    cat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-  }
-  sat_dots: Row, gap: 2, align: "center" {
-    sat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    sat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
-    sat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+  col_cro: Col, gap: 8 {
+    cro_v0: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    cro_v1: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    cro_v2: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    cro_v3: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
+    cro_v4: Rect, size: (160, 44), corner_radius: 8, color: accent.primary, opacity: 0.0
   }
 }
 
-// ── the bracket that names the vector's length ──────────────────────
-brace_top: Line, from: (972, 249), to: (996, 249), stroke_width: 2.5, color: accent.primary
-brace_mid: Line, from: (996, 249), to: (996, 539), stroke_width: 2.5, color: accent.primary
-brace_bot: Line, from: (996, 539), to: (972, 539), stroke_width: 2.5, color: accent.primary
-
-brace_label: Text, text: "d_model = 512", font_size: 20, color: accent.primary,
-  text_max_width: 180, text_align: "left", at: (1070, 394)
-
-// Closing beat: one bright rule walks down the entries, so the matrix reads as
-// many rows of numbers rather than as five stacked blocks.
-scan: Rect, size: (790, 3), corner_radius: 2, color: accent.primary, opacity: 0.0, at: (580, 249)
-
-// ── timeline ────────────────────────────────────────────────────────
-#0.40s
-fade-in bar [420ms, ease: expo-out]
-
-#0.75s
-fade-in bar_t [320ms, ease: expo-out]
-
-// The sentence splits: the bar dissolves as the chips take its place.
-#1.30s
-stagger [130ms] {
-  fade-in chip_the [380ms, ease: expo-out]
-  fade-in chip_cat [380ms, ease: expo-out]
-  fade-in chip_sat [380ms, ease: expo-out]
+// Ellipsis indicator for 768 dimensions
+dots_row: Row, at: (540, 580), gap: 24, align: "center" {
+  d_the: Stack, size: (160, 20) { d_the_t: Text, text: ".  .  .", font_size: 16, color: text.muted }
+  d_ani: Stack, size: (160, 20) { d_ani_t: Text, text: ".  .  .", font_size: 16, color: text.muted }
+  d_did: Stack, size: (160, 20) { d_did_t: Text, text: ".  .  .", font_size: 16, color: text.muted }
+  d_cro: Stack, size: (160, 20) { d_cro_t: Text, text: ".  .  .", font_size: 16, color: text.muted }
 }
 
-#1.65s
-fade-out bar [340ms, ease: ease-in]
-fade-out bar_t [260ms, ease: ease-in]
+// ── Dimension Bracket on Right ──────────────────────────────────────
+brace_top: Line, from: (925, 280), to: (950, 280), stroke_width: 2.2, color: accent.primary
+brace_mid: Line, from: (950, 280), to: (950, 568), stroke_width: 2.2, color: accent.primary
+brace_bot: Line, from: (950, 568), to: (925, 568), stroke_width: 2.2, color: accent.primary
 
-#2.45s
-stagger [120ms] {
-  link_the.opacity = 0.5 [260ms]
-  link_cat.opacity = 0.5 [260ms]
-  link_sat.opacity = 0.5 [260ms]
+dim_card: Stack, at: (1070, 424) {
+  dim_bg: Rect, size: (200, 68), corner_radius: 12, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.4
+  dim_col: Col, gap: 4, align: "center" {
+    dim_t1: Text, text: "d_model = 768", font_size: 18, color: accent.primary
+    dim_t2: Text, text: "Float32 Coordinates", font_size: 12, color: text.muted
+  }
 }
 
-#2.85s
-stagger [45ms] {
-  the_v0.opacity = 0.95 [300ms]
-  the_v1.opacity = 0.52 [300ms]
-  the_v2.opacity = 0.78 [300ms]
-  the_v3.opacity = 0.42 [300ms]
-  the_v4.opacity = 0.62 [300ms]
-  cat_v0.opacity = 0.44 [300ms]
-  cat_v1.opacity = 0.88 [300ms]
-  cat_v2.opacity = 0.42 [300ms]
-  cat_v3.opacity = 0.72 [300ms]
-  cat_v4.opacity = 0.50 [300ms]
-  sat_v0.opacity = 0.70 [300ms]
-  sat_v1.opacity = 0.40 [300ms]
-  sat_v2.opacity = 0.84 [300ms]
-  sat_v3.opacity = 0.48 [300ms]
-  sat_v4.opacity = 0.66 [300ms]
+// Laser scan line emphasizing coordinate grid
+scan_line: Rect, size: (740, 2.5), corner_radius: 1, color: accent.primary, opacity: 0.0, at: (540, 280)
+
+// ── Timeline Choreography ───────────────────────────────────────────
+#0.10s
+fade-in head_eyebrow [260ms, ease: expo-out]
+fade-in phase1 [300ms, ease: expo-out]
+fade-in vocab_badge [320ms, ease: expo-out]
+fade-in bar [400ms, ease: expo-out]
+fade-in bar_t [300ms, delay: 150ms, ease: expo-out]
+
+#1.20s
+fade-out bar [280ms, ease: ease-in]
+fade-out bar_t [220ms, ease: ease-in]
+stagger [100ms] {
+  fade-in chip_the [360ms, ease: expo-out]
+  fade-in chip_animal [360ms, ease: expo-out]
+  fade-in chip_didnt [360ms, ease: expo-out]
+  fade-in chip_cross [360ms, ease: expo-out]
 }
 
-#4.15s
+#2.10s
+fade-out phase1 [240ms, ease: ease-in]
+fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
+stagger [70ms] {
+  fade-in id_the [260ms, ease: expo-out]
+  fade-in id_ani [260ms, ease: expo-out]
+  fade-in id_did [260ms, ease: expo-out]
+  fade-in id_cro [260ms, ease: expo-out]
+}
+stagger [80ms] {
+  draw-in link_the [280ms, ease: expo-out]
+  link_the.opacity = 0.7 [260ms]
+  draw-in link_ani [280ms, ease: expo-out]
+  link_ani.opacity = 0.7 [260ms]
+  draw-in link_did [280ms, ease: expo-out]
+  link_did.opacity = 0.7 [260ms]
+  draw-in link_cro [280ms, ease: expo-out]
+  link_cro.opacity = 0.7 [260ms]
+}
+
+#3.00s
+fade-out phase2 [240ms, ease: ease-in]
+fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
+stagger [35ms] {
+  the_v0.opacity = 0.90 [280ms]
+  the_v1.opacity = 0.50 [280ms]
+  the_v2.opacity = 0.75 [280ms]
+  the_v3.opacity = 0.40 [280ms]
+  the_v4.opacity = 0.65 [280ms]
+  ani_v0.opacity = 0.45 [280ms]
+  ani_v1.opacity = 0.95 [280ms]
+  ani_v2.opacity = 0.40 [280ms]
+  ani_v3.opacity = 0.80 [280ms]
+  ani_v4.opacity = 0.55 [280ms]
+  did_v0.opacity = 0.70 [280ms]
+  did_v1.opacity = 0.35 [280ms]
+  did_v2.opacity = 0.85 [280ms]
+  did_v3.opacity = 0.50 [280ms]
+  did_v4.opacity = 0.60 [280ms]
+  cro_v0.opacity = 0.55 [280ms]
+  cro_v1.opacity = 0.75 [280ms]
+  cro_v2.opacity = 0.35 [280ms]
+  cro_v3.opacity = 0.90 [280ms]
+  cro_v4.opacity = 0.45 [280ms]
+}
 stagger [60ms] {
-  the_d0.opacity = 0.75 [240ms]
-  the_d1.opacity = 0.48 [240ms]
-  the_d2.opacity = 0.26 [240ms]
-  cat_d0.opacity = 0.75 [240ms]
-  cat_d1.opacity = 0.48 [240ms]
-  cat_d2.opacity = 0.26 [240ms]
-  sat_d0.opacity = 0.75 [240ms]
-  sat_d1.opacity = 0.48 [240ms]
-  sat_d2.opacity = 0.26 [240ms]
+  fade-in d_the_t [240ms, delay: 200ms, ease: expo-out]
+  fade-in d_ani_t [240ms, delay: 200ms, ease: expo-out]
+  fade-in d_did_t [240ms, delay: 200ms, ease: expo-out]
+  fade-in d_cro_t [240ms, delay: 200ms, ease: expo-out]
 }
 
-#4.55s
-draw-in brace_top [280ms, ease: expo-out]
-draw-in brace_mid [340ms, ease: expo-out, delay: 160ms]
-draw-in brace_bot [280ms, ease: expo-out, delay: 460ms]
-
-#4.85s
-fade-in brace_label [400ms, ease: expo-out]
+#4.40s
+draw-in brace_top [260ms, ease: expo-out]
+draw-in brace_mid [340ms, ease: expo-out, delay: 140ms]
+draw-in brace_bot [260ms, ease: expo-out, delay: 420ms]
+fade-in dim_card [380ms, delay: 280ms, ease: expo-out]
+fade-in dim_t1 [260ms, delay: 400ms, ease: expo-out]
+fade-in dim_t2 [260ms, delay: 480ms, ease: expo-out]
 
 #5.20s
-fade-in scan [180ms, ease: expo-out]
-shift scan [by: (0, 290), 800ms, ease: ease-in-out]
-fade-out scan [240ms, delay: 700ms, ease: ease-in]
+fade-in scan_line [160ms, ease: expo-out]
+scan_line.opacity = 0.9 [140ms]
+shift scan_line [by: (0, 280), 900ms, ease: ease-in-out]
+fade-out scan_line [240ms, delay: 780ms, ease: ease-in]
 
-// Outro: the loop's rest frame holds the finished composition cleanly.
-#7.10s
-
+// ── Outro Rest Frame ────────────────────────────────────────────────
+#7.40s
+// Complete diagram stands holding finished values for seamless loop.

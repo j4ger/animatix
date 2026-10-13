@@ -36,7 +36,7 @@ invisible 1.18 up1
 visible 1.68 up1
 invisible 1.18 plate
 visible 1.84 plate
-invisible 2.18 up2
+reveals up2 2.18 2.70
 visible 2.70 up2
 invisible 2.18 blk
 visible 2.90 blk
@@ -44,9 +44,9 @@ invisible 2.40 blk_title
 visible 2.98 blk_title
 invisible 2.60 tag_blk
 visible 3.14 tag_blk
-invisible 5.58 up3
+reveals up3 5.58 6.10
 visible 6.10 up3
-invisible 5.58 lmh
+reveals lmh 5.58 6.24
 visible 6.24 lmh
 invisible 6.18 prob_cap
 visible 6.70 prob_cap

@@ -1,154 +1,173 @@
-// 05 · Feed-forward and residuals.
+// 05 · Feed-forward network & residual highway.
 //
-// Fixes over the original geometry, all of which were visible on screen:
-//   · the LayerNorm circles (x 247–303) overlapped the block they precede
-//     (x 290–510) by 13px, and were painted last, so each circle sat on top of
-//     the block's border. The rings now stand in the gaps either side of each
-//     block;
-//   · "d → 4d" / "4d → d" floated at x = 1020 while the bars they named ended
-//     at x = 955. The widening is drawn inside the FFN block instead;
-//   · the arcs were filled, not stroked. A Path fills with `color` by default
-//     and only strokes when it has a `stroke` and no fill, so the original — and
-//     a first pass at this scene — drew two grey lenses with white outlines
-//     rather than two skip connections. `fill_opacity: 0.0` fixes it.
-//
-// The residual rail is drawn first and the blocks sit on top of it, so the rail
-// reads as passing behind them rather than as three loose stubs.
-//
-// Three accents, one job each: primary = the attention half, success = the FFN
-// half, warning = normalisation.
-//
-// Grid: 1280×720. Rail on y = 390 from x = 120 to 1160, blocks 320×190 at
-// x = 460 / 980, LayerNorm rings at x = 210 / 740.
+// Explains:
+//   1. Residual Stream: Identity highway carrying token embeddings unbroken across layers.
+//   2. Sublayer 1 (Attention): Contextual mixing between tokens.
+//   3. Sublayer 2 (FFN): Token-wise non-linear expansion (768 → 3072 → 768), acting as
+//      an associative key-value memory store for factual knowledge.
+//   4. Add & Norm: Each sublayer computes an update delta added back into the highway:
+//      x_next = x + Sublayer(LN(x))
 
 import "../../lib/theme.amx"
+import "../../lib/ambience.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 8.3 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 
-// ── phase narration (top-left; one label per beat) ──────────────────
-phase1: Text, text: "1 · the residual stream", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
-phase2: Text, text: "2 · widen, nonlinear, project back", font_size: 15, color: text.muted,
-  text_max_width: 380, text_align: "left", anchor: scene.top_left, offset: (150, 96)
-phase3: Text, text: "3 · add it back: x + F(x)", font_size: 15, color: text.muted,
-  text_max_width: 340, text_align: "left", anchor: scene.top_left, offset: (150, 96)
+bg: Ambience, tint: accent.success, base_opacity: 0.14
 
-// ── the residual stream ─────────────────────────────────────────────
-rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.0, at: (640, 390)
-rail_label: Text, text: "residual stream", font_size: 15, color: text.muted,
-  text_max_width: 130, text_align: "left", at: (205, 450)
+// ── Header / Narration (top-left) ───────────────────────────────────
+head_eyebrow: Text, text: "FIG 05 // FEED-FORWARD NETWORK & RESIDUAL HIGHWAY", font_size: 13,
+  color: accent.success, text_align: "left", anchor: scene.top_left, offset: (80, 48)
 
-// Skip connections leave the rail before the block and rejoin it after, arcing
-// clear of both the ring and the block.
+phase1: Text, text: "1 · Unbroken residual highway preserves identity signal throughout the depth", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+phase2: Text, text: "2 · Sublayer 1 mixes context; Sublayer 2 (FFN) expands 4× for factual memory recall", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+phase3: Text, text: "3 · Add & Norm: Non-linear updates add back as deltas: x + Sublayer(LN(x))", font_size: 18, color: text.primary,
+  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+
+formula_chip: Stack, at: (1080, 68) {
+  f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.2
+  f_txt: Text, text: "FFN(x) = GELU(x W1 + b1) W2 + b2", font_size: 13, color: text.secondary
+}
+
+// ── The Residual Stream Highway (y = 400) ───────────────────────────
+rail: Rect, size: (1120, 8), corner_radius: 4, color: stroke.default, opacity: 0.0, at: (640, 400)
+rail_label: Text, text: "Residual Stream Highway (768 Float32)", font_size: 14, color: text.muted,
+  text_align: "left", at: (180, 440)
+
+// Skip connections (Arcs bypassing each sublayer)
 skip1: Path, commands: {
-  move_to(210, 390), quad_to(430, 20, 648, 390)
-}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
+  move_to(170, 400), quad_to(370, 60, 570, 400)
+}, color: accent.primary, stroke: accent.primary, stroke_width: 2.2, opacity: 0.0, fill_opacity: 0.0
+
 skip2: Path, commands: {
-  move_to(740, 390), quad_to(954, 20, 1168, 390)
-}, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
+  move_to(670, 400), quad_to(895, 60, 1120, 400)
+}, color: accent.success, stroke: accent.success, stroke_width: 2.2, opacity: 0.0, fill_opacity: 0.0
 
-// ── LayerNorm: rings standing in the gaps, not on the borders ───────
-ln1_stack: Stack, at: (210, 390) {
-  ln1: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3
-  ln1_t: Text, text: "LN", font_size: 17, color: text.primary
-}
-ln2_stack: Stack, at: (740, 390) {
-  ln2: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3
-  ln2_t: Text, text: "LN", font_size: 17, color: text.primary
+// LayerNorm Pre-LN Rings
+ln1_stack: Stack, at: (170, 400) {
+  ln1: Ellipse, size: (72, 72), color: surface.primary, stroke: accent.warning, stroke_width: 2.5
+  ln1_t: Text, text: "LN", font_size: 16, color: text.primary
 }
 
-// ── the two halves of a block ───────────────────────────────────────
-attn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
-  stroke: accent.info, stroke_width: 2, at: (460, 390)
-attn_text: Col, at: (460, 360), gap: 18, align: "center" {
-  attn_t: Text, text: "Attention", font_size: 24, color: text.primary
-  attn_s: Text, text: "across tokens", font_size: 15, color: text.muted
+ln2_stack: Stack, at: (670, 400) {
+  ln2: Ellipse, size: (72, 72), color: surface.primary, stroke: accent.warning, stroke_width: 2.5
+  ln2_t: Text, text: "LN", font_size: 16, color: text.primary
 }
 
-ffn_stack: Stack, at: (980, 390) {
-  ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
-    stroke: accent.success, stroke_width: 2
-  ffn_content: Col, gap: 16, align: "center" {
-    ffn_t: Text, text: "FFN", font_size: 24, color: text.primary
-    wide_row: Row, gap: 22, align: "center" {
-      wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0
-      wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success
-      wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0
+// ── Sublayer 1: Multi-Head Attention (x = 370, y = 400) ─────────────
+attn_stack: Stack, at: (370, 400) {
+  attn_box: Rect, size: (300, 200), corner_radius: 18, color: surface.primary,
+    stroke: accent.info, stroke_width: 1.8, opacity: 0.0
+  attn_content: Col, gap: 10, align: "center" {
+    attn_t: Text, text: "Self-Attention", font_size: 20, color: text.primary
+    attn_sub: Text, text: "Context Routing (Between Tokens)", font_size: 12, color: accent.info
+    attn_beams: Row, gap: 12, align: "center" {
+      ab1: Rect, size: (48, 14), corner_radius: 4, color: accent.info, opacity: 0.0
+      ab2: Rect, size: (84, 14), corner_radius: 4, color: accent.info, opacity: 0.0
+      ab3: Rect, size: (48, 14), corner_radius: 4, color: accent.info, opacity: 0.0
     }
-    ffn_s: Text, text: "d -> 4d -> d", font_size: 15, color: text.muted
+    attn_desc: Text, text: "Dynamic query-key interaction", font_size: 12, color: text.muted
   }
 }
 
-// Closing beat: the signal carried straight through by the rail.
-dot: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (150, 390)
+// ── Sublayer 2: Feed-Forward Network (x = 895, y = 400) ─────────────
+ffn_stack: Stack, at: (895, 400) {
+  ffn_box: Rect, size: (350, 200), corner_radius: 18, color: surface.primary,
+    stroke: accent.success, stroke_width: 1.8, opacity: 0.0
+  ffn_content: Col, gap: 8, align: "center" {
+    ffn_t: Text, text: "Feed-Forward (MLP)", font_size: 20, color: text.primary
+    ffn_sub: Text, text: "Associative Factual Memory (Token Alone)", font_size: 12, color: accent.success
+    // 4× Expansion Graphic: 768 → 3072 → 768
+    ffn_flow: Row, gap: 14, align: "center" {
+      f_in: Rect, size: (36, 16), corner_radius: 4, color: accent.success, opacity: 0.0
+      f_arr1: Text, text: "->", font_size: 14, color: text.muted
+      f_wide: Rect, size: (120, 22), corner_radius: 6, color: accent.success, opacity: 0.0
+      f_arr2: Text, text: "->", font_size: 14, color: text.muted
+      f_out: Rect, size: (36, 16), corner_radius: 4, color: accent.success, opacity: 0.0
+    }
+    ffn_dims: Text, text: "768-dim -> 3072-dim (GELU) -> 768-dim", font_size: 13, color: text.primary
+    ffn_desc: Text, text: "Stores factual knowledge in weights", font_size: 12, color: text.muted
+  }
+}
 
-// The rejoin points: where each skip connection adds back into the stream.
-plus1: Text, text: "+", font_size: 24, color: accent.primary, opacity: 0.0, at: (648, 352)
-plus2: Text, text: "+", font_size: 24, color: accent.primary, opacity: 0.0, at: (1168, 352)
+// ── Rejoin points: Addition "+" Symbols ─────────────────────────────
+plus1: Text, text: "+", font_size: 26, color: accent.primary, opacity: 0.0, at: (570, 360)
+plus2: Text, text: "+", font_size: 26, color: accent.success, opacity: 0.0, at: (1120, 360)
 
-// ── timeline ────────────────────────────────────────────────────────
-#0.15s
+// Traveling energy particle representing continuous residual flow
+dot: Ellipse, size: (18, 18), color: accent.primary, opacity: 0.0, at: (100, 400)
+
+// ── Summary Card on Bottom ──────────────────────────────────────────
+summary_card: Stack, at: (640, 620) {
+  sum_bg: Rect, size: (740, 52), corner_radius: 12, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.4
+  sum_t: Text, text: "Residual Principle: Sublayers only compute deltas; the stream preserves signal depth",
+    font_size: 14, color: text.secondary
+}
+
+// ── Timeline Choreography ───────────────────────────────────────────
+#0.10s
+fade-in head_eyebrow [260ms, ease: expo-out]
 fade-in phase1 [300ms, ease: expo-out]
-draw-in rail [800ms, ease: expo-out]
-rail.opacity = 0.40 [700ms]
-fade-in rail_label [420ms, delay: 400ms, ease: expo-out]
+fade-in formula_chip [320ms, ease: expo-out]
+draw-in rail [700ms, ease: expo-out]
+rail.opacity = 0.60 [600ms]
+fade-in rail_label [360ms, delay: 300ms, ease: expo-out]
 
-#0.90s
-wipe-in ln1 [400ms, ease: expo-out]
-fade-in ln1_t [300ms, delay: 140ms, ease: expo-out]
+#1.00s
+wipe-in ln1 [360ms, ease: expo-out]
+fade-in ln1_t [260ms, delay: 140ms, ease: expo-out]
+attn_box.opacity = 0.90 [420ms]
+fade-in attn_t [280ms, delay: 180ms, ease: expo-out]
+fade-in attn_sub [260ms, delay: 260ms, ease: expo-out]
+fade-in attn_desc [260ms, delay: 320ms, ease: expo-out]
+stagger [80ms] {
+  ab1.opacity = 0.70 [280ms]
+  ab2.opacity = 1.00 [280ms]
+  ab3.opacity = 0.70 [280ms]
+}
 
-#1.35s
-wipe-in attn [450ms, ease: expo-out]
-fade-in attn_t [320ms, delay: 160ms, ease: expo-out]
-fade-in attn_s [320ms, delay: 300ms, ease: expo-out]
+#1.90s
+draw-in skip1 [520ms, ease: expo-out]
+skip1.opacity = 0.85 [460ms]
+fade-in plus1 [280ms, delay: 380ms, ease: expo-out]
 
-#1.95s
-draw-in skip1 [600ms, ease: expo-out]
-skip1.opacity = 0.55 [560ms]
+#2.60s
+fade-out phase1 [240ms, ease: ease-in]
+fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
+wipe-in ln2 [360ms, ease: expo-out]
+fade-in ln2_t [260ms, delay: 140ms, ease: expo-out]
+ffn_box.opacity = 0.90 [420ms]
+fade-in ffn_t [280ms, delay: 180ms, ease: expo-out]
+fade-in ffn_sub [260ms, delay: 260ms, ease: expo-out]
+fade-in ffn_dims [280ms, delay: 320ms, ease: expo-out]
+fade-in ffn_desc [260ms, delay: 360ms, ease: expo-out]
+fade-in f_arr1 [240ms, delay: 300ms, ease: expo-out]
+fade-in f_arr2 [240ms, delay: 300ms, ease: expo-out]
+stagger [80ms] {
+  f_in.opacity = 0.70 [280ms]
+  f_wide.opacity = 1.00 [320ms]
+  f_out.opacity = 0.70 [280ms]
+}
+pulse f_wide [600ms, intensity: 0.05, delay: 500ms]
 
-// Phase 2 opens as the first skip leaves the rail.
-#2.30s
-fade-out phase1 [260ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 260ms, ease: expo-out]
+#4.10s
+fade-out phase2 [240ms, ease: ease-in]
+fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
+draw-in skip2 [520ms, ease: expo-out]
+skip2.opacity = 0.85 [460ms]
+fade-in plus2 [280ms, delay: 380ms, ease: expo-out]
 
-#2.55s
-wipe-in ln2 [400ms, ease: expo-out]
-fade-in ln2_t [300ms, delay: 140ms, ease: expo-out]
+#4.80s
+fade-in dot [220ms, ease: expo-out]
+shift dot [by: (1080, 0), 1600ms, ease: ease-in-out]
+fade-out dot [260ms, delay: 1480ms, ease: ease-in]
+fade-in summary_card [380ms, delay: 600ms, ease: expo-out]
+fade-in sum_t [300ms, delay: 750ms, ease: expo-out]
 
-#3.00s
-wipe-in ffn [450ms, ease: expo-out]
-fade-in ffn_t [320ms, delay: 160ms, ease: expo-out]
-
-#3.45s
-// wide_b carries no authored opacity, so it is a hidden-by-default seed:
-// only an entrance lifts the seed (assignments do not) — fade it in.
-wide_a.opacity = 0.5 [320ms]
-fade-in wide_b [320ms, ease: expo-out]
-wide_c.opacity = 0.5 [320ms]
-fade-in ffn_s [320ms, delay: 300ms, ease: expo-out]
-
-#4.05s
-draw-in skip2 [600ms, ease: expo-out]
-skip2.opacity = 0.55 [560ms]
-
-// Phase 3: the additions. Each "+" flashes where its arc rejoins the rail.
-#4.35s
-fade-out phase2 [260ms, ease: ease-in]
-fade-in phase3 [300ms, delay: 260ms, ease: expo-out]
-fade-in plus1 [300ms, ease: expo-out]
-fade-in plus2 [300ms, delay: 220ms, ease: expo-out]
-
-// The residual carried the whole way, past both blocks.
-#4.85s
-fade-in dot [260ms, ease: expo-out]
-shift dot [by: (990, 0), 1500ms, ease: ease-in-out]
-fade-out dot [300ms, delay: 1380ms, ease: ease-in]
-
-// Outro: quiet the plate before the wrap (reverse order).
-#6.95s
-// The loop's rest frame is this composition, not an empty plate: the embed
-// holds the finished frame for `hold` seconds and dissolves it into the next
-// cycle itself, so erasing the figure here would only blank the screen during
-// the rest. The outro therefore clears the narration line and leaves the
-// diagram standing.
-fade-out phase3 [260ms, ease: ease-in]
+// ── Outro Rest Frame ────────────────────────────────────────────────
+#7.80s
+// Complete dual-sublayer block, residual arcs, and dimensional specs stand held.
