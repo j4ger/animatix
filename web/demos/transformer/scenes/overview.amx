@@ -23,23 +23,24 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 9.0 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · text becomes tokens", font_size: 15, color: text.muted,
-  text_max_width: 400, text_align: "left", at: (150, 96)
+  text_max_width: 400, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · embed + add position", font_size: 15, color: text.muted,
-  text_max_width: 400, text_align: "left", at: (150, 96)
+  text_max_width: 400, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · attend, then transform", font_size: 15, color: text.muted,
-  text_max_width: 400, text_align: "left", at: (150, 96)
+  text_max_width: 400, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase4: Text, text: "4 · score every word", font_size: 15, color: text.muted,
-  text_max_width: 460, text_align: "left", at: (150, 96)
+  text_max_width: 460, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase5: Text, text: "5 · append it, go again", font_size: 15, color: text.muted,
-  text_max_width: 460, text_align: "left", at: (150, 96)
+  text_max_width: 460, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
-// ── the input row ───────────────────────────────────────────────────
 // ── the input row: the shared LabeledBox component ──────────────────
-in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 15, corner: 12, at: (380, 592)
-in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 15, corner: 12, at: (510, 592)
-in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 15, corner: 12, at: (640, 592)
-in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 15, corner: 12, at: (770, 592)
-in5: LabeledBox, label: "the", width: 110, height: 56, text_size: 15, corner: 12, at: (900, 592)
+in_row: Row, at: (640, 592), gap: 20, align: "center" {
+  in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 15, corner: 12
+  in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 15, corner: 12
+  in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 15, corner: 12
+  in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 15, corner: 12
+  in5: LabeledBox, label: "the", width: 110, height: 56, text_size: 15, corner: 12
+}
 
 // The prediction, appended at the end of the row in the closing beat.
 // No authored opacity: a component instance with an authored zero takes the
@@ -63,9 +64,11 @@ loopback: Arrow, from: (1060, 180), to: (1040, 556), head_size: 13, stroke_width
   stroke: accent.primary, opacity: 0.0
 
 // ── embedding + position plate ──────────────────────────────────────
-plate: Rect, size: (700, 48), corner_radius: 12, color: surface.primary, at: (640, 516)
-plate_t: Text, text: "token embeddings + positional encodings", font_size: 16,
-  color: text.primary, at: (640, 516)
+plate_stack: Stack, at: (640, 516) {
+  plate: Rect, size: (700, 48), corner_radius: 12, color: surface.primary
+  plate_t: Text, text: "token embeddings + positional encodings", font_size: 16,
+    color: text.primary
+}
 tag_e: Text, text: "01 · 02", font_size: 14, color: accent.primary, at: (1000, 516)
 
 // ── the block, with its internals ───────────────────────────────────
@@ -88,27 +91,41 @@ skip2: Path, commands: {
   move_to(700, 330), quad_to(880, 90, 980, 330)
 }, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 
-ln1: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5, at: (380, 330)
-ln1_t: Text, text: "LN", font_size: 14, color: text.primary, at: (380, 330)
-ln2: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5, at: (700, 330)
-ln2_t: Text, text: "LN", font_size: 14, color: text.primary, at: (700, 330)
+ln1_stack: Stack, at: (380, 330) {
+  ln1: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5
+  ln1_t: Text, text: "LN", font_size: 14, color: text.primary
+}
+ln2_stack: Stack, at: (700, 330) {
+  ln2: Ellipse, size: (60, 60), color: surface.primary, stroke: accent.warning, stroke_width: 2.5
+  ln2_t: Text, text: "LN", font_size: 14, color: text.primary
+}
 
-attn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
-  stroke: accent.info, stroke_width: 2, at: (545, 330)
-attn_t: Text, text: "self-attention", font_size: 17, color: text.primary, at: (545, 312)
-attn_s: Text, text: "tokens mix", font_size: 12, color: text.muted, at: (545, 344)
+attn_stack: Stack, at: (545, 330) {
+  attn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
+    stroke: accent.info, stroke_width: 2
+  attn_content: Col, gap: 8, align: "center" {
+    attn_t: Text, text: "self-attention", font_size: 17, color: text.primary
+    attn_s: Text, text: "tokens mix", font_size: 12, color: text.muted
+  }
+}
 tag_attn: Text, text: "03 · 04", font_size: 14, color: accent.primary, at: (545, 250)
 
-ffn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
-  stroke: accent.success, stroke_width: 2, at: (832, 330)
-ffn_t: Text, text: "FFN", font_size: 17, color: text.primary, at: (832, 312)
-ffn_s: Text, text: "each token alone", font_size: 12, color: text.muted, at: (832, 344)
+ffn_stack: Stack, at: (832, 330) {
+  ffn: Rect, size: (200, 120), corner_radius: 14, color: surface.primary,
+    stroke: accent.success, stroke_width: 2
+  ffn_content: Col, gap: 8, align: "center" {
+    ffn_t: Text, text: "FFN", font_size: 17, color: text.primary
+    ffn_s: Text, text: "each token alone", font_size: 12, color: text.muted
+  }
+}
 tag_ffn: Text, text: "05", font_size: 14, color: accent.primary, at: (832, 250)
 
 // ── LM head + probabilities ─────────────────────────────────────────
-lmh: Rect, size: (420, 48), corner_radius: 12, color: surface.primary,
-  stroke: accent.primary, stroke_width: 2, at: (640, 128)
-lmh_t: Text, text: "LM head: linear + softmax", font_size: 16, color: text.primary, at: (640, 128)
+lmh_stack: Stack, at: (640, 128) {
+  lmh: Rect, size: (420, 48), corner_radius: 12, color: surface.primary,
+    stroke: accent.primary, stroke_width: 2
+  lmh_t: Text, text: "LM head: linear + softmax", font_size: 16, color: text.primary
+}
 
 prob_cap: Text, text: "next-token probabilities", font_size: 14, color: text.muted,
   text_max_width: 240, at: (1090, 74)
@@ -127,9 +144,9 @@ pb2: Rect, size: (20, 16), corner_radius: 4, color: accent.primary, opacity: 0.0
 pv0: Text, text: "0.41", font_size: 14, color: text.secondary,
   text_max_width: 50, text_align: "left", at: (1190, 100)
 pv1: Text, text: "0.22", font_size: 14, color: text.secondary,
-  text_max_width: 50, text_align: "left", at: (1100, 128)
+  text_max_width: 50, text_align: "left", at: (1190, 128)
 pv2: Text, text: "0.05", font_size: 14, color: text.secondary,
-  text_max_width: 50, text_align: "left", at: (1032, 156)
+  text_max_width: 50, text_align: "left", at: (1190, 156)
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s

@@ -24,11 +24,11 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.8 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · the text", font_size: 15, color: text.muted,
-  text_max_width: 240, text_align: "left", at: (150, 96)
+  text_max_width: 240, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · split into tokens", font_size: 15, color: text.muted,
-  text_max_width: 240, text_align: "left", at: (150, 96)
+  text_max_width: 240, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · each token becomes numbers", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
 // ── the sentence, before any splitting ──────────────────────────────
 bar_stack: Stack, at: (660, 98) {
@@ -37,48 +37,60 @@ bar_stack: Stack, at: (660, 98) {
 }
 
 // ── token chips — the shared LabeledBox component, one actor each ───
-chip_the: LabeledBox, label: "the", width: 200, height: 64, text_size: 26, at: (300, 172)
-chip_cat: LabeledBox, label: "cat", width: 200, height: 64, text_size: 26, at: (580, 172)
-chip_sat: LabeledBox, label: "sat", width: 200, height: 64, text_size: 26, at: (860, 172)
+chip_row: Row, at: (580, 172), gap: 80, align: "center" {
+  chip_the: LabeledBox, label: "the", width: 200, height: 64, text_size: 26
+  chip_cat: LabeledBox, label: "cat", width: 200, height: 64, text_size: 26
+  chip_sat: LabeledBox, label: "sat", width: 200, height: 64, text_size: 26
+}
 
 link_the: Line, from: (300, 208), to: (300, 244), stroke_width: 2, color: text.muted, opacity: 0.0
 link_cat: Line, from: (580, 208), to: (580, 244), stroke_width: 2, color: text.muted, opacity: 0.0
 link_sat: Line, from: (860, 208), to: (860, 244), stroke_width: 2, color: text.muted, opacity: 0.0
 
 // ── one embedding vector per token: five entries, intensity = value ──
-the_col: Col, at: (300, 394), gap: 10 {
-  the_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  the_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  the_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  the_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  the_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-}
-cat_col: Col, at: (580, 394), gap: 10 {
-  cat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  cat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  cat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  cat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  cat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-}
-sat_col: Col, at: (860, 394), gap: 10 {
-  sat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  sat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  sat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  sat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
-  sat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+embed_row: Row, at: (580, 394), gap: 80, align: "center" {
+  the_col: Col, gap: 10 {
+    the_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    the_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    the_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    the_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    the_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+  }
+  cat_col: Col, gap: 10 {
+    cat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    cat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    cat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    cat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    cat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+  }
+  sat_col: Col, gap: 10 {
+    sat_v0: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    sat_v1: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    sat_v2: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    sat_v3: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+    sat_v4: Rect, size: (200, 50), corner_radius: 9, color: accent.primary, opacity: 0.0
+  }
 }
 
 // The vector continues past five entries. Drawn as dots, not "⋮" (U+22EE):
 // the fast-path face has no glyph for it and renders tofu.
-the_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (291, 573)
-the_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (300, 573)
-the_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (309, 573)
-cat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (571, 573)
-cat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (580, 573)
-cat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (589, 573)
-sat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (851, 573)
-sat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (860, 573)
-sat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0, at: (869, 573)
+dots_row: Row, at: (580, 573), gap: 80, align: "center" {
+  the_dots: Row, gap: 2, align: "center" {
+    the_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    the_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    the_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+  }
+  cat_dots: Row, gap: 2, align: "center" {
+    cat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    cat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    cat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+  }
+  sat_dots: Row, gap: 2, align: "center" {
+    sat_d0: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    sat_d1: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+    sat_d2: Ellipse, size: (7, 7), color: text.muted, opacity: 0.0
+  }
+}
 
 // ── the bracket that names the vector's length ──────────────────────
 brace_top: Line, from: (972, 249), to: (996, 249), stroke_width: 2.5, color: accent.primary
@@ -86,7 +98,7 @@ brace_mid: Line, from: (996, 249), to: (996, 539), stroke_width: 2.5, color: acc
 brace_bot: Line, from: (996, 539), to: (972, 539), stroke_width: 2.5, color: accent.primary
 
 brace_label: Text, text: "d_model = 512", font_size: 20, color: accent.primary,
-  text_max_width: 180, text_align: "left", at: (1112, 394)
+  text_max_width: 180, text_align: "left", at: (1070, 394)
 
 // Closing beat: one bright rule walks down the entries, so the matrix reads as
 // many rows of numbers rather than as five stacked blocks.

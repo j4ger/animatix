@@ -57,17 +57,40 @@
     </div>
 
     <!-- Figure 0: Hero Overview -->
-    <figure class="hero">
-      <amx-player src="scenes/overview.amx" eager autoplay loop controls hold="1.5"
-                  aspect="16:9" title="The full transformer, one map"></amx-player>
-      <figcaption>
-        <span class="cap"><b>Figure 0 · The Blueprint.</b> Tokens enter at the bottom,
-          climb through the block (self-attention and feed-forward sublayers, marked <b>× N</b> for repetition),
-          and reach the LM head. The winning token — <em>street</em> — is appended back onto the input row:
-          that feedback loop <strong>is</strong> autoregressive generation.</span>
-        <a class="src" href="scenes/overview.amx">scenes/overview.amx ↗</a>
-      </figcaption>
-    </figure>
+    <div class="stage-deck" id="s0">
+      <div class="stage-core">
+        <div class="stage-hud">
+          <div class="stage-hud-tag">
+            <span class="live-dot"></span>
+            <span>Fig 00 // Full Architecture Blueprint</span>
+          </div>
+          <div class="stage-hud-specs">
+            <span>pkg-slim · 1.6MB</span>
+            <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+          </div>
+        </div>
+        <div class="stage-viewport">
+          <amx-player src="scenes/overview.amx" eager autoplay loop controls hold="1.5"
+                      aspect="16:9" title="The full transformer, one map"></amx-player>
+        </div>
+        <div class="stage-caption-bar">
+          <div class="stage-meta">
+            <span class="stage-meta-kicker">Architecture Blueprint · Autoregressive Feedback</span>
+            <p class="stage-meta-text">
+              Tokens enter at the bottom, climb through the block (self-attention and feed-forward sublayers, marked <strong>× N</strong> for repetition),
+              and reach the LM head. The winning token — <em>street</em> — is appended back onto the input row:
+              that feedback loop <strong>is</strong> autoregressive generation.
+            </p>
+          </div>
+          <div class="stage-actions">
+            <a class="btn-stage-src" href="scenes/overview.amx">
+              <span>overview.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Sticky Reading Rail -->
     <nav class="chapter-rail" aria-label="Chapters">
@@ -96,14 +119,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Tokens and embeddings"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 1 · Vector Extrusion.</b> The continuous sentence fractures into discrete token chips. Each chip looks up its row in the embedding matrix, extruding a column of numerical coordinates.</span>
-          <a class="src" href="scenes/tokens.amx">scenes/tokens.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 01 // Sub-Word Fracture &amp; Extrusion</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/tokens.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Tokens and embeddings"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">Vector Extrusion · Sub-Word Representation</span>
+              <p class="stage-meta-text">
+                The continuous sentence fractures into discrete token chips. Each chip looks up its row in the embedding matrix, extruding a column of numerical coordinates.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/tokens.amx">
+                <span>tokens.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -159,14 +206,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Positional encoding"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 2 · The Harmonic Grid.</b> Rows represent dimensions; columns represent sequence positions 0–7. Each row halves the frequency of the row above it, widening wave periods. The cursor reads position 3's complete composite fingerprint.</span>
-          <a class="src" href="scenes/positional.amx">scenes/positional.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 02 // Harmonic Frequency Spectrum</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/positional.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Positional encoding"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">Harmonic Grid · Temporal Fingerprints</span>
+              <p class="stage-meta-text">
+                Rows represent dimensions; columns represent sequence positions 0–7. Each row halves the frequency of the row above it, widening wave periods. The cursor reads position 3's complete composite fingerprint.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/positional.amx">
+                <span>positional.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -222,14 +293,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Scaled dot-product attention"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 3 · Resolving Coreference.</b> The golden ring marks query token <em>it</em>. As it queries prior keys, softmax calculates weights for all tokens: <b>0.62</b> weight assigned to <em>animal</em>. The token absorbs <em>animal</em>'s value vector to resolve its antecedent.</span>
-          <a class="src" href="scenes/attention.amx">scenes/attention.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 03 // Scaled Dot-Product Attention</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/attention.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Scaled dot-product attention"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">Coreference Spotlight · Softmax Distribution</span>
+              <p class="stage-meta-text">
+                The golden ring marks query token <em>it</em>. As it queries prior keys, softmax calculates weights for all tokens: <strong>0.62</strong> weight assigned to <em>animal</em>. The token absorbs <em>animal</em>'s value vector to resolve its antecedent.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/attention.amx">
+                <span>attention.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -287,14 +382,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Multiple attention heads"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 4 · Parallel Specialization.</b> Three heads analyze the same tokens. Head 1 specializes in syntax; Head 2 tracks semantic relations; Head 3 tracks sequential neighbours. Outputs drop into concatenated segments before fusing via linear mix W<sub>O</sub>.</span>
-          <a class="src" href="scenes/multihead.amx">scenes/multihead.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 04 // Parallel Attention Subspaces</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/multihead.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Multiple attention heads"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">Multi-Head Geometry · Parallel Specialization</span>
+              <p class="stage-meta-text">
+                Three heads analyze the same tokens in parallel. Head 1 specializes in syntax; Head 2 tracks semantic relations; Head 3 tracks sequential neighbours. Outputs drop into concatenated segments before fusing via linear mix W<sub>O</sub>.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/multihead.amx">
+                <span>multihead.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -349,14 +468,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Feed-forward block with residuals"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 5 · The Skip Connections.</b> The platinum rail represents the residual stream. Skip connections arc over LayerNorm rings and sublayer blocks, rejoining with <b>+</b> accumulation markers. Signal widens d → 4d → d to retrieve associative memory.</span>
-          <a class="src" href="scenes/feedforward.amx">scenes/feedforward.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 05 // Residual Stream &amp; FFN Expansion</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/feedforward.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Feed-forward block with residuals"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">The Skip Connections · Associative Recall</span>
+              <p class="stage-meta-text">
+                The platinum rail represents the residual stream. Skip connections arc over LayerNorm rings and sublayer blocks, rejoining with <strong>+</strong> accumulation markers. Signal widens d → 4d → d to retrieve associative memory.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/feedforward.amx">
+                <span>feedforward.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -412,14 +555,38 @@
         </p>
       </div>
 
-      <figure>
-        <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="The full transformer stack"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Figure 6 · Ascending the Stack.</b> Token vectors enter at the base and climb layer by layer. The internal state strip mutates as representations refine. At the summit, the vector fans out into the LM head to score the entire vocabulary.</span>
-          <a class="src" href="scenes/pipeline.amx">scenes/pipeline.amx ↗</a>
-        </figcaption>
-      </figure>
+      <div class="stage-deck">
+        <div class="stage-core">
+          <div class="stage-hud">
+            <div class="stage-hud-tag">
+              <span class="live-dot"></span>
+              <span>Fig 06 // Stacking Identical Blocks</span>
+            </div>
+            <div class="stage-hud-specs">
+              <span>pkg-slim · 1.6MB</span>
+              <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+            </div>
+          </div>
+          <div class="stage-viewport">
+            <amx-player src="scenes/pipeline.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="The full transformer stack"></amx-player>
+          </div>
+          <div class="stage-caption-bar">
+            <div class="stage-meta">
+              <span class="stage-meta-kicker">Layer Climbing · Semantic Abstraction</span>
+              <p class="stage-meta-text">
+                Token vectors enter at the base and climb layer by layer. The internal state strip mutates as representations refine. At the summit, the vector fans out into the LM head to score the entire vocabulary.
+              </p>
+            </div>
+            <div class="stage-actions">
+              <a class="btn-stage-src" href="scenes/pipeline.amx">
+                <span>pipeline.amx</span>
+                <span class="btn-icon-wrap">↗</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="walk">
         <p class="walk-title">Choreography beats</p>
@@ -518,6 +685,20 @@
               </tr>
             </tbody>
           </table>
+          <div class="insight-grid" style="margin-top: 24px;">
+            <div class="insight-card">
+              <div class="insight-title"><span class="sec-num">01</span> The Unbroken Residual Rail</div>
+              <p class="insight-body">
+                The continuous highway vector <i>x</i> flows unimpeded through hundreds of layers. Sublayers never overwrite—they only add small delta updates &Delta;<i>x</i> = Sublayer(LN(<i>x</i>)), preserving clean gradient backpropagation across deep architectures.
+              </p>
+            </div>
+            <div class="insight-card">
+              <div class="insight-title"><span class="sec-num">02</span> Separation of Powers</div>
+              <p class="insight-body">
+                Self-Attention serves as the <strong>spatial routing mechanism</strong> (mixing contextual coordinates across tokens), while the FFN serves as the <strong>associative fact repository</strong> (retrieving world knowledge for each token independently).
+              </p>
+            </div>
+          </div>
         </div>
       </details>
     </section>

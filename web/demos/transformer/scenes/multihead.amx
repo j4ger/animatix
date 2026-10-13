@@ -20,59 +20,70 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 6.9 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · several heads in parallel", font_size: 15, color: text.muted,
-  text_max_width: 320, text_align: "left", at: (150, 96)
+  text_max_width: 320, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · each head finds its own structure", font_size: 15, color: text.muted,
-  text_max_width: 380, text_align: "left", at: (150, 96)
+  text_max_width: 380, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · concat, then mix", font_size: 15, color: text.muted,
-  text_max_width: 280, text_align: "left", at: (150, 96)
+  text_max_width: 280, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
-// ── panels ──────────────────────────────────────────────────────────
-panel_a: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0, at: (290, 290)
-panel_b: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0, at: (640, 290)
-panel_c: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0, at: (990, 290)
+// ── attention head cards ────────────────────────────────────────────
+heads: Row, at: (640, 290), gap: 30, align: "center" {
+  head_a_stack: Stack, size: (320, 300) {
+    panel_a: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0
+    head_a_content: Col, gap: 14, align: "center" {
+      title_a: Text, text: "who did what", font_size: 16, color: accent.primary
+      head1_grid: Grid, cols: 3, gap: 12 {
+        // ── head 1: subject → verb ──────────────────────────────────────────
+        h1_00: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_01: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_02: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_10: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_11: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_12: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_20: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_21: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+        h1_22: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
+      }
+    }
+  }
 
-title_a: Text, text: "who did what", font_size: 16, color: accent.primary, at: (290, 172)
-title_b: Text, text: "did what to whom", font_size: 16, color: accent.success, at: (640, 172)
-title_c: Text, text: "next token only", font_size: 16, color: accent.info, at: (990, 172)
+  head_b_stack: Stack, size: (320, 300) {
+    panel_b: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0
+    head_b_content: Col, gap: 14, align: "center" {
+      title_b: Text, text: "did what to whom", font_size: 16, color: accent.success
+      head2_grid: Grid, cols: 3, gap: 12 {
+        // ── head 2: verb → object ───────────────────────────────────────────
+        h2_00: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_01: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_02: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_10: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_11: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_12: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_20: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_21: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+        h2_22: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
+      }
+    }
+  }
 
-head1_grid: Grid, cols: 3, gap: 12, at: (290, 315) {
-  // ── head 1: subject → verb ──────────────────────────────────────────
-  h1_00: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_01: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_02: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_10: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_11: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_12: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_20: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_21: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-  h1_22: Rect, size: (64, 64), corner_radius: 8, color: accent.primary, opacity: 0.0
-
-}
-head2_grid: Grid, cols: 3, gap: 12, at: (640, 315) {
-  // ── head 2: verb → object ───────────────────────────────────────────
-  h2_00: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_01: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_02: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_10: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_11: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_12: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_20: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_21: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-  h2_22: Rect, size: (64, 64), corner_radius: 8, color: accent.success, opacity: 0.0
-
-}
-head3_grid: Grid, cols: 3, gap: 12, at: (990, 315) {
-  // ── head 3: neighbours ──────────────────────────────────────────────
-  h3_00: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_01: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_02: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_10: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_11: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_12: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_20: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_21: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-  h3_22: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
-
+  head_c_stack: Stack, size: (320, 300) {
+    panel_c: Rect, size: (320, 300), corner_radius: 18, color: surface.primary, opacity: 0.0
+    head_c_content: Col, gap: 14, align: "center" {
+      title_c: Text, text: "next token only", font_size: 16, color: accent.info
+      head3_grid: Grid, cols: 3, gap: 12 {
+        // ── head 3: neighbours ──────────────────────────────────────────────
+        h3_00: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_01: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_02: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_10: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_11: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_12: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_20: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_21: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+        h3_22: Rect, size: (64, 64), corner_radius: 8, color: accent.info, opacity: 0.0
+      }
+    }
+  }
 }
 // ── each head's output drops into its own segment ───────────────────
 drop_a: Arrow, from: (290, 452), to: (290, 496), head_size: 12,

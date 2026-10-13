@@ -19,17 +19,19 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · a token's vector enters the stack", font_size: 15, color: text.muted,
-  text_max_width: 380, text_align: "left", at: (150, 96)
+  text_max_width: 380, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · layer by layer, it refines", font_size: 15, color: text.muted,
-  text_max_width: 320, text_align: "left", at: (150, 96)
+  text_max_width: 320, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · score the vocabulary", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
 // ── input tokens — the shared LabeledBox component ──────────────────
-in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 17, corner: 12, at: (463, 560)
-in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 17, corner: 12, at: (581, 560)
-in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 17, corner: 12, at: (699, 560)
-in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 17, corner: 12, at: (817, 560)
+in_row: Row, at: (640, 560), gap: 8, align: "center" {
+  in1: LabeledBox, label: "The", width: 110, height: 56, text_size: 17, corner: 12
+  in2: LabeledBox, label: "animal", width: 110, height: 56, text_size: 17, corner: 12
+  in3: LabeledBox, label: "didn't", width: 110, height: 56, text_size: 17, corner: 12
+  in4: LabeledBox, label: "cross", width: 110, height: 56, text_size: 17, corner: 12
+}
 
 // ── the stack: identical boxes, evolving vector ─────────────────────
 b1: Rect, size: (560, 80), corner_radius: 16, color: surface.primary, at: (640, 446)
@@ -41,23 +43,29 @@ b2_t: Text, text: "block 2", font_size: 19, color: text.primary, at: (735, 334)
 b3_t: Text, text: "block N", font_size: 19, color: text.primary, at: (735, 222)
 
 // One intensity strip per block: same tokens in, different meaning out.
-s1_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 446)
-s1_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 446)
-s1_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 446)
-s1_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 446)
-s1_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 446)
+s1_strip: Row, at: (477, 446), gap: 6, align: "center" {
+  s1_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s1_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s1_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s1_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s1_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+}
 
-s2_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 334)
-s2_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 334)
-s2_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 334)
-s2_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 334)
-s2_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 334)
+s2_strip: Row, at: (477, 334), gap: 6, align: "center" {
+  s2_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s2_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s2_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s2_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s2_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+}
 
-s3_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (413, 222)
-s3_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (445, 222)
-s3_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (477, 222)
-s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (509, 222)
-s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (541, 222)
+s3_strip: Row, at: (477, 222), gap: 6, align: "center" {
+  s3_0: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s3_1: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s3_2: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s3_3: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+  s3_4: Rect, size: (26, 26), corner_radius: 5, color: accent.primary, opacity: 0.0
+}
 
 // ── flow up the tower ───────────────────────────────────────────────
 up1: Arrow, from: (640, 528), to: (640, 492), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
@@ -69,12 +77,18 @@ up_lm: Arrow, from: (640, 178), to: (520, 150), head_size: 13, stroke_width: 2, 
 up_cls: Arrow, from: (640, 178), to: (760, 150), head_size: 13, stroke_width: 2, stroke: text.muted, opacity: 0.0
 
 // ── output heads ────────────────────────────────────────────────────
-out_lm: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
-  stroke: accent.primary, stroke_width: 2, at: (520, 118)
-out_lm_t: Text, text: "LM head", font_size: 17, color: text.primary, at: (520, 118)
-out_cls: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
-  stroke: accent.success, stroke_width: 2, at: (760, 118)
-out_cls_t: Text, text: "task head", font_size: 17, color: text.primary, at: (760, 118)
+out_heads: Row, at: (640, 118), gap: 40, align: "center" {
+  out_lm_stack: Stack, size: (180, 52) {
+    out_lm: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
+      stroke: accent.primary, stroke_width: 2
+    out_lm_t: Text, text: "LM head", font_size: 17, color: text.primary
+  }
+  out_cls_stack: Stack, size: (180, 52) {
+    out_cls: Rect, size: (180, 52), corner_radius: 12, color: surface.primary,
+      stroke: accent.success, stroke_width: 2
+    out_cls_t: Text, text: "task head", font_size: 17, color: text.primary
+  }
+}
 
 // Closing beat: one token's vector climbing the whole stack.
 climb: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (640, 556)

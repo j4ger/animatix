@@ -27,11 +27,11 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 8.3 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · the residual stream", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · widen, nonlinear, project back", font_size: 15, color: text.muted,
-  text_max_width: 380, text_align: "left", at: (150, 96)
+  text_max_width: 380, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · add it back: x + F(x)", font_size: 15, color: text.muted,
-  text_max_width: 340, text_align: "left", at: (150, 96)
+  text_max_width: 340, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
 // ── the residual stream ─────────────────────────────────────────────
 rail: Rect, size: (1040, 6), corner_radius: 3, color: text.muted, opacity: 0.0, at: (640, 390)
@@ -48,27 +48,36 @@ skip2: Path, commands: {
 }, color: text.muted, stroke: text.muted, stroke_width: 2, opacity: 0.0, fill_opacity: 0.0
 
 // ── LayerNorm: rings standing in the gaps, not on the borders ───────
-ln1: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3, at: (210, 390)
-ln1_t: Text, text: "LN", font_size: 17, color: text.primary, at: (210, 390)
-ln2: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3, at: (740, 390)
-ln2_t: Text, text: "LN", font_size: 17, color: text.primary, at: (740, 390)
+ln1_stack: Stack, at: (210, 390) {
+  ln1: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3
+  ln1_t: Text, text: "LN", font_size: 17, color: text.primary
+}
+ln2_stack: Stack, at: (740, 390) {
+  ln2: Ellipse, size: (76, 76), color: surface.primary, stroke: accent.warning, stroke_width: 3
+  ln2_t: Text, text: "LN", font_size: 17, color: text.primary
+}
 
 // ── the two halves of a block ───────────────────────────────────────
 attn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
   stroke: accent.info, stroke_width: 2, at: (460, 390)
-attn_t: Text, text: "Attention", font_size: 24, color: text.primary, at: (460, 340)
-attn_s: Text, text: "across tokens", font_size: 15, color: text.muted, at: (460, 386)
+attn_text: Col, at: (460, 360), gap: 18, align: "center" {
+  attn_t: Text, text: "Attention", font_size: 24, color: text.primary
+  attn_s: Text, text: "across tokens", font_size: 15, color: text.muted
+}
 
-ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
-  stroke: accent.success, stroke_width: 2, at: (980, 390)
-ffn_t: Text, text: "FFN", font_size: 24, color: text.primary, at: (980, 340)
-
-// d -> 4d -> d, drawn where it happens rather than labelled from a distance.
-// ASCII arrows: U+2192 has no glyph in the bundled slim face and drops silently.
-wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0, at: (861, 400)
-wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success, at: (980, 400)
-wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0, at: (1099, 400)
-ffn_s: Text, text: "d -> 4d -> d", font_size: 15, color: text.muted, at: (980, 442)
+ffn_stack: Stack, at: (980, 390) {
+  ffn: Rect, size: (320, 190), corner_radius: 20, color: surface.primary,
+    stroke: accent.success, stroke_width: 2
+  ffn_content: Col, gap: 16, align: "center" {
+    ffn_t: Text, text: "FFN", font_size: 24, color: text.primary
+    wide_row: Row, gap: 22, align: "center" {
+      wide_a: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0
+      wide_b: Rect, size: (150, 14), corner_radius: 5, color: accent.success
+      wide_c: Rect, size: (44, 14), corner_radius: 5, color: accent.success, opacity: 0.0
+    }
+    ffn_s: Text, text: "d -> 4d -> d", font_size: 15, color: text.muted
+  }
+}
 
 // Closing beat: the signal carried straight through by the rail.
 dot: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (150, 390)

@@ -22,18 +22,20 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.9 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · “it” looks back", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · score every token", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · softmax normalizes", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
 // ── the tokens — the shared LabeledBox component ────────────────────
-tok1: LabeledBox, label: "The", width: 150, height: 56, text_size: 22, at: (280, 180)
-tok2: LabeledBox, label: "animal", width: 150, height: 56, text_size: 22, at: (460, 180)
-tok3: LabeledBox, label: "didn't", width: 150, height: 56, text_size: 22, at: (640, 180)
-tok4: LabeledBox, label: "cross", width: 150, height: 56, text_size: 22, at: (820, 180)
-tok5: LabeledBox, label: "it", width: 150, height: 56, text_size: 22, at: (1000, 180)
+tok_row: Row, at: (640, 180), gap: 30, align: "center" {
+  tok1: LabeledBox, label: "The", width: 150, height: 56, text_size: 22
+  tok2: LabeledBox, label: "animal", width: 150, height: 56, text_size: 22
+  tok3: LabeledBox, label: "didn't", width: 150, height: 56, text_size: 22
+  tok4: LabeledBox, label: "cross", width: 150, height: 56, text_size: 22
+  tok5: LabeledBox, label: "it", width: 150, height: 56, text_size: 22
+}
 
 // Query ring: outer radius = chip radius + band, so the band is even all round.
 halo: Rect, size: (172, 78), corner_radius: 25, color: accent.warning,
@@ -65,22 +67,37 @@ scan_label: Text, text: "queries prior keys", font_size: 14, color: text.muted,
 // the stroke, it does not gate visibility).
 base: Line, from: (205, 560), to: (1075, 560), stroke_width: 2, color: text.muted, opacity: 0.0
 
-bar_the: Rect, size: (56, 19), corner_radius: 5, color: accent.primary, at: (280, 550)
-bar_animal: Rect, size: (56, 240), corner_radius: 5, color: accent.primary, at: (460, 440)
-bar_didnt: Rect, size: (56, 15), corner_radius: 5, color: accent.primary, at: (640, 552)
-bar_cross: Rect, size: (56, 8), corner_radius: 5, color: accent.primary, at: (820, 556)
-bar_self: Rect, size: (56, 104), corner_radius: 5, color: accent.warning, at: (1000, 508)
+bars_row: Row, at: (640, 440), size: (870, 240), gap: 124, align: "end" {
+  bar_the: Rect, size: (56, 19), corner_radius: 5, color: accent.primary
+  bar_animal: Rect, size: (56, 240), corner_radius: 5, color: accent.primary
+  bar_didnt: Rect, size: (56, 15), corner_radius: 5, color: accent.primary
+  bar_cross: Rect, size: (56, 8), corner_radius: 5, color: accent.primary
+  bar_self: Rect, size: (56, 104), corner_radius: 5, color: accent.warning
+}
 
-w_the: Text, text: "0.05", font_size: 15, color: text.secondary, at: (280, 592)
-w_animal: Text, text: "0.62", font_size: 15, color: text.primary, at: (460, 592)
-w_didnt: Text, text: "0.04", font_size: 15, color: text.secondary, at: (640, 592)
-w_cross: Text, text: "0.02", font_size: 15, color: text.secondary, at: (820, 592)
-w_self: Text, text: "0.27", font_size: 15, color: accent.warning, at: (1000, 592)
+weights_row: Row, at: (640, 592), gap: 30, align: "center" {
+  w_cell_the: Stack, size: (150, 20) {
+    w_the: Text, text: "0.05", font_size: 15, color: text.secondary
+  }
+  w_cell_animal: Stack, size: (150, 20) {
+    w_animal: Text, text: "0.62", font_size: 15, color: text.primary
+  }
+  w_cell_didnt: Stack, size: (150, 20) {
+    w_didnt: Text, text: "0.04", font_size: 15, color: text.secondary
+  }
+  w_cell_cross: Stack, size: (150, 20) {
+    w_cross: Text, text: "0.02", font_size: 15, color: text.secondary
+  }
+  w_cell_self: Stack, size: (150, 20) {
+    w_self: Text, text: "0.27", font_size: 15, color: accent.warning
+  }
+}
 
 // ── annotation ──────────────────────────────────────────────────────
-scale_label: Text, text: "weight", font_size: 15, color: text.muted,
-  text_max_width: 120, text_align: "left", at: (265, 636)
-formula: Text, text: "softmax(Q K^T / sqrt(d_k))", font_size: 16, color: text.muted, at: (700, 636)
+scale_label: Text, text: "weight:", font_size: 15, color: text.muted,
+  text_max_width: 120, text_align: "right", at: (220, 592)
+formula: Text, text: "softmax(Q K^T / sqrt(d_k))", font_size: 16, color: text.muted,
+  anchor: scene.bottom, offset: (0, -84)
 
 // ── timeline ────────────────────────────────────────────────────────
 #0.15s

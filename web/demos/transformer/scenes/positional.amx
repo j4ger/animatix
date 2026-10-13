@@ -31,11 +31,11 @@ config { colorscheme: "ink", resolution: (1280, 720), duration: 7.1 }
 
 // ── phase narration (top-left; one label per beat) ──────────────────
 phase1: Text, text: "1 · every position gets a fingerprint", font_size: 15, color: text.muted,
-  text_max_width: 360, text_align: "left", at: (150, 96)
+  text_max_width: 360, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase2: Text, text: "2 · the wavelength doubles every row", font_size: 15, color: text.muted,
-  text_max_width: 360, text_align: "left", at: (150, 96)
+  text_max_width: 360, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 phase3: Text, text: "3 · one column = one position", font_size: 15, color: text.muted,
-  text_max_width: 300, text_align: "left", at: (150, 96)
+  text_max_width: 300, text_align: "left", anchor: scene.top_left, offset: (150, 96)
 
 matrix: Grid, cols: 8, gap: 10, at: (590, 351) {
   // ── period 3: a stripe every column ─────────────────────────────────
@@ -80,35 +80,48 @@ matrix: Grid, cols: 8, gap: 10, at: (590, 351) {
 }
 
 // ── row labels: the period doubles each row ────────────────────────
-lab0: Text, text: "period 3", font_size: 15, color: text.secondary,
-  text_max_width: 150, text_align: "right", at: (171, 225)
-lab1: Text, text: "period 6", font_size: 15, color: text.secondary,
-  text_max_width: 150, text_align: "right", at: (171, 309)
-lab2: Text, text: "period 12", font_size: 15, color: text.secondary,
-  text_max_width: 150, text_align: "right", at: (171, 393)
-lab3: Text, text: "period 24", font_size: 15, color: text.secondary,
-  text_max_width: 150, text_align: "right", at: (171, 477)
+row_labels: Col, at: (171, 351), gap: 10, align: "end" {
+  r0: Stack, size: (120, 74) {
+    lab0: Text, text: "period 3", font_size: 15, color: text.secondary, text_align: "right"
+  }
+  r1: Stack, size: (120, 74) {
+    lab1: Text, text: "period 6", font_size: 15, color: text.secondary, text_align: "right"
+  }
+  r2: Stack, size: (120, 74) {
+    lab2: Text, text: "period 12", font_size: 15, color: text.secondary, text_align: "right"
+  }
+  r3: Stack, size: (120, 74) {
+    lab3: Text, text: "period 24", font_size: 15, color: text.secondary, text_align: "right"
+  }
+}
 
 // ── column axis ─────────────────────────────────────────────────────
-p0: Text, text: "0", font_size: 15, color: text.secondary, at: (296, 544)
-p1: Text, text: "1", font_size: 15, color: text.secondary, at: (380, 544)
-p2: Text, text: "2", font_size: 15, color: text.secondary, at: (464, 544)
-p3: Text, text: "3", font_size: 15, color: text.secondary, at: (548, 544)
-p4: Text, text: "4", font_size: 15, color: text.secondary, at: (632, 544)
-p5: Text, text: "5", font_size: 15, color: text.secondary, at: (716, 544)
-p6: Text, text: "6", font_size: 15, color: text.secondary, at: (800, 544)
-p7: Text, text: "7", font_size: 15, color: text.secondary, at: (884, 544)
+axis_row: Row, at: (590, 544), gap: 10, align: "center" {
+  c0: Stack, size: (74, 20) { p0: Text, text: "0", font_size: 15, color: text.secondary }
+  c1: Stack, size: (74, 20) { p1: Text, text: "1", font_size: 15, color: text.secondary }
+  c2: Stack, size: (74, 20) { p2: Text, text: "2", font_size: 15, color: text.secondary }
+  c3: Stack, size: (74, 20) { p3: Text, text: "3", font_size: 15, color: text.secondary }
+  c4: Stack, size: (74, 20) { p4: Text, text: "4", font_size: 15, color: text.secondary }
+  c5: Stack, size: (74, 20) { p5: Text, text: "5", font_size: 15, color: text.secondary }
+  c6: Stack, size: (74, 20) { p6: Text, text: "6", font_size: 15, color: text.secondary }
+  c7: Stack, size: (74, 20) { p7: Text, text: "7", font_size: 15, color: text.secondary }
+}
 axis: Text, text: "position", font_size: 15, color: text.muted, at: (590, 578)
 
 // ── the signed scale, stated once ──────────────────────────────────
-key_cap: Text, text: "shade = value", font_size: 15, color: text.muted,
-  text_max_width: 210, text_align: "center", at: (1016, 268)
-key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (988, 304)
-key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1016, 304)
-key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0, at: (1044, 304)
-key_lo_t: Text, text: "-1", font_size: 14, color: text.muted, at: (988, 332)
-key_hi_t: Text, text: "+1", font_size: 14, color: text.muted, at: (1044, 332)
-key_zero: Text, text: "0", font_size: 14, color: text.muted, at: (1016, 332)
+legend: Col, at: (1016, 300), gap: 14, align: "center" {
+  key_cap: Text, text: "shade = value", font_size: 15, color: text.muted
+  key_swatches: Row, gap: 8, align: "center" {
+    key_lo: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0
+    key_mid: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0
+    key_hi: Rect, size: (20, 20), corner_radius: 5, color: accent.primary, opacity: 0.0
+  }
+  key_labels: Row, gap: 12, align: "center" {
+    key_lo_t: Text, text: "-1", font_size: 14, color: text.muted
+    key_zero: Text, text: "0", font_size: 14, color: text.muted
+    key_hi_t: Text, text: "+1", font_size: 14, color: text.muted
+  }
+}
 
 // Column cursor: reads one position's whole fingerprint at a time.
 cursor: Rect, size: (92, 344), corner_radius: 12, color: accent.warning,
