@@ -11,6 +11,8 @@
 pub mod gif;
 #[cfg(feature = "raster-encode")]
 pub mod image;
+#[cfg(feature = "raster-encode")]
+pub mod storyboard;
 #[cfg(feature = "video")]
 pub mod video;
 
@@ -24,6 +26,10 @@ pub use gif::{
 pub use image::{
     render_image, render_image_composition, render_image_timeline,
     render_image_timeline_with_debug, render_image_timeline_with_progress,
+};
+#[cfg(feature = "raster-encode")]
+pub use storyboard::{
+    StoryboardSettings, render_storyboard_composition, render_storyboard_timeline,
 };
 
 #[cfg(feature = "video")]

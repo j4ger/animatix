@@ -87,12 +87,13 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
    A `.amx` scene that a page embeds also owes one content check: it must rest on
    a composition. `autoplay loop` cycles are `duration` + `hold`, so a closing
-   beat that fades the cast out erases the figure for the whole rest of the loop —
-   the embed already dissolves the finished frame into the next cycle. Run
-   `scripts/site-rest-check.py` (it renders every scene the pages embed and fails
-   on the held frame); the rule it enforces is **an outro may animate parameters,
-   but it may not erase the cast**. It cannot see a single actor vanish over busy
    pixels behind it, so the fullest frame of a changed figure still needs an eye.
+
+   When authoring or modifying an `.amx` scene, do not rely on `check` alone or
+   hand-craft float floors for a `.verify.txt`. Instead, follow the fast 3-step loop:
+   1. `animatix check <file>`: fast CPU gate catching syntax, types, and `never-revealed` warnings.
+   2. `animatix storyboard <file> -o storyboard.png`: renders a single contact sheet grid sampling keyframe beats and the held resting frame.
+   3. Review the storyboard image in a single vision tool call to verify actor cues, spatial layouts (no overlapping labels or clipping), and resting frame completeness.
 
    `wasm-check` is the gate that covers the wasm player: `animatix-web`'s render
    module is `#[cfg(target_arch = "wasm32")]`, so a change to the frame-presenting

@@ -49,49 +49,31 @@ Out of scope for the first bring-up:
 - A complete taxonomy of visual taste.
 - Training a generator model before the review protocol is stable.
 
-## Architecture
+## Architecture: Storyboard-First Review Loop
 
 ```text
 .amx source
    |
-   v
-parse + build
-   |
-   +------------------+
-   |                  |
-   v                  v
-Timeline          Composition
-   |                  |
-   +--------+---------+
-            |
-            v
-   Scene Facts Extractor
-            |
-            +----------------------+
-            |                      |
-            v                      v
-   Storyboard frames          facts.json
-            |                      |
-            +----------+-----------+
-                       |
-                       v
-             Rule Engine (deterministic)
-                       |
-                       v
-                 Review Report
-                       |
-            +----------+-----------+
-            |          |           |
-            v          v           v
-         human      cloud      edge
-         review     critic     critic
-            |          |           |
-            +----------+-----------+
-                       |
-                       v
-              agent edits source
-                       |
-                       +--> re-render and re-review
+   +--> animatix check (Fast CPU gate: syntax, types, never-revealed)
+   |       |
+   |       v (clean)
+   +--> animatix storyboard (Multi-panel contact sheet image)
+           |
+           v
+    Single Image Review (1 multimodal tool call)
+           |
+    +------+------+
+    |             |
+    v             v
+  Human        AI Agent / Critic
+  Review       Visual Inspection
+    |             |
+    +------+------+
+           |
+           v (detects layout collisions, dead beats, or blank rest frames)
+     Edits .amx source
+           |
+           +--> re-check & re-storyboard
 ```
 
 ## Existing Building Blocks

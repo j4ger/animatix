@@ -65,12 +65,33 @@ A new run must satisfy the same rules as a real review experiment:
 See `runs/README.md` for the full agent workflow, human controls, review
 signals, and the decision options.
 
-## Content Checks (`verify.txt`)
+## Visual Verification & Content Checks
 
 `check`/`lint` only see the build model, and a whole-frame render smoke stays
 green while a single actor silently disappears — `examples/data/07_plots.amx`
-shipped with an invisible headline curve through both gates. A `verify.txt`
-beside a project's `entry.amx` asserts what is *actually on screen*:
+shipped with an invisible headline curve through both gates.
+
+### 1. Primary Visual Review (`animatix storyboard`)
+
+For both AI agents and human authors, the primary visual inspection tool is the
+storyboard contact sheet:
+
+```bash
+cargo run --bin animatix -- storyboard dogfood/projects/<name>/entry.amx
+```
+
+This generates a multi-panel grid image (`<name>_storyboard.png`) sampling $t=0$,
+each keyframe transition beat, and the final resting frame in a single command.
+Inspect the contact sheet to verify:
+- Actors appear cleanly at their cues.
+- Layouts and labels do not collide or overflow scene boundaries.
+- The resting frame holds a finished, readable figure (not an empty plate).
+
+### 2. Optional Regression Floors (`verify.txt`)
+
+For complex GPU-level filter pipelines (such as multi-scope offscreen composites),
+a project may optionally carry a companion `verify.txt` to assert automated
+regression floors:
 
 ```bash
 cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
@@ -79,16 +100,10 @@ cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
 It renders the frame(s) at the named times and prints one PASS/FAIL per line.
 The file is line-based: one check per line, `#` comments and blank lines
 ignored, times are **global** composition times (see `animatix timeline`).
-Copy `templates/verify.txt` to start.
 
-**Every project is expected to ship a `verify.txt`.** `scripts/dogfood-verify.sh`
-only runs the checks when the file exists, so a project without one passes the
-gate on `check` alone — which is how `effects-wave1` kept a full-canvas backdrop
-scope that vanished from every exported frame while its card rendered fine.
-That gate stays **local by decision** (it needs a GPU and dogfood content tracks
-the language); it is not wired into CI, so the file is the reminder rather than
-the enforcement.
-
+`verify.txt` is an **optional regression floor**, not a mandatory prerequisite
+for authoring new scenes. It is most useful for calibration against tricky GPU
+boundaries like `effects-wave1`:
 `dogfood/projects/effects-wave1/verify.txt` is the calibration example for the
 hard case: a full-canvas `Filter` scope whose bounds contain every other actor.
 `visible` and `reveals` on such a scope prove nothing — its region changes

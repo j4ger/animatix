@@ -132,7 +132,7 @@ impl<'a> TabBar<'a> {
                 );
 
                 // Active indicator capsule at the bottom of the pill.
-                let indicator_w = (pill.width() * 0.6).min(32.0).max(12.0);
+                let indicator_w = (pill.width() * 0.6).clamp(12.0, 32.0);
                 let indicator_rect = Rect::from_center_size(
                     egui::pos2(pill.center().x, pill.max.y - 2.0),
                     Vec2::new(indicator_w, 2.5),

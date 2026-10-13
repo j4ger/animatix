@@ -2389,7 +2389,7 @@ animatix gif examples/layout/12_reorder.amx -o out.gif --hold 2.0
 animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
 ```
 
-**Build-time overrides (`--set`).** `image`, `video`, `gif`, `check` and `verify`
+**Build-time overrides (`--set`).** `image`, `video`, `gif`, `check`, `storyboard` and `verify`
 accept a repeatable `--set NAME=VALUE` that seeds a build-time variable, which is
 how one template renders many data variants:
 
@@ -2425,6 +2425,8 @@ animatix gif examples/gallery/brand_reel/main.amx -o out.gif --fps 10
 ```
 
 **Image export (`animatix image`):** Renders a single frame at `--time` (default 0s). No trailing hold or parallelization applies.
+
+**Storyboard contact sheet (`animatix storyboard`):** Renders keyframe beats and the resting frame into a single multi-panel contact sheet grid (PNG/WebP) for visual inspection, scene reviews, and AI agent feedback loops. Automatically samples keyframe cues and the final resting frame, or accepts custom timestamps via `--times`. Accepts `--cols`, `--tile-width`, `--tile-height`, and `--max-frames`.
 
 **GUI Preview Audio:** The `animatix-gui` preview panel plays audio segments from `Audio` actors in sync with the timeline during playback. Audio files are decoded via `rodio` and cached in memory. Playback automatically starts, seeks, and pauses in sync with the timeline controller. Missing or unplayable audio files produce a warning but do not block preview.
 

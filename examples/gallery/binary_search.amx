@@ -1,0 +1,99 @@
+// Binary Search Visualization
+// Visualizes binary search finding target 42 in a sorted array in O(log n).
+
+import "../lib/theme.amx"
+import "../lib/theme.amx" as theme
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Top header
+title: Text, text: "BINARY SEARCH", font_size: 34, color: text.primary, at: (120, 75)
+subtitle: Text, text: "Finding target value 42 in a sorted array", font_size: 18, color: text.muted, at: (120, 120)
+
+target_badge: Rect, at: (980, 80), size: (180, 52), color: surface.primary, corner_radius: 10
+target_text: Text, text: "Target: 42", font_size: 22, color: accent.primary, at: (1024, 93)
+
+// Array boxes: 7 numbers [12, 24, 35, 42, 58, 70, 89]
+b0: Rect, at: (232, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t0: Text, text: "12", font_size: 30, color: text.primary, at: (266, 342)
+i0: Text, text: "idx 0", font_size: 15, color: text.muted, at: (260, 420)
+
+b1: Rect, at: (352, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t1: Text, text: "24", font_size: 30, color: text.primary, at: (386, 342)
+i1: Text, text: "idx 1", font_size: 15, color: text.muted, at: (380, 420)
+
+b2: Rect, at: (472, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t2: Text, text: "35", font_size: 30, color: text.primary, at: (506, 342)
+i2: Text, text: "idx 2", font_size: 15, color: text.muted, at: (500, 420)
+
+b3: Rect, at: (592, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t3: Text, text: "42", font_size: 30, color: text.primary, at: (626, 342)
+i3: Text, text: "idx 3", font_size: 15, color: text.muted, at: (620, 420)
+
+b4: Rect, at: (712, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t4: Text, text: "58", font_size: 30, color: text.primary, at: (746, 342)
+i4: Text, text: "idx 4", font_size: 15, color: text.muted, at: (740, 420)
+
+b5: Rect, at: (832, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t5: Text, text: "70", font_size: 30, color: text.primary, at: (866, 342)
+i5: Text, text: "idx 5", font_size: 15, color: text.muted, at: (860, 420)
+
+b6: Rect, at: (952, 310), size: (96, 96), color: surface.primary, corner_radius: 14
+t6: Text, text: "89", font_size: 30, color: text.primary, at: (986, 342)
+i6: Text, text: "idx 6", font_size: 15, color: text.muted, at: (980, 420)
+
+// Pointers
+low_ptr: Text, text: "Low (0)", font_size: 18, color: accent.warning, at: (246, 260)
+high_ptr: Text, text: "High (6)", font_size: 18, color: accent.danger, at: (966, 260)
+mid_ptr: Text, text: "Mid (3)", font_size: 20, color: accent.success, at: (608, 230)
+
+status_card: Rect, at: (380, 530), size: (520, 56), color: surface.primary, corner_radius: 12
+status_text: Text, text: "Comparing array[mid] with 42...", font_size: 20, color: text.primary, at: (446, 545)
+
+#0.5s
+stagger [60ms] {
+  fade-in title [400ms, ease: ease-out]
+  fade-in subtitle [400ms, ease: ease-out]
+  fade-in target_badge [400ms, ease: ease-out]
+  fade-in target_text [400ms, ease: ease-out]
+  fade-in b0 [300ms]
+  fade-in t0 [300ms]
+  fade-in i0 [300ms]
+  fade-in b1 [300ms]
+  fade-in t1 [300ms]
+  fade-in i1 [300ms]
+  fade-in b2 [300ms]
+  fade-in t2 [300ms]
+  fade-in i2 [300ms]
+  fade-in b3 [300ms]
+  fade-in t3 [300ms]
+  fade-in i3 [300ms]
+  fade-in b4 [300ms]
+  fade-in t4 [300ms]
+  fade-in i4 [300ms]
+  fade-in b5 [300ms]
+  fade-in t5 [300ms]
+  fade-in i5 [300ms]
+  fade-in b6 [300ms]
+  fade-in t6 [300ms]
+  fade-in i6 [300ms]
+}
+
+#1.8s
+fade-in low_ptr [400ms, ease: ease-out]
+fade-in high_ptr [400ms, ease: ease-out]
+fade-in status_card [400ms, ease: ease-out]
+fade-in status_text [400ms, ease: ease-out]
+
+#3.0s
+fade-in mid_ptr [500ms, ease: bounce]
+status_text.text = "mid = (0 + 6) / 2 = 3" [300ms]
+
+#4.2s
+b3.color = accent.success [400ms, ease: ease-out]
+t3.color = surface.secondary [400ms, ease: ease-out]
+status_text.text = "array[3] == 42 -> Match Found!" [300ms]
+status_text.color = accent.success [300ms]
+
+#5.5s
+// Settle hold

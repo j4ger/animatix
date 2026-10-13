@@ -681,3 +681,57 @@ async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
         .await
         .ok()
 }
+
+#[test]
+fn storyboard_renders_multiframe_grid_to_disk() {
+    let Some(_renderer) = new_renderer() else {
+        return;
+    };
+    let source = r#"
+#0s
+box: Rect, at: (50, 50), size: (60, 60), color: (1, 0, 0, 1)
+
+#1s
+fade-in box [500ms]
+
+#2s
+fade-out box [500ms]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let tmp_dir =
+        std::env::temp_dir().join(format!("animatix_storyboard_test_{}", std::process::id()));
+    std::fs::create_dir_all(&tmp_dir).unwrap();
+    let out_path = tmp_dir.join("test_storyboard.png");
+
+    let settings = animatix_render::encode::StoryboardSettings {
+        cols: Some(3),
+        tile_width: 160,
+        tile_height: 90,
+        times: vec![0.0, 1.0, 2.0],
+        gutter: 4,
+        margin: 6,
+        header_height: 20,
+        ..Default::default()
+    };
+
+    let count = animatix_render::encode::render_storyboard_timeline(
+        timeline,
+        &settings,
+        &out_path,
+        DebugRenderOptions::default(),
+    )
+    .expect("storyboard rendering must succeed");
+
+    assert_eq!(count, 3);
+    assert!(out_path.exists(), "storyboard file must exist");
+    let metadata = std::fs::metadata(&out_path).unwrap();
+    assert!(metadata.len() > 100, "storyboard image must have non-trivial size");
+
+    let _ = std::fs::remove_file(&out_path);
+    let _ = std::fs::remove_dir(&tmp_dir);
+}
