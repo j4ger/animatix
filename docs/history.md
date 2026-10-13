@@ -22,6 +22,8 @@ Profiled GitHub Actions run logs and eliminated critical sequential bottlenecks 
 3. **Brotli Compression Optimization in Web Builds**: `scripts/build-web.sh` default brotli level reduced from 11 (taking 82s per run) to 6 (taking 1s) via `ANIMATIX_BROTLI_LEVEL`, saving ~2.5 minutes on web artifacts.
 4. **WASM Build Caching**: Updated `.github/workflows/ci.yml` to include the `web` shell in Rust dependency caching with scoped keys (`key: ${{ matrix.shell }}`).
 5. **Theme JSON Deserialization Fix**: Fixed subtle color deserialization discrepancy in `crates/eparts/src/tokens/semantic.rs` and added missing fields to `PartialBorder` and `PartialOverlay` in `crates/eparts/src/tokens/theme_json.rs`.
+6. **CLI Doc HTML Tag Warning Fix**: Escaped `<name>` in `crates/animatix-cli/src/main.rs` to prevent rustdoc `-D warnings` failure under `gate_doc`.
+7. **Web Host Demo Scene Test Helper Update**: Updated `build_demo_scene()` in `crates/animatix-web/src/host.rs` to support `ambience.amx` imports and updated `tokens.amx` keyframe markers to match the presentation deck redesign.
 
 ### Animatix Arena (Dogfood 2.0 Migration) (2026-10-13)
 

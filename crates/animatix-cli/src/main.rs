@@ -127,7 +127,7 @@ enum Commands {
         /// Draw per-node content bounding boxes for debugging
         #[arg(long)]
         debug_bounds: bool,
-        /// Output image filename (defaults to <name>_storyboard.png)
+        /// Output image filename (defaults to `<name>_storyboard.png`)
         #[arg(short, long)]
         output: Option<PathBuf>,
     },

@@ -615,13 +615,18 @@ fade-in pic [300ms]
                 return doc;
             }
             for key in std::mem::take(&mut doc.result.missing_imports) {
-                assert!(
-                    key.ends_with("theme.amx"),
-                    "demo scenes should only import the site theme, got {key}"
-                );
+                let content = if key.ends_with("theme.amx") {
+                    include_str!("../../../web/demos/lib/theme.amx")
+                } else if key.ends_with("ambience.amx") {
+                    include_str!("../../../web/demos/lib/ambience.amx")
+                } else if key.ends_with("components.amx") {
+                    include_str!("../../../web/demos/lib/components.amx")
+                } else {
+                    panic!("demo scenes should only import site demo lib files, got {key}");
+                };
                 let path = PathBuf::from(&key);
                 if !modules.iter().any(|(p, _)| *p == path) {
-                    modules.push((path, include_str!("../../../web/demos/lib/theme.amx").into()));
+                    modules.push((path, content.into()));
                 }
             }
         }
@@ -676,9 +681,7 @@ fade-in pic [300ms]
             .filter(|m| m.kind == "keyframe")
             .map(|m| m.t)
             .collect();
-        for expected in [
-            0.15, 0.4, 0.75, 1.3, 1.65, 2.45, 2.85, 4.15, 4.55, 4.85, 5.2,
-        ] {
+        for expected in [0.4, 0.75, 1.3, 1.65, 2.45, 2.85, 4.15, 4.55, 4.85, 5.2] {
             assert!(
                 ts.iter().any(|t| (t - expected).abs() < 1e-3),
                 "tokens keyframes must include {expected}s: {ts:?}"
