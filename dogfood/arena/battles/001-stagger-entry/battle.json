@@ -1,0 +1,19 @@
+{
+  "id": "001-stagger-entry",
+  "title": "Stagger Action vs Explicit Delays",
+  "category": "language",
+  "tags": ["stagger", "timing", "ergonomics"],
+  "brief": "Present five numbered cards cascading into the center of a 1280x720 scene. Compare declarative stagger composition against explicit timing offsets.",
+  "variants": [
+    {
+      "id": "a",
+      "label": "Declarative Stagger",
+      "file": "a.amx"
+    },
+    {
+      "id": "b",
+      "label": "Explicit Timing Offsets",
+      "file": "b.amx"
+    }
+  ]
+}

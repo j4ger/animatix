@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Animatix Arena — Comparative Evaluation Studio</title>
+  <meta name="description" content="Side-by-side synchronized WebGPU evaluation studio for Animatix scenes, primitives, and language features.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="./arena.css">
+</head>
+<body>
+
+  <div class="arena-wrap">
+    <!-- Topbar & Battle Selector -->
+    <header class="arena-header">
+      <div class="arena-topbar">
+        <div class="arena-title-group">
+          <span class="arena-badge">EVAL STUDIO</span>
+          <h1 class="arena-title" id="battle-title">Loading Battle...</h1>
+        </div>
+
+        <div class="arena-controls-top">
+          <label style="font-size:12px;color:var(--muted);margin-right:4px;">Battle:</label>
+          <select class="arena-select" id="battle-select"></select>
+
+          <div class="mode-pills">
+            <button class="mode-btn active" data-mode="blind">Blind Battle</button>
+            <button class="mode-btn" data-mode="inspector">Code Inspector</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Brief Panel -->
+      <div class="arena-brief-panel">
+        <div class="brief-label">Content Goal &amp; Hypothesis</div>
+        <p class="brief-text" id="brief-text">Loading brief...</p>
+        <div class="brief-tags" id="brief-tags"></div>
+      </div>
+    </header>
+
+    <!-- Master Synchronized Transport Controls -->
+    <div class="arena-transport-bar">
+      <button class="transport-btn primary-play" id="master-play-btn" title="Play / Pause (Space)">▶</button>
+      <button class="transport-btn" id="master-step-back-btn" title="Step Back (Left Arrow)">◀</button>
+
+      <div class="timeline-track-wrap">
+        <input type="range" class="timeline-slider" id="master-slider" min="0" max="3" step="0.01" value="0">
+      </div>
+
+      <button class="transport-btn" id="master-step-fwd-btn" title="Step Forward (Right Arrow)">▶</button>
+      <div class="timecode-display" id="timecode-display">#0.00s / #3.00s</div>
+
+      <div class="speed-select">
+        <button class="speed-btn" data-speed="0.25">0.25x</button>
+        <button class="speed-btn" data-speed="0.5">0.5x</button>
+        <button class="speed-btn active" data-speed="1.0">1x</button>
+      </div>
+    </div>
+
+    <!-- Candidate Stage (Side-by-Side Players) -->
+    <main class="arena-stage" id="arena-stage"></main>
+
+    <!-- Reviewer Decision & Feedback Dock -->
+    <section class="arena-decision-dock">
+      <div class="dock-header">
+        <h2 class="dock-title">Reviewer Decision &amp; Rubric Evaluation</h2>
+        <span style="font-size:12px;color:var(--muted)">Select candidate or rate quality to unmask and guide next iteration</span>
+      </div>
+
+      <!-- Main Decision Buttons -->
+      <div class="decision-buttons">
+        <button class="choice-btn" data-decision="prefer_a">Prefer Candidate A</button>
+        <button class="choice-btn" data-decision="prefer_b">Prefer Candidate B</button>
+        <button class="choice-btn" data-decision="tie">Tie (Equally Good)</button>
+        <button class="choice-btn" data-decision="both_bad">Both Bad (Redesign)</button>
+      </div>
+
+      <!-- 4-Axis Rubric -->
+      <div class="rubric-grid">
+        <div class="rubric-item">
+          <span class="rubric-label">Aesthetics &amp; Rendering Polish</span>
+          <div class="star-rating" data-axis="visual">
+            <button data-val="1" class="active">★</button>
+            <button data-val="2" class="active">★</button>
+            <button data-val="3" class="active">★</button>
+            <button data-val="4" class="active">★</button>
+            <button data-val="5">★</button>
+          </div>
+        </div>
+        <div class="rubric-item">
+          <span class="rubric-label">Motion Dynamics &amp; Easing</span>
+          <div class="star-rating" data-axis="motion">
+            <button data-val="1" class="active">★</button>
+            <button data-val="2" class="active">★</button>
+            <button data-val="3" class="active">★</button>
+            <button data-val="4" class="active">★</button>
+            <button data-val="5">★</button>
+          </div>
+        </div>
+        <div class="rubric-item">
+          <span class="rubric-label">DSL Ergonomics &amp; Readability</span>
+          <div class="star-rating" data-axis="ergonomics">
+            <button data-val="1" class="active">★</button>
+            <button data-val="2" class="active">★</button>
+            <button data-val="3" class="active">★</button>
+            <button data-val="4" class="active">★</button>
+            <button data-val="5">★</button>
+          </div>
+        </div>
+        <div class="rubric-item">
+          <span class="rubric-label">Brief Fidelity &amp; Precision</span>
+          <div class="star-rating" data-axis="fidelity">
+            <button data-val="1" class="active">★</button>
+            <button data-val="2" class="active">★</button>
+            <button data-val="3" class="active">★</button>
+            <button data-val="4" class="active">★</button>
+            <button data-val="5">★</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline Pinpoint Notes Composer -->
+      <div class="notes-composer">
+        <div class="rubric-label">Timeline-Anchored Notes &amp; Observations</div>
+        <div class="notes-input-row">
+          <input type="text" class="time-badge-input" id="note-time-input" value="0.00" title="Timestamp in seconds">
+          <select class="tag-select" id="note-tag-select">
+            <option value="missing_primitive">[Missing Primitive]</option>
+            <option value="need_effect">[Need Effect]</option>
+            <option value="syntax_verbose">[Syntax Verbose]</option>
+            <option value="motion_artifact">[Motion Artifact]</option>
+            <option value="great_polish">[Great Polish]</option>
+            <option value="question">[Question]</option>
+          </select>
+          <input type="text" class="note-input" id="note-text-input" placeholder="Pin note at this timestamp (e.g. Card entrance easing feels abrupt)...">
+          <button class="add-note-btn" id="add-note-btn">Pin Note</button>
+        </div>
+
+        <div class="notes-list" id="notes-list"></div>
+      </div>
+
+      <!-- Outcome Summary & Submit -->
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <span class="rubric-label">Overall Summary &amp; Agent Directives</span>
+        <textarea class="note-input" id="outcome-summary-input" rows="2" placeholder="Summary notes or specific directives for the agent or compiler..."></textarea>
+      </div>
+
+      <div class="submit-row">
+        <span class="submit-status" id="submit-status"></span>
+        <button class="submit-btn" id="submit-decision-btn">Submit Decision</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+  <script src="../site-chrome.js" data-root="../" data-section="arena"></script>
+  <script src="./arena.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "battle_id": "002-array-actors-vs-named",
+  "timestamp": "2026-08-13T18:15:00Z",
+  "decision": "tie",
+  "winner": null,
+  "rubric": {
+    "a": { "visual": 5, "motion": 5, "ergonomics": 4, "fidelity": 5 },
+    "b": { "visual": 5, "motion": 5, "ergonomics": 4, "fidelity": 5 }
+  },
+  "notes": [
+    {
+      "variant": "a",
+      "time_ms": null,
+      "tag": "syntax_gap",
+      "note": "A's code is missing syntax highlighting for indexed card targets outside the init block; B's highlighting is fine."
+    }
+  ],
+  "outcome_summary": "Array-generated actors are more compact for repeated actor creation and indexed targeting; hand-named actors are more explicit for small fixed sets. Both render identically after opacity fixes."
+}

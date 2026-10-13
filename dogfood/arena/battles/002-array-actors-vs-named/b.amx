@@ -1,0 +1,28 @@
+// `cards` is a structural container for the hand-named children, not an animated actor.
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+cards: Row, at: (640, 360), gap: 40, align: "center" {
+  card0: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  card1: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  card2: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  card3: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  card4: Rect, size: (160, 90), color: accent.primary, opacity: 0
+}
+
+#0s
+stagger [120ms] {
+  fade-in card0 [500ms, ease: ease-out]
+  fade-in card1 [500ms, ease: ease-out]
+  fade-in card2 [500ms, ease: ease-out]
+  fade-in card3 [500ms, ease: ease-out]
+  fade-in card4 [500ms, ease: ease-out]
+}
+
+#2s
+stagger [100ms] {
+  card0.at = (300, 300) [300ms, ease: ease-out]
+  card1.at = (520, 300) [300ms, ease: ease-out]
+  card2.at = (740, 300) [300ms, ease: ease-out]
+  card3.at = (960, 300) [300ms, ease: ease-out]
+  card4.at = (1180, 300) [300ms, ease: ease-out]
+}

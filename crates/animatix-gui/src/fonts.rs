@@ -1,4 +1,4 @@
-//! egui font registration shared by the main app and the review console.
+//! egui font registration for the desktop application.
 //!
 //! egui's default fonts do not include non-Latin glyphs, so Chinese text entered
 //! in comment fields renders as replacement boxes. We discover system fallback

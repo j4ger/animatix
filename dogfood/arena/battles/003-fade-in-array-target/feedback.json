@@ -1,0 +1,19 @@
+{
+  "battle_id": "003-fade-in-array-target",
+  "timestamp": "2026-08-14T09:50:00Z",
+  "decision": "prefer_a",
+  "winner": "a",
+  "rubric": {
+    "a": { "visual": 5, "motion": 5, "ergonomics": 5, "fidelity": 5 },
+    "b": { "visual": 5, "motion": 5, "ergonomics": 3, "fidelity": 5 }
+  },
+  "notes": [
+    {
+      "variant": "a",
+      "time_ms": null,
+      "tag": "ergonomics",
+      "note": "Container fade-in is much more readable than indexing card[0], card[1] manually in separate actions."
+    }
+  ],
+  "outcome_summary": "Targeting the parent container group for fade-in scales much better than explicit indexed actions when actor count varies."
+}

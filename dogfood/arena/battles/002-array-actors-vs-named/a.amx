@@ -1,0 +1,26 @@
+// `cards` is a structural container for the generated array, not an animated actor.
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+cards: Row, at: (640, 360), gap: 40, align: "center" {
+  for i in {0, 1, 2, 3, 4} {
+    card[i]: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  }
+}
+
+#0s
+stagger [120ms] {
+  fade-in card[0] [500ms, ease: ease-out]
+  fade-in card[1] [500ms, ease: ease-out]
+  fade-in card[2] [500ms, ease: ease-out]
+  fade-in card[3] [500ms, ease: ease-out]
+  fade-in card[4] [500ms, ease: ease-out]
+}
+
+#2s
+stagger [100ms] {
+  card[0].at = (300, 300) [300ms, ease: ease-out]
+  card[1].at = (520, 300) [300ms, ease: ease-out]
+  card[2].at = (740, 300) [300ms, ease: ease-out]
+  card[3].at = (960, 300) [300ms, ease: ease-out]
+  card[4].at = (1180, 300) [300ms, ease: ease-out]
+}

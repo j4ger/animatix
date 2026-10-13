@@ -1,0 +1,19 @@
+{
+  "id": "002-array-actors-vs-named",
+  "title": "Array Actors vs Hand-Named Actors",
+  "category": "language",
+  "tags": ["loops", "actors", "collections", "ergonomics"],
+  "brief": "Present five cards entering from left to right, then lifting together with a stagger. Compare loop-generated array actors against explicit hand-named actors.",
+  "variants": [
+    {
+      "id": "a",
+      "label": "Array Actors (for loop)",
+      "file": "a.amx"
+    },
+    {
+      "id": "b",
+      "label": "Hand-Named Actors",
+      "file": "b.amx"
+    }
+  ]
+}

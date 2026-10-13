@@ -18,6 +18,7 @@ Usage:
 """
 import argparse
 import http.server
+import json
 import os
 import subprocess
 import sys
@@ -54,6 +55,7 @@ def find_default_web_dir():
 
 
 WEB_DIR = find_default_web_dir()
+REPO_ROOT = os.path.dirname(WEB_DIR) if os.path.basename(WEB_DIR) == "web" else os.path.abspath(".")
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -153,6 +155,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return MIME.get(ext, "application/octet-stream")
 
     def translate_path(self, path):
+        clean_path = path.split("?")[0].split("#")[0]
+        if clean_path.startswith("/dogfood/"):
+            rel = clean_path.lstrip("/").replace("/", os.sep)
+            return os.path.join(REPO_ROOT, rel)
+        if clean_path in ("/arena", "/arena/"):
+            return os.path.join(WEB_DIR, "arena", "index.html")
+
         translated = super().translate_path(path)
         # Transparently serve web/embed/src/amx-player.js when embed/amx-player.js is requested,
         # so local dev does not require a prebuilt bundle and live edits take effect immediately.
@@ -162,6 +171,91 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not os.path.exists(translated) or os.path.getmtime(src_candidate) > os.path.getmtime(translated):
                     return src_candidate
         return translated
+
+    def do_GET(self):
+        clean_path = self.path.split("?")[0]
+        if clean_path == "/api/arena/battles":
+            battles_dir = os.path.join(REPO_ROOT, "dogfood", "arena", "battles")
+            battles = []
+            if os.path.isdir(battles_dir):
+                for entry in sorted(os.listdir(battles_dir)):
+                    entry_dir = os.path.join(battles_dir, entry)
+                    if os.path.isdir(entry_dir):
+                        battle_json = os.path.join(entry_dir, "battle.json")
+                        title = entry
+                        tags = []
+                        if os.path.isfile(battle_json):
+                            try:
+                                with open(battle_json, "r", encoding="utf-8") as f:
+                                    data = json.load(f)
+                                    title = data.get("title", entry)
+                                    tags = data.get("tags", [])
+                            except Exception:
+                                pass
+                        battles.append({"id": entry, "title": title, "tags": tags})
+            payload = json.dumps(battles).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        if clean_path.startswith("/api/arena/battle/"):
+            battle_id = clean_path[len("/api/arena/battle/"):].strip("/")
+            battle_json = os.path.join(REPO_ROOT, "dogfood", "arena", "battles", battle_id, "battle.json")
+            if os.path.isfile(battle_json):
+                with open(battle_json, "rb") as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(content)))
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            else:
+                self.send_error(404, "Battle not found")
+                return
+
+        return super().do_GET()
+
+    def do_POST(self):
+        clean_path = self.path.split("?")[0]
+        if clean_path == "/api/arena/vote":
+            content_len = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(content_len)
+            try:
+                data = json.loads(raw.decode("utf-8"))
+                battle_id = data.get("battle_id")
+                if not battle_id:
+                    self.send_error(400, "Missing battle_id")
+                    return
+                battle_dir = os.path.join(REPO_ROOT, "dogfood", "arena", "battles", battle_id)
+                os.makedirs(battle_dir, exist_ok=True)
+                feedback_file = os.path.join(battle_dir, "feedback.json")
+                with open(feedback_file, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+
+                arena_dir = os.path.join(REPO_ROOT, "dogfood", "arena")
+                os.makedirs(arena_dir, exist_ok=True)
+                history_file = os.path.join(arena_dir, "feedback.jsonl")
+                with open(history_file, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(data) + "\n")
+
+                resp = json.dumps({"status": "ok"}).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
+                return
+            except Exception as e:
+                self.send_error(500, str(e))
+                return
+
+        self.send_error(404, "Unknown endpoint")
 
     def send_head(self):
         # brotli negotiation: prefer the precompressed twin when present

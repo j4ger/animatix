@@ -1,0 +1,16 @@
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+one: Rect, size: (160, 90), color: accent.primary, at: (280, 360)
+two: Rect, size: (160, 90), color: accent.success, at: (480, 360)
+three: Rect, size: (160, 90), color: accent.warning, at: (680, 360)
+four: Rect, size: (160, 90), color: accent.info, at: (880, 360)
+five: Rect, size: (160, 90), color: accent.danger, at: (1080, 360)
+
+#0s
+stagger [120ms] {
+  fade-in one [500ms, ease: ease-out]
+  fade-in two [500ms, ease: ease-out]
+  fade-in three [500ms, ease: ease-out]
+  fade-in four [500ms, ease: ease-out]
+  fade-in five [500ms, ease: ease-out]
+}

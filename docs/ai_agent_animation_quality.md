@@ -360,12 +360,12 @@ collecting preference data.
 
 Tasks:
 
-- Create a quality bring-up run under `dogfood/runs/` with `good.amx` and
+- Create an arena battle under `dogfood/arena/battles/` with `good.amx` and
   `bad.amx`.
 - Render storyboards for both variants.
 - Generate eval reports for both variants.
-- Use the existing review GUI for A/B comparison.
-- Extend review comments with `source`, `category`, `actor`, and `suggestion`.
+- Use the Web Arena (`web/arena/`) for side-by-side synchronized comparison.
+- Capture review feedback with timeline notes, category tags, and rubric ratings.
 - Render and save frames at the exact time of each human comment.
 - Write a short run summary that records which rule issues were real, which
   were false positives, and which required human taste.
@@ -514,15 +514,16 @@ work.
 
 ## Relation to Existing Work
 
-This plan extends the existing dogfood review workflow rather than replacing
-it. The current `review.json`, review GUI, and `dogfood/runs` structure already
-provide the human feedback channel. The evaluator adds the missing evidence
-layer that makes human comments reusable by an AI agent.
+This plan aligns with the Animatix Arena workflow (`dogfood/arena/`, `web/arena/`).
+The Web Arena provides the browser-native WebGPU human feedback channel, logging
+structured verdicts to `feedback.jsonl`. The evaluator adds the automated evidence
+layer that makes human and automated comments reusable by an AI agent.
 
 See also:
 
 - `dogfood/README.md`
-- `dogfood/runs/README.md`
-- `crates/animatix-gui/src/app/review/mod.rs`
+- `dogfood/arena/README.md`
+- `web/arena/index.html`
+- `scripts/arena.py`
 - `crates/animatix-render/src/offscreen.rs`
 - `crates/animatix/src/timeline/scene_eval.rs`

@@ -14,11 +14,11 @@ diagnostics make the intended change obvious.
 |---|---|---|
 | `projects/<name>/` | One complete real project | Polish and promote to `examples/projects/`; `notes.md` records grammar feedback |
 | `probes/<NNN>-<slug>/` | Minimal repro for one parser, type, runtime, or renderer gap | Stays in dogfood as a regression fixture or design ticket |
-| `runs/<slug>/` | Focused A/B language-design review | Local-only and gitignored; conclusions are promoted into probes/projects |
+| `arena/battles/<slug>/` | Head-to-head candidate review in Web Arena | Evaluated via browser WebGPU player; decisions logged to `feedback.jsonl` |
 
 Use a project to ask "can the current DSL express real content?", a probe to
-ask "what is the smallest failing example?", and a run to ask "which expression
-is clearer for the same content?"
+ask "what is the smallest failing example?", and an arena battle to ask "which
+candidate provides the better visual outcome, motion polish, or DSL ergonomics?"
 
 ## Workflow
 
@@ -38,32 +38,30 @@ is clearer for the same content?"
 4. When the grammar blocks the intent, create a minimal probe under
    `probes/`. The probe should reproduce the gap with the smallest possible
    `.amx`, not with the whole project.
-5. For A/B expression comparisons, create a focused `runs/<slug>/` with one
-   brief and at least two `.amx` variants, then launch the review GUI:
+5. For comparative evaluation across multiple candidate implementations, stage an
+   arena battle under `arena/battles/<slug>/`, then launch the Web Arena:
    ```bash
-   bash scripts/dogfood-review.sh <slug>
+   python3 scripts/arena.py stage <slug> --brief "..." --variants a.amx b.amx
+   python3 scripts/arena.py serve
    ```
-   Start it as a background task, wait for `review.done` or for the script to
-   exit, then read `review.json`. The full agent/human handoff loop is
-   documented in `runs/README.md`.
-6. Record the workaround and impact in `projects/<name>/notes.md`. This is
-   where grammar/feature design feedback should live. Run conclusions live in
-   `runs/<slug>/run.md` and `runs/<slug>/review.md`.
+   Review the candidates with synchronized timeline scrub, slow-motion stepping,
+   live `applySource` scratchpads, and rubric scoring at `http://127.0.0.1:8124/arena/?battle=<slug>`.
+   Decisions are saved to `feedback.json` and aggregated into `arena/feedback.jsonl`.
+6. Record workarounds and impact in `projects/<name>/notes.md`. Ingest arena outcomes
+   using `python3 scripts/arena.py ingest <slug>` to drive compiler improvements,
+   new primitives, and agent prompt refinements.
 
-## Review Run Checklist
+## Arena Battle Checklist
 
-A new run must satisfy the same rules as a real review experiment:
+A new battle must satisfy:
 
-- One focused design question.
-- At least two `.amx` variants using the same `brief.md`.
-- The baseline variant uses current grammar.
+- One focused design or aesthetic question.
+- At least two `.amx` variants targeting the same brief.
 - Every variant passes `animatix check`.
-- `run.md` records a hypothesis, success criteria, and metrics.
-- Feedback is summarized into `review.md` and the outcome is recorded in
-  `run.md`.
+- `battle.json` records title, brief, tags, and candidate metadata.
+- Feedback records winning variant, 4-axis rubric scores, and timeline-anchored notes.
 
-See `runs/README.md` for the full agent workflow, human controls, review
-signals, and the decision options.
+See `arena/README.md` for the full agent workflow, Web Arena controls, and feedback ingestion schema.
 
 ## Visual Verification & Content Checks
 

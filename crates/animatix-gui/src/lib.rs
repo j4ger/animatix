@@ -14,5 +14,4 @@ pub mod source_edit;
 pub mod text_diff;
 pub mod validation;
 
-pub use app::review::run_review;
 pub use app::run_gui;

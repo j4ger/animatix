@@ -22,6 +22,9 @@ web/tour/                    "The language" — an eleven-section tour with 10 l
                              tour/lib/components.amx is the shared component library,
                              tour/stills/textmath.png the one non-live plate
 web/gallery.html             scene gallery — the seven transformer scenes as embeds
+web/arena/                   "Animatix Arena" — side-by-side synchronized evaluation
+                             studio for dogfood candidates, new primitives, and agents;
+                             paired with scripts/arena.py
 web/recipes/                 the recipes gallery — eight single-move scenes (light, dash,
                              ticker, camera, word reveal, sparks, bloom, bar race) as live
                              embeds, each with its .amx one click away; recipes/scenes/

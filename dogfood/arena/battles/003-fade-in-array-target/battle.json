@@ -1,0 +1,19 @@
+{
+  "id": "003-fade-in-array-target",
+  "title": "Fade-in Array Target vs Container Target",
+  "category": "language",
+  "tags": ["fade-in", "containers", "actions", "ergonomics"],
+  "brief": "Present five numbered cards in a single row that fade in together after a pause. Compare fading the container group vs fading each generated actor element.",
+  "variants": [
+    {
+      "id": "a",
+      "label": "Fade Container Group",
+      "file": "a.amx"
+    },
+    {
+      "id": "b",
+      "label": "Fade Individual Array Elements",
+      "file": "b.amx"
+    }
+  ]
+}

@@ -12,19 +12,6 @@ fn main() {
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--review" => {
-                let run = args.next().map(std::path::PathBuf::from);
-                if let Some(run) = run {
-                    if perf_log.is_some() {
-                        tracing::warn!("--perf-log is ignored together with --review");
-                    }
-                    animatix_gui::run_review(run);
-                } else {
-                    tracing::error!("--review requires a dogfood run directory");
-                    std::process::exit(2);
-                }
-                return;
-            },
             "--perf-log" => match args.next() {
                 Some(path) => perf_log = Some(std::path::PathBuf::from(path)),
                 None => {

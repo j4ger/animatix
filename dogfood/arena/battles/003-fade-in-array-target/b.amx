@@ -1,0 +1,10 @@
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+cards: Row, at: (640, 360), gap: 40, align: "center" {
+  for i in {0, 1, 2, 3, 4} {
+    card[i]: Rect, size: (160, 90), color: accent.primary, opacity: 0
+  }
+}
+
+#0s
+fade-in cards [500ms, ease: ease-out]

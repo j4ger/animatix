@@ -14,6 +14,14 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Animatix Arena (Dogfood 2.0 Migration) (2026-10-13)
+
+Replaced the legacy native-desktop review GUI (`animatix-gui --review`, `dogfood/runs/`, `dogfood-review.sh`, `review-report.sh`) with a browser-native WebGPU evaluation studio:
+1. **Web Arena (`web/arena/`)**: Side-by-side synchronized `<amx-player>` instances driven by WebGPU. Features master scrub timeline synchronization, frame stepping, slow-motion playback (0.25x/0.5x/1.0x), Blind Battle mode (anonymized candidates), Code Inspector mode, in-browser live code tweaking via `applySource`, and 4-axis rubric scoring with timeline-anchored annotations.
+2. **Server & Storage Integration (`scripts/serve-web.py`)**: Local development server routes `/api/arena/battles`, `/api/arena/battle/<id>`, and `POST /api/arena/vote` directly into `dogfood/arena/battles/<id>/feedback.json` and append-only `dogfood/arena/feedback.jsonl`.
+3. **Arena CLI Tooling (`scripts/arena.py`)**: Added one-command workflows to stage (`stage`), review (`serve`), inspect (`list`), aggregate (`report`), and feed human directives back to agents (`ingest`).
+4. **Cleanup**: Removed the dead native `crates/animatix-gui/src/app/review/` module, `--review` CLI flags, and obsolete shell scripts.
+
 ### Delightful Animation & Kinetic Design (2026-10-10)
 
 Delightful animation & kinetic design overhaul implemented across 4 waves (source of truth: [`delightful_animation_plan.md`](delightful_animation_plan.md)):

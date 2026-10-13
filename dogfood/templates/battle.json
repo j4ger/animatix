@@ -1,0 +1,19 @@
+{
+  "id": "<slug>",
+  "title": "<Battle Title>",
+  "category": "language | effects | primitives | agents",
+  "tags": ["<tag1>", "<tag2>"],
+  "brief": "<One or two sentences describing the visual, motion, or DSL objective.>",
+  "variants": [
+    {
+      "id": "a",
+      "label": "<Variant A Label (e.g. Baseline / Approach A)>",
+      "file": "a.amx"
+    },
+    {
+      "id": "b",
+      "label": "<Variant B Label (e.g. Approach B)>",
+      "file": "b.amx"
+    }
+  ]
+}
