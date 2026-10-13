@@ -29,6 +29,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
+  GH_REPO: ${{ github.repository }}
 
 jobs:
   check:
@@ -38,10 +39,12 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
     permissions:
       actions: read
+      contents: read
     steps:
       - id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             echo "Build forced via workflow_dispatch."
@@ -49,7 +52,7 @@ jobs:
             exit 0
           fi
 
-          last_sha=$(gh run list --workflow nightly.yml --status success --branch main --limit 1 --json headSha --jq '.[0].headSha')
+          last_sha=$(gh run list --repo ${{ github.repository }} --workflow nightly.yml --status success --branch main --limit 1 --json headSha --jq '.[0].headSha' 2>/dev/null || true)
           if [ -n "$last_sha" ] && [ "${{ github.sha }}" = "$last_sha" ]; then
             echo "No changes on main since last successful nightly ($last_sha)."
             echo "should_build=false" >> "$GITHUB_OUTPUT"
@@ -98,6 +101,7 @@ jobs:
       - name: Prune previous nightly releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           gh release delete nightly --cleanup-tag -y 2>/dev/null || true
           gh release list --exclude-drafts --limit 30 --json tagName,isPrerelease \

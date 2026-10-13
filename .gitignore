@@ -42,6 +42,8 @@ _site/
 # The `video` release build uses its own target dir so it cannot clobber the
 # non-video dependency graph the PR gates build through.
 target-video/
+# Release archive directory assembled by scripts/dist-package.sh
+dist/
 # Editor-generated mirror of this file (its own header says so). Tracking it would
 # mean every .gitignore edit needs a second commit to resync a copy nothing reads.
 .zcodeignore
