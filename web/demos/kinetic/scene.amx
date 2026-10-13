@@ -19,19 +19,13 @@ ambient_r: Ellipse, size: (760, 760), at: (1000, 460),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#fb718526"), (50%, "#c084fc0e"), (100%, "#c084fc00")}),
   blend: "screen"
 
-// ── Header Typography with Gradient & Mask ────────────────────────────────
-header: Col, anchor: scene.top, offset: (0, 68), gap: 10, align: "center" {
-  badge: Chip, label: "KINETIC MOTION LAB", width: 155, height: 24, color: surface.primary, text_color: accent.primary
-  headline: Text,
-    text: "Fluid Typography & Spatial Depth",
-    font_size: 32,
-    font_weight: "bold",
-    fill_gradient: linear(90, {"#f5b942", "#fb7185", "#c084fc"}),
-    text_align: "center"
+always {
+  ambient_l.at = (280 + 30 * sin(t * 1.2), 240 + 20 * cos(t * 0.9))
+  ambient_r.at = (1000 + 25 * cos(t * 1.0), 460 + 22 * sin(t * 1.1))
 }
 
 // ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
-plate: Group, at: (640, 410) {
+plate: Group, at: (640, 360) {
   for (dx, h, dy, col), i in {
     (-280, 260, 20, accent.primary),
     (-180, 340, -20, accent.warning),
@@ -45,7 +39,7 @@ plate: Group, at: (640, 410) {
 }
 
 // ── Floating 2.5D Glass Card with Shadow & Tilt ─────────────────────────────
-glass_card: Glass, at: (640, 410), size: (620, 280), corner_radius: 20 {
+glass_card: Glass, at: (640, 360), size: (620, 280), corner_radius: 20 {
   frost: Blur, radius: 24
   surface: Rect, size: (620, 280), corner_radius: 20,
     color: "#ffffff16", stroke: "#ffffff55", stroke_width: 1.5,
@@ -67,12 +61,8 @@ glass_card: Glass, at: (640, 410), size: (620, 280), corner_radius: 20 {
 #0.0s
 fade-in ambient_l [500ms]
 fade-in ambient_r [500ms]
-fade-in header [400ms]
 fade-in plate [400ms]
 fade-in glass_card [400ms]
-
-#0.3s
-reveal-in headline [by: word, offset_y: 22, 700ms, ease: ease-out]
 
 #1.2s
 glass_card.rotate_y = 0.18 [1.6s, ease: ease-in-out]

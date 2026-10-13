@@ -20,12 +20,9 @@ differs 4.85 5.35 0.0004
 # beat 5.35 -> 7.10: 0.00% changed, under the sampler's resolution — reviewed in the rendered frames instead
 
 # Actors that own their region: absent before their cue, on screen after.
-invisible 1.18 chip_the
-visible 1.80 chip_the
-invisible 1.18 chip_cat
-visible 1.80 chip_cat
-invisible 1.18 chip_sat
-visible 1.80 chip_sat
+reveals chip_the 1.18 1.80
+reveals chip_cat 1.18 1.80
+reveals chip_sat 1.18 1.80
 invisible 4.43 brace_top
 visible 4.95 brace_top
 invisible 4.59 brace_mid

@@ -10,96 +10,199 @@
 </head>
 <body>
 
-  <div class="wrap">
-    <header>
-      <p class="kicker">Animatix walkthrough · product motion &amp; kinetic design</p>
-      <h1>Kinetic Typography &amp; Spatial Depth</h1>
-      <p class="lede">
-        Beyond technical diagrams, Animatix brings editorial motion design to declarative code.
-        Watch words emerge from sharp baseline masks, text blend through linear vector gradients,
-        and UI panels tilt in 2.5D space over real-time GPU frosted glass.
-      </p>
-      <ul class="meta">
-        <li>3 interactive scenes</li>
-        <li>Split-text baseline masking (<code class="inline">reveal-in by: word</code>)</li>
-        <li>2.5D perspective projection &amp; <code class="inline">Glass</code> backdrop blur</li>
-        <li>100% Vector WebGPU at 60 FPS</li>
-      </ul>
-    </header>
+  <div class="wrap walkthrough-deck" data-amx-deck>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · PRODUCT MOTION &amp; DEPTH</p>
+        <h1 class="hero-title">Kinetic Typography &amp; Spatial Depth</h1>
+        <ul class="facts">
+          <li><b>3</b> interactive stages</li>
+          <li><b>WebGPU</b> 60 FPS vector canvas</li>
+          <li><b>Split-Text</b> Baseline masks</li>
+          <li><b>2.5D Glass</b> Hardware blur</li>
+        </ul>
+      </div>
 
-    <figure class="hero">
-      <amx-player src="scene.amx" autoplay loop controls hold="2"
-                  aspect="16:9" title="The full kinetic typography and spatial glass studio"></amx-player>
-      <figcaption>
-        <span class="cap"><b>Figure 0 · The Kinetic Studio.</b> Gradient typography emerges from an invisible baseline mask,
-          while a floating frosted glass card rotates along 2.5D yaw and pitch axes with analytical soft drop shadows.</span>
-        <a class="src" href="scene.amx">scene.amx ↗</a>
-      </figcaption>
-    </figure>
-
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
-      <ol>
-        <li><a href="#s1"><span class="n">01</span>Split-Text Baseline Masks &amp; Gradients</a></li>
-        <li><a href="#s2"><span class="n">02</span>2.5D Perspective Tilt &amp; Frosted Glass</a></li>
-        <li><a href="#s3"><span class="n">03</span>Spring Physics &amp; Dynamic Momentum</a></li>
-      </ol>
-    </nav>
-
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>Split-Text Baseline Masks &amp; Gradients</h2></div>
-      <p>
-        In traditional CSS or video editing, masked typography requires complex DOM duplication or stencil tracks.
-        Animatix makes split-text reveals declarative: specify <code class="inline">reveal-in by: word</code> or
-        <code class="inline">by: char</code> with an <code class="inline">offset_y</code> to cleanly emerge from the baseline.
-      </p>
-      <div class="intuition-card">
-        <div class="intuition-badge">KEY INTUITION</div>
-        <p class="intuition-text">
-          Text clipping occurs at the glyph cluster boundary without modifying bounding box flow,
-          ensuring flawless alignment with neighboring elements.
+      <div class="hero-intro">
+        <p class="lede">
+          Beyond technical diagrams, Animatix brings high-end editorial motion design to declarative code.
+          Watch words emerge from sharp baseline masks, text blend through linear vector gradients,
+          and UI panels tilt in 2.5D space over real-time GPU frosted glass.
         </p>
       </div>
-      <figure class="tour-embed">
-        <amx-player src="typography.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Split-text baseline emergence"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> Words slide upward into view from their respective baseline bounds.
-            Linear gradient fills maintain continuous interpolation during motion.</span>
-          <a class="src" href="typography.amx">typography.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
+    </header>
 
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>2.5D Perspective Tilt &amp; Frosted Glass</h2></div>
-      <p>
-        Physical material interfaces require depth. The <code class="inline">Glass</code> scope reads the rasterized
-        frame behind it and applies a hardware-accelerated Gaussian blur, while 2.5D rotation properties
-        (<code class="inline">rotate_x</code>, <code class="inline">rotate_y</code>) provide physical tactile presence.
-      </p>
-      <figure class="tour-embed">
-        <amx-player src="glass.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="2.5D perspective tilt and frosted glass"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> The panel tilts along pitch and yaw axes. Background shapes beneath the
-            card are blurred in real-time by custom WGSL compute passes.</span>
-          <a class="src" href="glass.amx">glass.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
+    <div class="deck-slides-container">
 
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Spring Physics &amp; Dynamic Momentum</h2></div>
-      <p>
-        Motion curves in Animatix derive from harmonic oscillators rather than static cubic beziers.
-        Spring parameters (<code class="inline">stiffness</code>, <code class="inline">damping</code>) produce natural settle
-        times without manual keyframe calibration.
-      </p>
-    </section>
+      <!-- Slide 00: Master Walkthrough -->
+      <section id="s0" class="deck-slide chapter" data-slide-id="master" data-title="Kinetic Studio" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 00 // The Complete Kinetic &amp; Glass Studio</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+                          aspect="16:9" title="The full kinetic typography and spatial glass studio"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Complete Suite · Editorial Design</span>
+              <h2 class="briefing-title">Kinetic Lab Overview</h2>
+              <p class="briefing-hook">
+                A composite showcase demonstrating editorial split-text emergence, multi-stop vector gradients,
+                and floating frosted glass cards with live hardware blur and rotational yaw/pitch inertia.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="scene.amx" target="_blank" rel="noopener noreferrer">
+              <span>scene.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Typography:</b> Word &amp; Char Splitting</span>
+            <span class="spec-chip"><b>Shaders:</b> WGSL Dual-Pass Gaussian Blur</span>
+            <span class="spec-chip"><b>Projection:</b> 2.5D Angular Tilt</span>
+          </div>
+
+          <div class="briefing-beats">
+            <div class="beat-card">
+              <span class="beat-num">01</span>
+              <div>
+                <strong>Baseline Clipping</strong>
+                <p>Glyphs emerge upward from their container boundary with zero layout shift.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">02</span>
+              <div>
+                <strong>Frosted Refraction</strong>
+                <p>Real-time GPU backdrop sampling creates realistic glassmorphism depth.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">03</span>
+              <div>
+                <strong>Harmonic Ambience</strong>
+                <p>Secondary breathing lighting washes dynamically follow motion centroid curves.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 01: Typography -->
+      <section id="s1" class="deck-slide chapter" data-slide-id="typography" data-title="Kinetic Typography" data-accent="#fb7185">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 01 // Split-Text Baseline Emergence &amp; Gradients</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="typography.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Split-text baseline emergence"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 01 · Typographic Mechanics</span>
+              <h2 class="briefing-title">Split-Text Baseline Masks &amp; Gradients</h2>
+              <p class="briefing-hook">
+                In traditional web CSS, masking text requires DOM duplication and manual overflow clips.
+                Animatix makes split-text reveals declarative: specify <code class="inline">reveal-in by: word</code> with an
+                <code class="inline">offset_y</code> to smoothly emerge from the typographic baseline.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="typography.amx" target="_blank" rel="noopener noreferrer">
+              <span>typography.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Mask Mode:</b> <code class="inline">by: word</code></span>
+            <span class="spec-chip"><b>Gradient:</b> Linear 90° Amber to Coral</span>
+            <span class="spec-chip"><b>Layout:</b> Zero displacement flow</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 02: Glass -->
+      <section id="s2" class="deck-slide chapter" data-slide-id="glass" data-title="2.5D Glass" data-accent="#38bdf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 02 // 2.5D Spatial Perspective &amp; Backdrop Blur</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="glass.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="2.5D perspective tilt and frosted glass"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 02 · Physical Depth</span>
+              <h2 class="briefing-title">2.5D Perspective Tilt &amp; Frosted Glass</h2>
+              <p class="briefing-hook">
+                Tactile interfaces demand depth. The <code class="inline">Glass</code> scope reads the rasterized
+                frame behind it and applies a hardware-accelerated dual-pass blur, while 2.5D rotation properties
+                (<code class="inline">rotate_x</code>, <code class="inline">rotate_y</code>) provide physical tactile presence.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="glass.amx" target="_blank" rel="noopener noreferrer">
+              <span>glass.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Blur Radius:</b> 24px analytical</span>
+            <span class="spec-chip"><b>Pitch/Yaw:</b> ±15° harmonic angular sweep</span>
+            <span class="spec-chip"><b>Shadow:</b> 40px soft elevation</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </div>
 
   <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+  <script src="../deck.js"></script>
 </body>
 </html>

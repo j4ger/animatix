@@ -10,99 +10,197 @@
 </head>
 <body>
 
-  <div class="wrap">
-    <header>
-      <p class="kicker">Animatix walkthrough · declarative cloud topology</p>
-      <h1>The Distributed Event Fabric</h1>
-      <p class="lede">
-        Modern distributed systems decouple throughput from durability through
-        event streaming. This walkthrough examines how high-scale architectures
-        coordinate requests: line-rate edge ingress, partitioned log streaming,
-        and state-machine consensus — staged with declarative orthogonal routing,
-        fillet geometry, and live rolling telemetry.
-      </p>
-      <ul class="meta">
-        <li>3 interactive scenes</li>
-        <li>Smart orthogonal <code class="inline">Connector</code> routing with fillet bends</li>
-        <li>Rolling Odometer <code class="inline">Counter</code> telemetry</li>
-        <li>100% Vector WebGPU</li>
-      </ul>
-    </header>
+  <div class="wrap walkthrough-deck" data-amx-deck>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · DISTRIBUTED ARCHITECTURE</p>
+        <h1 class="hero-title">The Distributed Event Fabric</h1>
+        <ul class="facts">
+          <li><b>3</b> interactive stages</li>
+          <li><b>WebGPU</b> 60 FPS vector canvas</li>
+          <li><b>Connector</b> Fillet routing</li>
+          <li><b>Telemetry</b> Live odometers</li>
+        </ul>
+      </div>
 
-    <figure class="hero">
-      <amx-player src="scene.amx" autoplay loop controls hold="2"
-                  aspect="16:9" title="The full distributed event fabric architecture"></amx-player>
-      <figcaption>
-        <span class="cap"><b>Figure 0 · The Architecture Blueprint.</b> Requests ingress through Envoy,
-          commit to an immutable Kafka log with 3× replication, and replicate to Raft workers and a columnar analytical lake.
-          The rolling telemetry counter tallies processed requests at line rate.</span>
-        <a class="src" href="scene.amx">scene.amx ↗</a>
-      </figcaption>
-    </figure>
-
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
-      <ol>
-        <li><a href="#s1"><span class="n">01</span>Line-Rate Edge Ingress &amp; TLS</a></li>
-        <li><a href="#s2"><span class="n">02</span>Partitioned Event Streaming</a></li>
-        <li><a href="#s3"><span class="n">03</span>Consensus &amp; Durable Storage</a></li>
-      </ol>
-    </nav>
-
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>Line-Rate Edge Ingress &amp; TLS</h2></div>
-      <p>
-        The edge layer faces the public internet. Stateless reverse proxies terminate TLS,
-        negotiate ALPN protocols (HTTP/2, HTTP/3), and authenticate incoming JWTs before
-        traffic enters the private VPC overlay.
-      </p>
-      <div class="intuition-card">
-        <div class="intuition-badge">KEY INTUITION</div>
-        <p class="intuition-text">
-          By isolating handshake overhead to the edge, internal microservice communication
-          operates over persistent, multiplexed gRPC channels with zero cryptographic penalty.
+      <div class="hero-intro">
+        <p class="lede">
+          Modern high-scale cloud platforms decouple ingestion throughput from durable storage through
+          <strong>partitioned event streaming</strong>. Examine line-rate TLS edge ingress, multi-broker commit log partitioning,
+          and consensus synchronization staged with declarative vector connectors.
         </p>
       </div>
-      <figure class="tour-embed">
-        <amx-player src="ingress.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Edge ingress and TLS termination"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> The ingress card routes verified requests directly into the internal mesh.
-            The counter reflects active connections scaling without latency drift.</span>
-          <a class="src" href="ingress.amx">ingress.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
+    </header>
 
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>Partitioned Event Streaming</h2></div>
-      <p>
-        Rather than coupling write paths directly to backend databases, producers append records to
-        an immutable, ordered partition log. Partitions distribute horizontally across availability zones,
-        enabling independent scaling of ingest volume and consumer processing speed.
-      </p>
-      <figure class="tour-embed">
-        <amx-player src="stream.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Partitioned commit log and fanout"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> Orthogonal connectors with 10px fillet radiuses branch the incoming producer
-            stream across partition leaders. Fan-out consumers consume records with zero consumer lag.</span>
-          <a class="src" href="stream.amx">stream.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
+    <div class="deck-slides-container">
 
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Consensus &amp; Durable Storage</h2></div>
-      <p>
-        State changes converge through quorum consensus algorithms (such as Raft or Paxos).
-        Once a majority of cluster nodes acknowledge an entry in the replicated write-ahead log,
-        the transaction is committed into the persistent LSM-tree storage engine.
-      </p>
-    </section>
+      <!-- Slide 00: Architecture Blueprint -->
+      <section id="s0" class="deck-slide chapter" data-slide-id="blueprint" data-title="Blueprint" data-accent="#38bdf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 00 // Topology Blueprint &amp; Live Telemetry</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+                          aspect="16:9" title="The full distributed event fabric architecture"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Architecture Blueprint · End-to-End Pipeline</span>
+              <h2 class="briefing-title">Declarative Fabric Overview</h2>
+              <p class="briefing-hook">
+                Requests enter through high-concurrency Envoy proxies, commit to partitioned Kafka brokers with 3× replication,
+                and replicate into Raft state machines and analytical lakehouses with sub-millisecond telemetry.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="scene.amx" target="_blank" rel="noopener noreferrer">
+              <span>scene.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Routing:</b> Smart Orthogonal Fillets</span>
+            <span class="spec-chip"><b>Telemetry:</b> Odometer Rolling Counter</span>
+            <span class="spec-chip"><b>Mesh:</b> WireGuard VPC Overlay</span>
+          </div>
+
+          <div class="briefing-beats">
+            <div class="beat-card">
+              <span class="beat-num">01</span>
+              <div>
+                <strong>Ingress Handshake</strong>
+                <p>Public clients establish 0-RTT TLS handshakes, stripping auth tokens at the boundary.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">02</span>
+              <div>
+                <strong>Log Partitioning</strong>
+                <p>Records append to immutable leader partitions across distinct availability zones.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">03</span>
+              <div>
+                <strong>Replicated State</strong>
+                <p>Consensus workers acknowledge entries before commits finalize into LSM-tree storage.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 01: Edge Ingress -->
+      <section id="s1" class="deck-slide chapter" data-slide-id="ingress" data-title="Edge Ingress" data-accent="#818cf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 01 // Line-Rate Edge Ingress &amp; TLS Handshake</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="ingress.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Edge ingress and TLS termination"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 01 · Boundary Security</span>
+              <h2 class="briefing-title">Line-Rate Edge Ingress &amp; TLS</h2>
+              <p class="briefing-hook">
+                Stateless reverse proxies negotiate ALPN protocols (HTTP/2, HTTP/3) and authenticate JWTs
+                before traffic enters the private VPC overlay over zero-overhead multiplexed channels.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="ingress.amx" target="_blank" rel="noopener noreferrer">
+              <span>ingress.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Throughput:</b> 84,500 active conns</span>
+            <span class="spec-chip"><b>Latency:</b> 0.42 ms (0-RTT TLS 1.3)</span>
+            <span class="spec-chip"><b>Overlay:</b> mTLS · WAF · Rate Limit</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 02: Partitioned Streaming -->
+      <section id="s2" class="deck-slide chapter" data-slide-id="streaming" data-title="Log Streaming" data-accent="#34d399">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 02 // Partitioned Commit Log &amp; High-Fanout Ordering</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="stream.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Partitioned commit log and fanout"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 02 · Horizontal Scale</span>
+              <h2 class="briefing-title">Partitioned Event Streaming</h2>
+              <p class="briefing-hook">
+                Rather than bottlenecking on central database write locks, producers append records to
+                an immutable ordered partition log. Fillet elbow connectors route records across partition leaders in real time.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="stream.amx" target="_blank" rel="noopener noreferrer">
+              <span>stream.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Write Rate:</b> 124,000 msg/sec</span>
+            <span class="spec-chip"><b>Lag:</b> 0 records (Real-time)</span>
+            <span class="spec-chip"><b>Partitions:</b> 3 AZ Leaders</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </div>
 
   <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+  <script src="../deck.js"></script>
 </body>
 </html>

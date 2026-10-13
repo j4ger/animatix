@@ -34,8 +34,9 @@ let g3 = 0.0
 let g5 = 0.0
 let g7 = 0.0
 
-hero_title: Text, text: "Stack the odd harmonics", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+import "../../demos/lib/ambience.amx"
+
+bg: Ambience, tint: accent.info
 
 hero_hub: Ellipse, size: (9, 9), color: text.muted, at: (geo.pivot_x, geo.cy)
 
@@ -77,11 +78,7 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
   }
 }
 
-hero_hint: Text, text: "each circle is one term — and the tip draws the sum",
-  font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -104)
-
 #0.15s
-fade-in hero_title [550ms, ease: expo-out]
 fade-in hero_graph [550ms, ease: expo-out]
 fade-in ring__0, arm__0, hero_hub [450ms, ease: expo-out]
 
@@ -161,5 +158,4 @@ always {
   hero_link.to = dp
 }
 
-#18s
-fade-in hero_hint [500ms, ease: expo-out]
+

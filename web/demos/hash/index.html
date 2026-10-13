@@ -10,133 +10,246 @@
 </head>
 <body>
 
-  <div class="wrap">
-    <header>
-      <p class="kicker">Animatix demo · every figure is a .amx file</p>
-      <h1>Where Keys Live</h1>
-      <p class="lede">
-        A hash table is the data structure every language reaches for first —
-        and its whole mystery is one sentence: <strong>the hash decides where
-        a key lives, so finding it later needs no search</strong>. Eight
-        buckets, a hash you can compute in your head, one collision, and two
-        lookups — every figure below is a declarative scene compiling in your
-        browser.
-      </p>
-      <ul class="meta">
-        <li>3 scenes · one file</li>
-        <li>hash rule: add letter positions, mod 8</li>
-        <li>one slim engine for the whole page</li>
-      </ul>
-    </header>
+  <div class="wrap walkthrough-deck" data-amx-deck>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · DATA STRUCTURES</p>
+        <h1 class="hero-title">Where Keys Live</h1>
+        <ul class="facts">
+          <li><b>4</b> interactive scenes</li>
+          <li><b>WebGPU</b> 60 FPS vector canvas</li>
+          <li><b>O(1)</b> arithmetic lookup</li>
+          <li><b>Zero</b> search iterations</li>
+        </ul>
+      </div>
 
-    <figure class="hero">
-      <amx-player src="scene.amx" autoplay loop controls hold="2"
-                  aspect="16:9" title="The full hash table walkthrough"></amx-player>
-      <figcaption>
-        <span class="cap"><b>The whole story.</b> Three scenes — keys move in,
-          a collision chains, lookups hit and miss — compiled from
-          <a href="scene.amx">a single text file</a>.</span>
-        <a class="src" href="scene.amx">scene.amx ↗</a>
-      </figcaption>
-    </figure>
-
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
-      <ol>
-        <li><a href="#s1"><span class="n">01</span>Where keys live</a></li>
-        <li><a href="#s2"><span class="n">02</span>Two keys, one bucket</a></li>
-        <li><a href="#s3"><span class="n">03</span>Lookup: hash first, compare after</a></li>
-      </ol>
-    </nav>
-
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>Where keys live</h2></div>
-      <p>
-        The rule is small enough to do in your head: add the letters'
-        positions (a=1, b=2, …), then take mod 8 — one slot per bucket.
-        <code class="inline">cat</code> is 3+1+20 = 24, and 24 mod 8 is 0, so
-        cat lives in bucket 0. Nobody chose bucket 0; the
-        <strong>hash picked it</strong>. That is the entire contract: store by
-        hash, and retrieval later becomes arithmetic instead of search.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="buckets.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Three keys hash into their buckets"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the formula narrates each key before
-            it drops — cat to 0, dog to 2, sun to 6. Each drop is a keyframed
-            shift; the arithmetic is a timed text swap.</span>
-          <a class="src" href="buckets.amx">buckets.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>Two keys, one bucket</h2></div>
-      <p>
-        Eight buckets and unbounded keys means collisions are inevitable —
-        <strong>two keys will eventually share a slot</strong>.
-        <code class="inline">owl</code> is 15+23+12 = 50, and 50 mod 8 is 2:
-        dog's bucket. The table doesn't panic; it <strong>chains</strong> —
-        owl links below dog, and the bucket quietly becomes a list. Chaining
-        is why hash tables degrade gracefully: a crowded bucket is a slightly
-        longer list, not a broken table.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="collision.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="owl collides with dog and chains"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> owl drops toward bucket 2, finds dog
-            in residence, and chains beneath it — the amber link is the
-            chain.</span>
-          <a class="src" href="collision.amx">collision.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Lookup: hash first, compare after</h2></div>
-      <p>
-        Retrieval runs the same film backwards. Hash the query
-        <code class="inline">sun</code> → bucket 6 → one comparison →
-        <strong>found</strong>. Query <code class="inline">owl</code> → bucket
-        2 → compare against dog: not equal, so follow the chain — found
-        <em>after one compare</em>. Query <code class="inline">cow</code> →
-        bucket 1 → <strong>empty</strong> — not found without touching a
-        single key. Three queries, zero searches: the hash did the walking.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="lookup.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Three lookups: a hit, a chained hit, a miss"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> sun found outright; owl found after
-            one compare down the chain; cow answered
-            <strong>not found</strong> by an empty bucket — the cheapest
-            answer in the whole structure.</span>
-          <a class="src" href="lookup.amx">lookup.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <div class="howto">
-        <h2>How this page works</h2>
-        <p>
-          The buckets are one <code class="inline">LabeledBox</code> component
-          instantiated eight times; the keys are instances with their own
-          fills; every drop-in is a keyframed shift and every formula a timed
-          text swap. The arithmetic is honest — each formula on screen is the
-          actual hash of the key above it.
-        </p>
-        <p style="margin-bottom:0">
-          Sources are plain text —
-          <a href="../../tour/">the language tour</a> has the syntax, and the
-          <a href="../">demo shelf</a> has more like this.
+      <div class="hero-intro">
+        <p class="lede">
+          A hash table is the fundamental associative data structure of modern computing:
+          <strong>the hash decides where a key lives, so finding it later needs no search</strong>.
+          Eight buckets, letter sum modulo arithmetic, collision chaining, and instant probe hits and misses.
         </p>
       </div>
-    </section>
+    </header>
+
+    <div class="deck-slides-container">
+
+      <!-- Slide 00: Master Walkthrough -->
+      <section id="s0" class="deck-slide chapter" data-slide-id="master" data-title="The Full Table" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 00 // Complete 3-Stage Hash Lifecycle</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+                          aspect="16:9" title="The full hash table walkthrough"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Complete Suite · Declarative Storage</span>
+              <h2 class="briefing-title">Hash Table Lifecycle</h2>
+              <p class="briefing-hook">
+                Watch keys hash into position, collide and form linked bucket chains,
+                and retrieve in constant time with deterministic mathematical indices.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="scene.amx" target="_blank" rel="noopener noreferrer">
+              <span>scene.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Buckets:</b> 8 Direct Slots</span>
+            <span class="spec-chip"><b>Hash Function:</b> Σ(letter_pos) mod 8</span>
+            <span class="spec-chip"><b>Collision Strategy:</b> Singly-Linked Chaining</span>
+          </div>
+
+          <div class="briefing-beats">
+            <div class="beat-card">
+              <span class="beat-num">01</span>
+              <div>
+                <strong>Key Ingress</strong>
+                <p>Arithmetic maps "cat" (0), "dog" (2), and "sun" (6) directly into buckets.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">02</span>
+              <div>
+                <strong>Collision Chaining</strong>
+                <p>"owl" collides with "dog" at bucket 2 and links below without corruption.</p>
+              </div>
+            </div>
+            <div class="beat-card">
+              <span class="beat-num">03</span>
+              <div>
+                <strong>Direct Retrieval</strong>
+                <p>Queries compute bucket index directly, verifying keys with 1 or 0 hops.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 01: Buckets -->
+      <section id="s1" class="deck-slide chapter" data-slide-id="buckets" data-title="Where Keys Live" data-accent="#38bdf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 01 // Deterministic Key Ingestion: Mod 8</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="buckets.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Three keys hash into their buckets"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 01 · Ingestion Arithmetic</span>
+              <h2 class="briefing-title">Where Keys Live</h2>
+              <p class="briefing-hook">
+                Add letter positions (a=1, b=2, …), then take mod 8.
+                <code class="inline">cat</code> = 3+1+20 = 24 mod 8 = 0.
+                The hash dictates where a key resides, eliminating scan overhead.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="buckets.amx" target="_blank" rel="noopener noreferrer">
+              <span>buckets.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Key "cat":</b> 24 mod 8 → Bucket 0</span>
+            <span class="spec-chip"><b>Key "dog":</b> 26 mod 8 → Bucket 2</span>
+            <span class="spec-chip"><b>Key "sun":</b> 54 mod 8 → Bucket 6</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 02: Collision -->
+      <section id="s2" class="deck-slide chapter" data-slide-id="collision" data-title="Collision" data-accent="#fb7185">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 02 // Slot Contention &amp; Linked Chaining</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="collision.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="owl collides with dog and chains"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 02 · Graceful Degradation</span>
+              <h2 class="briefing-title">Two Keys, One Bucket</h2>
+              <p class="briefing-hook">
+                With unbounded keys and finite buckets, collisions are mathematically inevitable.
+                <code class="inline">owl</code> hashes to bucket 2 where <code class="inline">dog</code> already lives.
+                The bucket quietly forms a linked list, degrading to a 2-item traversal rather than failing.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="collision.amx" target="_blank" rel="noopener noreferrer">
+              <span>collision.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Conflict:</b> Bucket 2 (dog &amp; owl)</span>
+            <span class="spec-chip"><b>Mechanism:</b> Dynamic Linked Pointer</span>
+            <span class="spec-chip"><b>Overhead:</b> O(k) chain length</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 03: Lookup -->
+      <section id="s3" class="deck-slide chapter" data-slide-id="lookup" data-title="Fast Lookup" data-accent="#34d399">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 03 // Arithmetic Verification: Hits &amp; Misses</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="lookup.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Three lookups: a hit, a chained hit, a miss"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Stage 03 · Zero-Search Retrieval</span>
+              <h2 class="briefing-title">Lookup: Hash First, Compare After</h2>
+              <p class="briefing-hook">
+                Retrieval runs the ingestion logic in reverse: query <code class="inline">sun</code> hashes to 6 (immediate hit),
+                query <code class="inline">owl</code> checks bucket 2 and traverses the link (chained hit),
+                and query <code class="inline">cow</code> checks bucket 1 (empty slot, immediate O(1) miss).
+              </p>
+            </div>
+            <a class="btn-stage-src" href="lookup.amx" target="_blank" rel="noopener noreferrer">
+              <span>lookup.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Direct Hit:</b> "sun" → bucket 6 (1 compare)</span>
+            <span class="spec-chip"><b>Chained Hit:</b> "owl" → bucket 2 (2 compares)</span>
+            <span class="spec-chip"><b>Empty Miss:</b> "cow" → bucket 1 (0 compares)</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </div>
 
-  <script type="module" src="../../embed/amx-player.js"></script>
-  <script src="../../tour/editor.js"></script>
+  <script type="module" src="../../embed/amx-player.js" data-runtime-base="../../pkg-slim"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
+  <script src="../deck.js"></script>
 </body>
 </html>

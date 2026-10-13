@@ -10,142 +10,226 @@
 </head>
 <body>
 
-  <div class="wrap">
-    <header>
-      <p class="kicker">Animatix demo · every figure is a .amx file</p>
-      <h1>A Matrix Is a Machine</h1>
-      <p class="lede">
-        Most people meet a matrix as a box of numbers with arbitrary rules for
-        multiplying them. It is much better thought of as a
-        <strong>function on space itself</strong>: feed it every point in the
-        plane and it moves all of them at once. Three figures — a shear, a
-        rotation, and a collapse through zero — and the box of numbers never
-        looks the same again.
-      </p>
-      <ul class="meta">
-        <li>3 scenes · one file</li>
-        <li>grid, basis vectors, matrix chips — all driven by <code class="inline">always</code></li>
-        <li>one slim engine for the whole page</li>
-      </ul>
-    </header>
+  <div class="wrap walkthrough-deck" data-amx-deck>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · LINEAR ALGEBRA KINEMATICS</p>
+        <h1 class="hero-title">A Matrix Is a Machine</h1>
+        <ul class="facts">
+          <li><b>3</b> interactive transformations</li>
+          <li><b>WebGPU</b> 60 FPS vector engine</li>
+          <li><b>Reactive</b> always-loop formulas</li>
+          <li><b>Zero</b> video buffering</li>
+        </ul>
+      </div>
 
-    <figure class="hero">
-      <amx-player src="scene.amx" autoplay loop controls hold="2"
-                  aspect="16:9" title="Shear, rotation, and the determinant flip"></amx-player>
-      <figcaption>
-        <span class="cap"><b>The whole story.</b> Three transformations in one
-          file. Nothing here is keyframed — one <code class="inline">always</code>
-          block per scene recomputes the entire grid, both basis vectors and
-          the four matrix numbers every frame.</span>
-        <a class="src" href="scene.amx">scene.amx ↗</a>
-      </figcaption>
-    </figure>
-
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
-      <ol>
-        <li><a href="#s1"><span class="n">01</span>A shear: every point moves</a></li>
-        <li><a href="#s2"><span class="n">02</span>Rotation: read the columns</a></li>
-        <li><a href="#s3"><span class="n">03</span>When det crosses zero</a></li>
-      </ol>
-    </nav>
-
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>A shear: every point moves</h2></div>
-      <p>
-        The matrix is shown live, top-left — four numbers, one of them
-        breathing. As <code class="inline">k</code> grows, every point
-        <code class="inline">(x, y)</code> slides to
-        <code class="inline">(x + k·y, y)</code>: horizontal lines stay put,
-        vertical lines lean, and the unit square leans into a parallelogram.
-        Yet the determinant readout never leaves 1 — <strong>a shear changes
-        no area</strong>. That is the kind of statement a static textbook
-        asserts; here you can watch it be true.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="shear.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="A shear, driven live"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the amber entry is the one animating.
-            The red and green arrows are the basis vectors — where they land
-            <em>is</em> the first and second column of the matrix.</span>
-          <a class="src" href="shear.amx">shear.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>Rotation: read the columns</h2></div>
-      <p>
-        Reset, and turn the plane a quarter circle. The trick to reading any
-        transformation: <strong>the columns tell you where the basis vectors
-        land</strong>. Watch the red <code class="inline">i</code> arrow — its
-        tip writes column one into the numbers; the green
-        <code class="inline">j</code> arrow writes column two. By the end the
-        columns read (0, 1) and (−1, 0): i has become "up", j has become
-        "left". The determinant stays 1 — rotations preserve area and
-        orientation.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="rotation.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="A quarter rotation, tracked by the numbers"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the arrows lead, the grid follows,
-            and the four numbers keep score. Pause anywhere — the chips
-            describe the exact frame you paused on.</span>
-          <a class="src" href="rotation.amx">rotation.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>When det crosses zero</h2></div>
-      <p>
-        Now the dramatic one. The entry <code class="inline">d</code> shrinks
-        toward zero: the horizontal grid lines crowd together, the space
-        <strong>collapses onto a line</strong> — at
-        <code class="inline">det = 0</code> the whole plane has lost a
-        dimension, and information is destroyed (the transformation can no
-        longer be undone). Keep going and <code class="inline">d</code> comes
-        out negative: the grid re-inflates, but
-        <strong>mirror-flipped</strong> — the readout turns red because the
-        orientation of space itself has reversed.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="collapse.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="The determinant collapses through zero"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the readout hits
-            <code class="inline">det = 0.0</code> exactly when the grid
-            flattens, and turns red the moment the plane flips through.
-            Squashing a photo to zero width and reopening it is this
-            matrix.</span>
-          <a class="src" href="collapse.amx">collapse.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <div class="howto">
-        <h2>How this page works</h2>
-        <p>
-          There is not a single keyframed position in the whole demo. Each
-          scene's <code class="inline">always</code> block builds the matrix
-          from one clock (a smoothstep shear, a quarter turn, a shrinking
-          <code class="inline">d</code>), applies it to twelve grid lines and
-          two basis vectors, and formats the four entries with
-          <code class="inline">format("{:.1}", …)</code> — the numbers you
-          read are the numbers driving the geometry.
-        </p>
-        <p style="margin-bottom:0">
-          Sources are plain text —
-          <a href="../../tour/">the language tour</a> has the syntax, and the
-          <a href="../">demo shelf</a> has more like this.
+      <div class="hero-intro">
+        <p class="lede">
+          Rather than a box of numbers with multiplication rules, a matrix is a
+          <strong>geometric function on space itself</strong>: it transforms every point in the plane at once.
+          Watch shear, rotation, and determinant collapse through zero in live WebGPU vectors.
         </p>
       </div>
-    </section>
+    </header>
+
+    <div class="deck-slides-container">
+
+      <!-- Slide 00: Overview Blueprint -->
+      <section id="s0" class="deck-slide chapter" data-slide-id="master" data-title="The Machine" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 00 // The Complete 3-Stage Transformation</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+                          aspect="16:9" title="Shear, rotation, and the determinant flip"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Complete Suite · Reactive Linear Operators</span>
+              <h2 class="briefing-title">Three Transformations of Space</h2>
+              <p class="briefing-hook">
+                A single matrix transforms the infinite plane: shear slides points while preserving area,
+                rotation turns the basis vectors, and shrinking determinant flattens space before flipping it.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="scene.amx" target="_blank" rel="noopener noreferrer">
+              <span>scene.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Engine:</b> Reactive Always Block</span>
+            <span class="spec-chip"><b>Basis:</b> î = (1, 0), ĵ = (0, 1)</span>
+            <span class="spec-chip"><b>Area Scale:</b> det(M)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 01: Shear -->
+      <section id="s1" class="deck-slide chapter" data-slide-id="shear" data-title="Shear" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 01 // Area-Preserving Shear: det = 1.0</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="shear.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Shear: area preserved"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">01 · Area Invariance</span>
+              <h2 class="briefing-title">Shear: Every Point Slides, Area Stays Constant</h2>
+              <p class="briefing-hook">
+                As <code class="inline">k</code> sweeps, <code class="inline">(x, y) ↦ (x + ky, y)</code>.
+                Horizontal lines stay still, vertical lines lean, and the unit square deforms into a parallelogram with unchanged base and height.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="shear.amx" target="_blank" rel="noopener noreferrer">
+              <span>shear.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Determinant:</b> det = 1.0 (Exact)</span>
+            <span class="spec-chip"><b>Invariant Line:</b> x-axis (y = 0)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 02: Rotation -->
+      <section id="s2" class="deck-slide chapter" data-slide-id="rotation" data-title="Rotation" data-accent="#38bdf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 02 // 2×2 Rigid Rotation Matrix</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="rotation.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Rotation: reading columns"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">02 · Coordinate Geometry</span>
+              <h2 class="briefing-title">Rotation: Read the Columns to Find Basis Vectors</h2>
+              <p class="briefing-hook">
+                Columns of the matrix literally reveal where the basis vectors land:
+                first column is î = (cos θ, sin θ), second column is ĵ = (-sin θ, cos θ).
+              </p>
+            </div>
+            <a class="btn-stage-src" href="rotation.amx" target="_blank" rel="noopener noreferrer">
+              <span>rotation.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Columns:</b> [cos θ, -sin θ; sin θ, cos θ]</span>
+            <span class="spec-chip"><b>Isometry:</b> Rigid Distance Preserving</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 03: Collapse & Flip -->
+      <section id="s3" class="deck-slide chapter" data-slide-id="collapse" data-title="Collapse" data-accent="#fb7185">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 03 // Determinant Zero-Crossing &amp; Plane Flip</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="collapse.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="When determinant crosses zero"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">03 · Dimensional Collapse</span>
+              <h2 class="briefing-title">When Determinant Crosses Zero: The Flip</h2>
+              <p class="briefing-hook">
+                As coefficient <code class="inline">d</code> passes through zero, 2D space flattens into a 1D line (det = 0, non-invertible),
+                then emerges on the other side mirror-flipped with negative orientation.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="collapse.amx" target="_blank" rel="noopener noreferrer">
+              <span>collapse.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Singularity:</b> det = 0 Singular Matrix</span>
+            <span class="spec-chip"><b>Orientation:</b> Negative Det = Reflected Plane</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- How This Page Works -->
+    <div class="howto">
+      <h2>How this page works</h2>
+      <p>
+        Every figure is compiled live in your browser over WebGPU using Animatix declarative <code class="inline">.amx</code> scripts.
+        Zero pre-rendered video files, zero runtime allocations.
+      </p>
+    </div>
+
   </div>
 
   <script type="module" src="../../embed/amx-player.js"></script>
-  <script src="../../tour/editor.js"></script>
+  <script src="../deck.js"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
 </body>
 </html>

@@ -30,9 +30,9 @@ HERE = pathlib.Path(__file__).resolve().parent.parent / "web" / "demos" / "epicy
 
 # (file, scene label, actors the plate clears before the wipe to the next act)
 ACTS = [
-    ("goal.amx", "Goal", ["goal_title", "goal_axis", "goal_hint"]),
+    ("goal.amx", "Goal", ["goal_axis"]),
     ("onecircle.amx", "OneCircle", ["one_title", "one_hint"]),
-    ("hero.amx", "Hero", ["hero_title", "hero_hint", "eq_row"]),
+    ("hero.amx", "Hero", ["eq_row"]),
     ("spectrum.amx", "Spectrum", ["spec_title", "spec_eq", "spec_note"]),
     ("complexplane.amx", "ComplexPlane", []),
 ]
@@ -62,6 +62,7 @@ HEADER = """// scene.amx — the plate: the whole walkthrough in one playthrough
 //     would superimpose two of them into an unreadable third.
 
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 import "fourier.amx" as geo
 
 config {

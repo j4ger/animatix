@@ -32,13 +32,24 @@ pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 
     fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
+  aura: Ellipse, size: (650, 650), opacity: base_opacity * 0.6, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (70%, (0, 0, 0, 0))}),
+    anchor: scene.center, legend: false
+
   always {
     let e = curve_smooth(scene.stats.motion, t, tau)
     let fx = curve_smooth(scene.stats.focus_x, t, tau * 1.5)
     let fy = curve_smooth(scene.stats.focus_y, t, tau * 1.5)
     let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
-    self.wash.at = (fx, fy)
-    self.wash.size = (600 + 600 * sx, 600 + 600 * sx)
-    self.wash.opacity = clamp(base_opacity * (0.5 + 1.5 * e), 0.02, 0.45)
+    let drift_x = 35 * sin(t * 1.1)
+    let drift_y = 20 * cos(t * 0.85)
+    let breathe = 0.03 * sin(t * 1.4)
+    self.wash.at = (fx + drift_x, fy + drift_y)
+    self.wash.size = (620 + 580 * sx, 620 + 580 * sx)
+    self.wash.opacity = clamp(base_opacity * (0.6 + 1.4 * e) + breathe, 0.02, 0.45)
+
+    self.aura.at = (fx - drift_x * 0.7, fy - drift_y * 0.7)
+    self.aura.size = (500 + 400 * sx, 500 + 400 * sx)
+    self.aura.opacity = clamp(base_opacity * 0.6 * (0.7 + 1.2 * e) - breathe * 0.5, 0.01, 0.35)
   }
 }

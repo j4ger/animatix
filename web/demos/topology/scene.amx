@@ -21,11 +21,10 @@ wash_edge: Ellipse, size: (540, 540), at: (230, 380),
 wash_raft: Ellipse, size: (540, 540), at: (920, 380),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#34d39912"), (50%, "#34d39904"), (100%, "#34d39900")}),
   blend: "screen"
-
-// ── Header Narration ───────────────────────────────────────────────────────
-header: Row, anchor: scene.top, offset: (0, 48), gap: 12, align: "center" {
-  badge: Chip, label: "EVENT FABRIC", width: 130, height: 24, color: surface.primary, text_color: accent.primary
-  title: Text, text: "TOPOLOGY & CONSENSUS ROUTING", font_size: 13, font_weight: 600, color: text.muted
+always {
+  wash_core.at = (600 + 24 * sin(t * 1.1), 380 + 14 * cos(t * 0.9))
+  wash_edge.at = (230 + 16 * cos(t * 1.0), 380 + 12 * sin(t * 1.2))
+  wash_raft.at = (920 + 20 * sin(t * 0.85), 380 + 16 * cos(t * 1.05))
 }
 
 // ── Architecture Boundaries ────────────────────────────────────────────────
@@ -96,7 +95,6 @@ hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
 
 // ── Timeline Choreography ──────────────────────────────────────────────────
 #0.0s
-fade-in header [400ms, ease: ease-out]
 fade-in wash_core [600ms]
 fade-in wash_edge [600ms]
 fade-in wash_raft [600ms]

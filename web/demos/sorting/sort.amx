@@ -42,11 +42,12 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
   }
 }
 
+import "../../demos/lib/ambience.amx"
+
 # TheSort
 config { colorscheme: "ink", dynamic_layout: true, duration: 18.9 }
 
-sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+bg: Ambience, tint: accent.info
 
 bars: Bars, values: {42, 17, 93, 5, 68, 31, 76, 12}, color: accent.info
 
@@ -69,11 +70,7 @@ swap_label: Text, text: "swaps", font_size: 20,
   color: text.secondary, anchor: scene.center, offset: (-520, 285)
 swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, anchor: scene.center, offset: (-270, 293)
 
-sort_caption: Text, text: "the key slides left past every larger neighbor",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
-
 #0s
-fade-in sort_title [500ms, ease: expo-out]
 fade-in bars [600ms, ease: expo-out]
 fade-in key_note [400ms, delay: 300ms, ease: expo-out]
 stagger [80ms] {
@@ -81,7 +78,6 @@ stagger [80ms] {
   fade-in swap_label [300ms, ease: expo-out]
   fade-in comp_ticks [300ms, ease: expo-out]
   fade-in swap_ticks [300ms, ease: expo-out]
-  fade-in sort_caption [300ms, ease: expo-out]
 }
 
 // The whole sort runs here — one call, zero hand-written swaps.

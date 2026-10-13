@@ -21,6 +21,7 @@
 //     would superimpose two of them into an unreadable third.
 
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 import "fourier.amx" as geo
 
 config {
@@ -34,8 +35,7 @@ config {
 # Goal
 config { colorscheme: "ink", dynamic_layout: true, duration: 6.8 }
 
-goal_title: Text, text: "Drawing a Square Wave with Circles", font_size: 42,
-  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+bg: Ambience, tint: accent.primary
 
 goal_graph: Graph, at: (640, geo.cy), size: (1000, 2 * geo.y_hi * pi * geo.R / 4),
   x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), tick_labels: "y" {
@@ -51,11 +51,7 @@ goal_graph: Graph, at: (640, geo.cy), size: (1000, 2 * geo.y_hi * pi * geo.R / 4
 goal_axis: Text, text: "x — two full turns", font_size: 17, color: text.muted,
   anchor: scene.center, offset: (0, 238)
 
-goal_hint: Text, text: "four sine waves added — frequencies 1, 3, 5, 7, amplitudes 1/k",
-  font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -44)
-
 #0.15s
-fade-in goal_title [550ms, ease: expo-out]
 fade-in goal_graph [550ms, ease: expo-out]
 
 #0.9s
@@ -66,13 +62,11 @@ fade-in goal_wave [300ms, ease: expo-out]
 goal_wave.stroke_progress = 1.0 [3.2s, ease: ease-in-out]
 
 #5s
-fade-in goal_hint, goal_axis [500ms, ease: expo-out]
+fade-in goal_axis [500ms, ease: expo-out]
 
 // Plate only: the next act titles at the same anchor.
 #5.95s
-fade-out goal_title [350ms, ease: ease-in]
 fade-out goal_axis [350ms, ease: ease-in]
-fade-out goal_hint [350ms, ease: ease-in]
 
 
 play OneCircle [wipe-left, 500ms]
@@ -194,8 +188,9 @@ let g3 = 0.0
 let g5 = 0.0
 let g7 = 0.0
 
-hero_title: Text, text: "Stack the odd harmonics", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+import "../../demos/lib/ambience.amx"
+
+bg: Ambience, tint: accent.info
 
 hero_hub: Ellipse, size: (9, 9), color: text.muted, at: (geo.pivot_x, geo.cy)
 
@@ -237,11 +232,7 @@ eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
   }
 }
 
-hero_hint: Text, text: "each circle is one term — and the tip draws the sum",
-  font_size: 20, color: text.secondary, anchor: scene.bottom, offset: (0, -104)
-
 #0.15s
-fade-in hero_title [550ms, ease: expo-out]
 fade-in hero_graph [550ms, ease: expo-out]
 fade-in ring__0, arm__0, hero_hub [450ms, ease: expo-out]
 
@@ -321,13 +312,8 @@ always {
   hero_link.to = dp
 }
 
-#18s
-fade-in hero_hint [500ms, ease: expo-out]
-
 // Plate only: the next act titles at the same anchor.
 #18.55s
-fade-out hero_title [350ms, ease: ease-in]
-fade-out hero_hint [350ms, ease: ease-in]
 fade-out eq_row [350ms, ease: ease-in]
 
 

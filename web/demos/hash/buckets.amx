@@ -1,14 +1,12 @@
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/components.amx"
+import "../../demos/lib/ambience.amx"
 config { resolution: (1280, 720) }
 
 # Buckets
 config { colorscheme: "ink", duration: 12 }
 
-bk_title: Text, text: "Where keys live", font_size: 38,
-  color: text.primary, anchor: scene.top, offset: (0, 52)
-bk_sub: Text, text: "hash(key) = add the letter positions, then mod 8",
-  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+bg: Ambience, tint: accent.primary
 
 b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
 b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
@@ -31,8 +29,6 @@ chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill:
 chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
 
 #0.3s
-fade-in bk_title [500ms, ease: expo-out]
-fade-in bk_sub [400ms, delay: 150ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0 [300ms, ease: expo-out]
   fade-in b1 [300ms, ease: expo-out]

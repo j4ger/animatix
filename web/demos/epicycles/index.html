@@ -10,209 +10,312 @@
 </head>
 <body>
 
-  <div class="wrap">
-    <header>
-      <p class="kicker">Animatix demo · every figure is a .amx file</p>
-      <h1>Circles That Draw a Square Wave</h1>
-      <p class="lede">
-        A square wave looks like the least circular shape there is — hard
-        edges, flat top, sharp corners. It is also, exactly, a sum of
-        circles. This walkthrough stacks them one odd harmonic at a time;
-        every figure below is a declarative scene compiling in your browser
-        as you read, not a video.
-      </p>
-      <ul class="meta">
-        <li>five figures · one plate</li>
-        <li>one slim engine for the whole page</li>
-        <li>hover a figure to pause or scrub it</li>
-      </ul>
-    </header>
+  <div class="wrap walkthrough-deck" data-amx-deck>
+    <header class="hero-split">
+      <div class="hero-headline">
+        <p class="kicker">ANIMATIX WALKTHROUGH · HARMONIC FOURIER SERIES</p>
+        <h1 class="hero-title">Circles That Draw a Square Wave</h1>
+        <ul class="facts">
+          <li><b>5</b> interactive figures</li>
+          <li><b>1</b> master plate</li>
+          <li><b>WebGPU</b> 60 FPS vector engine</li>
+          <li><b>Zero</b> video buffering</li>
+        </ul>
+      </div>
 
-    <figure class="hero">
-      <amx-player src="scene.amx" autoplay loop controls hold="2"
-                  aspect="16:9" title="The full Fourier walkthrough, five scenes"></amx-player>
-      <figcaption>
-        <span class="cap"><b>The whole story.</b> Five scenes — goal, one
-          circle, the stack, the spectrum, the complex plane — joined by GPU
-          wipes. The figure you are watching is assembled from the five files
-          linked below, so nothing here is a copy that can fall out of date.</span>
-        <a class="src" href="scene.amx">scene.amx ↗</a>
-      </figcaption>
-    </figure>
-
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
-      <ol>
-        <li><a href="#s1"><span class="n">01</span>The destination</a></li>
-        <li><a href="#s2"><span class="n">02</span>One circle, one sine</a></li>
-        <li><a href="#s3"><span class="n">03</span>Stack the odd harmonics</a></li>
-        <li><a href="#s4"><span class="n">04</span>Only odd, shrinking as 1/k</a></li>
-        <li><a href="#s5"><span class="n">05</span>Why circles at all?</a></li>
-      </ol>
-    </nav>
-
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>The destination</h2></div>
-      <p>
-        Start from the end. The curve drawing itself below is
-        <strong>four sine waves added together</strong> — frequencies 1, 3, 5
-        and 7, with amplitudes shrinking as 1/k. Alone, each sine is a gentle
-        undulation; added with the right weights they cancel into flat tops,
-        sheer sides, and corners sharp enough to clip audio. That such a
-        jagged thing dissolves into a handful of smooth waves is the whole
-        of Fourier's idea, and the reason your phone can store a square-ish
-        waveform as a few numbers.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="goal.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="The finished square wave draws itself"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the target curve traces itself once,
-            so the goal is on screen before any circle appears. It is authored
-            as one <code class="inline">PlotCurve</code> whose
-            <code class="inline">stroke_progress</code> sweeps 0 → 1.</span>
-          <a class="src" href="goal.amx">goal.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>One circle, one sine</h2></div>
-      <p>
-        A sine wave is what you get when you look at rotation from the side.
-        A pen rides the rim of a turning circle; its <strong>height over
-        time</strong> traces a sine. In the figure the pen is driven by an
-        <code class="inline">always</code> block — one cosine for x, one sine
-        for y, evaluated every frame — and the graph shows that height as a
-        <strong>scrolling history</strong>: the newest sample sits at the left
-        edge, under the pen, and the paper moves right. The plotted function
-        reads the pen's own angle variable, so the trace is literally the pen's
-        history rather than a second clock that could drift away from it.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="onecircle.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="One circle, one sine"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the pen laps the circle once per
-            cycle; the wave slides out from under it. The faint line is the
-            figure's whole claim — and it stays level, because the plot box is
-            authored so that one y-unit is exactly <code class="inline">R · pi / 4</code>
-            pixels, which pins both columns to the same scale.</span>
-          <a class="src" href="onecircle.amx">onecircle.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Stack the odd harmonics</h2></div>
-      <p>
-        Now put circles <em>on</em> the circle. The second circle — radius
-        ⅓, spinning <strong>three times as fast</strong> — rides the first's
-        rim; a third (⅕, five times) rides that; a fourth (⅐, seven times)
-        rides the third. The tip of the last one is what draws. Each added
-        circle flattens the tops a little more and steepens the sides, and
-        the equation underneath gains the term responsible, in that circle's
-        colour. Four circles
-        is already embarrassingly square; the residual ripple dies as 1/k.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="hero.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Stacking odd harmonics into a square wave"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> a new circle joins the chain exactly
-            when its term appears in the equation. The circles and the curve
-            cannot fall out of step here: one <code class="inline">always</code>
-            block ramps three gate variables, and the chain, the plotted
-            function and the equation's reveals all read those same numbers.</span>
-          <a class="src" href="hero.amx">hero.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s4">
-      <div class="sec-head"><span class="sec-num">04</span><h2>Only odd, shrinking as 1/k</h2></div>
-      <p>
-        Why those frequencies and weights? A square wave is
-        <strong>anti-symmetric</strong>: flip it upside down and shift half a
-        period and you get the same wave. That symmetry kills every even
-        harmonic, and the quiet halves of the odd ones are what sharpen the
-        corners. Their amplitudes fall as <strong>1/k</strong> — each term
-        contributes a third, a fifth, a seventh of the first. That slow decay
-        is why corners are expensive to store: sharp edges live in the
-        high-frequency terms a lossy codec throws away first.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="spectrum.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="The harmonic spectrum as a bar chart"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> the four amplitudes from the previous
-            figure as a <code class="inline">BarChart</code> — and the empty
-            columns at k = 2, 4, 6, 8, which is what "only odd" looks like when
-            you stop asserting it.</span>
-          <a class="src" href="spectrum.amx">spectrum.amx ↗</a>
-        </figcaption>
-      </figure>
-    </section>
-
-    <section id="s5">
-      <div class="sec-head"><span class="sec-num">05</span><h2>Why circles at all?</h2></div>
-      <p>
-        Because rotation is the atom of periodic motion. Writing a wave as
-        circles is the same as writing it as <strong>complex
-        exponentials</strong> — <code class="inline">e^(iθ)</code> is a point
-        on the unit circle, and each term in the series is one such point
-        spinning at k times the base rate with radius a_k. Fourier analysis,
-        the DFT in your audio codec, the JPEG in your image library: all of
-        them are this picture, dressed differently. Sum enough circles and
-        even a square wave is just rotation.
-      </p>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="complexplane.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="The unit circle on the complex plane"></amx-player>
-        <figcaption>
-          <span class="cap"><b>Watch:</b> one vector turning
-            counter-clockwise on the unit circle — the
-            <code class="inline">NumberPlane</code> grid behind it is the
-            complex plane, the vector is <code class="inline">e^(iθ)</code>,
-            and its height is the sine from §02. The two pale drops are
-            <code class="inline">cos θ</code> and <code class="inline">sin θ</code>
-            read off the axes.</span>
-          <a class="src" href="complexplane.amx">complexplane.amx ↗</a>
-        </figcaption>
-      </figure>
-
-      <div class="howto">
-        <h2>How this page works</h2>
-        <p>
-          There is no video and no backend. The hero figure plays the five acts
-          in order, joined by <code class="inline">play</code> wipes (500ms);
-          the five section figures are those same acts, each in its own file.
-          The plate is generated from them by
-          <code class="inline">scripts/epicycles-plate.py</code> — a
-          <code class="inline">play</code> statement can only live inside a
-          scene body, so an act that stays chain-free for its own embed cannot
-          be ordered from outside, and copying the text by hand is how the two
-          sets used to drift apart.
-        </p>
-        <p>
-          The pen, the epicycle chain and the complex-plane vector are not
-          keyframed — an <code class="inline">always</code> block evaluates
-          their positions every frame from one clock, and the plotted curves
-          read that same clock, so a paused figure is a consistent picture
-          rather than a frozen coincidence.
-        </p>
-        <p style="margin-bottom:0">
-          Every scene source is plain text — open any
-          <span style="font-family:var(--mono);font-size:13px">.amx ↗</span>
-          link above, or take the
-          <a href="../../tour/">language tour</a> to see how they are built.
+      <div class="hero-intro">
+        <p class="lede">
+          A square wave looks like the least circular shape there is — sheer edges, flat tops, sharp corners.
+          It is also, exactly, a sum of spinning circles. This walkthrough stacks odd harmonics one by one.
+          Every figure compiles live in your browser over WebGPU.
         </p>
       </div>
-    </section>
+    </header>
+
+    <div class="deck-slides-container">
+
+      <!-- Slide 00: The Master Symphony -->
+      <section id="s0" class="deck-slide chapter" data-slide-id="master" data-title="The Symphony" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 00 // Master Fourier Suite · 5 Scenes</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="scene.amx" eager autoplay loop controls hold="2"
+                          aspect="16:9" title="The full Fourier walkthrough, five scenes"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">Master Composition · GPU Transition Wipes</span>
+              <h2 class="briefing-title">The Complete Fourier Progression</h2>
+              <p class="briefing-hook">
+                Five scenes — destination, single sine wave, harmonic circle stack, frequency spectrum, and complex plane — joined smoothly by GPU wipes.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="scene.amx" target="_blank" rel="noopener noreferrer">
+              <span>scene.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Harmonics:</b> k ∈ {1, 3, 5, 7}</span>
+            <span class="spec-chip"><b>Decay Rate:</b> Amplitudes ~ 1/k</span>
+            <span class="spec-chip"><b>Symmetry:</b> Odd / Anti-Symmetric</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 01: The Destination -->
+      <section id="s1" class="deck-slide chapter" data-slide-id="destination" data-title="Destination" data-accent="#38bdf8">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 01 // The Target Square Wave Trace</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="goal.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="The finished square wave draws itself"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">01 · Target Synthesis</span>
+              <h2 class="briefing-title">The Destination: Four Sines Make a Square</h2>
+              <p class="briefing-hook">
+                Four pure sine waves (frequencies 1, 3, 5, 7 with 1/k weights) cancel out into sheer sides, flat tops, and sharp corners.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="goal.amx" target="_blank" rel="noopener noreferrer">
+              <span>goal.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Primitive:</b> PlotCurve stroke_progress</span>
+            <span class="spec-chip"><b>Bounds:</b> [-1.0, +1.0] Target Plateaus</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 02: One Circle, One Sine -->
+      <section id="s2" class="deck-slide chapter" data-slide-id="onecircle" data-title="One Circle" data-accent="#34d399">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 02 // Rotation Unfolds into Waveform</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="onecircle.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="One circle, one sine"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">02 · Geometric Kinematics</span>
+              <h2 class="briefing-title">One Circle Unrolls One Sine</h2>
+              <p class="briefing-hook">
+                A pen rides the rim of a turning circle; its height over time traces a sine wave onto a scrolling paper history.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="onecircle.amx" target="_blank" rel="noopener noreferrer">
+              <span>onecircle.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Always Block:</b> Reactive Kinematic Pen</span>
+            <span class="spec-chip"><b>Scale:</b> 1 y-unit = R · π / 4</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 03: Stack the Odd Harmonics -->
+      <section id="s3" class="deck-slide chapter" data-slide-id="harmonics" data-title="The Stack" data-accent="#f5b942">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 03 // Harmonic Epicycle Chain</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="hero.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="Stacking odd harmonics into a square wave"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">03 · Epicycle Stacking</span>
+              <h2 class="briefing-title">Stacking Circles on Circles</h2>
+              <p class="briefing-hook">
+                The second circle (radius ⅓, 3× speed) rides the first's rim; the third (⅕, 5× speed) rides that.
+                The tip of the last circle traces the increasingly rectangular waveform.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="hero.amx" target="_blank" rel="noopener noreferrer">
+              <span>hero.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Epicycles:</b> 4 Nested Gyroscopes</span>
+            <span class="spec-chip"><b>Frequencies:</b> 1ω, 3ω, 5ω, 7ω</span>
+            <span class="spec-chip"><b>Sync:</b> Single Clock Always Loop</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 04: The Spectrum -->
+      <section id="s4" class="deck-slide chapter" data-slide-id="spectrum" data-title="Spectrum" data-accent="#c084fc">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 04 // Discrete Harmonic Frequency Spectrum</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="spectrum.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="The harmonic spectrum as a bar chart"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">04 · Frequency Domain</span>
+              <h2 class="briefing-title">Why Only Odd Harmonics?</h2>
+              <p class="briefing-hook">
+                Anti-symmetry (<code class="inline">f(x + π) = -f(x)</code>) cancels every even harmonic.
+                The odd harmonics decay slowly as 1/k — this slow decay is why sharp geometric edges require high bandwidth.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="spectrum.amx" target="_blank" rel="noopener noreferrer">
+              <span>spectrum.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Chart:</b> Declarative BarChart</span>
+            <span class="spec-chip"><b>Null Slots:</b> k = 2, 4, 6, 8 Exactly Zero</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Slide 05: The Complex Plane -->
+      <section id="s5" class="deck-slide chapter" data-slide-id="complex" data-title="Complex Plane" data-accent="#fb7185">
+        <div class="stage-deck">
+          <div class="stage-deck-aura"></div>
+          <div class="stage-core">
+            <div class="stage-hud">
+              <div class="stage-hud-tag">
+                <span class="live-dot"></span>
+                <span>Fig 05 // Unit Circle on the Complex Plane</span>
+              </div>
+              <div class="stage-hud-specs">
+                <span>pkg-slim · 1.6MB</span>
+                <span class="stage-hud-live"><span class="live-dot"></span>60 FPS WEBGPU</span>
+              </div>
+            </div>
+            <div class="stage-viewport">
+              <amx-player src="complexplane.amx" autoplay loop controls hold="1.5"
+                          aspect="16:9" title="The unit circle on the complex plane"></amx-player>
+            </div>
+          </div>
+        </div>
+
+        <div class="briefing-deck">
+          <div class="briefing-header">
+            <div class="briefing-title-group">
+              <span class="briefing-kicker">05 · Complex Analysis</span>
+              <h2 class="briefing-title">Why Circles at All? e^(iθ)</h2>
+              <p class="briefing-hook">
+                Rotation is the fundamental atom of periodic motion. Writing waves as circles is identical to writing them as complex exponentials <code class="inline">e^(iθ)</code>.
+              </p>
+            </div>
+            <a class="btn-stage-src" href="complexplane.amx" target="_blank" rel="noopener noreferrer">
+              <span>complexplane.amx</span>
+              <span class="btn-icon-wrap">↗</span>
+            </a>
+          </div>
+
+          <div class="briefing-specs">
+            <span class="spec-chip accent"><b>Euler Formula:</b> e^(iθ) = cos(θ) + i sin(θ)</span>
+            <span class="spec-chip"><b>Grid:</b> Declarative NumberPlane</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- How This Page Works -->
+    <div class="howto">
+      <h2>How this page works</h2>
+      <p>
+        There is zero video and no server backend. The figures compile directly in your browser over WebGPU from declarative <code class="inline">.amx</code> scripts.
+      </p>
+    </div>
+
   </div>
 
   <script type="module" src="../../embed/amx-player.js"></script>
-  <script src="../../tour/editor.js"></script>
+  <script src="../deck.js"></script>
   <script src="../../site-chrome.js" data-root="../../" data-section="demos"></script>
 </body>
 </html>
