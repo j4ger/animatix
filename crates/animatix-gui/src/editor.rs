@@ -9,7 +9,6 @@ use egui::text::LayoutJob;
 
 use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
-use eparts::{Button, Size};
 
 mod completion;
 mod diagnostics;
@@ -101,6 +100,11 @@ impl EditorBuffer {
         &self.text
     }
 
+    /// Read-only access to the editor cells.
+    pub fn cells(&self) -> &[Cell] {
+        &self.cells
+    }
+
     pub fn replace_text(&mut self, text: String) {
         self.text = text.clone();
         self.cells = parse_cells(&text);
@@ -133,6 +137,42 @@ impl EditorBuffer {
     /// Override the focused cell index.
     pub fn set_focused_cell(&mut self, cell: Option<usize>) {
         self.cell_state.focused_cell = cell;
+    }
+
+    /// Expand all cells (both code blocks and keyframe blocks).
+    pub fn expand_all(&mut self) {
+        for cell in &mut self.cells {
+            cell.set_expanded(true);
+        }
+        self.cell_state.collapsed_cells.clear();
+    }
+
+    /// Collapse all cells.
+    pub fn collapse_all(&mut self) {
+        for (i, cell) in self.cells.iter_mut().enumerate() {
+            cell.set_expanded(false);
+            if cell.is_keyframe() {
+                self.cell_state.collapsed_cells.insert(i);
+            }
+        }
+    }
+
+    /// Format the entire source using the canonical AST formatter.
+    ///
+    /// Returns `true` if the source was modified.
+    pub fn format_source(&mut self) -> bool {
+        let (stmts, errs) = animatix_syntax::parser::parse_simple(&self.text);
+        if let Some(stmts) = stmts {
+            if errs.is_empty() {
+                let formatter = animatix_syntax::formatter::Formatter::default();
+                let formatted = formatter.format(&stmts);
+                if formatted != self.text {
+                    self.replace_text(formatted);
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// Focus the cell that contains `line` and place the cursor at the end
@@ -267,6 +307,30 @@ impl EditorBuffer {
         }
     }
 
+    /// Update `self.cursor_line` based on the focused cell, its header line offset,
+    /// and the live caret position within its body.
+    fn update_cursor_line(&mut self) {
+        if let Some(focused_idx) = self.cell_state.focused_cell {
+            if let Some(start_line) = self.source_line_for_cell(focused_idx) {
+                let cell = self.cells.get(focused_idx);
+                let header_lines = match cell {
+                    Some(Cell::Keyframe {
+                        attached_comment, ..
+                    }) => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
+                    _ => 0,
+                };
+                let body_offset_lines = if let (Some(c), Some(char_idx)) =
+                    (cell, self.cell_state.focused_cursor_char)
+                {
+                    c.body().chars().take(char_idx).filter(|&ch| ch == '\n').count()
+                } else {
+                    0
+                };
+                self.cursor_line = Some(start_line + header_lines + body_offset_lines);
+            }
+        }
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) -> egui::Response {
         // Handle pending scroll by mapping line to cell
         if let Some(target_line) = self.pending_scroll_to_line.take() {
@@ -371,14 +435,6 @@ impl EditorBuffer {
             }
         }
 
-        ui.horizontal(|ui| {
-            if ui.add(Button::secondary("+ Keyframe").with_size(Size::Sm)).clicked() {
-                self.cell_state.pending_append_at_end = Some(CellType::Keyframe);
-            }
-            if ui.add(Button::secondary("+ Code").with_size(Size::Sm)).clicked() {
-                self.cell_state.pending_append_at_end = Some(CellType::Code);
-            }
-        });
         if let Some(cell_type) = self.cell_state.pending_append_at_end.take() {
             let new_cell = match cell_type {
                 CellType::Keyframe => {
@@ -423,13 +479,7 @@ impl EditorBuffer {
             self.cached_highlight = None;
             self.analyzer.update(&self.text);
 
-            // Update cursor_line from focused cell
-            if let Some(focused_idx) = self.cell_state.focused_cell {
-                if let Some(start_line) = self.source_line_for_cell(focused_idx) {
-                    // Estimate cursor line within cell body
-                    self.cursor_line = Some(start_line);
-                }
-            }
+            self.update_cursor_line();
 
             // Mark response as changed so the workspace knows the source text was modified.
             let mut r =
@@ -438,12 +488,7 @@ impl EditorBuffer {
             return r;
         }
 
-        // Update cursor_line from focused cell even if not changed
-        if let Some(focused_idx) = self.cell_state.focused_cell {
-            if let Some(start_line) = self.source_line_for_cell(focused_idx) {
-                self.cursor_line = Some(start_line);
-            }
-        }
+        self.update_cursor_line();
 
         // Handle completion keyboard input
         let mut completion_changed = false;
@@ -461,8 +506,11 @@ impl EditorBuffer {
             }
         }
 
-        // Trigger completion on Ctrl+Space
-        if response.has_focus() {
+        // Trigger completion on Ctrl+Space (handles active cell TextEdit focus or container focus)
+        let editor_focused = self.cell_state.focused_cell.is_some()
+            || response.has_focus()
+            || ui.ctx().text_edit_focused();
+        if editor_focused {
             ui.input(|i| {
                 if i.key_pressed(Key::Space) && i.modifiers.ctrl {
                     self.trigger_completion();
@@ -475,7 +523,7 @@ impl EditorBuffer {
 
         // Show completion popup if visible
         if self.completion.is_visible() {
-            let cursor_rect = response.rect;
+            let cursor_rect = self.cell_state.focused_rect.unwrap_or(response.rect);
             if let Some(insert_text) = self.completion.ui(ui, cursor_rect) {
                 self.insert_completion(&insert_text);
                 self.completion.hide();
@@ -626,5 +674,56 @@ mod tests {
         );
         assert!(store.source.text().starts_with("box: Rect"));
         assert_eq!(store.source.editor.focused_cell(), Some(0));
+    }
+
+    #[test]
+    fn format_source_reformats_unformatted_code() {
+        let path = PathBuf::from("test.amx");
+        let source = "box: Rect,size:(100,100)\n#0s\nbox.pos=(0,0)\n";
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        let changed = editor.format_source();
+        assert!(changed, "format_source should report change on unformatted source");
+        assert_eq!(editor.cells().len(), 2);
+        // Formatted code has spaces around colons/commas
+        assert!(editor.text().contains("size: (100, 100)"));
+    }
+
+    #[test]
+    fn expand_and_collapse_all_toggles_state() {
+        let path = PathBuf::from("test.amx");
+        let source =
+            "box: Rect, size: (100, 100)\n#0s\nbox.pos = (0, 0)\n#1s\nbox.pos = (50, 50)\n";
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        assert_eq!(editor.cells().len(), 3);
+
+        editor.collapse_all();
+        assert!(!editor.cells()[0].is_expanded(0, &editor.cell_state.collapsed_cells));
+        assert!(!editor.cells()[1].is_expanded(1, &editor.cell_state.collapsed_cells));
+        assert!(!editor.cells()[2].is_expanded(2, &editor.cell_state.collapsed_cells));
+
+        editor.expand_all();
+        assert!(editor.cells()[0].is_expanded(0, &editor.cell_state.collapsed_cells));
+        assert!(editor.cells()[1].is_expanded(1, &editor.cell_state.collapsed_cells));
+        assert!(editor.cells()[2].is_expanded(2, &editor.cell_state.collapsed_cells));
+    }
+
+    #[test]
+    fn cursor_line_tracks_inner_multiline_offset() {
+        let path = PathBuf::from("test.amx");
+        // Cell 0: 2 lines
+        // Cell 1: #0s (header) + 3 lines in body
+        let source = "box: Rect, size: (100, 100)\nother: Circle\n#0s\nbox.pos = (0, 0)\nbox.color = #fff\nbox.scale = 1.0\n";
+        let mut editor = EditorBuffer::new(&path, source.to_string());
+        editor.cell_state.focused_cell = Some(1);
+        // Place caret at line 2 in body (after "box.pos = (0, 0)\nbox.color = ")
+        let target_str = "box.pos = (0, 0)\nbox.color = ";
+        editor.cell_state.focused_cursor_char = Some(target_str.len());
+        editor.update_cursor_line();
+        // Line 0: box: Rect...
+        // Line 1: other: Circle
+        // Line 2: #0s
+        // Line 3: box.pos = (0, 0)
+        // Line 4: box.color = #fff (this is where the caret sits)
+        assert_eq!(editor.cursor_line, Some(4));
     }
 }

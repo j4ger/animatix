@@ -122,6 +122,9 @@ pub struct CellEditorState {
     pub pending_move_down: Option<usize>,
     /// Which cell is currently editing its timestamp inline.
     pub editing_timestamp_cell: Option<usize>,
+    /// Screen rectangle of the focused cell / TextEdit, refreshed when a cell has focus.
+    /// Used to anchor the completion popup near the caret instead of at panel bottom.
+    pub focused_rect: Option<egui::Rect>,
     /// Cached highlight LayoutJobs per cell index, keyed by cell body content.
     /// Avoids re-highlighting unchanged cells every frame.
     pub cached_highlight_jobs: std::collections::HashMap<usize, (String, egui::text::LayoutJob)>,
