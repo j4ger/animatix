@@ -295,7 +295,7 @@ pub static TYPST: PrimitiveInfo =
     PrimitiveInfo::text("Typst", "Typst", icon_glyphs::ARTICLE, TextKind::Typst)
         .advanced()
         .with_doc("Typst markup and mathematical document fragment.")
-        .with_stub("content: \"x^2 + y^2 = r^2\"");
+        .with_stub("text: \"x^2 + y^2 = r^2\"");
 pub static COUNTER: PrimitiveInfo =
     PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Text)
         .with_doc("Animated numerical counter with formatting and decimals.")

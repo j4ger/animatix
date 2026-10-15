@@ -516,10 +516,18 @@ impl GuiShell {
                             })
                         }),
                 };
+                let template = crate::app::primitives::ActorTemplate::with_suggested_label(
+                    &type_name,
+                    None,
+                    None,
+                    self.document_store.source.document.scene_dimensions,
+                    self.document_store.source.document.active_timeline(),
+                    props,
+                );
                 let request = InsertionRequest::Primitive {
                     type_name: type_name.clone(),
-                    suggested_label: None,
-                    props,
+                    suggested_label: Some(template.label),
+                    props: template.props,
                 };
                 if let Some(edit) = request.into_source_edit(&ctx) {
                     // Snapshot for undo before palette mutation
@@ -738,10 +746,18 @@ impl GuiShell {
         };
 
         let request = match item.kind {
-            ItemKind::Primitive { type_name } => InsertionRequest::Primitive {
-                type_name,
-                suggested_label: None,
-                props: vec![],
+            ItemKind::Primitive { type_name } => {
+                let template = crate::app::primitives::ActorTemplate::for_primitive(
+                    &type_name,
+                    None,
+                    self.document_store.source.document.scene_dimensions,
+                    self.document_store.source.document.active_timeline(),
+                );
+                InsertionRequest::Primitive {
+                    type_name,
+                    suggested_label: Some(template.label),
+                    props: template.props,
+                }
             },
             ItemKind::Effect { type_name } => {
                 let Some(scope) = self.selected_effect_scope() else {
@@ -774,10 +790,16 @@ impl GuiShell {
                     });
                     return;
                 }
+                let template = crate::app::primitives::ActorTemplate::for_primitive(
+                    &type_name,
+                    None,
+                    self.document_store.source.document.scene_dimensions,
+                    self.document_store.source.document.active_timeline(),
+                );
                 InsertionRequest::Primitive {
                     type_name,
-                    suggested_label: None,
-                    props: vec![],
+                    suggested_label: Some(template.label),
+                    props: template.props,
                 }
             },
             ItemKind::Snippet { text } => {

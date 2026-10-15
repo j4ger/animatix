@@ -813,17 +813,23 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 )
                 .clicked()
             {
-                let label = "rect1".to_string();
+                let ty = super::default_actor_type();
+                let template = crate::app::primitives::ActorTemplate::for_primitive(
+                    ty,
+                    None,
+                    ctx.scene_dimensions,
+                    ctx.timeline,
+                );
                 let pos = [
                     ctx.scene_dimensions.width as f32 / 2.0,
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
                 ctx.commands.push_back(
                     ActorCommand::CreateActor {
-                        ty: super::default_actor_type().into(),
-                        label,
+                        ty: template.ty,
+                        label: template.label,
                         position: pos,
-                        props: vec![],
+                        props: template.props,
                     }
                     .into(),
                 );
@@ -1288,19 +1294,25 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 })
                 .show(ui, row_id);
 
+            let pos = [
+                ctx.scene_dimensions.width as f32 / 2.0,
+                ctx.scene_dimensions.height as f32 / 2.0,
+            ];
+            let template = crate::app::primitives::ActorTemplate::for_primitive(
+                name,
+                Some(pos),
+                ctx.scene_dimensions,
+                None,
+            );
+
             if response.response.double_clicked() {
                 // Instantiate component with default props
-                let label = crate::app::utils::labels::unique_label(None, name);
-                let pos = [
-                    ctx.scene_dimensions.width as f32 / 2.0,
-                    ctx.scene_dimensions.height as f32 / 2.0,
-                ];
                 ctx.commands.push_back(
                     ActorCommand::CreateActor {
-                        ty: (*name).clone(),
-                        label,
+                        ty: template.ty.clone(),
+                        label: template.label.clone(),
                         position: pos,
-                        props: vec![],
+                        props: template.props.clone(),
                     }
                     .into(),
                 );
@@ -1312,8 +1324,8 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 super::set_library_drag(
                     ui.ctx(),
                     super::LibraryDragPayload {
-                        ty: (*name).clone(),
-                        props: vec![],
+                        ty: template.ty,
+                        props: template.props,
                     },
                 );
             }
@@ -1383,17 +1395,22 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                     "Instantiate",
                 )];
                 if render_menu(ui, &entries).is_some() {
-                    let label = crate::app::utils::labels::unique_label(None, name);
                     let pos = [
                         ctx.scene_dimensions.width as f32 / 2.0,
                         ctx.scene_dimensions.height as f32 / 2.0,
                     ];
+                    let template = crate::app::primitives::ActorTemplate::for_primitive(
+                        name,
+                        Some(pos),
+                        ctx.scene_dimensions,
+                        None,
+                    );
                     ctx.commands.push_back(
                         ActorCommand::CreateActor {
-                            ty: (*name).clone(),
-                            label,
+                            ty: template.ty,
+                            label: template.label,
                             position: pos,
-                            props: vec![],
+                            props: template.props,
                         }
                         .into(),
                     );

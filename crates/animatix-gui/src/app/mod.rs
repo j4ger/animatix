@@ -15,6 +15,7 @@ pub(crate) mod panels;
 mod perf_log;
 mod persistence;
 pub(crate) mod preview;
+pub(crate) mod primitives;
 mod runtime;
 pub(crate) mod shell;
 pub(crate) mod stores;

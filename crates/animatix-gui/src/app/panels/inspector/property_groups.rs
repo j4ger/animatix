@@ -77,11 +77,15 @@ pub(crate) fn build_property_groups(
     let indices = allowed_property_indices(&track.caps, &track.actor_type);
 
     let mut geometry = Vec::new();
+    let mut layout = Vec::new();
     let mut style = Vec::new();
     let mut shape = Vec::new();
     let mut text = Vec::new();
+    let mut plot = Vec::new();
+    let mut annotation = Vec::new();
     let mut media = Vec::new();
     let mut audio = Vec::new();
+    let mut legend_props = Vec::new();
 
     for &idx in &indices {
         let schema = &PROPERTY_REGISTRY[idx];
@@ -91,19 +95,27 @@ pub(crate) fn build_property_groups(
             || schema.value_type == ValueType::PointList
             || matches!(
                 schema.field,
-                ActorField::PositionBindingGroup
-                    | ActorField::VectorShapeGroup
-                    | ActorField::PlotDomainGroup
-                    | ActorField::ContainerLayoutGroup
+                ActorField::PositionBindingGroup | ActorField::VectorShapeGroup
             )
         {
             continue;
         }
 
-        let value = read_property_value_or_default(track, schema, time_ms);
-        let has_kf = property_has_keyframes(track, schema.field);
-        let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
-        let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
+        let value = read_inspector_property_value(track, schema, time_ms);
+        let (has_kf, has_kf_now, kf_count) =
+            if let Some(Some(tagged)) = track.tagged_tracks.get(schema.name) {
+                (
+                    !tagged.keyframes().is_empty(),
+                    tagged.keyframes().contains_key(&time_ms),
+                    tagged.keyframes().len(),
+                )
+            } else {
+                (
+                    property_has_keyframes(track, schema.field),
+                    animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms),
+                    animatix::timeline::property_keyframe_count(track, schema.field),
+                )
+            };
 
         let value = convert_for_display(value, schema.name);
         let kind = match schema.value_type {
@@ -127,6 +139,7 @@ pub(crate) fn build_property_groups(
         };
 
         match schema.field {
+            // Geometry tier
             ActorField::Position
             | ActorField::MotionOffset
             | ActorField::Size
@@ -134,26 +147,95 @@ pub(crate) fn build_property_groups(
             | ActorField::Rotation
             | ActorField::Scale
             | ActorField::PlacementMode
-            | ActorField::PositionBinding => geometry.push(entry),
+            | ActorField::PositionBinding
+            | ActorField::Transform
+            | ActorField::MinWidth
+            | ActorField::MinHeight
+            | ActorField::MaxHeight => geometry.push(entry),
+
+            // Container & Layout
+            ActorField::ContainerLayoutGroup => layout.push(entry),
+
+            // Plot & Domain
+            ActorField::PlotDomainGroup => plot.push(entry),
+
+            // Style tier
             ActorField::Color
             | ActorField::Opacity
             | ActorField::StrokeWidth
             | ActorField::StrokeColor
             | ActorField::StrokeProgress
             | ActorField::FillOpacity
-            | ActorField::MorphOptions => style.push(entry),
+            | ActorField::MorphOptions
+            | ActorField::LineCap
+            | ActorField::LineJoin
+            | ActorField::DashPattern
+            | ActorField::DashOffset
+            | ActorField::Blend
+            | ActorField::FillGradient
+            | ActorField::StrokeGradient
+            | ActorField::GradientExtend
+            | ActorField::GradientSpace => style.push(entry),
+
+            // Shape tier
             ActorField::ShapeType
             | ActorField::LineFrom
             | ActorField::LineTo
             | ActorField::ArcAngles
             | ActorField::Points
-            | ActorField::VectorPaths => shape.push(entry),
+            | ActorField::VectorPaths
+            | ActorField::HeadSize
+            | ActorField::CornerRadius => shape.push(entry),
+
+            // Text tier
             ActorField::TextContent
             | ActorField::FontFamily
             | ActorField::FontSize
-            | ActorField::TextPaths => text.push(entry),
+            | ActorField::FontWeight
+            | ActorField::FontStyle
+            | ActorField::LineHeight
+            | ActorField::LetterSpacing
+            | ActorField::WordSpacing
+            | ActorField::TextMaxWidth
+            | ActorField::TextAlign
+            | ActorField::Overflow
+            | ActorField::Language
+            | ActorField::CharProgress
+            | ActorField::TextPaths
+            | ActorField::Ascent
+            | ActorField::Descent
+            | ActorField::Baseline
+            | ActorField::HighlightColor
+            | ActorField::HighlightOpacity
+            | ActorField::HighlightPadding
+            | ActorField::HighlightRadius => text.push(entry),
+
+            // Annotation tier
+            ActorField::LabelAt
+            | ActorField::CalloutTarget
+            | ActorField::CalloutPlace
+            | ActorField::CalloutStandoff
+            | ActorField::CalloutToOffset => annotation.push(entry),
+
+            // Media & Audio tier
             ActorField::ImageData | ActorField::SvgPaths => media.push(entry),
             ActorField::AudioSource | ActorField::AudioVolume => audio.push(entry),
+
+            // Tagged union properties
+            ActorField::Tagged(tag) => match tag {
+                "arrow" | "routing" => shape.push(entry),
+                "callout_place" => annotation.push(entry),
+                "shadow" | "shadow_color" => style.push(entry),
+                "rotate_x" | "rotate_y" | "perspective" => geometry.push(entry),
+                "comma" | "decimals" | "prefix" | "suffix" | "value" | "idle" | "solo"
+                | "split_by" | "split_mask" | "split_offset_y" | "split_stagger" => {
+                    text.push(entry)
+                },
+                s if s.starts_with("legend_") => {
+                    legend_props.push(entry);
+                },
+                _ => style.push(entry),
+            },
             _ => {},
         }
     }
@@ -164,6 +246,13 @@ pub(crate) fn build_property_groups(
             name: "Transform",
             icon: egui_phosphor::regular::ARROWS_OUT_CARDINAL,
             properties: geometry,
+        });
+    }
+    if !layout.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Layout",
+            icon: egui_phosphor::regular::ROWS,
+            properties: layout,
         });
     }
     if !style.is_empty() {
@@ -187,6 +276,20 @@ pub(crate) fn build_property_groups(
             properties: text,
         });
     }
+    if !plot.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Plot & Coordinates",
+            icon: egui_phosphor::regular::CHART_LINE,
+            properties: plot,
+        });
+    }
+    if !annotation.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Annotation",
+            icon: egui_phosphor::regular::TEXT_T,
+            properties: annotation,
+        });
+    }
     if !media.is_empty() {
         groups.push(PropertyGroup {
             name: "Media",
@@ -202,7 +305,6 @@ pub(crate) fn build_property_groups(
         });
     }
 
-    let mut legend_props = Vec::new();
     if track.caps.legend_host {
         legend_props.extend(legend_style_entries(track));
     }
@@ -285,6 +387,31 @@ pub(crate) fn build_property_groups(
     }
 
     groups
+}
+
+fn read_inspector_property_value(
+    track: &AnimationTrack,
+    schema: &animatix::timeline::PropertySchema,
+    time_ms: u64,
+) -> PropertyValue {
+    if let Some(plot) = &track.procedural_plot {
+        match schema.name {
+            "x_domain" => {
+                return PropertyValue::Vec2([plot.p_x_domain[0] as f32, plot.p_x_domain[1] as f32]);
+            },
+            "y_domain" => {
+                return PropertyValue::Vec2([plot.p_y_domain[0] as f32, plot.p_y_domain[1] as f32]);
+            },
+            "t_domain" => {
+                return PropertyValue::Vec2([plot.t_domain[0] as f32, plot.t_domain[1] as f32]);
+            },
+            _ => {},
+        }
+    }
+    if let Some(Some(tagged)) = track.tagged_tracks.get(schema.name) {
+        return tagged.evaluate(time_ms);
+    }
+    read_property_value_or_default(track, schema, time_ms)
 }
 
 /// Map an effect parameter value to the inspector's editable kind.
@@ -1534,5 +1661,49 @@ mod tests {
             ),
             PropertyKind::Vec2 { x: 3.0, y: 4.0 }
         );
+    }
+
+    #[test]
+    fn build_property_groups_for_graph_includes_plot_domain() {
+        let timeline = animatix::timeline::Timeline::new();
+        let mut track = AnimationTrack::new("g".into(), "Graph");
+        track.caps.plot_host = true;
+        let groups = build_property_groups(&timeline, &track, 0);
+        let plot_group = groups.iter().find(|g| g.name == "Plot & Coordinates");
+        assert!(plot_group.is_some(), "Graph should have a Plot & Coordinates group");
+        let plot_group = plot_group.unwrap();
+        assert!(
+            plot_group.properties.iter().any(|p| p.name == "x_domain"),
+            "Plot group should have x_domain"
+        );
+        assert!(
+            plot_group.properties.iter().any(|p| p.name == "y_domain"),
+            "Plot group should have y_domain"
+        );
+    }
+
+    #[test]
+    fn build_property_groups_for_container_includes_layout() {
+        let timeline = animatix::timeline::Timeline::new();
+        let mut track = AnimationTrack::new("r".into(), "Row");
+        track.caps.is_container = true;
+        let groups = build_property_groups(&timeline, &track, 0);
+        let layout_group = groups.iter().find(|g| g.name == "Layout");
+        assert!(layout_group.is_some(), "Row should have a Layout group");
+        let layout_group = layout_group.unwrap();
+        assert!(
+            layout_group.properties.iter().any(|p| p.name == "gap"),
+            "Layout group should have gap"
+        );
+    }
+
+    #[test]
+    fn build_property_groups_for_callout_includes_annotation() {
+        let timeline = animatix::timeline::Timeline::new();
+        let mut track = AnimationTrack::new("c".into(), "Callout");
+        track.caps.callout = true;
+        let groups = build_property_groups(&timeline, &track, 0);
+        let annotation_group = groups.iter().find(|g| g.name == "Annotation");
+        assert!(annotation_group.is_some(), "Callout should have an Annotation group");
     }
 }

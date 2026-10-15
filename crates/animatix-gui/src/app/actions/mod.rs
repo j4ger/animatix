@@ -919,51 +919,6 @@ fn apply_property_edit_to_track(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Actor default properties (used by DocumentController in command_handlers.rs)
-// ─────────────────────────────────────────────────────────────
-
-/// Generate default properties for a new actor.
-///
-/// `registry` is the active timeline's [`PrimitiveRegistry`]; it is consulted
-/// first so extension primitives contribute their own `default_props()`
-/// instead of being treated as unknown types. Built-ins fall back to the
-/// static registry lookup. When no primitive provides a non-empty default
-/// set (e.g. `Group`), a scene-centered `at` is emitted so the actor is
-/// inserted at a visible position.
-pub fn default_props_for_actor(
-    ty: &str,
-    _position: [f32; 2],
-    _scene_dimensions: animatix::timeline::SceneDimensions,
-    registry: Option<&animatix::primitives::PrimitiveRegistry>,
-) -> Vec<animatix_syntax::ast::Property> {
-    use animatix_syntax::ast::{Expr, Property};
-    let scene = animatix::timeline::SceneDimensions {
-        width: _scene_dimensions.width,
-        height: _scene_dimensions.height,
-    };
-
-    let primitive = registry
-        .and_then(|r| r.find(ty))
-        .or_else(|| animatix::primitives::find_primitive(ty));
-    if let Some(primitive) = primitive {
-        let props = primitive.default_props(&scene);
-        if !props.is_empty() {
-            return props;
-        }
-    }
-
-    vec![Property {
-        name: "at".into(),
-        value: Expr::Tuple(vec![
-            Expr::Num(scene.width as f64 / 2.0),
-            Expr::Num(scene.height as f64 / 2.0),
-        ]),
-        value_span: None,
-        trailing_comment: None,
-    }]
-}
-
-// ─────────────────────────────────────────────────────────────
 // Track capability helpers (registry-driven)
 // ─────────────────────────────────────────────────────────────
 

@@ -550,17 +550,23 @@ pub(super) fn inspector_ui(
                 "Add a new actor to the scene",
             );
             if add_actor_btn.clicked() {
-                let label = "rect1".to_string();
+                let ty = super::default_actor_type();
+                let template = crate::app::primitives::ActorTemplate::for_primitive(
+                    ty,
+                    None,
+                    scene_dimensions,
+                    Some(timeline),
+                );
                 let pos = [
                     scene_dimensions.width as f32 / 2.0,
                     scene_dimensions.height as f32 / 2.0,
                 ];
                 commands.push_back(
                     ActorCommand::CreateActor {
-                        ty: super::default_actor_type().into(),
-                        label,
+                        ty: template.ty,
+                        label: template.label,
                         position: pos,
-                        props: vec![],
+                        props: template.props,
                     }
                     .into(),
                 );

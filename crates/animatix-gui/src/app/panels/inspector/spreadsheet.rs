@@ -116,15 +116,23 @@ pub(crate) fn render_property_spreadsheet(
     );
     text_tooltip(ui, add_btn.id.with("add_actor_tip"), &add_btn, "Add a new actor");
     if add_btn.clicked() {
+        let ty = crate::app::panels::default_actor_type();
+        let template = crate::app::primitives::ActorTemplate::for_primitive(
+            ty,
+            None,
+            scene_dimensions,
+            Some(timeline),
+        );
+        let pos = [
+            scene_dimensions.width as f32 / 2.0,
+            scene_dimensions.height as f32 / 2.0,
+        ];
         commands.push_back(
             ActorCommand::CreateActor {
-                ty: crate::app::panels::default_actor_type().into(),
-                label: crate::app::utils::labels::unique_label(None, "actor"),
-                position: [
-                    scene_dimensions.width as f32 / 2.0,
-                    scene_dimensions.height as f32 / 2.0,
-                ],
-                props: vec![],
+                ty: template.ty,
+                label: template.label,
+                position: pos,
+                props: template.props,
             }
             .into(),
         );

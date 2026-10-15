@@ -53,20 +53,15 @@ impl DocumentController<'_> {
         position: [f32; 2],
         extra_props: Vec<animatix_syntax::ast::Property>,
     ) {
-        let registry = self
-            .document_store
-            .source
-            .document
-            .timeline
-            .as_ref()
-            .map(animatix::timeline::Timeline::primitive_registry_snapshot);
-        let mut props = crate::app::actions::default_props_for_actor(
+        let template = crate::app::primitives::ActorTemplate::with_suggested_label(
             ty,
-            position,
+            Some(label.to_string()),
+            Some(position),
             self.document_store.source.document.scene_dimensions,
-            registry.as_deref(),
+            self.document_store.source.document.active_timeline(),
+            extra_props,
         );
-        props.extend(extra_props);
+        let props = template.props;
 
         // If a container is selected, offer to insert inside it
         let container =

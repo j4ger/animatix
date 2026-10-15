@@ -132,16 +132,21 @@ impl PreviewContext<'_> {
         self.timeline
             .and_then(|t| {
                 t.get_track(actor).map(|tr| {
-                    let registry = t.primitive_registry_snapshot();
-                    let mode: preview::ResizeMode =
-                        if let Some(primitive) = registry.find(&tr.actor_type) {
-                            match primitive.resize_mode(&tr.caps) {
-                                animatix::timeline::ResizeMode::Scale => preview::ResizeMode::Scale,
-                                _ => preview::ResizeMode::Size,
-                            }
-                        } else {
-                            preview::ResizeMode::Size
-                        };
+                    let affordances = crate::app::primitives::actor_gizmo_affordances(tr, t);
+                    let mode = affordances
+                        .iter()
+                        .find_map(|a| match a {
+                            crate::app::primitives::GizmoAffordance::BoundingBox {
+                                resize_mode,
+                            } => match resize_mode {
+                                animatix::timeline::ResizeMode::Scale => {
+                                    Some(preview::ResizeMode::Scale)
+                                },
+                                _ => Some(preview::ResizeMode::Size),
+                            },
+                            _ => None,
+                        })
+                        .unwrap_or(preview::ResizeMode::Size);
                     (mode, tr.geometry.scale.get(time_ms, 1.0))
                 })
             })
@@ -176,35 +181,24 @@ impl PreviewContext<'_> {
 
     /// Get the text content property name for a text-type actor.
     /// Returns `Some(property_name)` for Text, Math, Code, Typst actors;
-    /// extension primitives that emit text paths default to `"content"`.
+    /// extension primitives that emit text paths default to `"text"`.
     pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
-        match track.caps.text {
-            Some(animatix::timeline::TextKind::Text) | Some(animatix::timeline::TextKind::Math) => {
-                Some("text")
-            },
-            Some(animatix::timeline::TextKind::Code) => Some("code"),
-            Some(animatix::timeline::TextKind::Typst) => Some("content"),
-            None => {
-                // Extension text primitives: inline editing uses the registry
-                // capability and the conventional `content` alias. Keep the
-                // snapshot Arc alive while `find` borrows from it.
-                let registry = timeline.primitive_registry_snapshot();
-                registry
-                    .info_of(&track.actor_type)
-                    .filter(|info| info.capabilities.text_paths)
-                    .map(|_| "content")
-            },
-        }
+        crate::app::primitives::actor_gizmo_affordances(track, timeline)
+            .into_iter()
+            .find_map(|a| match a {
+                crate::app::primitives::GizmoAffordance::InlineText { property } => Some(property),
+                _ => None,
+            })
     }
 
     /// Get the current text content of a text-type actor.
-    pub(crate) fn get_text_content(&self, actor: &str) -> Option<String> {
+    pub(crate) fn get_text_content(&self, actor: &str, property: &str) -> Option<String> {
         let timeline = self.timeline?;
         let track = timeline.get_track(actor)?;
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-        let schema = animatix::timeline::lookup_property("text").unwrap();
+        let schema = animatix::timeline::lookup_property(property)?;
         let value = animatix::timeline::read_property_value_or_default(track, schema, time_ms);
         match value {
             animatix::timeline::PropertyValue::String(s) => Some(s),
@@ -217,7 +211,7 @@ impl PreviewContext<'_> {
         let Some(property) = self.get_text_property(actor) else {
             return;
         };
-        let Some(content) = self.get_text_content(actor) else {
+        let Some(content) = self.get_text_content(actor, property) else {
             return;
         };
         let Some(props) = self.get_actor_props(actor) else {
@@ -1105,6 +1099,14 @@ impl PreviewContext<'_> {
         let show_pivot = *self.tool_mode == crate::app::preview::ToolMode::Pivot
             || matches!(self.drag_state, DragState::MovePivot { .. });
         for actor in self.selected_actors.iter() {
+            let Some(timeline) = self.timeline else {
+                break;
+            };
+            let Some(track) = timeline.get_track(actor) else {
+                continue;
+            };
+            let affordances = crate::app::primitives::actor_gizmo_affordances(track, timeline);
+
             let props = self.get_actor_props(actor);
             let fallback =
                 self.hit_regions.iter().find(|(l, _)| l == actor).map(|(_, bounds)| *bounds);
@@ -1120,137 +1122,129 @@ impl PreviewContext<'_> {
             execute_overlay_ops(ui.painter(), &ops, &tx);
 
             let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-            let points = self
-                .timeline
-                .and_then(|t| t.get_track(actor))
-                .and_then(|tr| tr.shape.points.as_ref().map(|pt| pt.evaluate(time_ms)))
-                .filter(|pts| !pts.is_empty());
-            if let (Some(ref p), Some(pts)) = (props, points) {
-                let active_vertex = match &self.drag_state {
-                    DragState::EditVertices {
-                        actor: drag_actor,
-                        vertex,
-                        ..
-                    } => {
-                        if drag_actor == actor {
-                            Some(*vertex)
-                        } else {
-                            None
-                        }
-                    },
-                    _ => None,
-                };
-                preview::draw_vertex_handles(
-                    ui.painter(),
-                    theme,
-                    p,
-                    &pts,
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    active_vertex,
-                    ui.ctx().pixels_per_point(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
+            if affordances.contains(&crate::app::primitives::GizmoAffordance::ControlPoints) {
+                let points = track
+                    .shape
+                    .points
+                    .as_ref()
+                    .map(|pt| pt.evaluate(time_ms))
+                    .filter(|pts| !pts.is_empty());
+                if let (Some(ref p), Some(pts)) = (props, points) {
+                    let active_vertex = match &self.drag_state {
+                        DragState::EditVertices {
+                            actor: drag_actor,
+                            vertex,
+                            ..
+                        } => {
+                            if drag_actor == actor {
+                                Some(*vertex)
+                            } else {
+                                None
+                            }
+                        },
+                        _ => None,
+                    };
+                    preview::draw_vertex_handles(
+                        ui.painter(),
+                        theme,
+                        p,
+                        &pts,
+                        preview_rect,
+                        self.scene_dimensions,
+                        preview_rect.size(),
+                        active_vertex,
+                        ui.ctx().pixels_per_point(),
+                        self.preview.viewport.preview_zoom,
+                        self.preview.viewport.preview_pan,
+                    );
+                }
             }
 
             // Callout handles: tip + label + place (targeted) + standoff (targeted)
-            let is_callout = self
-                .timeline
-                .and_then(|t| t.get_track(actor))
-                .map(|tr| tr.caps.callout)
-                .unwrap_or(false);
-            if is_callout {
-                if let Some(timeline) = self.timeline {
-                    let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
-                    if let Some(track) = timeline.get_track(actor) {
-                        let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
-                            track,
-                            time_ms,
-                            Some(timeline),
-                            self.scene_dimensions,
-                        );
-                        let zoom = self.preview.viewport.preview_zoom;
-                        let pan = self.preview.viewport.preview_pan;
-                        let desired = preview_rect.size();
-                        let tip_world = kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64);
-                        let label_world =
-                            kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
-                        let tip_screen = preview::scene_to_screen(
-                            tip_world,
-                            preview_rect,
-                            self.scene_dimensions,
-                            desired,
-                            zoom,
-                            pan,
-                        );
-                        let label_screen = preview::scene_to_screen(
-                            label_world,
-                            preview_rect,
-                            self.scene_dimensions,
-                            desired,
-                            zoom,
-                            pan,
-                        );
-                        let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
-                        let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
-                        preview::draw_callout_handles(
-                            ui.painter(),
-                            theme,
-                            tip_screen,
-                            label_screen,
-                            active_tip,
-                            active_label,
-                            ui.ctx().pixels_per_point(),
-                        );
-                        // Place handles and standoff handle for targeted callouts
-                        if geo.is_targeted {
-                            let place_screens = preview::callout_place_handle_screens(
-                                &geo,
-                                preview_rect,
-                                self.scene_dimensions,
-                                desired,
-                                zoom,
-                                pan,
-                            );
-                            // Individual place handles are never highlighted yet:
-                            // intended to highlight on tap, but not during drag.
-                            // TODO: highlight the tapped place once tap selection lands.
-                            let active_place =
-                                if self.selection.tapped_place_actor.as_deref() == Some(actor) {
-                                    self.selection.tapped_place
-                                } else {
-                                    None
-                                };
-                            preview::draw_callout_place_handles(
-                                ui.painter(),
-                                theme,
-                                place_screens,
-                                active_place,
-                                ui.ctx().pixels_per_point(),
-                            );
-                            // Standoff handle at `from`
-                            let from_world =
-                                kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
-                            let standoff_screen = preview::scene_to_screen(
-                                from_world,
-                                preview_rect,
-                                self.scene_dimensions,
-                                desired,
-                                zoom,
-                                pan,
-                            );
-                            let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
-                            preview::draw_callout_standoff_handle(
-                                ui.painter(),
-                                theme,
-                                standoff_screen,
-                                active_standoff,
-                                ui.ctx().pixels_per_point(),
-                            );
-                        }
-                    }
+            if affordances.contains(&crate::app::primitives::GizmoAffordance::Callout) {
+                let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
+                    track,
+                    time_ms,
+                    Some(timeline),
+                    self.scene_dimensions,
+                );
+                let zoom = self.preview.viewport.preview_zoom;
+                let pan = self.preview.viewport.preview_pan;
+                let desired = preview_rect.size();
+                let tip_world = kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64);
+                let label_world =
+                    kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
+                let tip_screen = preview::scene_to_screen(
+                    tip_world,
+                    preview_rect,
+                    self.scene_dimensions,
+                    desired,
+                    zoom,
+                    pan,
+                );
+                let label_screen = preview::scene_to_screen(
+                    label_world,
+                    preview_rect,
+                    self.scene_dimensions,
+                    desired,
+                    zoom,
+                    pan,
+                );
+                let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
+                let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
+                preview::draw_callout_handles(
+                    ui.painter(),
+                    theme,
+                    tip_screen,
+                    label_screen,
+                    active_tip,
+                    active_label,
+                    ui.ctx().pixels_per_point(),
+                );
+                // Place handles and standoff handle for targeted callouts
+                if geo.is_targeted {
+                    let place_screens = preview::callout_place_handle_screens(
+                        &geo,
+                        preview_rect,
+                        self.scene_dimensions,
+                        desired,
+                        zoom,
+                        pan,
+                    );
+                    // Individual place handles are never highlighted yet:
+                    // intended to highlight on tap, but not during drag.
+                    // TODO: highlight the tapped place once tap selection lands.
+                    let active_place =
+                        if self.selection.tapped_place_actor.as_deref() == Some(actor) {
+                            self.selection.tapped_place
+                        } else {
+                            None
+                        };
+                    preview::draw_callout_place_handles(
+                        ui.painter(),
+                        theme,
+                        place_screens,
+                        active_place,
+                        ui.ctx().pixels_per_point(),
+                    );
+                    // Standoff handle at `from`
+                    let from_world = kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
+                    let standoff_screen = preview::scene_to_screen(
+                        from_world,
+                        preview_rect,
+                        self.scene_dimensions,
+                        desired,
+                        zoom,
+                        pan,
+                    );
+                    let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
+                    preview::draw_callout_standoff_handle(
+                        ui.painter(),
+                        theme,
+                        standoff_screen,
+                        active_standoff,
+                        ui.ctx().pixels_per_point(),
+                    );
                 }
             }
 
