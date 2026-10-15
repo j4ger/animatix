@@ -453,7 +453,8 @@ fn insert_under_parent(
 }
 
 fn is_container_type(ty: &str) -> bool {
-    matches!(ty, "Row" | "Col" | "Grid" | "Stack" | "Group" | "Mask")
+    animatix_syntax::animatix_std::caps_for_type(ty)
+        .is_some_and(|caps| caps.is_container || caps.is_effect_scope())
 }
 
 fn stmt_has_label(stmt: &Stmt, label: &str) -> bool {
