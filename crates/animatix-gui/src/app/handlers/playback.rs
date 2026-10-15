@@ -175,3 +175,64 @@ fn editor_sync_effects(
     }
     effects
 }
+
+pub fn handle_step_next(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+) -> Vec<Effect> {
+    preview_store.preview.playback.presentation_step_next();
+    preview_store.preview_dirty = true;
+    sync_active_scene_from_time(document_store, preview_store);
+    let mut effects = vec![
+        Effect::Repaint,
+        Effect::Status(format!(
+            "Step next • t = {:.2}s / {:.2}s",
+            preview_store.preview.playback.current_time_s,
+            preview_store.preview.playback.duration_s
+        )),
+    ];
+    effects.extend(editor_sync_effects(
+        document_store,
+        ui_store,
+        preview_store.preview.playback.current_time_s,
+    ));
+    effects
+}
+
+pub fn handle_step_previous(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+) -> Vec<Effect> {
+    preview_store.preview.playback.presentation_step_prev();
+    preview_store.preview_dirty = true;
+    sync_active_scene_from_time(document_store, preview_store);
+    let mut effects = vec![
+        Effect::Repaint,
+        Effect::Status(format!(
+            "Step prev • t = {:.2}s / {:.2}s",
+            preview_store.preview.playback.current_time_s,
+            preview_store.preview.playback.duration_s
+        )),
+    ];
+    effects.extend(editor_sync_effects(
+        document_store,
+        ui_store,
+        preview_store.preview.playback.current_time_s,
+    ));
+    effects
+}
+
+pub fn handle_toggle_presentation_mode(preview_store: &mut PreviewStore) -> Vec<Effect> {
+    preview_store.preview.playback.toggle_presentation_mode();
+    if preview_store.preview.playback.presentation_mode {
+        preview_store.preview.fit_zoom_requested = true;
+    }
+    let status = if preview_store.preview.playback.presentation_mode {
+        "Presentation mode ON (Esc to exit, Click/Space to advance)"
+    } else {
+        "Presentation mode OFF"
+    };
+    vec![Effect::Repaint, Effect::Status(status.to_string())]
+}

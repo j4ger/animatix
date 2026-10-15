@@ -266,6 +266,24 @@ impl GuiShell {
             keywords: "play pause playback",
         });
         items.push(PaletteItem {
+            label: "Toggle Presentation Mode".into(),
+            icon: egui_phosphor::regular::PROJECTOR_SCREEN,
+            action: PlaybackCommand::TogglePresentationMode.into(),
+            keywords: "presentation mode slideshow powerpoint f5 full screen",
+        });
+        items.push(PaletteItem {
+            label: "Step Next".into(),
+            icon: egui_phosphor::regular::CARET_RIGHT,
+            action: PlaybackCommand::StepNext.into(),
+            keywords: "step next slide pause point pagedown",
+        });
+        items.push(PaletteItem {
+            label: "Step Previous".into(),
+            icon: egui_phosphor::regular::CARET_LEFT,
+            action: PlaybackCommand::StepPrevious.into(),
+            keywords: "step previous slide pause point pageup",
+        });
+        items.push(PaletteItem {
             label: "Undo".into(),
             icon: egui_phosphor::regular::ARROW_U_UP_LEFT,
             action: DocumentCommand::Undo.into(),

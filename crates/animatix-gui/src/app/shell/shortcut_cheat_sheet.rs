@@ -46,6 +46,14 @@ const SHORTCUT_GROUPS: &[(&str, &[CheatSheetEntry])] = &[
                 key: "\u{2190} / \u{2192}",
                 desc: "Scrub timeline",
             },
+            CheatSheetEntry::Bindings {
+                names: &["Toggle Presentation Mode"],
+                desc: "Presentation mode",
+            },
+            CheatSheetEntry::Bindings {
+                names: &["Step Previous", "Step Next"],
+                desc: "Step Prev / Next",
+            },
         ],
     ),
     (

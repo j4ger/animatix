@@ -61,6 +61,8 @@ pub struct Composition {
     pub global_duration_s: f64,
     /// scene_name → start time in the global timeline.
     pub scene_start_times: BTreeMap<String, f64>,
+    /// Interactive pause points across the entire composition in global milliseconds.
+    pub pause_points: Vec<u64>,
 }
 
 /// Read-only summary of a composition's scene graph — the data a human (or
@@ -107,6 +109,21 @@ impl Composition {
             edges,
             total_duration_s: self.global_duration_s,
         }
+    }
+
+    /// Interactive pause points across the entire composition in global milliseconds.
+    pub fn pause_points(&self) -> &[u64] {
+        &self.pause_points
+    }
+
+    /// The next pause point strictly after `current_time_ms`.
+    pub fn step_next(&self, current_time_ms: u64) -> Option<u64> {
+        self.pause_points.iter().copied().find(|&t| t > current_time_ms)
+    }
+
+    /// The previous pause point strictly before `current_time_ms`.
+    pub fn step_prev(&self, current_time_ms: u64) -> Option<u64> {
+        self.pause_points.iter().copied().rfind(|&t| t < current_time_ms)
     }
 }
 
@@ -425,6 +442,30 @@ impl BuildTarget {
         match self {
             BuildTarget::SingleScene(timeline) => timeline.playback_duration_seconds(),
             BuildTarget::MultiScene(composition) => composition.global_duration_s,
+        }
+    }
+
+    /// Returns all interactive pause points in global milliseconds.
+    pub fn pause_points(&self) -> &[u64] {
+        match self {
+            BuildTarget::SingleScene(timeline) => timeline.pause_points(),
+            BuildTarget::MultiScene(composition) => composition.pause_points(),
+        }
+    }
+
+    /// The next pause point strictly after `current_time_ms`.
+    pub fn step_next(&self, current_time_ms: u64) -> Option<u64> {
+        match self {
+            BuildTarget::SingleScene(timeline) => timeline.step_next(current_time_ms),
+            BuildTarget::MultiScene(composition) => composition.step_next(current_time_ms),
+        }
+    }
+
+    /// The previous pause point strictly before `current_time_ms`.
+    pub fn step_prev(&self, current_time_ms: u64) -> Option<u64> {
+        match self {
+            BuildTarget::SingleScene(timeline) => timeline.step_prev(current_time_ms),
+            BuildTarget::MultiScene(composition) => composition.step_prev(current_time_ms),
         }
     }
 

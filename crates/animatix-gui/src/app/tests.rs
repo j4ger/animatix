@@ -377,3 +377,71 @@ fn clear_render_error_preserves_newer_non_render_failure_when_render_diagnostic_
     assert_eq!(shell.preview_store.preview.error.as_deref(), Some("duplicate export"));
     assert_eq!(shell.preview_store.preview.status, "Rebuild blocked • parse/load error");
 }
+
+#[test]
+fn presentation_mode_clamps_at_pause_point_when_ticking() {
+    let mut preview = super::PreviewPaneState::new(
+        5.0,
+        SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+    );
+    preview.playback.presentation_mode = true;
+    preview.playback.pause_points_s = vec![1.0, 2.5];
+    preview.playback.is_playing = true;
+    preview.playback.current_time_s = 0.8;
+
+    // Tick by 0.4s (overshooting 1.0s to 1.2s)
+    preview.playback.tick(std::time::Duration::from_millis(400));
+
+    assert_eq!(preview.playback.current_time_s, 1.0);
+    assert!(!preview.playback.is_playing);
+    assert!(preview.playback.paused_at_step);
+}
+
+#[test]
+fn presentation_step_next_and_previous_navigation() {
+    let mut preview = super::PreviewPaneState::new(
+        5.0,
+        SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+    );
+    preview.playback.presentation_mode = true;
+    preview.playback.pause_points_s = vec![1.0, 2.5, 4.0];
+    preview.playback.current_time_s = 1.0;
+    preview.playback.is_playing = false;
+    preview.playback.paused_at_step = true;
+
+    // Resumes playback towards next pause point
+    preview.playback.presentation_step_next();
+    assert!(preview.playback.is_playing);
+    assert!(!preview.playback.paused_at_step);
+
+    // If step_next is pressed while playing, jumps to next pause point and pauses
+    preview.playback.current_time_s = 1.8;
+    preview.playback.presentation_step_next();
+    assert_eq!(preview.playback.current_time_s, 2.5);
+    assert!(!preview.playback.is_playing);
+    assert!(preview.playback.paused_at_step);
+
+    // Step previous jumps back to 1.0s
+    preview.playback.presentation_step_prev();
+    assert_eq!(preview.playback.current_time_s, 1.0);
+    assert!(!preview.playback.is_playing);
+
+    // Step previous from 1.0s jumps back to 0.0s
+    preview.playback.presentation_step_prev();
+    assert_eq!(preview.playback.current_time_s, 0.0);
+}
+
+#[test]
+fn presentation_mode_shortcuts_registered() {
+    use crate::app::interaction::keyboard::{KeyboardAction, ShortcutRegistry};
+    let registry = ShortcutRegistry::new();
+    assert!(registry.shortcut_for(&KeyboardAction::TogglePresentationMode).is_some());
+    assert!(registry.shortcut_for(&KeyboardAction::StepNext).is_some());
+    assert!(registry.shortcut_for(&KeyboardAction::StepPrevious).is_some());
+}

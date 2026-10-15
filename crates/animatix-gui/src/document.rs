@@ -658,6 +658,17 @@ impl DocumentSession {
         self.composition.is_some()
     }
 
+    /// Interactive pause points across the document in seconds.
+    pub fn pause_points_s(&self) -> Vec<f64> {
+        if let Some(comp) = &self.composition {
+            comp.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
+        } else if let Some(tl) = &self.timeline {
+            tl.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect()
+        } else {
+            Vec::new()
+        }
+    }
+
     pub fn active_timeline(&self) -> Option<&Timeline> {
         self.active_timeline_ref().map(|r| r.timeline)
     }
@@ -1581,5 +1592,17 @@ scene: Rect, size: (100, 100)
         assert!(clear_recovery(&source));
         assert!(!recovery_path(&source).exists());
         assert!(!recovery_is_newer(&source));
+    }
+
+    #[test]
+    fn document_session_and_snapshot_expose_pause_points() {
+        let source = "#0s\nb: Rect, size: (100, 100)\n#step\n\n#1s\nb.opacity = 0.5\n#pause\n";
+        let mut session =
+            DocumentSession::from_source(PathBuf::from("test.amx"), source.to_string()).unwrap();
+        session.rebuild().unwrap();
+
+        let pts = session.pause_points_s();
+        assert_eq!(pts.len(), 2);
+        assert_eq!(pts, vec![0.0, 1.0]);
     }
 }

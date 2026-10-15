@@ -663,6 +663,18 @@ impl Composition {
 
         let global_duration_s = current_time;
 
+        let mut pause_points: Vec<u64> = Vec::new();
+        for (name, start_s) in &scene_start_times {
+            if let Some(scene) = scenes.get(name) {
+                let start_ms = (*start_s * 1000.0).round() as u64;
+                for &local_p in &scene.timeline.pause_points {
+                    pause_points.push(start_ms + local_p);
+                }
+            }
+        }
+        pause_points.sort_unstable();
+        pause_points.dedup();
+
         BuildReport::new(
             Composition {
                 scenes,
@@ -670,6 +682,7 @@ impl Composition {
                 edges,
                 global_duration_s,
                 scene_start_times,
+                pause_points,
             },
             diagnostics,
         )

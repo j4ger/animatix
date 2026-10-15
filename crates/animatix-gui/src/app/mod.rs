@@ -135,6 +135,9 @@ pub(crate) struct PlaybackController {
     pub ping_pong: bool,
     pub ping_pong_direction: i32,
     pub fps: f32,
+    pub presentation_mode: bool,
+    pub pause_points_s: Vec<f64>,
+    pub paused_at_step: bool,
 }
 
 impl PlaybackController {
@@ -232,8 +235,24 @@ impl PlaybackController {
             return;
         }
 
-        self.current_time_s +=
-            delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
+        let dt = delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
+        let old_time = self.current_time_s;
+        let next_time = old_time + dt;
+
+        if self.presentation_mode && dt > 0.0 {
+            if let Some(&p) = self
+                .pause_points_s
+                .iter()
+                .find(|&&p| p > old_time + 0.0001 && p <= next_time + 0.0001)
+            {
+                self.current_time_s = p;
+                self.is_playing = false;
+                self.paused_at_step = true;
+                return;
+            }
+        }
+
+        self.current_time_s = next_time;
 
         // Loop region: if A and B are set, handle boundaries.
         if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
@@ -274,6 +293,50 @@ impl PlaybackController {
                 self.current_time_s = 0.0;
                 self.is_playing = false;
             }
+        }
+    }
+
+    pub(crate) fn presentation_step_next(&mut self) {
+        if let Some(&next_p) =
+            self.pause_points_s.iter().find(|&&p| p > self.current_time_s + 0.001)
+        {
+            if self.is_playing {
+                self.current_time_s = next_p;
+                self.is_playing = false;
+                self.paused_at_step = true;
+            } else {
+                self.is_playing = true;
+                self.paused_at_step = false;
+            }
+        } else if self.current_time_s >= self.duration_s {
+            self.current_time_s = 0.0;
+            self.is_playing = true;
+            self.paused_at_step = false;
+        } else {
+            self.is_playing = true;
+            self.paused_at_step = false;
+        }
+    }
+
+    pub(crate) fn presentation_step_prev(&mut self) {
+        if let Some(&prev_p) =
+            self.pause_points_s.iter().rev().find(|&&p| p < self.current_time_s - 0.001)
+        {
+            self.current_time_s = prev_p;
+            self.is_playing = false;
+            self.paused_at_step = true;
+        } else {
+            self.current_time_s = 0.0;
+            self.is_playing = false;
+            self.paused_at_step = true;
+        }
+    }
+
+    pub(crate) fn toggle_presentation_mode(&mut self) {
+        self.presentation_mode = !self.presentation_mode;
+        if self.presentation_mode {
+            self.is_playing = false;
+            self.paused_at_step = true;
         }
     }
 }
@@ -359,6 +422,9 @@ impl PreviewPaneState {
                 ping_pong: false,
                 ping_pong_direction: 1,
                 fps: 60.0,
+                presentation_mode: false,
+                pause_points_s: Vec::new(),
+                paused_at_step: false,
             },
             viewport: ViewportState {
                 preview_zoom: 1.0,

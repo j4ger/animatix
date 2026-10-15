@@ -171,6 +171,20 @@ pub(crate) fn transport_ui(
         }
     }
 
+    // Presentation mode
+    let pres_active = preview.playback.presentation_mode;
+    if ui
+        .add(
+            Button::ghost("")
+                .with_icon(egui_phosphor::regular::PROJECTOR_SCREEN)
+                .with_tooltip("Presentation Mode (F5)")
+                .active(pres_active),
+        )
+        .clicked()
+    {
+        commands.push_back(PlaybackCommand::TogglePresentationMode.into());
+    }
+
     // Timecode + duration + fps badge capsule
     let current_tc = preview.playback.timecode_string();
     let fps_val = preview.playback.fps;

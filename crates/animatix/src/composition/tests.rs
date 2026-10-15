@@ -1366,3 +1366,44 @@ fn remove_camera_stops_the_carry_without_fading_anything() {
     assert!(!scene_c.timeline.camera.is_authored(), "the chain stops here");
     assert_eq!(scene_c.timeline.camera.values_at(0), ([0.0, 0.0], 1.0, 0.0));
 }
+
+#[test]
+fn test_composition_step_pause_points() {
+    let source = concat!(
+        "# SceneA\n",
+        "config { duration: 1.0 }\n",
+        "#0s\n",
+        "a: Text, text: \"A0\", at: (100, 100)\n",
+        "#step 1\n",
+        "#500ms\n",
+        "#pause\n",
+        "# SceneB\n",
+        "config { duration: 1.0 }\n",
+        "#0s\n",
+        "b: Text, text: \"B0\", at: (200, 200)\n",
+        "#step 2\n",
+        "#500ms\n",
+        "#pause\n",
+    );
+    let parsed = parse_simple(source).0.unwrap();
+    let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+    let BuildTarget::MultiScene(comp) = &report.output else {
+        panic!("expected MultiScene");
+    };
+
+    // SceneA has duration 1s (1000ms), starts at 0ms. Pause points at 0ms, 500ms.
+    // SceneB starts at 1000ms. Pause points at 1000ms (1000+0), 1500ms (1000+500).
+    assert_eq!(comp.pause_points(), &[0, 500, 1000, 1500]);
+    assert_eq!(report.output.pause_points(), &[0, 500, 1000, 1500]);
+
+    // Navigation checks across scene boundaries
+    assert_eq!(report.output.step_next(0), Some(500));
+    assert_eq!(report.output.step_next(500), Some(1000));
+    assert_eq!(report.output.step_next(1000), Some(1500));
+    assert_eq!(report.output.step_next(1500), None);
+
+    assert_eq!(report.output.step_prev(1500), Some(1000));
+    assert_eq!(report.output.step_prev(1000), Some(500));
+    assert_eq!(report.output.step_prev(500), Some(0));
+    assert_eq!(report.output.step_prev(0), None);
+}

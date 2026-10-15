@@ -26,6 +26,7 @@ pub(crate) fn sync_preview_from_document(
     stop_playback: bool,
 ) {
     preview_store.preview.playback.duration_s = document_store.source.document.duration_s.max(0.1);
+    preview_store.preview.playback.pause_points_s = document_store.source.document.pause_points_s();
     preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
     if reset_time {
         preview_store.preview.playback.scrub_to(0.0);
@@ -387,12 +388,14 @@ pub(crate) fn rebuild_failed(
     document_store.publish_rebuild_result(false);
 
     preview_store.preview.playback.duration_s = document_store.source.document.duration_s.max(0.1);
+    preview_store.preview.playback.pause_points_s = document_store.source.document.pause_points_s();
     preview_store.preview.dimensions = document_store.source.document.scene_dimensions;
 
-    // Last-good fallback for duration/dimensions
+    // Last-good fallback for duration/dimensions/pause_points
     if let Some(last_good) = document_store.last_good_snapshot() {
         preview_store.preview.playback.duration_s = last_good.duration_s.max(0.1);
         preview_store.preview.dimensions = last_good.scene_dimensions;
+        preview_store.preview.playback.pause_points_s = last_good.pause_points_s();
     }
 
     let mut status = if has_source_load_failure(&document_store.source.document.diagnostics) {

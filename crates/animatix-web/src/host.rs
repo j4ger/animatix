@@ -202,6 +202,7 @@ pub fn build_document_with_modules(
                     }],
                     missing_imports: vec![missing.display().to_string()],
                     markers: Vec::new(),
+                    pause_points: Vec::new(),
                 },
             };
         },
@@ -256,6 +257,8 @@ pub fn build_document_with_modules(
 
     let (duration_s, width, height) = document_extent(&target);
     let markers = timeline_markers(&expanded, &target);
+    let pause_points: Vec<f64> =
+        target.pause_points().iter().map(|&ms| ms as f64 / 1000.0).collect();
     let ok = !diagnostics.iter().any(|d| d.severity == "error");
     // A build that produced error diagnostics still parses, so a `BuildTarget`
     // exists — but it is not a document the shell may install. Handing it over
@@ -277,6 +280,7 @@ pub fn build_document_with_modules(
             diagnostics,
             missing_imports: Vec::new(),
             markers,
+            pause_points,
         },
     }
 }
@@ -340,6 +344,13 @@ fn timeline_markers(stmts: &[Stmt], target: &BuildTarget) -> Vec<MarkerDto> {
                 }
             }
         },
+    }
+    for &ms in target.pause_points() {
+        markers.push(MarkerDto {
+            t: ms as f64 / 1000.0,
+            kind: "step".to_string(),
+            dur: 0.0,
+        });
     }
     markers.sort_by(|a, b| a.t.partial_cmp(&b.t).unwrap_or(std::cmp::Ordering::Equal));
     markers.dedup_by(|a, b| a.kind == b.kind && (a.t - b.t).abs() < 1e-6);
@@ -407,6 +418,7 @@ fn built_failure(diagnostics: Vec<DiagnosticDto>) -> BuiltDocument {
             diagnostics,
             missing_imports: Vec::new(),
             markers: Vec::new(),
+            pause_points: Vec::new(),
         },
     }
 }
@@ -709,6 +721,26 @@ fade-in pic [300ms]
         assert_eq!(ts, sorted);
         assert!(ts.iter().all(|t| *t >= 0.0 && *t <= doc.result.duration_s + 1e-6));
         let _ = kinds;
+    }
+
+    #[test]
+    fn load_result_exposes_step_pause_points_and_markers() {
+        let source = r#"
+#0s
+t: Text, text: "Step 0", at: (10, 10)
+#step 1
+#500ms
+#pause
+#1s
+#step 2
+"#;
+        let doc = build_document(source, Arc::new(FontContext::new()), BuildQuality::Draft);
+        assert!(doc.result.ok, "build diagnostics: {:?}", doc.result.diagnostics);
+        assert_eq!(doc.result.pause_points, vec![0.0, 0.5, 1.0]);
+
+        let step_markers: Vec<f64> =
+            doc.result.markers.iter().filter(|m| m.kind == "step").map(|m| m.t).collect();
+        assert_eq!(step_markers, vec![0.0, 0.5, 1.0]);
     }
 
     #[test]

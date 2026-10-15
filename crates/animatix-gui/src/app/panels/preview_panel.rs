@@ -13,6 +13,124 @@ use crate::app::panels::{RULER_SIZE, nice_tick_interval};
 pub(crate) use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, ToolMode, fit_preview, selection};
 
+/// Floating Presentation HUD: pill hovering at the bottom center of the canvas in presentation mode.
+fn presentation_hud_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui, canvas_rect: egui::Rect) {
+    use egui_phosphor::regular as icons;
+
+    let pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+    let is_hovered = pointer_pos.map(|p| canvas_rect.contains(p)).unwrap_or(false);
+    let is_paused_at_step = ctx.preview.playback.paused_at_step || !ctx.preview.playback.is_playing;
+
+    // Show HUD when hovered or when playback is paused at a step
+    if !is_hovered && !is_paused_at_step {
+        return;
+    }
+
+    let theme = eparts::theme(ui);
+    let hud_width = 300.0_f32.min(canvas_rect.width() - 24.0);
+    let hud_height = 36.0;
+
+    if hud_width < 120.0 {
+        return;
+    }
+
+    let hud_rect = egui::Rect::from_center_size(
+        egui::pos2(canvas_rect.center().x, canvas_rect.max.y - 28.0),
+        egui::vec2(hud_width, hud_height),
+    );
+
+    // Elevated shadow
+    ui.painter()
+        .add(theme.elevation.overlay.as_shape(hud_rect, egui::CornerRadius::same(18)));
+
+    // Obsidian glassmorphic pill background
+    ui.painter().rect_filled(hud_rect, 18.0, theme.palette.overlay.floating_hud_bg);
+
+    // Border
+    ui.painter().rect_stroke(
+        hud_rect,
+        18.0,
+        egui::Stroke::new(1.0, theme.palette.border.subtle),
+        egui::StrokeKind::Inside,
+    );
+
+    let inner_rect = hud_rect.shrink2(egui::vec2(10.0, 2.0));
+    ui.scope_builder(egui::UiBuilder::new().max_rect(inner_rect), |ui| {
+        ui.horizontal_centered(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+
+            // Previous step button
+            let prev_btn = ui.add(
+                Button::ghost("")
+                    .with_icon(icons::CARET_LEFT)
+                    .with_tooltip("Previous step (PageUp / Left-Arrow / Right-Click)"),
+            );
+            if prev_btn.clicked() {
+                ctx.commands.push_back(PlaybackCommand::StepPrevious.into());
+            }
+
+            // Step counter / status
+            let pause_pts = &ctx.preview.playback.pause_points_s;
+            let step_label = if pause_pts.is_empty() {
+                format!(
+                    "{:.1}s / {:.1}s",
+                    ctx.preview.playback.current_time_s, ctx.preview.playback.duration_s
+                )
+            } else {
+                let total_steps = pause_pts.len() + 1;
+                let current_step = pause_pts
+                    .iter()
+                    .filter(|&&p| p <= ctx.preview.playback.current_time_s + 1e-4)
+                    .count()
+                    + 1;
+                format!("Step {} / {}", current_step, total_steps)
+            };
+
+            let label_color = if is_paused_at_step {
+                theme.palette.status.success
+            } else {
+                theme.palette.text.primary
+            };
+
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(step_label)
+                        .font(TextRole::Body.font_id())
+                        .color(label_color),
+                )
+                .selectable(false),
+            );
+
+            // Next / Play button
+            let play_icon = if ctx.preview.playback.is_playing {
+                icons::PAUSE
+            } else {
+                icons::PLAY
+            };
+            let next_btn = ui.add(
+                Button::ghost("")
+                    .with_icon(play_icon)
+                    .with_tooltip("Next step (Space / PageDown / Click)"),
+            );
+            if next_btn.clicked() {
+                ctx.commands.push_back(PlaybackCommand::StepNext.into());
+            }
+
+            toolbar_separator(ui);
+
+            // Exit button
+            let exit_btn = ui.add(
+                Button::ghost("Exit")
+                    .with_icon(icons::X)
+                    .with_tooltip("Exit Presentation Mode (Esc / F5)"),
+            );
+            if exit_btn.clicked() {
+                ctx.commands.push_back(PlaybackCommand::TogglePresentationMode.into());
+            }
+        });
+    });
+}
+
 /// Floating Tool Island HUD: an elevated pill hovering over the preview canvas (design doc §12.2).
 fn preview_floating_hud_ui(
     ctx: &mut PreviewContext<'_>,
@@ -275,13 +393,16 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
         .inner_margin(egui::Margin::ZERO)
         .show(ui, |ui| {
             ui.vertical(|ui| {
+                let in_presentation = ctx.preview.playback.presentation_mode;
+                let ruler_size = if in_presentation { 0.0 } else { RULER_SIZE };
+
                 // Handle fit-zoom request from the global toolbar.
                 if ctx.preview.fit_zoom_requested {
                     ctx.preview.fit_zoom_requested = false;
                     let avail = ui.available_size_before_wrap();
                     let preview_avail = Vec2::new(
-                        (avail.x - RULER_SIZE).max(200.0),
-                        (avail.y - RULER_SIZE).max(180.0),
+                        (avail.x - ruler_size).max(200.0),
+                        (avail.y - ruler_size).max(180.0),
                     );
                     let desired = fit_preview(ctx.scene_dimensions, preview_avail);
                     ctx.preview.viewport.preview_zoom =
@@ -294,273 +415,299 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                 let available = ui.available_size_before_wrap();
                 let preview_available = Vec2::new(
-                    (available.x - RULER_SIZE).max(200.0),
-                    (available.y - RULER_SIZE).max(180.0),
+                    (available.x - ruler_size).max(200.0),
+                    (available.y - ruler_size).max(180.0),
                 );
                 let desired = fit_preview(ctx.scene_dimensions, preview_available);
-                let total_size = desired + Vec2::new(RULER_SIZE, RULER_SIZE);
+                let total_size = desired + Vec2::new(ruler_size, ruler_size);
                 let (total_rect, _) = ui.allocate_exact_size(total_size, egui::Sense::hover());
                 let preview_rect = egui::Rect::from_min_size(
-                    egui::pos2(total_rect.min.x + RULER_SIZE, total_rect.min.y + RULER_SIZE),
+                    egui::pos2(total_rect.min.x + ruler_size, total_rect.min.y + ruler_size),
                     desired,
                 );
                 let response = ui.allocate_rect(preview_rect, egui::Sense::click_and_drag());
-                ui.painter().rect_stroke(
-                    preview_rect,
-                    RADIUS_L,
-                    egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
-                    egui::StrokeKind::Outside,
-                );
-                ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.surface.base);
+                if !in_presentation {
+                    ui.painter().rect_stroke(
+                        preview_rect,
+                        RADIUS_L,
+                        egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default),
+                        egui::StrokeKind::Outside,
+                    );
+                    ui.painter().rect_filled(preview_rect, RADIUS_L, theme.palette.surface.base);
+                } else {
+                    ui.painter().rect_filled(preview_rect, 0.0, theme.palette.surface.base);
+                }
 
                 // ── Rulers ──
-                let ruler_bg = theme.palette.surface.panel;
-                let ruler_tick_color = theme.palette.text.muted;
-                let ruler_text_color = theme.palette.text.muted;
-                let ruler_label_color = theme.palette.text.secondary;
+                if !in_presentation {
+                    let ruler_bg = theme.palette.surface.panel;
+                    let ruler_tick_color = theme.palette.text.muted;
+                    let ruler_text_color = theme.palette.text.muted;
+                    let ruler_label_color = theme.palette.text.secondary;
 
-                let h_ruler_rect = egui::Rect::from_min_size(
-                    egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
-                    Vec2::new(preview_rect.width(), RULER_SIZE),
-                );
-                let v_ruler_rect = egui::Rect::from_min_size(
-                    egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
-                    Vec2::new(RULER_SIZE, preview_rect.height()),
-                );
-                let corner_rect = egui::Rect::from_min_size(
-                    egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y - RULER_SIZE),
-                    Vec2::new(RULER_SIZE, RULER_SIZE),
-                );
-                let ruler_stroke = egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
+                    let h_ruler_rect = egui::Rect::from_min_size(
+                        egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
+                        Vec2::new(preview_rect.width(), RULER_SIZE),
+                    );
+                    let v_ruler_rect = egui::Rect::from_min_size(
+                        egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
+                        Vec2::new(RULER_SIZE, preview_rect.height()),
+                    );
+                    let corner_rect = egui::Rect::from_min_size(
+                        egui::pos2(
+                            preview_rect.min.x - RULER_SIZE,
+                            preview_rect.min.y - RULER_SIZE,
+                        ),
+                        Vec2::new(RULER_SIZE, RULER_SIZE),
+                    );
+                    let ruler_stroke =
+                        egui::Stroke::new(STROKE_WIDTH, theme.palette.border.default);
 
-                ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
-                ui.painter()
-                    .rect_stroke(corner_rect, 0.0, ruler_stroke, egui::StrokeKind::Outside);
+                    ui.painter().rect_filled(corner_rect, 0.0, ruler_bg);
+                    ui.painter().rect_stroke(
+                        corner_rect,
+                        0.0,
+                        ruler_stroke,
+                        egui::StrokeKind::Outside,
+                    );
 
-                let scene_tl = preview_screen_to_scene(
-                    ctx.scene_dimensions,
-                    preview_rect,
-                    preview_rect.left_top(),
-                    ctx.preview.viewport.preview_zoom,
-                    ctx.preview.viewport.preview_pan,
-                );
-                let scene_br = preview_screen_to_scene(
-                    ctx.scene_dimensions,
-                    preview_rect,
-                    preview_rect.right_bottom(),
-                    ctx.preview.viewport.preview_zoom,
-                    ctx.preview.viewport.preview_pan,
-                );
-                let visible_w = (scene_br.x - scene_tl.x) as f32;
-                let visible_h = (scene_br.y - scene_tl.y) as f32;
-
-                // Horizontal ruler
-                ui.painter().rect_filled(h_ruler_rect, 0.0, ruler_bg);
-                ui.painter().rect_stroke(
-                    h_ruler_rect,
-                    0.0,
-                    ruler_stroke,
-                    egui::StrokeKind::Outside,
-                );
-                let h_interval =
-                    nice_tick_interval(visible_w, h_ruler_rect.width() / 60.0).max(1.0);
-                let h_start = ((scene_tl.x as f32) / h_interval).floor() as i32 * h_interval as i32;
-                let h_end = ((scene_br.x as f32) / h_interval).ceil() as i32 * h_interval as i32;
-                let mut tick_x = h_start as f32;
-                while tick_x <= h_end as f32 {
-                    let screen_pt = preview_scene_to_screen(
+                    let scene_tl = preview_screen_to_scene(
                         ctx.scene_dimensions,
                         preview_rect,
-                        kurbo::Point::new(tick_x as f64, scene_tl.y),
+                        preview_rect.left_top(),
                         ctx.preview.viewport.preview_zoom,
                         ctx.preview.viewport.preview_pan,
                     );
-                    if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
-                        let rel_x = screen_pt.x - h_ruler_rect.min.x;
-                        let is_major = (tick_x as i32) % (h_interval as i32 * 5) == 0;
-                        let tick_h = if is_major {
-                            RULER_SIZE * 0.6
-                        } else {
-                            RULER_SIZE * 0.3
-                        };
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y),
-                                egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y - tick_h),
-                            ],
-                            egui::Stroke::new(
-                                STROKE_WIDTH,
-                                if is_major {
-                                    ruler_label_color
-                                } else {
-                                    ruler_tick_color
-                                },
-                            ),
-                        );
-                        if is_major {
-                            ui.painter().text(
-                                egui::pos2(
-                                    h_ruler_rect.min.x + rel_x,
-                                    h_ruler_rect.min.y + RULER_SIZE * 0.3,
-                                ),
-                                egui::Align2::CENTER_CENTER,
-                                format!("{}", tick_x as i32),
-                                TextRole::Micro.font_id(),
-                                ruler_text_color,
-                            );
-                        }
-                    }
-                    tick_x += h_interval;
-                }
-
-                // Vertical ruler
-                ui.painter().rect_filled(v_ruler_rect, 0.0, ruler_bg);
-                ui.painter().rect_stroke(
-                    v_ruler_rect,
-                    0.0,
-                    ruler_stroke,
-                    egui::StrokeKind::Outside,
-                );
-                let v_interval =
-                    nice_tick_interval(visible_h, v_ruler_rect.height() / 60.0).max(1.0);
-                let v_start = ((scene_tl.y as f32) / v_interval).floor() as i32 * v_interval as i32;
-                let v_end = ((scene_br.y as f32) / v_interval).ceil() as i32 * v_interval as i32;
-                let mut tick_y = v_start as f32;
-                while tick_y <= v_end as f32 {
-                    let screen_pt = preview_scene_to_screen(
+                    let scene_br = preview_screen_to_scene(
                         ctx.scene_dimensions,
                         preview_rect,
-                        kurbo::Point::new(scene_tl.x, tick_y as f64),
+                        preview_rect.right_bottom(),
                         ctx.preview.viewport.preview_zoom,
                         ctx.preview.viewport.preview_pan,
                     );
-                    if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
-                        let rel_y = screen_pt.y - v_ruler_rect.min.y;
-                        let is_major = (tick_y as i32) % (v_interval as i32 * 5) == 0;
-                        let tick_w = if is_major {
-                            RULER_SIZE * 0.6
-                        } else {
-                            RULER_SIZE * 0.3
-                        };
-                        ui.painter().line_segment(
-                            [
-                                egui::pos2(v_ruler_rect.max.x, v_ruler_rect.min.y + rel_y),
-                                egui::pos2(v_ruler_rect.max.x - tick_w, v_ruler_rect.min.y + rel_y),
-                            ],
-                            egui::Stroke::new(
-                                STROKE_WIDTH,
-                                if is_major {
-                                    ruler_label_color
-                                } else {
-                                    ruler_tick_color
-                                },
-                            ),
+                    let visible_w = (scene_br.x - scene_tl.x) as f32;
+                    let visible_h = (scene_br.y - scene_tl.y) as f32;
+
+                    // Horizontal ruler
+                    ui.painter().rect_filled(h_ruler_rect, 0.0, ruler_bg);
+                    ui.painter().rect_stroke(
+                        h_ruler_rect,
+                        0.0,
+                        ruler_stroke,
+                        egui::StrokeKind::Outside,
+                    );
+                    let h_interval =
+                        nice_tick_interval(visible_w, h_ruler_rect.width() / 60.0).max(1.0);
+                    let h_start =
+                        ((scene_tl.x as f32) / h_interval).floor() as i32 * h_interval as i32;
+                    let h_end =
+                        ((scene_br.x as f32) / h_interval).ceil() as i32 * h_interval as i32;
+                    let mut tick_x = h_start as f32;
+                    while tick_x <= h_end as f32 {
+                        let screen_pt = preview_scene_to_screen(
+                            ctx.scene_dimensions,
+                            preview_rect,
+                            kurbo::Point::new(tick_x as f64, scene_tl.y),
+                            ctx.preview.viewport.preview_zoom,
+                            ctx.preview.viewport.preview_pan,
                         );
-                        if is_major {
-                            ui.painter().text(
-                                egui::pos2(
-                                    v_ruler_rect.min.x + RULER_SIZE * 0.3,
-                                    v_ruler_rect.min.y + rel_y,
+                        if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
+                            let rel_x = screen_pt.x - h_ruler_rect.min.x;
+                            let is_major = (tick_x as i32) % (h_interval as i32 * 5) == 0;
+                            let tick_h = if is_major {
+                                RULER_SIZE * 0.6
+                            } else {
+                                RULER_SIZE * 0.3
+                            };
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(h_ruler_rect.min.x + rel_x, h_ruler_rect.max.y),
+                                    egui::pos2(
+                                        h_ruler_rect.min.x + rel_x,
+                                        h_ruler_rect.max.y - tick_h,
+                                    ),
+                                ],
+                                egui::Stroke::new(
+                                    STROKE_WIDTH,
+                                    if is_major {
+                                        ruler_label_color
+                                    } else {
+                                        ruler_tick_color
+                                    },
                                 ),
-                                egui::Align2::CENTER_CENTER,
-                                format!("{}", tick_y as i32),
-                                TextRole::Micro.font_id(),
-                                ruler_text_color,
                             );
-                        }
-                    }
-                    tick_y += v_interval;
-                }
-
-                // ── Ruler drag interaction ──
-                let ruler_drag_id = ui.id().with("guide_ruler_drag_v2");
-                let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-                let h_ruler_resp = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
-                let v_ruler_resp = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
-
-                if h_ruler_resp.drag_started() {
-                    if let Some(mouse) = raw_pointer_pos {
-                        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        ui.data_mut(|d| {
-                            d.insert_temp(ruler_drag_id, Some((false, scene.y as f32, mouse)))
-                        });
-                    }
-                }
-                if v_ruler_resp.drag_started() {
-                    if let Some(mouse) = raw_pointer_pos {
-                        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        ui.data_mut(|d| {
-                            d.insert_temp(ruler_drag_id, Some((true, scene.x as f32, mouse)))
-                        });
-                    }
-                }
-
-                let ruler_drag_active: Option<(bool, f32, egui::Pos2)> =
-                    ui.data(|d| d.get_temp(ruler_drag_id));
-                if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
-                    if let Some(mouse) = raw_pointer_pos {
-                        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                        let guide_color = theme.palette.status.warning;
-                        if is_vertical {
-                            let ghost_screen = ctx.preview_scene_to_screen(
-                                preview_rect,
-                                kurbo::Point::new(scene.x, 0.0),
-                            );
-                            if ghost_screen.x >= preview_rect.min.x
-                                && ghost_screen.x <= preview_rect.max.x
-                            {
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(ghost_screen.x, preview_rect.min.y),
-                                        egui::pos2(ghost_screen.x, preview_rect.max.y),
-                                    ],
-                                    egui::Stroke::new(STROKE_WIDTH, guide_color),
-                                );
-                            }
-                        } else {
-                            let ghost_screen = ctx.preview_scene_to_screen(
-                                preview_rect,
-                                kurbo::Point::new(0.0, scene.y),
-                            );
-                            if ghost_screen.y >= preview_rect.min.y
-                                && ghost_screen.y <= preview_rect.max.y
-                            {
-                                ui.painter().line_segment(
-                                    [
-                                        egui::pos2(preview_rect.min.x, ghost_screen.y),
-                                        egui::pos2(preview_rect.max.x, ghost_screen.y),
-                                    ],
-                                    egui::Stroke::new(STROKE_WIDTH, guide_color),
+                            if is_major {
+                                ui.painter().text(
+                                    egui::pos2(
+                                        h_ruler_rect.min.x + rel_x,
+                                        h_ruler_rect.min.y + RULER_SIZE * 0.3,
+                                    ),
+                                    egui::Align2::CENTER_CENTER,
+                                    format!("{}", tick_x as i32),
+                                    TextRole::Micro.font_id(),
+                                    ruler_text_color,
                                 );
                             }
                         }
+                        tick_x += h_interval;
                     }
-                }
 
-                let pointer_released = ui.input(|i| i.pointer.any_released());
-                if let Some((is_vertical, _start_val, start_pos)) = ruler_drag_active {
-                    if pointer_released
-                        || h_ruler_resp.drag_stopped()
-                        || v_ruler_resp.drag_stopped()
-                    {
+                    // Vertical ruler
+                    ui.painter().rect_filled(v_ruler_rect, 0.0, ruler_bg);
+                    ui.painter().rect_stroke(
+                        v_ruler_rect,
+                        0.0,
+                        ruler_stroke,
+                        egui::StrokeKind::Outside,
+                    );
+                    let v_interval =
+                        nice_tick_interval(visible_h, v_ruler_rect.height() / 60.0).max(1.0);
+                    let v_start =
+                        ((scene_tl.y as f32) / v_interval).floor() as i32 * v_interval as i32;
+                    let v_end =
+                        ((scene_br.y as f32) / v_interval).ceil() as i32 * v_interval as i32;
+                    let mut tick_y = v_start as f32;
+                    while tick_y <= v_end as f32 {
+                        let screen_pt = preview_scene_to_screen(
+                            ctx.scene_dimensions,
+                            preview_rect,
+                            kurbo::Point::new(scene_tl.x, tick_y as f64),
+                            ctx.preview.viewport.preview_zoom,
+                            ctx.preview.viewport.preview_pan,
+                        );
+                        if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
+                            let rel_y = screen_pt.y - v_ruler_rect.min.y;
+                            let is_major = (tick_y as i32) % (v_interval as i32 * 5) == 0;
+                            let tick_w = if is_major {
+                                RULER_SIZE * 0.6
+                            } else {
+                                RULER_SIZE * 0.3
+                            };
+                            ui.painter().line_segment(
+                                [
+                                    egui::pos2(v_ruler_rect.max.x, v_ruler_rect.min.y + rel_y),
+                                    egui::pos2(
+                                        v_ruler_rect.max.x - tick_w,
+                                        v_ruler_rect.min.y + rel_y,
+                                    ),
+                                ],
+                                egui::Stroke::new(
+                                    STROKE_WIDTH,
+                                    if is_major {
+                                        ruler_label_color
+                                    } else {
+                                        ruler_tick_color
+                                    },
+                                ),
+                            );
+                            if is_major {
+                                ui.painter().text(
+                                    egui::pos2(
+                                        v_ruler_rect.min.x + RULER_SIZE * 0.3,
+                                        v_ruler_rect.min.y + rel_y,
+                                    ),
+                                    egui::Align2::CENTER_CENTER,
+                                    format!("{}", tick_y as i32),
+                                    TextRole::Micro.font_id(),
+                                    ruler_text_color,
+                                );
+                            }
+                        }
+                        tick_y += v_interval;
+                    }
+
+                    // ── Ruler drag interaction ──
+                    let ruler_drag_id = ui.id().with("guide_ruler_drag_v2");
+                    let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+                    let h_ruler_resp = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
+                    let v_ruler_resp = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
+
+                    if h_ruler_resp.drag_started() {
                         if let Some(mouse) = raw_pointer_pos {
-                            // Require at least 5 px of movement to avoid accidental clicks
-                            let dragged_far_enough = (mouse - start_pos).length() >= 5.0;
-                            if dragged_far_enough && preview_rect.contains(mouse) {
-                                let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                                if is_vertical {
-                                    ctx.preview.guides.vertical_guides.push(scene.x as f32);
-                                } else {
-                                    ctx.preview.guides.horizontal_guides.push(scene.y as f32);
+                            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                            ui.data_mut(|d| {
+                                d.insert_temp(ruler_drag_id, Some((false, scene.y as f32, mouse)))
+                            });
+                        }
+                    }
+                    if v_ruler_resp.drag_started() {
+                        if let Some(mouse) = raw_pointer_pos {
+                            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                            ui.data_mut(|d| {
+                                d.insert_temp(ruler_drag_id, Some((true, scene.x as f32, mouse)))
+                            });
+                        }
+                    }
+
+                    let ruler_drag_active: Option<(bool, f32, egui::Pos2)> =
+                        ui.data(|d| d.get_temp(ruler_drag_id));
+                    if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
+                        if let Some(mouse) = raw_pointer_pos {
+                            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                            let guide_color = theme.palette.status.warning;
+                            if is_vertical {
+                                let ghost_screen = ctx.preview_scene_to_screen(
+                                    preview_rect,
+                                    kurbo::Point::new(scene.x, 0.0),
+                                );
+                                if ghost_screen.x >= preview_rect.min.x
+                                    && ghost_screen.x <= preview_rect.max.x
+                                {
+                                    ui.painter().line_segment(
+                                        [
+                                            egui::pos2(ghost_screen.x, preview_rect.min.y),
+                                            egui::pos2(ghost_screen.x, preview_rect.max.y),
+                                        ],
+                                        egui::Stroke::new(STROKE_WIDTH, guide_color),
+                                    );
+                                }
+                            } else {
+                                let ghost_screen = ctx.preview_scene_to_screen(
+                                    preview_rect,
+                                    kurbo::Point::new(0.0, scene.y),
+                                );
+                                if ghost_screen.y >= preview_rect.min.y
+                                    && ghost_screen.y <= preview_rect.max.y
+                                {
+                                    ui.painter().line_segment(
+                                        [
+                                            egui::pos2(preview_rect.min.x, ghost_screen.y),
+                                            egui::pos2(preview_rect.max.x, ghost_screen.y),
+                                        ],
+                                        egui::Stroke::new(STROKE_WIDTH, guide_color),
+                                    );
                                 }
                             }
                         }
-                        ui.data_mut(|d| d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id));
+                    }
+
+                    let pointer_released = ui.input(|i| i.pointer.any_released());
+                    if let Some((is_vertical, _start_val, start_pos)) = ruler_drag_active {
+                        if pointer_released
+                            || h_ruler_resp.drag_stopped()
+                            || v_ruler_resp.drag_stopped()
+                        {
+                            if let Some(mouse) = raw_pointer_pos {
+                                // Require at least 5 px of movement to avoid accidental clicks
+                                let dragged_far_enough = (mouse - start_pos).length() >= 5.0;
+                                if dragged_far_enough && preview_rect.contains(mouse) {
+                                    let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                                    if is_vertical {
+                                        ctx.preview.guides.vertical_guides.push(scene.x as f32);
+                                    } else {
+                                        ctx.preview.guides.horizontal_guides.push(scene.y as f32);
+                                    }
+                                }
+                            }
+                            ui.data_mut(|d| {
+                                d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id)
+                            });
+                        }
                     }
                 }
 
                 // ── Draw existing guides ──
-                if ctx.preview.overlay.show_guides {
+                if !in_presentation && ctx.preview.overlay.show_guides {
                     let guide_color = theme.palette.status.warning;
                     for &guide_y in &ctx.preview.guides.horizontal_guides {
                         let screen_pt = ctx.preview_scene_to_screen(
@@ -665,85 +812,100 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 ctx.preview.snap.snap_line_color = None;
                 ctx.preview.snap.snap_hud_label = None;
 
-                // ── Time Lens ──
-                let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
-                let t_held = !wants_keyboard
-                    && ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
+                let is_dragging = !matches!(ctx.drag_state, DragState::None);
 
-                let all_kf = if t_held {
-                    let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
-                        tl.root_actor_labels()
-                            .iter()
-                            .flat_map(|label| {
-                                tl.get_track(label)
-                                    .map(animatix::timeline::collect_all_keyframe_times)
-                                    .unwrap_or_default()
-                            })
-                            .collect()
+                if !in_presentation {
+                    // ── Time Lens ──
+                    let wants_keyboard = ui.ctx().egui_wants_keyboard_input();
+                    let t_held = !wants_keyboard
+                        && ui.input(|i| i.key_pressed(egui::Key::T) || i.key_down(egui::Key::T));
+
+                    let all_kf = if t_held {
+                        let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
+                            tl.root_actor_labels()
+                                .iter()
+                                .flat_map(|label| {
+                                    tl.get_track(label)
+                                        .map(animatix::timeline::collect_all_keyframe_times)
+                                        .unwrap_or_default()
+                                })
+                                .collect()
+                        } else {
+                            Vec::new()
+                        };
+                        all_kf
+                            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                        all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+                        all_kf
                     } else {
                         Vec::new()
                     };
-                    all_kf.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-                    all_kf.dedup_by(|a, b| (*a - *b).abs() < 0.001);
-                    all_kf
-                } else {
-                    Vec::new()
-                };
-                if let Some(new_time) = ctx.preview.time_lens.update_and_show(
-                    ui,
-                    ctx.preview.playback.current_time_s(),
-                    ctx.preview.playback.duration_s,
-                    &all_kf,
-                ) {
-                    ctx.commands.push_back(PlaybackCommand::ScrubTo(new_time).into());
-                }
+                    if let Some(new_time) = ctx.preview.time_lens.update_and_show(
+                        ui,
+                        ctx.preview.playback.current_time_s(),
+                        ctx.preview.playback.duration_s,
+                        &all_kf,
+                    ) {
+                        ctx.commands.push_back(PlaybackCommand::ScrubTo(new_time).into());
+                    }
 
-                let is_dragging = !matches!(ctx.drag_state, DragState::None);
-                crate::app::preview::gesture_router::GestureRouter::handle_preview_gestures(
-                    ctx,
-                    ui,
-                    preview_rect,
-                    &response,
-                );
-
-                let pointer_pos = ui
-                    .ctx()
-                    .input(|i| i.pointer.latest_pos())
-                    .filter(|p| preview_rect.contains(*p));
-                let scene_dimensions = ctx.scene_dimensions;
-                let zoom = ctx.preview.viewport.preview_zoom;
-                let pan = ctx.preview.viewport.preview_pan;
-                let screen_to_scene = move |screen: egui::Pos2| {
-                    preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan)
-                };
-
-                if !ctx.selection.context_menu_open {
-                    let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = ctx
-                        .hit_regions
-                        .iter()
-                        .filter(|(label, _)| {
-                            !ctx.timeline
-                                .and_then(|t| t.get_track(label))
-                                .map(|tr| tr.locked)
-                                .unwrap_or(false)
-                        })
-                        .cloned()
-                        .collect();
-                    selection::update_hover(
-                        ctx.selection,
-                        &unlocked_hit_regions,
-                        pointer_pos,
-                        screen_to_scene,
-                        is_dragging,
+                    crate::app::preview::gesture_router::GestureRouter::handle_preview_gestures(
+                        ctx,
+                        ui,
+                        preview_rect,
+                        &response,
                     );
-                } else {
-                    ctx.selection.hovered_actor = None;
+
+                    let pointer_pos = ui
+                        .ctx()
+                        .input(|i| i.pointer.latest_pos())
+                        .filter(|p| preview_rect.contains(*p));
+                    let scene_dimensions = ctx.scene_dimensions;
+                    let zoom = ctx.preview.viewport.preview_zoom;
+                    let pan = ctx.preview.viewport.preview_pan;
+                    let screen_to_scene = move |screen: egui::Pos2| {
+                        preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan)
+                    };
+
+                    if !ctx.selection.context_menu_open {
+                        let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = ctx
+                            .hit_regions
+                            .iter()
+                            .filter(|(label, _)| {
+                                !ctx.timeline
+                                    .and_then(|t| t.get_track(label))
+                                    .map(|tr| tr.locked)
+                                    .unwrap_or(false)
+                            })
+                            .cloned()
+                            .collect();
+                        selection::update_hover(
+                            ctx.selection,
+                            &unlocked_hit_regions,
+                            pointer_pos,
+                            screen_to_scene,
+                            is_dragging,
+                        );
+                    } else {
+                        ctx.selection.hovered_actor = None;
+                    }
+
+                    ctx.handle_preview_selection(ui, preview_rect, &response);
+                    ctx.render_preview_cursor_feedback(ui, preview_rect);
+                    ctx.render_preview_overlays(ui, preview_rect);
                 }
 
-                ctx.handle_preview_selection(ui, preview_rect, &response);
-                ctx.render_preview_cursor_feedback(ui, preview_rect);
-                ctx.render_preview_overlays(ui, preview_rect);
                 ctx.render_preview_content(ui, preview_rect);
+
+                if in_presentation {
+                    if response.clicked() {
+                        ctx.commands.push_back(PlaybackCommand::StepNext.into());
+                    } else if response.secondary_clicked() {
+                        ctx.commands.push_back(PlaybackCommand::StepPrevious.into());
+                    }
+                    presentation_hud_ui(ctx, ui, preview_rect);
+                    return;
+                }
 
                 let overlay_tx = ctx.preview_transform(preview_rect);
 

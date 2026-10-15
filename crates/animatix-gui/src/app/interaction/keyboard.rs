@@ -215,6 +215,9 @@ pub enum KeyboardAction {
     NextKeyframe,
     FrameStepForward,
     FrameStepBackward,
+    StepNext,
+    StepPrevious,
+    TogglePresentationMode,
 
     // Actor editing
     DuplicateSelection,
@@ -471,6 +474,30 @@ impl ShortcutRegistry {
                 name: "Step Forward 1 Frame",
                 scope: ShortcutScope::Canvas,
                 action: KeyboardAction::FrameStepForward,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::PageDown),
+            Shortcut {
+                name: "Step Next",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::StepNext,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::PageUp),
+            Shortcut {
+                name: "Step Previous",
+                scope: ShortcutScope::Canvas,
+                action: KeyboardAction::StepPrevious,
+            },
+        );
+        self.register(
+            KeyboardShortcut::new(Modifiers::NONE, Key::F5),
+            Shortcut {
+                name: "Toggle Presentation Mode",
+                scope: ShortcutScope::Global,
+                action: KeyboardAction::TogglePresentationMode,
             },
         );
         // Selection editing (Canvas)

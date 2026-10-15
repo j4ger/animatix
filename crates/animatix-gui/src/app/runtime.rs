@@ -374,10 +374,32 @@ impl AnimatixApp {
                     self.shell.ui_store.pending_actions.push_back(DocumentCommand::Rebuild.into());
                 },
                 KeyboardAction::TogglePlayback => {
+                    if self.shell.preview_store.preview.playback.presentation_mode {
+                        self.shell
+                            .ui_store
+                            .pending_actions
+                            .push_back(PlaybackCommand::StepNext.into());
+                    } else {
+                        self.shell
+                            .ui_store
+                            .pending_actions
+                            .push_back(PlaybackCommand::TogglePlayback.into());
+                    }
+                },
+                KeyboardAction::StepNext => {
+                    self.shell.ui_store.pending_actions.push_back(PlaybackCommand::StepNext.into());
+                },
+                KeyboardAction::StepPrevious => {
                     self.shell
                         .ui_store
                         .pending_actions
-                        .push_back(PlaybackCommand::TogglePlayback.into());
+                        .push_back(PlaybackCommand::StepPrevious.into());
+                },
+                KeyboardAction::TogglePresentationMode => {
+                    self.shell
+                        .ui_store
+                        .pending_actions
+                        .push_back(PlaybackCommand::TogglePresentationMode.into());
                 },
                 KeyboardAction::PrevKeyframe => {
                     self.shell
@@ -501,7 +523,13 @@ impl AnimatixApp {
                     self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
                 },
                 KeyboardAction::Escape => {
-                    if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None) {
+                    if self.shell.preview_store.preview.playback.presentation_mode {
+                        self.shell
+                            .ui_store
+                            .pending_actions
+                            .push_back(PlaybackCommand::TogglePresentationMode.into());
+                    } else if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None)
+                    {
                         self.shell.ui_store.interaction.drag_state = DragState::None;
                         self.shell.preview_store.preview.status = "Drag cancelled".to_string();
                     } else if self.shell.ui_store.view.tool_mode != ToolMode::Select {
@@ -541,7 +569,19 @@ impl AnimatixApp {
                 },
                 KeyboardAction::NudgeSelected { dx, dy } => {
                     let scrub_step_s = self.shell.ui_store.scrub_step_s;
-                    if has_selection {
+                    if self.shell.preview_store.preview.playback.presentation_mode {
+                        if *dx > 0.0 {
+                            self.shell
+                                .ui_store
+                                .pending_actions
+                                .push_back(PlaybackCommand::StepNext.into());
+                        } else if *dx < 0.0 {
+                            self.shell
+                                .ui_store
+                                .pending_actions
+                                .push_back(PlaybackCommand::StepPrevious.into());
+                        }
+                    } else if has_selection {
                         let shift_pressed = ctx.input(|i| i.modifiers.shift);
                         let nudge_step = if shift_pressed {
                             self.shell.ui_store.nudge_step_shift_px

@@ -49,6 +49,12 @@
 //              also unlocks the stage from its aspect-ratio box so the
 //              picture fills whatever box the page gives the element (the
 //              full-bleed hero). Design cover scenes with a safe center.
+//   presentation  presentation/slideshow mode: automatically pauses at each
+//              `#step` or `#pause` marker. Clicking the canvas, pressing Space /
+//              Right Arrow / PageDown / Enter or using a presenter clicker
+//              resumes playback towards the next step (or snaps immediately
+//              to it if in-flight). Left Arrow / PageUp rewinds to the
+//              previous step; 'f' toggles fullscreen, 'b' toggles blackout.
 //
 // The engine directories come from the loader <script>'s `data-runtime-base`
 // (absolute, or relative to the page). A value ending in `pkg`/`pkg-slim` is
@@ -378,6 +384,7 @@ class AmxPlayerElement extends HTMLElement {
     "aspect",
     "profile",
     "quality",
+    "presentation",
   ];
 
   constructor() {
@@ -405,6 +412,9 @@ class AmxPlayerElement extends HTMLElement {
     this._scrubbing = false;
     this._rate = 1;
     this._markers = [];
+    this._pausePoints = [];
+    this._pausedAtStep = false;
+    this._blackout = false;
     this._marks = null;
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
@@ -696,6 +706,19 @@ class AmxPlayerElement extends HTMLElement {
       .strip .diamond.snapped {
         background: #f5b942; transform: translate(-50%, -50%) rotate(45deg) scale(1.3);
         box-shadow: 0 0 8px rgba(245,185,66,0.8);
+      }
+      .strip .step {
+        position: absolute; top: -4px; bottom: -4px; width: 3px;
+        transform: translateX(-50%);
+        background: #34d399; border-radius: 1px;
+        pointer-events: none; transition: background 0.15s, transform 0.15s, box-shadow 0.15s;
+      }
+      .strip .step.snapped {
+        background: #f5b942; transform: translateX(-50%) scaleY(1.3);
+        box-shadow: 0 0 8px rgba(52,211,153,0.8);
+      }
+      .stage.blackout canvas {
+        opacity: 0 !important;
       }
       .strip .span {
         position: absolute; top: 0; bottom: 0;
@@ -1047,6 +1070,9 @@ class AmxPlayerElement extends HTMLElement {
       }
     }
     this._markers = Array.isArray(result.markers) ? result.markers : [];
+    this._pausePoints = Array.isArray(result.pause_points)
+      ? result.pause_points.slice().sort((a, b) => a - b)
+      : [];
     this._configureCycle();
     const strip = this.shadowRoot?.querySelector(".strip");
     if (strip) strip.setAttribute("aria-valuemax", String(this._duration));
@@ -1135,7 +1161,7 @@ class AmxPlayerElement extends HTMLElement {
       // If autoplaying: seed at t = 0 so playback starts cleanly without
       // flashing the finished poster frame. Otherwise: show finished frame.
       const willAutoplay = this._shouldAutoplay();
-      if (willAutoplay) {
+      if (willAutoplay || this._isPresentation()) {
         this._time = 0;
         this._restTime = 0;
       } else {
@@ -1147,6 +1173,9 @@ class AmxPlayerElement extends HTMLElement {
       // Timeline landmarks for the scrubber (keyframes, scene starts,
       // transition windows) — the engine knows them, so the bar can show them.
       this._markers = Array.isArray(result.markers) ? result.markers : [];
+      this._pausePoints = Array.isArray(result.pause_points)
+        ? result.pause_points.slice().sort((a, b) => a - b)
+        : [];
 
       // Swap skeleton for canvas with a smooth crossfade
       this._canvas.hidden = false;
@@ -1396,7 +1425,7 @@ class AmxPlayerElement extends HTMLElement {
         marks.appendChild(span);
       } else {
         const mark = document.createElement("div");
-        mark.className = m.kind === "scene" ? "diamond" : "tick";
+        mark.className = m.kind === "scene" ? "diamond" : (m.kind === "step" ? "step" : "tick");
         mark.style.left = `${frac * 100}%`;
         mark.dataset.t = String(m.t);
         marks.appendChild(mark);
@@ -1472,7 +1501,11 @@ class AmxPlayerElement extends HTMLElement {
       this._canvas.focus({ preventScroll: true });
 
       if (e.pointerType === "mouse") {
-        this.togglePlay(true);
+        if (this._isPresentation()) {
+          this.stepNext();
+        } else {
+          this.togglePlay(true);
+        }
         e.preventDefault();
         return;
       }
@@ -1488,7 +1521,13 @@ class AmxPlayerElement extends HTMLElement {
         const rect = this._canvas.getBoundingClientRect();
         const relX = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5;
 
-        if (relX < 0.35) {
+        if (this._isPresentation()) {
+          if (relX < 0.35) {
+            this.stepPrev();
+          } else {
+            this.stepNext();
+          }
+        } else if (relX < 0.35) {
           const prev = this._nextLandmark(-1);
           this.seek(prev);
           this._triggerSkipHud("« Keyframe", false);
@@ -1504,7 +1543,11 @@ class AmxPlayerElement extends HTMLElement {
         this._lastTapX = e.clientX;
         clearTimeout(this._singleTapTimer);
         this._singleTapTimer = setTimeout(() => {
-          this.togglePlay(true);
+          if (this._isPresentation()) {
+            this.stepNext();
+          } else {
+            this.togglePlay(true);
+          }
         }, 280);
       }
       e.preventDefault();
@@ -1516,6 +1559,51 @@ class AmxPlayerElement extends HTMLElement {
   _handleKeyDown(e) {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable)) {
       return;
+    }
+    if (this._isPresentation()) {
+      if (
+        e.key === " " ||
+        e.key === "ArrowRight" ||
+        e.key === "PageDown" ||
+        e.key === "Enter" ||
+        e.key === "n" ||
+        e.key === "N"
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.stepNext();
+        return;
+      }
+      if (
+        e.key === "ArrowLeft" ||
+        e.key === "PageUp" ||
+        e.key === "p" ||
+        e.key === "P" ||
+        e.key === "Backspace"
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.stepPrev();
+        return;
+      }
+      if (e.key === "b" || e.key === "B") {
+        e.preventDefault();
+        e.stopPropagation();
+        this._blackout = !this._blackout;
+        this._stage.classList.toggle("blackout", this._blackout);
+        this._triggerSkipHud(this._blackout ? "Blackout" : "Resume", true);
+        return;
+      }
+      if (e.key === "f" || e.key === "F") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!document.fullscreenElement) {
+          this.requestFullscreen?.().catch(() => {});
+        } else {
+          document.exitFullscreen?.().catch(() => {});
+        }
+        return;
+      }
     }
     if (e.key === " " || e.key === "k" || e.key === "K") {
       e.preventDefault();
@@ -1623,13 +1711,85 @@ class AmxPlayerElement extends HTMLElement {
     ensureLoop();
   }
 
+  _isPresentation() {
+    return this.hasAttribute("presentation") || this.getAttribute("mode") === "presentation";
+  }
+
+  get presentation() {
+    return this._isPresentation();
+  }
+
+  set presentation(val) {
+    if (val) {
+      this.setAttribute("presentation", "");
+    } else {
+      this.removeAttribute("presentation");
+    }
+  }
+
+  get pausePoints() {
+    return [...this._pausePoints];
+  }
+
+  /// Advance to the next presentation pause point, or resume playing towards it.
+  stepNext() {
+    if (this._state !== "ready") return;
+    const nextP = this._pausePoints.find((p) => p > this._time + 0.005);
+    if (nextP !== undefined) {
+      if (this._playing) {
+        // Fast-forward immediately to the target step and pause
+        this.seek(nextP);
+        this.pause();
+        this._triggerStepHud();
+      } else {
+        // Resume playing towards nextP
+        this._pausedAtStep = false;
+        this.play();
+        this._triggerSkipHud("Step »", true);
+      }
+    } else if (this._time >= this._duration) {
+      this.seek(0);
+      this._pausedAtStep = false;
+      this.play();
+      this._triggerSkipHud("Restart", true);
+    } else {
+      this._pausedAtStep = false;
+      this.play();
+      this._triggerSkipHud("End »", true);
+    }
+  }
+
+  /// Step backward to the previous presentation pause point.
+  stepPrev() {
+    if (this._state !== "ready") return;
+    const prevP = [...this._pausePoints].reverse().find((p) => p < this._time - 0.005);
+    if (prevP !== undefined) {
+      this.seek(prevP);
+      this.pause();
+      this._triggerStepHud();
+    } else {
+      this.seek(0);
+      this.pause();
+      this._triggerSkipHud("« Start", false);
+    }
+  }
+
+  _triggerStepHud() {
+    const stepIdx = this._pausePoints.findIndex((p) => Math.abs(p - this._time) < 0.02);
+    const text = stepIdx >= 0
+      ? `Step ${stepIdx + 1} / ${this._pausePoints.length}`
+      : "Paused";
+    this._triggerSkipHud(text, true);
+  }
+
   pause() {
     this._playing = false;
     instances.delete(this);
     if (this._state === "ready") {
       // Without the control bar the center affordance is the only way back —
-      // except for a sealed embed, where the page is the way back.
-      if (!this._controls && !this._isSealed() && !this.hasAttribute("autoplay")) {
+      // except for a sealed embed, where the page is the way back, or in
+      // presentation mode where slides rest cleanly without an obscuring overlay.
+      if (!this._controls && !this._isSealed() && !this.hasAttribute("autoplay") && !this._isPresentation()) {
         this._playbtn.classList.add("show");
       }
       this._syncControls();
@@ -1684,7 +1844,25 @@ class AmxPlayerElement extends HTMLElement {
     if (this._scrubbing) return false;
     const looping = this._looping();
     const limit = looping ? this._cycle : this._duration;
-    this._time += dt * (this._rate ?? 1);
+    const oldTime = this._time;
+    const dtEff = dt * (this._rate ?? 1);
+    const nextTime = oldTime + dtEff;
+
+    if (this._isPresentation() && this._pausePoints.length > 0) {
+      const nextPause = this._pausePoints.find((p) => p > oldTime + 1e-4 && p <= nextTime + 1e-4);
+      if (nextPause !== undefined) {
+        this._time = nextPause;
+        this._restTime = nextPause;
+        this._pausedAtStep = true;
+        this.pause();
+        this._renderScene();
+        if (this._controls) this._syncControls();
+        this._triggerStepHud();
+        return false;
+      }
+    }
+
+    this._time = nextTime;
     if (this._time >= limit) {
       if (looping) {
         this._time %= limit;

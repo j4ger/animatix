@@ -6,6 +6,9 @@ pub enum PlaybackCommand {
     NextKeyframe,
     FrameStepForward,
     FrameStepBackward,
+    StepNext,
+    StepPrevious,
+    TogglePresentationMode,
     ToggleEditorSync,
     EditorChanged,
 }
@@ -19,6 +22,9 @@ impl From<PlaybackCommand> for super::Command {
             PlaybackCommand::NextKeyframe => super::Command::NextKeyframe,
             PlaybackCommand::FrameStepForward => super::Command::FrameStepForward,
             PlaybackCommand::FrameStepBackward => super::Command::FrameStepBackward,
+            PlaybackCommand::StepNext => super::Command::StepNext,
+            PlaybackCommand::StepPrevious => super::Command::StepPrevious,
+            PlaybackCommand::TogglePresentationMode => super::Command::TogglePresentationMode,
             PlaybackCommand::ToggleEditorSync => super::Command::ToggleEditorSync,
             PlaybackCommand::EditorChanged => super::Command::EditorChanged,
         }

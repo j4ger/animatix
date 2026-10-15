@@ -318,6 +318,9 @@ pub enum Command {
     NextKeyframe,
     FrameStepForward,
     FrameStepBackward,
+    StepNext,
+    StepPrevious,
+    TogglePresentationMode,
 
     // ── Scene ─────────────────────────────────────────────────────────
     SelectScene(String),

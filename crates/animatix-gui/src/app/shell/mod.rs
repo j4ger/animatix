@@ -131,6 +131,19 @@ impl GuiShell {
                 &mut self.preview_store,
                 &self.ui_store,
             ),
+            Command::StepNext => playback::handle_step_next(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &self.ui_store,
+            ),
+            Command::StepPrevious => playback::handle_step_previous(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &self.ui_store,
+            ),
+            Command::TogglePresentationMode => {
+                playback::handle_toggle_presentation_mode(&mut self.preview_store)
+            },
             Command::SelectScene(scene) => {
                 self.ui_store.selection.selection.clear_tapped_place();
                 self.ui_store.selection.selected_keyframes.clear();

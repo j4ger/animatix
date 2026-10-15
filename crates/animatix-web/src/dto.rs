@@ -42,13 +42,13 @@ impl DiagnosticDto {
 }
 
 /// One structural landmark on the document's timeline, for the embed's
-/// scrubber. Points (`keyframe`, `scene`) carry `dur == 0`; `transition`
+/// scrubber. Points (`keyframe`, `scene`, `step`) carry `dur == 0`; `transition`
 /// markers span `[t, t + dur]`.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct MarkerDto {
     /// Global time in seconds.
     pub t: f64,
-    /// "keyframe" | "scene" | "transition".
+    /// "keyframe" | "scene" | "transition" | "step".
     pub kind: String,
     /// Span length in seconds (transitions only, else 0).
     pub dur: f64,
@@ -71,9 +71,11 @@ pub struct LoadResultDto {
     /// again — the closure loop that lets a page play scenes importing
     /// `.amx` files beyond the bundled library. Empty on every other outcome.
     pub missing_imports: Vec<String>,
-    /// Timeline landmarks (keyframes, scene starts, transition windows),
+    /// Timeline landmarks (keyframes, scene starts, transition windows, step marks),
     /// sorted by time — the scrubber draws them and snaps to them.
     pub markers: Vec<MarkerDto>,
+    /// Interactive pause points in seconds, sorted by time.
+    pub pause_points: Vec<f64>,
 }
 
 /// Frame-dedup counters, for measuring the raster skip rather than assuming it:
