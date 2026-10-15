@@ -114,6 +114,7 @@ impl GuiShell {
                             egui::vec2(ui.available_width(), sp.base.row_m),
                             Button::ghost(item.label.clone())
                                 .with_icon(item.icon)
+                                .left_aligned()
                                 .active(is_selected),
                         );
                         if resp.clicked() {

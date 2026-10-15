@@ -1,6 +1,6 @@
 use egui::{Color32, Response, Sense, Vec2, WidgetInfo, WidgetType};
 
-use crate::tokens::spatial::{RADIUS_S, ROW_M, STROKE_WIDTH};
+use crate::tokens::spatial::{RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
@@ -11,6 +11,16 @@ use crate::{density, spatial};
 // ── Button types ──
 // eparts principle 3: default arrow cursor for buttons, pointer only for links.
 // egui's Sense::click() would otherwise show a PointingHand on hover — overridden below.
+
+/// Content alignment within a button when allocated more width than its natural size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ButtonAlign {
+    /// Center content (icon + label) horizontally (default).
+    #[default]
+    Center,
+    /// Align content to the left padding.
+    Left,
+}
 
 /// Variant of button behavior and appearance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,6 +52,7 @@ pub struct Button {
     tooltip: &'static str,
     disabled: bool,
     active: bool,
+    align: ButtonAlign,
     icon_color: Option<Color32>,
     hover_icon_color: Option<Color32>,
     on_hover: Option<Box<dyn FnOnce()>>,
@@ -58,6 +69,7 @@ impl Button {
             tooltip: "",
             disabled: false,
             active: false,
+            align: ButtonAlign::Center,
             icon_color: None,
             hover_icon_color: None,
             on_hover: None,
@@ -163,6 +175,18 @@ impl Button {
         self.size = size;
         self
     }
+
+    /// Align button contents to the left padding (useful for full-width menu/palette items).
+    pub fn left_aligned(mut self) -> Self {
+        self.align = ButtonAlign::Left;
+        self
+    }
+
+    /// Set horizontal alignment of the button contents.
+    pub fn with_align(mut self, align: ButtonAlign) -> Self {
+        self.align = align;
+        self
+    }
 }
 
 impl Sizable for Button {
@@ -236,8 +260,10 @@ impl egui::Widget for Button {
                     &slot_group.normal
                 };
 
+                let painter = ui.painter().with_clip_rect(rect);
+
                 if slot.bg != Color32::TRANSPARENT {
-                    ui.painter().rect_filled(rect, radius, slot.bg);
+                    painter.rect_filled(rect, radius, slot.bg);
                 }
 
                 if !self.loading {
@@ -253,7 +279,7 @@ impl egui::Widget for Button {
                     let y_shift = if is_pressed { 1.0 } else { 0.0 };
 
                     if let Some(i) = self.icon {
-                        ui.painter().text(
+                        painter.text(
                             rect.center() + Vec2::new(0.0, y_shift),
                             egui::Align2::CENTER_CENTER,
                             i,
@@ -264,7 +290,7 @@ impl egui::Widget for Button {
                 }
 
                 if !self.loading && !self.disabled && response.has_focus() {
-                    ui.painter().rect_stroke(
+                    painter.rect_stroke(
                         rect.shrink(1.0),
                         radius,
                         egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
@@ -285,21 +311,37 @@ impl egui::Widget for Button {
             ButtonVariant::Ghost => {
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
                 let pad_x = self.size.pad_x_for(d);
-                let mut width = pad_x * 2.0;
-                if icon_width > 0.0 {
-                    width += icon_width + pad_x;
-                }
+                let gap = if icon_width > 0.0 && label.is_some() {
+                    SPACE_3
+                } else {
+                    0.0
+                };
                 let mut label_galley = None;
+                let mut label_width = 0.0;
                 if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
                         l.to_string(),
                         label_font.clone(),
                         t.palette.text.primary,
                     );
-                    width += galley.size().x;
+                    label_width = galley.size().x;
                     label_galley = Some(galley);
                 }
-                let size = Vec2::new(width.max(row_height), row_height);
+
+                let content_width = if icon_width > 0.0 && label.is_some() {
+                    icon_width + gap + label_width
+                } else if icon_width > 0.0 {
+                    icon_width
+                } else {
+                    label_width
+                };
+
+                let natural_width = if label.is_none() && icon_width > 0.0 {
+                    row_height.max(icon_width + pad_x * 2.0)
+                } else {
+                    content_width + pad_x * 2.0
+                };
+                let size = Vec2::new(natural_width, row_height);
                 let sense = if self.loading {
                     Sense::hover()
                 } else {
@@ -320,8 +362,10 @@ impl egui::Widget for Button {
                     &slot_group.normal
                 };
 
+                let painter = ui.painter().with_clip_rect(rect);
+
                 if slot.bg != Color32::TRANSPARENT {
-                    ui.painter().rect_filled(rect, radius, slot.bg);
+                    painter.rect_filled(rect, radius, slot.bg);
                 }
 
                 if self.active && !self.loading && !self.disabled {
@@ -329,7 +373,7 @@ impl egui::Widget for Button {
                         egui::pos2(rect.min.x + 4.0, rect.max.y - 2.0),
                         Vec2::new(rect.width() - 8.0, 2.0),
                     );
-                    ui.painter().rect_filled(accent_rect, RADIUS_S, slot.border);
+                    painter.rect_filled(accent_rect, RADIUS_S, slot.border);
                 }
 
                 if !self.loading {
@@ -343,22 +387,34 @@ impl egui::Widget for Button {
 
                     let is_pressed = response.is_pointer_button_down_on();
                     let y_shift = if is_pressed { 1.0 } else { 0.0 };
-                    let mut cursor_x = rect.min.x + pad_x;
                     let baseline_y = rect.center().y + y_shift;
 
+                    let start_x = match self.align {
+                        ButtonAlign::Center => {
+                            rect.min.x + ((rect.width() - content_width) * 0.5).max(pad_x)
+                        },
+                        ButtonAlign::Left => rect.min.x + pad_x,
+                    };
+                    let mut cursor_x = start_x;
+
                     if let Some(icon) = self.icon {
-                        ui.painter().text(
-                            egui::pos2(cursor_x + icon_width / 2.0, baseline_y),
+                        let icon_y = if label.is_some() {
+                            baseline_y + 1.0
+                        } else {
+                            baseline_y
+                        };
+                        painter.text(
+                            egui::pos2(cursor_x + icon_width / 2.0, icon_y),
                             egui::Align2::CENTER_CENTER,
                             icon,
                             icon_font,
                             icon_color,
                         );
-                        cursor_x += icon_width + pad_x;
+                        cursor_x += icon_width + gap;
                     }
 
                     if let Some(galley) = label_galley {
-                        ui.painter().galley(
+                        painter.galley(
                             egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
                             galley,
                             slot.fg,
@@ -367,7 +423,7 @@ impl egui::Widget for Button {
                 }
 
                 if !self.loading && !self.disabled && response.has_focus() {
-                    ui.painter().rect_stroke(
+                    painter.rect_stroke(
                         rect.shrink(1.0),
                         radius,
                         egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
@@ -393,23 +449,38 @@ impl egui::Widget for Button {
                     _ => unreachable!(),
                 };
                 let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let mut width = self.size.pad_x_for(d) * 2.0;
-                if icon_width > 0.0 {
-                    width += icon_width;
-                    if label.is_some() {
-                        width += self.size.pad_x_for(d);
-                    }
-                }
-                let label_str = label;
-                if let Some(l) = label_str {
+                let pad_x = self.size.pad_x_for(d);
+                let gap = if icon_width > 0.0 && label.is_some() {
+                    SPACE_3
+                } else {
+                    0.0
+                };
+                let mut label_galley = None;
+                let mut label_width = 0.0;
+                if let Some(l) = label {
                     let galley = ui.painter().layout_no_wrap(
                         l.to_string(),
                         label_font.clone(),
                         t.palette.text.primary,
                     );
-                    width += galley.size().x;
+                    label_width = galley.size().x;
+                    label_galley = Some(galley);
                 }
-                let size = Vec2::new(width.max(row_height), row_height);
+
+                let content_width = if icon_width > 0.0 && label.is_some() {
+                    icon_width + gap + label_width
+                } else if icon_width > 0.0 {
+                    icon_width
+                } else {
+                    label_width
+                };
+
+                let natural_width = if label.is_none() && icon_width > 0.0 {
+                    row_height.max(icon_width + pad_x * 2.0)
+                } else {
+                    content_width + pad_x * 2.0
+                };
+                let size = Vec2::new(natural_width, row_height);
                 let sense = if self.loading {
                     Sense::hover()
                 } else {
@@ -429,8 +500,9 @@ impl egui::Widget for Button {
 
                 let is_pressed = response.is_pointer_button_down_on();
                 let y_shift = if is_pressed { 1.0 } else { 0.0 };
+                let painter = ui.painter().with_clip_rect(rect);
 
-                ui.painter().rect_filled(rect, radius, slot.bg);
+                painter.rect_filled(rect, radius, slot.bg);
 
                 // Subtle top rim highlight for tactile elevated chassis
                 if !is_pressed && !self.disabled && radius >= 1.0 {
@@ -438,12 +510,18 @@ impl egui::Widget for Button {
                         egui::pos2(rect.min.x + radius * 0.5, rect.min.y),
                         egui::pos2(rect.max.x - radius * 0.5, rect.min.y + 1.0),
                     );
-                    ui.painter().rect_filled(top_edge, 0.5, t.palette.border.rim_highlight);
+                    painter.rect_filled(top_edge, 0.5, t.palette.border.rim_highlight);
                 }
 
                 if !self.loading {
-                    let mut cursor_x = rect.min.x + self.size.pad_x_for(d);
                     let baseline_y = rect.center().y + y_shift;
+                    let start_x = match self.align {
+                        ButtonAlign::Center => {
+                            rect.min.x + ((rect.width() - content_width) * 0.5).max(pad_x)
+                        },
+                        ButtonAlign::Left => rect.min.x + pad_x,
+                    };
+                    let mut cursor_x = start_x;
 
                     if icon_width > 0.0 {
                         if let Some(icon) = self.icon {
@@ -454,33 +532,33 @@ impl egui::Widget for Button {
                             } else {
                                 self.icon_color.unwrap_or(slot.fg)
                             };
-                            ui.painter().text(
-                                egui::pos2(cursor_x + icon_width / 2.0, baseline_y),
+                            let icon_y = if label.is_some() {
+                                baseline_y + 1.0
+                            } else {
+                                baseline_y
+                            };
+                            painter.text(
+                                egui::pos2(cursor_x + icon_width / 2.0, icon_y),
                                 egui::Align2::CENTER_CENTER,
                                 icon,
                                 icon_font,
                                 icon_fg,
                             );
-                            cursor_x += icon_width;
-                            if label_str.is_some() {
-                                cursor_x += self.size.pad_x_for(d);
-                            }
+                            cursor_x += icon_width + gap;
                         }
                     }
 
-                    if let Some(l) = label_str {
-                        ui.painter().text(
-                            egui::pos2(cursor_x, baseline_y),
-                            egui::Align2::LEFT_CENTER,
-                            l.to_string(),
-                            label_font,
+                    if let Some(galley) = label_galley {
+                        painter.galley(
+                            egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+                            galley,
                             slot.fg,
                         );
                     }
                 }
 
                 if !self.loading && !self.disabled && response.has_focus() {
-                    ui.painter().rect_stroke(
+                    painter.rect_stroke(
                         rect.shrink(1.0),
                         radius,
                         egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
@@ -603,5 +681,15 @@ mod tests {
     fn size_default_is_md() {
         let b = Button::primary("Save");
         assert_eq!(b.size, Size::Md);
+    }
+
+    #[test]
+    fn align_defaults_to_center_and_supports_left() {
+        let b = Button::primary("Save");
+        assert_eq!(b.align, ButtonAlign::Center);
+        let b_left = Button::primary("Save").left_aligned();
+        assert_eq!(b_left.align, ButtonAlign::Left);
+        let b_custom = Button::ghost("Option").with_align(ButtonAlign::Left);
+        assert_eq!(b_custom.align, ButtonAlign::Left);
     }
 }

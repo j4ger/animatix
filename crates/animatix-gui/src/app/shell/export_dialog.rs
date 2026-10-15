@@ -6,7 +6,7 @@ use eparts::{Button, Checkbox, NumberField, ProgressBar, TextField};
 
 use crate::app::GuiShell;
 use crate::app::components::{TabBar, Tag, layout};
-use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, RADIUS_XL, STROKE_WIDTH};
+use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_XL, STROKE_WIDTH};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::document::export_target::ExportScope;
 use crate::app::utils::text::{truncate_chars, truncate_middle};
@@ -459,17 +459,7 @@ impl GuiShell {
             // ── Shared export presets ──
             Self::settings_row(ui, "Presets", |ui| {
                 for preset in animatix_render::encode::ExportPreset::ALL {
-                    let resp = ui.add(
-                        egui::Button::new(
-                            RichText::new(preset.name)
-                                .size(TextRole::Micro.size())
-                                .color(theme.palette.text.secondary),
-                        )
-                        .fill(theme.palette.surface.widget)
-                        .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
-                        .corner_radius(RADIUS_S)
-                        .small(),
-                    );
+                    let resp = ui.add(Button::secondary(preset.name).with_size(eparts::Size::Sm));
                     if resp.clicked() {
                         *width = preset.width;
                         *height = preset.height;
@@ -482,18 +472,11 @@ impl GuiShell {
                 ui.add_space(sp.base.space_2);
 
                 let reset = ui.add(
-                    egui::Button::new(
-                        RichText::new(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
-                            .size(TextRole::Micro.size())
-                            .color(theme.palette.text.secondary),
-                    )
-                    .fill(theme.palette.surface.widget)
-                    .stroke(Stroke::new(STROKE_WIDTH, theme.palette.border.default))
-                    .corner_radius(RADIUS_S)
-                    .small(),
-                );
-                let reset = reset.on_hover_text(
-                    "Restore the encoding settings (keeps the format, scope and output path)",
+                    Button::icon(egui_phosphor::regular::ARROW_COUNTER_CLOCKWISE)
+                        .with_size(eparts::Size::Sm)
+                        .with_tooltip(
+                            "Restore the encoding settings (keeps the format, scope and output path)",
+                        ),
                 );
                 if reset.clicked() {
                     let defaults = ExportDialogState::default();

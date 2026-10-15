@@ -27,7 +27,7 @@ pub use tokens::theme_registry::{ThemeRegistry, ThemeRegistryError};
 pub use tokens::theme_registry_watcher::{ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 #[cfg(feature = "theme-json")]
 pub use tokens::theme_watcher::{ThemeWatcher, ThemeWatcherEvent};
-pub use widget::button::Button;
+pub use widget::button::{Button, ButtonAlign};
 pub use widget::color_picker::ColorPicker;
 pub use widget::diagnostics::DiagnosticEntry;
 // ── Feedback / status widgets ──────────────────────────────────────
@@ -68,7 +68,7 @@ pub mod prelude {
     pub use crate::tokens::theme::{AppThemeChoice, Theme, set_theme, theme, theme_from_ctx};
     pub use crate::tokens::typography::TextRole;
     // Widgets
-    pub use crate::widget::button::Button;
+    pub use crate::widget::button::{Button, ButtonAlign};
     pub use crate::widget::color_picker::ColorPicker;
     pub use crate::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Tag};
     pub use crate::widget::input::{NumberField, TextField};
@@ -101,6 +101,7 @@ mod export_tests {
     #[test]
     fn root_exports_expected_widgets() {
         assert_type_exists::<crate::Button>();
+        assert_type_exists::<crate::ButtonAlign>();
         assert_type_exists::<crate::Select<'static>>();
         assert_type_exists::<crate::Popover>();
         assert_type_exists::<crate::Kbd>();

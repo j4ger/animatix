@@ -333,6 +333,7 @@ fn render_timeline_zoom_bar(
                 .add(
                     Button::ghost("")
                         .with_icon(egui_phosphor::regular::MINUS)
+                        .with_size(eparts::Size::Sm)
                         .with_tooltip("Zoom out (Ctrl+wheel)"),
                 )
                 .clicked()
@@ -347,6 +348,7 @@ fn render_timeline_zoom_bar(
                 .add(
                     Button::ghost("")
                         .with_icon(egui_phosphor::regular::PLUS)
+                        .with_size(eparts::Size::Sm)
                         .with_tooltip("Zoom in (Ctrl+wheel)"),
                 )
                 .clicked()
@@ -1854,10 +1856,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     ui.strong(format!("{} selected keyframes", track_selected.len()));
                     ui.separator();
                     if ui
-                        .add(Button::danger(format!(
-                            "{} Delete selected",
-                            egui_phosphor::regular::TRASH
-                        )))
+                        .add(
+                            Button::danger("Delete selected")
+                                .with_icon(egui_phosphor::regular::TRASH),
+                        )
                         .clicked()
                     {
                         // One batched command → one undo step.

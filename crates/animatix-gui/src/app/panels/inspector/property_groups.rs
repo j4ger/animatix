@@ -875,7 +875,7 @@ pub(crate) fn render_property_row(
             ui.strong(format!("Keyframe @ {:.2}s", current_time_s));
             ui.separator();
             if ui
-                .add(Button::danger(format!("{} Delete", egui_phosphor::regular::TRASH)))
+                .add(Button::danger("Delete").with_icon(egui_phosphor::regular::TRASH))
                 .clicked()
             {
                 commands.push_back(

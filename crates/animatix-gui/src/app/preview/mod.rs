@@ -698,14 +698,13 @@ pub(super) fn draw_callout_standoff_handle(
 // ─── Preview Helpers ────────────────────────────────────────────────────────────
 
 pub(super) fn fit_preview(dimensions: SceneDimensions, available: Vec2) -> Vec2 {
-    let aspect = if dimensions.width == 0 || dimensions.height == 0 {
-        DEFAULT_PREVIEW_SIZE.width as f32 / DEFAULT_PREVIEW_SIZE.height as f32
+    let (scene_w, scene_h) = if dimensions.width == 0 || dimensions.height == 0 {
+        (DEFAULT_PREVIEW_SIZE.width as f32, DEFAULT_PREVIEW_SIZE.height as f32)
     } else {
-        dimensions.width as f32 / dimensions.height as f32
+        (dimensions.width as f32, dimensions.height as f32)
     };
-    // Prioritize using all available height; compute width from aspect ratio.
-    // This maximizes the preview surface area while preserving aspect ratio.
-    Vec2::new(available.y * aspect, available.y)
+    let scale = (available.x / scene_w).min(available.y / scene_h);
+    Vec2::new(scene_w * scale, scene_h * scale)
 }
 
 #[cfg(test)]
@@ -941,5 +940,24 @@ mod tests {
                 pair[1]
             );
         }
+    }
+
+    #[test]
+    fn test_fit_preview_containment() {
+        let dims = SceneDimensions {
+            width: 1920,
+            height: 1080,
+        };
+        // Wide window: height constrained
+        let size_wide = fit_preview(dims, Vec2::new(1600.0, 600.0));
+        assert!(size_wide.x <= 1600.0 + 1e-4);
+        assert!(size_wide.y <= 600.0 + 1e-4);
+        assert!((size_wide.x / size_wide.y - 1920.0 / 1080.0).abs() < 1e-4);
+
+        // Tall window: width constrained
+        let size_tall = fit_preview(dims, Vec2::new(800.0, 900.0));
+        assert!(size_tall.x <= 800.0 + 1e-4);
+        assert!(size_tall.y <= 900.0 + 1e-4);
+        assert!((size_tall.x / size_tall.y - 1920.0 / 1080.0).abs() < 1e-4);
     }
 }

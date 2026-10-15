@@ -1268,12 +1268,8 @@ fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut egui::Ui) {
                 .sense(egui::Sense::click_and_drag())
                 .right(|ui| {
                     let jump_btn = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new(egui_phosphor::regular::ARROW_SQUARE_OUT)
-                                .size(TextRole::Micro.size())
-                                .color(t.palette.text.muted),
-                        )
-                        .frame(false),
+                        Button::icon(egui_phosphor::regular::ARROW_SQUARE_OUT)
+                            .with_size(eparts::Size::Sm),
                     );
                     text_tooltip(ui, jump_btn.id.with("jump_tip"), &jump_btn, "Jump to definition");
                     if jump_btn.clicked() {

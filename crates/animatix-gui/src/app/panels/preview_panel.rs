@@ -399,32 +399,32 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                 // Handle fit-zoom request from the global toolbar.
                 if ctx.preview.fit_zoom_requested {
                     ctx.preview.fit_zoom_requested = false;
-                    let avail = ui.available_size_before_wrap();
-                    let preview_avail = Vec2::new(
-                        (avail.x - ruler_size).max(200.0),
-                        (avail.y - ruler_size).max(180.0),
-                    );
-                    let desired = fit_preview(ctx.scene_dimensions, preview_avail);
-                    ctx.preview.viewport.preview_zoom =
-                        desired.x / ctx.scene_dimensions.width as f32;
+                    ctx.preview.viewport.preview_zoom = 1.0;
                     ctx.preview.viewport.preview_pan = Vec2::new(
                         ctx.scene_dimensions.width as f32 / 2.0,
                         ctx.scene_dimensions.height as f32 / 2.0,
                     );
                 }
 
-                let available = ui.available_size_before_wrap();
+                let avail_rect = ui.available_rect_before_wrap();
+                let avail_size = avail_rect.size();
                 let preview_available = Vec2::new(
-                    (available.x - ruler_size).max(200.0),
-                    (available.y - ruler_size).max(180.0),
+                    (avail_size.x - ruler_size).max(10.0),
+                    (avail_size.y - ruler_size).max(10.0),
                 );
                 let desired = fit_preview(ctx.scene_dimensions, preview_available);
                 let total_size = desired + Vec2::new(ruler_size, ruler_size);
-                let (total_rect, _) = ui.allocate_exact_size(total_size, egui::Sense::hover());
+
+                let offset_x = ((avail_size.x - total_size.x) * 0.5).max(0.0);
+                let offset_y = ((avail_size.y - total_size.y) * 0.5).max(0.0);
+                let total_origin =
+                    egui::pos2(avail_rect.min.x + offset_x, avail_rect.min.y + offset_y);
+                let total_rect = egui::Rect::from_min_size(total_origin, total_size);
                 let preview_rect = egui::Rect::from_min_size(
                     egui::pos2(total_rect.min.x + ruler_size, total_rect.min.y + ruler_size),
                     desired,
                 );
+                let _ = ui.allocate_rect(avail_rect, egui::Sense::hover());
                 let response = ui.allocate_rect(preview_rect, egui::Sense::click_and_drag());
                 if !in_presentation {
                     ui.painter().rect_stroke(
